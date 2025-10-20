@@ -238,19 +238,17 @@ pub struct AuthPlugin {
     name: String,
     state: Arc<RwLock<PluginState>>,
     auth_manager: Option<AuthManager>,
-    jwt_secret_bytes: Vec<u8>,
     jwt_expiry_hours: i64,
 }
 
 impl AuthPlugin {
     /// Create new auth plugin
     #[must_use]
-    pub fn new(jwt_secret_bytes: Vec<u8>, jwt_expiry_hours: i64) -> Self {
+    pub fn new(jwt_expiry_hours: i64) -> Self {
         Self {
             name: "auth".to_string(),
             state: Arc::new(RwLock::new(PluginState::Uninitialized)),
             auth_manager: None,
-            jwt_secret_bytes,
             jwt_expiry_hours,
         }
     }
@@ -289,10 +287,7 @@ impl Plugin for AuthPlugin {
     async fn initialize(&mut self) -> Result<()> {
         *self.state.write().expect("Lock poisoned") = PluginState::Initializing;
 
-        self.auth_manager = Some(AuthManager::new(
-            self.jwt_secret_bytes.clone(),
-            self.jwt_expiry_hours,
-        ));
+        self.auth_manager = Some(AuthManager::new(self.jwt_expiry_hours));
         *self.state.write().expect("Lock poisoned") = PluginState::Ready;
 
         Ok(())

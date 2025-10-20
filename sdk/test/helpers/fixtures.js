@@ -166,8 +166,8 @@ const MCPResponses = {
  * Test configuration
  */
 const TestConfig = {
-  defaultServerPort: 8888,
-  defaultServerUrl: 'http://localhost:8888',
+  defaultServerPort: parseInt(process.env.HTTP_PORT || process.env.MCP_PORT || '8081', 10),
+  defaultServerUrl: `http://localhost:${parseInt(process.env.HTTP_PORT || process.env.MCP_PORT || '8081', 10)}`,
   testEncryptionKey: 'rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo=',
   testDatabase: 'sqlite::memory:',
   healthCheckTimeout: 30000,

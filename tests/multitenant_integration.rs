@@ -151,9 +151,11 @@
     clippy::zero_sized_map_values
 )]
 
+mod common;
+
 use anyhow::Result;
 use pierre_mcp_server::{
-    auth::{generate_jwt_secret, AuthManager},
+    auth::AuthManager,
     constants::oauth_providers,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
@@ -172,10 +174,9 @@ async fn test_multitenant_auth_flow() -> Result<()> {
     let db_path = temp_dir.path().join("test.db");
     let database_url = format!("sqlite:{}", db_path.display());
     let encryption_key = generate_encryption_key().to_vec();
-    let jwt_secret = generate_jwt_secret().to_vec();
 
     let database = Database::new(&database_url, encryption_key).await?;
-    let auth_manager = AuthManager::new(jwt_secret, 24);
+    let auth_manager = AuthManager::new(24);
 
     // Create minimal config for ServerResources
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
@@ -285,6 +286,7 @@ async fn test_multitenant_auth_flow() -> Result<()> {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -358,8 +360,9 @@ async fn test_multitenant_auth_flow() -> Result<()> {
     assert_eq!(login_response.user.email, "test@multitenant.com");
     assert_eq!(login_response.user.user_id, register_response.user_id);
 
-    // Test JWT token validation
-    let claims = auth_manager.validate_token(&login_response.jwt_token)?;
+    // Test JWT token validation using the same JWKS manager that generated the token
+    let claims =
+        auth_manager.validate_token(&login_response.jwt_token, &server_resources.jwks_manager)?;
     assert_eq!(claims.email, "test@multitenant.com");
     assert_eq!(claims.sub, register_response.user_id);
 
@@ -449,7 +452,7 @@ async fn test_database_encryption() -> Result<()> {
 /// Test JWT authentication edge cases
 #[tokio::test]
 async fn test_jwt_edge_cases() -> Result<()> {
-    let auth_manager = AuthManager::new(generate_jwt_secret().to_vec(), 1); // 1 hour expiry
+    let auth_manager = AuthManager::new(1); // 1 hour expiry
 
     let user = pierre_mcp_server::models::User::new(
         "jwt@test.com".to_string(),
@@ -458,25 +461,26 @@ async fn test_jwt_edge_cases() -> Result<()> {
     );
 
     // Test token generation and validation
-    let token = auth_manager.generate_token(&user)?;
-    let claims = auth_manager.validate_token(&token)?;
+    let jwks_manager = common::get_shared_test_jwks();
+    let token = auth_manager.generate_token(&user, &jwks_manager)?;
+    let claims = auth_manager.validate_token(&token, &jwks_manager)?;
     assert_eq!(claims.email, "jwt@test.com");
     assert_eq!(claims.sub, user.id.to_string());
 
     // Test token refresh
-    let refreshed_token = auth_manager.refresh_token(&token, &user)?;
-    let refreshed_claims = auth_manager.validate_token(&refreshed_token)?;
+    let refreshed_token = auth_manager.refresh_token(&token, &user, &jwks_manager)?;
+    let refreshed_claims = auth_manager.validate_token(&refreshed_token, &jwks_manager)?;
     assert_eq!(refreshed_claims.email, claims.email);
     assert_eq!(refreshed_claims.sub, claims.sub);
 
     // Test invalid token
     let invalid_token = "invalid.token.here";
-    let invalid_result = auth_manager.validate_token(invalid_token);
+    let invalid_result = auth_manager.validate_token(invalid_token, &jwks_manager);
     assert!(invalid_result.is_err());
 
     // Test malformed token
     let malformed_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.malformed.signature";
-    let malformed_result = auth_manager.validate_token(malformed_token);
+    let malformed_result = auth_manager.validate_token(malformed_token, &jwks_manager);
     assert!(malformed_result.is_err());
 
     Ok(())
@@ -567,10 +571,9 @@ async fn test_input_validation() -> Result<()> {
     let db_path = temp_dir.path().join("validation_test.db");
     let database_url = format!("sqlite:{}", db_path.display());
     let encryption_key = generate_encryption_key().to_vec();
-    let jwt_secret = generate_jwt_secret().to_vec();
 
     let database = Database::new(&database_url, encryption_key).await?;
-    let auth_manager = AuthManager::new(jwt_secret, 24);
+    let auth_manager = AuthManager::new(24);
 
     // Create minimal config for ServerResources
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
@@ -680,6 +683,7 @@ async fn test_input_validation() -> Result<()> {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());

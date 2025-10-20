@@ -86,7 +86,7 @@ impl A2ARoutes {
     fn validate_jwt_and_get_user_id(&self, token: &str) -> Result<String, serde_json::Value> {
         self.resources
             .auth_manager
-            .validate_token(token)
+            .validate_token(token, &self.resources.jwks_manager)
             .map(|claims| claims.sub)
             .map_err(|_| {
                 serde_json::json!({

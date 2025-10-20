@@ -203,7 +203,7 @@ impl ProtocolHandler {
         let user_id = request.auth_token.as_ref().and_then(|auth_token| {
             match resources
                 .auth_manager
-                .validate_token_rs256(auth_token, &resources.jwks_manager)
+                .validate_token(auth_token, &resources.jwks_manager)
             {
                 Ok(claims) => {
                     if let Ok(id) = Uuid::parse_str(&claims.sub) {
@@ -246,7 +246,7 @@ impl ProtocolHandler {
         let user_id = if let Some(auth_token) = &request.auth_token {
             match resources
                 .auth_manager
-                .validate_token_rs256(auth_token, &resources.jwks_manager)
+                .validate_token(auth_token, &resources.jwks_manager)
             {
                 Ok(claims) => {
                     if let Ok(id) = Uuid::parse_str(&claims.sub) {
@@ -346,6 +346,7 @@ impl ProtocolHandler {
     pub fn handle_authenticate(
         request: McpRequest,
         auth_manager: &Arc<AuthManager>,
+        jwks_manager: &Arc<crate::admin::jwks::JwksManager>,
     ) -> McpResponse {
         let request_id = request.id.unwrap_or_else(default_request_id);
 
@@ -361,7 +362,7 @@ impl ProtocolHandler {
                 }
             };
 
-        let auth_response = auth_manager.authenticate(&auth_request);
+        let auth_response = auth_manager.authenticate(&auth_request, jwks_manager);
         if auth_response.authenticated {
             info!("MCP authentication successful");
             McpResponse::success(
@@ -401,7 +402,7 @@ impl ProtocolHandler {
         // Validate token and extract user_id
         match resources
             .auth_manager
-            .validate_token_rs256(auth_token, &resources.jwks_manager)
+            .validate_token(auth_token, &resources.jwks_manager)
         {
             Ok(claims) => uuid::Uuid::parse_str(&claims.sub).map_or_else(
                 |_| {

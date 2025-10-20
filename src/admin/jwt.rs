@@ -14,21 +14,15 @@
 
 use crate::admin::models::{AdminPermissions, ValidatedAdminToken};
 use crate::constants::service_names;
-use crate::database_plugins::DatabaseProvider;
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Duration, Utc};
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// JWT token manager for admin authentication
 #[derive(Clone)]
-pub struct AdminJwtManager {
-    encoding_key: EncodingKey,
-    decoding_key: DecodingKey,
-    algorithm: Algorithm,
-}
+pub struct AdminJwtManager {}
 
 impl Default for AdminJwtManager {
     fn default() -> Self {
@@ -37,40 +31,10 @@ impl Default for AdminJwtManager {
 }
 
 impl AdminJwtManager {
-    /// Create new JWT manager with generated secret
+    /// Create new JWT manager for RS256 token operations
     #[must_use]
-    pub fn new() -> Self {
-        let secret = Self::generate_jwt_secret();
-        Self::with_secret(&secret)
-    }
-
-    /// Create JWT manager with provided secret
-    #[must_use]
-    pub fn with_secret(secret: &str) -> Self {
-        tracing::debug!("Creating AdminJwtManager with provided secret");
-        let encoding_key = EncodingKey::from_secret(secret.as_bytes());
-        let decoding_key = DecodingKey::from_secret(secret.as_bytes());
-
-        Self {
-            encoding_key,
-            decoding_key,
-            algorithm: Algorithm::HS256, // HMAC with SHA-256
-        }
-    }
-
-    /// Create JWT manager with database secret
-    ///
-    /// # Errors
-    /// Returns an error if database secret retrieval fails
-    pub async fn from_database(
-        database: &crate::database_plugins::factory::Database,
-    ) -> Result<Self> {
-        let Ok(jwt_secret) = database.get_system_secret("admin_jwt_secret").await else {
-            return Err(anyhow::anyhow!(
-                "Admin JWT secret not found. Run admin-setup create-admin-user first."
-            ));
-        };
-        Ok(Self::with_secret(&jwt_secret))
+    pub const fn new() -> Self {
+        Self {}
     }
 
     /// Generate a cryptographically secure JWT secret
@@ -92,48 +56,11 @@ impl AdminJwtManager {
         format!("{:x}", hasher.finalize())
     }
 
-    /// Generate JWT token for admin service
-    ///
-    /// # Errors
-    /// Returns an error if JWT encoding fails
-    pub fn generate_token(
-        &self,
-        token_id: &str,
-        service_name: &str,
-        permissions: &AdminPermissions,
-        is_super_admin: bool,
-        expires_at: Option<DateTime<Utc>>,
-    ) -> Result<String> {
-        let now = Utc::now();
-        let exp = expires_at.unwrap_or_else(|| now + Duration::days(365));
-
-        let claims = AdminTokenClaims {
-            // Standard JWT claims
-            iss: service_names::PIERRE_MCP_SERVER.into(),
-            sub: token_id.to_string(),
-            aud: service_names::ADMIN_API.into(),
-            exp: u64::try_from(exp.timestamp().max(0)).unwrap_or(0),
-            iat: u64::try_from(now.timestamp().max(0)).unwrap_or(0),
-            nbf: u64::try_from(now.timestamp().max(0)).unwrap_or(0),
-            jti: token_id.to_string(),
-
-            // Custom claims
-            service_name: service_name.to_string(),
-            permissions: permissions.to_vec(),
-            is_super_admin,
-            token_type: "admin".into(),
-        };
-
-        let header = Header::new(self.algorithm);
-        encode(&header, &claims, &self.encoding_key)
-            .map_err(|e| anyhow!("Failed to generate JWT: {e}"))
-    }
-
     /// Generate JWT token using RS256 (asymmetric signing)
     ///
     /// # Errors
     /// Returns an error if JWT encoding fails
-    pub fn generate_token_rs256(
+    pub fn generate_token(
         &self,
         token_id: &str,
         service_name: &str,
@@ -168,59 +95,11 @@ impl AdminJwtManager {
             .map_err(|e| anyhow!("Failed to generate RS256 admin JWT: {e}"))
     }
 
-    /// Validate and decode JWT token
-    ///
-    /// # Errors
-    /// Returns an error if token is invalid, expired, or has wrong format
-    pub fn validate_token(&self, token: &str) -> Result<ValidatedAdminToken> {
-        let mut validation = Validation::new(self.algorithm);
-        validation.set_audience(&[service_names::ADMIN_API]);
-        validation.set_issuer(&[service_names::PIERRE_MCP_SERVER]);
-
-        // Debug: Log that we're validating the token
-        tracing::debug!("Validating admin JWT token");
-
-        let token_data = decode::<AdminTokenClaims>(token, &self.decoding_key, &validation)
-            .map_err(|e| {
-                tracing::error!("JWT validation failed: {}", e);
-                anyhow!("Invalid JWT token: {e}")
-            })?;
-
-        let claims = token_data.claims;
-
-        // Verify token type
-        if claims.token_type != "admin" {
-            return Err(anyhow!("Invalid token type: {}", claims.token_type));
-        }
-
-        // Check expiration
-        let now = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
-        if claims.exp < now {
-            return Err(anyhow!("Token has expired"));
-        }
-
-        // Reconstruct permissions
-        let permissions = AdminPermissions::new(claims.permissions.clone()); // Safe: Vec<String> ownership for permissions
-
-        let token_id = claims.sub.clone(); // Safe: String ownership for token validation
-        let service_name = claims.service_name.clone(); // Safe: String ownership for token validation
-        let is_super_admin = claims.is_super_admin;
-        let user_info = serde_json::to_value(&claims)?;
-
-        Ok(ValidatedAdminToken {
-            token_id,
-            service_name,
-            permissions,
-            is_super_admin,
-            user_info: Some(user_info),
-        })
-    }
-
     /// Validate and decode JWT token using RS256
     ///
     /// # Errors
     /// Returns an error if token is invalid, expired, or has wrong format
-    pub fn validate_token_rs256(
+    pub fn validate_token(
         &self,
         token: &str,
         jwks_manager: &crate::admin::jwks::JwksManager,
@@ -256,23 +135,6 @@ impl AdminJwtManager {
             is_super_admin,
             user_info: Some(user_info),
         })
-    }
-
-    /// Extract token ID without full validation (for prefix matching)
-    ///
-    /// # Errors
-    /// Returns an error if token cannot be decoded
-    pub fn extract_token_id(&self, token: &str) -> Result<String> {
-        // Decode without verification for prefix extraction
-        let mut validation = Validation::new(self.algorithm);
-        validation.insecure_disable_signature_validation();
-        validation.validate_exp = false;
-        validation.validate_nbf = false;
-
-        let token_data = decode::<AdminTokenClaims>(token, &self.decoding_key, &validation)
-            .map_err(|e| anyhow!("Failed to extract token ID: {e}"))?;
-
-        Ok(token_data.claims.sub)
     }
 
     /// Generate token prefix for identification

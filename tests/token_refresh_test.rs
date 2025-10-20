@@ -23,7 +23,9 @@ async fn test_token_refresh_endpoint() -> Result<()> {
     let (user_id, user) = common::create_test_user(&resources.database).await?;
 
     // Generate initial JWT token
-    let initial_token = resources.auth_manager.generate_token(&user)?;
+    let initial_token = resources
+        .auth_manager
+        .generate_token(&user, &resources.jwks_manager)?;
     println!("✅ Generated initial JWT token");
 
     // Simulate token refresh request
@@ -107,7 +109,9 @@ async fn test_jwt_token_parsing() -> Result<()> {
     let (user_id, user) = common::create_test_user(&resources.database).await?;
 
     // Generate a JWT token
-    let token = resources.auth_manager.generate_token(&user)?;
+    let token = resources
+        .auth_manager
+        .generate_token(&user, &resources.jwks_manager)?;
     println!("✅ Generated JWT token for parsing test");
 
     // Parse token manually like the MCP client does

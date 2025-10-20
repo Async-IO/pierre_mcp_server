@@ -916,10 +916,29 @@ echo ""
 if [ -d "frontend" ]; then
     echo ""
     echo -e "${BLUE}==== Frontend Checks ====${NC}"
-    
+
     cd frontend
-    
-    # Run ESLint
+
+    # Check and install dependencies if needed
+    echo -e "${BLUE}==== Checking frontend dependencies... ====${NC}"
+    if [ ! -d "node_modules" ] || [ ! -f "node_modules/.package-lock.json" ]; then
+        echo -e "${YELLOW}[INFO] Frontend dependencies not found or outdated, installing...${NC}"
+        if npm install; then
+            echo -e "${GREEN}[OK] Frontend dependencies installed${NC}"
+        else
+            echo -e "${RED}[FAIL] Frontend dependency installation failed${NC}"
+            ALL_PASSED=false
+            cd ..
+            # Skip frontend tests if dependency installation fails
+            echo -e "${YELLOW}[WARN] Skipping frontend tests due to dependency installation failure${NC}"
+        fi
+    else
+        echo -e "${GREEN}[OK] Frontend dependencies already installed${NC}"
+    fi
+
+    # Only proceed with tests if we didn't fail dependency installation
+    if [ -d "node_modules" ]; then
+        # Run ESLint
     echo -e "${BLUE}==== Running frontend linter (ESLint)... ====${NC}"
     if npm run lint; then
         echo -e "${GREEN}[OK] Frontend linting passed${NC}"
@@ -964,8 +983,9 @@ if [ -d "frontend" ]; then
         echo -e "${RED}[FAIL] Frontend build failed${NC}"
         ALL_PASSED=false
     fi
-    
+
     cd ..
+    fi
 fi
 
 # Check for security vulnerabilities (if cargo-audit is installed)

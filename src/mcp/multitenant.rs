@@ -377,8 +377,9 @@ impl MultiTenantMcpServer {
             crate::sse::routes::sse_routes(resources.sse_manager.clone(), resources.clone());
         let mcp_endpoint = Self::create_mcp_endpoint_routes(resources, self.sessions.clone());
         let health = Self::create_health_route();
+        let plugins_health = Self::create_plugins_health_route(resources);
 
-        sse_routes.or(mcp_endpoint).or(health)
+        sse_routes.or(mcp_endpoint).or(health).or(plugins_health)
     }
 
     /// Initialize security configuration based on environment
@@ -1539,6 +1540,38 @@ impl MultiTenantMcpServer {
         })
     }
 
+    /// Create plugins health check endpoint
+    fn create_plugins_health_route(
+        resources: &Arc<ServerResources>,
+    ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        use warp::Filter;
+        let resources_for_route = resources.clone();
+
+        warp::path!("health" / "plugins")
+            .and(warp::get())
+            .map(move || {
+                let plugin_stats = resources_for_route.plugin_executor.as_ref().map_or_else(
+                    || {
+                        serde_json::json!({
+                            "status": "not_initialized",
+                            "message": "Plugin system has not been initialized"
+                        })
+                    },
+                    |executor| {
+                        let stats = executor.get_statistics();
+                        serde_json::json!({
+                            "status": "initialized",
+                            "total_tools": stats.total_tools,
+                            "core_tools": stats.core_tools,
+                            "plugin_tools": stats.plugin_tools,
+                            "plugin_registry": stats.plugin_stats
+                        })
+                    },
+                );
+                warp::reply::json(&plugin_stats)
+            })
+    }
+
     /// Create JWT authentication filter
     fn create_auth_filter(
         auth_manager: Arc<AuthManager>,
@@ -1564,7 +1597,7 @@ impl MultiTenantMcpServer {
                             };
 
                             // Validate JWT token using AuthManager with RS256
-                            match auth_mgr.validate_token_rs256(token, &jwks_mgr) {
+                            match auth_mgr.validate_token(token, &jwks_mgr) {
                                 Ok(claims) => {
                                     // Parse user_id from claims.sub
                                     let user_id =

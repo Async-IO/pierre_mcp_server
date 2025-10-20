@@ -444,7 +444,7 @@ impl A2AServer {
         // Validate token and extract user_id
         match resources
             .auth_manager
-            .validate_token_rs256(auth_token, &resources.jwks_manager)
+            .validate_token(auth_token, &resources.jwks_manager)
         {
             Ok(claims) => uuid::Uuid::parse_str(&claims.sub).map_or_else(
                 |_| {

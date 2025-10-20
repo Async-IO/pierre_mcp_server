@@ -164,7 +164,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
 
     let config = create_test_config();
     // Create ServerResources for the test
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = pierre_mcp_server::auth::AuthManager::new(24);
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         (*database).clone(),
@@ -172,6 +172,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         "test_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     Ok(UniversalToolExecutor::new(server_resources))
 }
@@ -207,7 +208,7 @@ async fn create_executor_no_oauth() -> Result<UniversalToolExecutor> {
     // Create config without OAuth credentials
     let config = create_test_config_no_oauth();
     // Create ServerResources for the test
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = pierre_mcp_server::auth::AuthManager::new(24);
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         (*database).clone(),
@@ -215,6 +216,7 @@ async fn create_executor_no_oauth() -> Result<UniversalToolExecutor> {
         "test_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     Ok(UniversalToolExecutor::new(server_resources))

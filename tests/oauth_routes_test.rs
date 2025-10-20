@@ -31,7 +31,7 @@ async fn test_email_validation() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
@@ -131,6 +131,7 @@ async fn test_email_validation() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -196,7 +197,7 @@ async fn test_password_validation() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
@@ -296,6 +297,7 @@ async fn test_password_validation() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -333,7 +335,7 @@ async fn test_duplicate_user_registration() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
@@ -433,6 +435,7 @@ async fn test_duplicate_user_registration() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -461,7 +464,7 @@ async fn test_login_with_correct_credentials() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
@@ -561,6 +564,7 @@ async fn test_login_with_correct_credentials() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -633,7 +637,7 @@ async fn test_login_with_wrong_password() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
@@ -733,6 +737,7 @@ async fn test_login_with_wrong_password() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -768,7 +773,7 @@ async fn test_login_with_non_existent_user() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
@@ -868,6 +873,7 @@ async fn test_login_with_non_existent_user() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());

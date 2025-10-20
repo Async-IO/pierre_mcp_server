@@ -4,6 +4,8 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+mod common;
+
 use anyhow::Result;
 use pierre_mcp_server::{
     admin_routes::AdminApiContext,
@@ -32,12 +34,10 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
 
     // Initialize JWT secret
     let jwt_secret = "test_jwt_secret_for_admin_approval_e2e_testing";
-    let auth_manager = AuthManager::new(jwt_secret.as_bytes().to_vec(), 24);
+    let auth_manager = AuthManager::new(24);
 
-    // Create JWKS manager for RS256
-    let mut jwks_manager_instance = pierre_mcp_server::admin::jwks::JwksManager::new();
-    jwks_manager_instance.generate_rsa_key_pair("test_key_e2e")?;
-    let jwks_manager = Arc::new(jwks_manager_instance);
+    // Create JWKS manager for RS256 with 2048-bit test keys for faster execution
+    let jwks_manager = common::get_shared_test_jwks();
 
     // Create admin API context
     let admin_context = AdminApiContext::new(
@@ -214,12 +214,10 @@ async fn test_admin_token_management_workflow() -> Result<()> {
         Database::new(&database_url, b"test_encryption_key_32_bytes_long".to_vec()).await?;
 
     let jwt_secret = "test_jwt_secret_for_token_management";
-    let auth_manager = AuthManager::new(jwt_secret.as_bytes().to_vec(), 24);
+    let auth_manager = AuthManager::new(24);
 
-    // Create JWKS manager for RS256
-    let mut jwks_manager_instance = pierre_mcp_server::admin::jwks::JwksManager::new();
-    jwks_manager_instance.generate_rsa_key_pair("test_key_token_mgmt")?;
-    let jwks_manager = Arc::new(jwks_manager_instance);
+    // Create JWKS manager for RS256 with 2048-bit test keys for faster execution
+    let jwks_manager = common::get_shared_test_jwks();
 
     let admin_context = AdminApiContext::new(
         Arc::new(database.clone()),
@@ -338,12 +336,10 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
         Database::new(&database_url, b"test_encryption_key_32_bytes_long".to_vec()).await?;
 
     let jwt_secret = "test_jwt_secret_for_error_handling";
-    let auth_manager = AuthManager::new(jwt_secret.as_bytes().to_vec(), 24);
+    let auth_manager = AuthManager::new(24);
 
-    // Create JWKS manager for RS256
-    let mut jwks_manager_instance = pierre_mcp_server::admin::jwks::JwksManager::new();
-    jwks_manager_instance.generate_rsa_key_pair("test_key_error_handling")?;
-    let jwks_manager = Arc::new(jwks_manager_instance);
+    // Create JWKS manager for RS256 with 2048-bit test keys for faster execution
+    let jwks_manager = common::get_shared_test_jwks();
 
     let admin_context = AdminApiContext::new(
         Arc::new(database),

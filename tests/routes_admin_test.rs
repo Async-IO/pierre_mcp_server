@@ -193,7 +193,7 @@ impl AdminTestSetup {
         let auth_manager = common::create_test_auth_manager();
 
         // Create JWKS manager for RS256
-        let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+        let jwks_manager = common::get_shared_test_jwks();
 
         // Create admin context
         let jwt_secret = "test_admin_jwt_secret_for_route_testing";
@@ -201,7 +201,7 @@ impl AdminTestSetup {
             Arc::new((*database).clone()),
             jwt_secret,
             auth_manager.clone(),
-            jwks_manager,
+            jwks_manager.clone(),
         );
 
         // Create test user
@@ -222,7 +222,7 @@ impl AdminTestSetup {
         ]);
 
         // Create JWT manager with the same secret as the AdminApiContext
-        let jwt_manager = AdminJwtManager::with_secret(jwt_secret);
+        let jwt_manager = AdminJwtManager::new();
 
         // Generate admin token manually to ensure consistent JWT secret
         let admin_token_id = format!("admin_{}", Uuid::new_v4().simple());
@@ -232,6 +232,7 @@ impl AdminTestSetup {
             &admin_permissions,
             false, // is_super_admin
             Some(chrono::Utc::now() + chrono::Duration::days(365)),
+            &jwks_manager,
         )?;
 
         let admin_token = GeneratedAdminToken {
@@ -258,6 +259,7 @@ impl AdminTestSetup {
             &super_admin_permissions,
             true, // is_super_admin
             None, // Never expires
+            &jwks_manager,
         )?;
 
         let super_admin_token = GeneratedAdminToken {
@@ -287,6 +289,7 @@ impl AdminTestSetup {
             &expired_permissions,
             false,                                                 // is_super_admin
             Some(chrono::Utc::now() - chrono::Duration::hours(1)), // Already expired
+            &jwks_manager,
         )?;
 
         Ok(Self {
@@ -472,10 +475,14 @@ async fn test_admin_auth_invalid_token() -> Result<()> {
 
     let body: Value = serde_json::from_slice(response.body())?;
     assert_eq!(body["success"], false);
-    assert!(body["message"]
-        .as_str()
-        .unwrap()
-        .contains("Invalid JWT token"));
+    // RS256 error message format: "RS256 admin JWT validation failed: Failed to decode JWT header: InvalidToken"
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap()
+            .contains("RS256 admin JWT validation failed")
+            || body["message"].as_str().unwrap().contains("InvalidToken")
+    );
 
     Ok(())
 }

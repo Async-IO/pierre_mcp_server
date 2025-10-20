@@ -51,7 +51,16 @@ impl A2ASystemUserService {
         // Create new system user with secure random password
         // System users cannot login directly, so this password is never used
         let secure_password = Self::generate_secure_system_password();
-        let hashed_password = bcrypt::hash(secure_password, bcrypt::DEFAULT_COST)?;
+
+        // Use lower bcrypt cost in test/CI environments for performance (cost 4 is ~60x faster than default 12)
+        // Check for test environment via CI variable or debug profile
+        let bcrypt_cost = if std::env::var("CI").is_ok() || cfg!(debug_assertions) {
+            4 // Fast hashing for tests and development
+        } else {
+            bcrypt::DEFAULT_COST // Secure hashing for production (12)
+        };
+
+        let hashed_password = bcrypt::hash(secure_password, bcrypt_cost)?;
 
         let system_user = User::new(
             system_email.clone(),

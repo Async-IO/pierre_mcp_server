@@ -37,7 +37,7 @@ async fn test_oauth_authorization_url_generation() {
         .unwrap();
     database.migrate().await.unwrap();
 
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
@@ -137,6 +137,7 @@ async fn test_oauth_authorization_url_generation() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -260,7 +261,7 @@ async fn test_oauth_state_validation() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
@@ -360,6 +361,7 @@ async fn test_oauth_state_validation() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -390,7 +392,7 @@ async fn test_connection_status_no_providers() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
@@ -512,6 +514,7 @@ async fn test_connection_status_no_providers() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -544,7 +547,7 @@ async fn test_invalid_provider_error() {
         .await
         .unwrap();
     database.migrate().await.unwrap();
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
         http_port: 8080,
@@ -642,6 +645,7 @@ async fn test_invalid_provider_error() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     let oauth_routes = OAuthRoutes::new(
@@ -668,7 +672,7 @@ async fn test_disconnect_provider() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
         http_port: 8080,
@@ -766,6 +770,7 @@ async fn test_disconnect_provider() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     let oauth_routes = OAuthRoutes::new(
@@ -886,7 +891,7 @@ async fn test_oauth_urls_contain_required_parameters() {
         .await
         .unwrap();
 
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
         http_port: 8080,
@@ -984,6 +989,7 @@ async fn test_oauth_urls_contain_required_parameters() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     let oauth_routes = OAuthRoutes::new(

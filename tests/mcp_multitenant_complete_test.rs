@@ -394,7 +394,7 @@ async fn setup_test_environment() -> Result<(Database, AuthManager, u16, TempDir
 
     // CRITICAL: Create AuthManager with the exact same secret we just stored in the database
     // This ensures the test AuthManager and any server-created AuthManager use identical secrets
-    let auth_manager = AuthManager::new(TEST_JWT_SECRET.as_bytes().to_vec(), 24);
+    let auth_manager = AuthManager::new(24);
 
     // Verify the database contains the expected secret
     let verified_secret = database
@@ -446,6 +446,7 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
         &stored_jwt_secret,
         create_test_config(server_port),
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -620,6 +621,7 @@ async fn test_mcp_authentication_required() -> Result<()> {
         &stored_jwt_secret,
         create_test_config(server_port),
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -705,6 +707,7 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
         &stored_jwt_secret,
         create_test_config(server_port),
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -785,6 +788,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
         &stored_jwt_secret,
         create_test_config(server_port),
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -889,6 +893,7 @@ async fn test_multitenant_server_config() -> Result<()> {
         &stored_jwt_secret,
         config.clone(),
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 

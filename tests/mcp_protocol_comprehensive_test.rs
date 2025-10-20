@@ -56,6 +56,7 @@ async fn test_mcp_initialize_request() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let server = MultiTenantMcpServer::new(resources);
 
@@ -83,6 +84,7 @@ async fn test_mcp_ping_request() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -107,6 +109,7 @@ async fn test_mcp_tools_list_request() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -135,6 +138,7 @@ async fn test_mcp_authenticate_request() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -172,6 +176,7 @@ async fn test_mcp_tools_call_without_auth() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -204,6 +209,7 @@ async fn test_mcp_tools_call_with_expired_token() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -242,6 +248,7 @@ async fn test_mcp_tools_call_malformed_token() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -280,6 +287,7 @@ async fn test_mcp_unknown_method() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -304,6 +312,7 @@ async fn test_mcp_oauth_tool_calls() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -314,7 +323,11 @@ async fn test_mcp_oauth_tool_calls() -> Result<()> {
         Some("OAuth Test User".to_string()),
     );
     database.create_user(&user).await?;
-    let token = auth_manager.generate_token(&user)?;
+
+    // Create JWKS manager for RS256 token generation
+    let jwks_manager = common::get_shared_test_jwks();
+    let jwks_manager = Arc::new(jwks_manager);
+    let token = auth_manager.generate_token(&user, &jwks_manager)?;
 
     // Test connect_strava tool
     let connect_params = json!({
@@ -386,6 +399,7 @@ async fn test_mcp_intelligence_tool_calls() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -396,7 +410,11 @@ async fn test_mcp_intelligence_tool_calls() -> Result<()> {
         Some("Intelligence Test User".to_string()),
     );
     database.create_user(&user).await?;
-    let token = auth_manager.generate_token(&user)?;
+
+    // Create JWKS manager for RS256 token generation
+    let jwks_manager = common::get_shared_test_jwks();
+    let jwks_manager = Arc::new(jwks_manager);
+    let token = auth_manager.generate_token(&user, &jwks_manager)?;
 
     // Test intelligence tools that don't require providers
     let tool_tests = vec![
@@ -443,6 +461,7 @@ async fn test_mcp_provider_required_tools() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -453,7 +472,11 @@ async fn test_mcp_provider_required_tools() -> Result<()> {
         Some("Provider Test User".to_string()),
     );
     database.create_user(&user).await?;
-    let token = auth_manager.generate_token(&user)?;
+
+    // Create JWKS manager for RS256 token generation
+    let jwks_manager = common::get_shared_test_jwks();
+    let jwks_manager = Arc::new(jwks_manager);
+    let token = auth_manager.generate_token(&user, &jwks_manager)?;
 
     // Test tools that require a provider
     let provider_tools = vec![
@@ -509,6 +532,7 @@ async fn test_mcp_unknown_tool() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -519,7 +543,11 @@ async fn test_mcp_unknown_tool() -> Result<()> {
         Some("Unknown Tool Test".to_string()),
     );
     database.create_user(&user).await?;
-    let token = auth_manager.generate_token(&user)?;
+
+    // Create JWKS manager for RS256 token generation
+    let jwks_manager = common::get_shared_test_jwks();
+    let jwks_manager = Arc::new(jwks_manager);
+    let token = auth_manager.generate_token(&user, &jwks_manager)?;
 
     // Test unknown tool
     let params = json!({
@@ -551,6 +579,7 @@ async fn test_mcp_api_key_authentication() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -597,6 +626,7 @@ async fn test_mcp_request_id_variations() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -630,6 +660,7 @@ async fn test_mcp_error_scenarios() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -674,6 +705,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = Arc::new(MultiTenantMcpServer::new(resources));
 
@@ -684,7 +716,11 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
         Some("Concurrent Test".to_string()),
     );
     database.create_user(&user).await?;
-    let token = auth_manager.generate_token(&user)?;
+
+    // Create JWKS manager for RS256 token generation
+    let jwks_manager = common::get_shared_test_jwks();
+    let jwks_manager = Arc::new(jwks_manager);
+    let token = auth_manager.generate_token(&user, &jwks_manager)?;
 
     // Simulate concurrent requests
     let mut handles = Vec::new();

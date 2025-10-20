@@ -131,18 +131,15 @@ async fn initialize_core_systems(config: &ServerConfig) -> Result<(Database, Aut
     info!("Admin JWT secret ready for secure token generation");
     info!("Server is ready for admin setup via POST /admin/setup");
 
-    // Initialize authentication manager
+    // Initialize authentication manager with RS256 (no HS256 secret needed)
     let auth_manager = {
         // Safe: JWT expiry hours are small positive configuration values (1-168)
         #[allow(clippy::cast_possible_wrap)]
         {
-            AuthManager::new(
-                jwt_secret_string.as_bytes().to_vec(),
-                config.auth.jwt_expiry_hours as i64,
-            )
+            AuthManager::new(config.auth.jwt_expiry_hours as i64)
         }
     };
-    info!("Authentication manager initialized");
+    info!("Authentication manager initialized with RS256");
 
     Ok((database, auth_manager, jwt_secret_string))
 }
@@ -155,14 +152,44 @@ fn create_server(
     config: &ServerConfig,
     cache: Cache,
 ) -> MultiTenantMcpServer {
-    let resources = Arc::new(ServerResources::new(
+    let rsa_key_size = get_rsa_key_size();
+    info!("Using {}-bit RSA keys for JWT signing", rsa_key_size);
+
+    let mut resources_instance = ServerResources::new(
         database,
         auth_manager,
         jwt_secret,
         Arc::new(config.clone()),
         cache,
-    ));
+        rsa_key_size,
+    );
+
+    // Wrap in Arc for plugin executor initialization
+    let resources_arc = Arc::new(resources_instance.clone());
+
+    // Initialize plugin system with resources
+    let plugin_executor =
+        pierre_mcp_server::plugins::executor::PluginToolExecutor::new(resources_arc);
+    info!(
+        "Plugin system initialized: {} core tools, {} plugin tools",
+        plugin_executor.get_statistics().core_tools,
+        plugin_executor.get_statistics().plugin_tools
+    );
+
+    // Set plugin executor back on resources
+    resources_instance.set_plugin_executor(Arc::new(plugin_executor));
+
+    // Use the updated resources instance
+    let resources = Arc::new(resources_instance);
     MultiTenantMcpServer::new(resources)
+}
+
+/// Get RSA key size from environment or use production default
+fn get_rsa_key_size() -> usize {
+    std::env::var("PIERRE_RSA_KEY_SIZE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(4096)
 }
 
 /// Run the server after displaying endpoints
@@ -323,6 +350,7 @@ fn display_dashboard_endpoints(host: &str, port: u16) {
         name: "Dashboard & Monitoring:",
         endpoints: &[
             ("Health Check:", "GET", "/health"),
+            ("Plugin Status:", "GET", "/health/plugins"),
             ("System Status:", "GET", "/dashboard/status"),
             ("User Dashboard:", "GET", "/dashboard/user"),
             ("Admin Dashboard:", "GET", "/dashboard/admin"),

@@ -99,15 +99,25 @@ pub struct RsaKeyPair {
 }
 
 impl RsaKeyPair {
-    /// Generate new RSA key pair
+    /// Generate new RSA key pair with production-grade 4096-bit key size
     ///
     /// # Errors
     /// Returns error if key generation fails
     pub fn generate(kid: &str) -> Result<Self> {
+        Self::generate_with_key_size(kid, RSA_KEY_SIZE)
+    }
+
+    /// Generate RSA key pair with configurable key size
+    ///
+    /// Use 2048 bits for faster test execution, 4096 bits for production security.
+    ///
+    /// # Errors
+    /// Returns error if key generation fails
+    pub fn generate_with_key_size(kid: &str, key_size_bits: usize) -> Result<Self> {
         use rand::rngs::OsRng;
 
         let mut rng = OsRng;
-        let private_key = RsaPrivateKey::new(&mut rng, RSA_KEY_SIZE)
+        let private_key = RsaPrivateKey::new(&mut rng, key_size_bits)
             .map_err(|e| anyhow!("Failed to generate RSA private key: {e}"))?;
 
         let public_key = RsaPublicKey::from(&private_key);
@@ -235,12 +245,26 @@ impl JwksManager {
         }
     }
 
-    /// Generate and register new RSA key pair
+    /// Generate and register new RSA key pair with production-grade 4096-bit key size
     ///
     /// # Errors
     /// Returns error if key generation or registration fails
     pub fn generate_rsa_key_pair(&mut self, kid: &str) -> Result<()> {
-        let key_pair = RsaKeyPair::generate(kid)?;
+        self.generate_rsa_key_pair_with_size(kid, RSA_KEY_SIZE)
+    }
+
+    /// Generate and register RSA key pair with configurable key size for testing
+    ///
+    /// Use 2048 bits for faster test execution, 4096 bits for production security.
+    ///
+    /// # Errors
+    /// Returns error if key generation or registration fails
+    pub fn generate_rsa_key_pair_with_size(
+        &mut self,
+        kid: &str,
+        key_size_bits: usize,
+    ) -> Result<()> {
+        let key_pair = RsaKeyPair::generate_with_key_size(kid, key_size_bits)?;
 
         // Deactivate previous active key if exists
         if let Some(prev_active_kid) = &self.active_key_id {

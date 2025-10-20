@@ -161,7 +161,7 @@
 use anyhow::Result;
 use futures_util::future;
 use pierre_mcp_server::{
-    auth::{generate_jwt_secret, AuthManager, JwtValidationError},
+    auth::{AuthManager, JwtValidationError},
     constants::oauth_providers,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::multitenant::MultiTenantMcpServer,
@@ -193,6 +193,7 @@ async fn create_multiple_test_users(
     database: &Database,
     auth_manager: &AuthManager,
     count: usize,
+    jwks_manager: &Arc<pierre_mcp_server::admin::jwks::JwksManager>,
 ) -> Result<Vec<(Uuid, String, String)>> {
     let mut users = Vec::new();
 
@@ -208,7 +209,7 @@ async fn create_multiple_test_users(
         database.create_user(&user).await?;
 
         // Generate JWT token for user
-        let token = auth_manager.generate_token(&user)?;
+        let token = auth_manager.generate_token(&user, jwks_manager)?;
         users.push((user_id, email, token));
     }
 
@@ -254,14 +255,15 @@ async fn test_multitenant_user_creation_and_isolation() -> Result<()> {
     assert_ne!(retrieved_user1.id, retrieved_user2.id);
 
     // Test JWT generation
-    let token1 = auth_manager.generate_token(&user1)?;
-    let token2 = auth_manager.generate_token(&user2)?;
+    let jwks_manager = common::get_shared_test_jwks();
+    let token1 = auth_manager.generate_token(&user1, &jwks_manager)?;
+    let token2 = auth_manager.generate_token(&user2, &jwks_manager)?;
 
     // Tokens should be different and valid
     assert_ne!(token1, token2);
 
-    let claims1 = auth_manager.validate_token(&token1)?;
-    let claims2 = auth_manager.validate_token(&token2)?;
+    let claims1 = auth_manager.validate_token(&token1, &jwks_manager)?;
+    let claims2 = auth_manager.validate_token(&token2, &jwks_manager)?;
 
     assert_eq!(claims1.email, "user1@test.com");
     assert_eq!(claims2.email, "user2@test.com");
@@ -273,11 +275,11 @@ async fn test_multitenant_user_creation_and_isolation() -> Result<()> {
 #[tokio::test]
 async fn test_authentication_middleware_integration() -> Result<()> {
     let (_server, database, auth_manager) = create_test_multitenant_server().await?;
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let jwks_manager = common::get_shared_test_jwks();
     let auth_middleware = Arc::new(McpAuthMiddleware::new(
         (*auth_manager).clone(),
         database.clone(),
-        jwks_manager,
+        jwks_manager.clone(),
     ));
 
     // Create test user
@@ -289,7 +291,7 @@ async fn test_authentication_middleware_integration() -> Result<()> {
     let user_id = user.id;
     database.create_user(&user).await?;
 
-    let token = auth_manager.generate_token(&user)?;
+    let token = auth_manager.generate_token(&user, &jwks_manager)?;
 
     // Test valid authentication
     let bearer_token = format!("Bearer {token}");
@@ -321,8 +323,10 @@ async fn test_authentication_middleware_integration() -> Result<()> {
 async fn test_tenant_data_isolation() -> Result<()> {
     let (_server, database, auth_manager) = create_test_multitenant_server().await?;
 
+    let jwks_manager = common::get_shared_test_jwks();
+
     // Create multiple users
-    let users = create_multiple_test_users(&database, &auth_manager, 3).await?;
+    let users = create_multiple_test_users(&database, &auth_manager, 3, &jwks_manager).await?;
 
     // Store different data for each user
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(6);
@@ -423,10 +427,11 @@ async fn test_concurrent_user_operations() -> Result<()> {
             db.create_user(&user).await?;
 
             // Generate token
-            let token = am.generate_token(&user)?;
+            let jwks_manager = common::get_shared_test_jwks();
+            let token = am.generate_token(&user, &jwks_manager)?;
 
             // Validate token
-            let claims = am.validate_token(&token)?;
+            let claims = am.validate_token(&token, &jwks_manager)?;
             assert_eq!(claims.email, format!("concurrent_user_{}@test.com", i));
 
             // Store some data
@@ -484,17 +489,17 @@ async fn test_token_expiration_handling() -> Result<()> {
     database.create_user(&user).await?;
 
     // Create auth manager with very short expiry (fraction of a second)
-    let jwt_secret = generate_jwt_secret().to_vec();
-    let short_expiry_auth_manager = Arc::new(AuthManager::new(jwt_secret, 0)); // 0 hours expiry
+    let short_expiry_auth_manager = Arc::new(AuthManager::new(0)); // 0 hours expiry
 
     // Generate token with immediate expiration
-    let expired_token = short_expiry_auth_manager.generate_token(&user)?;
+    let jwks_manager = common::get_shared_test_jwks();
+    let expired_token = short_expiry_auth_manager.generate_token(&user, &jwks_manager)?;
 
     // Wait to ensure the token has expired
     tokio::time::sleep(Duration::from_millis(1100)).await; // Wait over a second
 
     // Try to validate expired token using detailed validation
-    let result = short_expiry_auth_manager.validate_token_detailed(&expired_token);
+    let result = short_expiry_auth_manager.validate_token_detailed(&expired_token, &jwks_manager);
     if result.is_ok() {
         println!("Token validation unexpectedly succeeded: {:?}", result);
     } else {
@@ -537,8 +542,10 @@ async fn test_invalid_token_handling() -> Result<()> {
         "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c", // Valid format but wrong signature
     ];
 
+    let jwks_manager = common::get_shared_test_jwks();
+
     for invalid_token in invalid_tokens {
-        let result = auth_manager.validate_token(invalid_token);
+        let result = auth_manager.validate_token(invalid_token, &jwks_manager);
         assert!(result.is_err(), "Should fail for token: {}", invalid_token);
     }
 
@@ -584,13 +591,14 @@ async fn test_user_tier_management() -> Result<()> {
     assert_eq!(retrieved_enterprise.tier, UserTier::Enterprise);
 
     // Test JWT tokens include tier information
-    let starter_token = auth_manager.generate_token(&starter_user)?;
-    let pro_token = auth_manager.generate_token(&pro_user)?;
-    let enterprise_token = auth_manager.generate_token(&enterprise_user)?;
+    let jwks_manager = common::get_shared_test_jwks();
+    let starter_token = auth_manager.generate_token(&starter_user, &jwks_manager)?;
+    let pro_token = auth_manager.generate_token(&pro_user, &jwks_manager)?;
+    let enterprise_token = auth_manager.generate_token(&enterprise_user, &jwks_manager)?;
 
-    let starter_claims = auth_manager.validate_token(&starter_token)?;
-    let pro_claims = auth_manager.validate_token(&pro_token)?;
-    let enterprise_claims = auth_manager.validate_token(&enterprise_token)?;
+    let starter_claims = auth_manager.validate_token(&starter_token, &jwks_manager)?;
+    let pro_claims = auth_manager.validate_token(&pro_token, &jwks_manager)?;
+    let enterprise_claims = auth_manager.validate_token(&enterprise_token, &jwks_manager)?;
 
     assert_eq!(starter_claims.email, "starter@test.com");
     assert_eq!(pro_claims.email, "pro@test.com");
@@ -603,8 +611,10 @@ async fn test_user_tier_management() -> Result<()> {
 async fn test_database_encryption_isolation() -> Result<()> {
     let (_server, database, auth_manager) = create_test_multitenant_server().await?;
 
+    let jwks_manager = common::get_shared_test_jwks();
+
     // Create users
-    let users = create_multiple_test_users(&database, &auth_manager, 2).await?;
+    let users = create_multiple_test_users(&database, &auth_manager, 2, &jwks_manager).await?;
     let (user1_id, _email1, _token1) = &users[0];
     let (user2_id, _email2, _token2) = &users[1];
 
@@ -699,15 +709,15 @@ async fn test_session_state_management() -> Result<()> {
 #[tokio::test]
 async fn test_concurrent_authentication_operations() -> Result<()> {
     let (_server, database, auth_manager) = create_test_multitenant_server().await?;
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let jwks_manager = common::get_shared_test_jwks();
     let auth_middleware = Arc::new(McpAuthMiddleware::new(
         (*auth_manager).clone(),
         database.clone(),
-        jwks_manager,
+        jwks_manager.clone(),
     ));
 
     // Create multiple users
-    let users = create_multiple_test_users(&database, &auth_manager, 5).await?;
+    let users = create_multiple_test_users(&database, &auth_manager, 5, &jwks_manager).await?;
 
     // Run concurrent authentication operations
     let mut handles = Vec::new();
@@ -760,12 +770,15 @@ async fn test_concurrent_authentication_operations() -> Result<()> {
 async fn test_memory_safety_concurrent_access() -> Result<()> {
     let (_server, database, auth_manager) = create_test_multitenant_server().await?;
 
+    let jwks_manager = common::get_shared_test_jwks();
+
     // Test concurrent access to shared resources
     let mut handles = Vec::new();
 
     for i in 0..20 {
         let db = database.clone();
         let am = auth_manager.clone();
+        let jwks_mgr = jwks_manager.clone();
 
         let handle = tokio::spawn(async move {
             // Create user
@@ -779,8 +792,8 @@ async fn test_memory_safety_concurrent_access() -> Result<()> {
             db.create_user(&user).await?;
 
             // Generate and validate token
-            let token = am.generate_token(&user)?;
-            let claims = am.validate_token(&token)?;
+            let token = am.generate_token(&user, &jwks_mgr)?;
+            let claims = am.validate_token(&token, &jwks_mgr)?;
             assert_eq!(claims.email, format!("memory_test_{}@test.com", i));
 
             // Store and retrieve data
@@ -828,13 +841,15 @@ async fn test_memory_safety_concurrent_access() -> Result<()> {
 async fn test_user_provider_storage_concept() -> Result<()> {
     let (_server, _database, auth_manager) = create_test_multitenant_server().await?;
 
+    let jwks_manager = common::get_shared_test_jwks();
+
     // Test the concept of user provider storage isolation
     // This simulates how the server would maintain separate provider instances per user
     let user_providers: Arc<RwLock<HashMap<String, HashMap<String, String>>>> =
         Arc::new(RwLock::new(HashMap::new()));
 
     // Create multiple users
-    let users = create_multiple_test_users(&_database, &auth_manager, 3).await?;
+    let users = create_multiple_test_users(&_database, &auth_manager, 3, &jwks_manager).await?;
 
     // Simulate provider storage for different users
     {
@@ -884,8 +899,10 @@ async fn test_error_recovery_and_resilience() -> Result<()> {
         "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.invalid.signature",
     ];
 
+    let jwks_manager = common::get_shared_test_jwks();
+
     for invalid_token in invalid_tokens {
-        let result = auth_manager.validate_token(invalid_token);
+        let result = auth_manager.validate_token(invalid_token, &jwks_manager);
         assert!(result.is_err());
     }
 
@@ -907,9 +924,13 @@ async fn test_error_recovery_and_resilience() -> Result<()> {
 async fn test_large_scale_multitenant_operations() -> Result<()> {
     let (_server, database, auth_manager) = create_test_multitenant_server().await?;
 
+    // Create jwks_manager for token generation and validation
+    let jwks_manager = common::get_shared_test_jwks();
+
     // Test with a larger number of users to verify scalability
     let user_count = 50;
-    let users = create_multiple_test_users(&database, &auth_manager, user_count).await?;
+    let users =
+        create_multiple_test_users(&database, &auth_manager, user_count, &jwks_manager).await?;
 
     // Verify all users were created correctly
     assert_eq!(users.len(), user_count);
@@ -920,10 +941,11 @@ async fn test_large_scale_multitenant_operations() -> Result<()> {
     for (user_id, email, token) in users {
         let db = database.clone();
         let am = auth_manager.clone();
+        let jwks_mgr = jwks_manager.clone();
 
         let handle = tokio::spawn(async move {
             // Validate token
-            let claims = am.validate_token(&token)?;
+            let claims = am.validate_token(&token, &jwks_mgr)?;
             assert_eq!(claims.email, email);
 
             // Store and retrieve data

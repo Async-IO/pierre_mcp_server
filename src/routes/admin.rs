@@ -70,11 +70,7 @@ impl AdminApiContext {
 
         Self {
             database: database.clone(),
-            auth_service: AdminAuthService::new(
-                (**database).clone(),
-                jwt_secret,
-                jwks_manager.clone(),
-            ),
+            auth_service: AdminAuthService::new((**database).clone(), jwks_manager.clone()),
             auth_manager: auth_manager.clone(),
             admin_jwt_secret: jwt_secret.to_string(),
         }

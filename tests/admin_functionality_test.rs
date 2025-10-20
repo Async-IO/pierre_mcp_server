@@ -18,7 +18,6 @@ use anyhow::Result;
 use chrono::Utc;
 use pierre_mcp_server::admin::{
     auth::AdminAuthService,
-    jwks::JwksManager,
     jwt::AdminJwtManager,
     models::{AdminAction, AdminPermission, AdminPermissions, CreateAdminTokenRequest},
 };
@@ -35,14 +34,24 @@ async fn test_admin_jwt_manager_basic_operations() -> Result<()> {
     let service_name = "test_service";
     let permissions = AdminPermissions::default_admin();
 
+    // Initialize JWKS manager for RS256 admin token signing
+    let jwks_manager = common::get_shared_test_jwks();
+
     // Test token generation
-    let token = jwt_manager.generate_token(token_id, service_name, &permissions, false, None)?;
+    let token = jwt_manager.generate_token(
+        token_id,
+        service_name,
+        &permissions,
+        false,
+        None,
+        &jwks_manager,
+    )?;
 
     assert!(!token.is_empty());
     assert!(token.starts_with("eyJ")); // JWT format
 
     // Test token validation
-    let claims = jwt_manager.validate_token(&token)?;
+    let claims = jwt_manager.validate_token(&token, &jwks_manager)?;
     assert_eq!(claims.token_id, token_id);
     assert_eq!(claims.service_name, service_name);
     assert_eq!(claims.permissions, permissions);
@@ -60,12 +69,21 @@ async fn test_admin_jwt_with_expiration() -> Result<()> {
     let permissions = AdminPermissions::super_admin();
     let expires_at = Utc::now() + chrono::Duration::hours(1);
 
+    // Initialize JWKS manager for RS256 admin token signing
+    let jwks_manager = common::get_shared_test_jwks();
+
     // Generate token with expiration
-    let token =
-        jwt_manager.generate_token(token_id, service_name, &permissions, true, Some(expires_at))?;
+    let token = jwt_manager.generate_token(
+        token_id,
+        service_name,
+        &permissions,
+        true,
+        Some(expires_at),
+        &jwks_manager,
+    )?;
 
     // Validate token
-    let claims = jwt_manager.validate_token(&token)?;
+    let claims = jwt_manager.validate_token(&token, &jwks_manager)?;
     assert_eq!(claims.token_id, token_id);
     assert!(claims.is_super_admin);
 
@@ -116,8 +134,7 @@ async fn test_admin_token_database_operations() -> Result<()> {
     };
 
     // Initialize JWKS manager for RS256 admin token signing
-    let mut jwks_manager = JwksManager::new();
-    jwks_manager.generate_rsa_key_pair("test_key_1")?;
+    let jwks_manager = common::get_shared_test_jwks();
 
     // Create admin token
     let generated_token = db
@@ -171,8 +188,7 @@ async fn test_admin_token_usage_tracking() -> Result<()> {
     };
 
     // Initialize JWKS manager for RS256 admin token signing
-    let mut jwks_manager = JwksManager::new();
-    jwks_manager.generate_rsa_key_pair("test_key_2")?;
+    let jwks_manager = common::get_shared_test_jwks();
 
     let generated_token = db
         .create_admin_token(&request, TEST_JWT_SECRET, &jwks_manager)
@@ -243,8 +259,7 @@ async fn test_admin_provisioned_keys_tracking() -> Result<()> {
     };
 
     // Initialize JWKS manager for RS256 admin token signing
-    let mut jwks_manager = JwksManager::new();
-    jwks_manager.generate_rsa_key_pair("test_key_3")?;
+    let jwks_manager = common::get_shared_test_jwks();
 
     let admin_token = db
         .create_admin_token(&request, TEST_JWT_SECRET, &jwks_manager)
@@ -296,13 +311,12 @@ async fn test_admin_provisioned_keys_tracking() -> Result<()> {
 #[serial]
 async fn test_admin_auth_service_construction() -> Result<()> {
     let db = common::create_test_database().await?;
-    let jwt_secret = "test_secret_for_admin_auth_service_testing_purposes";
 
     // Create JWKS manager for RS256
-    let jwks_manager = std::sync::Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let jwks_manager = common::get_shared_test_jwks();
 
     // Test that AdminAuthService can be constructed successfully
-    let auth_service = AdminAuthService::new((*db).clone(), jwt_secret, jwks_manager);
+    let auth_service = AdminAuthService::new((*db).clone(), jwks_manager);
 
     // Test basic functionality - invalid token should fail
     let invalid_result = auth_service
@@ -334,6 +348,9 @@ async fn test_admin_auth_service_construction() -> Result<()> {
 async fn test_admin_token_security_features() -> Result<()> {
     let jwt_manager = AdminJwtManager::new();
 
+    // Initialize JWKS manager for RS256 admin token signing
+    let jwks_manager = common::get_shared_test_jwks();
+
     // Test token prefix generation
     let token = jwt_manager.generate_token(
         "test_security",
@@ -341,6 +358,7 @@ async fn test_admin_token_security_features() -> Result<()> {
         &AdminPermissions::default_admin(),
         false,
         None,
+        &jwks_manager,
     )?;
 
     let prefix = AdminJwtManager::generate_token_prefix(&token);
@@ -431,8 +449,7 @@ async fn test_admin_super_admin_privileges() -> Result<()> {
     };
 
     // Initialize JWKS manager for RS256 admin token signing
-    let mut jwks_manager = JwksManager::new();
-    jwks_manager.generate_rsa_key_pair("test_key_4")?;
+    let jwks_manager = common::get_shared_test_jwks();
 
     let super_admin_token = db
         .create_admin_token(&request, TEST_JWT_SECRET, &jwks_manager)

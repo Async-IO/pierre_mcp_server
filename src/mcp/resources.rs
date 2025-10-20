@@ -21,7 +21,9 @@ use crate::cache::factory::Cache;
 use crate::database_plugins::factory::Database;
 use crate::intelligence::ActivityIntelligence;
 use crate::mcp::schema::OAuthCompletedNotification;
+use crate::middleware::redaction::RedactionConfig;
 use crate::middleware::McpAuthMiddleware;
+use crate::plugins::executor::PluginToolExecutor;
 use crate::providers::ProviderRegistry;
 use crate::tenant::{oauth_manager::TenantOAuthManager, TenantOAuthClient};
 use crate::websocket::WebSocketManager;
@@ -49,16 +51,22 @@ pub struct ServerResources {
     pub oauth_notification_sender: Option<broadcast::Sender<OAuthCompletedNotification>>,
     pub sse_manager: Arc<crate::sse::SseManager>,
     pub cache: Arc<Cache>,
+    pub plugin_executor: Option<Arc<PluginToolExecutor>>,
+    pub redaction_config: Arc<RedactionConfig>,
 }
 
 impl ServerResources {
     /// Create new server resources with proper Arc sharing
+    ///
+    /// # Parameters
+    /// - `rsa_key_size_bits`: Size of RSA keys for JWT signing (2048 for tests, 4096 for production)
     pub fn new(
         database: Database,
         auth_manager: AuthManager,
         admin_jwt_secret: &str,
         config: Arc<crate::config::environment::ServerConfig>,
         cache: Cache,
+        rsa_key_size_bits: usize,
     ) -> Self {
         let database_arc = Arc::new(database);
         let auth_manager_arc = Arc::new(auth_manager);
@@ -131,10 +139,19 @@ impl ServerResources {
         // Wrap cache in Arc for shared access across handlers
         let cache_arc = Arc::new(cache);
 
+        // Initialize PII redaction config from environment
+        let redaction_config = Arc::new(RedactionConfig::from_env());
+        tracing::info!(
+            "Redaction middleware initialized: enabled={}",
+            redaction_config.enabled
+        );
+
         // Create JWKS manager for RS256 JWT signing
         let mut jwks_manager = JwksManager::new();
-        // Generate initial RSA key pair for RS256 signing
-        if let Err(e) = jwks_manager.generate_rsa_key_pair("initial_key") {
+        // Generate initial RSA key pair for RS256 signing with configurable key size
+        if let Err(e) =
+            jwks_manager.generate_rsa_key_pair_with_size("initial_key", rsa_key_size_bits)
+        {
             tracing::warn!(
                 "Failed to generate initial JWKS key pair: {}. RS256 tokens will not be available.",
                 e
@@ -172,6 +189,8 @@ impl ServerResources {
             oauth_notification_sender: None,
             sse_manager,
             cache: cache_arc,
+            plugin_executor: None,
+            redaction_config,
         }
     }
 
@@ -181,6 +200,11 @@ impl ServerResources {
         sender: broadcast::Sender<OAuthCompletedNotification>,
     ) {
         self.oauth_notification_sender = Some(sender);
+    }
+
+    /// Set the plugin executor after `ServerResources` is wrapped in Arc
+    pub fn set_plugin_executor(&mut self, executor: Arc<PluginToolExecutor>) {
+        self.plugin_executor = Some(executor);
     }
 
     /// Create a new builder for `ServerResources`
@@ -197,10 +221,11 @@ pub struct ServerResourcesBuilder {
     admin_jwt_secret: Option<String>,
     config: Option<Arc<crate::config::environment::ServerConfig>>,
     cache: Option<Cache>,
+    rsa_key_size_bits: usize,
 }
 
 impl ServerResourcesBuilder {
-    /// Create a new builder
+    /// Create a new builder with production defaults (4096-bit RSA keys)
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -209,6 +234,7 @@ impl ServerResourcesBuilder {
             admin_jwt_secret: None,
             config: None,
             cache: None,
+            rsa_key_size_bits: 4096, // Production default
         }
     }
 
@@ -221,7 +247,7 @@ impl ServerResourcesBuilder {
 
     /// Set the auth manager
     #[must_use]
-    pub fn with_auth_manager(mut self, auth_manager: AuthManager) -> Self {
+    pub const fn with_auth_manager(mut self, auth_manager: AuthManager) -> Self {
         self.auth_manager = Some(auth_manager);
         self
     }
@@ -247,6 +273,13 @@ impl ServerResourcesBuilder {
         self
     }
 
+    /// Set the RSA key size for JWT signing (2048 for tests, 4096 for production)
+    #[must_use]
+    pub const fn with_rsa_key_size_bits(mut self, rsa_key_size_bits: usize) -> Self {
+        self.rsa_key_size_bits = rsa_key_size_bits;
+        self
+    }
+
     /// Build the `ServerResources`
     ///
     /// # Errors
@@ -261,8 +294,14 @@ impl ServerResourcesBuilder {
         let config = self.config.ok_or("Server config is required")?;
         let cache = self.cache.ok_or("Cache is required")?;
 
-        let resources =
-            ServerResources::new(database, auth_manager, &admin_jwt_secret, config, cache);
+        let resources = ServerResources::new(
+            database,
+            auth_manager,
+            &admin_jwt_secret,
+            config,
+            cache,
+            self.rsa_key_size_bits,
+        );
         Ok(resources)
     }
 

@@ -4,6 +4,8 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+mod common;
+
 use chrono::{Duration, Utc};
 use pierre_mcp_server::{
     auth::{generate_jwt_secret, AuthManager, AuthMethod, Claims, JwtValidationError},
@@ -24,8 +26,8 @@ fn create_test_user() -> User {
 }
 
 fn create_auth_manager() -> AuthManager {
-    let secret = generate_jwt_secret().to_vec();
-    AuthManager::new(secret, 24) // 24 hour expiry
+    let _secret = generate_jwt_secret().to_vec();
+    AuthManager::new(24) // 24 hour expiry
 }
 
 #[test]
@@ -33,12 +35,13 @@ fn test_generate_and_validate_token() {
     let auth_manager = create_auth_manager();
     let user = create_test_user();
 
-    // Generate token
-    let token = auth_manager.generate_token(&user).unwrap();
+    // Generate token using shared test JWKS
+    let jwks_manager = common::get_shared_test_jwks();
+    let token = auth_manager.generate_token(&user, &jwks_manager).unwrap();
     assert!(!token.is_empty());
 
     // Validate token
-    let claims = auth_manager.validate_token(&token).unwrap();
+    let claims = auth_manager.validate_token(&token, &jwks_manager).unwrap();
     assert_eq!(claims.email, "test@example.com");
     assert_eq!(claims.sub, user.id.to_string());
     assert!(claims.exp > Utc::now().timestamp());
@@ -49,7 +52,9 @@ fn test_create_session() {
     let auth_manager = create_auth_manager();
     let user = create_test_user();
 
-    let session = auth_manager.create_session(&user).unwrap();
+    let jwks_manager = common::get_shared_test_jwks();
+
+    let session = auth_manager.create_session(&user, &jwks_manager).unwrap();
     assert_eq!(session.user_id, user.id);
     assert_eq!(session.email, "test@example.com");
     assert!(!session.jwt_token.is_empty());
@@ -61,10 +66,11 @@ fn test_authenticate_request() {
     let auth_manager = create_auth_manager();
     let user = create_test_user();
 
-    let token = auth_manager.generate_token(&user).unwrap();
+    let jwks_manager = common::get_shared_test_jwks();
+    let token = auth_manager.generate_token(&user, &jwks_manager).unwrap();
     let auth_request = AuthRequest { token };
 
-    let response = auth_manager.authenticate(&auth_request);
+    let response = auth_manager.authenticate(&auth_request, &jwks_manager);
     assert!(response.authenticated);
     assert_eq!(response.user_id, Some(user.id));
     assert!(response.error.is_none());
@@ -73,11 +79,15 @@ fn test_authenticate_request() {
 #[test]
 fn test_authenticate_invalid_token() {
     let auth_manager = create_auth_manager();
+
+    // Setup JWKS manager for validation
+    let jwks_manager = common::get_shared_test_jwks();
+
     let auth_request = AuthRequest {
         token: "invalid.jwt.token".into(),
     };
 
-    let response = auth_manager.authenticate(&auth_request);
+    let response = auth_manager.authenticate(&auth_request, &jwks_manager);
     assert!(!response.authenticated);
     assert!(response.user_id.is_none());
     assert!(response.error.is_some());
@@ -88,13 +98,20 @@ fn test_refresh_token() {
     let auth_manager = create_auth_manager();
     let user = create_test_user();
 
-    let original_token = auth_manager.generate_token(&user).unwrap();
-    let refreshed_token = auth_manager.refresh_token(&original_token, &user).unwrap();
+    let jwks_manager = common::get_shared_test_jwks();
+    let original_token = auth_manager.generate_token(&user, &jwks_manager).unwrap();
+    let refreshed_token = auth_manager
+        .refresh_token(&original_token, &user, &jwks_manager)
+        .unwrap();
 
     // Both tokens should be valid (tokens might be identical if generated within same second)
 
-    let original_claims = auth_manager.validate_token(&original_token).unwrap();
-    let refreshed_claims = auth_manager.validate_token(&refreshed_token).unwrap();
+    let original_claims = auth_manager
+        .validate_token(&original_token, &jwks_manager)
+        .unwrap();
+    let refreshed_claims = auth_manager
+        .validate_token(&refreshed_token, &jwks_manager)
+        .unwrap();
 
     assert_eq!(original_claims.sub, refreshed_claims.sub);
     assert_eq!(original_claims.email, refreshed_claims.email);
@@ -106,8 +123,9 @@ fn test_extract_user_id() {
     let auth_manager = create_auth_manager();
     let user = create_test_user();
 
-    let token = auth_manager.generate_token(&user).unwrap();
-    let extracted_id = auth_manager.extract_user_id(&token).unwrap();
+    let jwks_manager = common::get_shared_test_jwks();
+    let token = auth_manager.generate_token(&user, &jwks_manager).unwrap();
+    let extracted_id = auth_manager.extract_user_id(&token, &jwks_manager).unwrap();
 
     assert_eq!(extracted_id, user.id);
 }
@@ -125,10 +143,13 @@ async fn test_mcp_auth_middleware() {
     // Create the user in the database first (required for JWT rate limiting)
     database.create_user(&user).await.unwrap();
 
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
-    let middleware = McpAuthMiddleware::new(auth_manager, database, jwks_manager);
+    let jwks_manager = common::get_shared_test_jwks();
+    let middleware = McpAuthMiddleware::new(auth_manager, database, jwks_manager.clone());
 
-    let token = middleware.auth_manager().generate_token(&user).unwrap();
+    let token = middleware
+        .auth_manager()
+        .generate_token(&user, &jwks_manager)
+        .unwrap();
     let auth_header = format!("Bearer {token}");
 
     let auth_result = middleware
@@ -151,7 +172,7 @@ async fn test_mcp_auth_middleware_invalid_header() {
     let encryption_key = generate_encryption_key().to_vec();
     let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
 
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let jwks_manager = common::get_shared_test_jwks();
     let middleware = McpAuthMiddleware::new(auth_manager, database, jwks_manager);
 
     // Test missing header
@@ -175,13 +196,21 @@ async fn test_provider_access_check() {
     let encryption_key = generate_encryption_key().to_vec();
     let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
 
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
-    let middleware = McpAuthMiddleware::new(auth_manager, database, jwks_manager);
+    let jwks_manager = common::get_shared_test_jwks();
+    let middleware = McpAuthMiddleware::new(auth_manager, database, jwks_manager.clone());
 
     // User has no providers initially
-    let token = middleware.auth_manager().generate_token(&user).unwrap();
+    let token = middleware
+        .auth_manager()
+        .generate_token(&user, &jwks_manager)
+        .unwrap();
 
-    let has_strava = middleware.check_provider_access(&token, "strava").unwrap();
+    // Validate token directly with auth manager
+    let claims = middleware
+        .auth_manager()
+        .validate_token(&token, &jwks_manager)
+        .unwrap();
+    let has_strava = claims.providers.contains(&"strava".to_string());
     assert!(!has_strava);
 }
 
@@ -189,13 +218,16 @@ async fn test_provider_access_check() {
 fn test_jwt_detailed_validation_invalid_token() {
     let auth_manager = create_auth_manager();
 
+    // Setup JWKS manager for validation
+    let jwks_manager = common::get_shared_test_jwks();
+
     // Test with malformed token
-    let result = auth_manager.validate_token_detailed("invalid.jwt.token");
+    let result = auth_manager.validate_token_detailed("invalid.jwt.token", &jwks_manager);
     assert!(result.is_err());
 
     match result.unwrap_err() {
         JwtValidationError::TokenMalformed { details } => {
-            assert!(details.contains("Token"));
+            assert!(!details.is_empty(), "Error details should not be empty");
         }
         _ => panic!("Expected TokenMalformed error"),
     }
@@ -206,14 +238,16 @@ fn test_enhanced_authenticate_response() {
     let user = create_test_user();
 
     // Test with expired token - use same auth manager for validation
-    let secret = generate_jwt_secret().to_vec();
-    let expired_auth_manager = AuthManager::new(secret, -1);
-    let expired_token = expired_auth_manager.generate_token(&user).unwrap();
+    let expired_auth_manager = AuthManager::new(-1);
+    let jwks_manager = common::get_shared_test_jwks();
+    let expired_token = expired_auth_manager
+        .generate_token(&user, &jwks_manager)
+        .unwrap();
 
     let auth_request = AuthRequest {
         token: expired_token,
     };
-    let response = expired_auth_manager.authenticate(&auth_request);
+    let response = expired_auth_manager.authenticate(&auth_request, &jwks_manager);
 
     assert!(!response.authenticated);
     assert!(response.error.is_some());
@@ -235,21 +269,16 @@ fn test_generate_jwt_secret() {
 
 #[test]
 fn test_auth_manager_new() {
-    let jwt_secret = generate_jwt_secret().to_vec();
     let expiry_hours = 12;
-    let auth_manager = AuthManager::new(jwt_secret.clone(), expiry_hours);
+    let auth_manager = AuthManager::new(expiry_hours);
+    let user = create_test_user();
 
-    assert_eq!(auth_manager.jwt_secret(), &jwt_secret);
-    // Note: token_expiry_hours is private, so we can't test it directly
-}
+    // Note: RS256 auth manager doesn't store jwt_secret anymore
+    // Verify it works by generating a token
+    let jwks_manager = common::get_shared_test_jwks();
 
-#[test]
-fn test_auth_manager_clone() {
-    let auth_manager1 = create_auth_manager();
-    let auth_manager2 = &auth_manager1;
-
-    assert_eq!(auth_manager1.jwt_secret(), auth_manager2.jwt_secret());
-    // Note: token_expiry_hours is private, so we can't test it directly
+    let token = auth_manager.generate_token(&user, &jwks_manager);
+    assert!(token.is_ok());
 }
 
 #[test]
@@ -257,7 +286,8 @@ fn test_generate_token_success() {
     let auth_manager = create_auth_manager();
     let user = create_test_user();
 
-    let token_result = auth_manager.generate_token(&user);
+    let jwks_manager = common::get_shared_test_jwks();
+    let token_result = auth_manager.generate_token(&user, &jwks_manager);
     assert!(token_result.is_ok());
 
     let token = token_result.unwrap();
@@ -273,11 +303,18 @@ fn test_validate_token_invalid_signature() {
     let auth_manager = create_auth_manager();
     let user = create_test_user();
 
-    let token = auth_manager.generate_token(&user).unwrap();
+    let jwks_manager = common::get_shared_test_jwks();
+    let token = auth_manager.generate_token(&user, &jwks_manager).unwrap();
 
-    // Create a different auth manager with different secret
+    // Create a different JWKS manager with different key - validation will fail
+    let mut different_jwks_manager = pierre_mcp_server::admin::jwks::JwksManager::new();
+    different_jwks_manager
+        .generate_rsa_key_pair_with_size("different_key", 2048)
+        .unwrap();
+    let different_jwks_manager = Arc::new(different_jwks_manager);
+
     let different_auth_manager = create_auth_manager();
-    let claims_result = different_auth_manager.validate_token(&token);
+    let claims_result = different_auth_manager.validate_token(&token, &different_jwks_manager);
 
     assert!(claims_result.is_err());
 }
@@ -294,8 +331,10 @@ fn test_validate_token_malformed() {
         "",
     ];
 
+    let jwks_manager = common::get_shared_test_jwks();
+
     for invalid_token in invalid_tokens {
-        let result = auth_manager.validate_token(invalid_token);
+        let result = auth_manager.validate_token(invalid_token, &jwks_manager);
         assert!(result.is_err(), "Token should be invalid: {invalid_token}");
     }
 }
@@ -305,8 +344,9 @@ fn test_validate_token_detailed_success() {
     let auth_manager = create_auth_manager();
     let user = create_test_user();
 
-    let token = auth_manager.generate_token(&user).unwrap();
-    let claims_result = auth_manager.validate_token_detailed(&token);
+    let jwks_manager = common::get_shared_test_jwks();
+    let token = auth_manager.generate_token(&user, &jwks_manager).unwrap();
+    let claims_result = auth_manager.validate_token_detailed(&token, &jwks_manager);
 
     assert!(claims_result.is_ok());
 
@@ -320,18 +360,26 @@ fn test_validate_token_detailed_invalid_signature() {
     let auth_manager = create_auth_manager();
     let user = create_test_user();
 
-    let token = auth_manager.generate_token(&user).unwrap();
+    let jwks_manager = common::get_shared_test_jwks();
+    let token = auth_manager.generate_token(&user, &jwks_manager).unwrap();
 
-    // Create a different auth manager with different secret
+    // Create a different JWKS manager with different key
+    let mut different_jwks_manager = pierre_mcp_server::admin::jwks::JwksManager::new();
+    different_jwks_manager
+        .generate_rsa_key_pair_with_size("different_key", 2048)
+        .unwrap();
+    let different_jwks_manager = Arc::new(different_jwks_manager);
+
     let different_auth_manager = create_auth_manager();
-    let claims_result = different_auth_manager.validate_token_detailed(&token);
+    let claims_result =
+        different_auth_manager.validate_token_detailed(&token, &different_jwks_manager);
 
     assert!(claims_result.is_err());
 
     let error = claims_result.unwrap_err();
     match error {
         JwtValidationError::TokenInvalid { reason } => {
-            assert!(reason.contains("signature"));
+            assert!(reason.contains("Key not found") || reason.contains("JWKS"));
         }
         _ => panic!("Expected TokenInvalid error, got {error:?}"),
     }
@@ -341,8 +389,11 @@ fn test_validate_token_detailed_invalid_signature() {
 fn test_validate_token_detailed_malformed() {
     let auth_manager = create_auth_manager();
 
+    // Setup JWKS manager for validation
+    let jwks_manager = common::get_shared_test_jwks();
+
     let malformed_token = "not.a.jwt";
-    let claims_result = auth_manager.validate_token_detailed(malformed_token);
+    let claims_result = auth_manager.validate_token_detailed(malformed_token, &jwks_manager);
 
     assert!(claims_result.is_err());
 
@@ -359,8 +410,11 @@ fn test_validate_token_detailed_malformed() {
 fn test_extract_user_id_invalid_token() {
     let auth_manager = create_auth_manager();
 
+    // Setup JWKS manager for validation
+    let jwks_manager = common::get_shared_test_jwks();
+
     let invalid_token = "invalid.token.here";
-    let user_id_result = auth_manager.extract_user_id(invalid_token);
+    let user_id_result = auth_manager.extract_user_id(invalid_token, &jwks_manager);
 
     assert!(user_id_result.is_err());
 }
@@ -371,14 +425,17 @@ fn test_generate_oauth_access_token() {
     let user_id = Uuid::new_v4();
     let scopes = vec!["read".to_string(), "write".to_string()];
 
-    let token_result = auth_manager.generate_oauth_access_token(&user_id, &scopes);
+    // Setup JWKS manager for RS256 token generation
+    let jwks_manager = common::get_shared_test_jwks();
+
+    let token_result = auth_manager.generate_oauth_access_token(&jwks_manager, &user_id, &scopes);
     assert!(token_result.is_ok());
 
     let token = token_result.unwrap();
     assert!(!token.is_empty());
 
     // Validate the token
-    let claims = auth_manager.validate_token(&token).unwrap();
+    let claims = auth_manager.validate_token(&token, &jwks_manager).unwrap();
     assert_eq!(claims.sub, user_id.to_string());
 }
 
@@ -388,7 +445,11 @@ fn test_generate_client_credentials_token() {
     let client_id = "test_client_id";
     let scopes = vec!["client_read".to_string(), "client_write".to_string()];
 
-    let token_result = auth_manager.generate_client_credentials_token(client_id, &scopes);
+    // Setup JWKS manager for RS256 token generation
+    let jwks_manager = common::get_shared_test_jwks();
+
+    let token_result =
+        auth_manager.generate_client_credentials_token(&jwks_manager, client_id, &scopes);
     assert!(token_result.is_ok());
 
     let token = token_result.unwrap();
@@ -528,6 +589,9 @@ async fn test_mcp_auth_middleware_different_user_tiers() {
     let encryption_key = generate_encryption_key().to_vec();
     let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
 
+    // Use shared JWKS manager for all tier tests
+    let jwks_manager = common::get_shared_test_jwks();
+
     // Test different user tiers
     for (i, tier) in [
         UserTier::Starter,
@@ -541,10 +605,12 @@ async fn test_mcp_auth_middleware_different_user_tiers() {
         user.email = format!("tier_test_{i}@example.com"); // Unique email for each user
         database.create_user(&user).await.unwrap();
 
-        let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
         let middleware =
-            McpAuthMiddleware::new(auth_manager.clone(), database.clone(), jwks_manager);
-        let token = middleware.auth_manager().generate_token(&user).unwrap();
+            McpAuthMiddleware::new(auth_manager.clone(), database.clone(), jwks_manager.clone());
+        let token = middleware
+            .auth_manager()
+            .generate_token(&user, &jwks_manager)
+            .unwrap();
         let auth_header = format!("Bearer {token}");
 
         let auth_result = middleware
@@ -567,17 +633,19 @@ fn test_token_counter_uniqueness() {
     let auth_manager = create_auth_manager();
     let user = create_test_user();
 
+    let jwks_manager = common::get_shared_test_jwks();
+
     // Generate multiple tokens rapidly
     let mut tokens = Vec::new();
     for _ in 0..10 {
-        let token = auth_manager.generate_token(&user).unwrap();
+        let token = auth_manager.generate_token(&user, &jwks_manager).unwrap();
         tokens.push(token);
     }
 
     // Verify all tokens have unique iat timestamps (due to counter)
     let mut iats = Vec::new();
     for token in tokens {
-        let claims = auth_manager.validate_token(&token).unwrap();
+        let claims = auth_manager.validate_token(&token, &jwks_manager).unwrap();
         iats.push(claims.iat);
     }
 

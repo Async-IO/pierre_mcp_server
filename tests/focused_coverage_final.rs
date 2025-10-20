@@ -106,11 +106,12 @@ async fn test_mcp_multitenant_comprehensive() -> Result<()> {
         server.database().create_user(&user).await?;
 
         // Test token generation
-        let token = auth_ref.generate_token(&user)?;
+        let jwks_manager = common::get_shared_test_jwks();
+        let token = auth_ref.generate_token(&user, &jwks_manager)?;
         assert!(!token.is_empty());
 
         // Test token validation
-        let validation = auth_ref.validate_token(&token)?;
+        let validation = auth_ref.validate_token(&token, &jwks_manager)?;
         assert_eq!(validation.sub, user.id.to_string());
 
         // Test user retrieval
@@ -144,7 +145,10 @@ async fn test_jsonrpc_scenarios() -> Result<()> {
         Some("JSONRPC Test".to_string()),
     );
     resources.database.create_user(&user).await?;
-    let token = resources.auth_manager.generate_token(&user)?;
+    let jwks_manager = common::get_shared_test_jwks();
+    let token = resources
+        .auth_manager
+        .generate_token(&user, &jwks_manager)?;
 
     // Test various JSON-RPC request formats
     let requests = [
@@ -504,8 +508,13 @@ async fn test_concurrent_operations() -> Result<()> {
             );
 
             server_clone.database().create_user(&user).await?;
-            let token = server_clone.auth_manager().generate_token(&user)?;
-            let validation = server_clone.auth_manager().validate_token(&token)?;
+            let jwks_manager = common::get_shared_test_jwks();
+            let token = server_clone
+                .auth_manager()
+                .generate_token(&user, &jwks_manager)?;
+            let validation = server_clone
+                .auth_manager()
+                .validate_token(&token, &jwks_manager)?;
 
             Ok::<(String, String), anyhow::Error>((user.email, validation.sub))
         });

@@ -40,7 +40,8 @@ async fn create_test_user_with_auth(database: &Database) -> Result<(User, String
     database.create_user(&user).await?;
 
     let auth_manager = common::create_test_auth_manager();
-    let token = auth_manager.generate_token(&user)?;
+    let jwks_manager = common::get_shared_test_jwks();
+    let token = auth_manager.generate_token(&user, &jwks_manager)?;
 
     Ok((user, token))
 }
@@ -646,7 +647,9 @@ async fn test_concurrent_requests() -> Result<()> {
             .await?;
         user.tenant_id = Some(tenant_slug);
 
-        let token = resources.auth_manager.generate_token(&user)?;
+        let token = resources
+            .auth_manager
+            .generate_token(&user, &resources.jwks_manager)?;
         user_tokens.push((user, token));
     }
 

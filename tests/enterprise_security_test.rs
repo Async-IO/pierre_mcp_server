@@ -8,6 +8,8 @@
 //! Tests to verify that self-service API key creation endpoints
 //! are properly disabled and only admin endpoints work.
 
+mod common;
+
 use anyhow::Result;
 use serial_test::serial;
 
@@ -63,8 +65,15 @@ async fn test_enterprise_security_model() -> Result<()> {
 
     // 3. JWT manager can create admin tokens
     let jwt_manager = AdminJwtManager::new();
-    let token =
-        jwt_manager.generate_token("test_admin", "test_service", &admin_perms, false, None)?;
+    let jwks_manager = common::get_shared_test_jwks();
+    let token = jwt_manager.generate_token(
+        "test_admin",
+        "test_service",
+        &admin_perms,
+        false,
+        None,
+        &jwks_manager,
+    )?;
     assert!(!token.is_empty());
 
     println!("Enterprise security model is properly implemented");

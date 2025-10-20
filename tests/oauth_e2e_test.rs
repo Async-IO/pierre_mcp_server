@@ -186,7 +186,7 @@ async fn test_oauth_flow_through_mcp() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     // Create test config
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
@@ -287,6 +287,7 @@ async fn test_oauth_flow_through_mcp() {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -360,7 +361,7 @@ async fn test_oauth_callback_error_handling() {
         .unwrap();
     database.migrate().await.unwrap();
 
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     // Create admin user and tenant for the test
     let admin_user = User {
@@ -514,6 +515,7 @@ async fn test_oauth_callback_error_handling() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -558,7 +560,7 @@ async fn test_oauth_state_csrf_protection() {
         .unwrap();
     database.migrate().await.unwrap();
 
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     // Create admin user first
     let admin_user = User {
@@ -708,6 +710,7 @@ async fn test_oauth_state_csrf_protection() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -747,7 +750,7 @@ async fn test_connection_status_tracking() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     // Register a test user
     let temp_dir = tempfile::tempdir().unwrap();
@@ -848,6 +851,7 @@ async fn test_connection_status_tracking() {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());

@@ -450,7 +450,7 @@ async fn test_database_encryption_isolation() -> Result<()> {
 #[tokio::test]
 async fn test_mcp_server_tenant_isolation() -> Result<()> {
     let database = setup_test_database().await?;
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     // Create test server
     let cache = common::create_test_cache().await.unwrap();
@@ -460,6 +460,7 @@ async fn test_mcp_server_tenant_isolation() -> Result<()> {
         TEST_JWT_SECRET,
         create_test_server_config(),
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -482,15 +483,16 @@ async fn test_mcp_server_tenant_isolation() -> Result<()> {
     let user2 = database.get_user(user2_id).await?.unwrap();
 
     // Generate JWT tokens for both users
-    let user1_token = auth_manager.generate_token(&user1)?;
-    let user2_token = auth_manager.generate_token(&user2)?;
+    let jwks_manager = common::get_shared_test_jwks();
+    let user1_token = auth_manager.generate_token(&user1, &jwks_manager)?;
+    let user2_token = auth_manager.generate_token(&user2, &jwks_manager)?;
 
     // Verify tokens are different and user-specific
     assert_ne!(user1_token, user2_token, "JWT tokens should be different");
 
     // Verify token validation returns correct user IDs
-    let user1_claims = auth_manager.validate_token(&user1_token)?;
-    let user2_claims = auth_manager.validate_token(&user2_token)?;
+    let user1_claims = auth_manager.validate_token(&user1_token, &jwks_manager)?;
+    let user2_claims = auth_manager.validate_token(&user2_token, &jwks_manager)?;
 
     let user1_id_from_token = Uuid::parse_str(&user1_claims.sub)?;
     let user2_id_from_token = Uuid::parse_str(&user2_claims.sub)?;

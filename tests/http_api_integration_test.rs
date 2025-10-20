@@ -25,10 +25,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
         Arc::new(Database::new("sqlite::memory:", generate_encryption_key().to_vec()).await?);
     database.migrate().await?;
 
-    let auth_manager = Arc::new(AuthManager::new(
-        pierre_mcp_server::auth::generate_jwt_secret().to_vec(),
-        24,
-    ));
+    let auth_manager = Arc::new(AuthManager::new(24));
 
     // Create admin user first
     let admin_user = User {
@@ -198,6 +195,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());

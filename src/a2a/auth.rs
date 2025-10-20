@@ -183,7 +183,7 @@ impl A2AAuthenticator {
         let token_claims = self
             .resources
             .auth_manager
-            .validate_token_rs256(token, &self.resources.jwks_manager)?;
+            .validate_token(token, &self.resources.jwks_manager)?;
 
         // Check if this is an A2A OAuth2 token by looking for specific claims
         // A2A OAuth tokens should have client_id in the subject or a custom claim

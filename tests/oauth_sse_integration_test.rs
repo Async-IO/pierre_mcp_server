@@ -33,7 +33,10 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
     println!("✅ SSE connection registered for user: {user_id}");
 
     // Generate JWT token for user
-    let jwt_token = resources.auth_manager.generate_token(&user)?;
+    let jwks_manager = common::get_shared_test_jwks();
+    let jwt_token = resources
+        .auth_manager
+        .generate_token(&user, &jwks_manager)?;
     println!("✅ JWT token generated for user");
 
     // Simulate OAuth authorization request (user clicks "Connect to Strava")
@@ -146,7 +149,10 @@ async fn test_mcp_client_oauth_notification_flow() -> Result<()> {
     let sse_manager = Arc::new(SseConnectionManager::new());
 
     // Test token refresh endpoint (simulates MCP client auto-refresh)
-    let initial_token = resources.auth_manager.generate_token(&user)?;
+    let jwks_manager = common::get_shared_test_jwks();
+    let initial_token = resources
+        .auth_manager
+        .generate_token(&user, &jwks_manager)?;
     println!("✅ Initial JWT token generated");
 
     let client = Client::new();

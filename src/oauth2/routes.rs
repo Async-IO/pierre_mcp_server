@@ -258,7 +258,7 @@ async fn handle_authorization(
     // Check if user is authenticated via session cookie
     let user_id = cookie_header.and_then(|cookie_value| {
         extract_session_token(&cookie_value).and_then(|token| {
-            match auth_manager.validate_token_rs256(&token, &jwks_manager) {
+            match auth_manager.validate_token(&token, &jwks_manager) {
                 Ok(claims) => {
                     tracing::info!(
                         "OAuth authorization for authenticated user: {}",
@@ -487,7 +487,7 @@ async fn handle_token_validate(
     let token_valid = if let Some(header) = auth_header {
         if let Some(token) = header.strip_prefix("Bearer ") {
             // Validate JWT token using RS256
-            match auth_manager.validate_token_rs256(token, &jwks_manager) {
+            match auth_manager.validate_token(token, &jwks_manager) {
                 Ok(_) => true,
                 Err(e) => {
                     tracing::debug!("Token validation failed: {}", e);
@@ -692,6 +692,7 @@ async fn authenticate_user_with_auth_manager(
     email: &str,
     password: &str,
     auth_manager: &AuthManager,
+    jwks_manager: &JwksManager,
 ) -> Result<String> {
     // Look up user by email
     let user = database
@@ -704,9 +705,9 @@ async fn authenticate_user_with_auth_manager(
         return Err(anyhow::anyhow!("Invalid password"));
     }
 
-    // Use AuthManager to generate JWT token (proper architecture)
+    // Use AuthManager to generate JWT token with RS256 (proper architecture)
     // This ensures consistent JWT handling across the entire system
-    let token = auth_manager.generate_token(&user)?;
+    let token = auth_manager.generate_token(&user, jwks_manager)?;
 
     Ok(token)
 }
@@ -804,7 +805,7 @@ async fn handle_oauth_login_submit(
     form: HashMap<String, String>,
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
-    _jwks_manager: Arc<JwksManager>,
+    jwks_manager: Arc<JwksManager>,
 ) -> Result<Box<dyn warp::Reply>, Rejection> {
     // Extract credentials from form
     let Some(email) = form.get("email") else {
@@ -822,8 +823,14 @@ async fn handle_oauth_login_submit(
     };
 
     // Authenticate user using database lookup and password verification
-    match authenticate_user_with_auth_manager(database.clone(), email, password, &auth_manager)
-        .await
+    match authenticate_user_with_auth_manager(
+        database.clone(),
+        email,
+        password,
+        &auth_manager,
+        &jwks_manager,
+    )
+    .await
     {
         Ok(token) => {
             // Extract OAuth parameters from form to continue authorization flow

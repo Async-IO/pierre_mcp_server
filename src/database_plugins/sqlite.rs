@@ -576,8 +576,8 @@ impl DatabaseProvider for SqliteDatabase {
         // Debug: Log token creation without exposing secrets
         tracing::debug!("Creating admin token with RS256 asymmetric signing");
 
-        // Use the JWT secret passed from server startup
-        let jwt_manager = AdminJwtManager::with_secret(admin_jwt_secret);
+        // Create JWT manager for RS256 token operations (no HS256 secret needed)
+        let jwt_manager = AdminJwtManager::new();
 
         // Get permissions
         let permissions = request.permissions.as_ref().map_or_else(
@@ -599,7 +599,7 @@ impl DatabaseProvider for SqliteDatabase {
         });
 
         // Generate JWT token using RS256 (asymmetric signing)
-        let jwt_token = jwt_manager.generate_token_rs256(
+        let jwt_token = jwt_manager.generate_token(
             &token_id,
             &request.service_name,
             &permissions,

@@ -172,7 +172,7 @@ mod common;
 async fn test_websocket_manager_creation() -> Result<()> {
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let jwks_manager = common::get_shared_test_jwks();
 
     let ws_manager =
         WebSocketManager::new(Arc::new((*database).clone()), &auth_manager, &jwks_manager);
@@ -197,9 +197,10 @@ async fn test_websocket_authentication_flow() -> Result<()> {
     database.create_user(&user).await?;
 
     // Generate auth token
-    let token = auth_manager.generate_token(&user)?;
+    let jwks_manager = common::get_shared_test_jwks();
+    let token = auth_manager.generate_token(&user, &jwks_manager)?;
 
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let jwks_manager = common::get_shared_test_jwks();
     let ws_manager =
         WebSocketManager::new(Arc::new((*database).clone()), &auth_manager, &jwks_manager);
     let _filter = ws_manager.websocket_filter();
@@ -360,7 +361,7 @@ async fn test_websocket_message_parsing() -> Result<()> {
 async fn test_websocket_connection_with_invalid_auth() -> Result<()> {
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let jwks_manager = common::get_shared_test_jwks();
 
     let ws_manager =
         WebSocketManager::new(Arc::new((*database).clone()), &auth_manager, &jwks_manager);
@@ -382,7 +383,7 @@ async fn test_websocket_connection_with_invalid_auth() -> Result<()> {
 async fn test_websocket_concurrent_client_management() -> Result<()> {
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let jwks_manager = common::get_shared_test_jwks();
 
     let ws_manager = Arc::new(WebSocketManager::new(
         Arc::new((*database).clone()),
@@ -407,7 +408,8 @@ async fn test_websocket_concurrent_client_management() -> Result<()> {
             );
             db_clone.create_user(&user).await.unwrap();
 
-            let token = auth_clone.generate_token(&user).unwrap();
+            let jwks_manager = common::get_shared_test_jwks();
+            let token = auth_clone.generate_token(&user, &jwks_manager).unwrap();
 
             // Create auth message
             let auth_msg = WebSocketMessage::Authentication { token };
@@ -537,7 +539,7 @@ async fn test_websocket_client_id_generation() -> Result<()> {
 async fn test_websocket_broadcast_system_stats() -> Result<()> {
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let jwks_manager = common::get_shared_test_jwks();
 
     let _ws_manager =
         WebSocketManager::new(Arc::new((*database).clone()), &auth_manager, &jwks_manager);

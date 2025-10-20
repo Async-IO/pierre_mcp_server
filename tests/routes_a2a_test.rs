@@ -158,6 +158,8 @@
 //! including authentication, authorization, request/response validation,
 //! error handling, edge cases, and A2A protocol compliance.
 
+mod common;
+
 use pierre_mcp_server::{
     a2a::{
         client::{A2AClientTier, ClientRegistrationRequest},
@@ -177,6 +179,7 @@ use uuid::Uuid;
 /// Test setup helper that creates all necessary components for A2A testing
 struct A2ATestSetup {
     routes: A2ARoutes,
+    server_resources: Arc<pierre_mcp_server::mcp::resources::ServerResources>,
     database: Arc<Database>,
     #[allow(dead_code)]
     auth_manager: Arc<AuthManager>,
@@ -196,8 +199,7 @@ impl A2ATestSetup {
         );
 
         // Create auth manager
-        let jwt_secret = pierre_mcp_server::auth::generate_jwt_secret().to_vec();
-        let auth_manager = Arc::new(AuthManager::new(jwt_secret, 24));
+        let auth_manager = Arc::new(AuthManager::new(24));
 
         // Create test user
         let user = User::new(
@@ -210,9 +212,13 @@ impl A2ATestSetup {
             .await
             .expect("Failed to create test user");
 
+        // Create JWKS manager for RS256 token generation
+        let jwks_manager = common::get_shared_test_jwks();
+        let jwks_manager = Arc::new(jwks_manager);
+
         // Generate JWT token for the user
         let jwt_token = auth_manager
-            .generate_token(&user)
+            .generate_token(&user, &jwks_manager)
             .expect("Failed to generate JWT token");
 
         // Create test server config - use a minimal config for testing
@@ -236,13 +242,15 @@ impl A2ATestSetup {
             "test_jwt_secret",
             config,
             cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
         ));
 
         // Create A2A routes
-        let routes = A2ARoutes::new(server_resources);
+        let routes = A2ARoutes::new(server_resources.clone());
 
         Self {
             routes,
+            server_resources,
             database,
             auth_manager,
             user_id,
@@ -263,34 +271,8 @@ impl A2ATestSetup {
             contact_email: "client@example.com".to_string(),
         };
 
-        // Create minimal ServerResources for testing
-        let auth_manager = Arc::new(pierre_mcp_server::auth::AuthManager::new(
-            b"test_secret".to_vec(),
-            24,
-        ));
-
-        // Create test cache with background cleanup disabled
-        let cache_config = pierre_mcp_server::cache::CacheConfig {
-            max_entries: 1000,
-            redis_url: None,
-            cleanup_interval: std::time::Duration::from_secs(60),
-            enable_background_cleanup: false,
-        };
-        let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
-            .await
-            .expect("Failed to create test cache");
-
-        let test_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
-            (*self.database).clone(),
-            (*auth_manager).clone(),
-            "test_jwt_secret",
-            Arc::new(
-                pierre_mcp_server::config::environment::ServerConfig::from_env()
-                    .unwrap_or_default(),
-            ),
-            cache,
-        ));
-        let client_manager = &*test_resources.a2a_client_manager;
+        // Reuse the existing ServerResources to avoid creating new RSA keys
+        let client_manager = &*self.server_resources.a2a_client_manager;
         let credentials = client_manager
             .register_client(request)
             .await

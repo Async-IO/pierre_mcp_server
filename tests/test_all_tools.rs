@@ -202,7 +202,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
     });
 
     // Create ServerResources for the test
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = pierre_mcp_server::auth::AuthManager::new(24);
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         (*database).clone(),
@@ -210,6 +210,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         "test_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let executor = UniversalToolExecutor::new(server_resources);

@@ -9,6 +9,8 @@
 //! This is a focused test to verify that the critical security vulnerability
 //! where JWT tokens had unlimited API access has been fixed.
 
+mod common;
+
 use pierre_mcp_server::auth::AuthManager;
 use pierre_mcp_server::database::generate_encryption_key;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
@@ -24,13 +26,12 @@ async fn test_jwt_tokens_now_have_rate_limiting() {
     let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
 
     // Create auth manager and middleware
-    let jwt_secret = pierre_mcp_server::auth::generate_jwt_secret().to_vec();
-    let auth_manager = AuthManager::new(jwt_secret.clone(), 24);
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let auth_manager = AuthManager::new(24);
+    let jwks_manager = common::get_shared_test_jwks();
     let auth_middleware = Arc::new(McpAuthMiddleware::new(
         auth_manager,
         database.clone(),
-        jwks_manager,
+        jwks_manager.clone(),
     ));
 
     // Create and store a test user (defaults to Starter tier with 10,000 requests/month)
@@ -42,9 +43,9 @@ async fn test_jwt_tokens_now_have_rate_limiting() {
     database.create_user(&user).await.unwrap();
 
     // Create a JWT token for the user (using same secret for consistency)
-    let token_auth_manager = AuthManager::new(jwt_secret, 24);
+    let token_auth_manager = AuthManager::new(24);
     let token = token_auth_manager
-        .generate_token(&user)
+        .generate_token(&user, &jwks_manager)
         .expect("Failed to generate JWT token");
 
     // Test authentication - should now include rate limiting info

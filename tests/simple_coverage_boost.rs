@@ -288,12 +288,13 @@ async fn test_auth_edge_cases() -> Result<()> {
         },
     ];
 
+    let jwks_manager = common::get_shared_test_jwks();
     for user in users {
-        let token = auth_manager.generate_token(&user)?;
+        let token = auth_manager.generate_token(&user, &jwks_manager)?;
         assert!(!token.is_empty());
 
         // Test token validation
-        let validation = auth_manager.validate_token(&token)?;
+        let validation = auth_manager.validate_token(&token, &jwks_manager)?;
         assert_eq!(validation.sub, user.id.to_string());
     }
 

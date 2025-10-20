@@ -4,8 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+mod common;
+
 use anyhow::Result;
-use pierre_mcp_server::admin::jwks::JwksManager;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::key_management::KeyManager;
 use tempfile::TempDir;
@@ -18,8 +19,7 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
     let db_url = format!("sqlite:{}", db_path.display());
 
     // Initialize JWKS manager for RS256 admin token signing (shared across "restarts")
-    let mut jwks_manager = JwksManager::new();
-    jwks_manager.generate_rsa_key_pair("test_key")?;
+    let jwks_manager = common::get_shared_test_jwks();
 
     // Step 1: First initialization - simulate admin-setup
     let jwt_secret_1 = {
@@ -68,10 +68,10 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
     );
 
     // Step 4: Verify admin token can be validated with persistent secret using RS256
-    let jwt_manager = pierre_mcp_server::admin::jwt::AdminJwtManager::with_secret(&jwt_secret_2);
+    let jwt_manager = pierre_mcp_server::admin::jwt::AdminJwtManager::new();
 
     // This should NOT fail with InvalidSignature (using RS256 validation)
-    let validation_result = jwt_manager.validate_token_rs256(&jwt_secret_1.1, &jwks_manager);
+    let validation_result = jwt_manager.validate_token(&jwt_secret_1.1, &jwks_manager);
     assert!(
         validation_result.is_ok(),
         "Admin token validation failed after restart: {:?}",

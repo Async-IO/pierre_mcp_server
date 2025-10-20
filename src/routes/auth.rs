@@ -209,7 +209,7 @@ impl AuthService {
         let jwt_token = self
             .auth_context
             .auth_manager()
-            .generate_token_rs256(&user, self.auth_context.jwks_manager())?;
+            .generate_token(&user, self.auth_context.jwks_manager())?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS); // Default 24h expiry
 
@@ -241,7 +241,7 @@ impl AuthService {
         let token_claims = self
             .auth_context
             .auth_manager()
-            .validate_token_rs256(&request.token, self.auth_context.jwks_manager())?;
+            .validate_token(&request.token, self.auth_context.jwks_manager())?;
         let user_id = uuid::Uuid::parse_str(&token_claims.sub)?;
 
         // Validate that the user_id matches the one in the request
@@ -262,7 +262,7 @@ impl AuthService {
         let new_jwt_token = self
             .auth_context
             .auth_manager()
-            .generate_token_rs256(&user, self.auth_context.jwks_manager())?;
+            .generate_token(&user, self.auth_context.jwks_manager())?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS);
 
@@ -1101,7 +1101,7 @@ impl AuthRoutes {
                 let token = header.strip_prefix("Bearer ").unwrap_or(&header);
                 let claims = resources
                     .auth_manager
-                    .validate_token_rs256(token, &resources.jwks_manager)
+                    .validate_token(token, &resources.jwks_manager)
                     .map_err(|e| warp::reject::custom(AppError::from(e)))?;
                 uuid::Uuid::parse_str(&claims.sub)
                     .map_err(|e| warp::reject::custom(AppError::auth_invalid(e.to_string())))?

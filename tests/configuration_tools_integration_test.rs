@@ -29,6 +29,7 @@ mod common;
 async fn create_authenticated_user(
     database: &Database,
     auth_manager: &AuthManager,
+    jwks_manager: &Arc<pierre_mcp_server::admin::jwks::JwksManager>,
 ) -> Result<(Uuid, String)> {
     let tenant_uuid = Uuid::new_v4(); // Configuration tools require tenant context with valid UUID
     let user_id = Uuid::new_v4();
@@ -61,7 +62,7 @@ async fn create_authenticated_user(
         .update_user_tenant_id(user_id, &tenant_uuid.to_string())
         .await?;
 
-    let token = auth_manager.generate_token(&user)?;
+    let token = auth_manager.generate_token(&user, jwks_manager)?;
     Ok((user_id, token))
 }
 
@@ -69,6 +70,7 @@ async fn create_authenticated_user(
 async fn create_authenticated_user_with_different_tenant(
     database: &Database,
     auth_manager: &AuthManager,
+    jwks_manager: &Arc<pierre_mcp_server::admin::jwks::JwksManager>,
     email: &str,
 ) -> Result<(Uuid, String)> {
     let tenant_uuid = Uuid::new_v4(); // Different tenant UUID
@@ -102,7 +104,7 @@ async fn create_authenticated_user_with_different_tenant(
         .update_user_tenant_id(user_id, &tenant_uuid.to_string())
         .await?;
 
-    let token = auth_manager.generate_token(&user)?;
+    let token = auth_manager.generate_token(&user, jwks_manager)?;
     Ok((user_id, token))
 }
 
@@ -134,8 +136,12 @@ async fn make_tool_request(
 #[tokio::test]
 async fn test_all_configuration_tools_available() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
-    let (user_id, token) =
-        create_authenticated_user(&resources.database, &resources.auth_manager).await?;
+    let (user_id, token) = create_authenticated_user(
+        &resources.database,
+        &resources.auth_manager,
+        &resources.jwks_manager,
+    )
+    .await?;
 
     // Test that all 6 configuration tools are available and respond
     let config_tools = vec![
@@ -192,8 +198,12 @@ async fn test_all_configuration_tools_available() -> Result<()> {
 #[tokio::test]
 async fn test_configuration_catalog_has_expected_structure() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
-    let (user_id, token) =
-        create_authenticated_user(&resources.database, &resources.auth_manager).await?;
+    let (user_id, token) = create_authenticated_user(
+        &resources.database,
+        &resources.auth_manager,
+        &resources.jwks_manager,
+    )
+    .await?;
 
     let response =
         make_tool_request("get_configuration_catalog", json!({}), &token, &resources).await?;
@@ -257,8 +267,12 @@ async fn test_configuration_tools_require_authentication() -> Result<()> {
 #[tokio::test]
 async fn test_configuration_tools_with_invalid_parameters() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
-    let (_user_id, token) =
-        create_authenticated_user(&resources.database, &resources.auth_manager).await?;
+    let (_user_id, token) = create_authenticated_user(
+        &resources.database,
+        &resources.auth_manager,
+        &resources.jwks_manager,
+    )
+    .await?;
 
     // Test missing required parameters for calculate_personalized_zones
     let request = McpRequest {
@@ -292,13 +306,18 @@ async fn test_multitenant_isolation_for_configuration_tools() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
 
     // Create two different users
-    let (user1_id, token1) =
-        create_authenticated_user(&resources.database, &resources.auth_manager).await?;
+    let (user1_id, token1) = create_authenticated_user(
+        &resources.database,
+        &resources.auth_manager,
+        &resources.jwks_manager,
+    )
+    .await?;
 
     // Create a second user with different tenant for isolation testing
     let (user2_id, token2) = create_authenticated_user_with_different_tenant(
         &resources.database,
         &resources.auth_manager,
+        &resources.jwks_manager,
         "config_test2@example.com",
     )
     .await?;
@@ -328,8 +347,12 @@ async fn test_multitenant_isolation_for_configuration_tools() -> Result<()> {
 #[tokio::test]
 async fn test_configuration_tools_integration_summary() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
-    let (user_id, token) =
-        create_authenticated_user(&resources.database, &resources.auth_manager).await?;
+    let (user_id, token) = create_authenticated_user(
+        &resources.database,
+        &resources.auth_manager,
+        &resources.jwks_manager,
+    )
+    .await?;
 
     println!("Configuration Tools Integration Test Summary");
     println!("================================================");

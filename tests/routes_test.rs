@@ -34,7 +34,7 @@ async fn test_email_validation() {
         .await
         .unwrap();
     tracing::trace!("Created test database: {:?}", std::ptr::addr_of!(database));
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
     tracing::trace!(
         "Created test auth manager: {:?}",
         std::ptr::addr_of!(auth_manager)
@@ -65,7 +65,7 @@ async fn test_register_user() {
     let database = Database::new(&format!("sqlite:{db_path_str}"), vec![0u8; 32])
         .await
         .unwrap();
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     // Create ServerResources for auth routes
     let temp_dir = tempfile::tempdir().unwrap();
@@ -165,6 +165,7 @@ async fn test_register_user() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -193,7 +194,7 @@ async fn test_register_duplicate_user() {
     let database = Database::new(&format!("sqlite:{db_path_str}"), vec![0u8; 32])
         .await
         .unwrap();
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     // Create ServerResources for auth routes
     let temp_dir = tempfile::tempdir().unwrap();
@@ -293,6 +294,7 @@ async fn test_register_duplicate_user() {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());

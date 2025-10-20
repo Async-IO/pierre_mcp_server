@@ -20,7 +20,7 @@ const fetch = global.fetch || (async (...args) => {
  */
 async function ensureServerRunning(config = {}) {
   const isCI = process.env.CI === 'true';
-  const port = config.port || process.env.PIERRE_SERVER_PORT || 8888;
+  const port = config.port || process.env.PIERRE_SERVER_PORT || process.env.HTTP_PORT || process.env.MCP_PORT || 8081;
   const healthUrl = `http://localhost:${port}/health`;
 
   if (isCI) {
@@ -50,7 +50,7 @@ async function ensureServerRunning(config = {}) {
  * Start Pierre MCP server for testing
  */
 async function startServer(config) {
-  const port = config.port || 8888;
+  const port = config.port || process.env.HTTP_PORT || process.env.MCP_PORT || 8081;
 
   // Try multiple possible locations for the server binary
   const possiblePaths = [
@@ -79,6 +79,7 @@ async function startServer(config) {
     DATABASE_URL: config.database || 'sqlite::memory:',
     PIERRE_MASTER_ENCRYPTION_KEY: config.encryptionKey || 'rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo=',
     PIERRE_JWT_SECRET: config.jwtSecret || 'test_jwt_secret_for_automated_tests_only',
+    PIERRE_RSA_KEY_SIZE: '2048', // Use smaller key size for faster test startup
     RUST_LOG: config.logLevel || 'info'
   };
 

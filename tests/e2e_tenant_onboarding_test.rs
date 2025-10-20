@@ -209,7 +209,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     let config = Arc::new(create_test_server_config());
 
     // Create ServerResources for the test
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = pierre_mcp_server::auth::AuthManager::new(24);
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         (*database).clone(),
@@ -217,6 +217,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         "test_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let executor = UniversalToolExecutor::new(server_resources);
 

@@ -508,6 +508,7 @@ pub async fn oauth_token(
     token_request: OAuthTokenRequest,
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
+    jwks_manager: Arc<crate::admin::jwks::JwksManager>,
 ) -> Result<OAuthTokenResponse, AppError> {
     info!(
         "OAuth token request for client: {}",
@@ -540,8 +541,11 @@ pub async fn oauth_token(
             let _ = auth_code_data; // Used for security validation
 
             // Generate access token (JWT)
-            let access_token = auth_manager
-                .generate_oauth_access_token(&oauth_app.owner_user_id, &oauth_app.scopes)?;
+            let access_token = auth_manager.generate_oauth_access_token(
+                &jwks_manager,
+                &oauth_app.owner_user_id,
+                &oauth_app.scopes,
+            )?;
 
             // Clean up authorization code
             let _ = database.delete_authorization_code(&code).await;
@@ -555,8 +559,11 @@ pub async fn oauth_token(
         }
         "client_credentials" => {
             // Direct client credentials grant (for A2A)
-            let access_token = auth_manager
-                .generate_client_credentials_token(&token_request.client_id, &oauth_app.scopes)?;
+            let access_token = auth_manager.generate_client_credentials_token(
+                &jwks_manager,
+                &token_request.client_id,
+                &oauth_app.scopes,
+            )?;
 
             Ok(OAuthTokenResponse {
                 access_token,

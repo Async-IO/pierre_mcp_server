@@ -188,44 +188,40 @@ impl McpAuthMiddleware {
         })
     }
 
-    /// Authenticate using `JWT` token
+    /// Authenticate using RS256 JWT token
     async fn authenticate_jwt_token(&self, token: &str) -> Result<AuthResult> {
-        match self
+        let claims = self
             .auth_manager
-            .validate_token_detailed_rs256(token, &self.jwks_manager)
-        {
-            Ok(claims) => {
-                let user_id = crate::utils::uuid::parse_uuid(&claims.sub)
-                    .map_err(|_| anyhow::anyhow!("Invalid user ID in token"))?;
+            .validate_token_detailed(token, &self.jwks_manager)?;
 
-                // Get user from database to check tier and rate limits
-                let user = self
-                    .database
-                    .get_user(user_id)
-                    .await?
-                    .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)
+            .map_err(|_| anyhow::anyhow!("Invalid user ID in token"))?;
 
-                // Get current usage for rate limiting
-                let current_usage = self.database.get_jwt_current_usage(user_id).await?;
-                let rate_limit = self
-                    .rate_limit_calculator
-                    .calculate_jwt_rate_limit(&user, current_usage);
+        // Get user from database to check tier and rate limits
+        let user = self
+            .database
+            .get_user(user_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
 
-                // Check rate limit
-                if rate_limit.is_rate_limited {
-                    return Err(auth_error("JWT token rate limit exceeded"));
-                }
+        // Get current usage for rate limiting
+        let current_usage = self.database.get_jwt_current_usage(user_id).await?;
+        let rate_limit = self
+            .rate_limit_calculator
+            .calculate_jwt_rate_limit(&user, current_usage);
 
-                Ok(AuthResult {
-                    user_id,
-                    auth_method: AuthMethod::JwtToken {
-                        tier: format!("{:?}", user.tier).to_lowercase(),
-                    },
-                    rate_limit,
-                })
-            }
-            Err(jwt_error) => Err(anyhow::anyhow!("{jwt_error}")),
+        // Check rate limit
+        if rate_limit.is_rate_limited {
+            return Err(auth_error("JWT token rate limit exceeded"));
         }
+
+        Ok(AuthResult {
+            user_id,
+            auth_method: AuthMethod::JwtToken {
+                tier: format!("{:?}", user.tier).to_lowercase(),
+            },
+            rate_limit,
+        })
     }
 
     /// Check if user has access to specific provider
@@ -240,7 +236,7 @@ impl McpAuthMiddleware {
     pub fn check_provider_access(&self, token: &str, provider: &str) -> Result<bool> {
         let claims = self
             .auth_manager
-            .validate_token_rs256(token, &self.jwks_manager)?;
+            .validate_token(token, &self.jwks_manager)?;
         Ok(claims.providers.contains(&provider.to_string()))
     }
 

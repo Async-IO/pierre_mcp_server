@@ -22,6 +22,7 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
+    admin::jwks::JwksManager,
     api_keys::{ApiKey, ApiKeyManager, ApiKeyTier, CreateApiKeyRequest},
     auth::AuthManager,
     database::generate_encryption_key,
@@ -30,11 +31,20 @@ use pierre_mcp_server::{
     middleware::McpAuthMiddleware,
     models::{User, UserTier},
 };
-use std::sync::{Arc, Once};
+use std::sync::{Arc, LazyLock, Once};
 use uuid::Uuid;
 
 static INIT_LOGGER: Once = Once::new();
 static INIT_HTTP_CLIENTS: Once = Once::new();
+
+/// Shared JWKS manager for all tests (generated once, reused everywhere)
+/// This eliminates expensive RSA key generation (100ms+ per key) in every test
+static SHARED_TEST_JWKS: LazyLock<Arc<JwksManager>> = LazyLock::new(|| {
+    let mut jwks = JwksManager::new();
+    jwks.generate_rsa_key_pair_with_size("shared_test_key", 2048)
+        .expect("Failed to generate shared test JWKS key");
+    Arc::new(jwks)
+});
 
 /// Initialize quiet logging for tests (call once per test process)
 pub fn init_test_logging() {
@@ -88,10 +98,14 @@ pub async fn create_test_database_with_key(encryption_key: Vec<u8>) -> Result<Ar
     Ok(database)
 }
 
+/// Get shared test JWKS manager (reused across all tests for performance)
+pub fn get_shared_test_jwks() -> Arc<JwksManager> {
+    SHARED_TEST_JWKS.clone()
+}
+
 /// Create test authentication manager
 pub fn create_test_auth_manager() -> Arc<AuthManager> {
-    let jwt_secret = pierre_mcp_server::auth::generate_jwt_secret().to_vec();
-    Arc::new(AuthManager::new(jwt_secret, 24))
+    Arc::new(AuthManager::new(24))
 }
 
 /// Create test authentication middleware
@@ -99,8 +113,8 @@ pub fn create_test_auth_middleware(
     auth_manager: &Arc<AuthManager>,
     database: Arc<Database>,
 ) -> Arc<McpAuthMiddleware> {
-    // Create JWKS manager for RS256
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    // Use shared JWKS manager instead of generating new keys
+    let jwks_manager = get_shared_test_jwks();
     Arc::new(McpAuthMiddleware::new(
         (**auth_manager).clone(),
         database,
@@ -231,8 +245,7 @@ pub async fn create_test_server_resources() -> Result<Arc<ServerResources>> {
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new(database_url, encryption_key).await?;
 
-    let jwt_secret = pierre_mcp_server::auth::generate_jwt_secret().to_vec();
-    let auth_manager = AuthManager::new(jwt_secret, 24);
+    let auth_manager = AuthManager::new(24);
 
     let admin_jwt_secret = "test_admin_secret";
     let config = Arc::new(pierre_mcp_server::config::environment::ServerConfig::default());
@@ -252,6 +265,7 @@ pub async fn create_test_server_resources() -> Result<Arc<ServerResources>> {
         admin_jwt_secret,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     )))
 }
 

@@ -33,6 +33,7 @@ async fn test_unknown_method_handler() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let server = MultiTenantMcpServer::new(resources);
 
@@ -40,9 +41,10 @@ async fn test_unknown_method_handler() -> Result<()> {
     let (_user_id, user) = create_test_user(server.database()).await?;
 
     // Generate JWT token for the user
+    let jwks_manager = common::get_shared_test_jwks();
     let token = server
         .auth_manager()
-        .generate_token(&user)
+        .generate_token(&user, &jwks_manager)
         .map_err(|e| anyhow::anyhow!("Failed to generate JWT: {}", e))?;
 
     // Test unknown method request
@@ -75,6 +77,7 @@ async fn test_connect_strava_handler_errors() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let server = MultiTenantMcpServer::new(resources);
 
@@ -102,6 +105,7 @@ async fn test_disconnect_provider_handler() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let server = MultiTenantMcpServer::new(resources);
 
@@ -130,6 +134,7 @@ async fn test_authentication_error_handling() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -166,6 +171,7 @@ async fn test_rate_limiting_enforcement() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let server = MultiTenantMcpServer::new(resources);
 
@@ -173,9 +179,10 @@ async fn test_rate_limiting_enforcement() -> Result<()> {
     let (_user_id, user) = create_test_user(server.database()).await?;
 
     // Generate JWT token
+    let jwks_manager = common::get_shared_test_jwks();
     let token = server
         .auth_manager()
-        .generate_token(&user)
+        .generate_token(&user, &jwks_manager)
         .map_err(|e| anyhow::anyhow!("Failed to generate JWT: {}", e))?;
 
     // Test rapid requests to trigger rate limiting
@@ -200,6 +207,7 @@ async fn test_provider_initialization_errors() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let server = MultiTenantMcpServer::new(resources);
 
@@ -228,6 +236,7 @@ async fn test_jsonrpc_error_responses() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -254,6 +263,7 @@ async fn test_session_state_edge_cases() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -280,6 +290,7 @@ async fn test_database_error_handling() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -306,6 +317,7 @@ async fn test_tool_call_parameter_validation() -> Result<()> {
         TEST_JWT_SECRET,
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     let server = MultiTenantMcpServer::new(resources);
 

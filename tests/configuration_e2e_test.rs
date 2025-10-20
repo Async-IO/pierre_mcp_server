@@ -58,7 +58,7 @@ async fn create_test_tool_executor() -> Arc<UniversalToolExecutor> {
     );
 
     // Create ServerResources for the test
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = pierre_mcp_server::auth::AuthManager::new(24);
 
     // Create test cache with background cleanup disabled
     let cache_config = pierre_mcp_server::cache::CacheConfig {
@@ -77,6 +77,7 @@ async fn create_test_tool_executor() -> Arc<UniversalToolExecutor> {
         "test_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
     Arc::new(UniversalToolExecutor::new(server_resources))
 }

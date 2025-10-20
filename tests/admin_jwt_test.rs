@@ -4,6 +4,8 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+mod common;
+
 use chrono::{Duration, Utc};
 use pierre_mcp_server::admin::{
     jwt::AdminJwtManager,
@@ -15,6 +17,8 @@ fn test_jwt_generation_and_validation() {
     let jwt_manager = AdminJwtManager::new();
     let permissions = AdminPermissions::default_admin();
 
+    let jwks_manager = common::get_shared_test_jwks();
+
     let token = jwt_manager
         .generate_token(
             "test_token_123",
@@ -22,10 +26,11 @@ fn test_jwt_generation_and_validation() {
             &permissions,
             false,
             Some(Utc::now() + Duration::hours(1)),
+            &jwks_manager,
         )
         .unwrap();
 
-    let validated = jwt_manager.validate_token(&token).unwrap();
+    let validated = jwt_manager.validate_token(&token, &jwks_manager).unwrap();
 
     assert_eq!(validated.token_id, "test_token_123");
     assert_eq!(validated.service_name, "test_service");
@@ -40,6 +45,8 @@ fn test_expired_token_rejection() {
     let jwt_manager = AdminJwtManager::new();
     let permissions = AdminPermissions::default_admin();
 
+    let jwks_manager = common::get_shared_test_jwks();
+
     // Create token that expires immediately
     let token = jwt_manager
         .generate_token(
@@ -48,10 +55,11 @@ fn test_expired_token_rejection() {
             &permissions,
             false,
             Some(Utc::now() - Duration::hours(1)), // Expired 1 hour ago
+            &jwks_manager,
         )
         .unwrap();
 
-    let result = jwt_manager.validate_token(&token);
+    let result = jwt_manager.validate_token(&token, &jwks_manager);
     assert!(result.is_err());
     let error_msg = result.unwrap_err().to_string();
     assert!(error_msg.contains("ExpiredSignature") || error_msg.contains("expired"));
@@ -62,6 +70,8 @@ fn test_super_admin_token() {
     let jwt_manager = AdminJwtManager::new();
     let permissions = AdminPermissions::super_admin();
 
+    let jwks_manager = common::get_shared_test_jwks();
+
     let token = jwt_manager
         .generate_token(
             "super_admin_token",
@@ -69,10 +79,11 @@ fn test_super_admin_token() {
             &permissions,
             true,
             None, // Never expires
+            &jwks_manager,
         )
         .unwrap();
 
-    let validated = jwt_manager.validate_token(&token).unwrap();
+    let validated = jwt_manager.validate_token(&token, &jwks_manager).unwrap();
 
     assert!(validated.is_super_admin);
     assert!(validated

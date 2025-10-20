@@ -33,7 +33,7 @@ impl TenantIsolation {
         let auth_result = self
             .resources
             .auth_manager
-            .validate_token_rs256(jwt_token, &self.resources.jwks_manager)?;
+            .validate_token(jwt_token, &self.resources.jwks_manager)?;
 
         // Parse user ID from claims
         let user_id = crate::utils::uuid::parse_uuid(&auth_result.sub)
@@ -358,7 +358,7 @@ pub async fn validate_jwt_token_for_mcp(
     jwks_manager: &crate::admin::jwks::JwksManager,
     database: &Arc<Database>,
 ) -> Result<JwtValidationResult> {
-    let auth_result = auth_manager.validate_token_rs256(token, jwks_manager)?;
+    let auth_result = auth_manager.validate_token(token, jwks_manager)?;
 
     // Parse user ID from claims
     let user_id = crate::utils::uuid::parse_uuid(&auth_result.sub)

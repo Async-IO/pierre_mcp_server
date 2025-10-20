@@ -286,6 +286,7 @@ impl DashboardTestSetup {
             "test_jwt_secret",
             config,
             cache,
+            2048, // Use 2048-bit RSA keys for faster test execution
         ));
 
         // Create dashboard routes
@@ -632,6 +633,7 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
         "test_jwt_secret",
         config,
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     let dashboard_routes = DashboardRoutes::new(server_resources);

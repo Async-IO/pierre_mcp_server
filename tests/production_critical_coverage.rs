@@ -52,7 +52,8 @@ async fn test_mcp_request_processing_flow() -> Result<()> {
     server.database().create_user(&user).await?;
 
     // Generate real JWT token
-    let token = server.auth_manager().generate_token(&user)?;
+    let jwks_manager = common::get_shared_test_jwks();
+    let token = server.auth_manager().generate_token(&user, &jwks_manager)?;
 
     // Test real MCP tools/list request
     let _list_request = json!({
@@ -143,11 +144,12 @@ async fn test_admin_auth_flow() -> Result<()> {
     database.create_user(&admin_user).await?;
 
     // Test token generation for admin
-    let admin_token = auth_manager.generate_token(&admin_user)?;
+    let jwks_manager = common::get_shared_test_jwks();
+    let admin_token = auth_manager.generate_token(&admin_user, &jwks_manager)?;
     assert!(!admin_token.is_empty());
 
     // Test token validation
-    let validation_result = auth_manager.validate_token(&admin_token);
+    let validation_result = auth_manager.validate_token(&admin_token, &jwks_manager);
     assert!(validation_result.is_ok());
 
     Ok(())
@@ -189,12 +191,15 @@ async fn test_mcp_multitenant_request_routing() -> Result<()> {
     }
 
     // Test that each user gets their own isolated context
+    let jwks_manager = common::get_shared_test_jwks();
     for user in &users {
-        let token = server.auth_manager().generate_token(user)?;
+        let token = server.auth_manager().generate_token(user, &jwks_manager)?;
         assert!(!token.is_empty());
 
         // Validate token belongs to correct user
-        let validation = server.auth_manager().validate_token(&token)?;
+        let validation = server
+            .auth_manager()
+            .validate_token(&token, &jwks_manager)?;
         assert_eq!(validation.sub, user.id.to_string());
     }
 
@@ -279,7 +284,8 @@ async fn test_production_rate_limiting() -> Result<()> {
     };
 
     database.create_user(&user).await?;
-    let _token = auth_manager.generate_token(&user)?;
+    let jwks_manager = common::get_shared_test_jwks();
+    let _token = auth_manager.generate_token(&user, &jwks_manager)?;
 
     // Test rate limiting logic
     let rate_limiter = UnifiedRateLimitCalculator::new();
@@ -303,7 +309,7 @@ async fn test_production_rate_limiting() -> Result<()> {
 async fn test_websocket_connection_scenarios() -> Result<()> {
     let database = create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let jwks_manager = common::get_shared_test_jwks();
     let websocket_manager =
         WebSocketManager::new(Arc::new((*database).clone()), &auth_manager, &jwks_manager);
 

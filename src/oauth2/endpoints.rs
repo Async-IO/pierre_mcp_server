@@ -430,18 +430,15 @@ impl OAuth2AuthorizationServer {
 
         user_id.map_or_else(
             || {
-                self.auth_manager.generate_client_credentials_token_rs256(
+                self.auth_manager.generate_client_credentials_token(
                     &self.jwks_manager,
                     client_id,
                     &scopes,
                 )
             },
             |uid| {
-                self.auth_manager.generate_oauth_access_token_rs256(
-                    &self.jwks_manager,
-                    &uid,
-                    &scopes,
-                )
+                self.auth_manager
+                    .generate_oauth_access_token(&self.jwks_manager, &uid, &scopes)
             },
         )
     }
@@ -550,7 +547,10 @@ impl OAuth2AuthorizationServer {
         request: crate::oauth2::models::ValidateRefreshRequest,
     ) -> Result<crate::oauth2::models::ValidateRefreshResponse> {
         // Validate the JWT token
-        match self.auth_manager.validate_token_detailed(access_token) {
+        match self
+            .auth_manager
+            .validate_token_detailed(access_token, &self.jwks_manager)
+        {
             Ok(claims) => self.handle_valid_token_claims(claims).await,
             Err(validation_error) => Ok(Self::handle_token_validation_error(
                 validation_error,

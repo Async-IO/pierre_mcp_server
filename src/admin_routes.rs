@@ -59,8 +59,7 @@ impl AdminApiContext {
             "Creating AdminApiContext with JWT secret (first 10 chars): {}...",
             jwt_secret.chars().take(10).collect::<String>()
         );
-        let auth_service =
-            AdminAuthService::new((*database).clone(), jwt_secret, jwks_manager.clone()); // Safe: Arc clone for auth service
+        let auth_service = AdminAuthService::new((*database).clone(), jwks_manager.clone()); // Safe: Arc clone for auth service
         Self {
             database,
             auth_service,

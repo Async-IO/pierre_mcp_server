@@ -26,7 +26,9 @@ impl MockMcpHandler {
         let (_user_id, user) = common::create_test_user(&resources.database).await?;
 
         // Create a proper JWT token instead of an API key
-        let jwt_token = resources.auth_manager.generate_token(&user)?;
+        let jwt_token = resources
+            .auth_manager
+            .generate_token(&user, &resources.jwks_manager)?;
 
         Ok(Self {
             resources,

@@ -35,14 +35,10 @@ pub struct AdminAuthService {
 impl AdminAuthService {
     /// Create new admin auth service with RS256 (REQUIRED)
     #[must_use]
-    pub fn new(
-        database: Database,
-        jwt_secret: &str,
-        jwks_manager: Arc<crate::admin::jwks::JwksManager>,
-    ) -> Self {
+    pub fn new(database: Database, jwks_manager: Arc<crate::admin::jwks::JwksManager>) -> Self {
         Self {
             database,
-            jwt_manager: AdminJwtManager::with_secret(jwt_secret),
+            jwt_manager: AdminJwtManager::new(),
             jwks_manager,
             token_cache: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
         }
@@ -65,9 +61,7 @@ impl AdminAuthService {
         ip_address: Option<&str>,
     ) -> Result<ValidatedAdminToken> {
         // Step 1: Validate JWT structure and extract token ID using RS256
-        let validated_token = self
-            .jwt_manager
-            .validate_token_rs256(token, &self.jwks_manager)?;
+        let validated_token = self.jwt_manager.validate_token(token, &self.jwks_manager)?;
 
         // Step 2: Check if token exists and is active in database
         let stored_token = self
@@ -156,12 +150,13 @@ impl AdminAuthService {
         token: &str,
         required_permission: AdminPermission,
     ) -> Result<ValidatedAdminToken> {
-        // Try cache first
-        let token_id = self.jwt_manager.extract_token_id(token)?;
+        // Validate token to extract token_id for cache lookup
+        let validated_token = self.jwt_manager.validate_token(token, &self.jwks_manager)?;
 
+        // Try cache first
         {
             let cache = self.token_cache.read().await;
-            if let Some((cached_token, _timestamp)) = cache.get(&token_id) {
+            if let Some((cached_token, _timestamp)) = cache.get(&validated_token.token_id) {
                 if cached_token
                     .permissions
                     .has_permission(&required_permission)

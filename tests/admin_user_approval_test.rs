@@ -4,9 +4,11 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+mod common;
+
 use anyhow::Result;
 use pierre_mcp_server::{
-    admin::{jwks::JwksManager, models::CreateAdminTokenRequest},
+    admin::models::CreateAdminTokenRequest,
     database_plugins::{factory::Database, DatabaseProvider},
     models::{User, UserStatus, UserTier},
 };
@@ -66,8 +68,7 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
     };
 
     // Initialize JWKS manager for RS256 admin token signing
-    let mut jwks_manager = JwksManager::new();
-    jwks_manager.generate_rsa_key_pair("test_admin_key")?;
+    let jwks_manager = common::get_shared_test_jwks();
 
     let admin_token = database
         .create_admin_token(&admin_request, TEST_JWT_SECRET, &jwks_manager)

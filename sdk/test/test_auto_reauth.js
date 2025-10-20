@@ -25,7 +25,7 @@ class AutoReauthTest {
             scenarios: []
         };
         // Find available port dynamically
-        this.serverPort = process.env.PIERRE_SERVER_PORT || 8888;
+        this.serverPort = process.env.PIERRE_SERVER_PORT || process.env.HTTP_PORT || process.env.MCP_PORT || 8081;
         this.serverUrl = `http://localhost:${this.serverPort}`;
     }
 

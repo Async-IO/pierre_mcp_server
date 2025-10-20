@@ -47,8 +47,7 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
     let database = Database::new(database_url, encryption_key).await.unwrap();
 
     // Create auth manager
-    let jwt_secret = pierre_mcp_server::auth::generate_jwt_secret().to_vec();
-    let auth_manager = AuthManager::new(jwt_secret, 24);
+    let auth_manager = AuthManager::new(24);
 
     // Create test user
     let user = User::new(
@@ -59,7 +58,8 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
     let user_id = database.create_user(&user).await.unwrap();
 
     // Generate JWT token for the user
-    let _jwt_token = auth_manager.generate_token(&user).unwrap(); // Not used directly, AuthResult created from user_id
+    let jwks_manager = common::get_shared_test_jwks();
+    let _jwt_token = auth_manager.generate_token(&user, &jwks_manager).unwrap(); // Not used directly, AuthResult created from user_id
 
     // Create cache for API key routes
     let cache = common::create_test_cache().await.unwrap();
@@ -166,6 +166,7 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
             }
         }),
         cache,
+        2048, // Use 2048-bit RSA keys for faster test execution
     ));
 
     // Create API key routes

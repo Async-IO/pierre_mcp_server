@@ -9,7 +9,7 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-//! Integration tests for API key authentication and MCP workflows
+mod common;
 
 use chrono::{Duration, Utc};
 use pierre_mcp_server::{
@@ -35,11 +35,10 @@ async fn create_test_environment() -> (
     let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
 
     // Create auth manager
-    let jwt_secret = pierre_mcp_server::auth::generate_jwt_secret().to_vec();
-    let auth_manager = Arc::new(AuthManager::new(jwt_secret, 24));
+    let auth_manager = Arc::new(AuthManager::new(24));
 
     // Create auth middleware
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let jwks_manager = common::get_shared_test_jwks();
     let auth_middleware = Arc::new(McpAuthMiddleware::new(
         (*auth_manager).clone(),
         database.clone(),
@@ -55,7 +54,8 @@ async fn create_test_environment() -> (
     database.create_user(&user).await.unwrap();
 
     // Generate JWT token for the user
-    let jwt_token = auth_manager.generate_token(&user).unwrap();
+    let jwks_manager = common::get_shared_test_jwks();
+    let jwt_token = auth_manager.generate_token(&user, &jwks_manager).unwrap();
 
     (database, auth_manager, auth_middleware, user, jwt_token)
 }

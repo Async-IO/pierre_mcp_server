@@ -21,7 +21,7 @@ use uuid::Uuid;
 #[tokio::test]
 async fn test_jwt_token_security() -> Result<()> {
     let database = common::create_test_database().await?;
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     // Create test user
     let (user_id, _) =
@@ -29,10 +29,11 @@ async fn test_jwt_token_security() -> Result<()> {
     let user = database.get_user(user_id).await?.unwrap();
 
     // Generate valid JWT token
-    let valid_token = auth_manager.generate_token(&user)?;
+    let jwks_manager = common::get_shared_test_jwks();
+    let valid_token = auth_manager.generate_token(&user, &jwks_manager)?;
 
     // Test valid token validation
-    let claims = auth_manager.validate_token(&valid_token)?;
+    let claims = auth_manager.validate_token(&valid_token, &jwks_manager)?;
     let token_user_id = Uuid::parse_str(&claims.sub)?;
     assert_eq!(
         token_user_id, user_id,
@@ -41,7 +42,7 @@ async fn test_jwt_token_security() -> Result<()> {
 
     // Test invalid token validation
     let invalid_token = "invalid_jwt_token";
-    let invalid_result = auth_manager.validate_token(invalid_token);
+    let invalid_result = auth_manager.validate_token(invalid_token, &jwks_manager);
     assert!(
         invalid_result.is_err(),
         "Invalid token should fail validation"
@@ -49,7 +50,7 @@ async fn test_jwt_token_security() -> Result<()> {
 
     // Test malformed token
     let malformed_token = "not.a.valid.jwt.token";
-    let malformed_result = auth_manager.validate_token(malformed_token);
+    let malformed_result = auth_manager.validate_token(malformed_token, &jwks_manager);
     assert!(
         malformed_result.is_err(),
         "Malformed token should fail validation"
@@ -145,7 +146,7 @@ async fn test_basic_input_validation() -> Result<()> {
 #[tokio::test]
 async fn test_error_message_security() -> Result<()> {
     let database = common::create_test_database().await?;
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     // Test non-existent user lookup
     let non_existent_user = database.get_user_by_email("nonexistent@example.com").await;
@@ -171,7 +172,8 @@ async fn test_error_message_security() -> Result<()> {
 
     // Test invalid JWT token error messages
     let invalid_token = "invalid.jwt.token";
-    let token_validation = auth_manager.validate_token(invalid_token);
+    let jwks_manager = common::get_shared_test_jwks();
+    let token_validation = auth_manager.validate_token(invalid_token, &jwks_manager);
 
     assert!(token_validation.is_err(), "Invalid token should fail");
 
@@ -190,7 +192,7 @@ async fn test_error_message_security() -> Result<()> {
 #[tokio::test]
 async fn test_token_uniqueness() -> Result<()> {
     let database = common::create_test_database().await?;
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager = AuthManager::new(24);
 
     // Create test user
     let (user_id, _) =
@@ -206,7 +208,8 @@ async fn test_token_uniqueness() -> Result<()> {
             tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
         }
 
-        let token = auth_manager.generate_token(&user)?;
+        let jwks_manager = common::get_shared_test_jwks();
+        let token = auth_manager.generate_token(&user, &jwks_manager)?;
 
         // Clone token for validation since insert() will move it
         let token_for_validation = token.clone();
@@ -220,7 +223,7 @@ async fn test_token_uniqueness() -> Result<()> {
         }
 
         // Verify each token validates correctly
-        let claims = auth_manager.validate_token(&token_for_validation)?;
+        let claims = auth_manager.validate_token(&token_for_validation, &jwks_manager)?;
         let token_user_id = Uuid::parse_str(&claims.sub)?;
         assert_eq!(token_user_id, user_id);
     }

@@ -4,6 +4,8 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+mod common;
+
 use base64::{engine::general_purpose, Engine as _};
 use pierre_mcp_server::{
     auth::AuthManager,
@@ -35,15 +37,10 @@ async fn setup_test_env() -> (
     );
     database.migrate().await.unwrap();
 
-    let jwt_secret = b"test_jwt_secret_key_for_testing_purposes_only".to_vec();
-    let auth_manager = Arc::new(AuthManager::new(jwt_secret, 24));
+    let auth_manager = Arc::new(AuthManager::new(24));
 
     // Create JWKS manager for RS256 token signing
-    let mut jwks_manager = pierre_mcp_server::admin::jwks::JwksManager::new();
-    jwks_manager
-        .generate_rsa_key_pair("test_key")
-        .expect("Failed to generate RSA key pair");
-    let jwks_manager = Arc::new(jwks_manager);
+    let jwks_manager = common::get_shared_test_jwks();
 
     let oauth_server =
         OAuth2AuthorizationServer::new(database.clone(), auth_manager.clone(), jwks_manager);
