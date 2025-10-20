@@ -764,6 +764,9 @@ fi
 
 # Run Rust tests
 echo -e "${BLUE}==== Running Rust tests... ====${NC}"
+# Use 2048-bit RSA keys for faster test execution (4096-bit is production default)
+# RSA key generation is expensive: 2048-bit is ~4-8x faster than 4096-bit
+export PIERRE_RSA_KEY_SIZE=2048
 if cargo test --all-targets; then
     echo -e "${GREEN}[OK] All Rust tests passed${NC}"
 else
