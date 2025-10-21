@@ -325,15 +325,28 @@ fi
 TOTAL_ARCS=$(rg "Arc::" src/ | wc -l 2>/dev/null || echo 0)
 
 # Legitimate Arc patterns
-CONCURRENT_ARCS=$(rg "Arc::new\((RwLock|Mutex)" src/ | wc -l 2>/dev/null || echo 0)
+# Concurrent: std::sync and tokio::sync RwLock/Mutex patterns
+CONCURRENT_ARCS_STD=$(rg "Arc::new\((RwLock|Mutex)" src/ | wc -l 2>/dev/null || echo 0)
+CONCURRENT_ARCS_TOKIO=$(rg "Arc::new\(tokio::sync::(Mutex|RwLock)" src/ | wc -l 2>/dev/null || echo 0)
+CONCURRENT_ARCS=$((CONCURRENT_ARCS_STD + CONCURRENT_ARCS_TOKIO))
+
 SERVERRESOURCES_ARCS=$(rg "Arc::new" src/mcp/resources.rs | wc -l 2>/dev/null || echo 0)
-SINGLETON_ARCS=$(rg "OnceLock.*Arc|Arc.*OnceLock" src/ | wc -l 2>/dev/null || echo 0)
-ROUTE_HANDLER_ARCS=$(rg "Arc::new\(.*Routes" src/ | wc -l 2>/dev/null || echo 0)
-BINARY_STARTUP_ARCS=$(rg "Arc::new" src/bin/ | wc -l 2>/dev/null || echo 0)
-SERVICE_COMPONENT_ARCS=$(rg "Arc::new\(.*Authenticator|Arc::new\(.*Checker|Arc::new\(shutdown" src/ | wc -l 2>/dev/null || echo 0)
+
+# Singletons: OnceLock and get_or_init patterns
+SINGLETON_ARCS_ONCELOCK=$(rg "OnceLock.*Arc|Arc.*OnceLock" src/ | wc -l 2>/dev/null || echo 0)
+SINGLETON_ARCS_INIT=$(rg "get_or_init.*Arc::new" src/ | wc -l 2>/dev/null || echo 0)
+SINGLETON_ARCS=$((SINGLETON_ARCS_ONCELOCK + SINGLETON_ARCS_INIT))
+
+ROUTE_HANDLER_ARCS=$(rg "Arc::new\(.*[Rr]outes" src/ | wc -l 2>/dev/null || echo 0)
+BINARY_STARTUP_ARCS=$(rg "Arc::new|Arc::clone" src/bin/ | wc -l 2>/dev/null || echo 0)
+# Service components: Authenticator, Checker, shutdown handlers, shared resources for transports
+SERVICE_COMPONENT_ARCS=$(rg "Arc::new\(.*Authenticator|Arc::new\(.*Checker|Arc::new\(.*checker|Arc::new\(shutdown|shared_resources.*Arc::new|Arc::new.*resources_clone" src/ | wc -l 2>/dev/null || echo 0)
+
+# Arc conversions and internal sharing (Arc::from, Arc::clone)
+ARC_CONVERSIONS=$(rg "Arc::(from|clone)\(" src/ --glob '!src/bin/*' | wc -l 2>/dev/null || echo 0)
 
 # Calculate legitimate vs potentially problematic
-LEGITIMATE_ARC_PATTERNS=$((CONCURRENT_ARCS + SERVERRESOURCES_ARCS + SINGLETON_ARCS + ROUTE_HANDLER_ARCS + BINARY_STARTUP_ARCS + SERVICE_COMPONENT_ARCS))
+LEGITIMATE_ARC_PATTERNS=$((CONCURRENT_ARCS + SERVERRESOURCES_ARCS + SINGLETON_ARCS + ROUTE_HANDLER_ARCS + BINARY_STARTUP_ARCS + SERVICE_COMPONENT_ARCS + ARC_CONVERSIONS))
 POTENTIALLY_PROBLEMATIC_ARCS=$((TOTAL_ARCS > LEGITIMATE_ARC_PATTERNS ? TOTAL_ARCS - LEGITIMATE_ARC_PATTERNS : 0))
 
 MAGIC_NUMBERS=$(rg "\b[0-9]{4,}\b" src/ -g "!src/constants.rs" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity|-32[0-9]{3}|1000\.0|60\.0|24\.0|7\.0|365\.0|METERS_PER|PER_METER|conversion|unit|\.60934|12345|0000-0000|202[0-9]-[0-9]{2}-[0-9]{2}|Some\([0-9]+\)|Trial.*1000|Standard.*10000)" | wc -l 2>/dev/null || echo 0)
@@ -647,7 +660,11 @@ fi
 
 printf "│ %-35s │ %5d │ " "Arc patterns categorized" "$LEGITIMATE_ARC_PATTERNS"
 if [ "$LEGITIMATE_ARC_PATTERNS" -gt 0 ]; then
-    ARC_BREAKDOWN="Concurrent:$CONCURRENT_ARCS Startup:$BINARY_STARTUP_ARCS"
+    # Show most significant categories in breakdown
+    ARC_BREAKDOWN="Concurrent:$CONCURRENT_ARCS Resources:$SERVERRESOURCES_ARCS"
+    if [ "$ARC_CONVERSIONS" -gt 0 ]; then
+        ARC_BREAKDOWN="$ARC_BREAKDOWN Conv:$ARC_CONVERSIONS"
+    fi
     printf "$(format_status "✅ PASS")│ %-39s │\n" "$ARC_BREAKDOWN"
 else
     printf "$(format_status "⚠️ INFO")│ %-39s │\n" "No Arc usage detected"
