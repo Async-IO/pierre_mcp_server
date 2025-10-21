@@ -18,6 +18,7 @@ use crate::oauth2::{
     models::{AuthorizeRequest, ClientRegistrationRequest, OAuth2Error, TokenRequest},
 };
 use anyhow::Result;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::Arc;
 use warp::{Filter, Rejection, Reply};
@@ -55,6 +56,7 @@ pub fn oauth2_routes(
     // JWKS endpoint at well-known location (OIDC/OAuth2 standard)
     let well_known_jwks_route = warp::path!(".well-known" / "jwks.json")
         .and(warp::get())
+        .and(warp::header::optional::<String>("if-none-match"))
         .and(with_jwks_manager(jwks_manager))
         .and_then(handle_jwks);
 
@@ -958,22 +960,51 @@ fn jwks_route(
     warp::path("jwks")
         .and(warp::path::end())
         .and(warp::get())
+        .and(warp::header::optional::<String>("if-none-match"))
         .and(with_jwks_manager(jwks_manager))
         .and_then(handle_jwks)
 }
 
 /// Handle JWKS endpoint (GET /oauth2/jwks or GET /.well-known/jwks.json)
-async fn handle_jwks(jwks_manager: Arc<JwksManager>) -> Result<impl Reply, Rejection> {
+async fn handle_jwks(
+    if_none_match: Option<String>,
+    jwks_manager: Arc<JwksManager>,
+) -> Result<Box<dyn warp::Reply>, Rejection> {
     // Return JWKS with RS256 public keys for token validation
     match jwks_manager.get_jwks() {
         Ok(jwks) => {
             tracing::debug!("JWKS endpoint accessed, returning {} keys", jwks.keys.len());
+
+            // Calculate ETag from JWKS content for efficient caching
+            let jwks_json = serde_json::to_string(&jwks).map_err(|e| {
+                tracing::error!("Failed to serialize JWKS: {}", e);
+                warp::reject::reject()
+            })?;
+
+            let mut hasher = Sha256::new();
+            hasher.update(jwks_json.as_bytes());
+            let hash = hasher.finalize();
+            let etag = format!(r#""{}""#, hex::encode(&hash[..16]));
+
+            // Check if client's cached version matches current version
+            if let Some(client_etag) = if_none_match {
+                if client_etag == etag {
+                    tracing::debug!("JWKS ETag match, returning 304 Not Modified");
+                    // Client has current version - return 304 Not Modified
+                    return Ok(Box::new(warp::reply::with_status(
+                        warp::reply::with_header(warp::reply(), "ETag", etag),
+                        warp::http::StatusCode::NOT_MODIFIED,
+                    )));
+                }
+            }
+
+            // Return JWKS with ETag and Cache-Control headers
             let json = warp::reply::json(&jwks);
-            Ok(warp::reply::with_header(
-                json,
-                "Cache-Control",
-                "public, max-age=3600",
-            ))
+            Ok(Box::new(warp::reply::with_header(
+                warp::reply::with_header(json, "Cache-Control", "public, max-age=3600"),
+                "ETag",
+                etag,
+            )))
         }
         Err(e) => {
             tracing::error!("Failed to generate JWKS: {}", e);
@@ -981,11 +1012,11 @@ async fn handle_jwks(jwks_manager: Arc<JwksManager>) -> Result<impl Reply, Rejec
             let json = warp::reply::json(&serde_json::json!({
                 "keys": []
             }));
-            Ok(warp::reply::with_header(
+            Ok(Box::new(warp::reply::with_header(
                 json,
                 "Cache-Control",
                 "public, max-age=3600",
-            ))
+            )))
         }
     }
 }

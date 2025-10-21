@@ -386,8 +386,6 @@ pub mod timeouts {
 
 /// Cryptographic constants
 pub mod crypto {
-    /// JWT algorithm
-    pub const JWT_ALGORITHM: &str = "HS256";
     /// Token prefix for `API` keys
     pub const TOKEN_PREFIX: &str = "pk_";
     /// Secret key minimum length

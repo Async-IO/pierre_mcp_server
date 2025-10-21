@@ -739,10 +739,17 @@ impl ServerConfig {
     /// Returns an error if configuration values are invalid or conflicting
     pub fn validate(&self) -> Result<()> {
         // Single-port architecture - no port conflicts possible
-
         // Database validation - URLs are now type-safe, so no need to check emptiness
 
-        // OAuth validation
+        self.validate_oauth_providers();
+        self.validate_oauth2_issuer_url()?;
+        self.validate_tls_config()?;
+
+        Ok(())
+    }
+
+    /// Validate OAuth provider configurations
+    fn validate_oauth_providers(&self) {
         if self.oauth.strava.enabled
             && (self.oauth.strava.client_id.is_none() || self.oauth.strava.client_secret.is_none())
         {
@@ -754,8 +761,43 @@ impl ServerConfig {
         {
             warn!("Fitbit OAuth is enabled but missing client_id or client_secret");
         }
+    }
 
-        // TLS validation
+    /// Validate `OAuth2` issuer URL according to RFC 8414 security requirements
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if production issuer URL doesn't use HTTPS
+    fn validate_oauth2_issuer_url(&self) -> Result<()> {
+        // In production, issuer MUST use HTTPS to prevent token theft and MITM attacks
+        if self.security.headers.environment.is_production() {
+            if !self.oauth2_server.issuer_url.starts_with("https://") {
+                return Err(anyhow::anyhow!(
+                    "OAuth2 issuer URL must use HTTPS in production (RFC 8414 security requirement). Current: {}",
+                    self.oauth2_server.issuer_url
+                ));
+            }
+        } else if !self
+            .oauth2_server
+            .issuer_url
+            .starts_with("http://localhost")
+            && !self.oauth2_server.issuer_url.starts_with("https://")
+        {
+            // In development/testing, allow localhost HTTP but warn about non-localhost HTTP
+            warn!(
+                "OAuth2 issuer URL should use HTTPS or localhost in development: {}",
+                self.oauth2_server.issuer_url
+            );
+        }
+        Ok(())
+    }
+
+    /// Validate TLS configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if TLS is enabled but certificate or key path is missing
+    fn validate_tls_config(&self) -> Result<()> {
         if self.security.tls.enabled
             && (self.security.tls.cert_path.is_none() || self.security.tls.key_path.is_none())
         {
@@ -763,7 +805,6 @@ impl ServerConfig {
                 "TLS is enabled but cert_path or key_path is missing"
             ));
         }
-
         Ok(())
     }
 
