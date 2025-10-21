@@ -60,6 +60,7 @@ fn create_test_config(port: u16) -> Arc<pierre_mcp_server::config::environment::
                 retention_count: 7,
                 directory: std::path::PathBuf::from("test_backups"),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
@@ -381,6 +382,16 @@ impl MultiTenantMcpClient {
 async fn setup_test_environment() -> Result<(Database, AuthManager, u16, TempDir, String)> {
     common::init_test_http_clients();
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key.clone(),
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key.clone()).await?;
 
     // Initialize the system secret in the database to match what the server expects

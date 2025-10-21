@@ -17,6 +17,16 @@ use uuid::Uuid;
 async fn test_get_users_by_status_cursor() -> Result<()> {
     // Initialize in-memory database
     let database_url = "sqlite::memory:";
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        database_url,
+        b"test_encryption_key_32_bytes_long".to_vec(),
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database =
         Database::new(database_url, b"test_encryption_key_32_bytes_long".to_vec()).await?;
 
@@ -99,6 +109,16 @@ async fn test_get_users_by_status_cursor() -> Result<()> {
 #[tokio::test]
 async fn test_cursor_pagination_empty_results() -> Result<()> {
     let database_url = "sqlite::memory:";
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        database_url,
+        b"test_encryption_key_32_bytes_long".to_vec(),
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database =
         Database::new(database_url, b"test_encryption_key_32_bytes_long".to_vec()).await?;
 
@@ -118,6 +138,16 @@ async fn test_cursor_pagination_empty_results() -> Result<()> {
 #[tokio::test]
 async fn test_cursor_pagination_consistency() -> Result<()> {
     let database_url = "sqlite::memory:";
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        database_url,
+        b"test_encryption_key_32_bytes_long".to_vec(),
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database =
         Database::new(database_url, b"test_encryption_key_32_bytes_long".to_vec()).await?;
 

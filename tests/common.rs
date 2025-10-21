@@ -86,7 +86,20 @@ pub async fn create_test_database() -> Result<Arc<Database>> {
     init_test_logging();
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Arc::new(
+        Database::new(
+            database_url,
+            encryption_key,
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
+        .await?,
+    );
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Arc::new(Database::new(database_url, encryption_key).await?);
+
     Ok(database)
 }
 
@@ -94,7 +107,20 @@ pub async fn create_test_database() -> Result<Arc<Database>> {
 pub async fn create_test_database_with_key(encryption_key: Vec<u8>) -> Result<Arc<Database>> {
     init_test_logging();
     let database_url = "sqlite::memory:";
+
+    #[cfg(feature = "postgresql")]
+    let database = Arc::new(
+        Database::new(
+            database_url,
+            encryption_key,
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
+        .await?,
+    );
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Arc::new(Database::new(database_url, encryption_key).await?);
+
     Ok(database)
 }
 
@@ -243,6 +269,16 @@ pub async fn create_test_server_resources() -> Result<Arc<ServerResources>> {
     init_test_http_clients();
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        database_url,
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await?;
 
     let auth_manager = AuthManager::new(24);

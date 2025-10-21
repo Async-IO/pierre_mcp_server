@@ -32,9 +32,21 @@ use uuid::Uuid;
 async fn test_oauth_authorization_url_generation() {
     // Setup
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
+
     database.migrate().await.unwrap();
 
     let auth_manager = AuthManager::new(24);
@@ -55,6 +67,7 @@ async fn test_oauth_authorization_url_generation() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
@@ -259,9 +272,21 @@ async fn test_oauth_authorization_url_generation() {
 #[allow(clippy::too_many_lines)] // Long function: Complex OAuth state validation test with full setup
 async fn test_oauth_state_validation() {
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
+
     let auth_manager = AuthManager::new(24);
 
     let temp_dir = tempfile::tempdir().unwrap();
@@ -280,6 +305,7 @@ async fn test_oauth_state_validation() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
@@ -391,6 +417,17 @@ async fn test_oauth_state_validation() {
 #[allow(clippy::too_many_lines)] // Long function: Complex OAuth connection status test with full setup
 async fn test_connection_status_no_providers() {
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
@@ -412,6 +449,7 @@ async fn test_connection_status_no_providers() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
@@ -546,6 +584,17 @@ async fn test_connection_status_no_providers() {
 #[allow(clippy::too_many_lines)] // Long function: Complex OAuth integration test with full setup
 async fn test_invalid_provider_error() {
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
@@ -567,6 +616,7 @@ async fn test_invalid_provider_error() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
@@ -673,6 +723,17 @@ async fn test_invalid_provider_error() {
 #[allow(clippy::too_many_lines)] // Long function: Complex OAuth integration test with full setup
 async fn test_disconnect_provider() {
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
@@ -693,6 +754,7 @@ async fn test_disconnect_provider() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
@@ -828,6 +890,17 @@ async fn test_disconnect_provider() {
 #[allow(clippy::too_many_lines)] // Long function: Complex OAuth integration test with full setup
 async fn test_oauth_urls_contain_required_parameters() {
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
@@ -913,6 +986,7 @@ async fn test_oauth_urls_contain_required_parameters() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,

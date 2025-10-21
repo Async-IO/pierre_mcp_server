@@ -52,15 +52,18 @@ pub struct TenantOAuthManager {
     // In-memory storage for now - would be database-backed in production
     credentials: HashMap<(Uuid, String), TenantOAuthCredentials>,
     usage_tracking: HashMap<(Uuid, String, chrono::NaiveDate), u32>,
+    // Server-level OAuth configuration (read once at startup)
+    oauth_config: std::sync::Arc<crate::config::environment::OAuthConfig>,
 }
 
 impl TenantOAuthManager {
-    /// Create new OAuth manager
+    /// Create new OAuth manager with server-level configuration
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(oauth_config: std::sync::Arc<crate::config::environment::OAuthConfig>) -> Self {
         Self {
             credentials: HashMap::new(),
             usage_tracking: HashMap::new(),
+            oauth_config,
         }
     }
 
@@ -83,8 +86,8 @@ impl TenantOAuthManager {
             return Ok(credentials);
         }
 
-        // Priority 2: Fallback to server-level environment variables
-        if let Some(credentials) = Self::try_server_level_credentials(tenant_id, provider) {
+        // Priority 2: Fallback to server-level OAuth configuration
+        if let Some(credentials) = self.try_server_level_credentials(tenant_id, provider) {
             return Ok(credentials);
         }
 
@@ -166,14 +169,15 @@ impl TenantOAuthManager {
         Ok(())
     }
 
-    /// Try to load server-level OAuth credentials from environment variables
+    /// Try to load server-level OAuth credentials from `ServerConfig`
     fn try_server_level_credentials(
+        &self,
         tenant_id: Uuid,
         provider: &str,
     ) -> Option<TenantOAuthCredentials> {
         match provider.to_lowercase().as_str() {
-            "strava" => Self::try_strava_env_credentials(tenant_id),
-            "fitbit" => Self::try_fitbit_env_credentials(tenant_id),
+            "strava" => self.try_strava_config_credentials(tenant_id),
+            "fitbit" => self.try_fitbit_config_credentials(tenant_id),
             _ => {
                 tracing::warn!("Unsupported OAuth provider: {}", provider);
                 None
@@ -181,14 +185,17 @@ impl TenantOAuthManager {
         }
     }
 
-    /// Try to load Strava credentials from environment variables
-    fn try_strava_env_credentials(tenant_id: Uuid) -> Option<TenantOAuthCredentials> {
-        if let (Ok(client_id), Ok(client_secret)) = (
-            std::env::var("STRAVA_CLIENT_ID"),
-            std::env::var("STRAVA_CLIENT_SECRET"),
-        ) {
-            let redirect_uri = std::env::var("STRAVA_REDIRECT_URI")
-                .unwrap_or_else(|_| "http://localhost:8080/api/oauth/callback/strava".to_string());
+    /// Try to load Strava credentials from `ServerConfig`
+    fn try_strava_config_credentials(&self, tenant_id: Uuid) -> Option<TenantOAuthCredentials> {
+        let strava_config = &self.oauth_config.strava;
+
+        if let (Some(client_id), Some(client_secret)) =
+            (&strava_config.client_id, &strava_config.client_secret)
+        {
+            let redirect_uri = strava_config
+                .redirect_uri
+                .clone()
+                .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/strava".to_string());
             tracing::info!(
                 "Using server-level Strava OAuth credentials for tenant {}",
                 tenant_id
@@ -196,31 +203,38 @@ impl TenantOAuthManager {
             return Some(TenantOAuthCredentials {
                 tenant_id,
                 provider: "strava".to_string(),
-                client_id,
-                client_secret,
+                client_id: client_id.clone(),
+                client_secret: client_secret.clone(),
                 redirect_uri,
-                scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
-                    .split(',')
-                    .map(str::to_string)
-                    .collect(),
+                scopes: if strava_config.scopes.is_empty() {
+                    crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                        .split(',')
+                        .map(str::to_string)
+                        .collect()
+                } else {
+                    strava_config.scopes.clone()
+                },
                 rate_limit_per_day: crate::constants::rate_limits::STRAVA_DEFAULT_DAILY_RATE_LIMIT,
             });
         }
         tracing::warn!(
-            "No STRAVA_CLIENT_ID/STRAVA_CLIENT_SECRET environment variables set for tenant {}. MCP client should provide these credentials via OAuth configuration tool.",
+            "No Strava OAuth credentials in ServerConfig for tenant {}. MCP client should provide these credentials via OAuth configuration tool.",
             tenant_id
         );
         None
     }
 
-    /// Try to load Fitbit credentials from environment variables
-    fn try_fitbit_env_credentials(tenant_id: Uuid) -> Option<TenantOAuthCredentials> {
-        if let (Ok(client_id), Ok(client_secret)) = (
-            std::env::var("FITBIT_CLIENT_ID"),
-            std::env::var("FITBIT_CLIENT_SECRET"),
-        ) {
-            let redirect_uri = std::env::var("FITBIT_REDIRECT_URI")
-                .unwrap_or_else(|_| "http://localhost:8080/api/oauth/callback/fitbit".to_string());
+    /// Try to load Fitbit credentials from `ServerConfig`
+    fn try_fitbit_config_credentials(&self, tenant_id: Uuid) -> Option<TenantOAuthCredentials> {
+        let fitbit_config = &self.oauth_config.fitbit;
+
+        if let (Some(client_id), Some(client_secret)) =
+            (&fitbit_config.client_id, &fitbit_config.client_secret)
+        {
+            let redirect_uri = fitbit_config
+                .redirect_uri
+                .clone()
+                .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/fitbit".to_string());
             tracing::info!(
                 "Using server-level Fitbit OAuth credentials for tenant {}",
                 tenant_id
@@ -228,25 +242,29 @@ impl TenantOAuthManager {
             return Some(TenantOAuthCredentials {
                 tenant_id,
                 provider: "fitbit".to_string(),
-                client_id,
-                client_secret,
+                client_id: client_id.clone(),
+                client_secret: client_secret.clone(),
                 redirect_uri,
-                scopes: vec![
-                    "activity".to_string(),
-                    "heartrate".to_string(),
-                    "location".to_string(),
-                    "nutrition".to_string(),
-                    "profile".to_string(),
-                    "settings".to_string(),
-                    "sleep".to_string(),
-                    "social".to_string(),
-                    "weight".to_string(),
-                ],
+                scopes: if fitbit_config.scopes.is_empty() {
+                    vec![
+                        "activity".to_string(),
+                        "heartrate".to_string(),
+                        "location".to_string(),
+                        "nutrition".to_string(),
+                        "profile".to_string(),
+                        "settings".to_string(),
+                        "sleep".to_string(),
+                        "social".to_string(),
+                        "weight".to_string(),
+                    ]
+                } else {
+                    fitbit_config.scopes.clone()
+                },
                 rate_limit_per_day: crate::constants::rate_limits::FITBIT_DEFAULT_DAILY_RATE_LIMIT,
             });
         }
         tracing::warn!(
-            "No FITBIT_CLIENT_ID/FITBIT_CLIENT_SECRET environment variables set for tenant {}. MCP client should provide these credentials via OAuth configuration tool.",
+            "No Fitbit OAuth credentials in ServerConfig for tenant {}. MCP client should provide these credentials via OAuth configuration tool.",
             tenant_id
         );
         None
@@ -292,11 +310,5 @@ impl TenantOAuthManager {
             tenant_id
         );
         None
-    }
-}
-
-impl Default for TenantOAuthManager {
-    fn default() -> Self {
-        Self::new()
     }
 }

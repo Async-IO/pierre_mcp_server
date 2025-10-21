@@ -19,6 +19,17 @@ async fn test_tenant_operations_work_through_factory() {
     // Create test database
     let database_url = "sqlite::memory:";
     let encryption_key = vec![0u8; 32];
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        database_url,
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await.unwrap();
 
     // Create owner user first (required for tenant foreign key constraint)

@@ -98,6 +98,7 @@ fn test_config_validation() {
                 retention_count: 7,
                 directory: "./backups".into(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,

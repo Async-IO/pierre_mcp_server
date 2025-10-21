@@ -23,6 +23,17 @@ use std::sync::Arc;
 // Long function: Defines complete test environment setup including database, auth, config, and test data
 #[allow(clippy::too_many_lines)]
 async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRoutes, uuid::Uuid)> {
+    #[cfg(feature = "postgresql")]
+    let database = Arc::new(
+        Database::new(
+            "sqlite::memory:",
+            generate_encryption_key().to_vec(),
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
+        .await?,
+    );
+
+    #[cfg(not(feature = "postgresql"))]
     let database =
         Arc::new(Database::new("sqlite::memory:", generate_encryption_key().to_vec()).await?);
     database.migrate().await?;
@@ -106,6 +117,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
                 retention_count: 7,
                 directory: std::path::PathBuf::from("test_backups"),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,

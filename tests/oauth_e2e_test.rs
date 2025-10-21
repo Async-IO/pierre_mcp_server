@@ -183,9 +183,21 @@ const TEST_JWT_SECRET: &str = "test_jwt_secret_for_oauth_e2e_tests";
 async fn test_oauth_flow_through_mcp() {
     // Setup multi-tenant server components
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
+
     let auth_manager = AuthManager::new(24);
 
     // Create test config
@@ -204,6 +216,7 @@ async fn test_oauth_flow_through_mcp() {
                 retention_count: 7,
                 directory: std::path::PathBuf::from("test_backups"),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
@@ -357,6 +370,17 @@ async fn test_oauth_flow_through_mcp() {
 #[tokio::test]
 async fn test_oauth_callback_error_handling() {
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
@@ -434,6 +458,7 @@ async fn test_oauth_callback_error_handling() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
@@ -557,9 +582,21 @@ async fn test_oauth_callback_error_handling() {
 #[tokio::test]
 async fn test_oauth_state_csrf_protection() {
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
+
     database.migrate().await.unwrap();
 
     let auth_manager = AuthManager::new(24);
@@ -630,6 +667,7 @@ async fn test_oauth_state_csrf_protection() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
@@ -750,6 +788,17 @@ async fn test_oauth_state_csrf_protection() {
 #[tokio::test]
 async fn test_connection_status_tracking() {
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
@@ -772,6 +821,7 @@ async fn test_connection_status_tracking() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,

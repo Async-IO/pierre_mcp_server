@@ -166,7 +166,13 @@ async fn main() -> Result<()> {
 
     // Initialize database
     info!("Connecting to database: {}", database_url);
-    let database = Database::new(&database_url, database_encryption_key.to_vec()).await?;
+    let database = Database::new(
+        &database_url,
+        database_encryption_key.to_vec(),
+        #[cfg(feature = "postgresql")]
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
 
     // Complete key manager initialization
     key_manager.complete_initialization(&database).await?;

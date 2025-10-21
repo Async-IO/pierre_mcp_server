@@ -158,7 +158,7 @@ impl AuthService {
         let (client_id, client_secret) = if let Some(tenant_id_str) = tenant_id {
             self.get_tenant_oauth_credentials(tenant_id_str).await?
         } else {
-            Self::get_default_oauth_credentials()?
+            self.get_default_oauth_credentials()?
         };
 
         // Create Strava provider using the factory function
@@ -217,7 +217,7 @@ impl AuthService {
             Ok(Some(creds)) => Ok((creds.client_id, creds.client_secret)),
             Ok(None) => {
                 // Fall back to default credentials if tenant doesn't have custom ones
-                Self::get_default_oauth_credentials()
+                self.get_default_oauth_credentials()
             }
             Err(e) => Err(UniversalResponse {
                 success: false,
@@ -228,27 +228,35 @@ impl AuthService {
         }
     }
 
-    /// Get default OAuth credentials from environment variables
+    /// Get default OAuth credentials from `ServerConfig`
     ///
     /// # Errors
-    /// Returns `UniversalResponse` error if environment variables are missing
-    fn get_default_oauth_credentials() -> Result<(String, String), UniversalResponse> {
-        let client_id = std::env::var("STRAVA_CLIENT_ID").map_err(|_| UniversalResponse {
-            success: false,
-            result: None,
-            error: Some("STRAVA_CLIENT_ID environment variable required".to_string()),
-            metadata: None,
-        })?;
+    /// Returns `UniversalResponse` error if credentials are not configured
+    fn get_default_oauth_credentials(&self) -> Result<(String, String), UniversalResponse> {
+        let strava_config = &self.resources.config.oauth.strava;
 
-        let client_secret =
-            std::env::var("STRAVA_CLIENT_SECRET").map_err(|_| UniversalResponse {
+        let client_id = strava_config
+            .client_id
+            .as_ref()
+            .ok_or_else(|| UniversalResponse {
                 success: false,
                 result: None,
-                error: Some("STRAVA_CLIENT_SECRET environment variable required".to_string()),
+                error: Some("STRAVA_CLIENT_ID not configured in ServerConfig".to_string()),
                 metadata: None,
             })?;
 
-        Ok((client_id, client_secret))
+        let client_secret =
+            strava_config
+                .client_secret
+                .as_ref()
+                .ok_or_else(|| UniversalResponse {
+                    success: false,
+                    result: None,
+                    error: Some("STRAVA_CLIENT_SECRET not configured in ServerConfig".to_string()),
+                    metadata: None,
+                })?;
+
+        Ok((client_id.clone(), client_secret.clone()))
     }
 
     /// Check if user has valid authentication for a provider

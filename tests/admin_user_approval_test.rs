@@ -31,6 +31,16 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
     // Create database with proper encryption
     let (mut key_manager, database_key) =
         pierre_mcp_server::key_management::KeyManager::bootstrap()?;
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        &db_url,
+        database_key.to_vec(),
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(&db_url, database_key.to_vec()).await?;
     key_manager.complete_initialization(&database).await?;
 

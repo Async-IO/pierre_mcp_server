@@ -28,14 +28,6 @@ use std::fmt::Write;
 use std::time::Duration;
 use uuid::Uuid;
 
-// Default connection pool configuration constants
-const DEFAULT_CI_MAX_CONNECTIONS: u32 = 5; // Reduced for CI to avoid connection exhaustion
-const DEFAULT_PROD_MAX_CONNECTIONS: u32 = 10;
-const DEFAULT_CI_ACQUIRE_TIMEOUT_SECS: u64 = 30; // Reduced timeout for faster failure detection
-const DEFAULT_PROD_ACQUIRE_TIMEOUT_SECS: u64 = 30;
-const DEFAULT_CI_MIN_CONNECTIONS: u32 = 1;
-const DEFAULT_PROD_MIN_CONNECTIONS: u32 = 0;
-
 /// `PostgreSQL` database implementation
 #[derive(Clone)]
 pub struct PostgresDatabase {
@@ -49,52 +41,27 @@ impl PostgresDatabase {
     }
 }
 
-#[async_trait]
-impl DatabaseProvider for PostgresDatabase {
-    async fn new(database_url: &str, _encryption_key: Vec<u8>) -> Result<Self> {
-        // Use reasonable connection pool for CI environments (tests may run concurrently)
-        let is_ci = std::env::var("CI").is_ok();
-
-        // Allow environment variable overrides for connection pool settings
-        let max_connections = std::env::var("POSTGRES_MAX_CONNECTIONS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or({
-                if is_ci {
-                    DEFAULT_CI_MAX_CONNECTIONS
-                } else {
-                    DEFAULT_PROD_MAX_CONNECTIONS
-                }
-            });
-
-        let min_connections = std::env::var("POSTGRES_MIN_CONNECTIONS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or({
-                if is_ci {
-                    DEFAULT_CI_MIN_CONNECTIONS
-                } else {
-                    DEFAULT_PROD_MIN_CONNECTIONS
-                }
-            });
-
-        let acquire_timeout_secs = std::env::var("POSTGRES_ACQUIRE_TIMEOUT")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or({
-                if is_ci {
-                    DEFAULT_CI_ACQUIRE_TIMEOUT_SECS
-                } else {
-                    DEFAULT_PROD_ACQUIRE_TIMEOUT_SECS
-                }
-            });
+impl PostgresDatabase {
+    /// Create new `PostgreSQL` database with provided pool configuration
+    /// This is called by the Database factory with centralized `ServerConfig`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database connection or pool configuration fails
+    pub async fn new(
+        database_url: &str,
+        _encryption_key: Vec<u8>,
+        pool_config: &crate::config::environment::PostgresPoolConfig,
+    ) -> Result<Self> {
+        // Use pool configuration from ServerConfig (read once at startup)
+        let max_connections = pool_config.max_connections;
+        let min_connections = pool_config.min_connections;
+        let acquire_timeout_secs = pool_config.acquire_timeout_secs;
 
         // Log connection pool configuration for debugging
-        if is_ci {
-            eprintln!(
-                "PostgreSQL CI mode: max_connections={max_connections}, timeout={acquire_timeout_secs}s"
-            );
-        }
+        tracing::info!(
+            "PostgreSQL pool config: max_connections={max_connections}, min_connections={min_connections}, timeout={acquire_timeout_secs}s"
+        );
 
         let pool = PgPoolOptions::new()
             .max_connections(max_connections)
@@ -114,6 +81,16 @@ impl DatabaseProvider for PostgresDatabase {
         db.migrate().await?;
 
         Ok(db)
+    }
+}
+
+#[async_trait]
+impl DatabaseProvider for PostgresDatabase {
+    async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
+        // Use default pool configuration when called through trait
+        // In practice, the Database factory calls the inherent impl's new() directly with config
+        let pool_config = crate::config::environment::PostgresPoolConfig::default();
+        Self::new(database_url, encryption_key, &pool_config).await
     }
 
     async fn migrate(&self) -> Result<()> {

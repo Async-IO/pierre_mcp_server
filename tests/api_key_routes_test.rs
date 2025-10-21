@@ -44,6 +44,17 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
     // Create test database
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        database_url,
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await.unwrap();
 
     // Create auth manager
@@ -88,6 +99,8 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                         retention_count: 7,
                         directory: temp_dir.path().to_path_buf(),
                     },
+                    postgres_pool:
+                        pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
                 },
                 auth: pierre_mcp_server::config::environment::AuthConfig {
                     jwt_expiry_hours: 24,

@@ -32,6 +32,19 @@ async fn create_test_environment() -> (
     // Create test database
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Arc::new(
+        Database::new(
+            database_url,
+            encryption_key,
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
+        .await
+        .unwrap(),
+    );
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
 
     // Create auth manager

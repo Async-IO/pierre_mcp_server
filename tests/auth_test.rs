@@ -138,6 +138,19 @@ async fn test_mcp_auth_middleware() {
     // Create in-memory database for testing
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Arc::new(
+        Database::new(
+            database_url,
+            encryption_key,
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
+        .await
+        .unwrap(),
+    );
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
 
     // Create the user in the database first (required for JWT rate limiting)
@@ -170,6 +183,19 @@ async fn test_mcp_auth_middleware_invalid_header() {
     // Create in-memory database for testing
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Arc::new(
+        Database::new(
+            database_url,
+            encryption_key,
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
+        .await
+        .unwrap(),
+    );
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
 
     let jwks_manager = common::get_shared_test_jwks();
@@ -194,6 +220,19 @@ async fn test_provider_access_check() {
     // Create in-memory database for testing
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Arc::new(
+        Database::new(
+            database_url,
+            encryption_key,
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
+        .await
+        .unwrap(),
+    );
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
 
     let jwks_manager = common::get_shared_test_jwks();
@@ -540,6 +579,17 @@ async fn test_check_setup_status_admin_exists() {
     // Create in-memory database with admin user
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        database_url,
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await.unwrap();
 
     // Create admin user
@@ -566,6 +616,17 @@ async fn test_check_setup_status_no_admin() {
     // Create in-memory database without admin user
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        database_url,
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await.unwrap();
 
     let setup_status = auth_manager.check_setup_status(&database).await.unwrap();
@@ -587,6 +648,19 @@ async fn test_mcp_auth_middleware_different_user_tiers() {
 
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Arc::new(
+        Database::new(
+            database_url,
+            encryption_key,
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
+        .await
+        .unwrap(),
+    );
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
 
     // Use shared JWKS manager for all tier tests

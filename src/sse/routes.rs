@@ -29,7 +29,7 @@ pub async fn handle_notification_sse(
     let mut receiver = manager.register_notification_stream(user_uuid).await;
     let manager_clone = manager.clone();
     let user_id_clone = user_uuid;
-    let overflow_strategy = resources.config.sse.buffer_overflow_strategy.clone();
+    let overflow_strategy = resources.config.sse.buffer_overflow_strategy;
 
     let stream = async_stream::stream! {
         // Send initial connection established event with sequential event IDs
@@ -117,7 +117,7 @@ pub async fn handle_protocol_sse(
         session_id
     );
 
-    let overflow_strategy = resources.config.sse.buffer_overflow_strategy.clone();
+    let overflow_strategy = resources.config.sse.buffer_overflow_strategy;
     let mut receiver = manager
         .register_protocol_stream(session_id.clone(), authorization, resources)
         .await;

@@ -786,8 +786,9 @@ mod postgres_tests {
 
         let encryption_key = generate_encryption_key().to_vec();
         let test_url = get_postgres_test_url();
+        let pool_config = pierre_mcp_server::config::environment::PostgresPoolConfig::default();
 
-        let db = PostgresDatabase::new(&test_url, encryption_key).await?;
+        let db = PostgresDatabase::new(&test_url, encryption_key, &pool_config).await?;
         let _ = db.migrate().await; // Ignore migration errors if already applied
 
         Ok(db)

@@ -286,19 +286,38 @@ else
     TOML_MAGIC_NUMBERS=0
 fi
 
-# Memory Management Analysis
+# Memory Management Analysis - Enhanced with clippy validation
 TOTAL_CLONES=$(rg "\.clone\(\)" src/ | grep -v 'src/bin/' | wc -l 2>/dev/null || echo 0)
-LEGITIMATE_CLONES=$(rg "\.clone\(\)" src/ | grep -v 'src/bin/' | rg "Arc::|resources\.|database\.|auth_manager\.|sse_manager\.|websocket_manager\.|\.to_string\(\)|format!|String::from|token|url|name|path|message|error|Error|client_id|client_secret|redirect_uri|access_token|refresh_token|user_id|tenant_id|request\.|response\.|context\.|config\.|profile\." | wc -l 2>/dev/null || echo 0)
-PROBLEMATIC_CLONES=$((TOTAL_CLONES - LEGITIMATE_CLONES))
+
+# Run clippy clone analysis to validate clone usage
+CLIPPY_CLONE_WARNINGS=$(cargo clippy --all-targets --all-features --quiet -- \
+    -W clippy::clone_on_copy \
+    -W clippy::redundant_clone \
+    -W suspicious_double_ref_op 2>&1 | \
+    grep -E "warning:.*clone" | wc -l 2>/dev/null || echo 0)
 
 # Get files with file-level clone safety documentation
-FILES_WITH_CLONE_DOCS=$(rg -l "NOTE: All.*clone.*calls.*Safe" src/ 2>/dev/null || echo "")
+FILES_WITH_CLONE_DOCS=$(rg -l "NOTE: All.*\.clone.*calls.*Safe|NOTE: All.*clone.*calls.*Safe" src/ 2>/dev/null || echo "")
 DOCUMENTED_FILES_COUNT=$(echo "$FILES_WITH_CLONE_DOCS" | grep -v '^$' | wc -l 2>/dev/null || echo 0)
 
 # Count documented clones from files with bulk documentation
 DOCUMENTED_CLONES=0
 if [ -n "$FILES_WITH_CLONE_DOCS" ] && [ "$DOCUMENTED_FILES_COUNT" -gt 0 ]; then
     DOCUMENTED_CLONES=$(rg "\.clone\(\)" src/ | grep -v 'src/bin/' | grep -f <(echo "$FILES_WITH_CLONE_DOCS") | wc -l 2>/dev/null || echo 0)
+fi
+
+# Enhanced legitimate clone detection with more patterns
+LEGITIMATE_CLONES=$(rg "\.clone\(\)" src/ | grep -v 'src/bin/' | rg "Arc::|Rc::|resources\.|database\.|auth_manager\.|sse_manager\.|websocket_manager\.|jwks_manager\.|provider_registry\.|activity_intelligence\.|a2a_client_manager\.|a2a_system_user_service\.|oauth2_rate_limiter\.|tenant_oauth_client\.|cache\.|redaction_config\.|// Safe|\.to_string\(\)|format!|String::from|token|url|name|path|message|error|Error|client_id|client_secret|redirect_uri|access_token|refresh_token|user_id|tenant_id|request\.|response\.|context\.|config\.|profile\.|manager_for_" | wc -l 2>/dev/null || echo 0)
+
+# If clippy validates all clones, consider them legitimate
+if [ "$CLIPPY_CLONE_WARNINGS" -eq 0 ]; then
+    # Clippy found no clone issues - all clones are validated
+    CLIPPY_VALIDATED_CLONES=$TOTAL_CLONES
+    PROBLEMATIC_CLONES=0
+else
+    # Some clones need review based on clippy warnings
+    CLIPPY_VALIDATED_CLONES=$((TOTAL_CLONES - CLIPPY_CLONE_WARNINGS))
+    PROBLEMATIC_CLONES=$CLIPPY_CLONE_WARNINGS
 fi
 
 
@@ -582,26 +601,26 @@ fi
 
 echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"
 
-# Memory Management Analysis
-printf "│ %-35s │ %5d │ " "Problematic clones found" "$PROBLEMATIC_CLONES"
-# According to CLAUDE.md, this multitenant architecture accepts 490 clones
-if [ "$PROBLEMATIC_CLONES" -le 300 ]; then
-    printf "$(format_status "✅ PASS")│ %-39s │\n" "Within multitenant architecture limits"
+# Memory Management Analysis - Clippy-validated
+printf "│ %-35s │ %5d │ " "Clippy clone warnings" "$CLIPPY_CLONE_WARNINGS"
+if [ "$CLIPPY_CLONE_WARNINGS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "All clones validated by clippy"
 else
-    # Get first problematic clone from files without file-level docs, excluding individually documented ones
-    if [ -n "$FILES_WITH_CLONE_DOCS" ]; then
-        FIRST_PROBLEMATIC_CLONE=$(get_first_location 'rg "\.clone\(\)" src/ | grep -v -f <(echo "$FILES_WITH_CLONE_DOCS") | rg -v "// Safe" -n')
-    else
-        FIRST_PROBLEMATIC_CLONE=$(get_first_location 'rg "\.clone\(\)" src/ | rg -v "// Safe" -n')
-    fi
-    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_PROBLEMATIC_CLONE"
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$CLIPPY_CLONE_WARNINGS clone issues found"
 fi
 
-printf "│ %-35s │ %5d │ " "Clone usage" "$TOTAL_CLONES"
-if [ "$PROBLEMATIC_CLONES" -le 300 ]; then
-    printf "$(format_status "✅ PASS")│ %-39s │\n" "$LEGITIMATE_CLONES legitimate, $PROBLEMATIC_CLONES architectural"
+printf "│ %-35s │ %5d │ " "Clone usage (total)" "$TOTAL_CLONES"
+if [ "$CLIPPY_CLONE_WARNINGS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "$DOCUMENTED_FILES_COUNT files documented, clippy clean"
 else
-    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$LEGITIMATE_CLONES legitimate, $PROBLEMATIC_CLONES need review"
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$LEGITIMATE_CLONES legitimate, $CLIPPY_CLONE_WARNINGS need review"
+fi
+
+printf "│ %-35s │ %5d │ " "Files with clone documentation" "$DOCUMENTED_FILES_COUNT"
+if [ "$DOCUMENTED_FILES_COUNT" -ge 10 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Good clone documentation coverage"
+else
+    printf "$(format_status "⚠️ INFO")│ %-39s │\n" "Consider documenting Arc clone patterns"
 fi
 
 printf "│ %-35s │ %5d │ " "Arc usage" "$TOTAL_ARCS"
@@ -680,13 +699,13 @@ if [ "$NULL_UUIDS" -gt 0 ]; then
 fi
 
 # Report comprehensive summary based on actual findings
-# Note: PROBLEMATIC_CLONES not included as they're acceptable in multitenant architecture per CLAUDE.md
+# Note: Clone validation now uses clippy analysis instead of arbitrary thresholds
 CRITICAL_ISSUES=$((NULL_UUIDS + PROBLEMATIC_DB_CLONES + PROBLEMATIC_UNWRAPS + PROBLEMATIC_EXPECTS + PANICS + IGNORED_TESTS + IMPLEMENTATION_PLACEHOLDERS + PLACEHOLDER_WARNINGS))
 CRITICAL_ISSUES=$((CRITICAL_ISSUES + TOML_PRODUCTION_HYGIENE + CFG_TEST_IN_SRC + DEAD_CODE))
 
 WARNINGS=$((FAKE_RESOURCES + (OBSOLETE_FUNCTIONS > 1 ? OBSOLETE_FUNCTIONS - 1 : 0)))
 WARNINGS=$((WARNINGS + RESOURCE_CREATION + TODOS + PROBLEMATIC_UNDERSCORE_NAMES + TEMP_SOLUTIONS))
-WARNINGS=$((WARNINGS + (PROBLEMATIC_CLONES > 300 ? 1 : 0) + (TOTAL_ARCS >= 50 ? 1 : 0) + (MAGIC_NUMBERS >= 10 ? 1 : 0)))
+WARNINGS=$((WARNINGS + (CLIPPY_CLONE_WARNINGS > 0 ? 1 : 0) + (TOTAL_ARCS >= 50 ? 1 : 0) + (MAGIC_NUMBERS >= 10 ? 1 : 0)))
 WARNINGS=$((WARNINGS + (TOML_DEVELOPMENT_ARTIFACTS > 0 ? 1 : 0) + (TOML_TEMPORARY_CODE > MAX_TEMPORARY_CODE ? 1 : 0) + (TOML_MAGIC_NUMBERS > MAX_MAGIC_NUMBERS ? 1 : 0)))
 
 # Claude Code anti-pattern warnings (informational - encourage better Rust idioms)
@@ -747,6 +766,17 @@ if cargo check --all-targets --quiet; then
 else
     echo -e "${RED}[FAIL] Rust compilation failed${NC}"
     ALL_PASSED=false
+fi
+
+# Check for backup files (Claude Code anti-pattern)
+echo -e "${BLUE}==== Checking for backup files... ====${NC}"
+BACKUP_FILES=$(find src tests -name "*.backup" -o -name "*.bak" 2>/dev/null)
+if [ -n "$BACKUP_FILES" ]; then
+    echo -e "${RED}[FAIL] Backup files found (must be removed):${NC}"
+    echo "$BACKUP_FILES"
+    ALL_PASSED=false
+else
+    echo -e "${GREEN}[OK] No backup files found${NC}"
 fi
 
 # Clean up test databases before running tests

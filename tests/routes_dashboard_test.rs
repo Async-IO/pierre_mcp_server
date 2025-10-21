@@ -201,6 +201,8 @@ impl DashboardTestSetup {
                     retention_count: 7,
                     directory: temp_dir.path().to_path_buf(),
                 },
+                postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(
+                ),
             },
             auth: pierre_mcp_server::config::environment::AuthConfig {
                 jwt_expiry_hours: 24,
@@ -551,6 +553,7 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,

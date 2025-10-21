@@ -81,6 +81,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
                 retention_count: 7,
                 directory: PathBuf::from("test_backups"),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
@@ -411,6 +412,7 @@ async fn test_set_goal_tool() -> Result<()> {
                 retention_count: 7,
                 directory: PathBuf::from("test_backups"),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
@@ -1017,6 +1019,7 @@ async fn test_disconnect_provider_tool() -> Result<()> {
                 retention_count: 7,
                 directory: PathBuf::from("test_backups"),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,

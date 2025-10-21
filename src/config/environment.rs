@@ -236,6 +236,31 @@ pub struct DatabaseConfig {
     pub auto_migrate: bool,
     /// Database backup configuration
     pub backup: BackupConfig,
+    /// `PostgreSQL` connection pool configuration
+    pub postgres_pool: PostgresPoolConfig,
+}
+
+/// `PostgreSQL` connection pool configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostgresPoolConfig {
+    /// Maximum number of connections in the pool
+    pub max_connections: u32,
+    /// Minimum number of connections in the pool
+    pub min_connections: u32,
+    /// Connection acquire timeout in seconds
+    pub acquire_timeout_secs: u64,
+}
+
+impl Default for PostgresPoolConfig {
+    fn default() -> Self {
+        // CI environment detection at config load time
+        let is_ci = std::env::var("CI").is_ok();
+        Self {
+            max_connections: if is_ci { 3 } else { 10 },
+            min_connections: if is_ci { 1 } else { 2 },
+            acquire_timeout_secs: if is_ci { 20 } else { 30 },
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -647,7 +672,7 @@ pub struct SseConfig {
 }
 
 /// Strategy for handling SSE buffer overflow
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SseBufferStrategy {
     /// Drop oldest event when buffer is full
@@ -947,7 +972,27 @@ impl ServerConfig {
                 .parse()
                 .context("Invalid AUTO_MIGRATE value")?,
             backup: Self::load_backup_config()?,
+            postgres_pool: Self::load_postgres_pool_config(),
         })
+    }
+
+    /// Load `PostgreSQL` pool configuration from environment (or defaults)
+    fn load_postgres_pool_config() -> PostgresPoolConfig {
+        let is_ci = std::env::var("CI").is_ok();
+        PostgresPoolConfig {
+            max_connections: env::var("POSTGRES_MAX_CONNECTIONS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(if is_ci { 3 } else { 10 }),
+            min_connections: env::var("POSTGRES_MIN_CONNECTIONS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(if is_ci { 1 } else { 2 }),
+            acquire_timeout_secs: env::var("POSTGRES_ACQUIRE_TIMEOUT")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(if is_ci { 20 } else { 30 }),
+        }
     }
 
     /// Load backup configuration from environment

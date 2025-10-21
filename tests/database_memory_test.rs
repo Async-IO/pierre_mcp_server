@@ -16,6 +16,15 @@ async fn test_memory_database_no_physical_files() -> Result<()> {
     let encryption_key = generate_encryption_key().to_vec();
 
     // Create in-memory database - this should NOT create any physical files
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key).await?;
 
     // Verify no physical files are created with memory database patterns
@@ -64,7 +73,26 @@ async fn test_multiple_memory_databases_isolated() -> Result<()> {
     let encryption_key2 = generate_encryption_key().to_vec();
 
     // Create two separate in-memory databases
+    #[cfg(feature = "postgresql")]
+    let database1 = Database::new(
+        "sqlite::memory:",
+        encryption_key1,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database1 = Database::new("sqlite::memory:", encryption_key1).await?;
+
+    #[cfg(feature = "postgresql")]
+    let database2 = Database::new(
+        "sqlite::memory:",
+        encryption_key2,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database2 = Database::new("sqlite::memory:", encryption_key2).await?;
 
     // Create users in each database

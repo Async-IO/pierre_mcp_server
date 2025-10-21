@@ -22,6 +22,18 @@ use uuid::Uuid;
 
 async fn create_test_tool_executor() -> Arc<UniversalToolExecutor> {
     // Create in-memory database for testing
+    #[cfg(feature = "postgresql")]
+    let database = Arc::new(
+        Database::new(
+            "sqlite::memory:",
+            vec![0; 32],
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
+        .await
+        .expect("Failed to create test database"),
+    );
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Arc::new(
         Database::new("sqlite::memory:", vec![0; 32])
             .await
@@ -101,6 +113,7 @@ fn create_test_config() -> pierre_mcp_server::config::environment::ServerConfig 
                 retention_count: 7,
                 directory: std::path::PathBuf::from("data/backups"),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,

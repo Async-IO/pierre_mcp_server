@@ -73,6 +73,17 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
     let encryption_key = BASE64_STANDARD
         .decode(master_key)
         .expect("Invalid base64 in PIERRE_MASTER_ENCRYPTION_KEY");
+    #[cfg(feature = "postgresql")]
+    let database = Arc::new(
+        Database::new(
+            &database_url,
+            encryption_key,
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
+        .await?,
+    );
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Arc::new(Database::new(&database_url, encryption_key).await?);
 
     // Create ActivityIntelligence with proper constructor
@@ -126,6 +137,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
                 retention_count: 7,
                 directory: PathBuf::from("test_backups"),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,

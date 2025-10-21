@@ -41,6 +41,18 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     common::init_test_http_clients();
 
     // Step 1: Create test database and base infrastructure
+    #[cfg(feature = "postgresql")]
+    let database = Arc::new(
+        Database::new(
+            "sqlite::memory:",
+            vec![0; 32],
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
+        .await
+        .expect("Failed to create test database"),
+    );
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Arc::new(
         Database::new("sqlite::memory:", vec![0; 32])
             .await
@@ -153,7 +165,13 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     database.create_oauth_app(&beta_strava_app).await?;
 
     // Step 6: Set up tenant OAuth client and configure credentials
-    let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new()));
+    let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
+        strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+    });
+    let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new(
+        oauth_config,
+    )));
 
     // Configure Acme's Strava credentials
     let acme_credentials = StoreCredentialsRequest {
@@ -328,24 +346,30 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     Ok(())
 }
 
-/// Test tenant switching and context validation
-#[tokio::test]
-async fn test_tenant_context_switching() -> Result<()> {
-    // Initialize HTTP clients (only once across all tests)
-    common::init_test_http_clients();
-
+/// Helper function to create test database for tenant context tests
+async fn create_tenant_test_database() -> Result<Arc<Database>> {
+    #[cfg(feature = "postgresql")]
     let database = Arc::new(
-        Database::new("sqlite::memory:", vec![0; 32])
-            .await
-            .expect("Failed to create test database"),
+        Database::new(
+            "sqlite::memory:",
+            vec![0; 32],
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
+        .await?,
     );
 
-    // Create two tenants first (for user foreign key)
+    #[cfg(not(feature = "postgresql"))]
+    let database = Arc::new(Database::new("sqlite::memory:", vec![0; 32]).await?);
+
+    Ok(database)
+}
+
+/// Helper function to setup multi-tenant test scenario
+async fn setup_multitenant_scenario(database: &Arc<Database>) -> Result<(Uuid, Uuid, Uuid)> {
     let tenant1_id = Uuid::new_v4();
     let tenant2_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
 
-    // Create a user that belongs to multiple tenants
     let user = User {
         id: user_id,
         email: "multi-tenant-user@example.com".to_string(),
@@ -391,8 +415,24 @@ async fn test_tenant_context_switching() -> Result<()> {
     database.create_tenant(&tenant1).await?;
     database.create_tenant(&tenant2).await?;
 
+    Ok((tenant1_id, tenant2_id, user_id))
+}
+
+/// Test tenant switching and context validation
+#[tokio::test]
+async fn test_tenant_context_switching() -> Result<()> {
+    common::init_test_http_clients();
+    let database = create_tenant_test_database().await?;
+    let (tenant1_id, tenant2_id, user_id) = setup_multitenant_scenario(&database).await?;
+
     // Set up different OAuth credentials for each tenant
-    let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new()));
+    let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
+        strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+    });
+    let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new(
+        oauth_config,
+    )));
 
     let tenant1_creds = StoreCredentialsRequest {
         client_id: "tenant1_client".to_string(),
@@ -469,6 +509,7 @@ fn create_test_server_config() -> ServerConfig {
                 retention_count: 7,
                 directory: PathBuf::from("test_backups"),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,

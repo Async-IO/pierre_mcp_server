@@ -175,7 +175,16 @@ async fn test_multitenant_auth_flow() -> Result<()> {
     let database_url = format!("sqlite:{}", db_path.display());
     let encryption_key = generate_encryption_key().to_vec();
 
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        &database_url,
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(&database_url, encryption_key).await?;
+
     let auth_manager = AuthManager::new(24);
 
     // Create minimal config for ServerResources
@@ -194,6 +203,7 @@ async fn test_multitenant_auth_flow() -> Result<()> {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
@@ -405,6 +415,14 @@ async fn test_database_encryption() -> Result<()> {
     let database_url = format!("sqlite:{}", db_path.display());
     let encryption_key = generate_encryption_key().to_vec();
 
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        &database_url,
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(&database_url, encryption_key).await?;
 
     // Create user
@@ -495,6 +513,14 @@ async fn test_user_isolation() -> Result<()> {
     let database_url = format!("sqlite:{}", db_path.display());
     let encryption_key = generate_encryption_key().to_vec();
 
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        &database_url,
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(&database_url, encryption_key).await?;
 
     // Create two users
@@ -573,7 +599,16 @@ async fn test_input_validation() -> Result<()> {
     let database_url = format!("sqlite:{}", db_path.display());
     let encryption_key = generate_encryption_key().to_vec();
 
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        &database_url,
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(&database_url, encryption_key).await?;
+
     let auth_manager = AuthManager::new(24);
 
     // Create minimal config for ServerResources
@@ -592,6 +627,7 @@ async fn test_input_validation() -> Result<()> {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,

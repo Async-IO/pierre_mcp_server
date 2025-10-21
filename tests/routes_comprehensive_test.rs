@@ -41,6 +41,7 @@ fn create_minimal_test_config(
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
@@ -223,6 +224,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
@@ -453,6 +455,7 @@ async fn test_user_login_success() -> Result<()> {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
@@ -681,6 +684,7 @@ async fn test_token_refresh_success() -> Result<()> {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
@@ -854,6 +858,7 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
@@ -1263,6 +1268,7 @@ async fn test_complete_auth_flow() -> Result<()> {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
@@ -1508,6 +1514,7 @@ async fn test_concurrent_logins() -> Result<()> {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,

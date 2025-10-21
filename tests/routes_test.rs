@@ -30,9 +30,21 @@ async fn test_email_validation() {
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let db_path_str = db_path.display();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        &format!("sqlite:{db_path_str}"),
+        vec![0u8; 32],
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(&format!("sqlite:{db_path_str}"), vec![0u8; 32])
         .await
         .unwrap();
+
     tracing::trace!("Created test database: {:?}", std::ptr::addr_of!(database));
     let auth_manager = AuthManager::new(24);
     tracing::trace!(
@@ -62,6 +74,17 @@ async fn test_register_user() {
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let db_path_str = db_path.display();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        &format!("sqlite:{db_path_str}"),
+        vec![0u8; 32],
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(&format!("sqlite:{db_path_str}"), vec![0u8; 32])
         .await
         .unwrap();
@@ -84,6 +107,7 @@ async fn test_register_user() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
@@ -192,6 +216,17 @@ async fn test_register_duplicate_user() {
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let db_path_str = db_path.display();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        &format!("sqlite:{db_path_str}"),
+        vec![0u8; 32],
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(&format!("sqlite:{db_path_str}"), vec![0u8; 32])
         .await
         .unwrap();
@@ -214,6 +249,7 @@ async fn test_register_duplicate_user() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,

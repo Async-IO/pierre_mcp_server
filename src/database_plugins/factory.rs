@@ -87,7 +87,11 @@ impl Database {
     /// - Database connection fails
     /// - Database initialization or migration fails
     /// - Encryption key is invalid
-    pub async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
+    pub async fn new(
+        database_url: &str,
+        encryption_key: Vec<u8>,
+        #[cfg(feature = "postgresql")] pool_config: &crate::config::environment::PostgresPoolConfig,
+    ) -> Result<Self> {
         debug!("Detecting database type from URL: {}", database_url);
         let db_type = detect_database_type(database_url)?;
         info!("Detected database type: {:?}", db_type);
@@ -102,7 +106,7 @@ impl Database {
             #[cfg(feature = "postgresql")]
             DatabaseType::PostgreSQL => {
                 info!("Initializing PostgreSQL database");
-                let db = PostgresDatabase::new(database_url, encryption_key).await?;
+                let db = PostgresDatabase::new(database_url, encryption_key, pool_config).await?;
                 info!("PostgreSQL database initialized successfully");
                 Ok(Self::PostgreSQL(db))
             }
@@ -158,7 +162,15 @@ impl DatabaseProvider for Database {
     /// - Migration process fails
     /// - Encryption setup fails
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
-        Self::new(database_url, encryption_key).await
+        #[cfg(feature = "postgresql")]
+        {
+            let pool_config = crate::config::environment::PostgresPoolConfig::default();
+            Self::new(database_url, encryption_key, &pool_config).await
+        }
+        #[cfg(not(feature = "postgresql"))]
+        {
+            Self::new(database_url, encryption_key).await
+        }
     }
 
     /// Run database migrations

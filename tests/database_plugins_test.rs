@@ -17,9 +17,24 @@ async fn create_test_database() -> Database {
     let temp_dir = std::env::temp_dir();
     let db_path = temp_dir.join(format!("test_{unique_id}.db"));
     let database_url = format!("sqlite:{}", db_path.display());
-    Database::new(&database_url, encryption_key)
+
+    #[cfg(feature = "postgresql")]
+    {
+        Database::new(
+            &database_url,
+            encryption_key,
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
         .await
         .expect("Failed to create test database")
+    }
+
+    #[cfg(not(feature = "postgresql"))]
+    {
+        Database::new(&database_url, encryption_key)
+            .await
+            .expect("Failed to create test database")
+    }
 }
 
 async fn create_test_user(db: &Database) -> Uuid {
@@ -51,7 +66,17 @@ async fn test_database_factory_creation() {
     let encryption_key = (0..32).collect::<Vec<u8>>();
 
     // Test SQLite creation
+    #[cfg(feature = "postgresql")]
+    let sqlite_db = Database::new(
+        "sqlite::memory:",
+        encryption_key.clone(),
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await;
+
+    #[cfg(not(feature = "postgresql"))]
     let sqlite_db = Database::new("sqlite::memory:", encryption_key.clone()).await;
+
     assert!(sqlite_db.is_ok(), "Failed to create SQLite database");
 
     // Test migration

@@ -248,8 +248,22 @@ pub fn handle_get_activity_intelligence(
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
-                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
-                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    client_id: executor
+                        .resources
+                        .config
+                        .oauth
+                        .strava
+                        .client_id
+                        .clone()
+                        .unwrap_or_default(),
+                    client_secret: executor
+                        .resources
+                        .config
+                        .oauth
+                        .strava
+                        .client_secret
+                        .clone()
+                        .unwrap_or_default(),
                     access_token: Some(token_data.access_token.clone()), // Safe: String ownership for OAuth credentials
                     refresh_token: Some(token_data.refresh_token.clone()), // Safe: String ownership for OAuth credentials
                     expires_at: Some(token_data.expires_at),
@@ -340,8 +354,8 @@ pub fn handle_analyze_performance_trends(
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
-                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
-                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    client_id: executor.resources.config.oauth.strava.client_id.clone().unwrap_or_default(),
+                    client_secret: executor.resources.config.oauth.strava.client_secret.clone().unwrap_or_default(),
                     access_token: Some(token_data.access_token),
                     refresh_token: Some(token_data.refresh_token),
                     expires_at: Some(token_data.expires_at),
@@ -451,8 +465,8 @@ pub fn handle_compare_activities(
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
-                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
-                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    client_id: executor.resources.config.oauth.strava.client_id.clone().unwrap_or_default(),
+                    client_secret: executor.resources.config.oauth.strava.client_secret.clone().unwrap_or_default(),
                     access_token: Some(token_data.access_token),
                     refresh_token: Some(token_data.refresh_token),
                     expires_at: Some(token_data.expires_at),
@@ -554,8 +568,8 @@ pub fn handle_detect_patterns(
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
-                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
-                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    client_id: executor.resources.config.oauth.strava.client_id.clone().unwrap_or_default(),
+                    client_secret: executor.resources.config.oauth.strava.client_secret.clone().unwrap_or_default(),
                     access_token: Some(token_data.access_token),
                     refresh_token: Some(token_data.refresh_token),
                     expires_at: Some(token_data.expires_at),
@@ -652,8 +666,8 @@ pub fn handle_generate_recommendations(
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
-                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
-                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    client_id: executor.resources.config.oauth.strava.client_id.clone().unwrap_or_default(),
+                    client_secret: executor.resources.config.oauth.strava.client_secret.clone().unwrap_or_default(),
                     access_token: Some(token_data.access_token),
                     refresh_token: Some(token_data.refresh_token),
                     expires_at: Some(token_data.expires_at),
@@ -755,8 +769,8 @@ pub fn handle_calculate_fitness_score(
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
-                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
-                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    client_id: executor.resources.config.oauth.strava.client_id.clone().unwrap_or_default(),
+                    client_secret: executor.resources.config.oauth.strava.client_secret.clone().unwrap_or_default(),
                     access_token: Some(token_data.access_token),
                     refresh_token: Some(token_data.refresh_token),
                     expires_at: Some(token_data.expires_at),
@@ -849,8 +863,8 @@ pub fn handle_predict_performance(
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
-                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
-                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    client_id: executor.resources.config.oauth.strava.client_id.clone().unwrap_or_default(),
+                    client_secret: executor.resources.config.oauth.strava.client_secret.clone().unwrap_or_default(),
                     access_token: Some(token_data.access_token),
                     refresh_token: Some(token_data.refresh_token),
                     expires_at: Some(token_data.expires_at),
@@ -949,8 +963,8 @@ pub fn handle_analyze_training_load(
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
-                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
-                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    client_id: executor.resources.config.oauth.strava.client_id.clone().unwrap_or_default(),
+                    client_secret: executor.resources.config.oauth.strava.client_secret.clone().unwrap_or_default(),
                     access_token: Some(token_data.access_token),
                     refresh_token: Some(token_data.refresh_token),
                     expires_at: Some(token_data.expires_at),

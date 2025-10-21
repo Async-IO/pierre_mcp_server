@@ -28,6 +28,17 @@ use std::sync::Arc;
 #[allow(clippy::too_many_lines)] // Long function: Complex OAuth integration test with full setup
 async fn test_email_validation() {
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
@@ -49,6 +60,7 @@ async fn test_email_validation() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
@@ -195,6 +207,17 @@ async fn test_email_validation() {
 #[allow(clippy::too_many_lines)] // Long function: Complex OAuth integration test with full setup
 async fn test_password_validation() {
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
@@ -216,6 +239,7 @@ async fn test_password_validation() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
@@ -334,6 +358,17 @@ async fn test_password_validation() {
 #[allow(clippy::too_many_lines)] // Long function: Complex OAuth integration test with full setup
 async fn test_duplicate_user_registration() {
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
@@ -355,6 +390,7 @@ async fn test_duplicate_user_registration() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
@@ -464,6 +500,17 @@ async fn test_duplicate_user_registration() {
 #[allow(clippy::too_many_lines)] // Long function: Complex OAuth integration test with full setup
 async fn test_login_with_correct_credentials() {
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
@@ -485,6 +532,7 @@ async fn test_login_with_correct_credentials() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
@@ -638,6 +686,17 @@ async fn test_login_with_correct_credentials() {
 #[allow(clippy::too_many_lines)] // Long function: Complex OAuth integration test with full setup
 async fn test_login_with_wrong_password() {
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
@@ -659,6 +718,7 @@ async fn test_login_with_wrong_password() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,
@@ -775,6 +835,17 @@ async fn test_login_with_wrong_password() {
 #[allow(clippy::too_many_lines)] // Long function: Complex OAuth integration test with full setup
 async fn test_login_with_non_existent_user() {
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
@@ -796,6 +867,7 @@ async fn test_login_with_non_existent_user() {
                 retention_count: 7,
                 directory: temp_dir.path().to_path_buf(),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,

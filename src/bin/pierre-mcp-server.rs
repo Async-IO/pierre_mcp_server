@@ -108,6 +108,8 @@ async fn initialize_core_systems(config: &ServerConfig) -> Result<(Database, Aut
     let database = Database::new(
         &config.database.url.to_connection_string(),
         database_encryption_key.to_vec(),
+        #[cfg(feature = "postgresql")]
+        &config.database.postgres_pool,
     )
     .await?;
     info!(

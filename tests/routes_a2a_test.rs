@@ -192,6 +192,18 @@ impl A2ATestSetup {
     async fn new() -> Self {
         // Create test database
         let encryption_key = generate_encryption_key().to_vec();
+        #[cfg(feature = "postgresql")]
+        let database = Arc::new(
+            Database::new(
+                "sqlite::memory:",
+                encryption_key,
+                &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+            )
+            .await
+            .expect("Failed to create test database"),
+        );
+
+        #[cfg(not(feature = "postgresql"))]
         let database = Arc::new(
             Database::new("sqlite::memory:", encryption_key)
                 .await
@@ -1590,6 +1602,7 @@ fn create_test_server_config() -> ServerConfig {
                 retention_count: 5,
                 directory: PathBuf::from("/tmp/backups"),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: AuthConfig {
             jwt_expiry_hours: 24,

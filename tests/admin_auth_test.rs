@@ -18,6 +18,17 @@ use pierre_mcp_server::database_plugins::factory::Database;
 async fn test_admin_authentication_flow() {
     // Create test database
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .unwrap();
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();

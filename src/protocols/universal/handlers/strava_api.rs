@@ -20,13 +20,14 @@ use std::sync::Arc;
 /// Create and configure Strava provider with token credentials
 async fn create_configured_strava_provider(
     token_data: &crate::oauth::TokenData,
+    config: &crate::config::environment::OAuthProviderConfig,
 ) -> Result<Box<dyn FitnessProvider>, String> {
     let provider = crate::providers::create_provider(oauth_providers::STRAVA)
         .map_err(|e| format!("Failed to create provider: {e}"))?;
 
     let credentials = crate::providers::OAuth2Credentials {
-        client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
-        client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+        client_id: config.client_id.clone().unwrap_or_default(),
+        client_secret: config.client_secret.clone().unwrap_or_default(),
         access_token: Some(token_data.access_token.clone()), // Safe: String ownership needed for OAuth credentials
         refresh_token: Some(token_data.refresh_token.clone()), // Safe: String ownership needed for OAuth credentials
         expires_at: Some(token_data.expires_at),
@@ -262,12 +263,13 @@ async fn fetch_and_cache_athlete(
     cache_key: &CacheKey,
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
+    config: &crate::config::environment::OAuthProviderConfig,
 ) -> Result<UniversalResponse, ProtocolError> {
     match crate::providers::create_provider(oauth_providers::STRAVA) {
         Ok(provider) => {
             let credentials = crate::providers::OAuth2Credentials {
-                client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
-                client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                client_id: config.client_id.clone().unwrap_or_default(),
+                client_secret: config.client_secret.clone().unwrap_or_default(),
                 access_token: Some(token_data.access_token.clone()),
                 refresh_token: Some(token_data.refresh_token.clone()),
                 expires_at: Some(token_data.expires_at),
@@ -427,7 +429,12 @@ pub fn handle_get_activities(
         {
             Ok(Some(token_data)) => {
                 // Create and configure Strava provider
-                match create_configured_strava_provider(&token_data).await {
+                match create_configured_strava_provider(
+                    &token_data,
+                    &executor.resources.config.oauth.strava,
+                )
+                .await
+                {
                     Ok(provider) => {
                         // Get activities from provider
                         match provider.get_activities(Some(limit), None).await {
@@ -520,6 +527,7 @@ pub fn handle_get_athlete(
                     &cache_key,
                     user_uuid,
                     request.tenant_id,
+                    &executor.resources.config.oauth.strava,
                 )
                 .await
             }
@@ -596,12 +604,13 @@ async fn fetch_and_cache_stats(
     tenant_uuid: uuid::Uuid,
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
+    config: &crate::config::environment::OAuthProviderConfig,
 ) -> Result<UniversalResponse, ProtocolError> {
     match crate::providers::create_provider(oauth_providers::STRAVA) {
         Ok(provider) => {
             let credentials = crate::providers::OAuth2Credentials {
-                client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
-                client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                client_id: config.client_id.clone().unwrap_or_default(),
+                client_secret: config.client_secret.clone().unwrap_or_default(),
                 access_token: Some(token_data.access_token.clone()),
                 refresh_token: Some(token_data.refresh_token.clone()),
                 expires_at: Some(token_data.expires_at),
@@ -752,6 +761,7 @@ pub fn handle_get_stats(
                     tenant_uuid,
                     user_uuid,
                     request.tenant_id,
+                    &executor.resources.config.oauth.strava,
                 )
                 .await
             }
@@ -803,7 +813,12 @@ pub fn handle_analyze_activity(
         {
             Ok(Some(token_data)) => {
                 // Create and configure Strava provider
-                match create_configured_strava_provider(&token_data).await {
+                match create_configured_strava_provider(
+                    &token_data,
+                    &executor.resources.config.oauth.strava,
+                )
+                .await
+                {
                     Ok(provider) => {
                         // Get activities to find the target activity
                         match provider

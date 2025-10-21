@@ -42,6 +42,7 @@ fn create_test_server_config(
                 retention_count: 7,
                 directory: std::path::PathBuf::from("test_backups"),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
@@ -121,7 +122,18 @@ fn create_test_server_config(
 async fn setup_test_database() -> Result<Database> {
     let database_url = "sqlite::memory:";
     let encryption_key = vec![0u8; 32];
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        database_url,
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await?;
+
     database.migrate().await?;
     Ok(database)
 }
@@ -396,7 +408,26 @@ async fn test_database_encryption_isolation() -> Result<()> {
     let db_url1 = "sqlite::memory:";
     let db_url2 = "sqlite::memory:";
 
+    #[cfg(feature = "postgresql")]
+    let database1 = Database::new(
+        db_url1,
+        key1,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database1 = Database::new(db_url1, key1).await?;
+
+    #[cfg(feature = "postgresql")]
+    let database2 = Database::new(
+        db_url2,
+        key2,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database2 = Database::new(db_url2, key2).await?;
 
     database1.migrate().await?;

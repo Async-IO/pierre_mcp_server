@@ -20,13 +20,25 @@ use pierre_mcp_server::{
     models::{Tenant, User, UserOAuthToken, UserStatus, UserTier},
     tenant::oauth_manager::{CredentialConfig, TenantOAuthManager},
 };
+use std::sync::Arc;
 use uuid::Uuid;
 
 /// Create test database with migrations
 async fn setup_test_database() -> Result<Database> {
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        database_url,
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(database_url, encryption_key).await?;
+
     database.migrate().await?;
     Ok(database)
 }
@@ -57,18 +69,30 @@ async fn create_test_user(database: &Database, email: &str, tenant_id: Uuid) -> 
 
 /// Test 1: Tenant Credential Isolation
 ///
-/// Verifies that tenant A uses environment credentials while tenant B uses
-/// database-stored credentials with a different CLIENT_ID
+/// Verifies that tenant A uses server-level credentials while tenant B uses
+/// tenant-specific credentials with a different CLIENT_ID
 #[tokio::test]
 async fn test_tenant_credential_isolation() -> Result<()> {
     let database = setup_test_database().await?;
-    let mut oauth_manager = TenantOAuthManager::new();
+
+    // Set up server-level OAuth config (fallback credentials for tenant A)
+    let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
+        strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
+            client_id: Some("163846".to_string()),
+            client_secret: Some("env_secret_a".to_string()),
+            redirect_uri: Some("http://localhost:8080/api/oauth/callback/strava".to_string()),
+            scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+            enabled: true,
+        },
+        fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+    });
+    let mut oauth_manager = TenantOAuthManager::new(oauth_config);
 
     // Create two tenants
     let env_tenant_id = Uuid::new_v4();
     let db_tenant_id = Uuid::new_v4();
 
-    // Create tenant A (uses environment credentials)
+    // Create tenant A (uses server-level credentials)
     let env_tenant_owner =
         create_test_user(&database, "owner_a@example.com", env_tenant_id).await?;
     let env_tenant = Tenant::new(
@@ -80,7 +104,7 @@ async fn test_tenant_credential_isolation() -> Result<()> {
     );
     database.create_tenant(&env_tenant).await?;
 
-    // Create tenant B (will use database credentials)
+    // Create tenant B (will use tenant-specific credentials)
     let db_tenant_owner = create_test_user(&database, "owner_b@example.com", db_tenant_id).await?;
     let db_tenant = Tenant::new(
         "Tenant B".to_string(),
@@ -90,14 +114,6 @@ async fn test_tenant_credential_isolation() -> Result<()> {
         db_tenant_owner,
     );
     database.create_tenant(&db_tenant).await?;
-
-    // Set up environment credentials for Strava (used by tenant A)
-    std::env::set_var("STRAVA_CLIENT_ID", "163846");
-    std::env::set_var("STRAVA_CLIENT_SECRET", "env_secret_a");
-    std::env::set_var(
-        "STRAVA_REDIRECT_URI",
-        "http://localhost:8080/api/oauth/callback/strava",
-    );
 
     // Store different credentials for tenant B in memory (simulating database storage)
     oauth_manager.store_credentials(
@@ -112,24 +128,24 @@ async fn test_tenant_credential_isolation() -> Result<()> {
         },
     )?;
 
-    // Get credentials for tenant A (should use environment)
+    // Get credentials for tenant A (should use server-level config)
     let env_creds = oauth_manager
         .get_credentials(env_tenant_id, oauth_providers::STRAVA, &database)
         .await?;
 
-    // Get credentials for tenant B (should use stored credentials)
+    // Get credentials for tenant B (should use tenant-specific credentials)
     let db_creds = oauth_manager
         .get_credentials(db_tenant_id, oauth_providers::STRAVA, &database)
         .await?;
 
-    // Verify tenant A uses environment credentials
+    // Verify tenant A uses server-level credentials
     assert_eq!(
         env_creds.client_id, "163846",
-        "Tenant A should use environment CLIENT_ID"
+        "Tenant A should use server-level CLIENT_ID"
     );
     assert_eq!(
         env_creds.client_secret, "env_secret_a",
-        "Tenant A should use environment SECRET"
+        "Tenant A should use server-level SECRET"
     );
     assert_eq!(
         env_creds.tenant_id, env_tenant_id,
@@ -171,7 +187,11 @@ async fn test_tenant_credential_isolation() -> Result<()> {
 #[tokio::test]
 async fn test_rate_limit_tracking_per_tenant() -> Result<()> {
     let database = setup_test_database().await?;
-    let mut oauth_manager = TenantOAuthManager::new();
+    let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
+        strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+    });
+    let mut oauth_manager = TenantOAuthManager::new(oauth_config);
 
     // Create two tenants
     let first_tenant_id = Uuid::new_v4();
@@ -467,7 +487,11 @@ async fn test_oauth_callback_tenant_preservation() -> Result<()> {
 #[tokio::test]
 async fn test_token_refresh_uses_tenant_credentials() -> Result<()> {
     let database = setup_test_database().await?;
-    let mut oauth_manager = TenantOAuthManager::new();
+    let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
+        strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+    });
+    let mut oauth_manager = TenantOAuthManager::new(oauth_config);
 
     // Create tenant
     let tenant_id = Uuid::new_v4();
@@ -520,7 +544,11 @@ async fn test_token_refresh_uses_tenant_credentials() -> Result<()> {
 #[tokio::test]
 async fn test_tenant_specific_rate_limits() -> Result<()> {
     let database = setup_test_database().await?;
-    let mut oauth_manager = TenantOAuthManager::new();
+    let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
+        strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+    });
+    let mut oauth_manager = TenantOAuthManager::new(oauth_config);
 
     // Create two tenants with different rate limit needs
     let tenant_standard_id = Uuid::new_v4();
@@ -597,7 +625,13 @@ async fn test_tenant_specific_rate_limits() -> Result<()> {
 #[tokio::test]
 async fn test_concurrent_multitenant_oauth_operations() -> Result<()> {
     let database = std::sync::Arc::new(setup_test_database().await?);
-    let oauth_manager = std::sync::Arc::new(tokio::sync::RwLock::new(TenantOAuthManager::new()));
+    let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
+        strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+    });
+    let oauth_manager = std::sync::Arc::new(tokio::sync::RwLock::new(TenantOAuthManager::new(
+        oauth_config,
+    )));
 
     // Create 5 tenants concurrently
     let mut tasks = vec![];

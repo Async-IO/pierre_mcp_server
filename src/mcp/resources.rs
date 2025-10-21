@@ -57,29 +57,6 @@ pub struct ServerResources {
 }
 
 impl ServerResources {
-    /// Spawn background task for SSE connection cleanup
-    fn spawn_sse_cleanup_task(
-        sse_manager: &Arc<crate::sse::SseManager>,
-        cleanup_interval_secs: u64,
-        connection_timeout_secs: u64,
-    ) {
-        let manager_for_cleanup = sse_manager.clone();
-        tokio::spawn(async move {
-            let mut interval =
-                tokio::time::interval(std::time::Duration::from_secs(cleanup_interval_secs));
-            loop {
-                interval.tick().await;
-                tracing::debug!(
-                    "Running SSE connection cleanup task (timeout={}s)",
-                    connection_timeout_secs
-                );
-                manager_for_cleanup
-                    .cleanup_inactive_connections(connection_timeout_secs)
-                    .await;
-            }
-        });
-    }
-
     /// Create new server resources with proper Arc sharing
     ///
     /// # Parameters
@@ -98,34 +75,13 @@ impl ServerResources {
         let auth_manager_arc = Arc::new(auth_manager);
 
         // Create tenant OAuth client and provider registry once
-        let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new()));
+        let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new(
+            Arc::new(config.oauth.clone()),
+        )));
         let provider_registry = Arc::new(ProviderRegistry::new());
 
         // Create activity intelligence once for shared use
-        let activity_intelligence =
-            std::sync::Arc::new(crate::intelligence::ActivityIntelligence::new(
-                "MCP Intelligence".into(),
-                vec![],
-                crate::intelligence::PerformanceMetrics {
-                    relative_effort: Some(7.5),
-                    zone_distribution: None,
-                    personal_records: vec![],
-                    efficiency_score: Some(85.0),
-                    trend_indicators: crate::intelligence::TrendIndicators {
-                        pace_trend: crate::intelligence::TrendDirection::Improving,
-                        effort_trend: crate::intelligence::TrendDirection::Stable,
-                        distance_trend: crate::intelligence::TrendDirection::Improving,
-                        consistency_score: 8.2,
-                    },
-                },
-                crate::intelligence::ContextualFactors {
-                    weather: None,
-                    location: None,
-                    time_of_day: crate::intelligence::TimeOfDay::Morning,
-                    days_since_last_activity: Some(1),
-                    weekly_load: None,
-                },
-            ));
+        let activity_intelligence = Self::create_default_intelligence();
 
         // Create A2A system user service once for shared use
         let a2a_system_user_service = Arc::new(A2ASystemUserService::new(database_arc.clone()));
@@ -140,11 +96,7 @@ impl ServerResources {
         let sse_manager = Arc::new(crate::sse::SseManager::new(config.sse.max_buffer_size));
 
         // Spawn background task to cleanup inactive SSE connections
-        Self::spawn_sse_cleanup_task(
-            &sse_manager,
-            config.sse.cleanup_interval_secs,
-            config.sse.connection_timeout_secs,
-        );
+        Self::spawn_sse_cleanup_task(&sse_manager, &config);
 
         // Wrap cache in Arc for shared access across handlers
         let cache_arc = Arc::new(cache);
@@ -208,6 +160,58 @@ impl ServerResources {
             redaction_config,
             oauth2_rate_limiter,
         }
+    }
+
+    /// Create default activity intelligence for MCP server
+    fn create_default_intelligence() -> Arc<ActivityIntelligence> {
+        Arc::new(ActivityIntelligence::new(
+            "MCP Intelligence".into(),
+            vec![],
+            crate::intelligence::PerformanceMetrics {
+                relative_effort: Some(7.5),
+                zone_distribution: None,
+                personal_records: vec![],
+                efficiency_score: Some(85.0),
+                trend_indicators: crate::intelligence::TrendIndicators {
+                    pace_trend: crate::intelligence::TrendDirection::Improving,
+                    effort_trend: crate::intelligence::TrendDirection::Stable,
+                    distance_trend: crate::intelligence::TrendDirection::Improving,
+                    consistency_score: 8.2,
+                },
+            },
+            crate::intelligence::ContextualFactors {
+                weather: None,
+                location: None,
+                time_of_day: crate::intelligence::TimeOfDay::Morning,
+                days_since_last_activity: Some(1),
+                weekly_load: None,
+            },
+        ))
+    }
+
+    /// Spawn background task to cleanup inactive SSE connections
+    fn spawn_sse_cleanup_task(
+        sse_manager: &Arc<crate::sse::SseManager>,
+        config: &Arc<crate::config::environment::ServerConfig>,
+    ) {
+        let manager_for_cleanup = sse_manager.clone();
+        let cleanup_interval_secs = config.sse.cleanup_interval_secs;
+        let connection_timeout_secs = config.sse.connection_timeout_secs;
+
+        tokio::spawn(async move {
+            let mut interval =
+                tokio::time::interval(std::time::Duration::from_secs(cleanup_interval_secs));
+            loop {
+                interval.tick().await;
+                tracing::debug!(
+                    "Running SSE connection cleanup task (timeout={}s)",
+                    connection_timeout_secs
+                );
+                manager_for_cleanup
+                    .cleanup_inactive_connections(connection_timeout_secs)
+                    .await;
+            }
+        });
     }
 
     /// Set the OAuth notification sender for push notifications

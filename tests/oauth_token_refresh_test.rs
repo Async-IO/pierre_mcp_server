@@ -191,6 +191,7 @@ fn create_test_server_config_without_oauth(
                 retention_count: 7,
                 directory: std::path::PathBuf::from("test_backups"),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
@@ -285,6 +286,7 @@ fn create_test_server_config(
                 retention_count: 7,
                 directory: std::path::PathBuf::from("test_backups"),
             },
+            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
@@ -363,6 +365,18 @@ fn create_test_server_config(
 
 /// Create a test UniversalToolExecutor with in-memory database
 async fn create_test_executor() -> (Arc<UniversalToolExecutor>, Arc<Database>) {
+    #[cfg(feature = "postgresql")]
+    let database = Arc::new(
+        Database::new(
+            "sqlite::memory:",
+            generate_encryption_key().to_vec(),
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
+        .await
+        .unwrap(),
+    );
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Arc::new(
         Database::new("sqlite::memory:", generate_encryption_key().to_vec())
             .await
@@ -412,6 +426,18 @@ async fn create_test_executor() -> (Arc<UniversalToolExecutor>, Arc<Database>) {
 
 /// Create a test UniversalToolExecutor without OAuth credentials for failure testing
 async fn create_test_executor_without_oauth() -> (Arc<UniversalToolExecutor>, Arc<Database>) {
+    #[cfg(feature = "postgresql")]
+    let database = Arc::new(
+        Database::new(
+            "sqlite::memory:",
+            generate_encryption_key().to_vec(),
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
+        .await
+        .unwrap(),
+    );
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Arc::new(
         Database::new("sqlite::memory:", generate_encryption_key().to_vec())
             .await

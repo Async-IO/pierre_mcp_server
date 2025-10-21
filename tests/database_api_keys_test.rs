@@ -8,7 +8,7 @@ use chrono::{DateTime, Duration, Utc};
 use pierre_mcp_server::api_keys::{
     ApiKey, ApiKeyManager, ApiKeyTier, ApiKeyUsage, CreateApiKeyRequest,
 };
-use pierre_mcp_server::database::Database;
+use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::models::{User, UserTier};
 use uuid::Uuid;
 

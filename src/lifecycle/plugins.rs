@@ -79,8 +79,15 @@ impl Plugin for DatabasePlugin {
     async fn initialize(&mut self) -> Result<()> {
         *self.state.write().expect("Lock poisoned") = PluginState::Initializing;
 
-        self.database =
-            Some(Database::new(&self.connection_string, self.encryption_key.clone()).await?);
+        self.database = Some(
+            Database::new(
+                &self.connection_string,
+                self.encryption_key.clone(),
+                #[cfg(feature = "postgresql")]
+                &crate::config::environment::PostgresPoolConfig::default(),
+            )
+            .await?,
+        );
         *self.state.write().expect("Lock poisoned") = PluginState::Ready;
 
         Ok(())

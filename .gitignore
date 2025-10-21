@@ -61,6 +61,7 @@ Thumbs.db
 
 # Backup files
 *.bak
+*.backup
 *~
 
 # Server logs

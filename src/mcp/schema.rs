@@ -23,6 +23,18 @@ use crate::constants::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// JSON-RPC and notification method constants
+const JSONRPC_VERSION: &str = "2.0";
+const METHOD_PROGRESS: &str = "notifications/progress";
+const METHOD_CANCELLED: &str = "notifications/cancelled";
+const METHOD_OAUTH_COMPLETED: &str = "notifications/oauth_completed";
+const DEFAULT_HOST: &str = "localhost";
+
+// Note: Schema type strings ("string", "object", etc.) and property descriptions
+// must be converted to String via .into() when inserted into HashMap/Vec because
+// serde requires owned data for serialization. These allocations are necessary
+// and cannot be eliminated without changing the serde data model to use Cow or &'static str.
+
 /// MCP Protocol Information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProtocolInfo {
@@ -287,17 +299,17 @@ impl InitializeResponse {
                 }),
                 auth: Some(AuthCapability {
                     oauth2: Some(OAuth2Capability {
-                        discovery_url: format!("http://{}:{http_port}/.well-known/oauth-authorization-server", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
-                        authorization_endpoint: format!("http://{}:{http_port}/oauth2/authorize", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
-                        token_endpoint: format!("http://{}:{http_port}/oauth2/token", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
-                        registration_endpoint: format!("http://{}:{http_port}/oauth2/register", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
+                        discovery_url: format!("http://{}:{http_port}/.well-known/oauth-authorization-server", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
+                        authorization_endpoint: format!("http://{}:{http_port}/oauth2/authorize", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
+                        token_endpoint: format!("http://{}:{http_port}/oauth2/token", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
+                        registration_endpoint: format!("http://{}:{http_port}/oauth2/register", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
                     }),
                 }),
                 oauth2: Some(OAuth2Capability {
-                    discovery_url: format!("http://{}:{http_port}/.well-known/oauth-authorization-server", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
-                    authorization_endpoint: format!("http://{}:{http_port}/oauth2/authorize", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
-                    token_endpoint: format!("http://{}:{http_port}/oauth2/token", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
-                    registration_endpoint: format!("http://{}:{http_port}/oauth2/register", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
+                    discovery_url: format!("http://{}:{http_port}/.well-known/oauth-authorization-server", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
+                    authorization_endpoint: format!("http://{}:{http_port}/oauth2/authorize", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
+                    token_endpoint: format!("http://{}:{http_port}/oauth2/token", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
+                    registration_endpoint: format!("http://{}:{http_port}/oauth2/register", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
                 }),
             },
             instructions: Some("This server provides fitness data tools for Strava and Fitbit integration. OAuth must be configured at tenant level via REST API. Use `get_activities`, `get_athlete`, and other analytics tools to access your fitness data.".into()),
@@ -334,8 +346,8 @@ impl ProgressNotification {
         message: Option<String>,
     ) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
-            method: "notifications/progress".to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
+            method: METHOD_PROGRESS.to_owned(),
             params: ProgressParams {
                 progress_token,
                 progress,
@@ -349,8 +361,8 @@ impl ProgressNotification {
     #[must_use]
     pub fn cancelled(progress_token: String, message: Option<String>) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
-            method: "notifications/cancelled".to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
+            method: METHOD_CANCELLED.to_owned(),
             params: ProgressParams {
                 progress_token,
                 progress: 0.0,
@@ -384,8 +396,8 @@ impl OAuthCompletedNotification {
     #[must_use]
     pub fn new(provider: String, success: bool, message: String, user_id: Option<String>) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
-            method: "notifications/oauth_completed".to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
+            method: METHOD_OAUTH_COMPLETED.to_owned(),
             params: OAuthCompletedParams {
                 provider,
                 success,

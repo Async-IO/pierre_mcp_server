@@ -29,6 +29,15 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
         let _ = std::fs::remove_file(database_path); // Clean up any existing test database
         format!("sqlite:{database_path}")
     };
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        &database_url,
+        b"test_encryption_key_32_bytes_long".to_vec(),
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database =
         Database::new(&database_url, b"test_encryption_key_32_bytes_long".to_vec()).await?;
 
@@ -210,6 +219,15 @@ async fn test_admin_token_management_workflow() -> Result<()> {
         let _ = std::fs::remove_file(database_path);
         format!("sqlite:{database_path}")
     };
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        &database_url,
+        b"test_encryption_key_32_bytes_long".to_vec(),
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database =
         Database::new(&database_url, b"test_encryption_key_32_bytes_long".to_vec()).await?;
 
@@ -332,6 +350,15 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
         let _ = std::fs::remove_file(database_path);
         format!("sqlite:{database_path}")
     };
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        &database_url,
+        b"test_encryption_key_32_bytes_long".to_vec(),
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
     let database =
         Database::new(&database_url, b"test_encryption_key_32_bytes_long".to_vec()).await?;
 
