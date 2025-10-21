@@ -336,7 +336,12 @@ pub mod limits {
     pub const PERCENTAGE_MULTIPLIER: f64 = 100.0;
     /// Default session hours for JWT tokens
     pub const DEFAULT_SESSION_HOURS: i64 = 24;
-    /// JWT expiry hours
+    /// User session JWT expiry hours (24 hours for logged-in users)
+    pub const USER_SESSION_EXPIRY_HOURS: i64 = 24;
+    /// OAuth access token expiry hours (1 hour per RFC 8252 Security Best Practices)
+    pub const OAUTH_ACCESS_TOKEN_EXPIRY_HOURS: i64 = 1;
+    /// JWT expiry hours (deprecated: use `USER_SESSION_EXPIRY_HOURS` or `OAUTH_ACCESS_TOKEN_EXPIRY_HOURS`)
+    #[deprecated(note = "Use USER_SESSION_EXPIRY_HOURS or OAUTH_ACCESS_TOKEN_EXPIRY_HOURS instead")]
     pub const JWT_EXPIRY_HOURS: i64 = 24;
     /// Maximum request size in bytes
     pub const MAX_REQUEST_SIZE: usize = 1_048_576; // 1MB

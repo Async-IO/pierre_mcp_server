@@ -62,7 +62,14 @@ impl OAuth2AuthorizationServer {
             .client_manager
             .get_client(&request.client_id)
             .await
-            .map_err(|_| OAuth2Error::invalid_client())?;
+            .map_err(|e| {
+                tracing::error!(
+                    "Client lookup failed for client_id={}: {:#}",
+                    request.client_id,
+                    e
+                );
+                OAuth2Error::invalid_client()
+            })?;
 
         // Validate response type
         if request.response_type != "code" {
@@ -115,7 +122,14 @@ impl OAuth2AuthorizationServer {
                 request.code_challenge_method.as_deref(),
             )
             .await
-            .map_err(|_| OAuth2Error::invalid_request("Failed to generate authorization code"))?;
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to generate authorization code for client_id={}: {:#}",
+                    request.client_id,
+                    e
+                );
+                OAuth2Error::invalid_request("Failed to generate authorization code")
+            })?;
 
         Ok(AuthorizeResponse {
             code: auth_code,
@@ -128,17 +142,14 @@ impl OAuth2AuthorizationServer {
     /// # Errors
     /// Returns an error if client validation fails or token generation fails
     pub async fn token(&self, request: TokenRequest) -> Result<TokenResponse, OAuth2Error> {
-        // For refresh_token grants, skip client validation (RFC 6749 Section 6)
-        // The refresh_token itself authenticates the request
-        let is_refresh_grant = request.grant_type == "refresh_token";
-
-        if !is_refresh_grant {
-            // Validate client credentials for authorization_code and client_credentials grants
-            let _ = self
-                .client_manager
-                .validate_client(&request.client_id, &request.client_secret)
-                .await?;
-        }
+        // ALWAYS validate client credentials for ALL grant types (RFC 6749 Section 6)
+        // RFC 6749 §6 states: "If the client type is confidential or the client was issued
+        // client credentials, the client MUST authenticate with the authorization server"
+        // MCP clients are confidential clients, so authentication is REQUIRED
+        let _ = self
+            .client_manager
+            .validate_client(&request.client_id, &request.client_secret)
+            .await?;
 
         match request.grant_type.as_str() {
             "authorization_code" => self.handle_authorization_code_grant(request).await,
@@ -178,10 +189,20 @@ impl OAuth2AuthorizationServer {
                 Some(auth_code.user_id),
                 auth_code.scope.as_deref(),
             )
-            .map_err(|_| OAuth2Error::invalid_request("Failed to generate access token"))?;
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to generate access token for client_id={}: {:#}",
+                    request.client_id,
+                    e
+                );
+                OAuth2Error::invalid_request("Failed to generate access token")
+            })?;
 
         // Generate refresh token
-        let refresh_token_value = Self::generate_refresh_token();
+        let refresh_token_value = Self::generate_refresh_token().map_err(|e| {
+            tracing::error!("Failed to generate secure refresh token: {:#}", e);
+            OAuth2Error::invalid_request("Failed to generate secure refresh token")
+        })?;
         let refresh_token_expires_at = Utc::now() + Duration::days(30); // 30 days
 
         let refresh_token = crate::oauth2::models::OAuth2RefreshToken {
@@ -197,7 +218,14 @@ impl OAuth2AuthorizationServer {
         // Store refresh token
         self.store_refresh_token(&refresh_token)
             .await
-            .map_err(|_| OAuth2Error::invalid_request("Failed to store refresh token"))?;
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to store refresh token for client_id={}: {:#}",
+                    request.client_id,
+                    e
+                );
+                OAuth2Error::invalid_request("Failed to store refresh token")
+            })?;
 
         Ok(TokenResponse {
             access_token,
@@ -220,7 +248,14 @@ impl OAuth2AuthorizationServer {
                 None, // No user for client credentials
                 request.scope.as_deref(),
             )
-            .map_err(|_| OAuth2Error::invalid_request("Failed to generate access token"))?;
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to generate client credentials access token for client_id={}: {:#}",
+                    request.client_id,
+                    e
+                );
+                OAuth2Error::invalid_request("Failed to generate access token")
+            })?;
 
         Ok(TokenResponse {
             access_token,
@@ -248,7 +283,14 @@ impl OAuth2AuthorizationServer {
         // Revoke old refresh token (rotation)
         self.revoke_refresh_token(&refresh_token_value)
             .await
-            .map_err(|_| OAuth2Error::invalid_request("Failed to revoke old refresh token"))?;
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to revoke old refresh token for client_id={}: {:#}",
+                    request.client_id,
+                    e
+                );
+                OAuth2Error::invalid_request("Failed to revoke old refresh token")
+            })?;
 
         // Generate new access token
         let access_token = self
@@ -257,10 +299,23 @@ impl OAuth2AuthorizationServer {
                 Some(old_refresh_token.user_id),
                 old_refresh_token.scope.as_deref(),
             )
-            .map_err(|_| OAuth2Error::invalid_request("Failed to generate access token"))?;
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to generate access token from refresh for client_id={}: {:#}",
+                    request.client_id,
+                    e
+                );
+                OAuth2Error::invalid_request("Failed to generate access token")
+            })?;
 
         // Generate new refresh token (rotation)
-        let new_refresh_token_value = Self::generate_refresh_token();
+        let new_refresh_token_value = Self::generate_refresh_token().map_err(|e| {
+            tracing::error!(
+                "Failed to generate new refresh token during rotation: {:#}",
+                e
+            );
+            OAuth2Error::invalid_request("Failed to generate secure refresh token")
+        })?;
         let refresh_token_expires_at = Utc::now() + Duration::days(30); // 30 days
 
         let new_refresh_token = crate::oauth2::models::OAuth2RefreshToken {
@@ -276,7 +331,14 @@ impl OAuth2AuthorizationServer {
         // Store new refresh token
         self.store_refresh_token(&new_refresh_token)
             .await
-            .map_err(|_| OAuth2Error::invalid_request("Failed to store new refresh token"))?;
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to store new refresh token for client_id={}: {:#}",
+                    request.client_id,
+                    e
+                );
+                OAuth2Error::invalid_request("Failed to store new refresh token")
+            })?;
 
         tracing::info!(
             "Refresh token rotated for client {} and user {}",
@@ -303,7 +365,7 @@ impl OAuth2AuthorizationServer {
         code_challenge: Option<&str>,
         code_challenge_method: Option<&str>,
     ) -> Result<String> {
-        let code = Self::generate_random_string(32);
+        let code = Self::generate_random_string(32)?;
         let expires_at = Utc::now() + Duration::minutes(10); // 10 minute expiry
 
         let auth_code = OAuth2AuthCode {
@@ -330,10 +392,14 @@ impl OAuth2AuthorizationServer {
         redirect_uri: &str,
         code_verifier: Option<&str>,
     ) -> Result<OAuth2AuthCode, OAuth2Error> {
-        let mut auth_code = self
-            .get_auth_code(code)
-            .await
-            .map_err(|_| OAuth2Error::invalid_grant("Invalid authorization code"))?;
+        let mut auth_code = self.get_auth_code(code).await.map_err(|e| {
+            tracing::error!(
+                "Failed to get authorization code for client_id={}: {:#}",
+                client_id,
+                e
+            );
+            OAuth2Error::invalid_grant("Invalid authorization code")
+        })?;
 
         // Validate code properties
         if auth_code.client_id != client_id {
@@ -361,10 +427,22 @@ impl OAuth2AuthorizationServer {
             let verifier = code_verifier
                 .ok_or_else(|| OAuth2Error::invalid_grant("code_verifier is required (PKCE)"))?;
 
-            // Validate verifier format (43-128 characters, unreserved chars only)
+            // Validate verifier format per RFC 7636 Section 4.1
+            // Length: 43-128 characters
             if verifier.len() < 43 || verifier.len() > 128 {
                 return Err(OAuth2Error::invalid_grant(
                     "code_verifier must be between 43 and 128 characters",
+                ));
+            }
+
+            // Characters: Only unreserved characters allowed: [A-Z] / [a-z] / [0-9] / "-" / "." / "_" / "~"
+            if !verifier.chars().all(|c| {
+                matches!(c,
+                    'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '.' | '_' | '~'
+                )
+            }) {
+                return Err(OAuth2Error::invalid_grant(
+                    "code_verifier contains invalid characters (RFC 7636: only [A-Z], [a-z], [0-9], -, ., _, ~ allowed)",
                 ));
             }
 
@@ -406,9 +484,14 @@ impl OAuth2AuthorizationServer {
 
         // Mark as used
         auth_code.used = true;
-        self.update_auth_code(&auth_code)
-            .await
-            .map_err(|_| OAuth2Error::invalid_grant("Failed to consume authorization code"))?;
+        self.update_auth_code(&auth_code).await.map_err(|e| {
+            tracing::error!(
+                "Failed to consume authorization code for client_id={}: {:#}",
+                auth_code.client_id,
+                e
+            );
+            OAuth2Error::invalid_grant("Failed to consume authorization code")
+        })?;
 
         Ok(auth_code)
     }
@@ -444,16 +527,24 @@ impl OAuth2AuthorizationServer {
     }
 
     /// Generate random string for codes
-    fn generate_random_string(length: usize) -> String {
+    ///
+    /// # Errors
+    /// Returns an error if system RNG fails - this is a critical security failure
+    /// and the server cannot operate securely without working RNG
+    fn generate_random_string(length: usize) -> Result<String> {
         let rng = SystemRandom::new();
         let mut bytes = vec![0u8; length];
-        if rng.fill(&mut bytes).is_err() {
-            // Fallback to a deterministic but unique value
-            bytes = vec![42u8; length];
-        }
+
+        rng.fill(&mut bytes).map_err(|e| {
+            tracing::error!(
+                "CRITICAL: SystemRandom failed - cannot generate secure random bytes: {}",
+                e
+            );
+            anyhow::anyhow!("System RNG failure - server cannot operate securely")
+        })?;
 
         // Convert to URL-safe base64
-        general_purpose::URL_SAFE_NO_PAD.encode(&bytes)
+        Ok(general_purpose::URL_SAFE_NO_PAD.encode(&bytes))
     }
 
     /// Store authorization code (database operation)
@@ -475,7 +566,10 @@ impl OAuth2AuthorizationServer {
     }
 
     /// Generate refresh token with secure randomness
-    fn generate_refresh_token() -> String {
+    ///
+    /// # Errors
+    /// Returns an error if system RNG fails
+    fn generate_refresh_token() -> Result<String> {
         // Generate 32 bytes (256 bits) of secure random data
         Self::generate_random_string(32)
     }
@@ -512,7 +606,14 @@ impl OAuth2AuthorizationServer {
         let refresh_token = self
             .get_refresh_token(token)
             .await
-            .map_err(|_| OAuth2Error::invalid_grant("Invalid refresh token"))?
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to get refresh token for client_id={}: {:#}",
+                    client_id,
+                    e
+                );
+                OAuth2Error::invalid_grant("Invalid refresh token")
+            })?
             .ok_or_else(|| OAuth2Error::invalid_grant("Refresh token not found"))?;
 
         // Validate token properties

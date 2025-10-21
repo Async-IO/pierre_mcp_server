@@ -19,11 +19,11 @@
 //! use pierre_mcp_server::middleware::redaction::{RedactionConfig, redact_headers, mask_email};
 //!
 //! let config = RedactionConfig::default();
-//! let headers = vec![
-//!     ("authorization".to_string(), "Bearer secret_token".to_string()),
-//!     ("content-type".to_string(), "application/json".to_string()),
+//! let headers = [
+//!     ("authorization", "Bearer secret_token"),
+//!     ("content-type", "application/json"),
 //! ];
-//! let safe_headers = redact_headers(&headers, &config);
+//! let safe_headers = redact_headers(headers, &config);
 //! // safe_headers will have authorization redacted
 //!
 //! let email = "testuser@domain.com";

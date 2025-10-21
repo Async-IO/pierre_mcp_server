@@ -14,7 +14,7 @@
 //! This module provides JWT-based authentication and session management
 //! for the multi-tenant Pierre MCP Server.
 
-use crate::constants::{limits::JWT_EXPIRY_HOURS, time_constants::SECONDS_PER_HOUR};
+use crate::constants::{limits::USER_SESSION_EXPIRY_HOURS, time_constants::SECONDS_PER_HOUR};
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::models::{AuthRequest, AuthResponse, User, UserSession};
 use crate::rate_limiting::UnifiedRateLimitInfo;
@@ -77,7 +77,7 @@ impl std::fmt::Display for JwtValidationError {
                         duration_expired.num_minutes(),
                         expired_at.format("%Y-%m-%d %H:%M:%S UTC")
                     )
-                } else if duration_expired.num_hours() < JWT_EXPIRY_HOURS {
+                } else if duration_expired.num_hours() < USER_SESSION_EXPIRY_HOURS {
                     write!(
                         f,
                         "JWT token expired {} hours ago at {}",
@@ -118,6 +118,8 @@ pub struct Claims {
     pub exp: i64,
     /// Available fitness providers
     pub providers: Vec<String>,
+    /// Audience (who the token is intended for)
+    pub aud: String,
 }
 
 /// Authentication result with user context and rate limiting info
@@ -227,6 +229,7 @@ impl AuthManager {
             iat: unique_iat,
             exp: expiry.timestamp(),
             providers: user.available_providers(),
+            aud: crate::constants::service_names::MCP.to_string(),
         };
 
         // Get active RSA key from JWKS manager
@@ -275,6 +278,7 @@ impl AuthManager {
 
         let mut validation = Validation::new(Algorithm::RS256);
         validation.validate_exp = true;
+        validation.set_audience(&[crate::constants::service_names::MCP]);
 
         let token_data = decode::<Claims>(token, &decoding_key, &validation).map_err(|e| {
             tracing::error!("RS256 JWT validation failed: {:?}", e);
@@ -400,6 +404,7 @@ impl AuthManager {
 
         let mut validation_no_exp = Validation::new(Algorithm::RS256);
         validation_no_exp.validate_exp = false;
+        validation_no_exp.set_audience(&[crate::constants::service_names::MCP]);
 
         decode::<Claims>(token, &decoding_key, &validation_no_exp)
             .map(|token_data| token_data.claims)
@@ -612,7 +617,8 @@ impl AuthManager {
         scopes: &[String],
     ) -> Result<String> {
         let now = Utc::now();
-        let expiry = now + Duration::hours(JWT_EXPIRY_HOURS);
+        let expiry =
+            now + Duration::hours(crate::constants::limits::OAUTH_ACCESS_TOKEN_EXPIRY_HOURS);
 
         let counter = self.token_counter.fetch_add(1, Ordering::Relaxed);
         let unique_iat =
@@ -624,6 +630,7 @@ impl AuthManager {
             iat: unique_iat,
             exp: expiry.timestamp(),
             providers: scopes.to_vec(),
+            aud: crate::constants::service_names::MCP.to_string(),
         };
 
         // Get active RSA key from JWKS manager
@@ -669,6 +676,7 @@ impl AuthManager {
             iat: unique_iat,
             exp: expiry.timestamp(),
             providers: scopes.to_vec(),
+            aud: crate::constants::service_names::MCP.to_string(),
         };
 
         // Get active RSA key from JWKS manager
@@ -686,23 +694,23 @@ impl AuthManager {
 }
 
 /// Generate a random `JWT` secret
-pub fn generate_jwt_secret() -> [u8; 64] {
-    use ring::digest::{digest, SHA256};
+///
+/// # Errors
+/// Returns an error if system RNG fails - this is a critical security failure
+/// and the server cannot operate securely without working RNG
+pub fn generate_jwt_secret() -> Result<[u8; 64]> {
     use ring::rand::{SecureRandom, SystemRandom};
 
     let rng = SystemRandom::new();
     let mut secret = [0u8; 64];
-    if let Err(e) = rng.fill(&mut secret) {
-        // This is a critical security failure - we cannot proceed without a secure random secret
-        // Log the error and use deterministic but secure alternative method
-        tracing::error!("Failed to generate cryptographically secure JWT secret: {e}");
-        // Use deterministic method that's still secure for testing environments
-        let fallback_input = b"fallback_jwt_secret_generation_pierre_mcp_server";
-        let hash = digest(&SHA256, fallback_input);
-        let mut fallback_secret = [0u8; 64];
-        fallback_secret[..32].copy_from_slice(hash.as_ref());
-        fallback_secret[32..].copy_from_slice(hash.as_ref());
-        return fallback_secret;
-    }
-    secret
+
+    rng.fill(&mut secret).map_err(|e| {
+        tracing::error!(
+            "CRITICAL: Failed to generate cryptographically secure JWT secret: {}",
+            e
+        );
+        anyhow::anyhow!("System RNG failure - cannot generate secure JWT secret")
+    })?;
+
+    Ok(secret)
 }

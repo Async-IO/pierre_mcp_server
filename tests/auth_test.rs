@@ -26,7 +26,7 @@ fn create_test_user() -> User {
 }
 
 fn create_auth_manager() -> AuthManager {
-    let _secret = generate_jwt_secret().to_vec();
+    let _secret = generate_jwt_secret().expect("Failed to generate JWT secret");
     AuthManager::new(24) // 24 hour expiry
 }
 
@@ -298,11 +298,11 @@ fn test_enhanced_authenticate_response() {
 
 #[test]
 fn test_generate_jwt_secret() {
-    let secret = generate_jwt_secret();
+    let secret = generate_jwt_secret().expect("Failed to generate JWT secret");
     assert_eq!(secret.len(), 64);
 
     // Generate another secret and ensure they're different
-    let secret2 = generate_jwt_secret();
+    let secret2 = generate_jwt_secret().expect("Failed to generate JWT secret");
     assert_ne!(secret, secret2);
 }
 
@@ -560,6 +560,7 @@ fn test_claims_serialization() {
         iat: Utc::now().timestamp(),
         exp: (Utc::now() + Duration::hours(1)).timestamp(),
         providers: vec!["strava".to_string(), "fitbit".to_string()],
+        aud: "mcp".to_string(),
     };
 
     let json = serde_json::to_string(&claims).unwrap();
