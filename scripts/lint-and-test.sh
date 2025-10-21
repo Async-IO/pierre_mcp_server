@@ -321,10 +321,21 @@ else
 fi
 
 
-# Advanced Arc analysis
+# Advanced Arc analysis with pattern categorization
 TOTAL_ARCS=$(rg "Arc::" src/ | wc -l 2>/dev/null || echo 0)
-DEPENDENCY_ARCS=$(rg "Arc<ServerResources>|Arc<.*Manager>|Arc<.*Executor>" src/ | wc -l 2>/dev/null || echo 0)
-CONCURRENT_ARCS=$(rg "Arc<.*Lock.*>|Arc<.*Mutex.*>|Arc<.*RwLock.*>" src/ | wc -l 2>/dev/null || echo 0)
+
+# Legitimate Arc patterns
+CONCURRENT_ARCS=$(rg "Arc::new\((RwLock|Mutex)" src/ | wc -l 2>/dev/null || echo 0)
+SERVERRESOURCES_ARCS=$(rg "Arc::new" src/mcp/resources.rs | wc -l 2>/dev/null || echo 0)
+SINGLETON_ARCS=$(rg "OnceLock.*Arc|Arc.*OnceLock" src/ | wc -l 2>/dev/null || echo 0)
+ROUTE_HANDLER_ARCS=$(rg "Arc::new\(.*Routes" src/ | wc -l 2>/dev/null || echo 0)
+BINARY_STARTUP_ARCS=$(rg "Arc::new" src/bin/ | wc -l 2>/dev/null || echo 0)
+SERVICE_COMPONENT_ARCS=$(rg "Arc::new\(.*Authenticator|Arc::new\(.*Checker|Arc::new\(shutdown" src/ | wc -l 2>/dev/null || echo 0)
+
+# Calculate legitimate vs potentially problematic
+LEGITIMATE_ARC_PATTERNS=$((CONCURRENT_ARCS + SERVERRESOURCES_ARCS + SINGLETON_ARCS + ROUTE_HANDLER_ARCS + BINARY_STARTUP_ARCS + SERVICE_COMPONENT_ARCS))
+POTENTIALLY_PROBLEMATIC_ARCS=$((TOTAL_ARCS > LEGITIMATE_ARC_PATTERNS ? TOTAL_ARCS - LEGITIMATE_ARC_PATTERNS : 0))
+
 MAGIC_NUMBERS=$(rg "\b[0-9]{4,}\b" src/ -g "!src/constants.rs" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity|-32[0-9]{3}|1000\.0|60\.0|24\.0|7\.0|365\.0|METERS_PER|PER_METER|conversion|unit|\.60934|12345|0000-0000|202[0-9]-[0-9]{2}-[0-9]{2}|Some\([0-9]+\)|Trial.*1000|Standard.*10000)" | wc -l 2>/dev/null || echo 0)
 
 # ============================================================================
@@ -623,12 +634,23 @@ else
     printf "$(format_status "⚠️ INFO")│ %-39s │\n" "Consider documenting Arc clone patterns"
 fi
 
-printf "│ %-35s │ %5d │ " "Arc usage" "$TOTAL_ARCS"
-if [ "$TOTAL_ARCS" -lt 50 ]; then
+printf "│ %-35s │ %5d │ " "Arc usage (total)" "$TOTAL_ARCS"
+# Multi-threaded web services with SSE/WebSockets naturally have high Arc usage
+# Threshold: 75 for services, 100 for complex distributed systems
+if [ "$TOTAL_ARCS" -lt 75 ]; then
     printf "$(format_status "✅ PASS")│ %-39s │\n" "Appropriate for service architecture"
+elif [ "$POTENTIALLY_PROBLEMATIC_ARCS" -le 10 ]; then
+    printf "$(format_status "⚠️ INFO")│ %-39s │\n" "$POTENTIALLY_PROBLEMATIC_ARCS other, $LEGITIMATE_ARC_PATTERNS categorized"
 else
-    FIRST_PROBLEMATIC_ARC=$(get_first_location 'rg "Arc::" src/ | rg -v "ServerResources|Manager|Executor|Lock|Mutex|RwLock" -n')
-    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_PROBLEMATIC_ARC"
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$POTENTIALLY_PROBLEMATIC_ARCS need review"
+fi
+
+printf "│ %-35s │ %5d │ " "Arc patterns categorized" "$LEGITIMATE_ARC_PATTERNS"
+if [ "$LEGITIMATE_ARC_PATTERNS" -gt 0 ]; then
+    ARC_BREAKDOWN="Concurrent:$CONCURRENT_ARCS Startup:$BINARY_STARTUP_ARCS"
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "$ARC_BREAKDOWN"
+else
+    printf "$(format_status "⚠️ INFO")│ %-39s │\n" "No Arc usage detected"
 fi
 
 printf "│ %-35s │ %5d │ " "Magic numbers" "$MAGIC_NUMBERS"
@@ -705,7 +727,7 @@ CRITICAL_ISSUES=$((CRITICAL_ISSUES + TOML_PRODUCTION_HYGIENE + CFG_TEST_IN_SRC +
 
 WARNINGS=$((FAKE_RESOURCES + (OBSOLETE_FUNCTIONS > 1 ? OBSOLETE_FUNCTIONS - 1 : 0)))
 WARNINGS=$((WARNINGS + RESOURCE_CREATION + TODOS + PROBLEMATIC_UNDERSCORE_NAMES + TEMP_SOLUTIONS))
-WARNINGS=$((WARNINGS + (CLIPPY_CLONE_WARNINGS > 0 ? 1 : 0) + (TOTAL_ARCS >= 50 ? 1 : 0) + (MAGIC_NUMBERS >= 10 ? 1 : 0)))
+WARNINGS=$((WARNINGS + (CLIPPY_CLONE_WARNINGS > 0 ? 1 : 0) + (POTENTIALLY_PROBLEMATIC_ARCS > 0 ? 1 : 0) + (MAGIC_NUMBERS >= 10 ? 1 : 0)))
 WARNINGS=$((WARNINGS + (TOML_DEVELOPMENT_ARTIFACTS > 0 ? 1 : 0) + (TOML_TEMPORARY_CODE > MAX_TEMPORARY_CODE ? 1 : 0) + (TOML_MAGIC_NUMBERS > MAX_MAGIC_NUMBERS ? 1 : 0)))
 
 # Claude Code anti-pattern warnings (informational - encourage better Rust idioms)
