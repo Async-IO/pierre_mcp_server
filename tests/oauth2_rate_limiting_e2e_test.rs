@@ -17,11 +17,25 @@ use std::sync::Arc;
 #[tokio::test]
 async fn test_rate_limit_client_registration() {
     let encryption_key = generate_encryption_key().to_vec();
+
+    #[cfg(feature = "postgresql")]
+    let database = Arc::new(
+        Database::new(
+            "sqlite::memory:",
+            encryption_key,
+            &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+        )
+        .await
+        .unwrap(),
+    );
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Arc::new(
         Database::new("sqlite::memory:", encryption_key)
             .await
             .unwrap(),
     );
+
     database.migrate().await.unwrap();
 
     let registration_manager = ClientRegistrationManager::new(database.clone());
