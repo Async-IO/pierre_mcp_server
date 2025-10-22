@@ -37,6 +37,11 @@ export POSTGRES_ACQUIRE_TIMEOUT="30"     # Default: 30 (prod), 30 (CI)
 # Generate with: openssl rand -base64 32
 export PIERRE_MASTER_ENCRYPTION_KEY="your-base64-encoded-master-key"
 
+# RSA Key Size for JWT signing (RS256)
+# Production: 4096 (higher security, slower ~10s key generation)
+# Testing: 2048 (faster ~250ms key generation, sufficient for dev/test)
+export PIERRE_RSA_KEY_SIZE="2048"  # Use 4096 for production
+
 # Rate Limiting Configuration
 export RATE_LIMIT_ENABLED="true"
 export RATE_LIMIT_REQUESTS="100"
