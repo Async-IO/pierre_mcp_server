@@ -30,9 +30,15 @@ struct StravaAthleteResponse {
     profile_medium: Option<String>,
 }
 
-/// Strava API response for activity data
+/// Strava map data in API responses
 #[derive(Debug, Clone, Deserialize)]
-struct StravaActivityResponse {
+pub struct StravaMap {
+    pub summary_polyline: Option<String>,
+}
+
+/// Strava API response for activity data (summary endpoint)
+#[derive(Debug, Clone, Deserialize)]
+pub struct StravaActivityResponse {
     id: u64,
     name: String,
     #[serde(rename = "type")]
@@ -49,6 +55,86 @@ struct StravaActivityResponse {
     average_watts: Option<f32>,
     max_watts: Option<f32>,
     suffer_score: Option<f32>,
+
+    // Location and GPS data from summary endpoint
+    start_latlng: Option<Vec<f64>>,
+    location_city: Option<String>,
+    location_state: Option<String>,
+    location_country: Option<String>,
+
+    // Additional performance metrics from summary endpoint
+    calories: Option<f32>,
+}
+
+/// Strava split data from detailed activity endpoint
+#[derive(Debug, Clone, Deserialize)]
+pub struct StravaSplit {
+    pub distance: Option<f32>,
+    pub elapsed_time: Option<u32>,
+    pub elevation_difference: Option<f32>,
+    pub moving_time: Option<u32>,
+    pub split: Option<u32>,
+    pub average_speed: Option<f32>,
+    pub pace_zone: Option<u32>,
+}
+
+/// Strava lap data from detailed activity endpoint
+#[derive(Debug, Clone, Deserialize)]
+pub struct StravaLap {
+    pub id: Option<u64>,
+    pub elapsed_time: Option<u32>,
+    pub moving_time: Option<u32>,
+    pub distance: Option<f32>,
+    pub total_elevation_gain: Option<f32>,
+    pub average_speed: Option<f32>,
+    pub max_speed: Option<f32>,
+    pub average_heartrate: Option<f32>,
+    pub max_heartrate: Option<f32>,
+    pub average_cadence: Option<f32>,
+    pub average_watts: Option<f32>,
+}
+
+/// Strava segment effort data from detailed activity endpoint
+#[derive(Debug, Clone, Deserialize)]
+pub struct StravaSegmentEffort {
+    pub id: Option<u64>,
+    pub name: Option<String>,
+    pub elapsed_time: Option<u32>,
+    pub moving_time: Option<u32>,
+    pub distance: Option<f32>,
+    pub average_heartrate: Option<f32>,
+    pub max_heartrate: Option<f32>,
+    pub average_cadence: Option<f32>,
+    pub average_watts: Option<f32>,
+}
+
+/// Detailed activity response from GET /activities/{id} endpoint
+/// Includes all summary fields plus additional detail-only fields like splits, laps, and segment efforts
+#[derive(Debug, Clone, Deserialize)]
+pub struct DetailedActivityResponse {
+    // Include all summary fields via flattening
+    #[serde(flatten)]
+    pub summary: StravaActivityResponse,
+
+    // Social and engagement data
+    pub kudos_count: Option<u32>,
+    pub comment_count: Option<u32>,
+    pub athlete_count: Option<u32>,
+    pub photo_count: Option<u32>,
+    pub achievement_count: Option<u32>,
+
+    // Additional elevation data
+    pub elev_high: Option<f32>,
+    pub elev_low: Option<f32>,
+
+    // Performance metrics
+    pub pr_count: Option<u32>,
+    pub device_name: Option<String>,
+
+    // Complex nested data
+    pub splits_metric: Option<Vec<StravaSplit>>,
+    pub laps: Option<Vec<StravaLap>>,
+    pub segment_efforts: Option<Vec<StravaSegmentEffort>>,
 }
 
 /// Strava API response for stats
@@ -252,7 +338,14 @@ impl StravaProvider {
                     p as u32
                 }
             }),
-            calories: None, // Strava doesn't provide calories in basic activity data
+            // Calories from summary endpoint
+            calories: activity.calories.map(|c| {
+                // Safe: calorie values are always positive and within u32 range
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                {
+                    c as u32
+                }
+            }),
             steps: None,
             heart_rate_zones: None,
             normalized_power: None,
@@ -281,14 +374,114 @@ impl StravaProvider {
                 }
             }),
             time_series_data: None,
-            start_latitude: None,
-            start_longitude: None,
-            city: None,
-            region: None,
-            country: None,
+            // GPS coordinates from summary endpoint
+            start_latitude: activity
+                .start_latlng
+                .as_ref()
+                .and_then(|latlng| latlng.first().copied()),
+            start_longitude: activity
+                .start_latlng
+                .as_ref()
+                .and_then(|latlng| latlng.get(1).copied()),
+            // Location data from summary endpoint
+            city: activity.location_city,
+            region: activity.location_state,
+            country: activity.location_country,
             trail_name: None,
             provider: oauth_providers::STRAVA.to_string(),
         })
+    }
+
+    /// Convert detailed Strava activity response to internal Activity model with all fields populated
+    ///
+    /// # Errors
+    /// Returns error if activity date parsing fails or API data is malformed
+    pub fn convert_detailed_strava_activity(
+        detailed: DetailedActivityResponse,
+    ) -> Result<Activity> {
+        // Start with summary conversion
+        let activity = Self::convert_strava_activity(detailed.summary)?;
+
+        // Add detailed-only fields that weren't in summary
+        // Note: Most fields are already populated by summary conversion
+        // Here we only add what's unique to the detailed endpoint
+
+        // Currently, the detailed endpoint provides splits, laps, and segment efforts
+        // but our Activity model doesn't have explicit fields for these yet.
+        // The time_series_data field could be populated from detailed streams endpoint
+        // (which requires a separate API call to /activities/{id}/streams)
+
+        // For now, we just return the activity with summary data
+        // Streams data integration can be added when needed
+
+        Ok(activity)
+    }
+
+    /// Fetch detailed activity data from Strava API
+    ///
+    /// # Errors
+    /// Returns error if API request fails, authentication is invalid, or response parsing fails
+    pub async fn get_activity_details(&self, id: &str) -> Result<Activity> {
+        let endpoint = format!("activities/{id}");
+        let detailed_activity: DetailedActivityResponse = self.api_request(&endpoint).await?;
+        Self::convert_detailed_strava_activity(detailed_activity)
+    }
+
+    /// Fetch activities with optional detailed data enrichment
+    ///
+    /// PERFORMANCE WARNING: When `include_details=true`, this makes N+1 API calls:
+    /// - 1 call to fetch activity summaries (or multiple for pagination)
+    /// - N additional calls to fetch detailed data for each activity
+    ///
+    /// For 25 activities with details: 1 summary call + 25 detail calls = 26 total API calls
+    /// This significantly increases:
+    /// - API quota usage (Strava: 100 requests per 15min, 1000 per day)
+    /// - Response latency (26 sequential requests vs 1)
+    /// - Rate limiting risk
+    ///
+    /// Use `include_details=true` only when detailed activity data is explicitly needed.
+    /// Most use cases are satisfied by the summary endpoint data.
+    ///
+    /// # Errors
+    /// Returns error if API requests fail, authentication is invalid, or response parsing fails
+    pub async fn get_activities_with_details(
+        &self,
+        limit: Option<usize>,
+        offset: Option<usize>,
+        include_details: bool,
+    ) -> Result<Vec<Activity>> {
+        // Fetch summary activities using existing implementation
+        let activities = self.get_activities(limit, offset).await?;
+
+        // If details not requested, return summary data
+        if !include_details {
+            return Ok(activities);
+        }
+
+        // Fetch detailed data for each activity (N+1 query pattern)
+        tracing::warn!(
+            "Fetching detailed data for {} activities - this will make {} additional API calls",
+            activities.len(),
+            activities.len()
+        );
+
+        let mut detailed_activities = Vec::with_capacity(activities.len());
+        for activity in activities {
+            match self.get_activity_details(&activity.id).await {
+                Ok(detailed) => detailed_activities.push(detailed),
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to fetch details for activity {}: {} - using summary data",
+                        activity.id,
+                        e
+                    );
+                    // Fallback: use summary data if detail fetch fails
+                    detailed_activities.push(activity);
+                }
+            }
+        }
+
+        Ok(detailed_activities)
     }
 }
 
