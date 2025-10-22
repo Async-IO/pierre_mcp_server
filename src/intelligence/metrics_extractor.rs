@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 #![allow(clippy::cast_precision_loss)] // Safe: fitness data conversions
 
+use crate::errors::AppError;
 use crate::models::Activity;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -92,11 +93,12 @@ impl SafeMetricExtractor {
             .collect();
 
         if values.is_empty() {
-            return Err(anyhow::anyhow!(
+            return Err(AppError::not_found(format!(
                 "No valid {} values found in {} activities",
                 metric_type.display_name(),
                 activities.len()
-            ));
+            ))
+            .into());
         }
 
         Ok(values)
@@ -135,7 +137,7 @@ impl SafeMetricExtractor {
         let metric_values: Vec<f64> = values.into_iter().map(|(_, value)| value).collect();
 
         if metric_values.is_empty() {
-            return Err(anyhow::anyhow!("No values to summarize"));
+            return Err(AppError::not_found("No values to summarize").into());
         }
 
         let count = metric_values.len();

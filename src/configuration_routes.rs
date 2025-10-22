@@ -22,6 +22,7 @@ use crate::configuration::{
     vo2_max::VO2MaxCalculator,
 };
 use crate::database_plugins::DatabaseProvider;
+use crate::errors::AppError;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -428,10 +429,11 @@ impl ConfigurationRoutes {
 
             let validation_result = validator.validate(&overrides_map, None);
             if !validation_result.is_valid {
-                return Err(anyhow::anyhow!(
+                return Err(AppError::invalid_input(format!(
                     "Configuration validation failed: {:?}",
                     validation_result.errors
-                ));
+                ))
+                .into());
             }
         }
 
@@ -444,7 +446,7 @@ impl ConfigurationRoutes {
                 config.apply_profile(profile.clone());
                 profile
             } else {
-                return Err(anyhow::anyhow!("Unknown profile: {profile_name}"));
+                return Err(AppError::not_found(format!("Unknown profile: {profile_name}")).into());
             }
         } else {
             ConfigProfile::Default
@@ -589,9 +591,9 @@ impl ConfigurationRoutes {
             .collect();
 
         if params_map.is_empty() {
-            return Err(anyhow::anyhow!(
-                "No valid parameters provided for validation"
-            ));
+            return Err(
+                AppError::invalid_input("No valid parameters provided for validation").into(),
+            );
         }
 
         // Validate using ConfigValidator

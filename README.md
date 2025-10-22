@@ -20,6 +20,8 @@ Pierre MCP Server connects AI assistants to fitness data from Strava, Garmin, an
 - **PII Redaction**: Middleware for sensitive data removal in logs and responses
 - **Cursor Pagination**: Keyset pagination for consistent large dataset traversal
 - **Intelligent Caching**: LRU cache with TTL for API response optimization
+- **Atomic Operations**: TOCTOU prevention with database-level atomic token operations
+- **Structured Error Handling**: Type-safe error propagation with AppError/DatabaseError/ProviderError
 
 ## Architecture
 

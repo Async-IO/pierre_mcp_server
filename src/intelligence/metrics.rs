@@ -7,6 +7,7 @@
 #![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges for fitness metrics
 
 // Future: use crate::config::intelligence_config::{IntelligenceConfig};
+use crate::errors::AppError;
 use crate::intelligence::physiological_constants::{
     metrics_constants::{
         EFFICIENCY_TIME_MULTIPLIER, MIN_DECOUPLING_DATA_POINTS, TRIMP_BASE_MULTIPLIER,
@@ -168,8 +169,10 @@ impl MetricsCalculator {
     ) -> Result<()> {
         // Calculate TRIMP if heart rate data is available
         if let Some(avg_hr) = activity.average_heart_rate {
-            let duration = i32::try_from(activity.duration_seconds)
-                .map_err(|_| anyhow::anyhow!("Duration too large for i32"))?;
+            let duration =
+                i32::try_from(activity.duration_seconds).map_err(|_| -> anyhow::Error {
+                    AppError::internal("Duration too large for i32").into()
+                })?;
             metrics.trimp = self.calculate_trimp(avg_hr, duration);
         }
 

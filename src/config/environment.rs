@@ -7,6 +7,7 @@
 //! Environment-based configuration management for production deployment
 
 use crate::constants::{defaults, env_config, limits, oauth};
+use crate::errors::AppError;
 use crate::middleware::redaction::RedactionFeatures;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -797,10 +798,10 @@ impl ServerConfig {
         // In production, issuer MUST use HTTPS to prevent token theft and MITM attacks
         if self.security.headers.environment.is_production() {
             if !self.oauth2_server.issuer_url.starts_with("https://") {
-                return Err(anyhow::anyhow!(
+                return Err(AppError::invalid_input(format!(
                     "OAuth2 issuer URL must use HTTPS in production (RFC 8414 security requirement). Current: {}",
                     self.oauth2_server.issuer_url
-                ));
+                )).into());
             }
         } else if !self
             .oauth2_server
@@ -826,9 +827,10 @@ impl ServerConfig {
         if self.security.tls.enabled
             && (self.security.tls.cert_path.is_none() || self.security.tls.key_path.is_none())
         {
-            return Err(anyhow::anyhow!(
-                "TLS is enabled but cert_path or key_path is missing"
-            ));
+            return Err(AppError::invalid_input(
+                "TLS is enabled but cert_path or key_path is missing",
+            )
+            .into());
         }
         Ok(())
     }

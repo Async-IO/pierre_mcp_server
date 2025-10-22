@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::config::environment::RouteTimeoutConfig;
+use crate::errors::AppError;
 use std::future::Future;
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -64,10 +65,11 @@ where
 
     (timeout(duration, operation).await).map_or_else(
         |_| {
-            Err(anyhow::anyhow!(
+            Err(AppError::internal(format!(
                 "Database operation timed out after {}s",
                 config.database_timeout_secs
             ))
+            .into())
         },
         |result| result.map_err(Into::into),
     )
@@ -102,10 +104,11 @@ where
 
     (timeout(duration, operation).await).map_or_else(
         |_| {
-            Err(anyhow::anyhow!(
+            Err(AppError::internal(format!(
                 "Provider API operation timed out after {}s",
                 config.provider_api_timeout_secs
             ))
+            .into())
         },
         |result| result.map_err(Into::into),
     )
@@ -140,10 +143,11 @@ where
 
     (timeout(duration, operation).await).map_or_else(
         |_| {
-            Err(anyhow::anyhow!(
+            Err(AppError::internal(format!(
                 "SSE event operation timed out after {}s",
                 config.sse_event_timeout_secs
             ))
+            .into())
         },
         |result| result.map_err(Into::into),
     )
@@ -178,10 +182,11 @@ where
 
     (timeout(duration, operation).await).map_or_else(
         |_| {
-            Err(anyhow::anyhow!(
+            Err(AppError::internal(format!(
                 "OAuth operation timed out after {}s",
                 config.oauth_operation_timeout_secs
             ))
+            .into())
         },
         |result| result.map_err(Into::into),
     )

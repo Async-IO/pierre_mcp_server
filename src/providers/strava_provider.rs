@@ -8,6 +8,7 @@
 // - String ownership for API responses and error handling
 
 use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
+use super::errors::ProviderError;
 use crate::constants::{api_provider_limits, oauth_providers};
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
 use crate::pagination::{Cursor, CursorPage, PaginationDirection, PaginationParams};
@@ -162,9 +163,13 @@ impl StravaProvider {
                 status,
                 text
             );
-            return Err(anyhow::anyhow!(
-                "Strava API request failed with status {status}: {text}"
-            ));
+            return Err(ProviderError::ApiError {
+                provider: oauth_providers::STRAVA.to_string(),
+                status_code: status.as_u16(),
+                message: format!("Strava API request failed with status {status}: {text}"),
+                retryable: false,
+            }
+            .into());
         }
 
         tracing::info!("Parsing JSON response from Strava API");
@@ -338,7 +343,11 @@ impl FitnessProvider for StravaProvider {
                     Utc::now() + chrono::Duration::minutes(5) > expires_at
                 })
             } else {
-                return Err(anyhow::anyhow!("No credentials available"));
+                return Err(ProviderError::ConfigurationError {
+                    provider: oauth_providers::STRAVA.to_string(),
+                    details: "No credentials available".to_string(),
+                }
+                .into());
             };
 
             let credentials = guard
@@ -378,9 +387,11 @@ impl FitnessProvider for StravaProvider {
 
         if !response.status().is_success() {
             let status = response.status();
-            return Err(anyhow::anyhow!(
-                "Token refresh failed with status: {status}"
-            ));
+            return Err(ProviderError::AuthenticationFailed {
+                provider: oauth_providers::STRAVA.to_string(),
+                reason: format!("token refresh failed with status: {status}"),
+            }
+            .into());
         }
 
         let token_response: TokenResponse = response

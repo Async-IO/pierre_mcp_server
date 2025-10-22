@@ -12,6 +12,7 @@
 use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::errors::AppError;
 use crate::oauth2::{
     client_registration::ClientRegistrationManager,
     endpoints::OAuth2AuthorizationServer,
@@ -725,11 +726,11 @@ async fn authenticate_user_with_auth_manager(
     let user = database
         .get_user_by_email(email)
         .await?
-        .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+        .ok_or_else(|| AppError::not_found("User not found"))?;
 
     // Verify password hash
     if !verify_password(password, &user.password_hash) {
-        return Err(anyhow::anyhow!("Invalid password"));
+        return Err(AppError::auth_invalid("Invalid password").into());
     }
 
     // Use AuthManager to generate JWT token with RS256 (proper architecture)

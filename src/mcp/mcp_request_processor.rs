@@ -16,6 +16,7 @@ use super::{
 };
 use crate::constants::errors::{ERROR_INTERNAL_ERROR, ERROR_METHOD_NOT_FOUND};
 use crate::constants::protocol::JSONRPC_VERSION;
+use crate::errors::AppError;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -95,15 +96,15 @@ impl McpRequestProcessor {
     /// Validate MCP request format and required fields
     fn validate_request(request: &McpRequest) -> Result<()> {
         if request.jsonrpc != JSONRPC_VERSION {
-            return Err(anyhow::anyhow!(
+            return Err(AppError::invalid_input(format!(
                 "Invalid JSON-RPC version: got '{}', expected '{}'",
-                request.jsonrpc,
-                JSONRPC_VERSION
-            ));
+                request.jsonrpc, JSONRPC_VERSION
+            ))
+            .into());
         }
 
         if request.method.is_empty() {
-            return Err(anyhow::anyhow!("Missing method"));
+            return Err(AppError::invalid_input("Missing method").into());
         }
 
         Ok(())
@@ -192,7 +193,7 @@ impl McpRequestProcessor {
         request
             .params
             .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Missing parameters for tools/call"))?;
+            .ok_or_else(|| AppError::invalid_input("Missing parameters for tools/call"))?;
 
         // Execute tool using static method - delegate to ToolHandlers
         let handler_request = McpRequest {

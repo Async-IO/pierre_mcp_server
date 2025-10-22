@@ -16,6 +16,7 @@
 
 use crate::constants::{limits::USER_SESSION_EXPIRY_HOURS, time_constants::SECONDS_PER_HOUR};
 use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::errors::AppError;
 use crate::models::{AuthRequest, AuthResponse, User, UserSession};
 use crate::rate_limiting::UnifiedRateLimitInfo;
 use anyhow::{Context, Result};
@@ -263,16 +264,16 @@ impl AuthManager {
     ) -> Result<Claims> {
         // Extract kid from token header
         let header = jsonwebtoken::decode_header(token)?;
-        let kid = header
-            .kid
-            .ok_or_else(|| anyhow::anyhow!("Token header missing kid (key ID)"))?;
+        let kid = header.kid.ok_or_else(|| -> anyhow::Error {
+            AppError::auth_invalid("Token header missing kid (key ID)").into()
+        })?;
 
         tracing::debug!("Validating RS256 JWT token with kid: {}", kid);
 
         // Get public key from JWKS manager
-        let key_pair = jwks_manager
-            .get_key(&kid)
-            .ok_or_else(|| anyhow::anyhow!("Key not found in JWKS: {}", kid))?;
+        let key_pair = jwks_manager.get_key(&kid).ok_or_else(|| -> anyhow::Error {
+            AppError::auth_invalid(format!("Key not found in JWKS: {kid}")).into()
+        })?;
 
         let decoding_key = key_pair.decoding_key();
 
@@ -502,8 +503,11 @@ impl AuthManager {
     ) -> Result<String> {
         // First validate the old token signature (even if expired)
         // This ensures the refresh request is legitimate
-        let _claims = Self::decode_token_claims(old_token, jwks_manager)
-            .map_err(|e| anyhow::anyhow!("Failed to validate old token for refresh: {e}"))?;
+        let _claims =
+            Self::decode_token_claims(old_token, jwks_manager).map_err(|e| -> anyhow::Error {
+                AppError::auth_invalid(format!("Failed to validate old token for refresh: {e}"))
+                    .into()
+            })?;
 
         // Generate new token - atomic counter ensures uniqueness
         self.generate_token(user, jwks_manager)
@@ -528,14 +532,14 @@ impl AuthManager {
     ) -> Result<Uuid> {
         // Extract kid from token header
         let header = jsonwebtoken::decode_header(token)?;
-        let kid = header
-            .kid
-            .ok_or_else(|| anyhow::anyhow!("Token header missing kid (key ID)"))?;
+        let kid = header.kid.ok_or_else(|| -> anyhow::Error {
+            AppError::auth_invalid("Token header missing kid (key ID)").into()
+        })?;
 
         // Get public key from JWKS manager
-        let key_pair = jwks_manager
-            .get_key(&kid)
-            .ok_or_else(|| anyhow::anyhow!("Key not found in JWKS: {}", kid))?;
+        let key_pair = jwks_manager.get_key(&kid).ok_or_else(|| -> anyhow::Error {
+            AppError::auth_invalid(format!("Key not found in JWKS: {kid}")).into()
+        })?;
 
         let decoding_key = key_pair.decoding_key();
 

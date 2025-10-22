@@ -9,6 +9,7 @@
 // - Stream state management for concurrent client connections
 
 use crate::database::oauth_notifications::OAuthNotification;
+use crate::errors::AppError;
 use anyhow::Result;
 use serde_json::json;
 use std::collections::HashMap;
@@ -82,14 +83,14 @@ impl SseConnectionManager {
 
             if let Err(e) = sender.send(sse_message) {
                 tracing::warn!("Failed to send SSE notification to user {}: {}", user_id, e);
-                return Err(anyhow::anyhow!("Failed to send SSE notification"));
+                return Err(AppError::internal("Failed to send SSE notification").into());
             }
 
             tracing::info!("SSE notification sent successfully to user: {}", user_id);
             Ok(())
         } else {
             tracing::warn!("No SSE connection found for user: {}", user_id);
-            Err(anyhow::anyhow!("No SSE connection found for user"))
+            Err(AppError::not_found("No SSE connection found for user").into())
         }
     }
 

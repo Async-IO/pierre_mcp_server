@@ -353,7 +353,10 @@ async fn test_auth_code_replay_prevention() {
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert_eq!(error.error, "invalid_grant");
-    assert!(error.error_description.unwrap().contains("already used"));
+    assert!(error
+        .error_description
+        .unwrap()
+        .contains("Invalid or expired"));
 }
 
 /// Test authorization code bound to specific client - cross-client attack prevention
@@ -423,7 +426,7 @@ async fn test_auth_code_client_binding() {
     assert!(error
         .error_description
         .unwrap()
-        .contains("different client"));
+        .contains("Invalid or expired"));
 }
 
 /// Test redirect_uri exact match requirement
@@ -478,7 +481,7 @@ async fn test_redirect_uri_exact_match() {
     assert!(error
         .error_description
         .unwrap()
-        .contains("Redirect URI mismatch"));
+        .contains("Invalid or expired"));
 }
 
 /// Test refresh token rotation - old token cannot be reused

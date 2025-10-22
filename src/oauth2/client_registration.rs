@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::database_plugins::DatabaseProvider;
+use crate::errors::AppError;
 use crate::oauth2::models::{
     ClientRegistrationRequest, ClientRegistrationResponse, OAuth2Client, OAuth2Error,
 };
@@ -151,7 +152,7 @@ impl ClientRegistrationManager {
         self.database
             .get_oauth2_client(client_id)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("OAuth2 client not found"))
+            .ok_or_else(|| AppError::not_found("OAuth2 client not found").into())
     }
 
     /// Store client in database

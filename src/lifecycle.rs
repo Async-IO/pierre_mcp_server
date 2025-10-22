@@ -15,6 +15,7 @@
 /// Core system plugin adapters (database, cache, auth)
 pub mod plugins;
 
+use crate::errors::AppError;
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -156,10 +157,10 @@ impl PluginManager {
                             "Required plugin '{}' initialization timed out after {:?}",
                             plugin_name, self.initialization_timeout
                         );
-                        return Err(anyhow::anyhow!(
-                            "Plugin initialization timeout: {}",
-                            plugin_name
-                        ));
+                        return Err(AppError::internal(format!(
+                            "Plugin initialization timeout: {plugin_name}"
+                        ))
+                        .into());
                     }
                     warn!("Optional plugin '{}' initialization timed out", plugin_name);
                 }

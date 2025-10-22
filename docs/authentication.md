@@ -346,6 +346,80 @@ implementation: `src/rate_limiting.rs`, `src/oauth2/rate_limiting.rs`
 - pkce for oauth2 authorization
 - origin validation for web requests
 
+### atomic token operations
+
+pierre prevents toctou (time-of-check to time-of-use) race conditions in token operations.
+
+**problem**: token reuse attacks
+
+standard token validation flow vulnerable to race conditions:
+```
+thread 1: check token valid → ✓ valid
+thread 2: check token valid → ✓ valid
+thread 1: revoke token → success
+thread 2: revoke token → success (token used twice!)
+```
+
+**solution**: atomic check-and-revoke
+
+pierre uses database-level atomic operations:
+```sql
+-- single atomic transaction
+UPDATE oauth2_refresh_tokens
+SET revoked_at = NOW()
+WHERE token = ? AND revoked_at IS NULL
+RETURNING *
+```
+
+benefits:
+- **race condition elimination**: only one thread can consume token
+- **database-level garantees**: transaction isolation prevents concurrent access
+- **zero-trust security**: every token exchange verified atomically
+
+**vulnerable endpoints protected**:
+- `POST /oauth2/token` (refresh token grant)
+- token refresh operations
+- authorization code exchange
+
+**implementation details**:
+
+atomic operations in database plugins (`src/database_plugins/`):
+```rust
+/// atomically consume oauth2 refresh token (check-and-revoke in single operation)
+async fn consume_refresh_token(&self, token: &str) -> Result<RefreshToken, DatabaseError>
+```
+
+sqlite implementation uses `RETURNING` clause:
+```rust
+UPDATE oauth2_refresh_tokens
+SET revoked_at = datetime('now')
+WHERE token = ? AND revoked_at IS NULL
+RETURNING *
+```
+
+postgresql implementation uses same pattern with `RETURNING`:
+```rust
+UPDATE oauth2_refresh_tokens
+SET revoked_at = NOW()
+WHERE token = $1 AND revoked_at IS NULL
+RETURNING *
+```
+
+if query returns no rows, token either:
+- doesn't exist
+- already revoked (race condition detected)
+- expired
+
+all three cases result in authentication failure, preventing token reuse.
+
+security guarantees:
+- **serializability**: database transactions prevent concurrent modifications
+- **atomicity**: check and revoke happen in single operation
+- **consistency**: no partial state changes possible
+- **isolation**: concurrent requests see consistent view
+
+implementation: `src/database_plugins/sqlite.rs`, `src/database_plugins/postgres.rs`, `src/oauth2/endpoints.rs`
+
 ## troubleshooting
 
 ### "invalid token" errors

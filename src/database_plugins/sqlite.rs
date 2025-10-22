@@ -13,7 +13,9 @@ use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
+use crate::database::errors::DatabaseError;
 use crate::database::A2AUsage;
+use crate::errors::AppError;
 use crate::models::{User, UserOAuthApp, UserOAuthToken};
 use crate::rate_limiting::JwtUsage;
 use anyhow::{Context, Result};
@@ -998,7 +1000,11 @@ impl DatabaseProvider for SqliteDatabase {
                 };
                 Ok(tenant)
             }
-            None => Err(anyhow::anyhow!("Tenant not found: {tenant_id}")),
+            None => Err(DatabaseError::NotFound {
+                entity_type: "Tenant",
+                entity_id: tenant_id.to_string(),
+            }
+            .into()),
         }
     }
 
@@ -1032,7 +1038,11 @@ impl DatabaseProvider for SqliteDatabase {
                 };
                 Ok(tenant)
             }
-            None => Err(anyhow::anyhow!("Tenant not found with slug: {slug}")),
+            None => Err(DatabaseError::NotFound {
+                entity_type: "Tenant",
+                entity_id: slug.to_string(),
+            }
+            .into()),
         }
     }
 
@@ -1293,7 +1303,11 @@ impl DatabaseProvider for SqliteDatabase {
                 };
                 Ok(app)
             }
-            None => Err(anyhow::anyhow!("OAuth app not found: {client_id}")),
+            None => Err(DatabaseError::NotFound {
+                entity_type: "OAuth app",
+                entity_id: client_id.to_string(),
+            }
+            .into()),
         }
     }
 
@@ -1767,9 +1781,11 @@ impl DatabaseProvider for SqliteDatabase {
                 };
                 Ok(auth_code)
             }
-            None => Err(anyhow::anyhow!(
-                "Authorization code not found or expired: {code}"
-            )),
+            None => Err(DatabaseError::NotFound {
+                entity_type: "Authorization code",
+                entity_id: code.to_string(),
+            }
+            .into()),
         }
     }
 
@@ -2097,15 +2113,19 @@ impl DatabaseProvider for SqliteDatabase {
         if tenant_id.is_some() {
             bind_count += 1;
             if write!(query, " AND tenant_id = ?{bind_count}").is_err() {
-                return Err(anyhow::anyhow!("Failed to write tenant_id clause to query"));
+                return Err(DatabaseError::QueryError {
+                    context: "Failed to write tenant_id clause to query".to_string(),
+                }
+                .into());
             }
         }
         if event_type.is_some() {
             bind_count += 1;
             if write!(query, " AND event_type = ?{bind_count}").is_err() {
-                return Err(anyhow::anyhow!(
-                    "Failed to write event_type clause to query"
-                ));
+                return Err(DatabaseError::QueryError {
+                    context: "Failed to write event_type clause to query".to_string(),
+                }
+                .into());
             }
         }
 
@@ -2114,7 +2134,10 @@ impl DatabaseProvider for SqliteDatabase {
         if let Some(_limit) = limit {
             bind_count += 1;
             if write!(query, " LIMIT ?{bind_count}").is_err() {
-                return Err(anyhow::anyhow!("Failed to write LIMIT clause to query"));
+                return Err(DatabaseError::QueryError {
+                    context: "Failed to write LIMIT clause to query".to_string(),
+                }
+                .into());
             }
         }
 
@@ -2470,7 +2493,11 @@ impl DatabaseProvider for SqliteDatabase {
                 tracing::info!("Generated new JWT secret for admin authentication");
                 new_secret
             }
-            _ => return Err(anyhow::anyhow!("Unknown secret type: {secret_type}")),
+            _ => {
+                return Err(
+                    AppError::invalid_input(format!("Unknown secret type: {secret_type}")).into(),
+                )
+            }
         };
 
         // Store in database

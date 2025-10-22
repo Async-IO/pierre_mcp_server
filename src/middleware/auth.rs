@@ -8,6 +8,8 @@ use crate::api_keys::ApiKeyManager;
 use crate::auth::{AuthManager, AuthMethod, AuthResult};
 use crate::constants::key_prefixes;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::errors::AppError;
+use crate::providers::errors::ProviderError;
 use crate::rate_limiting::UnifiedRateLimitCalculator;
 use crate::utils::errors::auth_error;
 use anyhow::{Context, Result};
@@ -134,8 +136,7 @@ impl McpAuthMiddleware {
                 .record("auth_method", "INVALID")
                 .record("success", false);
             tracing::warn!("Authentication failed: Invalid authorization header format (expected 'Bearer ...' or 'pk_live_...')");
-            Err(anyhow::anyhow!("Invalid authorization header format")
-                .context("Authorization header must be 'Bearer <token>' or 'pk_live_<api_key>'"))
+            Err(AppError::auth_invalid("Invalid authorization header format - must be 'Bearer <token>' or 'pk_live_<api_key>'").into())
         }
     }
 
@@ -166,13 +167,20 @@ impl McpAuthMiddleware {
 
         // Check rate limit
         if rate_limit.is_rate_limited {
-            return Err(
-                anyhow::anyhow!("API key rate limit exceeded").context(format!(
+            return Err(ProviderError::RateLimitExceeded {
+                provider: "API Key Authentication".to_string(),
+                retry_after_secs: rate_limit.reset_at.map_or(3600, |dt| {
+                    let now = chrono::Utc::now().timestamp();
+                    let reset = dt.timestamp();
+                    u64::try_from((reset - now).max(0)).unwrap_or(3600)
+                }),
+                limit_type: format!(
                     "Rate limit reached for API key: {}/{} requests",
                     current_usage,
                     rate_limit.limit.unwrap_or(0)
-                )),
-            );
+                ),
+            }
+            .into());
         }
 
         // Update last used timestamp
@@ -195,14 +203,14 @@ impl McpAuthMiddleware {
             .validate_token_detailed(token, &self.jwks_manager)?;
 
         let user_id = crate::utils::uuid::parse_uuid(&claims.sub)
-            .map_err(|_| anyhow::anyhow!("Invalid user ID in token"))?;
+            .map_err(|_| AppError::auth_invalid("Invalid user ID in token"))?;
 
         // Get user from database to check tier and rate limits
         let user = self
             .database
             .get_user(user_id)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+            .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
 
         // Get current usage for rate limiting
         let current_usage = self.database.get_jwt_current_usage(user_id).await?;

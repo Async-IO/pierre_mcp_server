@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::errors::AppError;
 use anyhow::Result;
 use chrono::Utc;
 use std::collections::HashMap;
@@ -92,10 +93,10 @@ impl TenantOAuthManager {
         }
 
         // No credentials found - return error
-        Err(anyhow::anyhow!(
+        Err(AppError::not_found(format!(
             "No OAuth credentials configured for tenant {} and provider {}. Configure {}_CLIENT_ID and {}_CLIENT_SECRET environment variables, or provide tenant-specific credentials via the MCP OAuth configuration tool.",
             tenant_id, provider, provider.to_uppercase(), provider.to_uppercase()
-        ))
+        )).into())
     }
 
     /// Store OAuth credentials for a tenant

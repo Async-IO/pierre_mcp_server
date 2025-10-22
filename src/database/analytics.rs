@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use super::Database;
+use crate::errors::AppError;
 use crate::rate_limiting::JwtUsage;
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
@@ -275,10 +276,11 @@ impl Database {
         if let Some(obj) = goal_data.as_object_mut() {
             obj.insert(
                 "current_value".into(),
-                serde_json::Value::Number(
-                    serde_json::Number::from_f64(current_value)
-                        .ok_or_else(|| anyhow::anyhow!("Invalid current_value: {current_value}"))?,
-                ),
+                serde_json::Value::Number(serde_json::Number::from_f64(current_value).ok_or_else(
+                    || -> anyhow::Error {
+                        AppError::internal(format!("Invalid current_value: {current_value}")).into()
+                    },
+                )?),
             );
 
             // Update last_updated timestamp
@@ -294,11 +296,14 @@ impl Database {
                     obj.insert(
                         "progress_percentage".into(),
                         serde_json::Value::Number(
-                            serde_json::Number::from_f64(progress_percentage).ok_or_else(|| {
-                                anyhow::anyhow!(
-                                    "Invalid progress_percentage: {progress_percentage}"
-                                )
-                            })?,
+                            serde_json::Number::from_f64(progress_percentage).ok_or_else(
+                                || -> anyhow::Error {
+                                    AppError::internal(format!(
+                                        "Invalid progress_percentage: {progress_percentage}"
+                                    ))
+                                    .into()
+                                },
+                            )?,
                         ),
                     );
                 }

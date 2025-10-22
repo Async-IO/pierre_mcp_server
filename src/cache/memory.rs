@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use super::{CacheConfig, CacheKey, CacheProvider};
+use crate::errors::AppError;
 use anyhow::Result;
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
@@ -174,8 +175,9 @@ impl CacheProvider for InMemoryCache {
 
         // Use proper glob matching for cache key patterns
         // Patterns like "tenant:*:provider:strava:*" will correctly match wildcards
-        let glob_pattern = glob::Pattern::new(pattern)
-            .map_err(|e| anyhow::anyhow!("Invalid glob pattern '{}': {}", pattern, e))?;
+        let glob_pattern = glob::Pattern::new(pattern).map_err(|e| -> anyhow::Error {
+            AppError::internal(format!("Invalid glob pattern '{pattern}': {e}")).into()
+        })?;
 
         // Collect keys to remove (can't modify while iterating)
         let keys_to_remove: Vec<String> = store

@@ -18,6 +18,7 @@ use crate::a2a::system_user::A2ASystemUserService;
 use crate::constants::tiers;
 use crate::crypto::A2AKeyManager;
 use crate::database_plugins::DatabaseProvider;
+use crate::errors::AppError;
 use chrono::Timelike;
 use chrono::{DateTime, Datelike, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
@@ -743,9 +744,9 @@ impl A2AClientManager {
             Utc.with_ymd_and_hms(now.year(), now.month() + 1, 1, 0, 0, 0)
         };
 
-        next_month_start
-            .single()
-            .ok_or_else(|| anyhow::anyhow!("Failed to create valid date for next month start"))
+        next_month_start.single().ok_or_else(|| {
+            AppError::internal("Failed to create valid date for next month start").into()
+        })
     }
 
     /// Get client credentials for authentication

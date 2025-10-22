@@ -16,6 +16,7 @@ use super::{
     TrendDirection,
 };
 use crate::config::intelligence_config::IntelligenceStrategy;
+use crate::errors::AppError;
 use crate::models::Activity;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -72,11 +73,12 @@ impl PerformanceAnalyzerV2 {
         let mut data_points = Self::create_data_points(metric_values);
 
         if data_points.len() < self.config.confidence.medium_data_points {
-            return Err(anyhow::anyhow!(
+            return Err(AppError::invalid_input(format!(
                 "Insufficient data points for reliable trend analysis: got {}, need at least {}",
                 data_points.len(),
                 self.config.confidence.medium_data_points
-            ));
+            ))
+            .into());
         }
 
         // 4. Apply smoothing based on configuration
@@ -84,7 +86,7 @@ impl PerformanceAnalyzerV2 {
 
         // 5. Perform proper statistical analysis
         let regression = StatisticalAnalyzer::linear_regression(&data_points)
-            .map_err(|e| anyhow::anyhow!("Statistical analysis failed: {e}"))?;
+            .map_err(|e| AppError::internal(format!("Statistical analysis failed: {e}")))?;
 
         // 6. Determine trend direction using statistical significance
         let trend_direction = StatisticalAnalyzer::determine_trend_direction(
@@ -188,11 +190,12 @@ impl PerformanceAnalyzerV2 {
             .collect();
 
         if similar_activities.len() < self.config.min_activities_for_prediction {
-            return Err(anyhow::anyhow!(
+            return Err(AppError::invalid_input(format!(
                 "Insufficient similar activities for prediction: need {}, got {}",
                 self.config.min_activities_for_prediction,
                 similar_activities.len()
-            ));
+            ))
+            .into());
         }
 
         // Extract metric for trend analysis
@@ -207,11 +210,11 @@ impl PerformanceAnalyzerV2 {
         // Project future performance
         let days_to_target = (target.target_date - Utc::now()).num_days();
         if days_to_target > self.config.max_prediction_days {
-            return Err(anyhow::anyhow!(
+            return Err(AppError::invalid_input(format!(
                 "Target date too far in future: {} days (max: {})",
-                days_to_target,
-                self.config.max_prediction_days
-            ));
+                days_to_target, self.config.max_prediction_days
+            ))
+            .into());
         }
 
         let future_x = data_points.len() as f64 + (days_to_target as f64 / 7.0); // Weekly progression
@@ -299,9 +302,10 @@ impl PerformanceAnalyzerV2 {
             .collect();
 
         if filtered.is_empty() {
-            return Err(anyhow::anyhow!(
+            return Err(AppError::invalid_input(format!(
                 "No activities found in timeframe from {start_date} to {end_date}"
-            ));
+            ))
+            .into());
         }
 
         Ok(filtered)
@@ -521,7 +525,7 @@ impl PerformanceAnalyzerV2 {
             "heart_rate" | "hr" => Ok(MetricType::HeartRate),
             "elevation" => Ok(MetricType::Elevation),
             "power" => Ok(MetricType::Power),
-            _ => Err(anyhow::anyhow!("Unknown metric type: {metric}")),
+            _ => Err(AppError::invalid_input(format!("Unknown metric type: {metric}")).into()),
         }
     }
 
@@ -610,7 +614,7 @@ impl PerformanceAnalyzerV2 {
 
     fn analyze_load_pattern(&self, weekly_loads: &[WeeklyLoad]) -> Result<LoadPatternAnalysis> {
         if weekly_loads.is_empty() {
-            return Err(anyhow::anyhow!("No weekly load data to analyze"));
+            return Err(AppError::invalid_input("No weekly load data to analyze").into());
         }
 
         let average_load = weekly_loads

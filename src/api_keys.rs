@@ -17,6 +17,7 @@ use crate::constants::{
     },
     tiers,
 };
+use crate::errors::AppError;
 use anyhow::Result;
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 use rand::distributions::Alphanumeric;
@@ -87,7 +88,7 @@ impl std::str::FromStr for ApiKeyTier {
             tiers::STARTER => Ok(Self::Starter),
             tiers::PROFESSIONAL => Ok(Self::Professional),
             tiers::ENTERPRISE => Ok(Self::Enterprise),
-            _ => Err(anyhow::anyhow!("Invalid API key tier: {s}")),
+            _ => Err(AppError::invalid_input(format!("Invalid API key tier: {s}")).into()),
         }
     }
 }

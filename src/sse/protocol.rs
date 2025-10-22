@@ -4,6 +4,7 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+use crate::errors::AppError;
 use crate::mcp::{
     protocol::{McpRequest, McpResponse},
     resources::ServerResources,
@@ -78,11 +79,11 @@ impl McpProtocolStream {
 
             sender
                 .send(json_data)
-                .map_err(|e| anyhow::anyhow!("Failed to send MCP response: {}", e))?;
+                .map_err(|e| AppError::internal(format!("Failed to send MCP response: {e}")))?;
 
             Ok(())
         } else {
-            Err(anyhow::anyhow!("No active sender for protocol stream"))
+            Err(AppError::internal("No active sender for protocol stream").into())
         }
     }
 
@@ -106,11 +107,11 @@ impl McpProtocolStream {
 
             sender
                 .send(json_data)
-                .map_err(|e| anyhow::anyhow!("Failed to send error event: {}", e))?;
+                .map_err(|e| AppError::internal(format!("Failed to send error event: {e}")))?;
 
             Ok(())
         } else {
-            Err(anyhow::anyhow!("No active sender for protocol stream"))
+            Err(AppError::internal("No active sender for protocol stream").into())
         }
     }
 
@@ -181,14 +182,17 @@ impl McpProtocolStream {
                 }
                 Err(e) => {
                     tracing::error!("OAuth notification broadcast FAILED: {}", e);
-                    return Err(anyhow::anyhow!("Failed to send OAuth notification: {}", e));
+                    return Err(AppError::internal(format!(
+                        "Failed to send OAuth notification: {e}"
+                    ))
+                    .into());
                 }
             }
 
             Ok(())
         } else {
             tracing::error!("No active sender for protocol stream");
-            Err(anyhow::anyhow!("No active sender for protocol stream"))
+            Err(AppError::internal("No active sender for protocol stream").into())
         }
     }
 }

@@ -15,6 +15,7 @@ use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
 use crate::constants::oauth_providers;
 use crate::constants::tiers;
+use crate::database::errors::DatabaseError;
 use crate::database::A2AUsage;
 use crate::models::{User, UserTier};
 use crate::rate_limiting::JwtUsage;
@@ -973,12 +974,16 @@ impl DatabaseProvider for PostgresDatabase {
 
         if let Some(_limit) = limit {
             param_count += 1;
-            write!(&mut query, " LIMIT ${param_count}")
-                .map_err(|e| anyhow::anyhow!("Failed to write LIMIT clause: {e}"))?;
+            write!(&mut query, " LIMIT ${param_count}").map_err(|e| DatabaseError::QueryError {
+                context: format!("Failed to write LIMIT clause: {e}"),
+            })?;
             if let Some(_offset) = offset {
                 param_count += 1;
-                write!(&mut query, " OFFSET ${param_count}")
-                    .map_err(|e| anyhow::anyhow!("Failed to write OFFSET clause: {e}"))?;
+                write!(&mut query, " OFFSET ${param_count}").map_err(|e| {
+                    DatabaseError::QueryError {
+                        context: format!("Failed to write OFFSET clause: {e}"),
+                    }
+                })?;
             }
         }
 
@@ -1556,7 +1561,11 @@ impl DatabaseProvider for PostgresDatabase {
             .await?;
 
         if result.rows_affected() == 0 {
-            return Err(anyhow::anyhow!("A2A client not found: {client_id}"));
+            return Err(DatabaseError::NotFound {
+                entity_type: "A2A client",
+                entity_id: client_id.to_string(),
+            }
+            .into());
         }
 
         Ok(())
@@ -1855,14 +1864,20 @@ impl DatabaseProvider for PostgresDatabase {
         if let Some(_limit_val) = limit {
             bind_count += 1;
             if write!(query, " LIMIT ${bind_count}").is_err() {
-                return Err(anyhow::anyhow!("Failed to write LIMIT clause to query"));
+                return Err(DatabaseError::QueryError {
+                    context: "Failed to write LIMIT clause to query".to_string(),
+                }
+                .into());
             }
         }
 
         if let Some(_offset_val) = offset {
             bind_count += 1;
             if write!(query, " OFFSET ${bind_count}").is_err() {
-                return Err(anyhow::anyhow!("Failed to write OFFSET clause to query"));
+                return Err(DatabaseError::QueryError {
+                    context: "Failed to write OFFSET clause to query".to_string(),
+                }
+                .into());
             }
         }
 
@@ -2656,7 +2671,9 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(tenant.updated_at)
         .execute(&self.pool)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to create tenant: {e}"))?;
+        .map_err(|e| DatabaseError::QueryError {
+            context: format!("Failed to create tenant: {e}"),
+        })?;
 
         // Add the owner as an admin of the tenant
         sqlx::query(
@@ -2669,7 +2686,9 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(tenant.owner_user_id)
         .execute(&self.pool)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to add owner to tenant: {e}"))?;
+        .map_err(|e| DatabaseError::QueryError {
+            context: format!("Failed to add owner to tenant: {e}"),
+        })?;
 
         tracing::info!(
             "Created tenant: {} ({}) and added owner to tenant_users",
@@ -2706,7 +2725,11 @@ impl DatabaseProvider for PostgresDatabase {
                     updated_at,
                 })
             }
-            None => Err(anyhow::anyhow!("Tenant not found: {}", tenant_id)),
+            None => Err(DatabaseError::NotFound {
+                entity_type: "Tenant",
+                entity_id: tenant_id.to_string(),
+            }
+            .into()),
         }
     }
 
@@ -2737,7 +2760,11 @@ impl DatabaseProvider for PostgresDatabase {
                     updated_at,
                 })
             }
-            None => Err(anyhow::anyhow!("Tenant not found with slug: {}", slug)),
+            None => Err(DatabaseError::NotFound {
+                entity_type: "Tenant",
+                entity_id: slug.to_string(),
+            }
+            .into()),
         }
     }
 
@@ -2805,12 +2832,16 @@ impl DatabaseProvider for PostgresDatabase {
             )
             .as_ref()
             .try_into()
-            .map_err(|_| anyhow::anyhow!("Failed to create encryption key"))?,
+            .map_err(|_| DatabaseError::EncryptionFailed {
+                context: "Failed to create encryption key".to_string(),
+            })?,
         );
 
         let encrypted_data = encryption_manager
             .encrypt_tenant_data(credentials.tenant_id, &credentials.client_secret)
-            .map_err(|e| anyhow::anyhow!("Failed to encrypt OAuth secret: {}", e))?;
+            .map_err(|e| DatabaseError::EncryptionFailed {
+                context: format!("Failed to encrypt OAuth secret: {e}"),
+            })?;
 
         let encrypted_secret = encrypted_data.data.as_bytes().to_vec();
         let nonce = encrypted_data.metadata.key_version.to_le_bytes().to_vec();
@@ -2849,7 +2880,9 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(i32::try_from(credentials.rate_limit_per_day).unwrap_or(i32::MAX))
         .execute(&self.pool)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to store OAuth credentials: {}", e))?;
+        .map_err(|e| DatabaseError::QueryError {
+            context: format!("Failed to store OAuth credentials: {e}"),
+        })?;
 
         Ok(())
     }
@@ -2957,7 +2990,9 @@ impl DatabaseProvider for PostgresDatabase {
                     )
                     .as_ref()
                     .try_into()
-                    .map_err(|_| anyhow::anyhow!("Failed to create encryption key"))?,
+                    .map_err(|_| DatabaseError::DecryptionFailed {
+                        context: "Failed to create encryption key".to_string(),
+                    })?,
                 );
 
                 let encrypted_data = crate::security::EncryptedData {
@@ -2974,7 +3009,9 @@ impl DatabaseProvider for PostgresDatabase {
 
                 let client_secret = encryption_manager
                     .decrypt_tenant_data(tenant_id, &encrypted_data)
-                    .map_err(|e| anyhow::anyhow!("Failed to decrypt OAuth secret: {}", e))?;
+                    .map_err(|e| DatabaseError::DecryptionFailed {
+                        context: format!("Failed to decrypt OAuth secret: {e}"),
+                    })?;
 
                 Ok(Some(crate::tenant::TenantOAuthCredentials {
                     tenant_id,
@@ -3024,7 +3061,9 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(app.updated_at)
         .execute(&self.pool)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to create OAuth app: {}", e))?;
+        .map_err(|e| DatabaseError::QueryError {
+            context: format!("Failed to create OAuth app: {e}"),
+        })?;
 
         Ok(())
     }
@@ -3084,7 +3123,11 @@ impl DatabaseProvider for PostgresDatabase {
                 created_at,
                 updated_at,
             }),
-            None => Err(anyhow::anyhow!("OAuth app not found: {}", client_id)),
+            None => Err(DatabaseError::NotFound {
+                entity_type: "OAuth app",
+                entity_id: client_id.to_string(),
+            }
+            .into()),
         }
     }
 
@@ -3184,7 +3227,9 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(expires_at)
         .execute(&self.pool)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to store authorization code: {}", e))?;
+        .map_err(|e| DatabaseError::QueryError {
+            context: format!("Failed to store authorization code: {e}"),
+        })?;
 
         Ok(())
     }
@@ -3226,10 +3271,11 @@ impl DatabaseProvider for PostgresDatabase {
                     is_used: false, // Will be marked as used when deleted
                 })
             }
-            None => Err(anyhow::anyhow!(
-                "Authorization code not found or expired: {}",
-                code
-            )),
+            None => Err(DatabaseError::NotFound {
+                entity_type: "Authorization code",
+                entity_id: code.to_string(),
+            }
+            .into()),
         }
     }
 
@@ -3244,7 +3290,9 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(code)
         .execute(&self.pool)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to delete authorization code: {}", e))?;
+        .map_err(|e| DatabaseError::QueryError {
+            context: format!("Failed to delete authorization code: {e}"),
+        })?;
 
         if result.rows_affected() == 0 {
             tracing::warn!("Authorization code not found for deletion: {}", code);
@@ -3606,15 +3654,19 @@ impl DatabaseProvider for PostgresDatabase {
         if tenant_id.is_some() {
             bind_count += 1;
             if write!(query, " AND tenant_id = ${bind_count}").is_err() {
-                return Err(anyhow::anyhow!("Failed to write tenant_id clause to query"));
+                return Err(DatabaseError::QueryError {
+                    context: "Failed to write tenant_id clause to query".to_string(),
+                }
+                .into());
             }
         }
         if event_type.is_some() {
             bind_count += 1;
             if write!(query, " AND event_type = ${bind_count}").is_err() {
-                return Err(anyhow::anyhow!(
-                    "Failed to write event_type clause to query"
-                ));
+                return Err(DatabaseError::QueryError {
+                    context: "Failed to write event_type clause to query".to_string(),
+                }
+                .into());
             }
         }
 
@@ -3623,7 +3675,10 @@ impl DatabaseProvider for PostgresDatabase {
         if limit.is_some() {
             bind_count += 1;
             if write!(query, " LIMIT ${bind_count}").is_err() {
-                return Err(anyhow::anyhow!("Failed to write LIMIT clause to query"));
+                return Err(DatabaseError::QueryError {
+                    context: "Failed to write LIMIT clause to query".to_string(),
+                }
+                .into());
             }
         }
 
@@ -4093,7 +4148,13 @@ impl DatabaseProvider for PostgresDatabase {
         // Generate new secret
         let secret_value = match secret_type {
             "admin_jwt_secret" => crate::admin::jwt::AdminJwtManager::generate_jwt_secret(),
-            _ => return Err(anyhow::anyhow!("Unknown secret type: {}", secret_type)),
+            _ => {
+                return Err(DatabaseError::InvalidData {
+                    field: "secret_type".to_string(),
+                    reason: format!("Unknown secret type: {secret_type}"),
+                }
+                .into())
+            }
         };
 
         // Store in database

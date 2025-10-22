@@ -7,6 +7,7 @@
 use super::{notifications::NotificationStream, protocol::McpProtocolStream};
 use crate::{
     database::oauth_notifications::OAuthNotification,
+    errors::AppError,
     mcp::{protocol::McpRequest, resources::ServerResources},
 };
 use anyhow::Result;
@@ -189,10 +190,7 @@ impl SseManager {
 
             Ok(())
         } else {
-            Err(anyhow::anyhow!(
-                "No notification stream found for user: {}",
-                user_id
-            ))
+            Err(AppError::not_found(format!("Notification stream for user {user_id}")).into())
         }
     }
 
@@ -236,16 +234,13 @@ impl SseManager {
                 );
                 Ok(())
             } else {
-                Err(anyhow::anyhow!(
-                    "No active protocol streams found for user: {}",
-                    user_id
-                ))
+                Err(
+                    AppError::not_found(format!("Active protocol streams for user {user_id}"))
+                        .into(),
+                )
             }
         } else {
-            Err(anyhow::anyhow!(
-                "No protocol streams registered for user: {}",
-                user_id
-            ))
+            Err(AppError::not_found(format!("Protocol streams for user {user_id}")).into())
         }
     }
 
@@ -273,10 +268,7 @@ impl SseManager {
 
             Ok(())
         } else {
-            Err(anyhow::anyhow!(
-                "No protocol stream found for session: {}",
-                session_id
-            ))
+            Err(AppError::not_found(format!("Protocol stream for session {session_id}")).into())
         }
     }
 

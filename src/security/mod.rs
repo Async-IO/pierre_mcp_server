@@ -13,6 +13,7 @@
 //! - Security audit logging
 
 use crate::database_plugins::DatabaseProvider;
+use crate::errors::AppError;
 use anyhow::{Context, Result};
 use ring::{
     aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM},
@@ -210,7 +211,7 @@ impl TenantEncryptionManager {
         // Check cache first
         {
             let cache = self.derived_keys_cache.read().map_err(|_| {
-                anyhow::anyhow!("Security cache lock poisoned - key derivation unavailable")
+                AppError::internal("Security cache lock poisoned - key derivation unavailable")
             })?;
             if let Some(cached_key) = cache.get(&tenant_id) {
                 return Ok(*cached_key);
@@ -234,7 +235,7 @@ impl TenantEncryptionManager {
         // Cache the derived key
         {
             let mut cache = self.derived_keys_cache.write().map_err(|_| {
-                anyhow::anyhow!("Security cache lock poisoned - cannot cache derived key")
+                AppError::internal("Security cache lock poisoned - cannot cache derived key")
             })?;
             cache.insert(tenant_id, derived_key);
         }
@@ -251,7 +252,7 @@ impl TenantEncryptionManager {
         Ok(*self
             .current_version
             .read()
-            .map_err(|_| anyhow::anyhow!("Version lock poisoned"))?)
+            .map_err(|_| AppError::internal("Version lock poisoned"))?)
     }
 
     /// Set current key version
@@ -263,7 +264,7 @@ impl TenantEncryptionManager {
         *self
             .current_version
             .write()
-            .map_err(|_| anyhow::anyhow!("Version lock poisoned"))? = version;
+            .map_err(|_| AppError::internal("Version lock poisoned"))? = version;
         Ok(())
     }
 
@@ -289,7 +290,7 @@ impl TenantEncryptionManager {
     ) -> Result<String> {
         // Verify tenant ID matches
         if encrypted_data.metadata.tenant_id != Some(tenant_id) {
-            return Err(anyhow::anyhow!("Tenant ID mismatch in encrypted data"));
+            return Err(AppError::invalid_input("Tenant ID mismatch in encrypted data").into());
         }
 
         let derived_key = self.derive_tenant_key(tenant_id)?;
@@ -312,9 +313,10 @@ impl TenantEncryptionManager {
     /// Returns an error if decryption fails
     pub fn decrypt_global_data(&self, encrypted_data: &EncryptedData) -> Result<String> {
         if encrypted_data.metadata.tenant_id.is_some() {
-            return Err(anyhow::anyhow!(
-                "Expected global data, but found tenant-specific data"
-            ));
+            return Err(AppError::invalid_input(
+                "Expected global data, but found tenant-specific data",
+            )
+            .into());
         }
 
         Self::decrypt_with_key(&self.master_key, &encrypted_data.data)
@@ -375,7 +377,7 @@ impl TenantEncryptionManager {
             .context("Failed to decode base64 encrypted data")?;
 
         if combined.len() < 12 {
-            return Err(anyhow::anyhow!("Invalid encrypted data: too short"));
+            return Err(AppError::invalid_input("Invalid encrypted data: too short").into());
         }
 
         // Split nonce and ciphertext
@@ -447,7 +449,7 @@ impl TenantEncryptionManager {
         // Clear cached key to force regeneration with new parameters
         {
             let mut cache = self.derived_keys_cache.write().map_err(|_| {
-                anyhow::anyhow!("Security cache lock poisoned - cannot rotate tenant key")
+                AppError::internal("Security cache lock poisoned - cannot rotate tenant key")
             })?;
             cache.remove(&tenant_id);
         }
@@ -476,7 +478,7 @@ impl TenantEncryptionManager {
     pub fn clear_key_cache(&self) -> Result<()> {
         self.derived_keys_cache
             .write()
-            .map_err(|_| anyhow::anyhow!("Security cache lock poisoned - cannot clear cache"))?
+            .map_err(|_| AppError::internal("Security cache lock poisoned - cannot clear cache"))?
             .clear();
         tracing::info!("Cleared encryption key cache");
         Ok(())
@@ -491,7 +493,7 @@ impl TenantEncryptionManager {
         let cache = self
             .derived_keys_cache
             .read()
-            .map_err(|_| anyhow::anyhow!("Security cache lock poisoned - cannot get stats"))?;
+            .map_err(|_| AppError::internal("Security cache lock poisoned - cannot get stats"))?;
         Ok(EncryptionStats {
             cached_tenant_keys: cache.len(),
             master_key_algorithm: "AES-256-GCM".to_string(),

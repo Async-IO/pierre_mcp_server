@@ -7,6 +7,7 @@
 use super::resources::ServerResources;
 use crate::auth::AuthManager;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::errors::AppError;
 use crate::tenant::{TenantContext, TenantRole};
 use anyhow::Result;
 use std::sync::Arc;
@@ -37,7 +38,7 @@ impl TenantIsolation {
 
         // Parse user ID from claims
         let user_id = crate::utils::uuid::parse_uuid(&auth_result.sub)
-            .map_err(|_| anyhow::anyhow!("Invalid user ID in token"))?;
+            .map_err(|_| AppError::auth_invalid("Invalid user ID in token"))?;
 
         let user = self.get_user_with_tenant(user_id).await?;
         let tenant_id = self.extract_tenant_id(&user)?;
@@ -61,8 +62,8 @@ impl TenantIsolation {
             .database
             .get_user(user_id)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to get user: {e}"))?
-            .ok_or_else(|| anyhow::anyhow!("User not found"))
+            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
+            .ok_or_else(|| AppError::not_found("User").into())
     }
 
     /// Extract tenant ID from user
@@ -72,9 +73,13 @@ impl TenantIsolation {
     pub fn extract_tenant_id(&self, user: &crate::models::User) -> Result<Uuid> {
         user.tenant_id
             .clone() // Safe: Option<String> ownership for UUID parsing
-            .ok_or_else(|| anyhow::anyhow!("User does not belong to any tenant"))?
+            .ok_or_else(|| -> anyhow::Error {
+                AppError::auth_invalid("User does not belong to any tenant").into()
+            })?
             .parse()
-            .map_err(|_| anyhow::anyhow!("Invalid tenant ID format"))
+            .map_err(|_| -> anyhow::Error {
+                AppError::invalid_input("Invalid tenant ID format").into()
+            })
     }
 
     /// Get tenant name by ID
@@ -104,9 +109,10 @@ impl TenantIsolation {
         let user = self.get_user_with_tenant(user_id).await?;
 
         if user.tenant_id != Some(tenant_id.to_string()) {
-            return Err(anyhow::anyhow!(
+            return Err(AppError::auth_invalid(format!(
                 "User {user_id} does not belong to tenant {tenant_id}"
-            ));
+            ))
+            .into());
         }
 
         // Query database for user's actual role in the tenant
@@ -145,10 +151,10 @@ impl TenantIsolation {
         if let Some(tenant_id_header) = headers.get("x-tenant-id") {
             let tenant_id_str = tenant_id_header
                 .to_str()
-                .map_err(|_| anyhow::anyhow!("Invalid tenant ID header format"))?;
+                .map_err(|_| AppError::invalid_input("Invalid tenant ID header format"))?;
 
             let tenant_id = Uuid::parse_str(tenant_id_str)
-                .map_err(|_| anyhow::anyhow!("Invalid tenant ID format"))?;
+                .map_err(|_| AppError::invalid_input("Invalid tenant ID format"))?;
 
             let tenant_name = self.get_tenant_name(tenant_id).await;
 
@@ -237,23 +243,25 @@ impl TenantIsolation {
                 if matches!(user_role, TenantRole::Owner | TenantRole::Member) {
                     Ok(())
                 } else {
-                    Err(anyhow::anyhow!(
+                    Err(AppError::auth_invalid(format!(
                         "User {user_id} does not have permission to {action} for tenant {tenant_id}"
                     ))
+                    .into())
                 }
             }
             "modify_tenant_settings" => {
                 if matches!(user_role, TenantRole::Owner) {
                     Ok(())
                 } else {
-                    Err(anyhow::anyhow!(
+                    Err(AppError::auth_invalid(format!(
                         "User {user_id} does not have owner permission for tenant {tenant_id}"
                     ))
+                    .into())
                 }
             }
             _ => {
                 warn!("Unknown action for validation: {}", action);
-                Err(anyhow::anyhow!("Unknown action: {action}"))
+                Err(AppError::invalid_input(format!("Unknown action: {action}")).into())
             }
         }
     }
@@ -289,11 +297,11 @@ impl TenantResources {
     ) -> Result<()> {
         // Ensure the credential belongs to this tenant
         if credential.tenant_id != self.tenant_id {
-            return Err(anyhow::anyhow!(
+            return Err(AppError::invalid_input(format!(
                 "Credential tenant ID mismatch: expected {}, got {}",
-                self.tenant_id,
-                credential.tenant_id
-            ));
+                self.tenant_id, credential.tenant_id
+            ))
+            .into());
         }
 
         self.database
@@ -362,21 +370,21 @@ pub async fn validate_jwt_token_for_mcp(
 
     // Parse user ID from claims
     let user_id = crate::utils::uuid::parse_uuid(&auth_result.sub)
-        .map_err(|_| anyhow::anyhow!("Invalid user ID in token"))?;
+        .map_err(|_| AppError::auth_invalid("Invalid user ID in token"))?;
 
     // Get user and tenant information
     let user = database
         .get_user(user_id)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to get user: {}", e))?
-        .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+        .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
+        .ok_or_else(|| AppError::not_found("User"))?;
 
     let tenant_id = user
         .tenant_id
         .clone() // Safe: Option<String> ownership for UUID parsing
-        .ok_or_else(|| anyhow::anyhow!("User does not belong to any tenant"))?
+        .ok_or_else(|| AppError::auth_invalid("User does not belong to any tenant"))?
         .parse()
-        .map_err(|_| anyhow::anyhow!("Invalid tenant ID format"))?;
+        .map_err(|_| AppError::invalid_input("Invalid tenant ID format"))?;
 
     let tenant_name = match database.get_tenant_by_id(tenant_id).await {
         Ok(tenant) => tenant.name,
@@ -415,16 +423,15 @@ pub async fn extract_tenant_context_internal(
         let user = database
             .get_user(user_id)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to get user: {e}"))?
-            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
+            .ok_or_else(|| AppError::not_found("User"))?;
 
         if let Some(tenant_id_str) = user.tenant_id {
             // Try parsing as UUID first, then try as slug
             if let Ok(tenant_uuid) = tenant_id_str.parse::<Uuid>() {
-                let tenant = database
-                    .get_tenant_by_id(tenant_uuid)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Failed to get tenant by UUID: {e}"))?;
+                let tenant = database.get_tenant_by_id(tenant_uuid).await.map_err(|e| {
+                    AppError::database(format!("Failed to get tenant by UUID: {e}"))
+                })?;
                 return Ok(Some(TenantContext {
                     tenant_id: tenant_uuid,
                     tenant_name: tenant.name,
@@ -436,7 +443,7 @@ pub async fn extract_tenant_context_internal(
             let tenant = database
                 .get_tenant_by_slug(&tenant_id_str)
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to get tenant by slug: {e}"))?;
+                .map_err(|e| AppError::database(format!("Failed to get tenant by slug: {e}")))?;
             return Ok(Some(TenantContext {
                 tenant_id: tenant.id,
                 tenant_name: tenant.name,

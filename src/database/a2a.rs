@@ -10,6 +10,7 @@ use crate::a2a::{
     client::A2ASession,
     protocol::{A2ATask, TaskStatus},
 };
+use crate::errors::AppError;
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -531,7 +532,7 @@ impl Database {
             .await?;
 
         if result.rows_affected() == 0 {
-            return Err(anyhow::anyhow!("A2A client not found: {client_id}"));
+            return Err(AppError::not_found(format!("A2A client: {client_id}")).into());
         }
 
         Ok(())
@@ -874,14 +875,14 @@ impl Database {
         if limit.is_some() {
             bind_count += 1;
             if write!(query, " LIMIT ${bind_count}").is_err() {
-                return Err(anyhow::anyhow!("Failed to write LIMIT clause to query"));
+                return Err(AppError::internal("Failed to write LIMIT clause to query").into());
             }
         }
 
         if offset.is_some() {
             bind_count += 1;
             if write!(query, " OFFSET ${bind_count}").is_err() {
-                return Err(anyhow::anyhow!("Failed to write OFFSET clause to query"));
+                return Err(AppError::internal("Failed to write OFFSET clause to query").into());
             }
         }
 

@@ -214,7 +214,7 @@ async fn test_api_key_rate_limiting() {
     let auth_result = auth_middleware.authenticate_request(Some(&full_key)).await;
     assert!(auth_result.is_err());
     let error_msg = auth_result.unwrap_err().to_string();
-    assert!(error_msg.contains("Rate limit reached for API key"));
+    assert!(error_msg.contains("Rate limit exceeded"));
 }
 
 #[tokio::test]

@@ -30,6 +30,7 @@
 //! - `SportType`: Enumeration of supported activity types
 
 use crate::constants::tiers;
+use crate::errors::AppError;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -191,7 +192,7 @@ impl std::str::FromStr for UserTier {
             tiers::STARTER => Ok(Self::Starter),
             tiers::PROFESSIONAL => Ok(Self::Professional),
             tiers::ENTERPRISE => Ok(Self::Enterprise),
-            _ => Err(anyhow::anyhow!("Invalid user tier: {s}")),
+            _ => Err(AppError::invalid_input(format!("Invalid user tier: {s}")).into()),
         }
     }
 }
@@ -1411,7 +1412,7 @@ impl EncryptedToken {
         // Decode combined nonce
         let nonce_data = general_purpose::STANDARD.decode(&self.nonce)?;
         if nonce_data.len() != 24 {
-            return Err(anyhow::anyhow!("Invalid nonce length"));
+            return Err(AppError::invalid_input("Invalid nonce length").into());
         }
 
         let access_nonce = Nonce::try_assume_unique_for_key(&nonce_data[0..12])?;

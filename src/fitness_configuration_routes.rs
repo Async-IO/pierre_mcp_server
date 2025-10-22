@@ -7,6 +7,7 @@
 use crate::auth::AuthResult;
 use crate::config::fitness_config::FitnessConfig;
 use crate::database_plugins::DatabaseProvider;
+use crate::errors::AppError;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -112,13 +113,15 @@ impl FitnessConfigurationRoutes {
             .database
             .get_user(user_id)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("User not found: {user_id}"))?;
+            .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
 
         let tenant_id = user
             .tenant_id
             .as_ref()
             .and_then(|id| Uuid::parse_str(id).ok())
-            .ok_or_else(|| anyhow::anyhow!("User has no valid tenant: {user_id}"))?;
+            .ok_or_else(|| {
+                AppError::invalid_input(format!("User has no valid tenant: {user_id}"))
+            })?;
 
         Ok(tenant_id)
     }
@@ -212,7 +215,7 @@ impl FitnessConfigurationRoutes {
                     .get_tenant_fitness_config(&tenant_id.to_string(), configuration_name)
                     .await?
                     .ok_or_else(|| {
-                        anyhow::anyhow!("Configuration not found: {configuration_name}")
+                        AppError::not_found(format!("Configuration {configuration_name}"))
                     })?
             }
         };
@@ -293,10 +296,10 @@ impl FitnessConfigurationRoutes {
             .database
             .get_user(user_id)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+            .ok_or_else(|| AppError::not_found("User"))?;
 
         if !user.is_admin {
-            return Err(anyhow::anyhow!("Admin access required"));
+            return Err(AppError::auth_invalid("Admin access required").into());
         }
 
         let configuration_name = request
@@ -347,9 +350,7 @@ impl FitnessConfigurationRoutes {
             .await?;
 
         if !deleted {
-            return Err(anyhow::anyhow!(
-                "Configuration not found: {configuration_name}"
-            ));
+            return Err(AppError::not_found(format!("Configuration {configuration_name}")).into());
         }
 
         Ok(FitnessConfigurationSaveResponse {
@@ -382,10 +383,10 @@ impl FitnessConfigurationRoutes {
             .database
             .get_user(user_id)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+            .ok_or_else(|| AppError::not_found("User"))?;
 
         if !user.is_admin {
-            return Err(anyhow::anyhow!("Admin access required"));
+            return Err(AppError::auth_invalid("Admin access required").into());
         }
 
         let deleted = self
@@ -395,9 +396,7 @@ impl FitnessConfigurationRoutes {
             .await?;
 
         if !deleted {
-            return Err(anyhow::anyhow!(
-                "Configuration not found: {configuration_name}"
-            ));
+            return Err(AppError::not_found(format!("Configuration {configuration_name}")).into());
         }
 
         Ok(FitnessConfigurationSaveResponse {

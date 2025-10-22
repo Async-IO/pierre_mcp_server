@@ -18,6 +18,7 @@ pub mod test_utils;
 pub use a2a::{A2AUsage, A2AUsageStats};
 pub use errors::{DatabaseError, DatabaseResult};
 
+use crate::errors::AppError;
 use anyhow::Result;
 use sqlx::{Pool, Sqlite, SqlitePool};
 
@@ -572,7 +573,7 @@ impl Database {
         let combined = general_purpose::STANDARD.decode(encrypted_data)?;
 
         if combined.len() < 12 {
-            return Err(anyhow::anyhow!("Invalid encrypted data: too short"));
+            return Err(AppError::internal("Invalid encrypted data: too short").into());
         }
 
         // Extract nonce and encrypted data
@@ -587,8 +588,9 @@ impl Database {
         let mut decrypted_data = encrypted_bytes.to_vec();
         let decrypted = key.open_in_place(nonce, Aad::empty(), &mut decrypted_data)?;
 
-        String::from_utf8(decrypted.to_vec())
-            .map_err(|e| anyhow::anyhow!("Failed to convert decrypted data to string: {e}"))
+        String::from_utf8(decrypted.to_vec()).map_err(|e| {
+            AppError::internal(format!("Failed to convert decrypted data to string: {e}")).into()
+        })
     }
 
     /// Get user role for a specific tenant

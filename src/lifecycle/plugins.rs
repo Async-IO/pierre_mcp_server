@@ -18,6 +18,7 @@ use crate::{
     auth::AuthManager,
     cache::factory::Cache,
     database_plugins::{factory::Database, DatabaseProvider},
+    errors::AppError,
 };
 use anyhow::Result;
 use async_trait::async_trait;
@@ -52,7 +53,7 @@ impl DatabasePlugin {
     pub fn get_database(&self) -> Result<&Database> {
         self.database
             .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Database not initialized"))
+            .ok_or_else(|| AppError::internal("Database not initialized").into())
     }
 
     /// Take ownership of database instance
@@ -62,7 +63,7 @@ impl DatabasePlugin {
     pub fn take_database(mut self) -> Result<Database> {
         self.database
             .take()
-            .ok_or_else(|| anyhow::anyhow!("Database not initialized"))
+            .ok_or_else(|| AppError::internal("Database not initialized").into())
     }
 }
 
@@ -165,7 +166,7 @@ impl CachePlugin {
     pub fn get_cache(&self) -> Result<&Cache> {
         self.cache
             .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Cache not initialized"))
+            .ok_or_else(|| AppError::internal("Cache not initialized").into())
     }
 
     /// Take ownership of cache instance
@@ -175,7 +176,7 @@ impl CachePlugin {
     pub fn take_cache(mut self) -> Result<Cache> {
         self.cache
             .take()
-            .ok_or_else(|| anyhow::anyhow!("Cache not initialized"))
+            .ok_or_else(|| AppError::internal("Cache not initialized").into())
     }
 }
 
@@ -267,7 +268,7 @@ impl AuthPlugin {
     pub fn get_auth_manager(&self) -> Result<&AuthManager> {
         self.auth_manager
             .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Auth manager not initialized"))
+            .ok_or_else(|| AppError::internal("Auth manager not initialized").into())
     }
 
     /// Take ownership of auth manager instance
@@ -277,7 +278,7 @@ impl AuthPlugin {
     pub fn take_auth_manager(mut self) -> Result<AuthManager> {
         self.auth_manager
             .take()
-            .ok_or_else(|| anyhow::anyhow!("Auth manager not initialized"))
+            .ok_or_else(|| AppError::internal("Auth manager not initialized").into())
     }
 }
 

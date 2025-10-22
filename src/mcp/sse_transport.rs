@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use super::{protocol::McpRequest, resources::ServerResources, tool_handlers::ToolHandlers};
+use crate::errors::AppError;
 use crate::mcp::protocol::McpResponse;
 use anyhow::Result;
 use futures_util::{stream::Stream, StreamExt};
@@ -66,7 +67,7 @@ impl McpSseConnection {
         // Send message through SSE stream
         self.sender
             .send(message)
-            .map_err(|_| anyhow::anyhow!("Failed to send SSE message"))?;
+            .map_err(|_| AppError::internal("Failed to send SSE message"))?;
 
         Ok(())
     }
@@ -83,7 +84,7 @@ impl McpSseConnection {
 
         self.sender
             .send(message)
-            .map_err(|_| anyhow::anyhow!("Failed to send connection event"))?;
+            .map_err(|_| AppError::internal("Failed to send connection event"))?;
 
         Ok(())
     }
@@ -103,7 +104,7 @@ impl McpSseConnection {
 
         self.sender
             .send(message)
-            .map_err(|_| anyhow::anyhow!("Failed to send error event"))?;
+            .map_err(|_| AppError::internal("Failed to send error event"))?;
 
         Ok(())
     }
@@ -144,7 +145,7 @@ pub async fn handle_mcp_sse_request(
     // Parse MCP request from request data
     let request_json: Value = match request_data {
         Some(data) => serde_json::from_str(&data)?,
-        None => return Err(anyhow::anyhow!("No request data provided")),
+        None => return Err(AppError::invalid_input("No request data provided").into()),
     };
 
     let mut request: McpRequest = serde_json::from_value(request_json)?;

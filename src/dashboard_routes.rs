@@ -11,6 +11,7 @@
 
 use crate::auth::AuthResult;
 use crate::database_plugins::DatabaseProvider;
+use crate::errors::AppError;
 use crate::mcp::resources::ServerResources;
 use anyhow::Result;
 use chrono::{Datelike, Duration, TimeZone, Utc};
@@ -130,7 +131,7 @@ impl DashboardRoutes {
 
         // Validate user_id is not nil
         if user_id.is_nil() {
-            return Err(anyhow::anyhow!("Invalid user ID"));
+            return Err(AppError::invalid_input("Invalid user ID").into());
         }
 
         tracing::info!(
@@ -148,14 +149,14 @@ impl DashboardRoutes {
         let today_start = Utc::now()
             .date_naive()
             .and_hms_opt(0, 0, 0)
-            .ok_or_else(|| anyhow::anyhow!("Failed to create today start time"))?
+            .ok_or_else(|| AppError::internal("Failed to create today start time"))?
             .and_utc();
         let month_start = Utc::now()
             .date_naive()
             .with_day(1)
-            .ok_or_else(|| anyhow::anyhow!("Failed to set month start day"))?
+            .ok_or_else(|| AppError::internal("Failed to set month start day"))?
             .and_hms_opt(0, 0, 0)
-            .ok_or_else(|| anyhow::anyhow!("Failed to create month start time"))?
+            .ok_or_else(|| AppError::internal("Failed to create month start time"))?
             .and_utc();
 
         // Get usage statistics
@@ -237,7 +238,7 @@ impl DashboardRoutes {
 
         // Validate user_id is not nil
         if user_id.is_nil() {
-            return Err(anyhow::anyhow!("Invalid user ID"));
+            return Err(AppError::invalid_input("Invalid user ID").into());
         }
 
         tracing::info!(
@@ -343,7 +344,7 @@ impl DashboardRoutes {
 
         // Validate user_id is not nil
         if user_id.is_nil() {
-            return Err(anyhow::anyhow!("Invalid user ID"));
+            return Err(AppError::invalid_input("Invalid user ID").into());
         }
 
         tracing::info!(
@@ -389,7 +390,7 @@ impl DashboardRoutes {
             };
 
             let reset_date = next_month_start.single().ok_or_else(|| {
-                anyhow::anyhow!("Failed to create valid date for next month start")
+                AppError::internal("Failed to create valid date for next month start")
             })?;
 
             overview.push(RateLimitOverview {
@@ -531,7 +532,7 @@ impl DashboardRoutes {
 
         // Validate user_id is not nil
         if user_id.is_nil() {
-            return Err(anyhow::anyhow!("Invalid user ID"));
+            return Err(AppError::invalid_input("Invalid user ID").into());
         }
 
         tracing::info!(
@@ -545,7 +546,7 @@ impl DashboardRoutes {
         // If specific API key is requested, verify user owns it
         if let Some(key_id) = api_key_id {
             if !api_keys.iter().any(|k| k.id == key_id) {
-                return Err(anyhow::anyhow!("API key not found or access denied"));
+                return Err(AppError::auth_invalid("API key not found or access denied").into());
             }
         }
 
@@ -583,7 +584,7 @@ impl DashboardRoutes {
 
         // Validate user_id is not nil
         if user_id.is_nil() {
-            return Err(anyhow::anyhow!("Invalid user ID"));
+            return Err(AppError::invalid_input("Invalid user ID").into());
         }
 
         tracing::info!(
@@ -597,7 +598,7 @@ impl DashboardRoutes {
         // If specific API key is requested, verify user owns it
         if let Some(key_id) = api_key_id {
             if !api_keys.iter().any(|k| k.id == key_id) {
-                return Err(anyhow::anyhow!("API key not found or access denied"));
+                return Err(AppError::auth_invalid("API key not found or access denied").into());
             }
         }
 
@@ -680,7 +681,7 @@ impl DashboardRoutes {
 
         // Validate user_id is not nil
         if user_id.is_nil() {
-            return Err(anyhow::anyhow!("Invalid user ID"));
+            return Err(AppError::invalid_input("Invalid user ID").into());
         }
 
         tracing::info!(

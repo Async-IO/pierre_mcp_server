@@ -7,6 +7,7 @@
 use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
 use super::utils::{self, RetryConfig};
 use crate::constants::{api_provider_limits, oauth_providers};
+use crate::errors::AppError;
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
 use crate::pagination::{CursorPage, PaginationParams};
 use crate::utils::http_client::shared_client;
@@ -320,7 +321,7 @@ impl FitnessProvider for GarminProvider {
                     Utc::now() + chrono::Duration::minutes(5) > expires_at
                 })
             } else {
-                return Err(anyhow::anyhow!("No credentials available"));
+                return Err(AppError::internal("No credentials available").into());
             };
 
             let credentials = guard

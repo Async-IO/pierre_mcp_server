@@ -12,6 +12,7 @@ use std::time::Duration;
 use tracing::warn;
 
 use super::core::OAuth2Credentials;
+use super::errors::ProviderError;
 
 /// Configuration for retry behavior
 #[derive(Debug, Clone)]
@@ -126,9 +127,13 @@ where
                 );
                 let minutes = retry_config.estimated_block_duration_secs / 60;
                 let status_code = status.as_u16();
-                return Err(anyhow::anyhow!(
-                    "{provider_name} API rate limit exceeded ({status_code}). Max retries reached. Please wait approximately {minutes} minutes before retrying."
-                ));
+                return Err(ProviderError::RateLimitExceeded {
+                    provider: provider_name.to_string(),
+                    retry_after_secs: retry_config.estimated_block_duration_secs,
+                    limit_type: format!(
+                        "API rate limit ({status_code}) - max retries reached - wait ~{minutes} minutes"
+                    ),
+                }.into());
             }
 
             let backoff_ms = retry_config.initial_backoff_ms * 2_u64.pow(attempt - 1);
@@ -145,9 +150,13 @@ where
         if !status.is_success() {
             let text = response.text().await.unwrap_or_default();
             tracing::error!("{provider_name} API request failed - status: {status}, body: {text}");
-            return Err(anyhow::anyhow!(
-                "{provider_name} API request failed with status {status}: {text}"
-            ));
+            return Err(ProviderError::ApiError {
+                provider: provider_name.to_string(),
+                status_code: status.as_u16(),
+                message: format!("{provider_name} API request failed with status {status}: {text}"),
+                retryable: false,
+            }
+            .into());
         }
 
         tracing::info!("Parsing JSON response from {provider_name} API");
@@ -210,9 +219,11 @@ pub async fn refresh_oauth_token(
 
     if !response.status().is_success() {
         let status = response.status();
-        return Err(anyhow::anyhow!(
-            "{provider_name} token refresh failed with status: {status}"
-        ));
+        return Err(ProviderError::AuthenticationFailed {
+            provider: provider_name.to_string(),
+            reason: format!("token refresh failed with status: {status}"),
+        }
+        .into());
     }
 
     let token_response: TokenRefreshResponse = response

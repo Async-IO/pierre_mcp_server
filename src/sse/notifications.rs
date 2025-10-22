@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::database::oauth_notifications::OAuthNotification;
+use crate::errors::AppError;
 use anyhow::Result;
 use serde_json::json;
 use std::sync::Arc;
@@ -65,11 +66,11 @@ impl NotificationStream {
 
             sender
                 .send(sse_message)
-                .map_err(|e| anyhow::anyhow!("Failed to send notification: {}", e))?;
+                .map_err(|e| AppError::internal(format!("Failed to send notification: {e}")))?;
 
             Ok(())
         } else {
-            Err(anyhow::anyhow!("No active sender for notification stream"))
+            Err(AppError::internal("No active sender for notification stream").into())
         }
     }
 

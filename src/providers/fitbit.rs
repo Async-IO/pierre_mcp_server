@@ -17,6 +17,7 @@
 //! - [OAuth2 Authorization](https://dev.fitbit.com/build/reference/web-api/developer-guide/authorization/)
 
 use super::{AuthData, FitnessProvider};
+use crate::errors::AppError;
 use crate::models::{Activity, Athlete, HeartRateZone, PersonalRecord, SportType, Stats};
 use crate::oauth2_client::PkceParams;
 use crate::pagination::{CursorPage, PaginationParams};
@@ -301,7 +302,7 @@ impl FitnessProvider for FitbitProvider {
                 self.refresh_token = refresh_token;
                 Ok(())
             }
-            AuthData::ApiKey(_) => Err(anyhow::anyhow!("Fitbit requires OAuth2 authentication")),
+            AuthData::ApiKey(_) => Err(AppError::invalid_input("Fitbit requires OAuth2 authentication").into()),
         }
     }
 

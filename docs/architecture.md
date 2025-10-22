@@ -74,6 +74,86 @@ pierre is a multi-protocol fitness data server that connects AI assistants to st
 - api key management
 - rate limiting per tenant
 
+## error handling
+
+pierre uses structured error types for precise error handling and propagation.
+
+### error type hierarchy
+
+```
+AppError (src/errors.rs)
+├── Database(DatabaseError)
+├── Provider(ProviderError)
+├── Authentication
+├── Authorization
+├── Validation
+└── Internal
+```
+
+### error types
+
+**DatabaseError** (`src/database/errors.rs`):
+- `NotFound`: entity not found (user, token, oauth client)
+- `QueryFailed`: database query execution failure
+- `ConstraintViolation`: unique constraint or foreign key violations
+- `ConnectionFailed`: database connection issues
+- `TransactionFailed`: transaction commit/rollback errors
+
+**ProviderError** (`src/providers/errors.rs`):
+- `ApiError`: fitness provider api errors (status code + message)
+- `AuthenticationFailed`: oauth token invalid or expired
+- `RateLimitExceeded`: provider rate limit hit
+- `NetworkError`: network connectivity issues
+- `Unavailable`: provider temporarily unavailable
+
+**AppError** (`src/errors.rs`):
+- application-level errors with error codes
+- http status code mapping
+- structured error responses with context
+
+### error propagation
+
+all fallible operations return `Result<T, E>` types:
+```rust
+pub async fn get_user(db: &Database, user_id: &str) -> Result<User, DatabaseError>
+pub async fn fetch_activities(provider: &Strava) -> Result<Vec<Activity>, ProviderError>
+pub async fn process_request(req: Request) -> Result<Response, AppError>
+```
+
+errors propagate using `?` operator and convert automatically:
+```rust
+// DatabaseError converts to AppError
+let user = db.get_user(user_id).await?;
+
+// ProviderError converts to AppError
+let activities = provider.fetch_activities().await?;
+```
+
+### error responses
+
+structured json error responses:
+```json
+{
+  "error": {
+    "code": "database_not_found",
+    "message": "User not found: user-123",
+    "details": {
+      "entity_type": "user",
+      "entity_id": "user-123"
+    }
+  }
+}
+```
+
+http status mapping:
+- `DatabaseError::NotFound` → 404
+- `ProviderError::ApiError` → 502/503
+- `AppError::Validation` → 400
+- `AppError::Authentication` → 401
+- `AppError::Authorization` → 403
+
+implementation: `src/errors.rs`, `src/database/errors.rs`, `src/providers/errors.rs`
+
 ## request flow
 
 ```
@@ -158,6 +238,10 @@ src/
    - master key: encrypts tenant keys
    - tenant keys: encrypt user tokens
 5. **rate limiting**: token bucket per tenant
+6. **atomic operations**: toctou prevention
+   - refresh token consumption: atomic check-and-revoke
+   - prevents race conditions in token exchange
+   - database-level atomicity guarantees
 
 ## scalability
 

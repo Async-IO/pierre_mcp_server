@@ -16,6 +16,7 @@ use crate::{
     },
     auth::AuthResult,
     database_plugins::DatabaseProvider,
+    errors::AppError,
     mcp::resources::ServerResources,
 };
 
@@ -232,7 +233,7 @@ impl ApiKeyRoutes {
         // Verify the API key belongs to the user
         let user_keys = self.resources.database.get_user_api_keys(user_id).await?;
         if !user_keys.iter().any(|key| key.id == api_key_id) {
-            return Err(anyhow::anyhow!("API key not found or access denied"));
+            return Err(AppError::not_found("API key not found or access denied").into());
         }
 
         let stats = self
@@ -266,7 +267,7 @@ impl ApiKeyRoutes {
         let has_trial_key = existing_keys.iter().any(|k| k.tier == ApiKeyTier::Trial);
 
         if has_trial_key {
-            return Err(anyhow::anyhow!("User already has a trial API key"));
+            return Err(AppError::invalid_input("User already has a trial API key").into());
         }
 
         // Create the trial key

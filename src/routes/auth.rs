@@ -181,7 +181,7 @@ impl AuthService {
             .database()
             .get_user_by_email_required(&request.email)
             .await
-            .map_err(|_| anyhow::anyhow!("Invalid email or password"))?;
+            .map_err(|_| AppError::auth_invalid("Invalid email or password"))?;
 
         // Verify password
         if !bcrypt::verify(&request.password, &user.password_hash)? {
@@ -247,7 +247,7 @@ impl AuthService {
         // Validate that the user_id matches the one in the request
         let request_user_id = uuid::Uuid::parse_str(&request.user_id)?;
         if user_id != request_user_id {
-            return Err(anyhow::anyhow!("User ID mismatch"));
+            return Err(AppError::auth_invalid("User ID mismatch").into());
         }
 
         // Get user from database
@@ -256,7 +256,7 @@ impl AuthService {
             .database()
             .get_user(user_id)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+            .ok_or_else(|| AppError::not_found("User"))?;
 
         // Generate new JWT token using RS256
         let new_jwt_token = self
@@ -347,36 +347,14 @@ impl OAuthService {
         state: &str,
         provider: &str,
     ) -> Result<OAuthCallbackResponse> {
-        use crate::constants::oauth_providers;
-
         // Use async block to satisfy clippy
         tokio::task::yield_now().await;
-        // Parse user ID from state (format: "user_id:uuid")
-        let mut parts = state.splitn(2, ':');
-        let user_id_str = parts
-            .next()
-            .ok_or_else(|| anyhow::anyhow!("Invalid state parameter format"))?;
-        let random_part = parts
-            .next()
-            .ok_or_else(|| anyhow::anyhow!("Invalid state parameter format"))?;
-        let user_id = crate::utils::uuid::parse_user_id(user_id_str)?;
 
-        // Validate state for CSRF protection
-        if random_part.len() < 16
-            || !random_part
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '-')
-        {
-            return Err(anyhow::anyhow!("Invalid OAuth state parameter"));
-        }
+        // Validate state and extract user ID
+        let user_id = Self::validate_oauth_state(state)?;
 
         // Validate provider is supported
-        match provider {
-            oauth_providers::STRAVA | oauth_providers::FITBIT => {
-                // Supported providers
-            }
-            _ => return Err(anyhow::anyhow!("Unsupported provider: {provider}")),
-        }
+        Self::validate_provider(provider)?;
 
         tracing::info!(
             "Processing OAuth callback for user {} provider {} with code {}",
@@ -385,7 +363,73 @@ impl OAuthService {
             code
         );
 
-        // Get database and user
+        // Get user and tenant from database
+        let (user, tenant_id) = self.get_user_and_tenant(user_id, provider).await?;
+
+        // Exchange OAuth code for access token
+        let token = self
+            .exchange_oauth_code(code, provider, user_id, &user)
+            .await?;
+
+        tracing::info!(
+            "Successfully exchanged OAuth code for user {} provider {}",
+            user_id,
+            provider
+        );
+
+        // Store token and send notifications
+        let expires_at = self
+            .store_oauth_token(user_id, tenant_id, provider, &token)
+            .await?;
+        self.send_oauth_notifications(user_id, provider, &expires_at)
+            .await?;
+        self.notify_bridge_oauth_success(provider, &token).await;
+
+        Ok(OAuthCallbackResponse {
+            user_id: user_id.to_string(),
+            provider: provider.to_string(),
+            expires_at: expires_at.to_rfc3339(),
+            scopes: token.scope.unwrap_or_else(|| "read".to_string()),
+        })
+    }
+
+    /// Validate OAuth state parameter and extract user ID
+    fn validate_oauth_state(state: &str) -> Result<uuid::Uuid> {
+        let mut parts = state.splitn(2, ':');
+        let user_id_str = parts
+            .next()
+            .ok_or_else(|| AppError::invalid_input("Invalid state parameter format"))?;
+        let random_part = parts
+            .next()
+            .ok_or_else(|| AppError::invalid_input("Invalid state parameter format"))?;
+
+        // Validate state for CSRF protection
+        if random_part.len() < 16
+            || !random_part
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-')
+        {
+            return Err(AppError::invalid_input("Invalid OAuth state parameter").into());
+        }
+
+        crate::utils::uuid::parse_user_id(user_id_str)
+    }
+
+    /// Validate that provider is supported
+    fn validate_provider(provider: &str) -> Result<()> {
+        use crate::constants::oauth_providers;
+        match provider {
+            oauth_providers::STRAVA | oauth_providers::FITBIT => Ok(()),
+            _ => Err(AppError::invalid_input(format!("Unsupported provider: {provider}")).into()),
+        }
+    }
+
+    /// Get user and tenant from database
+    async fn get_user_and_tenant(
+        &self,
+        user_id: uuid::Uuid,
+        provider: &str,
+    ) -> Result<(crate::models::User, String)> {
         let database = self.data.database();
         let user = database.get_user(user_id).await?.ok_or_else(|| {
             tracing::error!(
@@ -393,7 +437,7 @@ impl OAuthService {
                 user_id,
                 provider
             );
-            anyhow::anyhow!("User not found")
+            AppError::not_found("User")
         })?;
 
         let tenant_id =
@@ -404,15 +448,26 @@ impl OAuthService {
                     "OAuth callback failed: Missing tenant - user_id: {}, email: {}, provider: {}",
                     user.id, user.email, provider
                 );
-                    anyhow::anyhow!("User has no tenant")
+                    AppError::invalid_input("User has no tenant")
                 })?
                 .clone();
 
-        // Create OAuth2 client and exchange code for token
+        Ok((user, tenant_id))
+    }
+
+    /// Exchange OAuth code for access token
+    async fn exchange_oauth_code(
+        &self,
+        code: &str,
+        provider: &str,
+        user_id: uuid::Uuid,
+        user: &crate::models::User,
+    ) -> Result<crate::oauth2_client::OAuth2Token> {
+        use crate::constants::oauth_providers;
+
         let oauth_config = self.create_oauth_config(provider)?;
         let oauth_client = crate::oauth2_client::OAuth2Client::new(oauth_config.clone());
 
-        // Use provider-specific exchange function if available
         let token = match provider {
             oauth_providers::STRAVA => crate::oauth2_client::strava::exchange_strava_code(
                 oauth_client.http_client(),
@@ -427,47 +482,18 @@ impl OAuthService {
                     "OAuth token exchange failed for {provider} - user_id: {user_id}, email: {}, code: {code}, error: {e}",
                     user.email
                 );
-                anyhow::anyhow!("Failed to exchange OAuth code for token: {e}")
+                AppError::internal(format!("Failed to exchange OAuth code for token: {e}"))
             })?,
             _ => oauth_client.exchange_code(code).await.map_err(|e| {
                 tracing::error!(
                     "OAuth token exchange failed for {provider} - user_id: {user_id}, email: {}, code: {code}, error: {e}",
                     user.email
                 );
-                anyhow::anyhow!("Failed to exchange OAuth code for token: {e}")
+                AppError::internal(format!("Failed to exchange OAuth code for token: {e}"))
             })?,
         };
 
-        tracing::info!(
-            "Successfully exchanged OAuth code for user {} provider {}",
-            user_id,
-            provider
-        );
-
-        // Store token in database
-        let expires_at = self
-            .store_oauth_token(user_id, tenant_id, provider, &token)
-            .await?;
-
-        tracing::info!(
-            "Successfully stored OAuth token for user {} provider {}",
-            user_id,
-            provider
-        );
-
-        // Send notifications
-        self.send_oauth_notifications(user_id, provider, &expires_at)
-            .await?;
-
-        // Notify bridge about successful OAuth (for client-side token storage)
-        self.notify_bridge_oauth_success(provider, &token).await;
-
-        Ok(OAuthCallbackResponse {
-            user_id: user_id.to_string(),
-            provider: provider.to_string(),
-            expires_at: expires_at.to_rfc3339(),
-            scopes: token.scope.unwrap_or_else(|| "read".to_string()),
-        })
+        Ok(token)
     }
 
     /// Create `OAuth2` config for provider using injected configuration
@@ -496,7 +522,7 @@ impl OAuthService {
                     use_pkce: true,
                 })
             }
-            _ => Err(anyhow::anyhow!("Unsupported provider: {provider}")),
+            _ => Err(AppError::invalid_input(format!("Unsupported provider: {provider}")).into()),
         }
     }
 
@@ -682,7 +708,7 @@ impl OAuthService {
                     .database()
                     .get_user(user_id)
                     .await?
-                    .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+                    .ok_or_else(|| AppError::not_found("User"))?;
                 let tenant_id = user.tenant_id.as_deref().unwrap_or("default");
 
                 // Delete OAuth tokens from database
@@ -695,7 +721,7 @@ impl OAuthService {
 
                 Ok(())
             }
-            _ => Err(anyhow::anyhow!("Unsupported provider: {provider}")),
+            _ => Err(AppError::invalid_input(format!("Unsupported provider: {provider}")).into()),
         }
     }
 
@@ -728,7 +754,11 @@ impl OAuthService {
                     "https://www.fitbit.com/oauth2/authorize?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&scope=activity%20profile&state={state}"
                 )
             }
-            _ => return Err(anyhow::anyhow!("Unsupported provider: {provider}")),
+            _ => {
+                return Err(
+                    AppError::invalid_input(format!("Unsupported provider: {provider}")).into(),
+                )
+            }
         };
 
         tracing::debug!(

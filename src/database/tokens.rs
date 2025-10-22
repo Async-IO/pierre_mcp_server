@@ -7,6 +7,7 @@
 // - Option<String> ownership for OAuth token scope fields
 
 use super::{Database, EncryptionHelper};
+use crate::errors::AppError;
 use crate::models::{DecryptedToken, EncryptedToken};
 use anyhow::Result;
 use sqlx::Row;
@@ -116,7 +117,7 @@ impl Database {
                     access_token: access,
                     refresh_token: refresh,
                     expires_at: chrono::DateTime::from_timestamp(expires_at, 0)
-                        .ok_or_else(|| anyhow::anyhow!("Invalid timestamp: {expires_at}"))?,
+                        .ok_or_else(|| AppError::internal(format!("Invalid timestamp: {expires_at}")).into())?,
                     scope: scope.unwrap_or_default(),
                     nonce: nonce.unwrap_or_else(|| "default_nonce".into()),
                 };

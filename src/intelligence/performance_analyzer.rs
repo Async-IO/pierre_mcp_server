@@ -16,6 +16,7 @@ use super::{
 use crate::config::intelligence_config::{
     IntelligenceConfig, IntelligenceStrategy, PerformanceAnalyzerConfig,
 };
+use crate::errors::AppError;
 use crate::intelligence::physiological_constants::{
     adaptations::{
         HIGH_VOLUME_IMPROVEMENT_FACTOR, LOW_VOLUME_IMPROVEMENT_FACTOR,
@@ -354,9 +355,9 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             .collect();
 
         if filtered_activities.is_empty() {
-            return Err(anyhow::anyhow!(
-                "No activities found in the specified timeframe"
-            ));
+            return Err(
+                AppError::not_found("No activities found in the specified timeframe").into(),
+            );
         }
 
         // Extract metric values
@@ -388,9 +389,10 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         }
 
         if data_points.is_empty() {
-            return Err(anyhow::anyhow!(
+            return Err(AppError::not_found(format!(
                 "No valid data points found for metric: {metric}"
-            ));
+            ))
+            .into());
         }
 
         // Sort by date
@@ -593,9 +595,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             .collect();
 
         if similar_activities.is_empty() {
-            return Err(anyhow::anyhow!(
-                "No similar activities found for prediction"
-            ));
+            return Err(AppError::not_found("No similar activities found for prediction").into());
         }
 
         // Calculate recent average performance

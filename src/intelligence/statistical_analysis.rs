@@ -6,6 +6,7 @@
 #![allow(clippy::cast_precision_loss)] // Safe: statistical calculations with controlled ranges
 
 use super::{TrendDataPoint, TrendDirection};
+use crate::errors::AppError;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
@@ -72,10 +73,11 @@ impl StatisticalAnalyzer {
     /// Returns an error if there are insufficient data points for regression
     pub fn linear_regression(data_points: &[TrendDataPoint]) -> Result<RegressionResult> {
         if data_points.len() < 2 {
-            return Err(anyhow::anyhow!(
+            return Err(AppError::invalid_input(format!(
                 "Insufficient data points for regression: need at least 2, got {}",
                 data_points.len()
-            ));
+            ))
+            .into());
         }
 
         let n = data_points.len() as f64;
@@ -99,9 +101,9 @@ impl StatisticalAnalyzer {
         // Calculate slope and intercept
         let denominator = (n * mean_x).mul_add(-mean_x, sum_xx);
         if denominator.abs() < f64::EPSILON {
-            return Err(anyhow::anyhow!(
-                "Cannot calculate regression: zero variance in x"
-            ));
+            return Err(
+                AppError::invalid_input("Cannot calculate regression: zero variance in x").into(),
+            );
         }
 
         let slope = (n * mean_x).mul_add(-mean_y, sum_x_y) / denominator;
@@ -344,9 +346,10 @@ impl StatisticalAnalyzer {
         confidence_level: f64,
     ) -> Result<(f64, f64)> {
         if regression.degrees_of_freedom == 0 {
-            return Err(anyhow::anyhow!(
-                "Cannot calculate confidence interval with zero degrees of freedom"
-            ));
+            return Err(AppError::invalid_input(
+                "Cannot calculate confidence interval with zero degrees of freedom",
+            )
+            .into());
         }
 
         // Use mul_add for optimal floating point operation: slope * x + intercept

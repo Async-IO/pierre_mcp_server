@@ -11,6 +11,8 @@
 
 use crate::auth::{AuthMethod, AuthResult};
 use crate::database_plugins::DatabaseProvider;
+use crate::errors::AppError;
+use crate::providers::errors::ProviderError;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use warp::Filter;
@@ -96,7 +98,7 @@ impl A2AAuthenticator {
     async fn authenticate_a2a_key(&self, api_key: &str) -> Result<AuthResult, anyhow::Error> {
         // Extract key components (similar to API key validation)
         if !api_key.starts_with("a2a_") || api_key.len() < 16 {
-            return Err(anyhow::anyhow!("Invalid A2A API key format"));
+            return Err(AppError::auth_invalid("Invalid A2A API key format").into());
         }
 
         // A2A keys are stored in API keys table but linked to A2A clients
@@ -117,16 +119,27 @@ impl A2AAuthenticator {
                 let rate_limit_status = client_manager
                     .get_client_rate_limit_status(&client.id)
                     .await
-                    .map_err(|e| anyhow::anyhow!("Failed to check A2A rate limits: {e}"))?;
+                    .map_err(|e| {
+                        AppError::internal(format!("Failed to check A2A rate limits: {e}"))
+                    })?;
 
                 if rate_limit_status.is_rate_limited {
-                    return Err(anyhow::anyhow!(
-                        "A2A client rate limit exceeded. Limit: {}, Reset at: {}",
-                        rate_limit_status.limit.unwrap_or(0),
-                        rate_limit_status
-                            .reset_at
-                            .map_or_else(|| "unknown".into(), |dt| dt.to_rfc3339())
-                    ));
+                    return Err(ProviderError::RateLimitExceeded {
+                        provider: "A2A Client Authentication".to_string(),
+                        retry_after_secs: rate_limit_status.reset_at.map_or(3600, |dt| {
+                            let now = chrono::Utc::now().timestamp();
+                            let reset = dt.timestamp();
+                            u64::try_from((reset - now).max(0)).unwrap_or(3600)
+                        }),
+                        limit_type: format!(
+                            "A2A client rate limit exceeded. Limit: {}, Reset at: {}",
+                            rate_limit_status.limit.unwrap_or(0),
+                            rate_limit_status
+                                .reset_at
+                                .map_or_else(|| "unknown".into(), |dt| dt.to_rfc3339())
+                        ),
+                    }
+                    .into());
                 }
 
                 // Update auth method to indicate A2A authentication
@@ -161,7 +174,9 @@ impl A2AAuthenticator {
             .database
             .get_a2a_client_by_api_key_id(api_key_id)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to lookup A2A client by API key: {e}"))
+            .map_err(|e| {
+                AppError::database(format!("Failed to lookup A2A client by API key: {e}")).into()
+            })
     }
 
     /// Authenticate using `OAuth2` token
@@ -192,24 +207,27 @@ impl A2AAuthenticator {
                 .sub
                 .strip_prefix("a2a_client_")
                 .ok_or_else(|| {
-                    anyhow::anyhow!("Failed to strip a2a_client_ prefix from token subject")
+                    AppError::auth_invalid("Failed to strip a2a_client_ prefix from token subject")
                 })?
                 .to_string()
         } else {
             // Try to extract from custom claims if available
-            return Err(anyhow::anyhow!(
-                "Token does not contain valid A2A client identifier"
-            ));
+            return Err(AppError::auth_invalid(
+                "Token does not contain valid A2A client identifier",
+            )
+            .into());
         };
 
         // Verify the client exists and is active
         let client = self
             .get_client(&client_id)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("A2A client not found: {client_id}"))?;
+            .ok_or_else(|| AppError::not_found(format!("A2A client {client_id}")))?;
 
         if !client.is_active {
-            return Err(anyhow::anyhow!("A2A client is deactivated: {client_id}"));
+            return Err(
+                AppError::auth_invalid(format!("A2A client is deactivated: {client_id}")).into(),
+            );
         }
 
         // Check token expiration (already handled by validate_token)

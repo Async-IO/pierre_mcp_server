@@ -10,6 +10,7 @@ use crate::constants::{api_provider_limits, env_config};
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
 use crate::oauth2_client::PkceParams;
 use crate::pagination::{CursorPage, PaginationParams};
+use crate::providers::errors::ProviderError;
 use crate::utils::http_client::api_client;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -102,7 +103,7 @@ impl StravaProvider {
     /// - URL encoding fails for any parameter
     pub fn get_auth_url(&self, redirect_uri: &str, state: &str) -> Result<String> {
         if self.config.client_id.is_empty() {
-            return Err(anyhow::anyhow!("Client ID not configured"));
+            return Err(ProviderError::ConfigurationError("Client ID not configured".into()).into());
         }
 
         let mut url = url::Url::parse(&self.config.auth_url)?;
@@ -132,7 +133,7 @@ impl StravaProvider {
         pkce: &PkceParams,
     ) -> Result<String> {
         if self.config.client_id.is_empty() {
-            return Err(anyhow::anyhow!("Client ID not configured"));
+            return Err(ProviderError::ConfigurationError("Client ID not configured".into()).into());
         }
 
         let mut url = url::Url::parse(&self.config.auth_url)?;
@@ -160,7 +161,7 @@ impl StravaProvider {
     /// - Strava API returns invalid token data
     pub async fn exchange_code(&mut self, code: &str) -> Result<(String, String)> {
         if self.config.client_id.is_empty() || self.config.client_secret.is_empty() {
-            return Err(anyhow::anyhow!("Client credentials not configured"));
+            return Err(ProviderError::ConfigurationError("Client credentials not configured".into()).into());
         }
 
         let (token, athlete) = crate::oauth2_client::strava::exchange_strava_code(
@@ -209,7 +210,7 @@ impl StravaProvider {
         pkce: &PkceParams,
     ) -> Result<(String, String)> {
         if self.config.client_id.is_empty() || self.config.client_secret.is_empty() {
-            return Err(anyhow::anyhow!("Client credentials not configured"));
+            return Err(ProviderError::ConfigurationError("Client credentials not configured".into()).into());
         }
 
         let (token, athlete) = crate::oauth2_client::strava::exchange_strava_code_with_pkce(
@@ -259,7 +260,7 @@ impl StravaProvider {
             .context("No refresh token available")?;
 
         if self.config.client_id.is_empty() || self.config.client_secret.is_empty() {
-            return Err(anyhow::anyhow!("Client credentials not configured"));
+            return Err(ProviderError::ConfigurationError("Client credentials not configured".into()).into());
         }
 
         let new_token = crate::oauth2_client::strava::refresh_strava_token(
@@ -306,7 +307,7 @@ impl FitnessProvider for StravaProvider {
                 self.refresh_token = refresh_token;
                 Ok(())
             }
-            AuthData::ApiKey(_) => Err(anyhow::anyhow!("Strava requires OAuth2 authentication")),
+            AuthData::ApiKey(_) => Err(ProviderError::AuthenticationFailed("Strava requires OAuth2 authentication".into()).into()),
         }
     }
 
@@ -398,18 +399,18 @@ impl FitnessProvider for StravaProvider {
             if status == 401 && self.refresh_token.is_some() {
                 info!("Access token expired, attempting to refresh...");
                 // Note: This would require mutable self to refresh the token
-                return Err(anyhow::anyhow!(
+                return Err(ProviderError::AuthenticationFailed(format!(
                     "Access token expired. Strava API error: {} - {}",
                     status,
                     error_text
-                ));
+                )).into());
             }
 
-            return Err(anyhow::anyhow!(
+            return Err(ProviderError::ApiError(format!(
                 "Strava API returned error: {} - {}",
                 status,
                 error_text
-            ));
+            )).into());
         }
 
         // Get response text first for debugging
