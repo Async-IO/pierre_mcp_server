@@ -16,6 +16,7 @@ use crate::models::UserOAuthApp;
 use crate::rate_limiting::JwtUsage;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use tracing::{debug, info};
 use uuid::Uuid;
 
@@ -1390,6 +1391,39 @@ impl DatabaseProvider for Database {
             Self::SQLite(db) => db.revoke_oauth2_refresh_token(token).await,
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.revoke_oauth2_refresh_token(token).await,
+        }
+    }
+
+    async fn consume_auth_code(
+        &self,
+        code: &str,
+        client_id: &str,
+        redirect_uri: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>> {
+        match self {
+            Self::SQLite(db) => {
+                db.consume_auth_code(code, client_id, redirect_uri, now)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.consume_auth_code(code, client_id, redirect_uri, now)
+                    .await
+            }
+        }
+    }
+
+    async fn consume_refresh_token(
+        &self,
+        token: &str,
+        client_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>> {
+        match self {
+            Self::SQLite(db) => db.consume_refresh_token(token, client_id, now).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.consume_refresh_token(token, client_id, now).await,
         }
     }
 
