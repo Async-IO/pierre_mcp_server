@@ -4710,22 +4710,23 @@ impl DatabaseProvider for PostgresDatabase {
         .fetch_optional(&self.pool)
         .await?;
 
-        if let Some(row) = row {
-            use sqlx::Row;
-            Ok(Some(crate::oauth2::models::OAuth2AuthCode {
-                code: row.get("code"),
-                client_id: row.get("client_id"),
-                user_id: row.get("user_id"),
-                redirect_uri: row.get("redirect_uri"),
-                scope: row.get("scope"),
-                expires_at: row.get("expires_at"),
-                used: row.get("used"),
-                code_challenge: row.get("code_challenge"),
-                code_challenge_method: row.get("code_challenge_method"),
-            }))
-        } else {
-            Ok(None)
-        }
+        row.map_or_else(
+            || Ok(None),
+            |row| {
+                use sqlx::Row;
+                Ok(Some(crate::oauth2::models::OAuth2AuthCode {
+                    code: row.get("code"),
+                    client_id: row.get("client_id"),
+                    user_id: row.get("user_id"),
+                    redirect_uri: row.get("redirect_uri"),
+                    scope: row.get("scope"),
+                    expires_at: row.get("expires_at"),
+                    used: row.get("used"),
+                    code_challenge: row.get("code_challenge"),
+                    code_challenge_method: row.get("code_challenge_method"),
+                }))
+            },
+        )
     }
 
     /// Atomically consume OAuth 2.0 refresh token
@@ -4745,7 +4746,7 @@ impl DatabaseProvider for PostgresDatabase {
                AND client_id = $2
                AND revoked = false
                AND expires_at > $3
-             RETURNING token, client_id, user_id, scope, expires_at, created_at, revoked"
+             RETURNING token, client_id, user_id, scope, expires_at, created_at, revoked",
         )
         .bind(token)
         .bind(client_id)
