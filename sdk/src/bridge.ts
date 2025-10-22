@@ -1665,10 +1665,18 @@ export class PierreMcpClient {
         };
       }
 
-      // CRITICAL: Prevent interactive OAuth flow in non-interactive environments (e.g., automated tests)
-      // Check if stdin is a TTY to detect if this is an interactive session
-      if (!hasTokens && !process.stdin.isTTY) {
-        this.log('Refusing to start interactive OAuth flow in non-TTY environment (likely automated test)');
+      // CRITICAL: Prevent interactive OAuth flow in automated test environments
+      // Allow interactive OAuth if:
+      // 1. Running in a TTY (terminal session)
+      // 2. PIERRE_ALLOW_INTERACTIVE_OAUTH env var is set (for Claude Desktop, MCP hosts)
+      // 3. CI environment variables are NOT set (not in automated CI/CD)
+      const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+      const allowInteractive = process.env.PIERRE_ALLOW_INTERACTIVE_OAUTH === 'true';
+      const hasTTY = process.stdin.isTTY;
+
+      if (!hasTokens && !hasTTY && !allowInteractive && !isCI) {
+        this.log('Refusing to start interactive OAuth flow in non-interactive environment (likely automated test)');
+        this.log('Hint: Set PIERRE_ALLOW_INTERACTIVE_OAUTH=true to enable browser-based OAuth in MCP hosts');
         return {
           content: [{
             type: 'text',

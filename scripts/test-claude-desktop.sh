@@ -246,7 +246,9 @@ cat > "$CLAUDE_CONFIG" <<EOF
         "--server",
         "http://localhost:${HTTP_PORT:-8081}"
       ],
-      "env": {}
+      "env": {
+        "PIERRE_ALLOW_INTERACTIVE_OAUTH": "true"
+      }
     }
   }
 }
