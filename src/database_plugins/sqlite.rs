@@ -1600,6 +1600,104 @@ impl DatabaseProvider for SqliteDatabase {
         Ok(())
     }
 
+    /// Atomically consume OAuth 2.0 authorization code
+    ///
+    /// Implements atomic check-and-set using UPDATE...WHERE...RETURNING (SQLite 3.35.0+)
+    /// to prevent TOCTOU race conditions in concurrent token exchange requests.
+    async fn consume_auth_code(
+        &self,
+        code: &str,
+        client_id: &str,
+        redirect_uri: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>> {
+        let query = r"
+            UPDATE oauth2_auth_codes
+            SET used = 1
+            WHERE code = ?1
+              AND client_id = ?2
+              AND redirect_uri = ?3
+              AND used = 0
+              AND expires_at > ?4
+            RETURNING code, client_id, user_id, redirect_uri, scope, expires_at, used, code_challenge, code_challenge_method
+        ";
+
+        let row = sqlx::query(query)
+            .bind(code)
+            .bind(client_id)
+            .bind(redirect_uri)
+            .bind(now)
+            .fetch_optional(self.inner.pool())
+            .await
+            .context("Failed to atomically consume OAuth2 auth code")?;
+
+        if let Some(row) = row {
+            let user_id = Uuid::parse_str(&row.get::<String, _>("user_id"))
+                .context("Invalid user_id UUID format in consumed auth code")?;
+
+            Ok(Some(crate::oauth2::models::OAuth2AuthCode {
+                code: row.get("code"),
+                client_id: row.get("client_id"),
+                user_id,
+                redirect_uri: row.get("redirect_uri"),
+                scope: row.get("scope"),
+                expires_at: row.get("expires_at"),
+                used: row.get("used"),
+                code_challenge: row.get("code_challenge"),
+                code_challenge_method: row.get("code_challenge_method"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Atomically consume OAuth 2.0 refresh token
+    ///
+    /// Implements atomic check-and-revoke using UPDATE...WHERE...RETURNING (SQLite 3.35.0+)
+    /// to prevent TOCTOU race conditions in concurrent refresh requests.
+    async fn consume_refresh_token(
+        &self,
+        token: &str,
+        client_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>> {
+        let query = r"
+            UPDATE oauth2_refresh_tokens
+            SET revoked = 1
+            WHERE token = ?1
+              AND client_id = ?2
+              AND revoked = 0
+              AND expires_at > ?3
+            RETURNING token, client_id, user_id, scope, expires_at, created_at, revoked
+        ";
+
+        let row = sqlx::query(query)
+            .bind(token)
+            .bind(client_id)
+            .bind(now)
+            .fetch_optional(self.inner.pool())
+            .await
+            .context("Failed to atomically consume OAuth2 refresh token")?;
+
+        if let Some(row) = row {
+            let user_id_str: String = row.try_get("user_id")?;
+            let user_id = Uuid::parse_str(&user_id_str)
+                .context("Invalid user_id UUID format in consumed refresh token")?;
+
+            Ok(Some(crate::oauth2::models::OAuth2RefreshToken {
+                token: row.try_get("token")?,
+                client_id: row.try_get("client_id")?,
+                user_id,
+                scope: row.try_get("scope")?,
+                expires_at: row.try_get("expires_at")?,
+                created_at: row.try_get("created_at")?,
+                revoked: row.try_get("revoked")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Store authorization code
     async fn store_authorization_code(
         &self,

@@ -4681,6 +4681,93 @@ impl DatabaseProvider for PostgresDatabase {
 
         Ok(())
     }
+
+    /// Atomically consume OAuth 2.0 authorization code
+    ///
+    /// Implements atomic check-and-set using UPDATE...RETURNING
+    /// to prevent TOCTOU race conditions in concurrent token exchange requests.
+    async fn consume_auth_code(
+        &self,
+        code: &str,
+        client_id: &str,
+        redirect_uri: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>> {
+        let row = sqlx::query(
+            "UPDATE oauth2_auth_codes
+             SET used = true
+             WHERE code = $1
+               AND client_id = $2
+               AND redirect_uri = $3
+               AND used = false
+               AND expires_at > $4
+             RETURNING code, client_id, user_id, redirect_uri, scope, expires_at, used, code_challenge, code_challenge_method"
+        )
+        .bind(code)
+        .bind(client_id)
+        .bind(redirect_uri)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            use sqlx::Row;
+            Ok(Some(crate::oauth2::models::OAuth2AuthCode {
+                code: row.get("code"),
+                client_id: row.get("client_id"),
+                user_id: row.get("user_id"),
+                redirect_uri: row.get("redirect_uri"),
+                scope: row.get("scope"),
+                expires_at: row.get("expires_at"),
+                used: row.get("used"),
+                code_challenge: row.get("code_challenge"),
+                code_challenge_method: row.get("code_challenge_method"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Atomically consume OAuth 2.0 refresh token
+    ///
+    /// Implements atomic check-and-revoke using UPDATE...RETURNING
+    /// to prevent TOCTOU race conditions in concurrent refresh requests.
+    async fn consume_refresh_token(
+        &self,
+        token: &str,
+        client_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>> {
+        let row = sqlx::query(
+            "UPDATE oauth2_refresh_tokens
+             SET revoked = true
+             WHERE token = $1
+               AND client_id = $2
+               AND revoked = false
+               AND expires_at > $3
+             RETURNING token, client_id, user_id, scope, expires_at, created_at, revoked"
+        )
+        .bind(token)
+        .bind(client_id)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            use sqlx::Row;
+            Ok(Some(crate::oauth2::models::OAuth2RefreshToken {
+                token: row.try_get("token")?,
+                client_id: row.try_get("client_id")?,
+                user_id: row.try_get("user_id")?,
+                scope: row.try_get("scope")?,
+                expires_at: row.try_get("expires_at")?,
+                created_at: row.try_get("created_at")?,
+                revoked: row.try_get("revoked")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 impl PostgresDatabase {

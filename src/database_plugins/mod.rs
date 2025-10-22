@@ -580,6 +580,46 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Revoke OAuth 2.0 refresh token
     async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()>;
 
+    /// Atomically consume OAuth 2.0 authorization code (check-and-set in single operation)
+    ///
+    /// This method prevents race conditions by performing validation and marking as used
+    /// in a single atomic database operation using UPDATE...WHERE...RETURNING.
+    ///
+    /// Returns `Some(auth_code)` if the code was valid, unused, and successfully consumed.
+    /// Returns `None` if the code is invalid, already used, expired, or validation failed.
+    ///
+    /// # Arguments
+    /// * `code` - The authorization code to consume
+    /// * `client_id` - Expected client_id (validation)
+    /// * `redirect_uri` - Expected redirect_uri (validation)
+    /// * `now` - Current timestamp for expiration check
+    async fn consume_auth_code(
+        &self,
+        code: &str,
+        client_id: &str,
+        redirect_uri: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>>;
+
+    /// Atomically consume OAuth 2.0 refresh token (check-and-revoke in single operation)
+    ///
+    /// This method prevents race conditions by performing validation and revoking
+    /// in a single atomic database operation using UPDATE...WHERE...RETURNING.
+    ///
+    /// Returns `Some(refresh_token)` if the token was valid and successfully consumed.
+    /// Returns `None` if the token is invalid, already revoked, or validation failed.
+    ///
+    /// # Arguments
+    /// * `token` - The refresh token to consume
+    /// * `client_id` - Expected client_id (validation)
+    /// * `now` - Current timestamp for expiration check
+    async fn consume_refresh_token(
+        &self,
+        token: &str,
+        client_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>>;
+
     /// Store authorization code
     async fn store_authorization_code(
         &self,

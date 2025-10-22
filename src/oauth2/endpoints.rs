@@ -275,22 +275,10 @@ impl OAuth2AuthorizationServer {
             .refresh_token
             .ok_or_else(|| OAuth2Error::invalid_request("Missing refresh_token"))?;
 
-        // Validate and get existing refresh token
+        // Validate and atomically consume existing refresh token (already marks as revoked)
         let old_refresh_token = self
             .validate_and_consume_refresh_token(&refresh_token_value, &request.client_id)
             .await?;
-
-        // Revoke old refresh token (rotation)
-        self.revoke_refresh_token(&refresh_token_value)
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    "Failed to revoke old refresh token for client_id={}: {:#}",
-                    request.client_id,
-                    e
-                );
-                OAuth2Error::invalid_request("Failed to revoke old refresh token")
-            })?;
 
         // Generate new access token
         let access_token = self
@@ -392,37 +380,30 @@ impl OAuth2AuthorizationServer {
         redirect_uri: &str,
         code_verifier: Option<&str>,
     ) -> Result<OAuth2AuthCode, OAuth2Error> {
-        let mut auth_code = self.get_auth_code(code).await.map_err(|e| {
-            tracing::error!(
-                "Failed to get authorization code for client_id={}: {:#}",
-                client_id,
-                e
-            );
-            OAuth2Error::invalid_grant("Invalid authorization code")
-        })?;
-
-        // Validate code properties
-        if auth_code.client_id != client_id {
-            return Err(OAuth2Error::invalid_grant(
-                "Code was issued to different client",
-            ));
-        }
-
-        if auth_code.redirect_uri != redirect_uri {
-            return Err(OAuth2Error::invalid_grant("Redirect URI mismatch"));
-        }
-
-        if auth_code.used {
-            return Err(OAuth2Error::invalid_grant(
-                "Authorization code already used",
-            ));
-        }
-
-        if Utc::now() > auth_code.expires_at {
-            return Err(OAuth2Error::invalid_grant("Authorization code expired"));
-        }
+        // Atomically consume authorization code (prevents TOCTOU race conditions)
+        // This validates client_id, redirect_uri, expiration, and used status in a single atomic operation
+        let auth_code = self
+            .database
+            .consume_auth_code(code, client_id, redirect_uri, Utc::now())
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to atomically consume authorization code for client_id={}: {:#}",
+                    client_id,
+                    e
+                );
+                OAuth2Error::invalid_grant("Failed to consume authorization code")
+            })?
+            .ok_or_else(|| {
+                tracing::warn!(
+                    "Authorization code validation failed for client_id={}: code not found, already used, expired, or mismatched credentials",
+                    client_id
+                );
+                OAuth2Error::invalid_grant("Invalid or expired authorization code")
+            })?;
 
         // Verify PKCE code_verifier (RFC 7636)
+        // Note: PKCE verification happens AFTER atomic consumption to prevent code reuse on verification failure
         if let Some(stored_challenge) = &auth_code.code_challenge {
             let verifier = code_verifier
                 .ok_or_else(|| OAuth2Error::invalid_grant("code_verifier is required (PKCE)"))?;
@@ -481,17 +462,6 @@ impl OAuth2AuthorizationServer {
                 "code_verifier provided but no code_challenge was issued",
             ));
         }
-
-        // Mark as used
-        auth_code.used = true;
-        self.update_auth_code(&auth_code).await.map_err(|e| {
-            tracing::error!(
-                "Failed to consume authorization code for client_id={}: {:#}",
-                auth_code.client_id,
-                e
-            );
-            OAuth2Error::invalid_grant("Failed to consume authorization code")
-        })?;
 
         Ok(auth_code)
     }
@@ -603,33 +573,27 @@ impl OAuth2AuthorizationServer {
         token: &str,
         client_id: &str,
     ) -> Result<crate::oauth2::models::OAuth2RefreshToken, OAuth2Error> {
+        // Atomically consume refresh token (prevents TOCTOU race conditions)
+        // This validates client_id, revoked status, and expiration in a single atomic operation
         let refresh_token = self
-            .get_refresh_token(token)
+            .database
+            .consume_refresh_token(token, client_id, Utc::now())
             .await
             .map_err(|e| {
                 tracing::error!(
-                    "Failed to get refresh token for client_id={}: {:#}",
+                    "Failed to atomically consume refresh token for client_id={}: {:#}",
                     client_id,
                     e
                 );
-                OAuth2Error::invalid_grant("Invalid refresh token")
+                OAuth2Error::invalid_grant("Failed to consume refresh token")
             })?
-            .ok_or_else(|| OAuth2Error::invalid_grant("Refresh token not found"))?;
-
-        // Validate token properties
-        if refresh_token.client_id != client_id {
-            return Err(OAuth2Error::invalid_grant(
-                "Refresh token was issued to different client",
-            ));
-        }
-
-        if refresh_token.revoked {
-            return Err(OAuth2Error::invalid_grant("Refresh token has been revoked"));
-        }
-
-        if Utc::now() > refresh_token.expires_at {
-            return Err(OAuth2Error::invalid_grant("Refresh token expired"));
-        }
+            .ok_or_else(|| {
+                tracing::warn!(
+                    "Refresh token validation failed for client_id={}: token not found, already revoked, expired, or mismatched client",
+                    client_id
+                );
+                OAuth2Error::invalid_grant("Invalid or expired refresh token")
+            })?;
 
         Ok(refresh_token)
     }
