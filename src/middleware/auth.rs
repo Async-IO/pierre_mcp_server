@@ -26,6 +26,7 @@ pub struct McpAuthMiddleware {
 
 impl McpAuthMiddleware {
     /// Create new `MCP` auth middleware
+    #[must_use]
     pub fn new(
         auth_manager: AuthManager,
         database: std::sync::Arc<Database>,
@@ -249,6 +250,7 @@ impl McpAuthMiddleware {
     }
 
     /// Get reference to the auth manager for testing purposes
+    #[must_use]
     pub const fn auth_manager(&self) -> &AuthManager {
         &self.auth_manager
     }

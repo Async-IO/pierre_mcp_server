@@ -19,11 +19,10 @@ use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::AppError;
 use crate::models::{AuthRequest, AuthResponse, User, UserSession};
 use crate::rate_limiting::UnifiedRateLimitInfo;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, Header, Validation};
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU64, Ordering};
 use uuid::Uuid;
 
 /// Convert a duration to a human-readable format
@@ -113,10 +112,14 @@ pub struct Claims {
     pub sub: String,
     /// User email
     pub email: String,
-    /// Issued at timestamp
+    /// Issued at timestamp (seconds since Unix epoch)
     pub iat: i64,
     /// Expiration timestamp
     pub exp: i64,
+    /// Issuer (who issued the token)
+    pub iss: String,
+    /// JWT ID (unique identifier for this token)
+    pub jti: String,
     /// Available fitness providers
     pub providers: Vec<String>,
     /// Audience (who the token is intended for)
@@ -178,17 +181,12 @@ impl AuthMethod {
 /// Authentication manager for `JWT` tokens and user sessions
 pub struct AuthManager {
     token_expiry_hours: i64,
-    /// Monotonic counter to ensure unique timestamps for tokens
-    token_counter: AtomicU64,
 }
 
 impl Clone for AuthManager {
     fn clone(&self) -> Self {
         Self {
             token_expiry_hours: self.token_expiry_hours,
-            // Start fresh counter for cloned instance - this is acceptable
-            // since each instance will maintain uniqueness independently
-            token_counter: AtomicU64::new(0),
         }
     }
 }
@@ -197,10 +195,7 @@ impl AuthManager {
     /// Create a new authentication manager
     #[must_use]
     pub const fn new(token_expiry_hours: i64) -> Self {
-        Self {
-            token_expiry_hours,
-            token_counter: AtomicU64::new(0),
-        }
+        Self { token_expiry_hours }
     }
 
     /// Generate a `JWT` token for a user with RS256 asymmetric signing
@@ -219,16 +214,13 @@ impl AuthManager {
         let now = Utc::now();
         let expiry = now + Duration::hours(self.token_expiry_hours);
 
-        // Use atomic counter to ensure unique issued-at times
-        let counter = self.token_counter.fetch_add(1, Ordering::Relaxed);
-        let unique_iat =
-            now.timestamp() * 1000 + i64::from(u32::try_from(counter % 1000).unwrap_or(0));
-
         let claims = Claims {
             sub: user.id.to_string(),
             email: user.email.clone(),
-            iat: unique_iat,
+            iat: now.timestamp(),
             exp: expiry.timestamp(),
+            iss: crate::constants::service_names::PIERRE_MCP_SERVER.to_string(),
+            jti: Uuid::new_v4().to_string(),
             providers: user.available_providers(),
             aud: crate::constants::service_names::MCP.to_string(),
         };
@@ -280,6 +272,7 @@ impl AuthManager {
         let mut validation = Validation::new(Algorithm::RS256);
         validation.validate_exp = true;
         validation.set_audience(&[crate::constants::service_names::MCP]);
+        validation.set_issuer(&[crate::constants::service_names::PIERRE_MCP_SERVER]);
 
         let token_data = decode::<Claims>(token, &decoding_key, &validation).map_err(|e| {
             tracing::error!("RS256 JWT validation failed: {:?}", e);
@@ -406,6 +399,7 @@ impl AuthManager {
         let mut validation_no_exp = Validation::new(Algorithm::RS256);
         validation_no_exp.validate_exp = false;
         validation_no_exp.set_audience(&[crate::constants::service_names::MCP]);
+        validation_no_exp.set_issuer(&[crate::constants::service_names::PIERRE_MCP_SERVER]);
 
         decode::<Claims>(token, &decoding_key, &validation_no_exp)
             .map(|token_data| token_data.claims)
@@ -456,6 +450,7 @@ impl AuthManager {
     }
 
     /// Validate authentication request using RS256 and return response
+    #[must_use]
     pub fn authenticate(
         &self,
         request: &AuthRequest,
@@ -511,50 +506,6 @@ impl AuthManager {
 
         // Generate new token - atomic counter ensures uniqueness
         self.generate_token(user, jwks_manager)
-    }
-
-    /// Extract user `ID` from RS256 token without full validation
-    /// Used for database lookups when token might be expired
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - Token signature is invalid
-    /// - Token is malformed
-    /// - Token header doesn't contain kid (key ID)
-    /// - JWKS manager doesn't have the specified key
-    /// - User ID in token is not a valid UUID
-    /// - Token claims cannot be deserialized
-    pub fn extract_user_id(
-        &self,
-        token: &str,
-        jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> Result<Uuid> {
-        // Extract kid from token header
-        let header = jsonwebtoken::decode_header(token)?;
-        let kid = header.kid.ok_or_else(|| -> anyhow::Error {
-            AppError::auth_invalid("Token header missing kid (key ID)").into()
-        })?;
-
-        // Get public key from JWKS manager
-        let key_pair = jwks_manager.get_key(&kid).ok_or_else(|| -> anyhow::Error {
-            AppError::auth_invalid(format!("Key not found in JWKS: {kid}")).into()
-        })?;
-
-        let decoding_key = key_pair.decoding_key();
-
-        let mut validation = Validation::new(Algorithm::RS256);
-        validation.validate_exp = false;
-        validation.validate_aud = false;
-
-        let token_data = decode::<Claims>(token, &decoding_key, &validation)?;
-
-        crate::utils::uuid::parse_uuid(&token_data.claims.sub).with_context(|| {
-            format!(
-                "Failed to parse user ID from JWT token subject: {}",
-                token_data.claims.sub
-            )
-        })
     }
 
     /// Check if initial setup is needed by verifying if admin user exists
@@ -624,15 +575,13 @@ impl AuthManager {
         let expiry =
             now + Duration::hours(crate::constants::limits::OAUTH_ACCESS_TOKEN_EXPIRY_HOURS);
 
-        let counter = self.token_counter.fetch_add(1, Ordering::Relaxed);
-        let unique_iat =
-            now.timestamp() * 1000 + i64::from(u32::try_from(counter % 1000).unwrap_or(0));
-
         let claims = Claims {
             sub: user_id.to_string(),
             email: format!("oauth_{user_id}@system.local"),
-            iat: unique_iat,
+            iat: now.timestamp(),
             exp: expiry.timestamp(),
+            iss: crate::constants::service_names::PIERRE_MCP_SERVER.to_string(),
+            jti: Uuid::new_v4().to_string(),
             providers: scopes.to_vec(),
             aud: crate::constants::service_names::MCP.to_string(),
         };
@@ -670,15 +619,13 @@ impl AuthManager {
         let now = Utc::now();
         let expiry = now + Duration::hours(1); // 1 hour for client credentials
 
-        let counter = self.token_counter.fetch_add(1, Ordering::Relaxed);
-        let unique_iat =
-            now.timestamp() * 1000 + i64::from(u32::try_from(counter % 1000).unwrap_or(0));
-
         let claims = Claims {
             sub: format!("client:{client_id}"),
             email: "client_credentials".to_string(),
-            iat: unique_iat,
+            iat: now.timestamp(),
             exp: expiry.timestamp(),
+            iss: crate::constants::service_names::PIERRE_MCP_SERVER.to_string(),
+            jti: Uuid::new_v4().to_string(),
             providers: scopes.to_vec(),
             aud: crate::constants::service_names::MCP.to_string(),
         };

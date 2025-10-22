@@ -119,15 +119,28 @@ fn test_refresh_token() {
 }
 
 #[test]
-fn test_extract_user_id() {
+fn test_extract_user_id_from_validated_token() {
+    // This test demonstrates the CORRECT way to extract user IDs from JWT tokens.
+    // Security Note: ALWAYS validate the token fully before extracting user IDs.
+    // DO NOT bypass validation (e.g., disabling aud/exp checks) as this creates security gaps.
+
     let auth_manager = create_auth_manager();
     let user = create_test_user();
-
     let jwks_manager = common::get_shared_test_jwks();
-    let token = auth_manager.generate_token(&user, &jwks_manager).unwrap();
-    let extracted_id = auth_manager.extract_user_id(&token, &jwks_manager).unwrap();
 
-    assert_eq!(extracted_id, user.id);
+    // Generate a valid token
+    let token = auth_manager.generate_token(&user, &jwks_manager).unwrap();
+
+    // CORRECT: Validate token with full security checks, THEN extract user ID
+    let claims = auth_manager.validate_token(&token, &jwks_manager).unwrap();
+    let user_id = pierre_mcp_server::utils::uuid::parse_uuid(&claims.sub).unwrap();
+
+    assert_eq!(user_id, user.id);
+
+    // Test error handling with invalid token
+    let invalid_token = "invalid.jwt.token";
+    let result = auth_manager.validate_token(invalid_token, &jwks_manager);
+    assert!(result.is_err(), "Invalid token should fail validation");
 }
 
 #[tokio::test]
@@ -446,19 +459,6 @@ fn test_validate_token_detailed_malformed() {
 }
 
 #[test]
-fn test_extract_user_id_invalid_token() {
-    let auth_manager = create_auth_manager();
-
-    // Setup JWKS manager for validation
-    let jwks_manager = common::get_shared_test_jwks();
-
-    let invalid_token = "invalid.token.here";
-    let user_id_result = auth_manager.extract_user_id(invalid_token, &jwks_manager);
-
-    assert!(user_id_result.is_err());
-}
-
-#[test]
 fn test_generate_oauth_access_token() {
     let auth_manager = create_auth_manager();
     let user_id = Uuid::new_v4();
@@ -559,6 +559,8 @@ fn test_claims_serialization() {
         email: "test@example.com".to_string(),
         iat: Utc::now().timestamp(),
         exp: (Utc::now() + Duration::hours(1)).timestamp(),
+        iss: "pierre-mcp-server".to_string(),
+        jti: Uuid::new_v4().to_string(),
         providers: vec!["strava".to_string(), "fitbit".to_string()],
         aud: "mcp".to_string(),
     };
@@ -717,19 +719,20 @@ fn test_token_counter_uniqueness() {
         tokens.push(token);
     }
 
-    // Verify all tokens have unique iat timestamps (due to counter)
-    let mut iats = Vec::new();
+    // Verify all tokens have unique jti (JWT ID) values
+    // RFC 7519: jti provides a unique identifier for the JWT
+    let mut jtis = Vec::new();
     for token in tokens {
         let claims = auth_manager.validate_token(&token, &jwks_manager).unwrap();
-        iats.push(claims.iat);
+        jtis.push(claims.jti);
     }
 
-    // All iat values should be unique
-    iats.sort_unstable();
-    iats.dedup();
+    // All jti values should be unique (guaranteed by UUID v4)
+    jtis.sort_unstable();
+    jtis.dedup();
     assert_eq!(
-        iats.len(),
+        jtis.len(),
         10,
-        "All tokens should have unique iat timestamps"
+        "All tokens should have unique jti (JWT ID) values"
     );
 }

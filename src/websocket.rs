@@ -70,6 +70,7 @@ struct ClientConnection {
 }
 
 impl WebSocketManager {
+    #[must_use]
     pub fn new(
         database: Arc<Database>,
         auth_manager: &Arc<AuthManager>,
@@ -92,6 +93,7 @@ impl WebSocketManager {
     }
 
     /// Get `WebSocket` filter for warp
+    #[must_use]
     pub fn websocket_filter(
         &self,
     ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {

@@ -33,6 +33,7 @@ pub struct OAuth2AuthorizationServer {
 }
 
 impl OAuth2AuthorizationServer {
+    #[must_use]
     pub fn new(
         database: Arc<crate::database_plugins::factory::Database>,
         auth_manager: Arc<AuthManager>,
