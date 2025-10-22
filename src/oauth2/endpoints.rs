@@ -522,19 +522,6 @@ impl OAuth2AuthorizationServer {
         self.database.store_oauth2_auth_code(auth_code).await
     }
 
-    /// Get authorization code (database operation)
-    async fn get_auth_code(&self, code: &str) -> Result<OAuth2AuthCode> {
-        self.database
-            .get_oauth2_auth_code(code)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("OAuth2 authorization code not found"))
-    }
-
-    /// Update authorization code (database operation)
-    async fn update_auth_code(&self, auth_code: &OAuth2AuthCode) -> Result<()> {
-        self.database.update_oauth2_auth_code(auth_code).await
-    }
-
     /// Generate refresh token with secure randomness
     ///
     /// # Errors
@@ -552,19 +539,6 @@ impl OAuth2AuthorizationServer {
         self.database
             .store_oauth2_refresh_token(refresh_token)
             .await
-    }
-
-    /// Get refresh token (database operation)
-    async fn get_refresh_token(
-        &self,
-        token: &str,
-    ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>> {
-        self.database.get_oauth2_refresh_token(token).await
-    }
-
-    /// Revoke refresh token (database operation)
-    async fn revoke_refresh_token(&self, token: &str) -> Result<()> {
-        self.database.revoke_oauth2_refresh_token(token).await
     }
 
     /// Validate and consume refresh token
