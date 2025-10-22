@@ -33,8 +33,13 @@ pub fn oauth2_routes(
     rate_limiter: &Arc<crate::oauth2::rate_limiting::OAuth2RateLimiter>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     let client_registration_routes = client_registration_routes(database.clone(), rate_limiter);
-    let authorization_routes =
-        authorization_routes(database.clone(), auth_manager, jwks_manager, rate_limiter);
+    let authorization_routes = authorization_routes(
+        database.clone(),
+        auth_manager,
+        jwks_manager,
+        config,
+        rate_limiter,
+    );
     let token_routes = token_routes(database.clone(), auth_manager, jwks_manager, rate_limiter);
     let validate_refresh_routes =
         validate_and_refresh_routes(database.clone(), auth_manager, jwks_manager);
@@ -116,6 +121,7 @@ fn authorization_routes(
     database: Arc<Database>,
     auth_manager: &Arc<AuthManager>,
     jwks_manager: &Arc<JwksManager>,
+    config: &Arc<crate::config::environment::ServerConfig>,
     rate_limiter: &Arc<crate::oauth2::rate_limiting::OAuth2RateLimiter>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     // Safe: filter() takes &self and clones internally for warp closure
@@ -141,6 +147,7 @@ fn authorization_routes(
         .and(warp::path::end())
         .and(warp::get())
         .and(warp::query::<HashMap<String, String>>())
+        .and(with_config(config))
         .and_then(handle_oauth_login_page);
 
     // OAuth login form submission
@@ -237,6 +244,17 @@ fn with_jwks_manager(
     warp::any().map(move || jwks_manager.clone())
 }
 
+/// Helper to inject server config
+fn with_config(
+    config: &Arc<crate::config::environment::ServerConfig>,
+) -> impl Filter<
+    Extract = (Arc<crate::config::environment::ServerConfig>,),
+    Error = std::convert::Infallible,
+> + Clone {
+    let config = config.clone();
+    warp::any().map(move || config.clone())
+}
+
 /// Handle client registration (POST /oauth/register)
 async fn handle_client_registration(
     request: ClientRegistrationRequest,
@@ -311,21 +329,39 @@ async fn handle_authorization(
     // If no authenticated user, redirect to login page with OAuth parameters
     let Some(authenticated_user_id) = user_id else {
         tracing::info!("No authenticated session for OAuth authorization, redirecting to login");
-        // Build login URL with OAuth parameters preserved
-        let login_url = format!(
-            "/oauth2/login?client_id={}&redirect_uri={}&response_type={}&state={}{}",
+        // Build login URL with OAuth parameters preserved (including PKCE parameters)
+        let mut login_url = format!(
+            "/oauth2/login?client_id={}&redirect_uri={}&response_type={}&state={}",
             request.client_id,
             urlencoding::encode(&request.redirect_uri),
             request.response_type,
-            request.state.as_deref().unwrap_or(""),
-            request
-                .scope
-                .as_ref()
-                .map_or_else(String::new, |scope| format!(
-                    "&scope={}",
-                    urlencoding::encode(scope)
-                ))
+            request.state.as_deref().unwrap_or("")
         );
+
+        if let Some(ref scope) = request.scope {
+            use std::fmt::Write;
+            write!(&mut login_url, "&scope={}", urlencoding::encode(scope)).ok();
+        }
+
+        if let Some(ref code_challenge) = request.code_challenge {
+            use std::fmt::Write;
+            write!(
+                &mut login_url,
+                "&code_challenge={}",
+                urlencoding::encode(code_challenge)
+            )
+            .ok();
+        }
+
+        if let Some(ref code_challenge_method) = request.code_challenge_method {
+            use std::fmt::Write;
+            write!(
+                &mut login_url,
+                "&code_challenge_method={}",
+                code_challenge_method
+            )
+            .ok();
+        }
 
         let redirect_response = warp::reply::with_header(warp::reply(), "Location", login_url);
         return Ok(Box::new(warp::reply::with_status(
@@ -635,6 +671,14 @@ fn render_oauth_error_html(error: &OAuth2Error) -> String {
 fn parse_authorize_request(
     params: &HashMap<String, String>,
 ) -> Result<AuthorizeRequest, OAuth2Error> {
+    tracing::trace!(
+        "Parsing OAuth authorize request with {} parameters",
+        params.len()
+    );
+    for (key, value) in params {
+        tracing::trace!("  {}: {}", key, value);
+    }
+
     let response_type = params
         .get("response_type")
         .ok_or_else(|| OAuth2Error::invalid_request("Missing response_type parameter"))?
@@ -747,18 +791,32 @@ fn verify_password(password: &str, hash: &str) -> bool {
 }
 
 /// Handle OAuth login page (GET /oauth2/login)
-async fn handle_oauth_login_page(params: HashMap<String, String>) -> Result<impl Reply, Rejection> {
-    // Extract OAuth parameters to preserve them through login flow
+async fn handle_oauth_login_page(
+    params: HashMap<String, String>,
+    config: Arc<crate::config::environment::ServerConfig>,
+) -> Result<impl Reply, Rejection> {
+    // Extract OAuth parameters to preserve them through login flow (including PKCE)
     let client_id = params.get("client_id").map_or("", |v| v);
     let redirect_uri = params.get("redirect_uri").map_or("", |v| v);
     let response_type = params.get("response_type").map_or("", |v| v);
     let state = params.get("state").map_or("", |v| v);
     let scope = params.get("scope").map_or("", |v| v);
+    let code_challenge = params.get("code_challenge").map_or("", |v| v);
+    let code_challenge_method = params.get("code_challenge_method").map_or("", |v| v);
 
-    // Get default form values from configuration (for dev/test only)
-    // Note: In production, these should never be set
-    let default_email = String::new();
-    let default_password = String::new();
+    // Get default form values from ServerConfig (for dev/test only)
+    // Note: In production, these config values should never be set
+    // Set OAUTH_DEFAULT_EMAIL and OAUTH_DEFAULT_PASSWORD in .envrc for dev convenience
+    let default_email = config
+        .oauth2_server
+        .default_login_email
+        .as_deref()
+        .unwrap_or_default();
+    let default_password = config
+        .oauth2_server
+        .default_login_password
+        .as_deref()
+        .unwrap_or_default();
 
     // Simple HTML login form that preserves OAuth parameters
     let html = format!(
@@ -791,6 +849,8 @@ async fn handle_oauth_login_page(params: HashMap<String, String>) -> Result<impl
             <input type="hidden" name="response_type" value="{response_type}">
             <input type="hidden" name="state" value="{state}">
             <input type="hidden" name="scope" value="{scope}">
+            <input type="hidden" name="code_challenge" value="{code_challenge}">
+            <input type="hidden" name="code_challenge_method" value="{code_challenge_method}">
 
             <div class="form-group">
                 <label for="email">Email:</label>
@@ -817,6 +877,8 @@ async fn handle_oauth_login_page(params: HashMap<String, String>) -> Result<impl
         } else {
             scope
         },
+        code_challenge = code_challenge,
+        code_challenge_method = code_challenge_method,
         default_email = default_email,
         default_password = default_password
     );
@@ -861,26 +923,48 @@ async fn handle_oauth_login_submit(
     .await
     {
         Ok(token) => {
-            // Extract OAuth parameters from form to continue authorization flow
+            // Extract OAuth parameters from form to continue authorization flow (including PKCE)
             let client_id = form.get("client_id").map_or("", |v| v);
             let redirect_uri = form.get("redirect_uri").map_or("", |v| v);
             let response_type = form.get("response_type").map_or("", |v| v);
             let state = form.get("state").map_or("", |v| v);
             let scope = form.get("scope").map_or("", |v| v);
+            let code_challenge = form.get("code_challenge").map_or("", |v| v);
+            let code_challenge_method = form.get("code_challenge_method").map_or("", |v| v);
 
-            // Build authorization URL with all preserved parameters
-            let auth_url = format!(
-                "/oauth2/authorize?client_id={}&redirect_uri={}&response_type={}&state={}{}",
+            // Build authorization URL with all preserved parameters (including PKCE)
+            let mut auth_url = format!(
+                "/oauth2/authorize?client_id={}&redirect_uri={}&response_type={}&state={}",
                 client_id,
                 urlencoding::encode(redirect_uri),
                 response_type,
-                state,
-                if scope.is_empty() {
-                    String::new()
-                } else {
-                    format!("&scope={}", urlencoding::encode(scope))
-                }
+                state
             );
+
+            if !scope.is_empty() {
+                use std::fmt::Write;
+                write!(&mut auth_url, "&scope={}", urlencoding::encode(scope)).ok();
+            }
+
+            if !code_challenge.is_empty() {
+                use std::fmt::Write;
+                write!(
+                    &mut auth_url,
+                    "&code_challenge={}",
+                    urlencoding::encode(code_challenge)
+                )
+                .ok();
+            }
+
+            if !code_challenge_method.is_empty() {
+                use std::fmt::Write;
+                write!(
+                    &mut auth_url,
+                    "&code_challenge_method={}",
+                    code_challenge_method
+                )
+                .ok();
+            }
 
             tracing::info!(
                 "User {} authenticated successfully for OAuth, redirecting to authorization",
@@ -922,7 +1006,7 @@ async fn handle_oauth_login_submit(
     <div class="error">
         <strong>Authentication Failed:</strong> Invalid email or password. Please try again.
     </div>
-    <a href="/oauth2/login?client_id={}&redirect_uri={}&response_type={}&state={}&scope={}">← Back to Login</a>
+    <a href="/oauth2/login?client_id={}&redirect_uri={}&response_type={}&state={}&scope={}&code_challenge={}&code_challenge_method={}">← Back to Login</a>
 </body>
 </html>
             "#,
@@ -930,7 +1014,9 @@ async fn handle_oauth_login_submit(
                 urlencoding::encode(form.get("redirect_uri").map_or("", |v| v)),
                 form.get("response_type").map_or("", |v| v),
                 form.get("state").map_or("", |v| v),
-                urlencoding::encode(form.get("scope").map_or("", |v| v))
+                urlencoding::encode(form.get("scope").map_or("", |v| v)),
+                urlencoding::encode(form.get("code_challenge").map_or("", |v| v)),
+                form.get("code_challenge_method").map_or("", |v| v)
             );
 
             Ok(Box::new(warp::reply::with_header(
