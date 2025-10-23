@@ -290,6 +290,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
 
 #[tokio::test]
 async fn test_user_registration_success() -> Result<()> {
+    common::init_server_config();
     let auth_routes = create_test_auth_routes().await?;
 
     let request = RegisterRequest {
@@ -308,6 +309,7 @@ async fn test_user_registration_success() -> Result<()> {
 
 #[tokio::test]
 async fn test_user_registration_invalid_email() -> Result<()> {
+    common::init_server_config();
     let auth_routes = create_test_auth_routes().await?;
 
     let request = RegisterRequest {
@@ -329,6 +331,7 @@ async fn test_user_registration_invalid_email() -> Result<()> {
 
 #[tokio::test]
 async fn test_user_registration_weak_password() -> Result<()> {
+    common::init_server_config();
     let auth_routes = create_test_auth_routes().await?;
 
     let request = RegisterRequest {
@@ -347,6 +350,7 @@ async fn test_user_registration_weak_password() -> Result<()> {
 
 #[tokio::test]
 async fn test_user_registration_duplicate_email() -> Result<()> {
+    common::init_server_config();
     let auth_routes = create_test_auth_routes().await?;
 
     let request = RegisterRequest {
@@ -369,6 +373,7 @@ async fn test_user_registration_duplicate_email() -> Result<()> {
 
 #[tokio::test]
 async fn test_user_registration_edge_cases() -> Result<()> {
+    common::init_server_config();
     let auth_routes = create_test_auth_routes().await?;
 
     // Test with minimal valid input
@@ -399,6 +404,7 @@ async fn test_user_registration_edge_cases() -> Result<()> {
 #[tokio::test]
 #[allow(clippy::too_many_lines)] // Long function: Complex test with full setup
 async fn test_user_login_success() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let temp_dir = tempfile::tempdir()?;
@@ -578,6 +584,7 @@ async fn test_user_login_success() -> Result<()> {
 
 #[tokio::test]
 async fn test_user_login_invalid_email() -> Result<()> {
+    common::init_server_config();
     let auth_routes = create_test_auth_routes().await?;
 
     let login_request = LoginRequest {
@@ -598,6 +605,7 @@ async fn test_user_login_invalid_email() -> Result<()> {
 
 #[tokio::test]
 async fn test_user_login_invalid_password() -> Result<()> {
+    common::init_server_config();
     let auth_routes = create_test_auth_routes().await?;
 
     // Register a user first
@@ -628,6 +636,7 @@ async fn test_user_login_invalid_password() -> Result<()> {
 
 #[tokio::test]
 async fn test_user_login_case_sensitivity() -> Result<()> {
+    common::init_server_config();
     let auth_routes = create_test_auth_routes().await?;
 
     // Register with lowercase email
@@ -658,6 +667,7 @@ async fn test_user_login_case_sensitivity() -> Result<()> {
 #[tokio::test]
 #[allow(clippy::too_many_lines)] // Long function: Complex test with full setup
 async fn test_token_refresh_success() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let temp_dir = tempfile::tempdir()?;
@@ -845,6 +855,7 @@ async fn test_token_refresh_success() -> Result<()> {
 
 #[tokio::test]
 async fn test_token_refresh_invalid_token() -> Result<()> {
+    common::init_server_config();
     let auth_routes = create_test_auth_routes().await?;
 
     let refresh_request = RefreshTokenRequest {
@@ -862,6 +873,7 @@ async fn test_token_refresh_invalid_token() -> Result<()> {
 #[tokio::test]
 #[allow(clippy::too_many_lines)] // Long function: Complex test with full setup
 async fn test_token_refresh_mismatched_user() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let temp_dir = tempfile::tempdir()?;
@@ -1047,6 +1059,7 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_get_auth_url_strava() -> Result<()> {
+    common::init_server_config();
     let (oauth_routes, tenant_id, _database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
@@ -1063,6 +1076,7 @@ async fn test_oauth_get_auth_url_strava() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_get_auth_url_fitbit() -> Result<()> {
+    common::init_server_config();
     let (oauth_routes, tenant_id, _database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
@@ -1079,6 +1093,7 @@ async fn test_oauth_get_auth_url_fitbit() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_get_auth_url_unsupported_provider() -> Result<()> {
+    common::init_server_config();
     let (oauth_routes, tenant_id, _database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
@@ -1095,6 +1110,7 @@ async fn test_oauth_get_auth_url_unsupported_provider() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_connection_status_no_connections() -> Result<()> {
+    common::init_server_config();
     let (oauth_routes, _tenant_id, database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
@@ -1134,6 +1150,7 @@ async fn test_oauth_connection_status_no_connections() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_disconnect_provider_success() -> Result<()> {
+    common::init_server_config();
     let (oauth_routes, _tenant_id, database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
@@ -1167,6 +1184,7 @@ async fn test_oauth_disconnect_provider_success() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_disconnect_invalid_provider() -> Result<()> {
+    common::init_server_config();
     let (oauth_routes, _tenant_id, database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
@@ -1207,6 +1225,7 @@ async fn test_oauth_disconnect_invalid_provider() -> Result<()> {
 
 #[tokio::test]
 async fn test_email_validation_comprehensive() -> Result<()> {
+    common::init_server_config();
     let auth_routes = create_test_auth_routes().await?;
 
     // Test obviously invalid email formats that should definitely fail
@@ -1248,6 +1267,7 @@ async fn test_email_validation_comprehensive() -> Result<()> {
 
 #[tokio::test]
 async fn test_password_validation_comprehensive() -> Result<()> {
+    common::init_server_config();
     let auth_routes = create_test_auth_routes().await?;
 
     // Test invalid passwords (too short)
@@ -1296,6 +1316,7 @@ async fn test_password_validation_comprehensive() -> Result<()> {
 #[tokio::test]
 #[allow(clippy::too_many_lines)] // Long function: Complex test with full setup
 async fn test_complete_auth_flow() -> Result<()> {
+    common::init_server_config();
     // Set required environment variables for OAuth
     std::env::set_var("STRAVA_CLIENT_ID", "test_client_id");
     std::env::set_var("STRAVA_CLIENT_SECRET", "test_client_secret");
@@ -1549,6 +1570,7 @@ async fn test_complete_auth_flow() -> Result<()> {
 
 #[tokio::test]
 async fn test_concurrent_registrations() -> Result<()> {
+    common::init_server_config();
     let auth_routes = create_test_auth_routes().await?;
 
     let mut handles = vec![];
@@ -1578,6 +1600,7 @@ async fn test_concurrent_registrations() -> Result<()> {
 #[tokio::test]
 #[allow(clippy::too_many_lines)] // Long function: Complex test with full setup
 async fn test_concurrent_logins() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let temp_dir = tempfile::tempdir()?;

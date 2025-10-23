@@ -45,6 +45,7 @@ fn create_auth_mcp_request(
 
 #[tokio::test]
 async fn test_mcp_initialize_request() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -74,6 +75,7 @@ async fn test_mcp_initialize_request() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_ping_request() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -100,6 +102,7 @@ async fn test_mcp_ping_request() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_tools_list_request() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -130,6 +133,7 @@ async fn test_mcp_tools_list_request() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_authenticate_request() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -169,6 +173,7 @@ async fn test_mcp_authenticate_request() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_tools_call_without_auth() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -203,6 +208,7 @@ async fn test_mcp_tools_call_without_auth() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_tools_call_with_expired_token() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -243,6 +249,7 @@ async fn test_mcp_tools_call_with_expired_token() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_tools_call_malformed_token() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -283,6 +290,7 @@ async fn test_mcp_tools_call_malformed_token() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_unknown_method() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -309,6 +317,7 @@ async fn test_mcp_unknown_method() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_oauth_tool_calls() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -397,6 +406,7 @@ async fn test_mcp_oauth_tool_calls() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_intelligence_tool_calls() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -460,6 +470,7 @@ async fn test_mcp_intelligence_tool_calls() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_provider_required_tools() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -532,6 +543,7 @@ async fn test_mcp_provider_required_tools() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_unknown_tool() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -580,6 +592,7 @@ async fn test_mcp_unknown_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_api_key_authentication() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -628,6 +641,7 @@ async fn test_mcp_api_key_authentication() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_request_id_variations() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -663,6 +677,7 @@ async fn test_mcp_request_id_variations() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_error_scenarios() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -709,6 +724,7 @@ async fn test_mcp_error_scenarios() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_concurrent_requests() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);

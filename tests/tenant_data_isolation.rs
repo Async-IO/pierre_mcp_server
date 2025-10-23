@@ -489,6 +489,7 @@ async fn test_database_encryption_isolation() -> Result<()> {
 /// Test MCP server request isolation
 #[tokio::test]
 async fn test_mcp_server_tenant_isolation() -> Result<()> {
+    common::init_server_config();
     let database = setup_test_database().await?;
     let auth_manager = AuthManager::new(24);
 

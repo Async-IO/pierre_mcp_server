@@ -6,6 +6,8 @@
 
 //! Unit tests for individual MCP analytics tools
 
+mod common;
+
 use pierre_mcp_server::mcp::schema::*;
 
 #[test]
@@ -133,6 +135,7 @@ fn test_tool_parameter_validation() {
 
 #[test]
 fn test_initialize_response() {
+    common::init_server_config();
     let response = InitializeResponse::new(
         "2025-06-18".to_string(),
         "pierre-mcp-server-multitenant".to_string(),

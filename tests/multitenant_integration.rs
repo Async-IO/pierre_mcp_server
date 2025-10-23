@@ -169,6 +169,7 @@ use uuid::Uuid;
 /// Test full multi-tenant authentication flow
 #[tokio::test]
 async fn test_multitenant_auth_flow() -> Result<()> {
+    common::init_server_config();
     // Setup
     let temp_dir = TempDir::new()?;
     let db_path = temp_dir.path().join("test.db");
@@ -624,6 +625,7 @@ async fn test_user_isolation() -> Result<()> {
 /// Test input validation
 #[tokio::test]
 async fn test_input_validation() -> Result<()> {
+    common::init_server_config();
     let temp_dir = TempDir::new()?;
     let db_path = temp_dir.path().join("validation_test.db");
     let database_url = format!("sqlite:{}", db_path.display());

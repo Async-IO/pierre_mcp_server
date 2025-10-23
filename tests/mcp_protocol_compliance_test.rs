@@ -12,9 +12,12 @@ use pierre_mcp_server::mcp::{
 };
 use serde_json::{json, Value};
 
+mod common;
+
 /// Test MCP protocol version negotiation during initialization
 #[tokio::test]
 async fn test_protocol_version_negotiation() {
+    common::init_server_config();
     // Test supported version
     let init_request = json!({
         "jsonrpc": "2.0",
@@ -82,6 +85,7 @@ async fn test_unsupported_protocol_version() {
 /// Test server capabilities declaration accuracy
 #[tokio::test]
 async fn test_server_capabilities_declaration() {
+    common::init_server_config();
     let init_request = json!({
         "jsonrpc": "2.0",
         "id": 3,
@@ -457,6 +461,7 @@ async fn test_notification_message_compliance() {
 /// Test protocol versioning backward compatibility
 #[tokio::test]
 async fn test_protocol_version_backward_compatibility() {
+    common::init_server_config();
     // Test that older supported versions still work
     let init_request_old = json!({
         "jsonrpc": "2.0",

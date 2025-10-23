@@ -22,6 +22,7 @@ const TEST_JWT_SECRET: &str = "test_jwt_secret_for_multitenant_specific_tests";
 /// Test handler for unknown/unsupported MCP methods
 #[tokio::test]
 async fn test_unknown_method_handler() -> Result<()> {
+    common::init_server_config();
     let database = create_test_database().await?;
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -67,6 +68,7 @@ async fn test_unknown_method_handler() -> Result<()> {
 /// Test connect_strava handler with invalid parameters
 #[tokio::test]
 async fn test_connect_strava_handler_errors() -> Result<()> {
+    common::init_server_config();
     let database = create_test_database().await?;
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -96,6 +98,7 @@ async fn test_connect_strava_handler_errors() -> Result<()> {
 /// Test disconnect_provider handler with various scenarios
 #[tokio::test]
 async fn test_disconnect_provider_handler() -> Result<()> {
+    common::init_server_config();
     let database = create_test_database().await?;
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -126,6 +129,7 @@ async fn test_disconnect_provider_handler() -> Result<()> {
 /// Test authentication error handling
 #[tokio::test]
 async fn test_authentication_error_handling() -> Result<()> {
+    common::init_server_config();
     let database = create_test_database().await?;
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -164,6 +168,7 @@ async fn test_authentication_error_handling() -> Result<()> {
 /// Test rate limiting behavior
 #[tokio::test]
 async fn test_rate_limiting_enforcement() -> Result<()> {
+    common::init_server_config();
     let database = create_test_database().await?;
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -201,6 +206,7 @@ async fn test_rate_limiting_enforcement() -> Result<()> {
 /// Test provider initialization errors
 #[tokio::test]
 async fn test_provider_initialization_errors() -> Result<()> {
+    common::init_server_config();
     let database = create_test_database().await?;
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -231,6 +237,7 @@ async fn test_provider_initialization_errors() -> Result<()> {
 /// Test JSON-RPC error response formatting
 #[tokio::test]
 async fn test_jsonrpc_error_responses() -> Result<()> {
+    common::init_server_config();
     let database = create_test_database().await?;
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -259,6 +266,7 @@ async fn test_jsonrpc_error_responses() -> Result<()> {
 /// Test session state management edge cases
 #[tokio::test]
 async fn test_session_state_edge_cases() -> Result<()> {
+    common::init_server_config();
     let database = create_test_database().await?;
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -287,6 +295,7 @@ async fn test_session_state_edge_cases() -> Result<()> {
 /// Test database error handling
 #[tokio::test]
 async fn test_database_error_handling() -> Result<()> {
+    common::init_server_config();
     let database = create_test_database().await?;
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
@@ -315,6 +324,7 @@ async fn test_database_error_handling() -> Result<()> {
 /// Test tool call parameter validation
 #[tokio::test]
 async fn test_tool_call_parameter_validation() -> Result<()> {
+    common::init_server_config();
     let database = create_test_database().await?;
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);

@@ -181,6 +181,7 @@ const TEST_JWT_SECRET: &str = "test_jwt_secret_for_oauth_e2e_tests";
 /// Test the complete OAuth flow through MCP tools
 #[tokio::test]
 async fn test_oauth_flow_through_mcp() {
+    common::init_server_config();
     // Setup multi-tenant server components
     let encryption_key = generate_encryption_key().to_vec();
 
@@ -393,6 +394,7 @@ async fn test_oauth_flow_through_mcp() {
 /// Test OAuth callback error handling
 #[tokio::test]
 async fn test_oauth_callback_error_handling() {
+    common::init_server_config();
     let encryption_key = generate_encryption_key().to_vec();
 
     #[cfg(feature = "postgresql")]
@@ -635,6 +637,7 @@ async fn test_oauth_callback_error_handling() {
 /// Test OAuth state security
 #[tokio::test]
 async fn test_oauth_state_csrf_protection() {
+    common::init_server_config();
     let encryption_key = generate_encryption_key().to_vec();
 
     #[cfg(feature = "postgresql")]
@@ -871,6 +874,7 @@ async fn test_oauth_state_csrf_protection() {
 /// Test provider connection status tracking
 #[tokio::test]
 async fn test_connection_status_tracking() {
+    common::init_server_config();
     let encryption_key = generate_encryption_key().to_vec();
 
     #[cfg(feature = "postgresql")]

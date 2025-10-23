@@ -460,6 +460,7 @@ impl DashboardTestSetup {
 
 #[tokio::test]
 async fn test_get_dashboard_overview_success() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let overview = setup
@@ -495,6 +496,7 @@ async fn test_get_dashboard_overview_success() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_dashboard_overview_invalid_auth() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     // Test with invalid token
@@ -562,6 +564,7 @@ async fn test_get_dashboard_overview_invalid_auth() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_dashboard_overview_empty_data() -> Result<()> {
+    common::init_server_config();
     // Create setup without usage data
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
@@ -738,6 +741,7 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_usage_analytics_success() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let analytics = setup
@@ -775,6 +779,7 @@ async fn test_get_usage_analytics_success() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_usage_analytics_different_timeframes() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     // Test different day ranges
@@ -799,6 +804,7 @@ async fn test_get_usage_analytics_different_timeframes() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_usage_analytics_invalid_auth() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let result = setup
@@ -854,6 +860,7 @@ async fn test_get_usage_analytics_invalid_auth() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_rate_limit_overview_success() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let overview = setup
@@ -890,6 +897,7 @@ async fn test_get_rate_limit_overview_success() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_rate_limit_overview_usage_calculation() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let overview = setup
@@ -920,6 +928,7 @@ async fn test_get_rate_limit_overview_usage_calculation() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_rate_limit_overview_invalid_auth() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let result = setup
@@ -969,6 +978,7 @@ async fn test_get_rate_limit_overview_invalid_auth() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_request_logs_success() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let logs = setup
@@ -1003,6 +1013,7 @@ async fn test_get_request_logs_success() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_request_logs_with_filters() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     // Test with specific API key filter
@@ -1060,6 +1071,7 @@ async fn test_get_request_logs_with_filters() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_request_logs_time_ranges() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let time_ranges = vec!["1h", "24h", "7d", "30d"];
@@ -1089,6 +1101,7 @@ async fn test_get_request_logs_time_ranges() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_request_logs_unauthorized_api_key() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     // Try to access logs for a non-existent API key
@@ -1118,6 +1131,7 @@ async fn test_get_request_logs_unauthorized_api_key() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_request_stats_success() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let stats = setup
@@ -1153,6 +1167,7 @@ async fn test_get_request_stats_success() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_request_stats_specific_api_key() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let api_key_id = &setup.api_keys[0].id;
@@ -1170,6 +1185,7 @@ async fn test_get_request_stats_specific_api_key() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_request_stats_different_timeframes() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let timeframes = vec!["1h", "24h", "7d", "30d"];
@@ -1198,6 +1214,7 @@ async fn test_get_request_stats_different_timeframes() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_request_stats_invalid_auth() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let result = setup
@@ -1255,6 +1272,7 @@ async fn test_get_request_stats_invalid_auth() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_tool_usage_breakdown_success() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let tool_usage = setup
@@ -1290,6 +1308,7 @@ async fn test_get_tool_usage_breakdown_success() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_tool_usage_breakdown_different_timeframes() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let timeframes = vec!["1h", "24h", "7d", "30d"];
@@ -1312,6 +1331,7 @@ async fn test_get_tool_usage_breakdown_different_timeframes() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_tool_usage_breakdown_invalid_auth() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let result = setup
@@ -1372,6 +1392,7 @@ async fn test_get_tool_usage_breakdown_invalid_auth() -> Result<()> {
 
 #[tokio::test]
 async fn test_dashboard_with_malformed_jwt() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     let malformed_tokens = vec![
@@ -1411,6 +1432,7 @@ async fn test_dashboard_with_malformed_jwt() -> Result<()> {
 
 #[tokio::test]
 async fn test_dashboard_with_different_user() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     // Create another user
@@ -1449,6 +1471,7 @@ async fn test_dashboard_with_different_user() -> Result<()> {
 
 #[tokio::test]
 async fn test_dashboard_concurrent_requests() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     // Make multiple concurrent requests
@@ -1480,6 +1503,7 @@ async fn test_dashboard_concurrent_requests() -> Result<()> {
 
 #[tokio::test]
 async fn test_dashboard_large_dataset() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     // Test that dashboard can handle reasonable amounts of data
@@ -1511,6 +1535,7 @@ async fn test_dashboard_large_dataset() -> Result<()> {
 
 #[tokio::test]
 async fn test_dashboard_boundary_conditions() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     // Test edge case: analytics for 0 days (should default to something reasonable)
@@ -1538,6 +1563,7 @@ async fn test_dashboard_boundary_conditions() -> Result<()> {
 
 #[tokio::test]
 async fn test_dashboard_data_consistency() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     // Get overview data
@@ -1574,6 +1600,7 @@ async fn test_dashboard_data_consistency() -> Result<()> {
 
 #[tokio::test]
 async fn test_dashboard_real_time_updates() -> Result<()> {
+    common::init_server_config();
     let setup = DashboardTestSetup::new().await?;
 
     // Get initial stats

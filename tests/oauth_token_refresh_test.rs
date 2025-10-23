@@ -506,6 +506,7 @@ async fn create_test_executor_without_oauth() -> (Arc<UniversalToolExecutor>, Ar
 /// Test that get_activities uses token refresh
 #[tokio::test]
 async fn test_get_activities_with_expired_token() {
+    common::init_server_config();
     let (executor, database) = create_test_executor().await;
 
     // Create user
@@ -588,6 +589,7 @@ async fn test_get_activities_with_expired_token() {
 /// Test connection status with OAuth manager integration
 #[tokio::test]
 async fn test_connection_status_with_oauth_manager() {
+    common::init_server_config();
     let (executor, database) = create_test_executor().await;
 
     // Create user
@@ -654,6 +656,7 @@ async fn test_connection_status_with_oauth_manager() {
 /// Test that analyze_activity uses token refresh
 #[tokio::test]
 async fn test_analyze_activity_token_refresh() {
+    common::init_server_config();
     let (executor, database) = create_test_executor().await;
 
     // Create user
@@ -740,6 +743,7 @@ async fn test_analyze_activity_token_refresh() {
 /// Test concurrent token refresh attempts
 #[tokio::test]
 async fn test_concurrent_token_operations() {
+    common::init_server_config();
     let (executor, database) = create_test_executor().await;
 
     // Create user
@@ -815,6 +819,7 @@ async fn test_concurrent_token_operations() {
 /// Fixed test isolation using configuration without OAuth credentials
 #[tokio::test]
 async fn test_oauth_provider_init_failure() {
+    common::init_server_config();
     // Create executor with configuration that has missing OAuth credentials
     let (executor, database) = create_test_executor_without_oauth().await;
 

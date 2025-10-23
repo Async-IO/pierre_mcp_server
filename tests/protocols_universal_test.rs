@@ -216,6 +216,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
 
 #[tokio::test]
 async fn test_universal_executor_creation() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     // Verify basic functionality
@@ -232,6 +233,7 @@ async fn test_universal_executor_creation() -> Result<()> {
 
 #[tokio::test]
 async fn test_tool_registration() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     // Verify all expected tools are registered
@@ -272,6 +274,7 @@ async fn test_tool_registration() -> Result<()> {
 
 #[tokio::test]
 async fn test_tool_execution_invalid_tool() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
@@ -290,6 +293,7 @@ async fn test_tool_execution_invalid_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_connection_status_tool() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
@@ -314,6 +318,7 @@ async fn test_connection_status_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_connect_strava_tool() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     // Create tenant and user for testing (user first, then tenant)
@@ -359,6 +364,7 @@ async fn test_connect_strava_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_connect_fitbit_tool() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
@@ -388,6 +394,7 @@ async fn test_connect_fitbit_tool() -> Result<()> {
 #[tokio::test]
 #[allow(clippy::too_many_lines)]
 async fn test_set_goal_tool() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let (user_id, _) = common::create_test_user(&database).await?;
 
@@ -599,6 +606,7 @@ async fn test_set_goal_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_metrics_tool() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
@@ -631,6 +639,7 @@ async fn test_calculate_metrics_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_analyze_performance_trends_tool() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
@@ -675,6 +684,7 @@ async fn test_analyze_performance_trends_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_compare_activities_tool() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     // Create tenant and user for testing (user first, then tenant)
@@ -733,6 +743,7 @@ async fn test_compare_activities_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_detect_patterns_tool() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
@@ -768,6 +779,7 @@ async fn test_detect_patterns_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_track_progress_tool() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
@@ -798,6 +810,7 @@ async fn test_track_progress_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_suggest_goals_tool() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
@@ -832,6 +845,7 @@ async fn test_suggest_goals_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_analyze_goal_feasibility_tool() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
@@ -860,6 +874,7 @@ async fn test_analyze_goal_feasibility_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_generate_recommendations_tool() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
@@ -905,6 +920,7 @@ async fn test_generate_recommendations_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_fitness_score_tool() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
@@ -943,6 +959,7 @@ async fn test_calculate_fitness_score_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_predict_performance_tool() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
@@ -981,6 +998,7 @@ async fn test_predict_performance_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_analyze_training_load_tool() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
@@ -1025,6 +1043,7 @@ async fn test_analyze_training_load_tool() -> Result<()> {
 #[tokio::test]
 #[allow(clippy::too_many_lines)]
 async fn test_disconnect_provider_tool() -> Result<()> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
     let (user_id, _) = common::create_test_user(&database).await?;
 
@@ -1233,6 +1252,7 @@ async fn test_disconnect_provider_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_activities_async_no_token() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     // Create tenant and user for testing (user first, then tenant)
@@ -1281,6 +1301,7 @@ async fn test_get_activities_async_no_token() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_athlete_async_no_token() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     // Create tenant and user for testing (user first, then tenant)
@@ -1330,6 +1351,7 @@ async fn test_get_athlete_async_no_token() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_stats_async_no_token() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     // Create tenant and user for testing (user first, then tenant)
@@ -1381,6 +1403,7 @@ async fn test_get_stats_async_no_token() -> Result<()> {
 
 #[tokio::test]
 async fn test_invalid_protocol_handling() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
@@ -1416,6 +1439,7 @@ async fn test_invalid_protocol_handling() -> Result<()> {
 
 #[tokio::test]
 async fn test_empty_parameters() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
@@ -1434,6 +1458,7 @@ async fn test_empty_parameters() -> Result<()> {
 
 #[tokio::test]
 async fn test_malformed_parameters() -> Result<()> {
+    common::init_server_config();
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {

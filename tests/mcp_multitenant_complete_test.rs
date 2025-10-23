@@ -396,6 +396,7 @@ impl MultiTenantMcpClient {
 /// Setup test environment
 async fn setup_test_environment() -> Result<(Database, AuthManager, u16, TempDir, String)> {
     common::init_test_http_clients();
+    common::init_server_config();
     let encryption_key = generate_encryption_key().to_vec();
 
     #[cfg(feature = "postgresql")]

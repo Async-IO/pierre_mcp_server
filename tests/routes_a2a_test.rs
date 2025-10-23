@@ -190,6 +190,7 @@ struct A2ATestSetup {
 
 impl A2ATestSetup {
     async fn new() -> Self {
+        common::init_server_config();
         // Create test database
         let encryption_key = generate_encryption_key().to_vec();
         #[cfg(feature = "postgresql")]

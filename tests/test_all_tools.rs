@@ -29,6 +29,7 @@ mod common;
 
 #[tokio::test]
 async fn test_complete_multitenant_workflow() -> Result<(), Box<dyn std::error::Error>> {
+    common::init_server_config();
     println!("Pierre MCP Server - Comprehensive Tool Testing Harness");
     println!("====================================================\n");
 

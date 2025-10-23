@@ -146,6 +146,7 @@ fn create_test_config_no_oauth() -> Arc<ServerConfig> {
 
 /// Create test executor - duplicated from `protocols_universal_test.rs`
 async fn create_test_executor() -> Result<UniversalToolExecutor> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
 
     let _intelligence = Arc::new(ActivityIntelligence::new(
@@ -190,6 +191,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
 
 /// Create executor with missing OAuth configuration
 async fn create_executor_no_oauth() -> Result<UniversalToolExecutor> {
+    common::init_server_config();
     let database = common::create_test_database().await?;
 
     let _intelligence = Arc::new(ActivityIntelligence::new(
