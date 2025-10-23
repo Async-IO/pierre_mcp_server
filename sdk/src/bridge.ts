@@ -15,6 +15,8 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -36,6 +38,11 @@ import {
   OAuthClientInformationFull
 } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { z } from 'zod';
+
+// Load OAuth HTML templates
+// __dirname is available in CommonJS, TypeScript will compile this correctly
+const OAUTH_SUCCESS_TEMPLATE = readFileSync(join(__dirname, '../templates/oauth_success.html'), 'utf-8');
+const OAUTH_ERROR_TEMPLATE = readFileSync(join(__dirname, '../templates/oauth_error.html'), 'utf-8');
 
 // Define custom notification schema for Pierre's OAuth completion notifications
 const OAuthCompletedNotificationSchema = z.object({
@@ -859,80 +866,14 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   }
 
   private renderSuccessTemplate(provider: string): string {
-    return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OAuth Success - ${provider}</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .success { color: #27ae60; font-size: 24px; margin-bottom: 20px; }
-        .info { color: #2c3e50; margin: 10px 0; }
-        .code { background: #ecf0f1; padding: 10px; border-radius: 4px; font-family: monospace; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1 class="success">✓ OAuth Authorization Successful</h1>
-        <div class="info"><strong>Provider:</strong> ${provider}</div>
-        <div class="info"><strong>Status:</strong> Connected successfully</div>
-        <div class="info"><strong>Status:</strong> <span class="code">Connected</span></div>
-        <p><strong>Authentication complete!</strong></p>
-        <p>Please return to your MCP client to continue.</p>
-        <p><small>This window will close automatically in 3 seconds...</small></p>
-        <script>
-            // Auto-close window after user has time to read the success message
-            window.onload = function() {
-                setTimeout(() => {
-                    window.close();
-                }, 3000);
-            };
-        </script>
-    </div>
-</body>
-</html>
-    `;
+    return OAUTH_SUCCESS_TEMPLATE.replace(/\{\{PROVIDER\}\}/g, provider);
   }
 
   private renderErrorTemplate(provider: string, error: string, description: string): string {
-    return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OAuth Error - ${provider}</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .error { color: #e74c3c; font-size: 24px; margin-bottom: 20px; }
-        .info { color: #2c3e50; margin: 10px 0; }
-        .code { background: #ecf0f1; padding: 10px; border-radius: 4px; font-family: monospace; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1 class="error">✗ OAuth Authorization Failed</h1>
-        <div class="info"><strong>Provider:</strong> ${provider}</div>
-        <div class="info"><strong>Error:</strong> <span class="code">${error}</span></div>
-        <div class="info"><strong>Description:</strong> ${description}</div>
-        <p>Please return to your MCP client and try connecting again.</p>
-        <p><small>This window will close automatically in 5 seconds...</small></p>
-        <script>
-            // Auto-close window after user has time to read the error
-            window.onload = function() {
-                setTimeout(() => {
-                    window.close();
-                }, 5000);
-            };
-        </script>
-    </div>
-</body>
-</html>
-    `;
+    return OAUTH_ERROR_TEMPLATE
+      .replace(/\{\{PROVIDER\}\}/g, provider)
+      .replace(/\{\{ERROR\}\}/g, error)
+      .replace(/\{\{DESCRIPTION\}\}/g, description);
   }
 
   async validateAndCleanupCachedCredentials(): Promise<void> {

@@ -359,48 +359,13 @@ impl OAuthTemplateRenderer {
         provider: &str,
         callback_response: &crate::routes::OAuthCallbackResponse,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        let template = format!(
-            r#"
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OAuth Success - {}</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }}
-        .container {{ max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-        .success {{ color: #27ae60; font-size: 24px; margin-bottom: 20px; }}
-        .info {{ color: #2c3e50; margin: 10px 0; }}
-        .code {{ background: #ecf0f1; padding: 10px; border-radius: 4px; font-family: monospace; }}
-    </style>
-    <script>
-        // Auto-close window after user has time to read the success message
-        window.onload = function() {{
-            setTimeout(() => {{
-                window.close();
-            }}, 3000);
-        }};
-    </script>
-</head>
-<body>
-    <div class="container">
-        <h1 class="success">✓ OAuth Authorization Successful</h1>
-        <div class="info"><strong>Provider:</strong> {}</div>
-        <div class="info"><strong>Status:</strong> Connected successfully</div>
-        <div class="info"><strong>User ID:</strong> {}</div>
-        <div class="info"><strong>Status:</strong> <span class="code">Connected</span></div>
-        <p><strong>✅ Authentication complete!</strong></p>
-        <p>Please return to your MCP client (Claude Desktop, ChatGPT, etc.) to continue.</p>
-        <p><small>This window will close automatically in 3 seconds...</small></p>
-    </div>
-</body>
-</html>
-"#,
-            provider, provider, callback_response.user_id
-        );
+        const TEMPLATE: &str = include_str!("../../templates/oauth_success.html");
 
-        Ok(template)
+        let rendered = TEMPLATE
+            .replace("{{PROVIDER}}", provider)
+            .replace("{{USER_ID}}", &callback_response.user_id.to_string());
+
+        Ok(rendered)
     }
 
     /// Render OAuth error template
@@ -412,44 +377,18 @@ impl OAuthTemplateRenderer {
         error: &str,
         description: Option<&str>,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        let template = format!(
-            r#"
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OAuth Error - {}</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }}
-        .container {{ max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-        .error {{ color: #e74c3c; font-size: 24px; margin-bottom: 20px; }}
-        .info {{ color: #2c3e50; margin: 10px 0; }}
-        .description {{ background: #ffeaa7; padding: 15px; border-radius: 4px; margin: 15px 0; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1 class="error">✗ OAuth Authorization Failed</h1>
-        <div class="info"><strong>Provider:</strong> {}</div>
-        <div class="info"><strong>Error:</strong> {}</div>
-        {}
-        <p>Please try again or contact support if the problem persists.</p>
-    </div>
-</body>
-</html>
-"#,
-            provider,
-            provider,
-            error,
-            description
-                .map(|d| format!(
-                    "<div class=\"description\"><strong>Description:</strong> {d}</div>"
-                ))
-                .unwrap_or_default()
-        );
+        const TEMPLATE: &str = include_str!("../../templates/oauth_error.html");
 
-        Ok(template)
+        let description_html = description
+            .map(|d| format!("<div class=\"description\"><strong>Description:</strong> {d}</div>"))
+            .unwrap_or_default();
+
+        let rendered = TEMPLATE
+            .replace("{{PROVIDER}}", provider)
+            .replace("{{ERROR}}", error)
+            .replace("{{DESCRIPTION}}", &description_html);
+
+        Ok(rendered)
     }
 }
 

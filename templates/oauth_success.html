@@ -3,110 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pierre Fitness - OAuth Success</title>
+    <title>OAuth Success - {{PROVIDER}}</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            margin: 0;
-            padding: 20px;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .container {
-            background: white;
-            border-radius: 12px;
-            padding: 40px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            text-align: center;
-            max-width: 500px;
-            width: 100%;
-        }
-        .success-icon {
-            font-size: 64px;
-            color: #10b981;
-            margin-bottom: 20px;
-        }
-        h1 {
-            color: #1f2937;
-            margin: 0 0 16px 0;
-            font-size: 28px;
-            font-weight: 600;
-        }
-        .message {
-            color: #6b7280;
-            font-size: 18px;
-            margin-bottom: 30px;
-            line-height: 1.5;
-        }
-        .details {
-            background: #f9fafb;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-            text-align: left;
-        }
-        .detail-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        .detail-row:last-child {
-            border-bottom: none;
-        }
-        .detail-label {
-            font-weight: 600;
-            color: #374151;
-        }
-        .detail-value {
-            color: #6b7280;
-            font-family: 'SF Mono', Consolas, monospace;
-            font-size: 14px;
-        }
-        .provider-badge {
-            display: inline-block;
-            background: #f97316;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .close-instruction {
-            color: #9ca3af;
-            font-size: 14px;
-            margin-top: 30px;
-        }
+        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .success { color: #27ae60; font-size: 24px; margin-bottom: 20px; }
+        .info { color: #2c3e50; margin: 10px 0; }
+        .code { background: #ecf0f1; padding: 10px; border-radius: 4px; font-family: monospace; }
     </style>
+    <script>
+        // Auto-close window after 30 seconds with countdown
+        window.onload = function() {
+            let seconds = 30;
+            const countdownEl = document.getElementById('countdown');
+            const interval = setInterval(() => {
+                seconds--;
+                if (countdownEl) countdownEl.textContent = seconds;
+                if (seconds <= 0) {
+                    clearInterval(interval);
+                    window.close();
+                }
+            }, 1000);
+        };
+    </script>
 </head>
 <body>
     <div class="container">
-        <div class="success-icon">✅</div>
-        <h1>Connection Successful!</h1>
-        <p class="message">Your {{provider}} account has been successfully connected to Pierre Fitness.</p>
-
-        <div class="details">
-            <div class="detail-row">
-                <span class="detail-label">Provider:</span>
-                <span class="provider-badge">{{provider}}</span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">User ID:</span>
-                <span class="detail-value">{{user_id}}</span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">Token Expires:</span>
-                <span class="detail-value">{{expires_at}}</span>
-            </div>
-        </div>
-
-        <p class="close-instruction">You can now close this window and return to Pierre Fitness.</p>
+        <h1 class="success">✓ OAuth Authorization Successful</h1>
+        <div class="info"><strong>Provider:</strong> {{PROVIDER}}</div>
+        <div class="info"><strong>Status:</strong> Connected successfully</div>
+        <div class="info"><strong>User ID:</strong> {{USER_ID}}</div>
+        <div class="info"><strong>Status:</strong> <span class="code">Connected</span></div>
+        <p><strong>✅ Authentication complete!</strong></p>
+        <p>Please return to your MCP client (Claude Desktop, ChatGPT, etc.) to continue.</p>
+        <p><small>This window will close automatically in <span id="countdown">30</span> seconds...</small></p>
+        <button onclick="window.close()" style="padding: 10px 20px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; font-size: 14px;">Close this window now</button>
     </div>
 </body>
 </html>

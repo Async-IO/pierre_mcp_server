@@ -9,7 +9,7 @@
         .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .error { color: #e74c3c; font-size: 24px; margin-bottom: 20px; }
         .info { color: #2c3e50; margin: 10px 0; }
-        .description { background: #ffeaa7; padding: 15px; border-radius: 4px; margin: 15px 0; }
+        .code { background: #ecf0f1; padding: 10px; border-radius: 4px; font-family: monospace; }
     </style>
     <script>
         // Auto-close window after 30 seconds with countdown
@@ -31,9 +31,9 @@
     <div class="container">
         <h1 class="error">✗ OAuth Authorization Failed</h1>
         <div class="info"><strong>Provider:</strong> {{PROVIDER}}</div>
-        <div class="info"><strong>Error:</strong> {{ERROR}}</div>
-        {{DESCRIPTION}}
-        <p>Please try again or contact support if the problem persists.</p>
+        <div class="info"><strong>Error:</strong> <span class="code">{{ERROR}}</span></div>
+        <div class="info"><strong>Description:</strong> {{DESCRIPTION}}</div>
+        <p>Please return to your MCP client and try connecting again.</p>
         <p><small>This window will close automatically in <span id="countdown">30</span> seconds...</small></p>
         <button onclick="window.close()" style="padding: 10px 20px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; font-size: 14px;">Close this window now</button>
     </div>
