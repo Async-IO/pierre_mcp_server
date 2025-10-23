@@ -280,6 +280,88 @@ async fn handle_client_registration(
     }
 }
 
+/// Build login URL with OAuth parameters preserved for redirect
+fn build_login_url_with_oauth_params(request: &AuthorizeRequest) -> String {
+    let mut login_url = format!(
+        "/oauth2/login?client_id={}&redirect_uri={}&response_type={}&state={}",
+        request.client_id,
+        urlencoding::encode(&request.redirect_uri),
+        request.response_type,
+        request.state.as_deref().unwrap_or("")
+    );
+
+    if let Some(ref scope) = request.scope {
+        use std::fmt::Write;
+        write!(&mut login_url, "&scope={}", urlencoding::encode(scope)).ok();
+    }
+
+    if let Some(ref code_challenge) = request.code_challenge {
+        use std::fmt::Write;
+        write!(
+            &mut login_url,
+            "&code_challenge={}",
+            urlencoding::encode(code_challenge)
+        )
+        .ok();
+    }
+
+    if let Some(ref code_challenge_method) = request.code_challenge_method {
+        use std::fmt::Write;
+        write!(
+            &mut login_url,
+            "&code_challenge_method={code_challenge_method}"
+        )
+        .ok();
+    }
+
+    login_url
+}
+
+/// Build authorization URL from form data with OAuth parameters preserved for redirect
+fn build_authorization_url_from_form(
+    client_id: &str,
+    redirect_uri: &str,
+    response_type: &str,
+    state: &str,
+    scope: &str,
+    code_challenge: &str,
+    code_challenge_method: &str,
+) -> String {
+    let mut auth_url = format!(
+        "/oauth2/authorize?client_id={}&redirect_uri={}&response_type={}&state={}",
+        client_id,
+        urlencoding::encode(redirect_uri),
+        response_type,
+        state
+    );
+
+    if !scope.is_empty() {
+        use std::fmt::Write;
+        write!(&mut auth_url, "&scope={}", urlencoding::encode(scope)).ok();
+    }
+
+    if !code_challenge.is_empty() {
+        use std::fmt::Write;
+        write!(
+            &mut auth_url,
+            "&code_challenge={}",
+            urlencoding::encode(code_challenge)
+        )
+        .ok();
+    }
+
+    if !code_challenge_method.is_empty() {
+        use std::fmt::Write;
+        write!(
+            &mut auth_url,
+            "&code_challenge_method={code_challenge_method}"
+        )
+        .ok();
+    }
+
+    auth_url
+}
+
 /// Handle authorization request (GET /oauth/authorize)
 async fn handle_authorization(
     params: HashMap<String, String>,
@@ -329,39 +411,7 @@ async fn handle_authorization(
     // If no authenticated user, redirect to login page with OAuth parameters
     let Some(authenticated_user_id) = user_id else {
         tracing::info!("No authenticated session for OAuth authorization, redirecting to login");
-        // Build login URL with OAuth parameters preserved (including PKCE parameters)
-        let mut login_url = format!(
-            "/oauth2/login?client_id={}&redirect_uri={}&response_type={}&state={}",
-            request.client_id,
-            urlencoding::encode(&request.redirect_uri),
-            request.response_type,
-            request.state.as_deref().unwrap_or("")
-        );
-
-        if let Some(ref scope) = request.scope {
-            use std::fmt::Write;
-            write!(&mut login_url, "&scope={}", urlencoding::encode(scope)).ok();
-        }
-
-        if let Some(ref code_challenge) = request.code_challenge {
-            use std::fmt::Write;
-            write!(
-                &mut login_url,
-                "&code_challenge={}",
-                urlencoding::encode(code_challenge)
-            )
-            .ok();
-        }
-
-        if let Some(ref code_challenge_method) = request.code_challenge_method {
-            use std::fmt::Write;
-            write!(
-                &mut login_url,
-                "&code_challenge_method={}",
-                code_challenge_method
-            )
-            .ok();
-        }
+        let login_url = build_login_url_with_oauth_params(&request);
 
         let redirect_response = warp::reply::with_header(warp::reply(), "Location", login_url);
         return Ok(Box::new(warp::reply::with_status(
@@ -932,39 +982,15 @@ async fn handle_oauth_login_submit(
             let code_challenge = form.get("code_challenge").map_or("", |v| v);
             let code_challenge_method = form.get("code_challenge_method").map_or("", |v| v);
 
-            // Build authorization URL with all preserved parameters (including PKCE)
-            let mut auth_url = format!(
-                "/oauth2/authorize?client_id={}&redirect_uri={}&response_type={}&state={}",
+            let auth_url = build_authorization_url_from_form(
                 client_id,
-                urlencoding::encode(redirect_uri),
+                redirect_uri,
                 response_type,
-                state
+                state,
+                scope,
+                code_challenge,
+                code_challenge_method,
             );
-
-            if !scope.is_empty() {
-                use std::fmt::Write;
-                write!(&mut auth_url, "&scope={}", urlencoding::encode(scope)).ok();
-            }
-
-            if !code_challenge.is_empty() {
-                use std::fmt::Write;
-                write!(
-                    &mut auth_url,
-                    "&code_challenge={}",
-                    urlencoding::encode(code_challenge)
-                )
-                .ok();
-            }
-
-            if !code_challenge_method.is_empty() {
-                use std::fmt::Write;
-                write!(
-                    &mut auth_url,
-                    "&code_challenge_method={}",
-                    code_challenge_method
-                )
-                .ok();
-            }
 
             tracing::info!(
                 "User {} authenticated successfully for OAuth, redirecting to authorization",
