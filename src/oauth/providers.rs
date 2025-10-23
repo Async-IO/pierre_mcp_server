@@ -72,7 +72,19 @@ impl StravaOAuthProvider {
         let redirect_uri = config
             .redirect_uri
             .clone() // Safe: String ownership needed for OAuth provider struct
-            .unwrap_or_else(crate::constants::env_config::strava_redirect_uri);
+            .or_else(|| {
+                crate::constants::get_server_config()
+                    .oauth
+                    .strava
+                    .redirect_uri
+                    .clone()
+            })
+            .unwrap_or_else(|| {
+                format!(
+                    "{}/auth/strava/callback",
+                    crate::constants::get_server_config().base_url
+                )
+            });
 
         Ok(Self {
             client_id,
@@ -255,7 +267,19 @@ impl FitbitOAuthProvider {
         let redirect_uri = config
             .redirect_uri
             .clone()
-            .unwrap_or_else(crate::constants::env_config::fitbit_redirect_uri);
+            .or_else(|| {
+                crate::constants::get_server_config()
+                    .oauth
+                    .fitbit
+                    .redirect_uri
+                    .clone()
+            })
+            .unwrap_or_else(|| {
+                format!(
+                    "{}/auth/fitbit/callback",
+                    crate::constants::get_server_config().base_url
+                )
+            });
 
         Ok(Self {
             client_id,

@@ -71,12 +71,19 @@ impl GarminProvider {
     /// Create a new Garmin provider with default configuration
     #[must_use]
     pub fn new() -> Self {
+        let server_config = crate::constants::get_server_config();
         let config = ProviderConfig {
             name: oauth_providers::GARMIN.to_string(),
-            auth_url: crate::constants::env_config::garmin_auth_url(),
-            token_url: crate::constants::env_config::garmin_token_url(),
-            api_base_url: crate::constants::env_config::garmin_api_base(),
-            revoke_url: Some(crate::constants::env_config::garmin_revoke_url()),
+            auth_url: server_config.external_services.garmin_api.auth_url.clone(),
+            token_url: server_config.external_services.garmin_api.token_url.clone(),
+            api_base_url: server_config.external_services.garmin_api.base_url.clone(),
+            revoke_url: Some(
+                server_config
+                    .external_services
+                    .garmin_api
+                    .revoke_url
+                    .clone(),
+            ),
             default_scopes: crate::constants::oauth::GARMIN_DEFAULT_SCOPES
                 .split(',')
                 .map(str::to_string)

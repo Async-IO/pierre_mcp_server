@@ -6,7 +6,7 @@
 
 use super::{AuthData, FitnessProvider};
 use crate::config::FitnessConfig;
-use crate::constants::{api_provider_limits, env_config};
+use crate::constants::api_provider_limits;
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
 use crate::oauth2_client::PkceParams;
 use crate::pagination::{CursorPage, PaginationParams};
@@ -37,14 +37,15 @@ pub struct StravaConfig {
 
 impl Default for StravaConfig {
     fn default() -> Self {
+        let config = crate::constants::get_server_config();
         // OAuth credentials are now tenant-based, not environment-based
         // Use empty strings for client credentials - they should be provided via tenant configuration
         Self {
             client_id: String::new(),
             client_secret: String::new(),
-            base_url: env_config::strava_api_base(),
-            auth_url: env_config::strava_auth_url(),
-            token_url: env_config::strava_token_url(),
+            base_url: config.external_services.strava_api.base_url.clone(),
+            auth_url: config.external_services.strava_api.auth_url.clone(),
+            token_url: config.external_services.strava_api.token_url.clone(),
         }
     }
 }

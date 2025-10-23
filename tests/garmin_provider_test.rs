@@ -11,10 +11,16 @@ use pierre_mcp_server::providers::garmin_provider::GarminProvider;
 use pierre_mcp_server::providers::registry::{get_supported_providers, global_registry};
 use std::sync::Once;
 
-/// Ensure HTTP clients are initialized only once across all tests
+/// Ensure HTTP clients and server config are initialized only once across all tests
 static INIT_HTTP_CLIENTS: Once = Once::new();
+static INIT_SERVER_CONFIG: Once = Once::new();
 
 fn ensure_http_clients_initialized() {
+    // Initialize server config first (required for provider defaults)
+    INIT_SERVER_CONFIG.call_once(|| {
+        pierre_mcp_server::constants::init_server_config();
+    });
+
     INIT_HTTP_CLIENTS.call_once(|| {
         pierre_mcp_server::utils::http_client::initialize_http_clients(
             pierre_mcp_server::config::environment::HttpClientConfig::default(),

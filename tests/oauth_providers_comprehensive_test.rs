@@ -19,7 +19,17 @@ use pierre_mcp_server::{
         OAuthError, OAuthProvider, TokenData,
     },
 };
+use std::sync::Once;
 use uuid::Uuid;
+
+/// Ensure ServerConfig is initialized only once across all tests
+static INIT_SERVER_CONFIG: Once = Once::new();
+
+fn ensure_server_config_initialized() {
+    INIT_SERVER_CONFIG.call_once(|| {
+        pierre_mcp_server::constants::init_server_config();
+    });
+}
 
 // === Test Setup Helpers ===
 
@@ -141,6 +151,7 @@ async fn test_strava_provider_from_config_missing_client_secret() -> Result<()> 
 
 #[tokio::test]
 async fn test_strava_provider_from_config_default_redirect_uri() -> Result<()> {
+    ensure_server_config_initialized();
     let mut config = create_valid_strava_config();
     config.redirect_uri = None;
     let api_config = create_strava_api_config();
@@ -299,6 +310,7 @@ async fn test_fitbit_provider_from_config_missing_client_secret() -> Result<()> 
 
 #[tokio::test]
 async fn test_fitbit_provider_from_config_default_redirect_uri() -> Result<()> {
+    ensure_server_config_initialized();
     let mut config = create_valid_fitbit_config();
     config.redirect_uri = None;
     let api_config = create_fitbit_api_config();

@@ -6,7 +6,7 @@
 
 //! Environment-based configuration management for production deployment
 
-use crate::constants::{defaults, env_config, limits, oauth};
+use crate::constants::{defaults, limits, oauth};
 use crate::errors::AppError;
 use crate::middleware::redaction::RedactionFeatures;
 use anyhow::{Context, Result};
@@ -795,9 +795,18 @@ impl ServerConfig {
         Self::initialize_environment();
 
         let config = Self {
-            http_port: env_config::server_port(),
-            oauth_callback_port: env_config::oauth_callback_port(),
-            log_level: LogLevel::from_str_or_default(&env_config::log_level()),
+            http_port: env::var("HTTP_PORT")
+                .or_else(|_| env::var("MCP_PORT"))
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(8081),
+            oauth_callback_port: env::var("OAUTH_CALLBACK_PORT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(35535),
+            log_level: LogLevel::from_str_or_default(
+                &env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string()),
+            ),
             logging: Self::load_logging_config(),
             database: Self::load_database_config()?,
             auth: Self::load_auth_config()?,
@@ -809,8 +818,8 @@ impl ServerConfig {
             http_client: Self::load_http_client_config(),
             sse: Self::load_sse_config()?,
             route_timeouts: Self::load_route_timeouts_config(),
-            host: env_config::host(),
-            base_url: env_config::base_url(),
+            host: env::var("HOST").unwrap_or_else(|_| "localhost".to_string()),
+            base_url: env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_string()),
             mcp: Self::load_mcp_config(),
             cors: Self::load_cors_config(),
             cache: Self::load_cache_config(),
@@ -944,7 +953,11 @@ impl ServerConfig {
                 "PostgreSQL"
             },
             "API-Configured",
-            crate::constants::env_config::strava_redirect_uri(),
+            self.oauth
+                .strava
+                .redirect_uri
+                .as_ref()
+                .map_or("Not configured", |s| s.as_str()),
             "API-Configured",
             if self.external_services.weather.enabled
                 && self.external_services.weather.api_key.is_some()
@@ -1031,8 +1044,10 @@ impl ServerConfig {
     /// Returns an error if database environment variables are invalid
     fn load_database_config() -> Result<DatabaseConfig> {
         Ok(DatabaseConfig {
-            url: DatabaseUrl::parse_url(&env_config::database_url())
-                .unwrap_or_else(|_| DatabaseUrl::default()),
+            url: DatabaseUrl::parse_url(
+                &env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string()),
+            )
+            .unwrap_or_else(|_| DatabaseUrl::default()),
             auto_migrate: env_var_or("AUTO_MIGRATE", "true")
                 .parse()
                 .context("Invalid AUTO_MIGRATE value")?,
@@ -1093,7 +1108,14 @@ impl ServerConfig {
     /// Returns an error if auth environment variables are invalid
     fn load_auth_config() -> Result<AuthConfig> {
         Ok(AuthConfig {
-            jwt_expiry_hours: u64::try_from(env_config::jwt_expiry_hours().max(0)).unwrap_or(24),
+            jwt_expiry_hours: u64::try_from(
+                env::var("JWT_EXPIRY_HOURS")
+                    .ok()
+                    .and_then(|s| s.parse::<i64>().ok())
+                    .unwrap_or(24)
+                    .max(0),
+            )
+            .unwrap_or(24),
             enable_refresh_tokens: env_var_or("ENABLE_REFRESH_TOKENS", "false")
                 .parse()
                 .context("Invalid ENABLE_REFRESH_TOKENS value")?,
@@ -1111,11 +1133,15 @@ impl ServerConfig {
 
     /// Load Strava OAuth configuration from environment (disabled for tenant-based OAuth)
     fn load_strava_oauth_config() -> OAuthProviderConfig {
+        let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
         // Use environment variables for global provider registration
         OAuthProviderConfig {
             client_id: env::var("STRAVA_CLIENT_ID").ok(),
             client_secret: env::var("STRAVA_CLIENT_SECRET").ok(),
-            redirect_uri: Some(crate::constants::env_config::strava_redirect_uri()),
+            redirect_uri: Some(
+                env::var("STRAVA_REDIRECT_URI")
+                    .unwrap_or_else(|_| format!("{base_url}/auth/strava/callback")),
+            ),
             scopes: parse_scopes(oauth::STRAVA_DEFAULT_SCOPES),
             enabled: env::var("STRAVA_CLIENT_ID").is_ok()
                 && env::var("STRAVA_CLIENT_SECRET").is_ok(),
@@ -1124,11 +1150,15 @@ impl ServerConfig {
 
     /// Load Fitbit OAuth configuration from environment (disabled for tenant-based OAuth)
     fn load_fitbit_oauth_config() -> OAuthProviderConfig {
+        let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
         // Use environment variables for global provider registration
         OAuthProviderConfig {
             client_id: env::var("FITBIT_CLIENT_ID").ok(),
             client_secret: env::var("FITBIT_CLIENT_SECRET").ok(),
-            redirect_uri: Some(crate::constants::env_config::fitbit_redirect_uri()),
+            redirect_uri: Some(
+                env::var("FITBIT_REDIRECT_URI")
+                    .unwrap_or_else(|_| format!("{base_url}/auth/fitbit/callback")),
+            ),
             scopes: parse_scopes(oauth::FITBIT_DEFAULT_SCOPES),
             enabled: env::var("FITBIT_CLIENT_ID").is_ok()
                 && env::var("FITBIT_CLIENT_SECRET").is_ok(),
@@ -1137,7 +1167,11 @@ impl ServerConfig {
 
     /// Load `OAuth2` authorization server configuration from environment
     fn load_oauth2_server_config() -> OAuth2ServerConfig {
-        let http_port = env_config::server_port();
+        let http_port = env::var("HTTP_PORT")
+            .or_else(|_| env::var("MCP_PORT"))
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(8081);
         OAuth2ServerConfig {
             issuer_url: env::var("OAUTH2_ISSUER_URL")
                 .unwrap_or_else(|_| format!("http://localhost:{http_port}")),
@@ -1340,10 +1374,14 @@ impl ServerConfig {
 
     /// Load Garmin OAuth configuration from environment
     fn load_garmin_oauth_config() -> OAuthProviderConfig {
+        let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
         OAuthProviderConfig {
             client_id: env::var("GARMIN_CLIENT_ID").ok(),
             client_secret: env::var("GARMIN_CLIENT_SECRET").ok(),
-            redirect_uri: Some(env_config::garmin_redirect_uri()),
+            redirect_uri: Some(
+                env::var("GARMIN_REDIRECT_URI")
+                    .unwrap_or_else(|_| format!("{base_url}/api/oauth/callback/garmin")),
+            ),
             scopes: vec![],
             enabled: env::var("GARMIN_CLIENT_ID").is_ok()
                 && env::var("GARMIN_CLIENT_SECRET").is_ok(),
@@ -1353,27 +1391,42 @@ impl ServerConfig {
     /// Load Garmin API configuration from environment
     fn load_garmin_api_config() -> GarminApiConfig {
         GarminApiConfig {
-            base_url: env_config::garmin_api_base(),
-            auth_url: env_config::garmin_auth_url(),
-            token_url: env_config::garmin_token_url(),
-            revoke_url: env_config::garmin_revoke_url(),
+            base_url: env_var_or(
+                "GARMIN_API_BASE",
+                "https://apis.garmin.com/wellness-api/rest",
+            ),
+            auth_url: env_var_or("GARMIN_AUTH_URL", "https://connect.garmin.com/oauthConfirm"),
+            token_url: env_var_or(
+                "GARMIN_TOKEN_URL",
+                "https://connectapi.garmin.com/oauth-service/oauth/access_token",
+            ),
+            revoke_url: env_var_or(
+                "GARMIN_REVOKE_URL",
+                "https://connectapi.garmin.com/oauth-service/oauth/revoke",
+            ),
         }
     }
 
     /// Load MCP server configuration from environment
     fn load_mcp_config() -> McpConfig {
         McpConfig {
-            protocol_version: env_config::mcp_protocol_version(),
-            server_name: env_config::server_name(),
-            session_cache_size: env_config::mcp_session_cache_size(),
+            protocol_version: env_var_or("MCP_PROTOCOL_VERSION", "2025-06-18"),
+            server_name: env_var_or("SERVER_NAME", "pierre-mcp-server"),
+            session_cache_size: env::var("MCP_SESSION_CACHE_SIZE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(100),
         }
     }
 
     /// Load CORS configuration from environment
     fn load_cors_config() -> CorsConfig {
         CorsConfig {
-            allowed_origins: env_config::cors_allowed_origins(),
-            allow_localhost_dev: env_config::cors_allow_localhost_dev(),
+            allowed_origins: env::var("CORS_ALLOWED_ORIGINS").unwrap_or_default(),
+            allow_localhost_dev: env::var("CORS_ALLOW_LOCALHOST_DEV")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(true),
         }
     }
 
@@ -1381,8 +1434,14 @@ impl ServerConfig {
     fn load_cache_config() -> CacheConfig {
         CacheConfig {
             redis_url: env::var("REDIS_URL").ok(),
-            max_entries: env_config::cache_max_entries(),
-            cleanup_interval_secs: env_config::cache_cleanup_interval_secs(),
+            max_entries: env::var("CACHE_MAX_ENTRIES")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(1000),
+            cleanup_interval_secs: env::var("CACHE_CLEANUP_INTERVAL_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(300),
         }
     }
 
@@ -1418,15 +1477,40 @@ impl ServerConfig {
     /// Load HTTP client configuration from environment
     fn load_http_client_config() -> HttpClientConfig {
         HttpClientConfig {
-            shared_client_timeout_secs: env_config::http_client_timeout_secs(),
-            shared_client_connect_timeout_secs: env_config::http_client_connect_timeout_secs(),
-            oauth_client_timeout_secs: env_config::oauth_client_timeout_secs(),
-            oauth_client_connect_timeout_secs: env_config::oauth_client_connect_timeout_secs(),
-            api_client_timeout_secs: env_config::api_client_timeout_secs(),
-            api_client_connect_timeout_secs: env_config::api_client_connect_timeout_secs(),
-            health_check_timeout_secs: env_config::health_check_timeout_secs(),
-            oauth_callback_notification_timeout_secs:
-                env_config::oauth_callback_notification_timeout_secs(),
+            shared_client_timeout_secs: env::var("HTTP_CLIENT_TIMEOUT_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(30),
+            shared_client_connect_timeout_secs: env::var("HTTP_CLIENT_CONNECT_TIMEOUT_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(10),
+            oauth_client_timeout_secs: env::var("OAUTH_CLIENT_TIMEOUT_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(15),
+            oauth_client_connect_timeout_secs: env::var("OAUTH_CLIENT_CONNECT_TIMEOUT_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(5),
+            api_client_timeout_secs: env::var("API_CLIENT_TIMEOUT_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(60),
+            api_client_connect_timeout_secs: env::var("API_CLIENT_CONNECT_TIMEOUT_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(10),
+            health_check_timeout_secs: env::var("HEALTH_CHECK_TIMEOUT_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(5),
+            oauth_callback_notification_timeout_secs: env::var(
+                "OAUTH_CALLBACK_NOTIFICATION_TIMEOUT_SECS",
+            )
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(5),
             enable_retries: env_var_or("HTTP_CLIENT_ENABLE_RETRIES", "true")
                 .parse()
                 .unwrap_or(true),
