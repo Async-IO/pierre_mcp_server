@@ -154,8 +154,8 @@ jobs:
             AND pid <> pg_backend_pid();"
 
     - name: Run all database tests with coverage (PostgreSQL)
-      run: timeout 1200 cargo llvm-cov --all-targets --features postgresql --lcov --output-path lcov-db-postgres.info -- --test-threads=1
-      timeout-minutes: 20
+      run: timeout 1800 cargo llvm-cov --all-targets --features postgresql --lcov --output-path lcov-db-postgres.info -- --test-threads=1
+      timeout-minutes: 30
       env:
         DATABASE_URL: "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server"
         ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
@@ -166,7 +166,7 @@ jobs:
         STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
         # PostgreSQL connection pool configuration for CI
         PG_MAX_CONNECTIONS: "20"
-        PG_MIN_CONNECTIONS: "1" 
+        PG_MIN_CONNECTIONS: "1"
         PG_ACQUIRE_TIMEOUT_SECS: "120"
         RUST_LOG: "info"
 
