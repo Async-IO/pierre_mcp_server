@@ -199,6 +199,9 @@ impl StravaProvider {
     {
         tracing::info!("Starting API request to endpoint: {}", endpoint);
 
+        // Refresh token if needed before making request
+        self.refresh_token_if_needed().await?;
+
         // Clone access token to avoid holding lock across await
         let access_token = {
             let guard = self.credentials.read().await;

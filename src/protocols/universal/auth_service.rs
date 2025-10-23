@@ -27,7 +27,7 @@ impl AuthService {
     }
 
     /// Get valid token for a provider, automatically refreshing if needed
-    /// Returns None if no token exists, Error if token operations fail
+    /// Returns None if no token exists or is expired, Error if token operations fail
     ///
     /// # Errors
     /// Returns `OAuthError` if token refresh fails or database operations fail
@@ -81,6 +81,15 @@ impl AuthService {
                 .await
             {
                 Ok(Some(oauth_token)) => {
+                    // Check if token is expired (with 5-minute buffer)
+                    if let Some(expires_at) = oauth_token.expires_at {
+                        let now = chrono::Utc::now();
+                        if expires_at <= now + chrono::Duration::minutes(5) {
+                            // Token is expired or expiring soon - return None to force re-authentication
+                            return Ok(None);
+                        }
+                    }
+
                     let token_data = TokenData {
                         provider: provider.to_string(),
                         access_token: oauth_token.access_token,
