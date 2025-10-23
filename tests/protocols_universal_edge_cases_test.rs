@@ -69,6 +69,13 @@ fn create_test_config() -> Arc<ServerConfig> {
                 scopes: vec!["activity".to_string(), "profile".to_string()],
                 enabled: true,
             },
+            garmin: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
@@ -108,6 +115,7 @@ fn create_test_config() -> Arc<ServerConfig> {
                 base_url: "https://nominatim.openstreetmap.org".to_string(),
                 enabled: true,
             },
+            ..Default::default()
         },
         app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
@@ -122,6 +130,7 @@ fn create_test_config() -> Arc<ServerConfig> {
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        ..Default::default()
     })
 }
 

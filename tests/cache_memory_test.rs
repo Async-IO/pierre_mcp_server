@@ -4,6 +4,8 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+mod common;
+
 use anyhow::Result;
 use pierre_mcp_server::cache::{factory::Cache, CacheConfig, CacheKey, CacheResource};
 use serde::{Deserialize, Serialize};
@@ -403,6 +405,9 @@ async fn test_cache_different_resource_types() -> Result<()> {
 
 #[tokio::test]
 async fn test_cache_from_env_defaults() -> Result<()> {
+    // Initialize server config for tests
+    common::init_server_config();
+
     // Test cache creation from environment (should use defaults)
     let cache = Cache::from_env().await?;
 

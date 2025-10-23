@@ -76,10 +76,7 @@ impl RedactionConfig {
     /// Create redaction config from environment
     #[must_use]
     pub fn from_env() -> Self {
-        let enabled = std::env::var("PIERRE_LOG_REDACT")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(true);
+        let enabled = crate::constants::get_server_config().logging.redact_pii;
 
         let features = if enabled {
             RedactionFeatures::ALL
@@ -90,8 +87,10 @@ impl RedactionConfig {
         Self {
             enabled,
             features,
-            redaction_placeholder: std::env::var("PIERRE_REDACTION_PLACEHOLDER")
-                .unwrap_or_else(|_| "[REDACTED]".to_string()),
+            redaction_placeholder: crate::constants::get_server_config()
+                .logging
+                .redaction_placeholder
+                .clone(),
         }
     }
 

@@ -81,6 +81,13 @@ fn create_test_config(port: u16) -> Arc<pierre_mcp_server::config::environment::
                 scopes: vec!["activity".to_string()],
                 enabled: false,
             },
+            garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
             cors_origins: vec!["*".to_string()],
@@ -120,6 +127,13 @@ fn create_test_config(port: u16) -> Arc<pierre_mcp_server::config::environment::
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
+            garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
+                base_url: "https://apis.garmin.com".to_string(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
+                    .to_string(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+            },
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
             max_activities_fetch: 100,
@@ -134,6 +148,7 @@ fn create_test_config(port: u16) -> Arc<pierre_mcp_server::config::environment::
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        ..Default::default()
     })
 }
 

@@ -88,6 +88,7 @@ async fn test_oauth_authorization_url_generation() {
                 scopes: vec![],
                 enabled: false,
             },
+            ..Default::default()
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
@@ -127,6 +128,7 @@ async fn test_oauth_authorization_url_generation() {
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
+            ..Default::default()
         },
         app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
@@ -141,6 +143,22 @@ async fn test_oauth_authorization_url_generation() {
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        host: "localhost".to_string(),
+        base_url: "http://localhost:8081".to_string(),
+        mcp: pierre_mcp_server::config::environment::McpConfig {
+            protocol_version: "2025-06-18".to_string(),
+            server_name: "pierre-mcp-server-test".to_string(),
+            session_cache_size: 1000,
+        },
+        cors: pierre_mcp_server::config::environment::CorsConfig {
+            allowed_origins: "*".to_string(),
+            allow_localhost_dev: true,
+        },
+        cache: pierre_mcp_server::config::environment::CacheConfig {
+            redis_url: None,
+            max_entries: 10000,
+            cleanup_interval_secs: 300,
+        },
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -326,6 +344,7 @@ async fn test_oauth_state_validation() {
                 scopes: vec![],
                 enabled: false,
             },
+            ..Default::default()
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
@@ -365,6 +384,7 @@ async fn test_oauth_state_validation() {
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
+            ..Default::default()
         },
         app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
@@ -379,6 +399,22 @@ async fn test_oauth_state_validation() {
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        host: "localhost".to_string(),
+        base_url: "http://localhost:8081".to_string(),
+        mcp: pierre_mcp_server::config::environment::McpConfig {
+            protocol_version: "2025-06-18".to_string(),
+            server_name: "pierre-mcp-server-test".to_string(),
+            session_cache_size: 1000,
+        },
+        cors: pierre_mcp_server::config::environment::CorsConfig {
+            allowed_origins: "*".to_string(),
+            allow_localhost_dev: true,
+        },
+        cache: pierre_mcp_server::config::environment::CacheConfig {
+            redis_url: None,
+            max_entries: 10000,
+            cleanup_interval_secs: 300,
+        },
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -470,6 +506,7 @@ async fn test_connection_status_no_providers() {
                 scopes: vec![],
                 enabled: false,
             },
+            ..Default::default()
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
@@ -509,6 +546,7 @@ async fn test_connection_status_no_providers() {
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
+            ..Default::default()
         },
         app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
@@ -523,6 +561,22 @@ async fn test_connection_status_no_providers() {
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        host: "localhost".to_string(),
+        base_url: "http://localhost:8081".to_string(),
+        mcp: pierre_mcp_server::config::environment::McpConfig {
+            protocol_version: "2025-06-18".to_string(),
+            server_name: "pierre-mcp-server-test".to_string(),
+            session_cache_size: 1000,
+        },
+        cors: pierre_mcp_server::config::environment::CorsConfig {
+            allowed_origins: "*".to_string(),
+            allow_localhost_dev: true,
+        },
+        cache: pierre_mcp_server::config::environment::CacheConfig {
+            redis_url: None,
+            max_entries: 10000,
+            cleanup_interval_secs: 300,
+        },
     });
 
     let user_id = Uuid::new_v4();
@@ -637,6 +691,7 @@ async fn test_invalid_provider_error() {
                 scopes: vec![],
                 enabled: false,
             },
+            ..Default::default()
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
@@ -676,6 +731,7 @@ async fn test_invalid_provider_error() {
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
+            ..Default::default()
         },
         app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
@@ -690,6 +746,22 @@ async fn test_invalid_provider_error() {
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        host: "localhost".to_string(),
+        base_url: "http://localhost:8081".to_string(),
+        mcp: pierre_mcp_server::config::environment::McpConfig {
+            protocol_version: "2025-06-18".to_string(),
+            server_name: "pierre-mcp-server-test".to_string(),
+            session_cache_size: 1000,
+        },
+        cors: pierre_mcp_server::config::environment::CorsConfig {
+            allowed_origins: "*".to_string(),
+            allow_localhost_dev: true,
+        },
+        cache: pierre_mcp_server::config::environment::CacheConfig {
+            redis_url: None,
+            max_entries: 10000,
+            cleanup_interval_secs: 300,
+        },
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -775,6 +847,7 @@ async fn test_disconnect_provider() {
                 scopes: vec![],
                 enabled: false,
             },
+            ..Default::default()
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
@@ -814,6 +887,7 @@ async fn test_disconnect_provider() {
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
+            ..Default::default()
         },
         app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
@@ -828,6 +902,22 @@ async fn test_disconnect_provider() {
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        host: "localhost".to_string(),
+        base_url: "http://localhost:8081".to_string(),
+        mcp: pierre_mcp_server::config::environment::McpConfig {
+            protocol_version: "2025-06-18".to_string(),
+            server_name: "pierre-mcp-server-test".to_string(),
+            session_cache_size: 1000,
+        },
+        cors: pierre_mcp_server::config::environment::CorsConfig {
+            allowed_origins: "*".to_string(),
+            allow_localhost_dev: true,
+        },
+        cache: pierre_mcp_server::config::environment::CacheConfig {
+            redis_url: None,
+            max_entries: 10000,
+            cleanup_interval_secs: 300,
+        },
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -1007,6 +1097,7 @@ async fn test_oauth_urls_contain_required_parameters() {
                 scopes: vec![],
                 enabled: false,
             },
+            ..Default::default()
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
@@ -1046,6 +1137,7 @@ async fn test_oauth_urls_contain_required_parameters() {
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
+            ..Default::default()
         },
         app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
@@ -1060,6 +1152,22 @@ async fn test_oauth_urls_contain_required_parameters() {
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        host: "localhost".to_string(),
+        base_url: "http://localhost:8081".to_string(),
+        mcp: pierre_mcp_server::config::environment::McpConfig {
+            protocol_version: "2025-06-18".to_string(),
+            server_name: "pierre-mcp-server-test".to_string(),
+            session_cache_size: 1000,
+        },
+        cors: pierre_mcp_server::config::environment::CorsConfig {
+            allowed_origins: "*".to_string(),
+            allow_localhost_dev: true,
+        },
+        cache: pierre_mcp_server::config::environment::CacheConfig {
+            redis_url: None,
+            max_entries: 10000,
+            cleanup_interval_secs: 300,
+        },
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(

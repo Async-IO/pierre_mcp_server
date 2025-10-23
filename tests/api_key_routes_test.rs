@@ -41,6 +41,9 @@ fn create_test_auth_result(user_id: Uuid) -> AuthResult {
 
 #[allow(clippy::too_many_lines)] // Long function: Complex test setup with full configuration
 async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
+    // Initialize server config for tests
+    common::init_server_config();
+
     // Create test database
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
@@ -121,6 +124,13 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                         scopes: vec![],
                         enabled: false,
                     },
+                    garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                        client_id: None,
+                        client_secret: None,
+                        redirect_uri: None,
+                        scopes: vec![],
+                        enabled: false,
+                    },
                 },
                 security: pierre_mcp_server::config::environment::SecurityConfig {
                     cors_origins: vec!["*".to_string()],
@@ -160,6 +170,14 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                         token_url: "https://api.fitbit.com/oauth2/token".to_string(),
                         revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
                     },
+                    garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
+                        base_url: "https://apis.garmin.com".to_string(),
+                        auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
+                        token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
+                            .to_string(),
+                        revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke"
+                            .to_string(),
+                    },
                 },
                 app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
                     max_activities_fetch: 100,
@@ -176,6 +194,22 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                 ),
                 route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(
                 ),
+                host: "localhost".to_string(),
+                base_url: "http://localhost:8081".to_string(),
+                mcp: pierre_mcp_server::config::environment::McpConfig {
+                    protocol_version: "2025-06-18".to_string(),
+                    server_name: "pierre-mcp-server-test".to_string(),
+                    session_cache_size: 1000,
+                },
+                cors: pierre_mcp_server::config::environment::CorsConfig {
+                    allowed_origins: "*".to_string(),
+                    allow_localhost_dev: true,
+                },
+                cache: pierre_mcp_server::config::environment::CacheConfig {
+                    redis_url: None,
+                    max_entries: 10000,
+                    cleanup_interval_secs: 300,
+                },
             }
         }),
         cache,

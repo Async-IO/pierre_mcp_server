@@ -123,12 +123,10 @@ impl MultiTenantMcpServer {
     /// Create a new MCP server with pre-built resources (dependency injection)
     #[must_use]
     pub fn new(resources: Arc<ServerResources>) -> Self {
-        // Default session cache size configurable via environment variable
-        let cache_size = std::env::var("MCP_SESSION_CACHE_SIZE")
-            .ok()
-            .and_then(|s| s.parse::<usize>().ok())
-            .and_then(NonZeroUsize::new)
-            .unwrap_or(Self::DEFAULT_SESSION_CACHE_SIZE);
+        // Default session cache size from server configuration
+        let cache_size =
+            NonZeroUsize::new(crate::constants::get_server_config().mcp.session_cache_size)
+                .unwrap_or(Self::DEFAULT_SESSION_CACHE_SIZE);
 
         info!(
             "MCP session cache initialized with capacity: {}",
@@ -2211,21 +2209,19 @@ impl MultiTenantMcpServer {
     /// Validate origin header for security (DNS rebinding and CSRF protection)
     fn is_valid_origin(origin: &str) -> bool {
         // Check environment-configured allowed origins first
-        if let Ok(allowed_origins) = std::env::var("CORS_ALLOWED_ORIGINS") {
-            if allowed_origins
+        let server_config = crate::constants::get_server_config();
+        let allowed_origins = &server_config.cors.allowed_origins;
+        if !allowed_origins.is_empty()
+            && allowed_origins
                 .split(',')
                 .map(str::trim)
                 .any(|x| x == origin)
-            {
-                return true;
-            }
+        {
+            return true;
         }
 
         // Allow localhost in development only if explicitly enabled
-        let allow_localhost = std::env::var("CORS_ALLOW_LOCALHOST_DEV")
-            .ok()
-            .and_then(|v| v.parse::<bool>().ok())
-            .unwrap_or(true); // Default to true for backwards compatibility
+        let allow_localhost = server_config.cors.allow_localhost_dev;
 
         if allow_localhost {
             // Validate localhost patterns - be more strict than before
@@ -2742,7 +2738,7 @@ impl MultiTenantMcpServer {
 
     /// Build OAuth base URL with dynamic port
     fn build_oauth_base_url(http_port: u16) -> String {
-        let host = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+        let host = &crate::constants::get_server_config().host;
         format!("http://{host}:{http_port}/api/oauth")
     }
 

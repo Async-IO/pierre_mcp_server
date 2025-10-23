@@ -23,6 +23,9 @@ use std::sync::Arc;
 // Long function: Defines complete test environment setup including database, auth, config, and test data
 #[allow(clippy::too_many_lines)]
 async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRoutes, uuid::Uuid)> {
+    // Initialize server config for tests
+    common::init_server_config();
+
     #[cfg(feature = "postgresql")]
     let database = Arc::new(
         Database::new(
@@ -138,6 +141,13 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
                 scopes: vec!["activity".to_string(), "profile".to_string()],
                 enabled: true,
             },
+            garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
             cors_origins: vec!["http://localhost:3000".to_string()],
@@ -177,6 +187,13 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
+            garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
+                base_url: "https://apis.garmin.com".to_string(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
+                    .to_string(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+            },
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
             max_activities_fetch: 200,
@@ -191,6 +208,22 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        host: "localhost".to_string(),
+        base_url: "http://localhost:8081".to_string(),
+        mcp: pierre_mcp_server::config::environment::McpConfig {
+            protocol_version: "2025-06-18".to_string(),
+            server_name: "pierre-mcp-server-test".to_string(),
+            session_cache_size: 1000,
+        },
+        cors: pierre_mcp_server::config::environment::CorsConfig {
+            allowed_origins: "*".to_string(),
+            allow_localhost_dev: true,
+        },
+        cache: pierre_mcp_server::config::environment::CacheConfig {
+            redis_url: None,
+            max_entries: 10000,
+            cleanup_interval_secs: 300,
+        },
     });
 
     let cache_config = pierre_mcp_server::cache::CacheConfig {

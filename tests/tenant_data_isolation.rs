@@ -63,6 +63,13 @@ fn create_test_server_config(
                 scopes: vec!["activity".to_string(), "profile".to_string()],
                 enabled: true,
             },
+            garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
             cors_origins: vec!["*".to_string()],
@@ -102,6 +109,7 @@ fn create_test_server_config(
                 base_url: "https://nominatim.openstreetmap.org".to_string(),
                 enabled: true,
             },
+            ..Default::default()
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
             max_activities_fetch: 100,
@@ -116,6 +124,7 @@ fn create_test_server_config(
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        ..Default::default()
     })
 }
 

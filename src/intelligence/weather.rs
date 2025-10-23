@@ -115,7 +115,11 @@ impl WeatherService {
     pub fn with_default_config() -> Self {
         Self::new(
             WeatherApiConfig::default(),
-            std::env::var("OPENWEATHER_API_KEY").ok(),
+            crate::constants::get_server_config()
+                .external_services
+                .weather
+                .api_key
+                .clone(),
         )
     }
 

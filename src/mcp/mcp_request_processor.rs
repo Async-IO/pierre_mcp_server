@@ -280,9 +280,7 @@ impl McpRequestProcessor {
 
     /// Log incoming request with optional truncation
     fn log_request(request: &McpRequest) {
-        let should_truncate = std::env::var("MCP_LOG_TRUNCATE")
-            .map(|v| v != "false" && v != "0")
-            .unwrap_or(true);
+        let should_truncate = true; // MCP request logging is always truncated for security
 
         if should_truncate {
             let request_summary = format!("{}(id={:?})", request.method, request.id);

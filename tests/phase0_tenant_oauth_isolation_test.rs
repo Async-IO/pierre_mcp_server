@@ -85,6 +85,7 @@ async fn test_tenant_credential_isolation() -> Result<()> {
             enabled: true,
         },
         fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
     });
     let mut oauth_manager = TenantOAuthManager::new(oauth_config);
 
@@ -190,6 +191,7 @@ async fn test_rate_limit_tracking_per_tenant() -> Result<()> {
     let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
         strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
         fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
     });
     let mut oauth_manager = TenantOAuthManager::new(oauth_config);
 
@@ -490,6 +492,7 @@ async fn test_token_refresh_uses_tenant_credentials() -> Result<()> {
     let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
         strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
         fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
     });
     let mut oauth_manager = TenantOAuthManager::new(oauth_config);
 
@@ -547,6 +550,7 @@ async fn test_tenant_specific_rate_limits() -> Result<()> {
     let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
         strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
         fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
     });
     let mut oauth_manager = TenantOAuthManager::new(oauth_config);
 
@@ -628,6 +632,7 @@ async fn test_concurrent_multitenant_oauth_operations() -> Result<()> {
     let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
         strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
         fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
     });
     let oauth_manager = std::sync::Arc::new(tokio::sync::RwLock::new(TenantOAuthManager::new(
         oauth_config,

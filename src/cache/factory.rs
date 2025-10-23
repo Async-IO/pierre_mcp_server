@@ -45,19 +45,11 @@ impl Cache {
     ///
     /// Returns an error if cache initialization fails
     pub async fn from_env() -> Result<Self> {
+        let server_config = crate::constants::get_server_config();
         let config = CacheConfig {
-            max_entries: std::env::var("CACHE_MAX_ENTRIES")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(crate::constants::cache::DEFAULT_CACHE_MAX_ENTRIES),
-            redis_url: std::env::var("REDIS_URL").ok(),
-            cleanup_interval: std::env::var("CACHE_CLEANUP_INTERVAL_SECS")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .map_or_else(
-                    || Duration::from_secs(crate::constants::cache::DEFAULT_CLEANUP_INTERVAL_SECS),
-                    Duration::from_secs,
-                ),
+            max_entries: server_config.cache.max_entries,
+            redis_url: server_config.cache.redis_url.clone(),
+            cleanup_interval: Duration::from_secs(server_config.cache.cleanup_interval_secs),
             // Enable background cleanup for production use
             enable_background_cleanup: true,
         };

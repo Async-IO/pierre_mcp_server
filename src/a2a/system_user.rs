@@ -54,7 +54,9 @@ impl A2ASystemUserService {
 
         // Use lower bcrypt cost in test/CI environments for performance (cost 4 is ~60x faster than default 12)
         // Check for test environment via CI variable or debug profile
-        let bcrypt_cost = if std::env::var("CI").is_ok() || cfg!(debug_assertions) {
+        let bcrypt_cost = if crate::constants::get_server_config().app_behavior.ci_mode
+            || cfg!(debug_assertions)
+        {
             4 // Fast hashing for tests and development
         } else {
             bcrypt::DEFAULT_COST // Secure hashing for production (12)

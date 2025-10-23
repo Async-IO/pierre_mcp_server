@@ -9,7 +9,36 @@
 //! This module organizes application constants by domain for better maintainability.
 //! Constants are grouped into logical domains rather than being in a single large file.
 
+use crate::config::environment::ServerConfig;
 use std::env;
+use std::sync::OnceLock;
+
+/// Static server configuration loaded once at startup
+static SERVER_CONFIG: OnceLock<ServerConfig> = OnceLock::new();
+
+/// Initialize server configuration (must be called once at server startup before `env_config` functions)
+///
+/// # Panics
+///
+/// Panics if called more than once or if `ServerConfig` initialization fails
+pub fn init_server_config() {
+    let config = ServerConfig::from_env().expect("Failed to load server configuration");
+    SERVER_CONFIG
+        .set(config)
+        .expect("Server configuration already initialized");
+}
+
+/// Get reference to the static server configuration
+///
+/// # Panics
+///
+/// Panics if called before `init_server_config()`
+#[must_use]
+pub fn get_server_config() -> &'static ServerConfig {
+    SERVER_CONFIG
+        .get()
+        .expect("Server configuration not initialized - call init_server_config() first")
+}
 
 // Domain-specific modules
 pub mod cache;
@@ -279,6 +308,66 @@ pub mod env_config {
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(super::timeouts::OAUTH_CALLBACK_NOTIFICATION_TIMEOUT_SECS)
+    }
+
+    /// Get server host from environment or default
+    #[must_use]
+    pub fn host() -> String {
+        env::var("HOST").unwrap_or_else(|_| "localhost".to_string())
+    }
+
+    /// Get MCP protocol version from environment or default
+    #[must_use]
+    pub fn mcp_protocol_version() -> String {
+        env::var("MCP_PROTOCOL_VERSION").unwrap_or_else(|_| "2025-06-18".to_string())
+    }
+
+    /// Get server name from environment or default
+    #[must_use]
+    pub fn server_name() -> String {
+        env::var("SERVER_NAME").unwrap_or_else(|_| "pierre-mcp-server".to_string())
+    }
+
+    /// Get MCP session cache size from environment or default
+    #[must_use]
+    pub fn mcp_session_cache_size() -> usize {
+        env::var("MCP_SESSION_CACHE_SIZE")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(100)
+    }
+
+    /// Get CORS allowed origins from environment or default
+    #[must_use]
+    pub fn cors_allowed_origins() -> String {
+        env::var("CORS_ALLOWED_ORIGINS").unwrap_or_default()
+    }
+
+    /// Get CORS allow localhost dev from environment or default
+    #[must_use]
+    pub fn cors_allow_localhost_dev() -> bool {
+        env::var("CORS_ALLOW_LOCALHOST_DEV")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(true)
+    }
+
+    /// Get cache max entries from environment or default
+    #[must_use]
+    pub fn cache_max_entries() -> usize {
+        env::var("CACHE_MAX_ENTRIES")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1000)
+    }
+
+    /// Get cache cleanup interval from environment or default
+    #[must_use]
+    pub fn cache_cleanup_interval_secs() -> u64 {
+        env::var("CACHE_CLEANUP_INTERVAL_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(300)
     }
 }
 

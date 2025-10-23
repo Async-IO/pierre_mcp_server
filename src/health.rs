@@ -136,7 +136,11 @@ impl HealthChecker {
         let service = ServiceInfo {
             name: service_names::PIERRE_MCP_SERVER.into(),
             version: env!("CARGO_PKG_VERSION").to_string(),
-            environment: std::env::var("ENVIRONMENT").unwrap_or_else(|_| "unknown".into()),
+            environment: crate::constants::get_server_config()
+                .security
+                .headers
+                .environment
+                .to_string(),
             uptime_seconds: self.start_time.elapsed().as_secs(),
             build_time: option_env!("BUILD_TIME").map(std::string::ToString::to_string),
             git_commit: option_env!("GIT_COMMIT").map(std::string::ToString::to_string),
@@ -183,7 +187,11 @@ impl HealthChecker {
         let service = ServiceInfo {
             name: service_names::PIERRE_MCP_SERVER.into(),
             version: env!("CARGO_PKG_VERSION").to_string(),
-            environment: std::env::var("ENVIRONMENT").unwrap_or_else(|_| "unknown".into()),
+            environment: crate::constants::get_server_config()
+                .security
+                .headers
+                .environment
+                .to_string(),
             uptime_seconds: self.start_time.elapsed().as_secs(),
             build_time: option_env!("BUILD_TIME").map(std::string::ToString::to_string),
             git_commit: option_env!("GIT_COMMIT").map(std::string::ToString::to_string),

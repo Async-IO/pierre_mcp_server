@@ -21,6 +21,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 async fn create_test_tool_executor() -> Arc<UniversalToolExecutor> {
+    // Initialize server config for tests
+    common::init_server_config();
+
     // Create in-memory database for testing
     #[cfg(feature = "postgresql")]
     let database = Arc::new(
@@ -100,93 +103,18 @@ async fn create_test_tool_executor() -> Arc<UniversalToolExecutor> {
 fn create_test_config() -> pierre_mcp_server::config::environment::ServerConfig {
     pierre_mcp_server::config::environment::ServerConfig {
         http_port: 4000,
-        oauth_callback_port: 35535,
-        log_level: pierre_mcp_server::config::environment::LogLevel::Info,
-        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
-        http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
         database: pierre_mcp_server::config::environment::DatabaseConfig {
-            url: pierre_mcp_server::config::environment::DatabaseUrl::default(),
-            auto_migrate: true,
             backup: pierre_mcp_server::config::environment::BackupConfig {
-                enabled: false,
-                interval_seconds: 3600,
-                retention_count: 7,
                 directory: std::path::PathBuf::from("data/backups"),
+                ..Default::default()
             },
-            postgres_pool: pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
-        },
-        auth: pierre_mcp_server::config::environment::AuthConfig {
-            jwt_expiry_hours: 24,
-            enable_refresh_tokens: false,
-        },
-        oauth: pierre_mcp_server::config::environment::OAuthConfig {
-            strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
-                scopes: vec!["read".to_string()],
-                enabled: false,
-            },
-            fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
-                scopes: vec!["activity".to_string()],
-                enabled: false,
-            },
-        },
-        security: pierre_mcp_server::config::environment::SecurityConfig {
-            cors_origins: vec!["*".to_string()],
-            rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
-            tls: pierre_mcp_server::config::environment::TlsConfig {
-                enabled: false,
-                cert_path: None,
-                key_path: None,
-            },
-            headers: pierre_mcp_server::config::environment::SecurityHeadersConfig {
-                environment: pierre_mcp_server::config::environment::Environment::Development,
-            },
-        },
-        external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
-            weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
-                api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
-                enabled: false,
-            },
-            geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
-                enabled: false,
-            },
-            strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
-            },
-            fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
-            },
+            ..Default::default()
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
-            max_activities_fetch: 100,
-            default_activities_limit: 20,
-            ci_mode: true, // Set to CI mode for testing
-            protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                mcp_version: "2024-11-05".to_string(),
-                server_name: "pierre-mcp-server".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
-            },
+            ci_mode: true,
+            ..Default::default()
         },
-        sse: pierre_mcp_server::config::environment::SseConfig::default(),
-        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
-        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        ..Default::default()
     }
 }
 

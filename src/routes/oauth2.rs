@@ -26,8 +26,7 @@ impl OAuth2Routes {
         // Use async block to satisfy clippy
         tokio::task::yield_now().await;
         // Generate OAuth2 authorization endpoint discovery
-        let base_url =
-            std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
+        let base_url = crate::constants::get_server_config().base_url.clone();
         Ok(warp::reply::json(&serde_json::json!({
             "authorization_endpoint": format!("{}/oauth2/authorize", base_url),
             "token_endpoint": format!("{}/oauth2/token", base_url),

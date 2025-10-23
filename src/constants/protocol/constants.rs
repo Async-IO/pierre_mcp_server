@@ -6,12 +6,10 @@
 
 //! Protocol constants for MCP and JSON-RPC
 
-use std::env;
-
 /// Get MCP Protocol version from environment or default
 #[must_use]
 pub fn mcp_protocol_version() -> String {
-    env::var("MCP_PROTOCOL_VERSION").unwrap_or_else(|_| "2025-06-18".into())
+    crate::constants::env_config::mcp_protocol_version()
 }
 
 /// JSON-RPC version (standard, not configurable)
@@ -20,13 +18,13 @@ pub const JSONRPC_VERSION: &str = "2.0";
 /// Get server name from environment or default
 #[must_use]
 pub fn server_name() -> String {
-    env::var("SERVER_NAME").unwrap_or_else(|_| "pierre-mcp-server".into())
+    crate::constants::env_config::server_name()
 }
 
 /// Get server name variant with specific suffix
 #[must_use]
 pub fn server_name_multitenant() -> String {
-    env::var("SERVER_NAME").unwrap_or_else(|_| "pierre-mcp-server".into())
+    crate::constants::env_config::server_name()
 }
 
 /// Server version from Cargo.toml

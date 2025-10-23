@@ -102,6 +102,13 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
                 scopes: vec!["activity".to_string(), "profile".to_string()],
                 enabled: true,
             },
+            garmin: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
@@ -141,6 +148,13 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
+            garmin_api: GarminApiConfig {
+                base_url: "https://apis.garmin.com".to_string(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
+                    .to_string(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+            },
         },
         app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
@@ -155,6 +169,22 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        host: "localhost".to_string(),
+        base_url: "http://localhost:8081".to_string(),
+        mcp: pierre_mcp_server::config::environment::McpConfig {
+            protocol_version: "2025-06-18".to_string(),
+            server_name: "pierre-mcp-server-test".to_string(),
+            session_cache_size: 1000,
+        },
+        cors: pierre_mcp_server::config::environment::CorsConfig {
+            allowed_origins: "*".to_string(),
+            allow_localhost_dev: true,
+        },
+        cache: pierre_mcp_server::config::environment::CacheConfig {
+            redis_url: None,
+            max_entries: 10000,
+            cleanup_interval_secs: 300,
+        },
     });
 
     // Create ServerResources for the test
@@ -433,6 +463,13 @@ async fn test_set_goal_tool() -> Result<()> {
                 scopes: vec!["activity".to_string(), "profile".to_string()],
                 enabled: true,
             },
+            garmin: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
@@ -472,6 +509,13 @@ async fn test_set_goal_tool() -> Result<()> {
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
+            garmin_api: GarminApiConfig {
+                base_url: "https://apis.garmin.com".to_string(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
+                    .to_string(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+            },
         },
         app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
@@ -486,6 +530,22 @@ async fn test_set_goal_tool() -> Result<()> {
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        host: "localhost".to_string(),
+        base_url: "http://localhost:8081".to_string(),
+        mcp: pierre_mcp_server::config::environment::McpConfig {
+            protocol_version: "2025-06-18".to_string(),
+            server_name: "pierre-mcp-server-test".to_string(),
+            session_cache_size: 1000,
+        },
+        cors: pierre_mcp_server::config::environment::CorsConfig {
+            allowed_origins: "*".to_string(),
+            allow_localhost_dev: true,
+        },
+        cache: pierre_mcp_server::config::environment::CacheConfig {
+            redis_url: None,
+            max_entries: 10000,
+            cleanup_interval_secs: 300,
+        },
     });
 
     // Create ServerResources for the test
@@ -1040,6 +1100,13 @@ async fn test_disconnect_provider_tool() -> Result<()> {
                 scopes: vec!["activity".to_string(), "profile".to_string()],
                 enabled: true,
             },
+            garmin: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
@@ -1079,6 +1146,13 @@ async fn test_disconnect_provider_tool() -> Result<()> {
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
+            garmin_api: GarminApiConfig {
+                base_url: "https://apis.garmin.com".to_string(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
+                    .to_string(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+            },
         },
         app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
@@ -1093,6 +1167,22 @@ async fn test_disconnect_provider_tool() -> Result<()> {
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        host: "localhost".to_string(),
+        base_url: "http://localhost:8081".to_string(),
+        mcp: pierre_mcp_server::config::environment::McpConfig {
+            protocol_version: "2025-06-18".to_string(),
+            server_name: "pierre-mcp-server-test".to_string(),
+            session_cache_size: 1000,
+        },
+        cors: pierre_mcp_server::config::environment::CorsConfig {
+            allowed_origins: "*".to_string(),
+            allow_localhost_dev: true,
+        },
+        cache: pierre_mcp_server::config::environment::CacheConfig {
+            redis_url: None,
+            max_entries: 10000,
+            cleanup_interval_secs: 300,
+        },
     });
 
     // Create ServerResources for the test

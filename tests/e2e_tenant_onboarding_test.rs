@@ -39,6 +39,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
 
     // Initialize HTTP clients (only once across all tests)
     common::init_test_http_clients();
+    common::init_server_config();
 
     // Step 1: Create test database and base infrastructure
     #[cfg(feature = "postgresql")]
@@ -168,6 +169,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
         strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
         fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
     });
     let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new(
         oauth_config,
@@ -429,6 +431,7 @@ async fn test_tenant_context_switching() -> Result<()> {
     let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
         strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
         fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
     });
     let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new(
         oauth_config,
@@ -530,6 +533,7 @@ fn create_test_server_config() -> ServerConfig {
                 scopes: Vec::new(),
                 enabled: false,
             },
+            ..Default::default()
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
@@ -569,6 +573,7 @@ fn create_test_server_config() -> ServerConfig {
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
                 revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
+            ..Default::default()
         },
         app_behavior: AppBehaviorConfig {
             max_activities_fetch: 100,
@@ -583,5 +588,6 @@ fn create_test_server_config() -> ServerConfig {
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
+        ..Default::default()
     }
 }

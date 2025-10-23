@@ -19,6 +19,7 @@ use std::sync::Arc;
 #[tokio::test]
 async fn test_basic_health_check() {
     common::init_test_http_clients();
+    common::init_server_config();
     let encryption_key = generate_encryption_key().to_vec();
 
     #[cfg(feature = "postgresql")]
@@ -49,6 +50,7 @@ async fn test_basic_health_check() {
 #[tokio::test]
 async fn test_comprehensive_health_check() {
     common::init_test_http_clients();
+    common::init_server_config();
     let encryption_key = generate_encryption_key().to_vec();
 
     #[cfg(feature = "postgresql")]
@@ -81,6 +83,7 @@ async fn test_comprehensive_health_check() {
 #[tokio::test]
 async fn test_readiness_check() {
     common::init_test_http_clients();
+    common::init_server_config();
     let encryption_key = generate_encryption_key().to_vec();
 
     #[cfg(feature = "postgresql")]

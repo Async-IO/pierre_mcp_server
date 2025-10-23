@@ -36,6 +36,16 @@ use uuid::Uuid;
 
 static INIT_LOGGER: Once = Once::new();
 static INIT_HTTP_CLIENTS: Once = Once::new();
+static INIT_SERVER_CONFIG: Once = Once::new();
+
+/// Initialize server configuration for tests (call once per test process)
+pub fn init_server_config() {
+    INIT_SERVER_CONFIG.call_once(|| {
+        std::env::set_var("CI", "true");
+        std::env::set_var("DATABASE_URL", "sqlite::memory:");
+        pierre_mcp_server::constants::init_server_config();
+    });
+}
 
 /// Shared JWKS manager for all tests (generated once, reused everywhere)
 /// This eliminates expensive RSA key generation (100ms+ per key) in every test
@@ -267,6 +277,7 @@ pub async fn setup_test_environment_with_tier(tier: UserTier) -> Result<(Arc<Dat
 pub async fn create_test_server_resources() -> Result<Arc<ServerResources>> {
     init_test_logging();
     init_test_http_clients();
+    init_server_config();
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
 

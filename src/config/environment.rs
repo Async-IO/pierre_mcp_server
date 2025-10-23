@@ -197,6 +197,50 @@ impl std::fmt::Display for DatabaseUrl {
     }
 }
 
+/// CORS (Cross-Origin Resource Sharing) configuration
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CorsConfig {
+    /// Comma-separated list of allowed origins
+    pub allowed_origins: String,
+    /// Allow localhost in development mode
+    pub allow_localhost_dev: bool,
+}
+
+/// Cache configuration for Redis and in-memory caching
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CacheConfig {
+    /// Redis URL for distributed caching (optional)
+    pub redis_url: Option<String>,
+    /// Maximum number of entries in local cache
+    pub max_entries: usize,
+    /// Cache cleanup interval in seconds
+    pub cleanup_interval_secs: u64,
+}
+
+/// Garmin API configuration
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct GarminApiConfig {
+    /// Garmin API base URL
+    pub base_url: String,
+    /// Garmin auth URL
+    pub auth_url: String,
+    /// Garmin token URL
+    pub token_url: String,
+    /// Garmin revoke URL
+    pub revoke_url: String,
+}
+
+/// MCP (Model Context Protocol) server configuration
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct McpConfig {
+    /// MCP protocol version
+    pub protocol_version: String,
+    /// MCP server name
+    pub server_name: String,
+    /// MCP session cache size
+    pub session_cache_size: usize,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ServerConfig {
     /// Server port (handles both MCP and HTTP)
@@ -227,6 +271,16 @@ pub struct ServerConfig {
     pub sse: SseConfig,
     /// Per-route timeout configuration
     pub route_timeouts: RouteTimeoutConfig,
+    /// Server host
+    pub host: String,
+    /// Base URL for OAuth and external URLs
+    pub base_url: String,
+    /// MCP server configuration
+    pub mcp: McpConfig,
+    /// CORS configuration
+    pub cors: CorsConfig,
+    /// Cache configuration
+    pub cache: CacheConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -288,8 +342,10 @@ pub struct AuthConfig {
 pub struct OAuthConfig {
     /// Strava OAuth configuration
     pub strava: OAuthProviderConfig,
-    /// Fitbit OAuth configuration  
+    /// Fitbit OAuth configuration
     pub fitbit: OAuthProviderConfig,
+    /// Garmin OAuth configuration
+    pub garmin: OAuthProviderConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -557,8 +613,10 @@ pub struct ExternalServicesConfig {
     pub geocoding: GeocodingServiceConfig,
     /// Strava API configuration
     pub strava_api: StravaApiConfig,
-    /// Fitbit API configuration  
+    /// Fitbit API configuration
     pub fitbit_api: FitbitApiConfig,
+    /// Garmin API configuration
+    pub garmin_api: GarminApiConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -751,6 +809,11 @@ impl ServerConfig {
             http_client: Self::load_http_client_config(),
             sse: Self::load_sse_config()?,
             route_timeouts: Self::load_route_timeouts_config(),
+            host: env_config::host(),
+            base_url: env_config::base_url(),
+            mcp: Self::load_mcp_config(),
+            cors: Self::load_cors_config(),
+            cache: Self::load_cache_config(),
         };
 
         config.validate()?;
@@ -1042,6 +1105,7 @@ impl ServerConfig {
         OAuthConfig {
             strava: Self::load_strava_oauth_config(),
             fitbit: Self::load_fitbit_oauth_config(),
+            garmin: Self::load_garmin_oauth_config(),
         }
     }
 
@@ -1215,6 +1279,7 @@ impl ServerConfig {
             geocoding: Self::load_geocoding_service_config()?,
             strava_api: Self::load_strava_api_config(),
             fitbit_api: Self::load_fitbit_api_config(),
+            garmin_api: Self::load_garmin_api_config(),
         })
     }
 
@@ -1270,6 +1335,54 @@ impl ServerConfig {
             auth_url: env_var_or("FITBIT_AUTH_URL", "https://www.fitbit.com/oauth2/authorize"),
             token_url: env_var_or("FITBIT_TOKEN_URL", "https://api.fitbit.com/oauth2/token"),
             revoke_url: env_var_or("FITBIT_REVOKE_URL", "https://api.fitbit.com/oauth2/revoke"),
+        }
+    }
+
+    /// Load Garmin OAuth configuration from environment
+    fn load_garmin_oauth_config() -> OAuthProviderConfig {
+        OAuthProviderConfig {
+            client_id: env::var("GARMIN_CLIENT_ID").ok(),
+            client_secret: env::var("GARMIN_CLIENT_SECRET").ok(),
+            redirect_uri: Some(env_config::garmin_redirect_uri()),
+            scopes: vec![],
+            enabled: env::var("GARMIN_CLIENT_ID").is_ok()
+                && env::var("GARMIN_CLIENT_SECRET").is_ok(),
+        }
+    }
+
+    /// Load Garmin API configuration from environment
+    fn load_garmin_api_config() -> GarminApiConfig {
+        GarminApiConfig {
+            base_url: env_config::garmin_api_base(),
+            auth_url: env_config::garmin_auth_url(),
+            token_url: env_config::garmin_token_url(),
+            revoke_url: env_config::garmin_revoke_url(),
+        }
+    }
+
+    /// Load MCP server configuration from environment
+    fn load_mcp_config() -> McpConfig {
+        McpConfig {
+            protocol_version: env_config::mcp_protocol_version(),
+            server_name: env_config::server_name(),
+            session_cache_size: env_config::mcp_session_cache_size(),
+        }
+    }
+
+    /// Load CORS configuration from environment
+    fn load_cors_config() -> CorsConfig {
+        CorsConfig {
+            allowed_origins: env_config::cors_allowed_origins(),
+            allow_localhost_dev: env_config::cors_allow_localhost_dev(),
+        }
+    }
+
+    /// Load cache configuration from environment
+    fn load_cache_config() -> CacheConfig {
+        CacheConfig {
+            redis_url: env::var("REDIS_URL").ok(),
+            max_entries: env_config::cache_max_entries(),
+            cleanup_interval_secs: env_config::cache_cleanup_interval_secs(),
         }
     }
 

@@ -28,7 +28,6 @@ const JSONRPC_VERSION: &str = "2.0";
 const METHOD_PROGRESS: &str = "notifications/progress";
 const METHOD_CANCELLED: &str = "notifications/cancelled";
 const METHOD_OAUTH_COMPLETED: &str = "notifications/oauth_completed";
-const DEFAULT_HOST: &str = "localhost";
 
 // Note: Schema type strings ("string", "object", etc.) and property descriptions
 // must be converted to String via .into() when inserted into HashMap/Vec because
@@ -299,17 +298,17 @@ impl InitializeResponse {
                 }),
                 auth: Some(AuthCapability {
                     oauth2: Some(OAuth2Capability {
-                        discovery_url: format!("http://{}:{http_port}/.well-known/oauth-authorization-server", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
-                        authorization_endpoint: format!("http://{}:{http_port}/oauth2/authorize", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
-                        token_endpoint: format!("http://{}:{http_port}/oauth2/token", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
-                        registration_endpoint: format!("http://{}:{http_port}/oauth2/register", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
+                        discovery_url: format!("http://{}:{http_port}/.well-known/oauth-authorization-server", crate::constants::get_server_config().host),
+                        authorization_endpoint: format!("http://{}:{http_port}/oauth2/authorize", crate::constants::get_server_config().host),
+                        token_endpoint: format!("http://{}:{http_port}/oauth2/token", crate::constants::get_server_config().host),
+                        registration_endpoint: format!("http://{}:{http_port}/oauth2/register", crate::constants::get_server_config().host),
                     }),
                 }),
                 oauth2: Some(OAuth2Capability {
-                    discovery_url: format!("http://{}:{http_port}/.well-known/oauth-authorization-server", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
-                    authorization_endpoint: format!("http://{}:{http_port}/oauth2/authorize", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
-                    token_endpoint: format!("http://{}:{http_port}/oauth2/token", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
-                    registration_endpoint: format!("http://{}:{http_port}/oauth2/register", std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.to_owned())),
+                    discovery_url: format!("http://{}:{http_port}/.well-known/oauth-authorization-server", crate::constants::get_server_config().host),
+                    authorization_endpoint: format!("http://{}:{http_port}/oauth2/authorize", crate::constants::get_server_config().host),
+                    token_endpoint: format!("http://{}:{http_port}/oauth2/token", crate::constants::get_server_config().host),
+                    registration_endpoint: format!("http://{}:{http_port}/oauth2/register", crate::constants::get_server_config().host),
                 }),
             },
             instructions: Some("This server provides fitness data tools for Strava and Fitbit integration. OAuth must be configured at tenant level via REST API. Use `get_activities`, `get_athlete`, and other analytics tools to access your fitness data.".into()),

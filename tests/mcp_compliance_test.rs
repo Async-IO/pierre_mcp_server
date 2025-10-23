@@ -159,12 +159,16 @@
 
 #![allow(dead_code)]
 
+mod common;
+
 use pierre_mcp_server::mcp::schema::*;
 use serde_json::json;
 
 /// Test that the initialize response has the correct structure
 #[test]
 fn test_initialize_response_format() {
+    common::init_server_config();
+
     let response = InitializeResponse::new(
         "2025-06-18".to_string(),
         "pierre-mcp-server".to_string(),
@@ -393,6 +397,8 @@ fn test_client_capabilities_parsing() {
 /// Test round-trip serialization/deserialization
 #[test]
 fn test_round_trip_serialization() {
+    common::init_server_config();
+
     let original_response = InitializeResponse::new(
         "2025-06-18".to_string(),
         "pierre-mcp-server".to_string(),
@@ -448,6 +454,7 @@ fn test_required_methods_coverage() {
 /// Test protocol version compliance
 #[test]
 fn test_protocol_version_compliance() {
+    common::init_server_config();
     use pierre_mcp_server::constants::protocol;
 
     // Verify we're using the latest protocol version
