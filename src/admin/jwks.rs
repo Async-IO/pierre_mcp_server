@@ -307,6 +307,49 @@ impl JwksManager {
         self.keys.values().collect()
     }
 
+    /// Register an existing RSA key pair from PEM format (for database loading)
+    ///
+    /// # Errors
+    /// Returns error if key import or registration fails
+    pub fn register_keypair_from_pem(
+        &mut self,
+        kid: &str,
+        private_key_pem: &str,
+        created_at: DateTime<Utc>,
+        is_active: bool,
+    ) -> Result<()> {
+        let mut key_pair = RsaKeyPair::import_private_key_pem(kid, private_key_pem)?;
+        key_pair.created_at = created_at;
+        key_pair.is_active = is_active;
+
+        // If this key is marked active, deactivate current active key
+        if is_active {
+            if let Some(prev_active_kid) = &self.active_key_id {
+                if let Some(prev_key) = self.keys.get_mut(prev_active_kid) {
+                    prev_key.is_active = false;
+                }
+            }
+            self.active_key_id = Some(kid.to_string());
+        }
+
+        self.keys.insert(kid.to_string(), key_pair);
+        Ok(())
+    }
+
+    /// Load keys from database tuples
+    ///
+    /// # Errors
+    /// Returns error if key import fails
+    pub fn load_keys_from_database(
+        &mut self,
+        keypairs: Vec<(String, String, String, DateTime<Utc>, bool)>,
+    ) -> Result<()> {
+        for (kid, private_key_pem, _public_key_pem, created_at, is_active) in keypairs {
+            self.register_keypair_from_pem(&kid, &private_key_pem, created_at, is_active)?;
+        }
+        Ok(())
+    }
+
     /// Generate JWKS JSON for public key distribution
     ///
     /// # Errors

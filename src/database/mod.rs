@@ -492,6 +492,22 @@ impl Database {
         .execute(&self.pool)
         .await?;
 
+        // Create rsa_keypairs table for persistent JWT signing keys
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS rsa_keypairs (
+                kid TEXT PRIMARY KEY,
+                private_key_pem TEXT NOT NULL,
+                public_key_pem TEXT NOT NULL,
+                created_at DATETIME NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT false,
+                key_size_bits INTEGER NOT NULL
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
         // Create indexes for admin tables
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_admin_tokens_service ON admin_tokens(service_name)",
@@ -521,6 +537,12 @@ impl Database {
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_system_secrets_type ON system_secrets(secret_type)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_rsa_keypairs_active ON rsa_keypairs(is_active)",
         )
         .execute(&self.pool)
         .await?;
@@ -672,6 +694,89 @@ impl Database {
 
         let hash = digest(&SHA256, data.as_bytes());
         Ok(general_purpose::STANDARD.encode(hash.as_ref()))
+    }
+
+    /// Save RSA keypair to database for persistence across restarts
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn save_rsa_keypair(
+        &self,
+        kid: &str,
+        private_key_pem: &str,
+        public_key_pem: &str,
+        created_at: chrono::DateTime<chrono::Utc>,
+        is_active: bool,
+        key_size_bits: usize,
+    ) -> Result<()> {
+        sqlx::query(
+            r"
+            INSERT INTO rsa_keypairs (kid, private_key_pem, public_key_pem, created_at, is_active, key_size_bits)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT(kid) DO UPDATE SET
+                private_key_pem = EXCLUDED.private_key_pem,
+                public_key_pem = EXCLUDED.public_key_pem,
+                is_active = EXCLUDED.is_active
+            ",
+        )
+        .bind(kid)
+        .bind(private_key_pem)
+        .bind(public_key_pem)
+        .bind(created_at)
+        .bind(is_active)
+        .bind(key_size_bits as i64)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Load all RSA keypairs from database
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database query fails
+    pub async fn load_rsa_keypairs(
+        &self,
+    ) -> Result<Vec<(String, String, String, chrono::DateTime<chrono::Utc>, bool)>> {
+        let rows = sqlx::query(
+            "SELECT kid, private_key_pem, public_key_pem, created_at, is_active FROM rsa_keypairs ORDER BY created_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut keypairs = Vec::new();
+        for row in rows {
+            let kid: String = row.get("kid");
+            let private_key_pem: String = row.get("private_key_pem");
+            let public_key_pem: String = row.get("public_key_pem");
+            let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
+            let is_active: bool = row.get("is_active");
+
+            keypairs.push((kid, private_key_pem, public_key_pem, created_at, is_active));
+        }
+
+        Ok(keypairs)
+    }
+
+    /// Update active status of RSA keypair
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn update_rsa_keypair_active_status(
+        &self,
+        kid: &str,
+        is_active: bool,
+    ) -> Result<()> {
+        sqlx::query("UPDATE rsa_keypairs SET is_active = $1 WHERE kid = $2")
+            .bind(is_active)
+            .bind(kid)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 }
 

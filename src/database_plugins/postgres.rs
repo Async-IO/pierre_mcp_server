@@ -104,6 +104,7 @@ impl DatabaseProvider for PostgresDatabase {
         self.create_admin_tables().await?;
         self.create_jwt_usage_table().await?;
         self.create_oauth_notifications_table().await?;
+        self.create_rsa_keypairs_table().await?;
         self.create_tenant_tables().await?; // Add tenant tables
         self.create_indexes().await?;
         Ok(())
@@ -2648,6 +2649,77 @@ impl DatabaseProvider for PostgresDatabase {
             }
             Ok(results)
         }
+    }
+
+    // ================================
+    // RSA Key Persistence for JWT Signing
+    // ================================
+
+    /// Save RSA keypair to database for persistence across restarts
+    async fn save_rsa_keypair(
+        &self,
+        kid: &str,
+        private_key_pem: &str,
+        public_key_pem: &str,
+        created_at: DateTime<Utc>,
+        is_active: bool,
+        key_size_bits: usize,
+    ) -> Result<()> {
+        sqlx::query(
+            r"
+            INSERT INTO rsa_keypairs (kid, private_key_pem, public_key_pem, created_at, is_active, key_size_bits)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT(kid) DO UPDATE SET
+                private_key_pem = EXCLUDED.private_key_pem,
+                public_key_pem = EXCLUDED.public_key_pem,
+                is_active = EXCLUDED.is_active
+            ",
+        )
+        .bind(kid)
+        .bind(private_key_pem)
+        .bind(public_key_pem)
+        .bind(created_at)
+        .bind(is_active)
+        .bind(key_size_bits as i32)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Load all RSA keypairs from database
+    async fn load_rsa_keypairs(
+        &self,
+    ) -> Result<Vec<(String, String, String, DateTime<Utc>, bool)>> {
+        let rows = sqlx::query(
+            "SELECT kid, private_key_pem, public_key_pem, created_at, is_active FROM rsa_keypairs ORDER BY created_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut keypairs = Vec::new();
+        for row in rows {
+            let kid: String = row.get("kid");
+            let private_key_pem: String = row.get("private_key_pem");
+            let public_key_pem: String = row.get("public_key_pem");
+            let created_at: DateTime<Utc> = row.get("created_at");
+            let is_active: bool = row.get("is_active");
+
+            keypairs.push((kid, private_key_pem, public_key_pem, created_at, is_active));
+        }
+
+        Ok(keypairs)
+    }
+
+    /// Update active status of RSA keypair
+    async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
+        sqlx::query("UPDATE rsa_keypairs SET is_active = $1 WHERE kid = $2")
+            .bind(is_active)
+            .bind(kid)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 
     // ================================
@@ -5254,6 +5326,37 @@ impl PostgresDatabase {
             CREATE INDEX IF NOT EXISTS idx_oauth_notifications_user_unread 
             ON oauth_notifications (user_id, read_at) 
             WHERE read_at IS NULL
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Create RSA keypairs table for JWT signing key persistence
+    async fn create_rsa_keypairs_table(&self) -> Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS rsa_keypairs (
+                kid TEXT PRIMARY KEY,
+                private_key_pem TEXT NOT NULL,
+                public_key_pem TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT false,
+                key_size_bits INTEGER NOT NULL
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create index for active key lookup
+        sqlx::query(
+            r"
+            CREATE INDEX IF NOT EXISTS idx_rsa_keypairs_active
+            ON rsa_keypairs (is_active)
+            WHERE is_active = true
             ",
         )
         .execute(&self.pool)

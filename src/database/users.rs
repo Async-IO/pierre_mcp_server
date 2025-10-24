@@ -35,13 +35,11 @@ impl Database {
                 strava_refresh_token TEXT,
                 strava_expires_at INTEGER,
                 strava_scope TEXT,
-                strava_nonce TEXT,
                 strava_last_sync DATETIME,
                 fitbit_access_token TEXT,
                 fitbit_refresh_token TEXT,
                 fitbit_expires_at INTEGER,
                 fitbit_scope TEXT,
-                fitbit_nonce TEXT,
                 fitbit_last_sync DATETIME,
                 is_active BOOLEAN NOT NULL DEFAULT 1,
                 user_status TEXT NOT NULL DEFAULT 'pending' CHECK (user_status IN ('pending', 'active', 'suspended')),
@@ -151,29 +149,27 @@ impl Database {
                 return Err(anyhow!("Email already in use by another user"));
             }
             // Update existing user (including tokens)
-            let (strava_access, strava_refresh, strava_expires, strava_scope, strava_nonce) = user
+            let (strava_access, strava_refresh, strava_expires, strava_scope) = user
                 .strava_token
                 .as_ref()
-                .map_or((None, None, None, None, None), |token| {
+                .map_or((None, None, None, None), |token| {
                     (
                         Some(&token.access_token),
                         Some(&token.refresh_token),
                         Some(token.expires_at.timestamp()),
                         Some(&token.scope),
-                        Some(&token.nonce),
                     )
                 });
 
-            let (fitbit_access, fitbit_refresh, fitbit_expires, fitbit_scope, fitbit_nonce) = user
+            let (fitbit_access, fitbit_refresh, fitbit_expires, fitbit_scope) = user
                 .fitbit_token
                 .as_ref()
-                .map_or((None, None, None, None, None), |token| {
+                .map_or((None, None, None, None), |token| {
                     (
                         Some(&token.access_token),
                         Some(&token.refresh_token),
                         Some(token.expires_at.timestamp()),
                         Some(&token.scope),
-                        Some(&token.nonce),
                     )
                 });
 
@@ -188,16 +184,14 @@ impl Database {
                     strava_refresh_token = $7,
                     strava_expires_at = $8,
                     strava_scope = $9,
-                    strava_nonce = $10,
-                    fitbit_access_token = $11,
-                    fitbit_refresh_token = $12,
-                    fitbit_expires_at = $13,
-                    fitbit_scope = $14,
-                    fitbit_nonce = $15,
-                    is_active = $16,
-                    user_status = $17,
-                    approved_by = $18,
-                    approved_at = $19,
+                    fitbit_access_token = $10,
+                    fitbit_refresh_token = $11,
+                    fitbit_expires_at = $12,
+                    fitbit_scope = $13,
+                    is_active = $14,
+                    user_status = $15,
+                    approved_by = $16,
+                    approved_at = $17,
                     last_active = CURRENT_TIMESTAMP
                 WHERE id = $1
                 ",
@@ -211,12 +205,10 @@ impl Database {
             .bind(strava_refresh)
             .bind(strava_expires)
             .bind(strava_scope)
-            .bind(strava_nonce)
             .bind(fitbit_access)
             .bind(fitbit_refresh)
             .bind(fitbit_expires)
             .bind(fitbit_scope)
-            .bind(fitbit_nonce)
             .bind(user.is_active)
             .bind(match user.user_status {
                 UserStatus::Pending => "pending",
@@ -230,29 +222,27 @@ impl Database {
             .await?;
         } else {
             // Insert new user (including tokens)
-            let (strava_access, strava_refresh, strava_expires, strava_scope, strava_nonce) = user
+            let (strava_access, strava_refresh, strava_expires, strava_scope) = user
                 .strava_token
                 .as_ref()
-                .map_or((None, None, None, None, None), |token| {
+                .map_or((None, None, None, None), |token| {
                     (
                         Some(&token.access_token),
                         Some(&token.refresh_token),
                         Some(token.expires_at.timestamp()),
                         Some(&token.scope),
-                        Some(&token.nonce),
                     )
                 });
 
-            let (fitbit_access, fitbit_refresh, fitbit_expires, fitbit_scope, fitbit_nonce) = user
+            let (fitbit_access, fitbit_refresh, fitbit_expires, fitbit_scope) = user
                 .fitbit_token
                 .as_ref()
-                .map_or((None, None, None, None, None), |token| {
+                .map_or((None, None, None, None), |token| {
                     (
                         Some(&token.access_token),
                         Some(&token.refresh_token),
                         Some(token.expires_at.timestamp()),
                         Some(&token.scope),
-                        Some(&token.nonce),
                     )
                 });
 
@@ -260,10 +250,10 @@ impl Database {
                 r"
                 INSERT INTO users (
                     id, email, display_name, password_hash, tier, tenant_id,
-                    strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
-                    fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
+                    strava_access_token, strava_refresh_token, strava_expires_at, strava_scope,
+                    fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope,
                     is_active, user_status, is_admin, approved_by, approved_at, created_at, last_active
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
                 ",
             )
             .bind(user.id.to_string())
@@ -276,12 +266,10 @@ impl Database {
             .bind(strava_refresh)
             .bind(strava_expires)
             .bind(strava_scope)
-            .bind(strava_nonce)
             .bind(fitbit_access)
             .bind(fitbit_refresh)
             .bind(fitbit_expires)
             .bind(fitbit_scope)
-            .bind(fitbit_nonce)
             .bind(user.is_active)
             .bind(match user.user_status {
                 UserStatus::Pending => "pending",
@@ -345,8 +333,8 @@ impl Database {
         let query = format!(
             r"
             SELECT id, email, display_name, password_hash, tier, tenant_id,
-                   strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
-                   fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
+                   strava_access_token, strava_refresh_token, strava_expires_at, strava_scope,
+                   fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope,
                    is_active, user_status, is_admin, approved_by, approved_at, created_at, last_active
             FROM users WHERE {field} = $1
             "
@@ -393,14 +381,12 @@ impl Database {
             row.get::<Option<i64>, _>("strava_expires_at"),
         ) {
             let scope: Option<String> = row.get("strava_scope");
-            let nonce: Option<String> = row.get("strava_nonce");
 
             Some(EncryptedToken {
                 access_token: access,
                 refresh_token: refresh,
                 expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_default(),
                 scope: scope.unwrap_or_default(),
-                nonce: nonce.unwrap_or_else(|| "default_nonce".into()),
             })
         } else {
             None
@@ -413,14 +399,12 @@ impl Database {
             row.get::<Option<i64>, _>("fitbit_expires_at"),
         ) {
             let scope: Option<String> = row.get("fitbit_scope");
-            let nonce: Option<String> = row.get("fitbit_nonce");
 
             Some(EncryptedToken {
                 access_token: access,
                 refresh_token: refresh,
                 expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_default(),
                 scope: scope.unwrap_or_default(),
-                nonce: nonce.unwrap_or_else(|| "default_nonce".into()),
             })
         } else {
             None
@@ -698,8 +682,8 @@ impl Database {
             // This ensures consistent pagination even when new items are added
             let query = r"
                 SELECT id, email, display_name, password_hash, tier, tenant_id,
-                       strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
-                       fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
+                       strava_access_token, strava_refresh_token, strava_expires_at, strava_scope,
+                       fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope,
                        is_active, user_status, is_admin, approved_by, approved_at, created_at, last_active
                 FROM users
                 WHERE user_status = ?1
@@ -712,8 +696,8 @@ impl Database {
             // First page - no cursor
             let query = r"
                 SELECT id, email, display_name, password_hash, tier, tenant_id,
-                       strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
-                       fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
+                       strava_access_token, strava_refresh_token, strava_expires_at, strava_scope,
+                       fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope,
                        is_active, user_status, is_admin, approved_by, approved_at, created_at, last_active
                 FROM users
                 WHERE user_status = ?1

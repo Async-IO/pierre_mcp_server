@@ -108,19 +108,32 @@ impl ServerResources {
             redaction_config.enabled
         );
 
-        // Use provided JWKS manager or create new one for RS256 JWT signing
+        // Use provided JWKS manager or load/create new one for RS256 JWT signing
         let jwks_manager_arc = jwks_manager.unwrap_or_else(|| {
-            let mut new_jwks = JwksManager::new();
-            // Generate initial RSA key pair for RS256 signing with configurable key size
-            if let Err(e) =
-                new_jwks.generate_rsa_key_pair_with_size("initial_key", rsa_key_size_bits)
-            {
-                tracing::warn!(
-                    "Failed to generate initial JWKS key pair: {}. RS256 tokens will not be available.",
-                    e
-                );
+            // Try to load persisted keys from database, blocking on async call
+            let loaded_jwks = tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    Self::load_or_create_jwks_manager(&database_arc, rsa_key_size_bits).await
+                })
+            });
+
+            match loaded_jwks {
+                Ok(jwks) => Arc::new(jwks),
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to initialize JWKS manager: {}. Creating new keys without persistence.",
+                        e
+                    );
+                    let mut new_jwks = JwksManager::new();
+                    if let Err(e) = new_jwks.generate_rsa_key_pair_with_size("initial_key", rsa_key_size_bits) {
+                        tracing::warn!(
+                            "Failed to generate initial JWKS key pair: {}. RS256 tokens will not be available.",
+                            e
+                        );
+                    }
+                    Arc::new(new_jwks)
+                }
             }
-            Arc::new(new_jwks)
         });
 
         // Create websocket manager after jwks_manager is initialized
@@ -187,6 +200,53 @@ impl ServerResources {
                 weekly_load: None,
             },
         ))
+    }
+
+    /// Load persisted RSA keys from database or create new ones
+    ///
+    /// # Errors
+    /// Returns error if database operations fail
+    async fn load_or_create_jwks_manager(
+        database: &Arc<Database>,
+        rsa_key_size_bits: usize,
+    ) -> Result<JwksManager, anyhow::Error> {
+        let mut jwks_manager = JwksManager::new();
+
+        // Try to load persisted keys from database
+        match database.load_rsa_keypairs().await {
+            Ok(keypairs) if !keypairs.is_empty() => {
+                tracing::info!("Loading {} persisted RSA keypairs from database", keypairs.len());
+                jwks_manager.load_keys_from_database(keypairs)?;
+                tracing::info!("Successfully loaded RSA keys from database");
+            }
+            Ok(_) => {
+                // No keys in database, generate new ones
+                tracing::info!("No persisted RSA keys found, generating new keypair");
+                let kid = format!("key_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+                jwks_manager.generate_rsa_key_pair_with_size(&kid, rsa_key_size_bits)?;
+
+                // Save to database for persistence
+                let key = jwks_manager
+                    .get_active_key()
+                    .map_err(|e| anyhow::anyhow!("Failed to get active key: {}", e))?;
+
+                let private_pem = key.export_private_key_pem()?;
+                let public_pem = key.export_public_key_pem()?;
+
+                database
+                    .save_rsa_keypair(&kid, &private_pem, &public_pem, key.created_at, true, rsa_key_size_bits)
+                    .await?;
+
+                tracing::info!("Generated and persisted new RSA keypair: {}", kid);
+            }
+            Err(e) => {
+                tracing::warn!("Failed to load RSA keys from database: {}. Generating new keys without persistence.", e);
+                let kid = format!("key_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+                jwks_manager.generate_rsa_key_pair_with_size(&kid, rsa_key_size_bits)?;
+            }
+        }
+
+        Ok(jwks_manager)
     }
 
     /// Spawn background task to cleanup inactive SSE connections

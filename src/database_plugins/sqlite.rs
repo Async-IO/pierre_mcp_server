@@ -925,6 +925,77 @@ impl DatabaseProvider for SqliteDatabase {
     }
 
     // ================================
+    // RSA Key Persistence for JWT Signing
+    // ================================
+
+    /// Save RSA keypair to database for persistence across restarts
+    async fn save_rsa_keypair(
+        &self,
+        kid: &str,
+        private_key_pem: &str,
+        public_key_pem: &str,
+        created_at: DateTime<Utc>,
+        is_active: bool,
+        key_size_bits: usize,
+    ) -> Result<()> {
+        sqlx::query(
+            r"
+            INSERT INTO rsa_keypairs (kid, private_key_pem, public_key_pem, created_at, is_active, key_size_bits)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            ON CONFLICT(kid) DO UPDATE SET
+                private_key_pem = excluded.private_key_pem,
+                public_key_pem = excluded.public_key_pem,
+                is_active = excluded.is_active
+            ",
+        )
+        .bind(kid)
+        .bind(private_key_pem)
+        .bind(public_key_pem)
+        .bind(created_at)
+        .bind(is_active)
+        .bind(key_size_bits as i64)
+        .execute(self.inner.pool())
+        .await?;
+
+        Ok(())
+    }
+
+    /// Load all RSA keypairs from database
+    async fn load_rsa_keypairs(
+        &self,
+    ) -> Result<Vec<(String, String, String, DateTime<Utc>, bool)>> {
+        let rows = sqlx::query(
+            "SELECT kid, private_key_pem, public_key_pem, created_at, is_active FROM rsa_keypairs ORDER BY created_at DESC",
+        )
+        .fetch_all(self.inner.pool())
+        .await?;
+
+        let mut keypairs = Vec::new();
+        for row in rows {
+            let kid: String = row.get("kid");
+            let private_key_pem: String = row.get("private_key_pem");
+            let public_key_pem: String = row.get("public_key_pem");
+            let created_at: DateTime<Utc> = row.get("created_at");
+            let is_active: bool = row.get("is_active");
+
+            keypairs.push((kid, private_key_pem, public_key_pem, created_at, is_active));
+        }
+
+        Ok(keypairs)
+    }
+
+    /// Update active status of RSA keypair
+    async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
+        sqlx::query("UPDATE rsa_keypairs SET is_active = ?1 WHERE kid = ?2")
+            .bind(is_active)
+            .bind(kid)
+            .execute(self.inner.pool())
+            .await?;
+
+        Ok(())
+    }
+
+    // ================================
     // Multi-Tenant Management
     // ================================
 

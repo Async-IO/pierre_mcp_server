@@ -489,7 +489,6 @@ async fn test_user_with_encrypted_tokens() {
         refresh_token: "encrypted_strava_refresh".to_string(),
         expires_at: now + chrono::Duration::hours(6),
         scope: "read_all,activity:read".to_string(),
-        nonce: "strava_nonce".to_string(),
     });
 
     db.create_user(&user).await.unwrap();

@@ -380,14 +380,12 @@ fn test_user_serialization_roundtrip() {
             refresh_token: "encrypted_refresh_token".to_string(),
             expires_at: now + chrono::Duration::hours(1),
             scope: "read".to_string(),
-            nonce: "test_nonce".to_string(),
         }),
         fitbit_token: Some(EncryptedToken {
             access_token: "encrypted_fitbit_access".to_string(),
             refresh_token: "encrypted_fitbit_refresh".to_string(),
             expires_at: now + chrono::Duration::hours(2),
             scope: "read_all".to_string(),
-            nonce: "fitbit_nonce".to_string(),
         }),
         is_active: true,
         user_status: UserStatus::Active,
@@ -523,7 +521,6 @@ fn test_encrypted_token_creation() {
         refresh_token: "encrypted_refresh_67890".to_string(),
         expires_at: now + chrono::Duration::hours(1),
         scope: "read write".to_string(),
-        nonce: "unique_nonce_123".to_string(),
     };
 
     assert_eq!(token.access_token, "encrypted_access_12345");
@@ -548,14 +545,12 @@ fn test_user_with_encrypted_tokens() {
             refresh_token: "strava_encrypted_refresh".to_string(),
             expires_at: now + chrono::Duration::hours(6),
             scope: "read_all,activity:read".to_string(),
-            nonce: "strava_nonce_456".to_string(),
         }),
         fitbit_token: Some(EncryptedToken {
             access_token: "fitbit_encrypted_access".to_string(),
             refresh_token: "fitbit_encrypted_refresh".to_string(),
             expires_at: now + chrono::Duration::hours(8),
             scope: "activity,heartrate,sleep".to_string(),
-            nonce: "fitbit_nonce_789".to_string(),
         }),
         is_active: true,
         user_status: UserStatus::Active,

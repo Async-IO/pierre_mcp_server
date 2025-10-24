@@ -93,7 +93,6 @@ async fn test_model_serialization_coverage() -> Result<()> {
             refresh_token: "encrypted_refresh_token".to_string(),
             expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
             scope: "read,activity:read_all".to_string(),
-            nonce: "test_nonce".to_string(),
         }),
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_string()),

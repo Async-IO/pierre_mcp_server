@@ -1073,18 +1073,17 @@ impl UserPhysiologicalProfile {
 ///
 /// Tokens are encrypted at rest using AES-256-GCM encryption.
 /// Only decrypted when needed for `API` calls.
+/// Each encrypted token has its nonce prepended to the ciphertext.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptedToken {
-    /// Encrypted access token (base64 encoded)
+    /// Encrypted access token with prepended nonce (base64 encoded: [12-byte nonce][ciphertext])
     pub access_token: String,
-    /// Encrypted refresh token (base64 encoded)
+    /// Encrypted refresh token with prepended nonce (base64 encoded: [12-byte nonce][ciphertext])
     pub refresh_token: String,
     /// When the access token expires
     pub expires_at: DateTime<Utc>,
     /// Token scope permissions
     pub scope: String,
-    /// Encryption nonce (unique per token)
-    pub nonce: String,
 }
 
 /// Decrypted `OAuth` token for `API` calls
@@ -1345,6 +1344,9 @@ impl User {
 impl EncryptedToken {
     /// Create a new encrypted token
     ///
+    /// Encrypts both access and refresh tokens with independent nonces.
+    /// Each nonce is prepended to its corresponding ciphertext for cryptographic independence.
+    ///
     /// # Errors
     ///
     /// Returns an error if encryption fails or if the encryption key is invalid
@@ -1361,46 +1363,49 @@ impl EncryptedToken {
 
         let rng = SystemRandom::new();
 
-        // Generate unique nonce
-        let mut nonce_bytes = [0u8; 12];
-        rng.fill(&mut nonce_bytes)?;
-        let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+        // Encrypt access token with its own nonce
+        let mut access_nonce_bytes = [0u8; 12];
+        rng.fill(&mut access_nonce_bytes)?;
+        let access_nonce = Nonce::assume_unique_for_key(access_nonce_bytes);
 
-        // Create encryption key
         let unbound_key = UnboundKey::new(&AES_256_GCM, encryption_key)?;
         let key = LessSafeKey::new(unbound_key);
 
-        // Encrypt access token
         let mut access_token_data = access_token.as_bytes().to_vec();
-        key.seal_in_place_append_tag(nonce, Aad::empty(), &mut access_token_data)?;
-        let encrypted_access = general_purpose::STANDARD.encode(&access_token_data);
+        key.seal_in_place_append_tag(access_nonce, Aad::empty(), &mut access_token_data)?;
 
-        // Generate new nonce for refresh token
+        // Prepend nonce to ciphertext (modern pattern)
+        let mut access_combined = access_nonce_bytes.to_vec();
+        access_combined.extend(access_token_data);
+        let encrypted_access = general_purpose::STANDARD.encode(access_combined);
+
+        // Encrypt refresh token with its own independent nonce
         let mut refresh_nonce_bytes = [0u8; 12];
         rng.fill(&mut refresh_nonce_bytes)?;
         let refresh_nonce = Nonce::assume_unique_for_key(refresh_nonce_bytes);
 
-        // Encrypt refresh token
-        let mut refresh_token_data = refresh_token.as_bytes().to_vec();
         let unbound_key2 = UnboundKey::new(&AES_256_GCM, encryption_key)?;
         let key2 = LessSafeKey::new(unbound_key2);
-        key2.seal_in_place_append_tag(refresh_nonce, Aad::empty(), &mut refresh_token_data)?;
-        let encrypted_refresh = general_purpose::STANDARD.encode(&refresh_token_data);
 
-        // Store both nonces (we'll use the first one as the main nonce, second is embedded in refresh token)
-        let combined_nonce =
-            general_purpose::STANDARD.encode([&nonce_bytes[..], &refresh_nonce_bytes[..]].concat());
+        let mut refresh_token_data = refresh_token.as_bytes().to_vec();
+        key2.seal_in_place_append_tag(refresh_nonce, Aad::empty(), &mut refresh_token_data)?;
+
+        // Prepend nonce to ciphertext (modern pattern)
+        let mut refresh_combined = refresh_nonce_bytes.to_vec();
+        refresh_combined.extend(refresh_token_data);
+        let encrypted_refresh = general_purpose::STANDARD.encode(refresh_combined);
 
         Ok(Self {
             access_token: encrypted_access,
             refresh_token: encrypted_refresh,
             expires_at,
             scope,
-            nonce: combined_nonce,
         })
     }
 
     /// Decrypt the token for use
+    ///
+    /// Extracts nonces from the prepended ciphertext and decrypts each token independently.
     ///
     /// # Errors
     ///
@@ -1409,28 +1414,35 @@ impl EncryptedToken {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
-        // Decode combined nonce
-        let nonce_data = general_purpose::STANDARD.decode(&self.nonce)?;
-        if nonce_data.len() != 24 {
-            return Err(AppError::invalid_input("Invalid nonce length").into());
+        // Decrypt access token: extract nonce from prepended data
+        let access_combined = general_purpose::STANDARD.decode(&self.access_token)?;
+        if access_combined.len() < 12 {
+            return Err(AppError::invalid_input("Invalid access token: too short").into());
         }
 
-        let access_nonce = Nonce::try_assume_unique_for_key(&nonce_data[0..12])?;
-        let refresh_nonce = Nonce::try_assume_unique_for_key(&nonce_data[12..24])?;
+        let (access_nonce_bytes, access_ciphertext) = access_combined.split_at(12);
+        let access_nonce = Nonce::assume_unique_for_key(access_nonce_bytes.try_into()?);
 
-        // Decrypt access token
         let unbound_key = UnboundKey::new(&AES_256_GCM, encryption_key)?;
         let key = LessSafeKey::new(unbound_key);
 
-        let mut access_data = general_purpose::STANDARD.decode(&self.access_token)?;
+        let mut access_data = access_ciphertext.to_vec();
         let access_plaintext = key.open_in_place(access_nonce, Aad::empty(), &mut access_data)?;
         let access_token = String::from_utf8(access_plaintext.to_vec())?;
 
-        // Decrypt refresh token
+        // Decrypt refresh token: extract nonce from prepended data
+        let refresh_combined = general_purpose::STANDARD.decode(&self.refresh_token)?;
+        if refresh_combined.len() < 12 {
+            return Err(AppError::invalid_input("Invalid refresh token: too short").into());
+        }
+
+        let (refresh_nonce_bytes, refresh_ciphertext) = refresh_combined.split_at(12);
+        let refresh_nonce = Nonce::assume_unique_for_key(refresh_nonce_bytes.try_into()?);
+
         let unbound_key2 = UnboundKey::new(&AES_256_GCM, encryption_key)?;
         let key2 = LessSafeKey::new(unbound_key2);
 
-        let mut refresh_data = general_purpose::STANDARD.decode(&self.refresh_token)?;
+        let mut refresh_data = refresh_ciphertext.to_vec();
         let refresh_plaintext =
             key2.open_in_place(refresh_nonce, Aad::empty(), &mut refresh_data)?;
         let refresh_token = String::from_utf8(refresh_plaintext.to_vec())?;
@@ -1439,7 +1451,7 @@ impl EncryptedToken {
             access_token,
             refresh_token,
             expires_at: self.expires_at,
-            scope: self.scope.clone(), // Safe: Option<String> ownership for struct creation
+            scope: self.scope.clone(),
         })
     }
 }

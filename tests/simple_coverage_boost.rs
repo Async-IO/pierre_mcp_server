@@ -66,7 +66,6 @@ async fn test_user_model_serialization() -> Result<()> {
                 refresh_token: "encrypted_refresh".to_string(),
                 expires_at: chrono::Utc::now() + chrono::Duration::hours(6),
                 scope: "read,activity:read_all".to_string(),
-                nonce: "test_nonce".to_string(),
             }),
             fitbit_token: None,
             tenant_id: Some("test-tenant".to_string()),
@@ -144,7 +143,6 @@ async fn test_encrypted_token_edge_cases() -> Result<()> {
             refresh_token: "refresh".to_string(),
             expires_at: chrono::Utc::now() + chrono::Duration::minutes(30),
             scope: "read".to_string(),
-            nonce: "nonce1".to_string(),
         },
         // Long-lived token
         EncryptedToken {
@@ -152,7 +150,6 @@ async fn test_encrypted_token_edge_cases() -> Result<()> {
             refresh_token: "very_long_refresh_value".to_string(),
             expires_at: chrono::Utc::now() + chrono::Duration::days(365),
             scope: "read,write,activity:read_all,profile:read_all".to_string(),
-            nonce: "very_long_nonce_value".to_string(),
         },
         // Expired token
         EncryptedToken {
@@ -160,7 +157,6 @@ async fn test_encrypted_token_edge_cases() -> Result<()> {
             refresh_token: "expired_refresh".to_string(),
             expires_at: chrono::Utc::now() - chrono::Duration::hours(1),
             scope: "expired".to_string(),
-            nonce: "expired_nonce".to_string(),
         },
     ];
 
@@ -322,14 +318,12 @@ async fn test_model_combinations() -> Result<()> {
             refresh_token: "strava_refresh".to_string(),
             expires_at: chrono::Utc::now() + chrono::Duration::hours(6),
             scope: "read,activity:read_all".to_string(),
-            nonce: "strava_nonce".to_string(),
         }),
         fitbit_token: Some(EncryptedToken {
             access_token: "fitbit_access".to_string(),
             refresh_token: "fitbit_refresh".to_string(),
             expires_at: chrono::Utc::now() + chrono::Duration::hours(8),
             scope: "activity,profile".to_string(),
-            nonce: "fitbit_nonce".to_string(),
         }),
         tenant_id: Some("test-tenant".to_string()),
         is_admin: false,

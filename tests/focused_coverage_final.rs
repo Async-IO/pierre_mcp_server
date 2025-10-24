@@ -71,7 +71,6 @@ async fn test_mcp_multitenant_comprehensive() -> Result<()> {
                 refresh_token: "encrypted_refresh".to_string(),
                 expires_at: chrono::Utc::now() + chrono::Duration::hours(6),
                 scope: "read,activity:read_all".to_string(),
-                nonce: "test_nonce".to_string(),
             }),
             fitbit_token: None,
             tenant_id: Some("test-tenant".to_string()),
@@ -95,7 +94,6 @@ async fn test_mcp_multitenant_comprehensive() -> Result<()> {
                 refresh_token: "fitbit_encrypted_refresh".to_string(),
                 expires_at: chrono::Utc::now() + chrono::Duration::hours(8),
                 scope: "activity,profile".to_string(),
-                nonce: "fitbit_nonce".to_string(),
             }),
             tenant_id: Some("test-tenant".to_string()),
         },
@@ -325,14 +323,12 @@ async fn test_model_serialization_comprehensive() -> Result<()> {
             refresh_token: "refresh".to_string(),
             expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
             scope: "read".to_string(),
-            nonce: "nonce".to_string(),
         },
         EncryptedToken {
             access_token: "long_access_token".to_string(),
             refresh_token: "long_refresh_token".to_string(),
             expires_at: chrono::Utc::now() + chrono::Duration::days(30),
             scope: "read,write,activity:read_all".to_string(),
-            nonce: "long_nonce".to_string(),
         },
     ];
 

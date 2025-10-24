@@ -56,8 +56,7 @@ impl Database {
                 {prefix}_access_token = $2,
                 {prefix}_refresh_token = $3,
                 {prefix}_expires_at = $4,
-                {prefix}_scope = $5,
-                {prefix}_nonce = $6
+                {prefix}_scope = $5
             WHERE id = $1
             "
         );
@@ -68,7 +67,6 @@ impl Database {
             .bind(&encrypted.refresh_token)
             .bind(encrypted.expires_at.timestamp())
             .bind(&encrypted.scope)
-            .bind(&encrypted.nonce)
             .execute(&self.pool)
             .await?;
 
@@ -87,8 +85,8 @@ impl Database {
         let prefix = provider.column_prefix();
         let query = format!(
             r"
-            SELECT {prefix}_access_token, {prefix}_refresh_token, {prefix}_expires_at, 
-                   {prefix}_scope, {prefix}_nonce
+            SELECT {prefix}_access_token, {prefix}_refresh_token, {prefix}_expires_at,
+                   {prefix}_scope
             FROM users WHERE id = $1
             "
         );
@@ -103,7 +101,6 @@ impl Database {
             let refresh_col = format!("{prefix}_refresh_token");
             let expires_col = format!("{prefix}_expires_at");
             let scope_col = format!("{prefix}_scope");
-            let nonce_col = format!("{prefix}_nonce");
 
             if let (Some(access), Some(refresh), Some(expires_at)) = (
                 row.get::<Option<String>, _>(access_col.as_str()),
@@ -111,7 +108,6 @@ impl Database {
                 row.get::<Option<i64>, _>(expires_col.as_str()),
             ) {
                 let scope: Option<String> = row.get(scope_col.as_str());
-                let nonce: Option<String> = row.get(nonce_col.as_str());
 
                 let encrypted = EncryptedToken {
                     access_token: access,
@@ -119,7 +115,6 @@ impl Database {
                     expires_at: chrono::DateTime::from_timestamp(expires_at, 0)
                         .ok_or_else(|| AppError::internal(format!("Invalid timestamp: {expires_at}")).into())?,
                     scope: scope.unwrap_or_default(),
-                    nonce: nonce.unwrap_or_else(|| "default_nonce".into()),
                 };
 
                 let decrypted = encrypted.decrypt(self.encryption_key())?;
