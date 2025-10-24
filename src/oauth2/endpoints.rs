@@ -385,6 +385,60 @@ impl OAuth2AuthorizationServer {
         };
 
         self.store_auth_code(&auth_code).await?;
+
+        // Server-Side State Validation (Defense-in-Depth CSRF Protection)
+        //
+        // RFC 6749 § 10.12 BASELINE: State is client-side CSRF protection. Server echoes state unchanged.
+        // The state parameter is OPAQUE to the server - clients generate it, store it in their session,
+        // and validate it matches on callback. Server's only job is to echo it back.
+        //
+        // OWASP ENHANCEMENT: We ALSO validate state server-side for defense-in-depth security.
+        //
+        // Why defense-in-depth?
+        // 1. Early CSRF Detection: Detects attacks at the server level before client validation
+        // 2. Replay Prevention: 10-minute TTL + single-use flag prevents state reuse
+        // 3. Client Binding: State bound to client_id prevents cross-client attacks
+        // 4. Tenant Isolation: State bound to tenant_id enforces multi-tenant security
+        // 5. Audit Trail: Server-side validation provides security event logging
+        //
+        // Implementation: oauth2_states table (src/database/mod.rs:232)
+        // Consumption: validate_and_consume_auth_code() below (line ~457)
+        // Tests: tests/oauth2_state_validation_test.rs (7 security scenarios)
+        //
+        // See docs/oauth2-server.md "State Parameter Validation" for integration guide
+        if let Some(state_value) = params.state {
+            let oauth2_state = crate::oauth2::models::OAuth2State {
+                state: state_value.to_string(),
+                client_id: params.client_id.to_string(),
+                user_id: Some(params.user_id),
+                tenant_id: Some(params.tenant_id.to_string()),
+                redirect_uri: params.redirect_uri.to_string(),
+                scope: params.scope.map(std::string::ToString::to_string),
+                code_challenge: params.code_challenge.map(std::string::ToString::to_string),
+                code_challenge_method: params
+                    .code_challenge_method
+                    .map(std::string::ToString::to_string),
+                created_at: Utc::now(),
+                expires_at,
+                used: false,
+            };
+
+            if let Err(e) = self.database.store_oauth2_state(&oauth2_state).await {
+                tracing::error!(
+                    "Failed to store OAuth2 state for client_id={}: {:#}",
+                    params.client_id,
+                    e
+                );
+                return Err(e);
+            }
+
+            tracing::debug!(
+                "Stored OAuth2 state for server-side validation: client_id={}, state_length={}",
+                params.client_id,
+                state_value.len()
+            );
+        }
+
         Ok(code)
     }
 
@@ -417,6 +471,64 @@ impl OAuth2AuthorizationServer {
                 );
                 OAuth2Error::invalid_grant("Invalid or expired authorization code")
             })?;
+
+        // Server-Side State Consumption (Atomic CSRF Validation)
+        //
+        // This is the validation counterpart to state storage above (line ~389).
+        //
+        // consume_oauth2_state() performs ATOMIC validation with these security checks:
+        // 1. State EXISTS in database (prevents fake states)
+        // 2. State NOT EXPIRED (10-minute TTL, prevents replay of old states)
+        // 3. State NOT USED (single-use flag, prevents replay attacks)
+        // 4. client_id MATCHES (prevents cross-client state theft)
+        // 5. Marks state as USED atomically (prevents TOCTOU race conditions)
+        //
+        // Why atomic consumption matters:
+        // - Prevents race condition where two concurrent requests could reuse same state
+        // - Database transaction ensures state marked used in same operation as retrieval
+        // - Implementation: src/database_plugins/sqlite.rs:1796-1849 (with UPDATE ... WHERE used=0)
+        //
+        // Rejection scenarios (returns None):
+        // - State not found in database
+        // - State expired (created_at + TTL < now)
+        // - State already used (used=true)
+        // - client_id mismatch
+        //
+        // Tests: tests/oauth2_state_validation_test.rs:
+        //   - test_state_replay_attack_prevention (line 127)
+        //   - test_state_client_id_mismatch (line 288)
+        //   - test_expired_state_rejection (line 190)
+        if let Some(state_value) = &auth_code.state {
+            let consumed_state = self
+                .database
+                .consume_oauth2_state(state_value, client_id, Utc::now())
+                .await
+                .map_err(|e| {
+                    tracing::error!(
+                        "Failed to consume OAuth2 state for client_id={}: {:#}",
+                        client_id,
+                        e
+                    );
+                    OAuth2Error::invalid_grant("Failed to validate state parameter")
+                })?;
+
+            // None indicates validation failure (state not found, expired, used, or client_id mismatch)
+            if consumed_state.is_none() {
+                tracing::warn!(
+                    "OAuth2 state validation failed for client_id={}: state not found, already used, expired, or client_id mismatch",
+                    client_id
+                );
+                return Err(OAuth2Error::invalid_grant(
+                    "Invalid state parameter - possible CSRF attack detected",
+                ));
+            }
+
+            tracing::debug!(
+                "OAuth2 state validation successful for client_id={}, state_length={}",
+                client_id,
+                state_value.len()
+            );
+        }
 
         // Verify PKCE code_verifier (RFC 7636)
         // Note: PKCE verification happens AFTER atomic consumption to prevent code reuse on verification failure
