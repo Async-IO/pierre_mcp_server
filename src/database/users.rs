@@ -5,9 +5,10 @@
 // Copyright ©2025 Async-IO.org
 
 use super::Database;
+use crate::errors::AppError;
 use crate::models::{EncryptedToken, User, UserStatus};
 use crate::pagination::{Cursor, CursorPage, PaginationParams};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -146,7 +147,7 @@ impl Database {
         let existing = self.get_user_by_email(&user.email).await?;
         if let Some(existing_user) = existing {
             if existing_user.id != user.id {
-                return Err(anyhow!("Email already in use by another user"));
+                return Err(AppError::invalid_input("Email already in use by another user").into());
             }
             // Update existing user (including tokens)
             let (strava_access, strava_refresh, strava_expires, strava_scope) = user
@@ -325,7 +326,7 @@ impl Database {
     pub async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
         self.get_user_by_email(email)
             .await?
-            .ok_or_else(|| anyhow!("User not found with email: {email}"))
+            .ok_or_else(|| AppError::not_found(format!("User with email: {email}")).into())
     }
 
     /// Internal implementation for getting a user
@@ -586,7 +587,11 @@ impl Database {
         let column = match provider {
             "strava" => "strava_last_sync",
             "fitbit" => "fitbit_last_sync",
-            _ => return Err(anyhow!("Unsupported provider: {provider}")),
+            _ => {
+                return Err(
+                    AppError::invalid_input(format!("Unsupported provider: {provider}")).into(),
+                )
+            }
         };
 
         let query = format!("SELECT {column} FROM users WHERE id = $1");
@@ -614,7 +619,11 @@ impl Database {
         let column = match provider {
             "strava" => "strava_last_sync",
             "fitbit" => "fitbit_last_sync",
-            _ => return Err(anyhow!("Unsupported provider: {provider}")),
+            _ => {
+                return Err(
+                    AppError::invalid_input(format!("Unsupported provider: {provider}")).into(),
+                )
+            }
         };
 
         let query = format!("UPDATE users SET {column} = $1 WHERE id = $2");
@@ -669,14 +678,14 @@ impl Database {
         let fetch_limit = params.limit + 1;
 
         // Convert to i64 for SQL LIMIT clause (pagination limits are always reasonable)
-        let fetch_limit_i64 =
-            i64::try_from(fetch_limit).map_err(|_| anyhow!("Pagination limit too large"))?;
+        let fetch_limit_i64 = i64::try_from(fetch_limit)
+            .map_err(|_| AppError::invalid_input("Pagination limit too large"))?;
 
         let (query, cursor_timestamp, cursor_id) = if let Some(ref cursor) = params.cursor {
             // Decode cursor to get position
             let (timestamp, id) = cursor
                 .decode()
-                .ok_or_else(|| anyhow!("Invalid cursor format"))?;
+                .ok_or_else(|| AppError::invalid_input("Invalid cursor format"))?;
 
             // Cursor-based query: WHERE (created_at, id) < (cursor_created_at, cursor_id)
             // This ensures consistent pagination even when new items are added
@@ -798,13 +807,13 @@ impl Database {
         .await?;
 
         if result.rows_affected() == 0 {
-            return Err(anyhow!("No user found with ID: {user_id}"));
+            return Err(AppError::not_found(format!("User with ID: {user_id}")).into());
         }
 
         // Return updated user
         self.get_user(user_id)
             .await?
-            .ok_or_else(|| anyhow!("User not found after status update"))
+            .ok_or_else(|| AppError::not_found("User after status update").into())
     }
 
     /// Update user's `tenant_id` to link them to a tenant
@@ -826,7 +835,7 @@ impl Database {
         let result = query.execute(&self.pool).await?;
 
         if result.rows_affected() == 0 {
-            return Err(anyhow!("No user found with ID: {user_id}"));
+            return Err(AppError::not_found(format!("User with ID: {user_id}")).into());
         }
 
         Ok(())

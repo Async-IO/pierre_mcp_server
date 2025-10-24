@@ -14,7 +14,8 @@
 
 use crate::admin::models::{AdminPermissions, ValidatedAdminToken};
 use crate::constants::service_names;
-use anyhow::{anyhow, Result};
+use crate::errors::AppError;
+use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
@@ -90,9 +91,9 @@ impl AdminJwtManager {
         };
 
         // Sign with RS256 using JWKS
-        jwks_manager
+        Ok(jwks_manager
             .sign_admin_token(&claims)
-            .map_err(|e| anyhow!("Failed to generate RS256 admin JWT: {e}"))
+            .map_err(|e| AppError::internal(format!("Failed to generate RS256 admin JWT: {e}")))?)
     }
 
     /// Validate and decode JWT token using RS256
@@ -105,19 +106,23 @@ impl AdminJwtManager {
         jwks_manager: &crate::admin::jwks::JwksManager,
     ) -> Result<ValidatedAdminToken> {
         // Verify RS256 signature and decode claims
-        let claims: AdminTokenClaims = jwks_manager
-            .verify_admin_token(token)
-            .map_err(|e| anyhow!("RS256 admin JWT validation failed: {e}"))?;
+        let claims: AdminTokenClaims = jwks_manager.verify_admin_token(token).map_err(|e| {
+            AppError::auth_invalid(format!("RS256 admin JWT validation failed: {e}"))
+        })?;
 
         // Verify token type
         if claims.token_type != "admin" {
-            return Err(anyhow!("Invalid token type: {}", claims.token_type));
+            return Err(AppError::auth_invalid(format!(
+                "Invalid token type: {}",
+                claims.token_type
+            ))
+            .into());
         }
 
         // Check expiration
         let now = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
         if claims.exp < now {
-            return Err(anyhow!("Token has expired"));
+            return Err(AppError::auth_expired().into());
         }
 
         // Reconstruct permissions
@@ -149,7 +154,8 @@ impl AdminJwtManager {
     /// # Errors
     /// Returns an error if bcrypt hashing fails
     pub fn hash_token_for_storage(token: &str) -> Result<String> {
-        bcrypt::hash(token, bcrypt::DEFAULT_COST).map_err(|e| anyhow!("Failed to hash token: {e}"))
+        bcrypt::hash(token, bcrypt::DEFAULT_COST)
+            .map_err(|e| AppError::internal(format!("Failed to hash token: {e}")).into())
     }
 
     /// Verify token hash
@@ -157,7 +163,8 @@ impl AdminJwtManager {
     /// # Errors
     /// Returns an error if bcrypt verification fails
     pub fn verify_token_hash(token: &str, hash: &str) -> Result<bool> {
-        bcrypt::verify(token, hash).map_err(|e| anyhow!("Failed to verify token hash: {e}"))
+        bcrypt::verify(token, hash)
+            .map_err(|e| AppError::internal(format!("Failed to verify token hash: {e}")).into())
     }
 }
 

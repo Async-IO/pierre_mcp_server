@@ -11,7 +11,7 @@ use crate::a2a::{
     protocol::{A2ATask, TaskStatus},
 };
 use crate::errors::AppError;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -52,22 +52,30 @@ pub struct A2AUsageStats {
 
 /// Helper functions for safe type conversions
 fn safe_u32_to_i32(value: u32) -> Result<i32> {
-    i32::try_from(value).map_err(|_| anyhow!("Value {value} too large to convert to i32"))
+    Ok(i32::try_from(value).map_err(|_| {
+        AppError::invalid_input(format!("Value {value} too large to convert to i32"))
+    })?)
 }
 
 /// Safely convert i32 to u32, returning an error if negative
 fn safe_i32_to_u32(value: i32) -> Result<u32> {
-    u32::try_from(value).map_err(|_| anyhow!("Cannot convert negative value {value} to u32"))
+    Ok(u32::try_from(value).map_err(|_| {
+        AppError::invalid_input(format!("Cannot convert negative value {value} to u32"))
+    })?)
 }
 
 /// Safely convert i32 to u64, returning an error if negative
 fn safe_i32_to_u64(value: i32) -> Result<u64> {
-    u64::try_from(value).map_err(|_| anyhow!("Cannot convert negative value {value} to u64"))
+    Ok(u64::try_from(value).map_err(|_| {
+        AppError::invalid_input(format!("Cannot convert negative value {value} to u64"))
+    })?)
 }
 
 /// Safely convert i64 to u64, returning an error if negative
 fn safe_i64_to_u64(value: i64) -> Result<u64> {
-    u64::try_from(value).map_err(|_| anyhow!("Cannot convert negative value {value} to u64"))
+    Ok(u64::try_from(value).map_err(|_| {
+        AppError::invalid_input(format!("Cannot convert negative value {value} to u64"))
+    })?)
 }
 
 /// Safely convert f64 to u32, clamping to u32 range
@@ -925,7 +933,12 @@ impl Database {
                 "completed" => TaskStatus::Completed,
                 "failed" => TaskStatus::Failed,
                 "cancelled" => TaskStatus::Cancelled,
-                _ => return Err(anyhow!("Invalid task status: {status_str}")),
+                _ => {
+                    return Err(AppError::invalid_input(format!(
+                        "Invalid task status: {status_str}"
+                    ))
+                    .into())
+                }
             };
 
             tasks.push(A2ATask {
@@ -982,7 +995,12 @@ impl Database {
                 "completed" => TaskStatus::Completed,
                 "failed" => TaskStatus::Failed,
                 "cancelled" => TaskStatus::Cancelled,
-                _ => return Err(anyhow!("Invalid task status: {status_str}")),
+                _ => {
+                    return Err(AppError::invalid_input(format!(
+                        "Invalid task status: {status_str}"
+                    ))
+                    .into())
+                }
             };
 
             Ok(Some(A2ATask {
@@ -1084,7 +1102,7 @@ impl Database {
         let client = self
             .get_a2a_client(client_id)
             .await?
-            .ok_or_else(|| anyhow!("A2A client not found: {client_id}"))?;
+            .ok_or_else(|| AppError::not_found(format!("A2A client: {client_id}")))?;
 
         let window_start =
             Utc::now() - chrono::Duration::seconds(i64::from(client.rate_limit_window_seconds));
@@ -1192,7 +1210,11 @@ impl Database {
             // Parse date string (YYYY-MM-DD format from SQLite date())
             let date = chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")?
                 .and_hms_opt(0, 0, 0)
-                .ok_or_else(|| anyhow!("Failed to create datetime from date {date_str}"))?
+                .ok_or_else(|| {
+                    AppError::invalid_input(format!(
+                        "Failed to create datetime from date {date_str}"
+                    ))
+                })?
                 .and_utc();
 
             history.push((

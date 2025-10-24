@@ -39,7 +39,8 @@
 //! # }
 //! ```
 
-use anyhow::{anyhow, Result};
+use crate::errors::AppError;
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use rsa::{
@@ -118,7 +119,7 @@ impl RsaKeyPair {
 
         let mut rng = OsRng;
         let private_key = RsaPrivateKey::new(&mut rng, key_size_bits)
-            .map_err(|e| anyhow!("Failed to generate RSA private key: {e}"))?;
+            .map_err(|e| AppError::internal(format!("Failed to generate RSA private key: {e}")))?;
 
         let public_key = RsaPublicKey::from(&private_key);
 
@@ -165,10 +166,11 @@ impl RsaKeyPair {
     /// # Errors
     /// Returns error if PEM encoding fails
     pub fn export_private_key_pem(&self) -> Result<String> {
-        self.private_key
+        Ok(self
+            .private_key
             .to_pkcs8_pem(rsa::pkcs8::LineEnding::LF)
             .map(|pem| pem.to_string())
-            .map_err(|e| anyhow!("Failed to export private key as PEM: {e}"))
+            .map_err(|e| AppError::internal(format!("Failed to export private key as PEM: {e}")))?)
     }
 
     /// Export public key as PEM
@@ -176,9 +178,10 @@ impl RsaKeyPair {
     /// # Errors
     /// Returns error if PEM encoding fails
     pub fn export_public_key_pem(&self) -> Result<String> {
-        self.public_key
+        Ok(self
+            .public_key
             .to_public_key_pem(rsa::pkcs8::LineEnding::LF)
-            .map_err(|e| anyhow!("Failed to export public key as PEM: {e}"))
+            .map_err(|e| AppError::internal(format!("Failed to export public key as PEM: {e}")))?)
     }
 
     /// Import private key from PEM
@@ -186,8 +189,9 @@ impl RsaKeyPair {
     /// # Errors
     /// Returns error if PEM parsing fails
     pub fn import_private_key_pem(kid: &str, pem: &str) -> Result<Self> {
-        let private_key = RsaPrivateKey::from_pkcs8_pem(pem)
-            .map_err(|e| anyhow!("Failed to parse private key PEM: {e}"))?;
+        let private_key = RsaPrivateKey::from_pkcs8_pem(pem).map_err(|e| {
+            AppError::invalid_input(format!("Failed to parse private key PEM: {e}"))
+        })?;
 
         let public_key = RsaPublicKey::from(&private_key);
 
@@ -288,11 +292,11 @@ impl JwksManager {
         let kid = self
             .active_key_id
             .as_ref()
-            .ok_or_else(|| anyhow!("No active signing key"))?;
+            .ok_or_else(|| AppError::internal("No active signing key"))?;
 
         self.keys
             .get(kid)
-            .ok_or_else(|| anyhow!("Active key not found: {kid}"))
+            .ok_or_else(|| AppError::internal(format!("Active key not found: {kid}")).into())
     }
 
     /// Get key by ID
@@ -356,7 +360,8 @@ impl JwksManager {
     /// Returns error if JWK serialization fails
     pub fn get_jwks_json(&self) -> Result<String> {
         let jwks = self.get_jwks()?;
-        serde_json::to_string_pretty(&jwks).map_err(|e| anyhow!("Failed to serialize JWKS: {e}"))
+        serde_json::to_string_pretty(&jwks)
+            .map_err(|e| AppError::internal(format!("Failed to serialize JWKS: {e}")).into())
     }
 
     /// Get JWKS structure
@@ -447,8 +452,8 @@ impl JwksManager {
 
         let encoding_key = active_key.encoding_key();
 
-        encode(&header, claims, &encoding_key)
-            .map_err(|e| anyhow!("Failed to encode RS256 admin JWT: {e}"))
+        Ok(encode(&header, claims, &encoding_key)
+            .map_err(|e| AppError::internal(format!("Failed to encode RS256 admin JWT: {e}")))?)
     }
 
     /// Verify admin token and extract claims
@@ -459,17 +464,17 @@ impl JwksManager {
         use jsonwebtoken::{decode, decode_header, Validation};
 
         // Extract kid from header
-        let header =
-            decode_header(token).map_err(|e| anyhow!("Failed to decode JWT header: {e}"))?;
+        let header = decode_header(token)
+            .map_err(|e| AppError::auth_invalid(format!("Failed to decode JWT header: {e}")))?;
 
         let kid = header
             .kid
-            .ok_or_else(|| anyhow!("JWT header missing kid"))?;
+            .ok_or_else(|| AppError::auth_invalid("JWT header missing kid"))?;
 
         // Get corresponding key
         let key_pair = self
             .get_key(&kid)
-            .ok_or_else(|| anyhow!("Unknown key ID: {kid}"))?;
+            .ok_or_else(|| AppError::auth_invalid(format!("Unknown key ID: {kid}")))?;
 
         let decoding_key = key_pair.decoding_key();
 
@@ -479,8 +484,9 @@ impl JwksManager {
         validation.set_issuer(&[crate::constants::service_names::PIERRE_MCP_SERVER]);
 
         // Verify and decode
-        let token_data = decode::<T>(token, &decoding_key, &validation)
-            .map_err(|e| anyhow!("Failed to verify RS256 admin JWT: {e}"))?;
+        let token_data = decode::<T>(token, &decoding_key, &validation).map_err(|e| {
+            AppError::auth_invalid(format!("Failed to verify RS256 admin JWT: {e}"))
+        })?;
 
         Ok(token_data.claims)
     }

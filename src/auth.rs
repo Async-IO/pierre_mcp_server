@@ -668,7 +668,7 @@ pub fn generate_jwt_secret() -> Result<[u8; 64]> {
             "CRITICAL: Failed to generate cryptographically secure JWT secret: {}",
             e
         );
-        anyhow::anyhow!("System RNG failure - cannot generate secure JWT secret")
+        AppError::internal("System RNG failure - cannot generate secure JWT secret")
     })?;
 
     Ok(secret)

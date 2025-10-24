@@ -12,9 +12,10 @@ use super::DatabaseProvider;
 use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
+use crate::errors::AppError;
 use crate::models::UserOAuthApp;
 use crate::rate_limiting::JwtUsage;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use tracing::{debug, info};
@@ -116,7 +117,7 @@ impl Database {
                 let err_msg =
                     "PostgreSQL support not enabled. Enable the 'postgresql' feature flag.";
                 tracing::error!("{}", err_msg);
-                Err(anyhow!(err_msg))
+                Err(AppError::config(err_msg).into())
             }
         }
     }
@@ -138,15 +139,17 @@ pub fn detect_database_type(database_url: &str) -> Result<DatabaseType> {
         return Ok(DatabaseType::PostgreSQL);
 
         #[cfg(not(feature = "postgresql"))]
-        return Err(anyhow!(
+        return Err(AppError::config(
             "PostgreSQL connection string detected, but PostgreSQL support is not enabled. \
-             Enable the 'postgresql' feature flag in Cargo.toml"
-        ));
+             Enable the 'postgresql' feature flag in Cargo.toml",
+        )
+        .into());
     } else {
-        Err(anyhow!(
+        Err(AppError::config(format!(
             "Unsupported database URL format: {database_url}. \
              Supported formats: sqlite:path/to/db.sqlite, postgresql://user:pass@host/db"
         ))
+        .into())
     }
 }
 

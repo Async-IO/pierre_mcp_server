@@ -9,9 +9,10 @@
 
 use super::tenant_provider::TenantFitnessProvider;
 use crate::constants::api_provider_limits;
+use crate::errors::AppError;
 use crate::models::{Activity, Athlete, PersonalRecord, Stats};
 use crate::tenant::{TenantContext, TenantOAuthClient, TenantOAuthCredentials};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::Deserialize;
@@ -73,7 +74,7 @@ impl TenantStravaProvider {
     fn get_access_token(&self) -> Result<&str> {
         self.access_token
             .as_deref()
-            .ok_or_else(|| anyhow!("Provider not authenticated. Call authenticate_tenant first."))
+            .ok_or_else(|| AppError::auth_required().into())
     }
 }
 
@@ -91,11 +92,12 @@ impl TenantFitnessProvider for TenantStravaProvider {
             .get_tenant_credentials(tenant_context.tenant_id, provider, database)
             .await?
             .ok_or_else(|| {
-                anyhow!(
-                    "No OAuth credentials found for tenant {} and provider {}",
+                AppError::not_found(format!(
+                    "OAuth credentials for tenant {} and provider {}",
                     tenant_context.tenant_id,
                     provider
-                )
+                ))
+                .into()
             })?;
 
         // Store credentials for later use

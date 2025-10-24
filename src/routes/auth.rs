@@ -129,12 +129,12 @@ impl AuthService {
 
         // Validate email format
         if !Self::is_valid_email(&request.email) {
-            return Err(validation_error(error_messages::INVALID_EMAIL_FORMAT));
+            return Err(validation_error(error_messages::INVALID_EMAIL_FORMAT).into());
         }
 
         // Validate password strength
         if !Self::is_valid_password(&request.password) {
-            return Err(validation_error(error_messages::PASSWORD_TOO_WEAK));
+            return Err(validation_error(error_messages::PASSWORD_TOO_WEAK).into());
         }
 
         // Check if user already exists
@@ -144,7 +144,7 @@ impl AuthService {
             .get_user_by_email(&request.email)
             .await
         {
-            return Err(user_state_error(error_messages::USER_ALREADY_EXISTS));
+            return Err(user_state_error(error_messages::USER_ALREADY_EXISTS).into());
         }
 
         // Hash password
@@ -186,7 +186,7 @@ impl AuthService {
         // Verify password
         if !bcrypt::verify(&request.password, &user.password_hash)? {
             tracing::error!("Invalid password for user: {}", request.email);
-            return Err(auth_error(error_messages::INVALID_CREDENTIALS));
+            return Err(auth_error(error_messages::INVALID_CREDENTIALS).into());
         }
 
         // Check if user is approved to login
@@ -196,7 +196,7 @@ impl AuthService {
                 request.email,
                 user.user_status
             );
-            return Err(user_state_error(user.user_status.to_message()));
+            return Err(user_state_error(user.user_status.to_message()).into());
         }
 
         // Update last active timestamp

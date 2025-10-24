@@ -5,7 +5,8 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::database_plugins::DatabaseProvider;
-use anyhow::{anyhow, Result};
+use crate::errors::AppError;
+use anyhow::Result;
 use base64::Engine;
 use std::env;
 use tracing::{info, warn};
@@ -54,13 +55,18 @@ impl MasterEncryptionKey {
         info!("Loading Master Encryption Key from environment variable");
         let key_bytes = base64::engine::general_purpose::STANDARD
             .decode(encoded_key)
-            .map_err(|e| anyhow!("Invalid base64 encoding in PIERRE_MASTER_ENCRYPTION_KEY: {e}"))?;
+            .map_err(|e| {
+                AppError::config(format!(
+                    "Invalid base64 encoding in PIERRE_MASTER_ENCRYPTION_KEY: {e}"
+                ))
+            })?;
 
         if key_bytes.len() != 32 {
-            return Err(anyhow!(
+            return Err(AppError::config(format!(
                 "Master encryption key must be exactly 32 bytes, got {} bytes",
                 key_bytes.len()
-            ));
+            ))
+            .into());
         }
 
         let mut key = [0u8; 32];
@@ -120,7 +126,7 @@ impl MasterEncryptionKey {
         // Encrypt the data
         let ciphertext = cipher
             .encrypt(nonce, plaintext)
-            .map_err(|e| anyhow!("Encryption failed: {e}"))?;
+            .map_err(|e| AppError::internal(format!("Encryption failed: {e}")))?;
 
         // Prepend nonce to ciphertext
         let mut result = Vec::with_capacity(12 + ciphertext.len());
@@ -142,7 +148,7 @@ impl MasterEncryptionKey {
         use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit};
 
         if encrypted_data.len() < 12 {
-            return Err(anyhow!("Encrypted data too short"));
+            return Err(AppError::invalid_input("Encrypted data too short").into());
         }
 
         let cipher = Aes256Gcm::new(GenericArray::from_slice(&self.key));
@@ -154,7 +160,7 @@ impl MasterEncryptionKey {
         // Decrypt the data
         let plaintext = cipher
             .decrypt(nonce, ciphertext)
-            .map_err(|e| anyhow!("Decryption failed: {e}"))?;
+            .map_err(|e| AppError::internal(format!("Decryption failed: {e}")))?;
 
         Ok(plaintext)
     }
@@ -200,10 +206,11 @@ impl DatabaseEncryptionKey {
         let decrypted_bytes = mek.decrypt(encrypted_dek)?;
 
         if decrypted_bytes.len() != 32 {
-            return Err(anyhow!(
+            return Err(AppError::internal(format!(
                 "Decrypted DEK has invalid length: expected 32 bytes, got {}",
                 decrypted_bytes.len()
-            ));
+            ))
+            .into());
         }
 
         let mut key = [0u8; 32];
@@ -264,7 +271,9 @@ impl KeyManager {
             // Decode from base64
             let encrypted_dek = base64::engine::general_purpose::STANDARD
                 .decode(&encrypted_dek_base64)
-                .map_err(|e| anyhow!("Invalid base64 encoding for stored DEK: {e}"))?;
+                .map_err(|e| {
+                    AppError::internal(format!("Invalid base64 encoding for stored DEK: {e}"))
+                })?;
 
             // Decrypt with MEK and replace temporary DEK
             self.dek = DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, &self.mek)?;
@@ -313,7 +322,9 @@ impl KeyManager {
             // Decode from base64
             let encrypted_dek = base64::engine::general_purpose::STANDARD
                 .decode(&encrypted_dek_base64)
-                .map_err(|e| anyhow!("Invalid base64 encoding for stored DEK: {e}"))?;
+                .map_err(|e| {
+                    AppError::internal(format!("Invalid base64 encoding for stored DEK: {e}"))
+                })?;
 
             // Decrypt with MEK
             DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, &mek)?

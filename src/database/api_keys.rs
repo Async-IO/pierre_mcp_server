@@ -6,7 +6,8 @@
 
 use super::Database;
 use crate::api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage, ApiKeyUsageStats};
-use anyhow::{anyhow, Result};
+use crate::errors::AppError;
+use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use sqlx::Row;
 use uuid::Uuid;
@@ -355,7 +356,7 @@ impl Database {
         let api_key = self
             .get_api_key_by_id(api_key_id)
             .await?
-            .ok_or_else(|| anyhow!("API key not found"))?;
+            .ok_or_else(|| AppError::not_found("API key"))?;
 
         let window_start =
             Utc::now() - Duration::seconds(i64::from(api_key.rate_limit_window_seconds));

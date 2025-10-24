@@ -4,8 +4,10 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use uuid::Uuid;
+
+use crate::errors::AppError;
 
 /// Parse a UUID from a string with consistent error handling
 ///
@@ -22,7 +24,7 @@ pub fn parse_uuid(uuid_str: &str) -> Result<Uuid> {
 ///
 /// Returns an error with the provided custom message if parsing fails
 pub fn parse_uuid_with_message(uuid_str: &str, error_msg: &str) -> Result<Uuid> {
-    Uuid::parse_str(uuid_str).map_err(|_| anyhow!("{error_msg}"))
+    Uuid::parse_str(uuid_str).map_err(|_| AppError::invalid_input(error_msg).into())
 }
 
 /// Parse a UUID for a user ID with specific error handling
@@ -82,7 +84,7 @@ pub fn parse_uuid_owned(uuid_str: &str) -> Result<Uuid> {
 pub fn parse_user_id_from_state(state: &str) -> Result<Uuid> {
     let parts: Vec<&str> = state.split(':').collect();
     if parts.len() != 2 {
-        return Err(anyhow!("Invalid state parameter format"));
+        return Err(AppError::invalid_input("Invalid state parameter format").into());
     }
     parse_user_id(parts[0])
 }

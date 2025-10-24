@@ -27,12 +27,13 @@
 //! cargo run --bin admin-setup -- revoke-token admin_token_123
 //! ```
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use bcrypt::{hash, DEFAULT_COST};
 use clap::{Parser, Subcommand};
 use pierre_mcp_server::{
     admin::models::{CreateAdminTokenRequest, GeneratedAdminToken},
     database_plugins::{factory::Database, DatabaseProvider},
+    errors::AppError,
 };
 use std::env;
 use tracing::{error, info, warn};
@@ -262,7 +263,7 @@ async fn generate_token_command(
                 service
             );
             info!("Use 'rotate-token' command to replace the existing token");
-            return Err(anyhow!("Service already has an active token"));
+            return Err(AppError::invalid_input("Service already has an active token").into());
         }
     } else {
         // Ignore error - might be first time setup
@@ -310,7 +311,9 @@ async fn generate_token_command(
                     info!("   - manage_admin_tokens");
                     info!("   - view_audit_logs");
                     info!("   - manage_users");
-                    return Err(anyhow!("Invalid permission: {}", trimmed));
+                    return Err(
+                        AppError::invalid_input(format!("Invalid permission: {trimmed}")).into(),
+                    );
                 }
             }
 
@@ -328,9 +331,10 @@ async fn generate_token_command(
         error!("Admin JWT secret not found in database!");
         error!("Please run admin-setup create-admin-user first:");
         error!("  cargo run --bin admin-setup -- create-admin-user --email admin@example.com --password yourpassword");
-        return Err(anyhow!(
-            "Admin JWT secret not found. Run admin-setup create-admin-user first."
-        ));
+        return Err(AppError::config(
+            "Admin JWT secret not found. Run admin-setup create-admin-user first.",
+        )
+        .into());
     };
 
     info!(
@@ -434,7 +438,7 @@ async fn revoke_token_command(database: &Database, token_id: String) -> Result<(
     let token = database
         .get_admin_token_by_id(&token_id)
         .await?
-        .ok_or_else(|| anyhow!("Admin token not found: {}", token_id))?;
+        .ok_or_else(|| AppError::not_found(format!("Admin token: {token_id}")))?;
 
     if !token.is_active {
         warn!("Token is already inactive");
@@ -465,10 +469,10 @@ async fn rotate_token_command(
     let old_token = database
         .get_admin_token_by_id(&token_id)
         .await?
-        .ok_or_else(|| anyhow!("Admin token not found: {}", token_id))?;
+        .ok_or_else(|| AppError::not_found(format!("Admin token: {token_id}")))?;
 
     if !old_token.is_active {
-        return Err(anyhow!("Cannot rotate inactive token"));
+        return Err(AppError::invalid_input("Cannot rotate inactive token").into());
     }
 
     // Create new token with same service and permissions
@@ -487,9 +491,10 @@ async fn rotate_token_command(
     // Load JWT secret from database (must exist - created by create-admin-user)
     let Ok(jwt_secret) = database.get_system_secret("admin_jwt_secret").await else {
         error!("Admin JWT secret not found in database!");
-        return Err(anyhow!(
-            "Admin JWT secret not found. Run admin-setup create-admin-user first."
-        ));
+        return Err(AppError::config(
+            "Admin JWT secret not found. Run admin-setup create-admin-user first.",
+        )
+        .into());
     };
 
     // Generate new token using RS256 asymmetric signing
@@ -620,7 +625,9 @@ async fn create_admin_user_command(
                 "   - Created: {}",
                 existing_user.created_at.format("%Y-%m-%d %H:%M UTC")
             );
-            return Err(anyhow!("User already exists (use --force to update)"));
+            return Err(
+                AppError::invalid_input("User already exists (use --force to update)").into(),
+            );
         }
 
         info!("Updating existing admin user...");

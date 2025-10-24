@@ -22,11 +22,12 @@ use crate::{
         time_constants::{SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MONTH, SECONDS_PER_WEEK},
     },
     database_plugins::{factory::Database, DatabaseProvider},
+    errors::AppError,
     models::{User, UserStatus},
     utils::auth::extract_bearer_token_owned,
     utils::errors::{operation_error, validation_error},
 };
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -512,9 +513,10 @@ fn convert_rate_limit_period(period: &str) -> Result<u32> {
         "day" => Ok(SECONDS_PER_DAY),     // 24 hours
         "week" => Ok(SECONDS_PER_WEEK),   // 7 days
         "month" => Ok(SECONDS_PER_MONTH), // 30 days
-        _ => Err(anyhow!(
-            "Invalid rate limit period. Supported: hour, day, week, month"
-        )),
+        _ => Err(AppError::invalid_input(
+            "Invalid rate limit period. Supported: hour, day, week, month",
+        )
+        .into()),
     }
 }
 
@@ -2015,7 +2017,8 @@ async fn approve_user_with_optional_tenant(
                     return Err(operation_error(
                         "Link user to tenant",
                         &format!("Failed to link user to created tenant: {e}"),
-                    ));
+                    )
+                    .into());
                 }
 
                 info!(
@@ -2052,9 +2055,7 @@ async fn create_default_tenant_for_user(
 
     // Check if slug already exists
     if database.get_tenant_by_slug(&slug).await.is_ok() {
-        return Err(validation_error(&format!(
-            "Tenant slug '{slug}' already exists"
-        )));
+        return Err(validation_error(&format!("Tenant slug '{slug}' already exists")).into());
     }
 
     let tenant_data = crate::models::Tenant {

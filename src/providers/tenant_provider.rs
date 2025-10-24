@@ -5,9 +5,10 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::database_plugins::DatabaseProvider;
+use crate::errors::AppError;
 use crate::models::{Activity, Athlete, PersonalRecord, Stats};
 use crate::tenant::{TenantContext, TenantOAuthClient};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -70,9 +71,10 @@ impl TenantProviderFactory {
             "strava" => Ok(Box::new(super::strava_tenant::TenantStravaProvider::new(
                 self.oauth_client.clone(),
             ))),
-            _ => Err(anyhow!(
+            _ => Err(AppError::invalid_input(format!(
                 "Unknown tenant provider: {provider_type}. Currently supported: strava"
-            )),
+            ))
+            .into()),
         }
     }
 }

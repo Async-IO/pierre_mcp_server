@@ -11,6 +11,7 @@
 use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::database_plugins::DatabaseProvider;
+use crate::errors::AppError;
 use crate::oauth2::client_registration::ClientRegistrationManager;
 use crate::oauth2::models::{
     AuthorizeRequest, AuthorizeResponse, OAuth2AuthCode, OAuth2Error, TokenRequest, TokenResponse,
@@ -530,7 +531,7 @@ impl OAuth2AuthorizationServer {
                 "CRITICAL: SystemRandom failed - cannot generate secure random bytes: {}",
                 e
             );
-            anyhow::anyhow!("System RNG failure - server cannot operate securely")
+            AppError::internal("System RNG failure - server cannot operate securely")
         })?;
 
         // Convert to URL-safe base64

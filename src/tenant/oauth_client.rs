@@ -10,8 +10,9 @@
 use super::oauth_manager::{CredentialConfig, TenantOAuthCredentials, TenantOAuthManager};
 use super::TenantContext;
 use crate::database_plugins::factory::Database;
+use crate::errors::AppError;
 use crate::oauth2_client::{OAuth2Client, OAuth2Config, OAuth2Token, PkceParams};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{info, warn};
@@ -66,13 +67,11 @@ impl TenantOAuthClient {
             manager.check_rate_limit(tenant_context.tenant_id, provider)?;
 
         if current_usage >= daily_limit {
-            return Err(anyhow!(
+            return Err(AppError::invalid_input(format!(
                 "Tenant {} has exceeded daily rate limit for provider {}: {}/{}",
-                tenant_context.tenant_id,
-                provider,
-                current_usage,
-                daily_limit
-            ));
+                tenant_context.tenant_id, provider, current_usage, daily_limit
+            ))
+            .into());
         }
 
         // Get tenant credentials
@@ -298,7 +297,10 @@ impl TenantOAuthClient {
             ),
             _ => {
                 warn!("Unknown provider {}, using generic OAuth URLs", provider);
-                return Err(anyhow!("Unsupported OAuth provider: {provider}"));
+                return Err(AppError::invalid_input(format!(
+                    "Unsupported OAuth provider: {provider}"
+                ))
+                .into());
             }
         };
 

@@ -8,8 +8,9 @@
 // - HTTP client Arc sharing for geocoding requests
 // - Cache key and data ownership transfers for async operations
 // - Address field Option chains for comprehensive location parsing
+use crate::errors::AppError;
 use crate::utils::http_client::shared_client;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -154,22 +155,28 @@ impl LocationService {
             self.base_url, latitude, longitude
         );
 
-        let response = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| anyhow!("Failed to send reverse geocoding request: {e}"))?;
+        let response = self.client.get(&url).send().await.map_err(|e| {
+            AppError::external_service(
+                "Nominatim",
+                format!("Failed to send reverse geocoding request: {e}"),
+            )
+        })?;
 
         if !response.status().is_success() {
             let status = response.status();
-            return Err(anyhow!("Reverse geocoding API returned status: {status}"));
+            return Err(AppError::external_service(
+                "Nominatim",
+                format!("Reverse geocoding API returned status: {status}"),
+            )
+            .into());
         }
 
-        let nominatim_response: NominatimResponse = response
-            .json()
-            .await
-            .map_err(|e| anyhow!("Failed to parse reverse geocoding response: {e}"))?;
+        let nominatim_response: NominatimResponse = response.json().await.map_err(|e| {
+            AppError::external_service(
+                "Nominatim",
+                format!("Failed to parse reverse geocoding response: {e}"),
+            )
+        })?;
 
         let location_data =
             Self::parse_nominatim_response(&nominatim_response, latitude, longitude);

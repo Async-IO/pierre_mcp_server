@@ -85,9 +85,7 @@ impl McpAuthMiddleware {
             header
         } else {
             tracing::warn!("Authentication failed: Missing authorization header");
-            return Err(auth_error("Missing authorization header").context(
-                "Request authentication requires Authorization header with Bearer token or API key",
-            ));
+            return Err(auth_error("Missing authorization header - Request authentication requires Authorization header with Bearer token or API key").into());
         };
 
         // Try API key authentication first (starts with pk_live_)
@@ -221,7 +219,7 @@ impl McpAuthMiddleware {
 
         // Check rate limit
         if rate_limit.is_rate_limited {
-            return Err(auth_error("JWT token rate limit exceeded"));
+            return Err(auth_error("JWT token rate limit exceeded").into());
         }
 
         Ok(AuthResult {

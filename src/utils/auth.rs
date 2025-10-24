@@ -5,7 +5,8 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::constants::key_prefixes;
-use anyhow::{anyhow, Context, Result};
+use crate::errors::AppError;
+use anyhow::{Context, Result};
 
 /// Extract bearer token from Authorization header string
 ///
@@ -17,7 +18,7 @@ use anyhow::{anyhow, Context, Result};
 /// - Header format is invalid
 pub fn extract_bearer_token(auth_header: &str) -> Result<&str> {
     if !auth_header.starts_with("Bearer ") {
-        return Err(anyhow!("Invalid authorization header format"));
+        return Err(AppError::auth_invalid("Invalid authorization header format").into());
     }
 
     let token = auth_header
@@ -26,7 +27,7 @@ pub fn extract_bearer_token(auth_header: &str) -> Result<&str> {
         .trim();
 
     if token.is_empty() {
-        return Err(anyhow!("Empty bearer token"));
+        return Err(AppError::auth_invalid("Empty bearer token").into());
     }
 
     Ok(token)
@@ -53,7 +54,7 @@ pub fn extract_bearer_token_owned(auth_header: &str) -> Result<String> {
 /// - Header format is invalid
 /// - Token is empty
 pub fn extract_bearer_token_from_option(auth_header: Option<&str>) -> Result<&str> {
-    let header = auth_header.ok_or_else(|| anyhow!("Missing authorization header"))?;
+    let header = auth_header.ok_or_else(AppError::auth_required)?;
     extract_bearer_token(header)
 }
 

@@ -18,8 +18,8 @@ use crate::a2a::system_user::A2ASystemUserService;
 use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::cache::factory::Cache;
-use crate::database_plugins::factory::Database;
-use crate::database_plugins::DatabaseProvider;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::errors::AppError;
 use crate::intelligence::ActivityIntelligence;
 use crate::mcp::schema::OAuthCompletedNotification;
 use crate::middleware::redaction::RedactionConfig;
@@ -28,7 +28,6 @@ use crate::plugins::executor::PluginToolExecutor;
 use crate::providers::ProviderRegistry;
 use crate::tenant::{oauth_manager::TenantOAuthManager, TenantOAuthClient};
 use crate::websocket::WebSocketManager;
-use anyhow::Context;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
@@ -233,7 +232,7 @@ impl ServerResources {
                 // Save to database for persistence
                 let key = jwks_manager
                     .get_active_key()
-                    .map_err(|e| anyhow::anyhow!("Failed to get active key: {}", e))?;
+                    .map_err(|e| AppError::internal(format!("Failed to get active key: {e}")))?;
 
                 let private_pem = key.export_private_key_pem()?;
                 let public_pem = key.export_public_key_pem()?;
@@ -246,7 +245,7 @@ impl ServerResources {
                         key.created_at,
                         true,
                         i32::try_from(rsa_key_size_bits)
-                            .context("RSA key size exceeds i32 maximum")?,
+                            .expect("RSA key size must fit in i32 (max 2147483647 bits)"),
                     )
                     .await?;
 

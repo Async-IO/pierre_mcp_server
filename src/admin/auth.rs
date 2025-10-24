@@ -16,7 +16,8 @@ use crate::admin::{
     models::{AdminPermission, AdminTokenUsage, ValidatedAdminToken},
 };
 use crate::database_plugins::{factory::Database, DatabaseProvider};
-use anyhow::{anyhow, Context, Result};
+use crate::errors::AppError;
+use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::info;
@@ -76,25 +77,20 @@ impl AdminAuthService {
             })?;
 
         if !stored_token.is_active {
-            return Err(
-                anyhow!("Authentication failed: Admin token is inactive").context(format!(
-                    "Token ID {} has been deactivated",
-                    validated_token.token_id
-                )),
-            );
+            return Err(AppError::auth_invalid("Admin token is inactive").into());
         }
 
         // Step 3: Verify token hash
         if !AdminJwtManager::verify_token_hash(token, &stored_token.token_hash)? {
-            return Err(anyhow!("Authentication failed: Invalid token hash")
-                .context("Token hash verification failed - token may be tampered with"));
+            return Err(
+                AppError::auth_invalid("Invalid token hash - token may be tampered with").into(),
+            );
         }
 
         // Step 4: Check expiration
         if let Some(expires_at) = stored_token.expires_at {
             if chrono::Utc::now() > expires_at {
-                return Err(anyhow!("Authentication failed: Admin token has expired")
-                    .context(format!("Token expired at {expires_at}")));
+                return Err(AppError::auth_expired().into());
             }
         }
 
@@ -103,12 +99,14 @@ impl AdminAuthService {
             .permissions
             .has_permission(&required_permission)
         {
-            return Err(
-                anyhow!("Authorization failed: Insufficient permissions").context(format!(
+            return Err(AppError::new(
+                crate::errors::ErrorCode::PermissionDenied,
+                format!(
                     "Required permission: {:?}, token has: {:?}",
                     required_permission, stored_token.permissions
-                )),
-            );
+                ),
+            )
+            .into());
         }
 
         // Step 6: Log usage

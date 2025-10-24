@@ -17,10 +17,10 @@ use crate::constants::oauth_providers;
 use crate::constants::tiers;
 use crate::database::errors::DatabaseError;
 use crate::database::A2AUsage;
+use crate::errors::AppError;
 use crate::models::{User, UserTier};
 use crate::rate_limiting::JwtUsage;
-use anyhow::Context;
-use anyhow::{anyhow, Result};
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
@@ -249,7 +249,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
         self.get_user_by_email(email)
             .await?
-            .ok_or_else(|| anyhow!("User with email {email} not found"))
+            .ok_or_else(|| AppError::not_found(format!("User with email {email}")).into())
     }
 
     async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
@@ -281,7 +281,11 @@ impl DatabaseProvider for PostgresDatabase {
             "active" => "active",
             "pending" => "pending",
             "suspended" => "suspended",
-            _ => return Err(anyhow!("Invalid user status: {status}")),
+            _ => {
+                return Err(
+                    AppError::invalid_input(format!("Invalid user status: {status}")).into(),
+                )
+            }
         };
 
         let rows = sqlx::query(
@@ -347,20 +351,24 @@ impl DatabaseProvider for PostgresDatabase {
             "active" => "active",
             "pending" => "pending",
             "suspended" => "suspended",
-            _ => return Err(anyhow!("Invalid user status: {status}")),
+            _ => {
+                return Err(
+                    AppError::invalid_input(format!("Invalid user status: {status}")).into(),
+                )
+            }
         };
 
         // Fetch one more than requested to determine if there are more items
         let fetch_limit = params.limit + 1;
 
         // Convert to i64 for SQL LIMIT clause (pagination limits are always reasonable)
-        let fetch_limit_i64 =
-            i64::try_from(fetch_limit).map_err(|_| anyhow!("Pagination limit too large"))?;
+        let fetch_limit_i64 = i64::try_from(fetch_limit)
+            .map_err(|_| AppError::invalid_input("Pagination limit too large"))?;
 
         let (query, cursor_timestamp, cursor_id) = if let Some(ref cursor) = params.cursor {
             let (timestamp, id) = cursor
                 .decode()
-                .ok_or_else(|| anyhow!("Invalid cursor format"))?;
+                .ok_or_else(|| AppError::invalid_input("Invalid cursor format"))?;
 
             let query = r"
                 SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
@@ -512,7 +520,7 @@ impl DatabaseProvider for PostgresDatabase {
         // Return updated user
         self.get_user(user_id)
             .await?
-            .ok_or_else(|| anyhow!("User not found after status update"))
+            .ok_or_else(|| AppError::not_found("User after status update").into())
     }
 
     async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
@@ -529,7 +537,7 @@ impl DatabaseProvider for PostgresDatabase {
         .await?;
 
         if result.rows_affected() == 0 {
-            return Err(anyhow!("No user found with ID: {user_id}"));
+            return Err(AppError::not_found(format!("User with ID: {user_id}")).into());
         }
 
         Ok(())
@@ -2157,7 +2165,11 @@ impl DatabaseProvider for PostgresDatabase {
         let column = match provider {
             oauth_providers::STRAVA => "strava_last_sync",
             oauth_providers::FITBIT => "fitbit_last_sync",
-            _ => return Err(anyhow!("Unsupported provider: {provider}")),
+            _ => {
+                return Err(
+                    AppError::invalid_input(format!("Unsupported provider: {provider}")).into(),
+                )
+            }
         };
 
         let query = format!("SELECT {column} FROM users WHERE id = $1");
@@ -2178,7 +2190,11 @@ impl DatabaseProvider for PostgresDatabase {
         let column = match provider {
             oauth_providers::STRAVA => "strava_last_sync",
             oauth_providers::FITBIT => "fitbit_last_sync",
-            _ => return Err(anyhow!("Unsupported provider: {provider}")),
+            _ => {
+                return Err(
+                    AppError::invalid_input(format!("Unsupported provider: {provider}")).into(),
+                )
+            }
         };
 
         let query = format!("UPDATE users SET {column} = $1 WHERE id = $2");
@@ -4377,7 +4393,8 @@ impl DatabaseProvider for PostgresDatabase {
         );
 
         if let Some(l) = limit {
-            write!(query_str, " LIMIT {l}").map_err(|e| anyhow!("Format error: {e}"))?;
+            write!(query_str, " LIMIT {l}")
+                .map_err(|e| AppError::internal(format!("Format error: {e}")))?;
         }
 
         let rows = sqlx::query(&query_str)
