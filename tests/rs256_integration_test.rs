@@ -460,10 +460,26 @@ async fn test_key_lifecycle_rollover() -> Result<()> {
     // Rotate keys multiple times to exceed retention limit (MAX_HISTORICAL_KEYS = 3)
     // Key lifecycle: initial_kid -> rotated1 -> rotated2 -> rotated3 -> rotated4
     // After 4 rotations, initial_kid should be pruned
+    // Note: On Windows, sleep between rotations to ensure unique timestamps (kid format uses second precision)
     let rotated_kids = [
-        jwks_manager.rotate_keys_with_size(2048)?,
-        jwks_manager.rotate_keys_with_size(2048)?,
-        jwks_manager.rotate_keys_with_size(2048)?,
+        {
+            let kid = jwks_manager.rotate_keys_with_size(2048)?;
+            #[cfg(windows)]
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            kid
+        },
+        {
+            let kid = jwks_manager.rotate_keys_with_size(2048)?;
+            #[cfg(windows)]
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            kid
+        },
+        {
+            let kid = jwks_manager.rotate_keys_with_size(2048)?;
+            #[cfg(windows)]
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            kid
+        },
         jwks_manager.rotate_keys_with_size(2048)?,
     ];
 
