@@ -1076,9 +1076,9 @@ impl UserPhysiologicalProfile {
 /// Each encrypted token has its nonce prepended to the ciphertext.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptedToken {
-    /// Encrypted access token with prepended nonce (base64 encoded: [12-byte nonce][ciphertext])
+    /// Encrypted access token with prepended nonce (base64 encoded: \[12-byte nonce\]\[ciphertext\])
     pub access_token: String,
-    /// Encrypted refresh token with prepended nonce (base64 encoded: [12-byte nonce][ciphertext])
+    /// Encrypted refresh token with prepended nonce (base64 encoded: \[12-byte nonce\]\[ciphertext\])
     pub refresh_token: String,
     /// When the access token expires
     pub expires_at: DateTime<Utc>,
