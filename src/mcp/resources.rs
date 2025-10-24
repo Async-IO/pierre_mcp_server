@@ -28,6 +28,7 @@ use crate::plugins::executor::PluginToolExecutor;
 use crate::providers::ProviderRegistry;
 use crate::tenant::{oauth_manager::TenantOAuthManager, TenantOAuthClient};
 use crate::websocket::WebSocketManager;
+use anyhow::Context;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
@@ -244,7 +245,8 @@ impl ServerResources {
                         &public_pem,
                         key.created_at,
                         true,
-                        rsa_key_size_bits,
+                        i32::try_from(rsa_key_size_bits)
+                            .context("RSA key size exceeds i32 maximum")?,
                     )
                     .await?;
 

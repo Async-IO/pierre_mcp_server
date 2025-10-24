@@ -2663,7 +2663,7 @@ impl DatabaseProvider for PostgresDatabase {
         public_key_pem: &str,
         created_at: DateTime<Utc>,
         is_active: bool,
-        key_size_bits: usize,
+        key_size_bits: i32,
     ) -> Result<()> {
         sqlx::query(
             r"
@@ -2680,7 +2680,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(public_key_pem)
         .bind(created_at)
         .bind(is_active)
-        .bind(i32::try_from(key_size_bits).context("RSA key size exceeds maximum supported value")?)
+        .bind(key_size_bits)
         .execute(&self.pool)
         .await?;
 
