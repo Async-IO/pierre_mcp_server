@@ -304,11 +304,14 @@ iterator_antipatterns = [
     "for.*in.*\\{\\s*if.*\\{\\s*return.*\\}\\s*\\}",  # Manual find (use .find())
 ]
 
-# Error context anti-patterns - errors without proper context
+# Error context anti-patterns - FORBIDDEN anyhow! macro usage (CLAUDE.md: use structured error types only)
 error_context_antipatterns = [
-    "Err\\(anyhow::anyhow!\\(\"[^\"]*\"\\)\\)",  # Plain error messages without context
-    "\\.map_err\\(\\|e\\| anyhow!\\(\"\\{\\}\"",  # Generic error wrapping
-    "return Err\\(.*::new\\(\"",                  # Error without cause chain
+    "anyhow::anyhow!\\(",            # Fully qualified anyhow! macro - FORBIDDEN
+    "\\banyhow!\\(",                 # Shorthand anyhow! macro - FORBIDDEN
+    "Err\\(anyhow!\\(",              # Err(anyhow!(...)) pattern - FORBIDDEN
+    "\\.map_err\\(.*anyhow!\\(",     # .map_err(|_| anyhow!(...)) - FORBIDDEN
+    "\\.ok_or_else\\(.*anyhow!\\(",  # .ok_or_else(|| anyhow!(...)) - FORBIDDEN
+    "\\?.*anyhow!\\(",               # chained with ? operator - FORBIDDEN
 ]
 
 # Async anti-patterns - blocking operations in async contexts
@@ -361,7 +364,7 @@ max_problematic_db_clones = 0
 # Claude Code anti-pattern thresholds
 max_string_allocation_antipatterns = 20
 max_iterator_antipatterns = 15
-max_error_context_antipatterns = 10
+max_error_context_antipatterns = 0  # ZERO TOLERANCE: anyhow! macro is FORBIDDEN (use structured error types)
 max_async_antipatterns = 5
 max_lifetime_antipatterns = 3
 

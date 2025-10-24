@@ -697,12 +697,13 @@ else
     printf "$(format_status "⚠️ INFO")│ %-39s │\n" "$FIRST_ITERATOR"
 fi
 
-printf "│ %-35s │ %5d │ " "Error context missing" "$TOML_ERROR_CONTEXT"
-if [ "$TOML_ERROR_CONTEXT" -le 10 ]; then
-    printf "$(format_status "✅ PASS")│ %-39s │\n" "Good error context"
+printf "│ %-35s │ %5d │ " "FORBIDDEN anyhow! macro usage" "$TOML_ERROR_CONTEXT"
+if [ "$TOML_ERROR_CONTEXT" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Structured errors only (compliant)"
 else
-    FIRST_ERROR=$(get_first_location 'rg "Err\\(anyhow::anyhow!\\(" src/ -g "!src/bin/*" -g "!tests/*" -n')
-    printf "$(format_status "⚠️ INFO")│ %-39s │\n" "$FIRST_ERROR"
+    FIRST_ERROR=$(get_first_location 'rg "\\banyhow!\\(|anyhow::anyhow!\\(" src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_ERROR"
+    fail_validation "CLAUDE.md VIOLATION: anyhow! macro is FORBIDDEN - use AppError/DatabaseError/ProviderError instead"
 fi
 
 printf "│ %-35s │ %5d │ " "Async anti-patterns (blocking)" "$TOML_ASYNC_ANTIPATTERNS"
