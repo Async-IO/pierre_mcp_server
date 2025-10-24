@@ -363,10 +363,7 @@ impl OAuth2AuthorizationServer {
     }
 
     /// Generate authorization code
-    async fn generate_authorization_code(
-        &self,
-        params: AuthCodeParams<'_>,
-    ) -> Result<String> {
+    async fn generate_authorization_code(&self, params: AuthCodeParams<'_>) -> Result<String> {
         let code = Self::generate_random_string(32)?;
         let expires_at = Utc::now() + Duration::minutes(10); // 10 minute expiry
 
@@ -381,7 +378,9 @@ impl OAuth2AuthorizationServer {
             used: false,
             state: params.state.map(std::string::ToString::to_string),
             code_challenge: params.code_challenge.map(std::string::ToString::to_string),
-            code_challenge_method: params.code_challenge_method.map(std::string::ToString::to_string),
+            code_challenge_method: params
+                .code_challenge_method
+                .map(std::string::ToString::to_string),
         };
 
         self.store_auth_code(&auth_code).await?;

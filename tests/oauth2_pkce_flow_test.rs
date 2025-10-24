@@ -124,7 +124,9 @@ async fn test_pkce_enforcement_no_code_challenge() {
         code_challenge_method: None,
     };
 
-    let result = oauth_server.authorize(auth_request, Some(user.id), None).await;
+    let result = oauth_server
+        .authorize(auth_request, Some(user.id), None)
+        .await;
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert_eq!(error.error, "invalid_request");

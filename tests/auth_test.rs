@@ -467,7 +467,8 @@ fn test_generate_oauth_access_token() {
     // Setup JWKS manager for RS256 token generation
     let jwks_manager = common::get_shared_test_jwks();
 
-    let token_result = auth_manager.generate_oauth_access_token(&jwks_manager, &user_id, &scopes, None);
+    let token_result =
+        auth_manager.generate_oauth_access_token(&jwks_manager, &user_id, &scopes, None);
     assert!(token_result.is_ok());
 
     let token = token_result.unwrap();
