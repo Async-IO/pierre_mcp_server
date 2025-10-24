@@ -124,6 +124,9 @@ pub struct Claims {
     pub providers: Vec<String>,
     /// Audience (who the token is intended for)
     pub aud: String,
+    /// Tenant `ID` (optional for backward compatibility with existing tokens)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenant_id: Option<String>,
 }
 
 /// Authentication result with user context and rate limiting info
@@ -223,6 +226,7 @@ impl AuthManager {
             jti: Uuid::new_v4().to_string(),
             providers: user.available_providers(),
             aud: crate::constants::service_names::MCP.to_string(),
+            tenant_id: user.tenant_id.clone(),
         };
 
         // Get active RSA key from JWKS manager
@@ -570,6 +574,7 @@ impl AuthManager {
         jwks_manager: &crate::admin::jwks::JwksManager,
         user_id: &Uuid,
         scopes: &[String],
+        tenant_id: Option<String>,
     ) -> Result<String> {
         let now = Utc::now();
         let expiry =
@@ -584,6 +589,7 @@ impl AuthManager {
             jti: Uuid::new_v4().to_string(),
             providers: scopes.to_vec(),
             aud: crate::constants::service_names::MCP.to_string(),
+            tenant_id,
         };
 
         // Get active RSA key from JWKS manager
@@ -615,6 +621,7 @@ impl AuthManager {
         jwks_manager: &crate::admin::jwks::JwksManager,
         client_id: &str,
         scopes: &[String],
+        tenant_id: Option<String>,
     ) -> Result<String> {
         let now = Utc::now();
         let expiry = now + Duration::hours(1); // 1 hour for client credentials
@@ -628,6 +635,7 @@ impl AuthManager {
             jti: Uuid::new_v4().to_string(),
             providers: scopes.to_vec(),
             aud: crate::constants::service_names::MCP.to_string(),
+            tenant_id,
         };
 
         // Get active RSA key from JWKS manager

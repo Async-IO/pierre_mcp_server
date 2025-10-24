@@ -545,6 +545,7 @@ pub async fn oauth_token(
                 &jwks_manager,
                 &oauth_app.owner_user_id,
                 &oauth_app.scopes,
+                None, // tenant_id
             )?;
 
             // Clean up authorization code
@@ -563,6 +564,7 @@ pub async fn oauth_token(
                 &jwks_manager,
                 &token_request.client_id,
                 &oauth_app.scopes,
+                None, // tenant_id
             )?;
 
             Ok(OAuthTokenResponse {

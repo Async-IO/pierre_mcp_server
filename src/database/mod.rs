@@ -19,8 +19,8 @@ pub use a2a::{A2AUsage, A2AUsageStats};
 pub use errors::{DatabaseError, DatabaseResult};
 
 use crate::errors::AppError;
-use anyhow::Result;
-use sqlx::{Pool, Row, Sqlite, SqlitePool};
+use anyhow::{Context, Result};
+use sqlx::{Pool, Sqlite, SqlitePool};
 
 #[derive(Clone)]
 pub struct Database {
@@ -143,10 +143,12 @@ impl Database {
                 code TEXT PRIMARY KEY,
                 client_id TEXT NOT NULL,
                 user_id TEXT NOT NULL,
+                tenant_id TEXT NOT NULL,
                 redirect_uri TEXT NOT NULL,
                 scope TEXT,
                 expires_at DATETIME NOT NULL,
                 used BOOLEAN NOT NULL DEFAULT 0,
+                state TEXT,
                 code_challenge TEXT,
                 code_challenge_method TEXT,
                 FOREIGN KEY (client_id) REFERENCES oauth2_clients(client_id) ON DELETE CASCADE
@@ -173,6 +175,11 @@ impl Database {
             .execute(&self.pool)
             .await?;
 
+        // Index for tenant-scoped queries
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_oauth2_auth_codes_tenant_user ON oauth2_auth_codes(tenant_id, user_id)")
+            .execute(&self.pool)
+            .await?;
+
         // Create oauth2_refresh_tokens table
         sqlx::query(
             r"
@@ -180,6 +187,7 @@ impl Database {
                 token TEXT PRIMARY KEY,
                 client_id TEXT NOT NULL,
                 user_id TEXT NOT NULL,
+                tenant_id TEXT NOT NULL,
                 scope TEXT,
                 expires_at DATETIME NOT NULL,
                 created_at DATETIME NOT NULL,
@@ -198,9 +206,55 @@ impl Database {
         .execute(&self.pool)
         .await?;
 
+        // Index for tenant-scoped refresh token queries
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_oauth2_refresh_tokens_tenant_user ON oauth2_refresh_tokens(tenant_id, user_id)")
+            .execute(&self.pool)
+            .await?;
+
         // Create index for user refresh tokens
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_oauth2_refresh_tokens_user_id ON oauth2_refresh_tokens(user_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create oauth2_states table and indexes
+        self.migrate_oauth2_state_table().await?;
+
+        Ok(())
+    }
+
+    /// Create `OAuth2` state validation table for `CSRF` protection
+    async fn migrate_oauth2_state_table(&self) -> Result<()> {
+        // Create oauth2_states table for server-side state validation (CSRF protection)
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS oauth2_states (
+                state TEXT PRIMARY KEY,
+                client_id TEXT NOT NULL,
+                user_id TEXT,
+                tenant_id TEXT,
+                redirect_uri TEXT NOT NULL,
+                scope TEXT,
+                code_challenge TEXT,
+                code_challenge_method TEXT,
+                created_at DATETIME NOT NULL,
+                expires_at DATETIME NOT NULL,
+                used BOOLEAN NOT NULL DEFAULT 0,
+                FOREIGN KEY (client_id) REFERENCES oauth2_clients(client_id) ON DELETE CASCADE
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create index for state lookups and expiration cleanup
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_oauth2_states_state ON oauth2_states(state)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_oauth2_states_expires_at ON oauth2_states(expires_at)",
         )
         .execute(&self.pool)
         .await?;
@@ -615,6 +669,88 @@ impl Database {
         })
     }
 
+    /// Encrypt sensitive data using AES-256-GCM with Additional Authenticated Data (AAD)
+    ///
+    /// AAD binds the encrypted data to a specific context (tenant|user|provider|table)
+    /// preventing ciphertext from being moved between contexts or users.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if encryption fails
+    pub fn encrypt_data_with_aad(&self, data: &str, aad_context: &str) -> Result<String> {
+        use base64::{engine::general_purpose, Engine as _};
+        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
+        use ring::rand::{SecureRandom, SystemRandom};
+
+        let rng = SystemRandom::new();
+
+        // Generate unique nonce
+        let mut nonce_bytes = [0u8; 12];
+        rng.fill(&mut nonce_bytes)?;
+        let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+
+        // Create encryption key
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let key = LessSafeKey::new(unbound_key);
+
+        // Encrypt data with AAD binding
+        let mut data_bytes = data.as_bytes().to_vec();
+        let aad = Aad::from(aad_context.as_bytes());
+        key.seal_in_place_append_tag(nonce, aad, &mut data_bytes)?;
+
+        // Combine nonce and encrypted data, then base64 encode
+        let mut combined = nonce_bytes.to_vec();
+        combined.extend(data_bytes);
+
+        Ok(general_purpose::STANDARD.encode(combined))
+    }
+
+    /// Decrypt sensitive data using AES-256-GCM with Additional Authenticated Data (AAD)
+    ///
+    /// The same AAD context used for encryption MUST be provided for successful decryption.
+    /// This prevents ciphertext from being moved between contexts.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Decryption fails
+    /// - Data is malformed
+    /// - AAD context does not match (authentication fails)
+    pub fn decrypt_data_with_aad(&self, encrypted_data: &str, aad_context: &str) -> Result<String> {
+        use base64::{engine::general_purpose, Engine as _};
+        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
+
+        // Decode from base64
+        let combined = general_purpose::STANDARD.decode(encrypted_data)?;
+
+        if combined.len() < 12 {
+            return Err(AppError::internal("Invalid encrypted data: too short").into());
+        }
+
+        // Extract nonce and encrypted data
+        let (nonce_bytes, encrypted_bytes) = combined.split_at(12);
+        let nonce = Nonce::assume_unique_for_key(nonce_bytes.try_into()?);
+
+        // Create decryption key
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let key = LessSafeKey::new(unbound_key);
+
+        // Decrypt data with AAD verification
+        let mut decrypted_data = encrypted_bytes.to_vec();
+        let aad = Aad::from(aad_context.as_bytes());
+        let decrypted = key
+            .open_in_place(nonce, aad, &mut decrypted_data)
+            .map_err(|e| {
+                AppError::internal(format!(
+                    "Decryption failed (possible AAD mismatch or tampered data): {e:?}"
+                ))
+            })?;
+
+        String::from_utf8(decrypted.to_vec()).map_err(|e| {
+            AppError::internal(format!("Failed to convert decrypted data to string: {e}")).into()
+        })
+    }
+
     /// Get user role for a specific tenant
     ///
     /// # Errors
@@ -708,7 +844,7 @@ impl Database {
         public_key_pem: &str,
         created_at: chrono::DateTime<chrono::Utc>,
         is_active: bool,
-        key_size_bits: i32,
+        key_size_bits: usize,
     ) -> Result<()> {
         sqlx::query(
             r"
@@ -725,7 +861,7 @@ impl Database {
         .bind(public_key_pem)
         .bind(created_at)
         .bind(is_active)
-        .bind(key_size_bits)
+        .bind(i64::try_from(key_size_bits).context("RSA key size exceeds maximum supported value")?)
         .execute(&self.pool)
         .await?;
 
@@ -740,6 +876,8 @@ impl Database {
     pub async fn load_rsa_keypairs(
         &self,
     ) -> Result<Vec<(String, String, String, chrono::DateTime<chrono::Utc>, bool)>> {
+        use sqlx::Row;
+
         let rows = sqlx::query(
             "SELECT kid, private_key_pem, public_key_pem, created_at, is_active FROM rsa_keypairs ORDER BY created_at DESC",
         )
@@ -748,11 +886,11 @@ impl Database {
 
         let mut keypairs = Vec::new();
         for row in rows {
-            let kid: String = row.get("kid");
-            let private_key_pem: String = row.get("private_key_pem");
-            let public_key_pem: String = row.get("public_key_pem");
-            let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
-            let is_active: bool = row.get("is_active");
+            let kid: String = row.try_get("kid")?;
+            let private_key_pem: String = row.try_get("private_key_pem")?;
+            let public_key_pem: String = row.try_get("public_key_pem")?;
+            let created_at: chrono::DateTime<chrono::Utc> = row.try_get("created_at")?;
+            let is_active: bool = row.try_get("is_active")?;
 
             keypairs.push((kid, private_key_pem, public_key_pem, created_at, is_active));
         }

@@ -384,29 +384,31 @@ async fn handle_authorization(
     };
 
     // Check if user is authenticated via session cookie
-    let user_id = cookie_header.and_then(|cookie_value| {
-        extract_session_token(&cookie_value).and_then(|token| {
-            match auth_manager.validate_token(&token, &jwks_manager) {
-                Ok(claims) => {
-                    tracing::info!(
-                        "OAuth authorization for authenticated user: {}",
-                        claims.email
-                    );
-                    // Parse user ID from JWT claims
-                    if let Ok(user_uuid) = uuid::Uuid::parse_str(&claims.sub) {
-                        Some(user_uuid)
-                    } else {
-                        tracing::warn!("Invalid user ID format in JWT: {}", claims.sub);
+    let (user_id, tenant_id) = cookie_header
+        .and_then(|cookie_value| {
+            extract_session_token(&cookie_value).and_then(|token| {
+                match auth_manager.validate_token(&token, &jwks_manager) {
+                    Ok(claims) => {
+                        tracing::info!(
+                            "OAuth authorization for authenticated user: {}",
+                            claims.email
+                        );
+                        // Parse user ID from JWT claims
+                        if let Ok(user_uuid) = uuid::Uuid::parse_str(&claims.sub) {
+                            Some((user_uuid, claims.tenant_id))
+                        } else {
+                            tracing::warn!("Invalid user ID format in JWT: {}", claims.sub);
+                            None
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Invalid session token in OAuth authorization: {}", e);
                         None
                     }
                 }
-                Err(e) => {
-                    tracing::warn!("Invalid session token in OAuth authorization: {}", e);
-                    None
-                }
-            }
+            })
         })
-    });
+        .map_or((None, None), |(uid, tid)| (Some(uid), tid));
 
     // If no authenticated user, redirect to login page with OAuth parameters
     let Some(authenticated_user_id) = user_id else {
@@ -425,7 +427,7 @@ async fn handle_authorization(
     let redirect_uri = request.redirect_uri.clone(); // Safe: OAuth redirect URI needed for response
 
     match auth_server
-        .authorize(request, Some(authenticated_user_id))
+        .authorize(request, Some(authenticated_user_id), tenant_id)
         .await
     {
         Ok(response) => {

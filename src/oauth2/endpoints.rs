@@ -24,6 +24,18 @@ use std::sync::Arc;
 use subtle::ConstantTimeEq;
 use uuid::Uuid;
 
+/// Parameters for authorization code generation
+struct AuthCodeParams<'a> {
+    client_id: &'a str,
+    user_id: Uuid,
+    tenant_id: &'a str,
+    redirect_uri: &'a str,
+    scope: Option<&'a str>,
+    state: Option<&'a str>,
+    code_challenge: Option<&'a str>,
+    code_challenge_method: Option<&'a str>,
+}
+
 /// OAuth 2.0 Authorization Server
 pub struct OAuth2AuthorizationServer {
     client_manager: ClientRegistrationManager,
@@ -56,7 +68,8 @@ impl OAuth2AuthorizationServer {
     pub async fn authorize(
         &self,
         request: AuthorizeRequest,
-        user_id: Option<Uuid>, // From authentication
+        user_id: Option<Uuid>,     // From authentication
+        tenant_id: Option<String>, // From JWT claims
     ) -> Result<AuthorizeResponse, OAuth2Error> {
         // Validate client
         let client = self
@@ -112,16 +125,19 @@ impl OAuth2AuthorizationServer {
         let user_id =
             user_id.ok_or_else(|| OAuth2Error::invalid_request("User authentication required"))?;
 
-        // Generate authorization code
+        // Generate authorization code with tenant isolation and state binding
+        let tenant_id = tenant_id.unwrap_or_else(|| user_id.to_string());
         let auth_code = self
-            .generate_authorization_code(
-                &request.client_id,
+            .generate_authorization_code(AuthCodeParams {
+                client_id: &request.client_id,
                 user_id,
-                &request.redirect_uri,
-                request.scope.as_deref(),
-                request.code_challenge.as_deref(),
-                request.code_challenge_method.as_deref(),
-            )
+                tenant_id: &tenant_id,
+                redirect_uri: &request.redirect_uri,
+                scope: request.scope.as_deref(),
+                state: request.state.as_deref(),
+                code_challenge: request.code_challenge.as_deref(),
+                code_challenge_method: request.code_challenge_method.as_deref(),
+            })
             .await
             .map_err(|e| {
                 tracing::error!(
@@ -210,7 +226,8 @@ impl OAuth2AuthorizationServer {
             token: refresh_token_value.clone(),   // Safe: Clone for storage
             client_id: request.client_id.clone(), // Safe: Clone for ownership
             user_id: auth_code.user_id,
-            scope: auth_code.scope.clone(), // Safe: Clone for storage
+            tenant_id: auth_code.tenant_id.clone(), // Safe: Clone for tenant isolation
+            scope: auth_code.scope.clone(),         // Safe: Clone for storage
             expires_at: refresh_token_expires_at,
             created_at: Utc::now(),
             revoked: false,
@@ -311,7 +328,8 @@ impl OAuth2AuthorizationServer {
             token: new_refresh_token_value.clone(), // Safe: Clone for storage
             client_id: request.client_id.clone(),   // Safe: Clone for ownership
             user_id: old_refresh_token.user_id,
-            scope: old_refresh_token.scope.clone(), // Safe: Clone for storage
+            tenant_id: old_refresh_token.tenant_id.clone(), // Safe: Clone for tenant isolation
+            scope: old_refresh_token.scope.clone(),         // Safe: Clone for storage
             expires_at: refresh_token_expires_at,
             created_at: Utc::now(),
             revoked: false,
@@ -347,26 +365,23 @@ impl OAuth2AuthorizationServer {
     /// Generate authorization code
     async fn generate_authorization_code(
         &self,
-        client_id: &str,
-        user_id: Uuid,
-        redirect_uri: &str,
-        scope: Option<&str>,
-        code_challenge: Option<&str>,
-        code_challenge_method: Option<&str>,
+        params: AuthCodeParams<'_>,
     ) -> Result<String> {
         let code = Self::generate_random_string(32)?;
         let expires_at = Utc::now() + Duration::minutes(10); // 10 minute expiry
 
         let auth_code = OAuth2AuthCode {
             code: code.clone(), // Safe: String ownership for OAuth2AuthCode struct
-            client_id: client_id.to_string(),
-            user_id,
-            redirect_uri: redirect_uri.to_string(),
-            scope: scope.map(std::string::ToString::to_string),
+            client_id: params.client_id.to_string(),
+            user_id: params.user_id,
+            tenant_id: params.tenant_id.to_string(),
+            redirect_uri: params.redirect_uri.to_string(),
+            scope: params.scope.map(std::string::ToString::to_string),
             expires_at,
             used: false,
-            code_challenge: code_challenge.map(std::string::ToString::to_string),
-            code_challenge_method: code_challenge_method.map(std::string::ToString::to_string),
+            state: params.state.map(std::string::ToString::to_string),
+            code_challenge: params.code_challenge.map(std::string::ToString::to_string),
+            code_challenge_method: params.code_challenge_method.map(std::string::ToString::to_string),
         };
 
         self.store_auth_code(&auth_code).await?;
@@ -488,11 +503,16 @@ impl OAuth2AuthorizationServer {
                     &self.jwks_manager,
                     client_id,
                     &scopes,
+                    None, // tenant_id for client credentials
                 )
             },
             |uid| {
-                self.auth_manager
-                    .generate_oauth_access_token(&self.jwks_manager, &uid, &scopes)
+                self.auth_manager.generate_oauth_access_token(
+                    &self.jwks_manager,
+                    &uid,
+                    &scopes,
+                    None,
+                )
             },
         )
     }

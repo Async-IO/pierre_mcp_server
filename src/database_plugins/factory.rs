@@ -1464,6 +1464,27 @@ impl DatabaseProvider for Database {
         }
     }
 
+    async fn store_oauth2_state(&self, state: &crate::oauth2::models::OAuth2State) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.store_oauth2_state(state).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.store_oauth2_state(state).await,
+        }
+    }
+
+    async fn consume_oauth2_state(
+        &self,
+        state_value: &str,
+        client_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<crate::oauth2::models::OAuth2State>> {
+        match self {
+            Self::SQLite(db) => db.consume_oauth2_state(state_value, client_id, now).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.consume_oauth2_state(state_value, client_id, now).await,
+        }
+    }
+
     // ================================
     // Key Rotation & Security
     // ================================
@@ -1529,6 +1550,60 @@ impl DatabaseProvider for Database {
             Self::SQLite(db) => db.delete_old_key_versions(tenant_id, keep_count).await,
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.delete_old_key_versions(tenant_id, keep_count).await,
+        }
+    }
+
+    async fn save_rsa_keypair(
+        &self,
+        kid: &str,
+        private_key_pem: &str,
+        public_key_pem: &str,
+        created_at: DateTime<Utc>,
+        is_active: bool,
+        key_size_bits: usize,
+    ) -> Result<()> {
+        match self {
+            Self::SQLite(db) => {
+                db.save_rsa_keypair(
+                    kid,
+                    private_key_pem,
+                    public_key_pem,
+                    created_at,
+                    is_active,
+                    key_size_bits,
+                )
+                .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.save_rsa_keypair(
+                    kid,
+                    private_key_pem,
+                    public_key_pem,
+                    created_at,
+                    is_active,
+                    key_size_bits,
+                )
+                .await
+            }
+        }
+    }
+
+    async fn load_rsa_keypairs(
+        &self,
+    ) -> Result<Vec<(String, String, String, DateTime<Utc>, bool)>> {
+        match self {
+            Self::SQLite(db) => db.load_rsa_keypairs().await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.load_rsa_keypairs().await,
+        }
+    }
+
+    async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.update_rsa_keypair_active_status(kid, is_active).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.update_rsa_keypair_active_status(kid, is_active).await,
         }
     }
 

@@ -467,7 +467,7 @@ fn test_generate_oauth_access_token() {
     // Setup JWKS manager for RS256 token generation
     let jwks_manager = common::get_shared_test_jwks();
 
-    let token_result = auth_manager.generate_oauth_access_token(&jwks_manager, &user_id, &scopes);
+    let token_result = auth_manager.generate_oauth_access_token(&jwks_manager, &user_id, &scopes, None);
     assert!(token_result.is_ok());
 
     let token = token_result.unwrap();
@@ -488,7 +488,7 @@ fn test_generate_client_credentials_token() {
     let jwks_manager = common::get_shared_test_jwks();
 
     let token_result =
-        auth_manager.generate_client_credentials_token(&jwks_manager, client_id, &scopes);
+        auth_manager.generate_client_credentials_token(&jwks_manager, client_id, &scopes, None);
     assert!(token_result.is_ok());
 
     let token = token_result.unwrap();
@@ -563,6 +563,7 @@ fn test_claims_serialization() {
         jti: Uuid::new_v4().to_string(),
         providers: vec!["strava".to_string(), "fitbit".to_string()],
         aud: "mcp".to_string(),
+        tenant_id: None,
     };
 
     let json = serde_json::to_string(&claims).unwrap();

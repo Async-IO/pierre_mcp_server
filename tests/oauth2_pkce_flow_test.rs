@@ -124,7 +124,7 @@ async fn test_pkce_enforcement_no_code_challenge() {
         code_challenge_method: None,
     };
 
-    let result = oauth_server.authorize(auth_request, Some(user.id)).await;
+    let result = oauth_server.authorize(auth_request, Some(user.id), None).await;
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert_eq!(error.error, "invalid_request");
@@ -163,7 +163,7 @@ async fn test_pkce_valid_s256_flow() {
     };
 
     let auth_response = oauth_server
-        .authorize(auth_request, Some(user.id))
+        .authorize(auth_request, Some(user.id), None)
         .await
         .unwrap();
     assert!(!auth_response.code.is_empty());
@@ -213,7 +213,7 @@ async fn test_pkce_invalid_code_verifier() {
     };
 
     let auth_response = oauth_server
-        .authorize(auth_request, Some(user.id))
+        .authorize(auth_request, Some(user.id), None)
         .await
         .unwrap();
 
@@ -266,7 +266,7 @@ async fn test_pkce_missing_code_verifier() {
     };
 
     let auth_response = oauth_server
-        .authorize(auth_request, Some(user.id))
+        .authorize(auth_request, Some(user.id), None)
         .await
         .unwrap();
 
@@ -318,7 +318,7 @@ async fn test_auth_code_replay_prevention() {
     };
 
     let auth_response = oauth_server
-        .authorize(auth_request, Some(user.id))
+        .authorize(auth_request, Some(user.id), None)
         .await
         .unwrap();
 
@@ -403,7 +403,7 @@ async fn test_auth_code_client_binding() {
     };
 
     let auth_response = oauth_server
-        .authorize(auth_request, Some(user.id))
+        .authorize(auth_request, Some(user.id), None)
         .await
         .unwrap();
 
@@ -458,7 +458,7 @@ async fn test_redirect_uri_exact_match() {
     };
 
     let auth_response = oauth_server
-        .authorize(auth_request, Some(user.id))
+        .authorize(auth_request, Some(user.id), None)
         .await
         .unwrap();
 
@@ -513,7 +513,7 @@ async fn test_refresh_token_rotation() {
     };
 
     let auth_response = oauth_server
-        .authorize(auth_request, Some(user.id))
+        .authorize(auth_request, Some(user.id), None)
         .await
         .unwrap();
 

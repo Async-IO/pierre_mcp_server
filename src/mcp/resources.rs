@@ -18,7 +18,8 @@ use crate::a2a::system_user::A2ASystemUserService;
 use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::cache::factory::Cache;
-use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::database_plugins::factory::Database;
+use crate::database_plugins::DatabaseProvider;
 use crate::intelligence::ActivityIntelligence;
 use crate::mcp::schema::OAuthCompletedNotification;
 use crate::middleware::redaction::RedactionConfig;
@@ -243,8 +244,7 @@ impl ServerResources {
                         &public_pem,
                         key.created_at,
                         true,
-                        i32::try_from(rsa_key_size_bits)
-                            .expect("RSA key size must fit in i32 (max 2147483647 bits)"),
+                        rsa_key_size_bits,
                     )
                     .await?;
 

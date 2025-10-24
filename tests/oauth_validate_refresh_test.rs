@@ -28,7 +28,7 @@ async fn test_validate_jwt_token_structure() {
 
     // Generate a valid access token
     let access_token = auth_manager
-        .generate_oauth_access_token(&jwks_manager, &user_id, &["read".to_string()])
+        .generate_oauth_access_token(&jwks_manager, &user_id, &["read".to_string()], None)
         .expect("Failed to generate access token");
 
     // Validate token structure

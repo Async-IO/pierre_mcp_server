@@ -193,10 +193,13 @@ pub struct OAuth2AuthCode {
     pub code: String,
     pub client_id: String,
     pub user_id: Uuid,
+    pub tenant_id: String,
     pub redirect_uri: String,
     pub scope: Option<String>,
     pub expires_at: DateTime<Utc>,
     pub used: bool,
+    /// Client-generated state for CSRF protection (RFC 6749 Section 10.12)
+    pub state: Option<String>,
     /// PKCE code challenge (RFC 7636)
     pub code_challenge: Option<String>,
     /// PKCE code challenge method (plain or S256)
@@ -220,10 +223,27 @@ pub struct OAuth2RefreshToken {
     pub token: String,
     pub client_id: String,
     pub user_id: Uuid,
+    pub tenant_id: String,
     pub scope: Option<String>,
     pub expires_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
     pub revoked: bool,
+}
+
+/// OAuth 2.0 State for CSRF Protection
+#[derive(Debug, Clone)]
+pub struct OAuth2State {
+    pub state: String,
+    pub client_id: String,
+    pub user_id: Option<uuid::Uuid>,
+    pub tenant_id: Option<String>,
+    pub redirect_uri: String,
+    pub scope: Option<String>,
+    pub code_challenge: Option<String>,
+    pub code_challenge_method: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    pub used: bool,
 }
 
 /// Validate and Refresh Request

@@ -72,17 +72,38 @@ impl Database {
 
     /// Upsert a user OAuth token using structured data
     ///
+    /// Provider tokens are encrypted at rest using AES-256-GCM with AAD binding
+    /// to prevent cross-tenant or cross-user token reuse.
+    ///
     /// # Errors
     ///
-    /// Returns an error if the database operation fails
+    /// Returns an error if:
+    /// - Encryption fails
+    /// - Database operation fails
     pub async fn upsert_user_oauth_token(&self, token_data: &OAuthTokenData<'_>) -> Result<()> {
+        // Create AAD context: tenant_id|user_id|provider|table
+        let aad_context = format!(
+            "{}|{}|{}|user_oauth_tokens",
+            token_data.tenant_id, token_data.user_id, token_data.provider
+        );
+
+        // Encrypt access token with AAD binding
+        let encrypted_access_token =
+            self.encrypt_data_with_aad(token_data.access_token, &aad_context)?;
+
+        // Encrypt refresh token if present
+        let encrypted_refresh_token = token_data
+            .refresh_token
+            .map(|rt| self.encrypt_data_with_aad(rt, &aad_context))
+            .transpose()?;
+
         sqlx::query(
             r"
             INSERT INTO user_oauth_tokens (
                 id, user_id, tenant_id, provider, access_token, refresh_token,
                 token_type, expires_at, scope, created_at, updated_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            ON CONFLICT (user_id, tenant_id, provider) 
+            ON CONFLICT (user_id, tenant_id, provider)
             DO UPDATE SET
                 id = EXCLUDED.id,
                 access_token = EXCLUDED.access_token,
@@ -97,8 +118,8 @@ impl Database {
         .bind(token_data.user_id.to_string())
         .bind(token_data.tenant_id)
         .bind(token_data.provider)
-        .bind(token_data.access_token)
-        .bind(token_data.refresh_token)
+        .bind(&encrypted_access_token)
+        .bind(encrypted_refresh_token.as_deref())
         .bind(token_data.token_type)
         .bind(token_data.expires_at)
         .bind(token_data.scope)
@@ -112,9 +133,13 @@ impl Database {
 
     /// Get a user OAuth token
     ///
+    /// Decrypts provider tokens using AAD binding for security.
+    ///
     /// # Errors
     ///
-    /// Returns an error if the database query fails
+    /// Returns an error if:
+    /// - Database query fails
+    /// - Decryption fails (possibly due to tampered data or AAD mismatch)
     pub async fn get_user_oauth_token(
         &self,
         user_id: Uuid,
@@ -137,15 +162,19 @@ impl Database {
 
         row.map_or_else(
             || Ok(None),
-            |row| Ok(Some(Self::row_to_user_oauth_token(&row)?)),
+            |row| Ok(Some(self.row_to_user_oauth_token(&row)?)),
         )
     }
 
     /// Get all OAuth tokens for a user
     ///
+    /// Decrypts provider tokens using AAD binding for security.
+    ///
     /// # Errors
     ///
-    /// Returns an error if the database query fails
+    /// Returns an error if:
+    /// - Database query fails
+    /// - Decryption fails for any token
     pub async fn get_user_oauth_tokens(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>> {
         let rows = sqlx::query(
             r"
@@ -162,16 +191,20 @@ impl Database {
 
         let mut tokens = Vec::with_capacity(rows.len());
         for row in rows {
-            tokens.push(Self::row_to_user_oauth_token(&row)?);
+            tokens.push(self.row_to_user_oauth_token(&row)?);
         }
         Ok(tokens)
     }
 
     /// Get OAuth tokens for a tenant and provider
     ///
+    /// Decrypts provider tokens using AAD binding for security.
+    ///
     /// # Errors
     ///
-    /// Returns an error if the database query fails
+    /// Returns an error if:
+    /// - Database query fails
+    /// - Decryption fails for any token
     pub async fn get_tenant_provider_tokens(
         &self,
         tenant_id: &str,
@@ -193,7 +226,7 @@ impl Database {
 
         let mut tokens = Vec::with_capacity(rows.len());
         for row in rows {
-            tokens.push(Self::row_to_user_oauth_token(&row)?);
+            tokens.push(self.row_to_user_oauth_token(&row)?);
         }
         Ok(tokens)
     }
@@ -245,9 +278,13 @@ impl Database {
 
     /// Refresh a user OAuth token
     ///
+    /// Encrypts new tokens using AES-256-GCM with AAD binding.
+    ///
     /// # Errors
     ///
-    /// Returns an error if the database query fails
+    /// Returns an error if:
+    /// - Encryption fails
+    /// - Database query fails
     pub async fn refresh_user_oauth_token(
         &self,
         user_id: Uuid,
@@ -257,6 +294,17 @@ impl Database {
         refresh_token: Option<&str>,
         expires_at: Option<DateTime<Utc>>,
     ) -> Result<()> {
+        // Create AAD context: tenant_id|user_id|provider|table
+        let aad_context = format!("{tenant_id}|{user_id}|{provider}|user_oauth_tokens");
+
+        // Encrypt new access token
+        let encrypted_access_token = self.encrypt_data_with_aad(access_token, &aad_context)?;
+
+        // Encrypt new refresh token if present
+        let encrypted_refresh_token = refresh_token
+            .map(|rt| self.encrypt_data_with_aad(rt, &aad_context))
+            .transpose()?;
+
         sqlx::query(
             r"
             UPDATE user_oauth_tokens
@@ -270,8 +318,8 @@ impl Database {
         .bind(user_id.to_string())
         .bind(tenant_id)
         .bind(provider)
-        .bind(access_token)
-        .bind(refresh_token)
+        .bind(&encrypted_access_token)
+        .bind(encrypted_refresh_token.as_deref())
         .bind(expires_at)
         .bind(Utc::now())
         .execute(&self.pool)
@@ -281,16 +329,39 @@ impl Database {
     }
 
     /// Convert a database row to a `UserOAuthToken`
-    fn row_to_user_oauth_token(row: &sqlx::sqlite::SqliteRow) -> Result<UserOAuthToken> {
+    ///
+    /// Decrypts provider tokens using AAD binding.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if decryption fails (possibly due to tampered data or AAD mismatch)
+    fn row_to_user_oauth_token(&self, row: &sqlx::sqlite::SqliteRow) -> Result<UserOAuthToken> {
         let user_id_str: String = row.get("user_id");
+        let user_id = Uuid::parse_str(&user_id_str)?;
+        let tenant_id: String = row.get("tenant_id");
+        let provider: String = row.get("provider");
+
+        // Create AAD context: tenant_id|user_id|provider|table
+        let aad_context = format!("{tenant_id}|{user_id}|{provider}|user_oauth_tokens");
+
+        // Decrypt access token
+        let encrypted_access_token: String = row.get("access_token");
+        let access_token = self.decrypt_data_with_aad(&encrypted_access_token, &aad_context)?;
+
+        // Decrypt refresh token if present
+        let encrypted_refresh_token: Option<String> = row.get("refresh_token");
+        let refresh_token = encrypted_refresh_token
+            .as_deref()
+            .map(|ert| self.decrypt_data_with_aad(ert, &aad_context))
+            .transpose()?;
 
         Ok(UserOAuthToken {
             id: row.get("id"),
-            user_id: Uuid::parse_str(&user_id_str)?,
-            tenant_id: row.get("tenant_id"),
-            provider: row.get("provider"),
-            access_token: row.get("access_token"),
-            refresh_token: row.get("refresh_token"),
+            user_id,
+            tenant_id,
+            provider,
+            access_token,
+            refresh_token,
             token_type: row.get("token_type"),
             expires_at: row.get("expires_at"),
             scope: row.get::<Option<String>, _>("scope"),

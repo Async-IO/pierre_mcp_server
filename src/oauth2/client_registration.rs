@@ -47,13 +47,11 @@ impl ClientRegistrationManager {
         let client_secret = Self::generate_client_secret()?;
         let client_secret_hash = Self::hash_client_secret(&client_secret)?;
 
-        // Set default values
-        let grant_types = request.grant_types.unwrap_or_else(|| {
-            vec![
-                "authorization_code".to_string(),
-                "client_credentials".to_string(),
-            ]
-        });
+        // Set default values - only authorization_code by default for security (RFC 8252 best practices)
+        // Clients must explicitly request client_credentials if needed
+        let grant_types = request
+            .grant_types
+            .unwrap_or_else(|| vec!["authorization_code".to_string()]);
 
         let response_types = request
             .response_types

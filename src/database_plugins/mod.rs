@@ -658,6 +658,22 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Delete authorization code (after use)
     async fn delete_authorization_code(&self, code: &str) -> Result<()>;
 
+    /// Store OAuth2 state for CSRF protection
+    async fn store_oauth2_state(&self, state: &crate::oauth2::models::OAuth2State) -> Result<()>;
+
+    /// Consume OAuth2 state (atomically check and mark as used)
+    ///
+    /// # Arguments
+    /// * `state_value` - The state parameter to consume
+    /// * `client_id` - Expected client_id (validation)
+    /// * `now` - Current timestamp for expiration check
+    async fn consume_oauth2_state(
+        &self,
+        state_value: &str,
+        client_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<crate::oauth2::models::OAuth2State>>;
+
     // ================================
     // Key Rotation & Security
     // ================================

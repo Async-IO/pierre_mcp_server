@@ -936,7 +936,7 @@ impl DatabaseProvider for SqliteDatabase {
         public_key_pem: &str,
         created_at: DateTime<Utc>,
         is_active: bool,
-        key_size_bits: i32,
+        key_size_bits: usize,
     ) -> Result<()> {
         sqlx::query(
             r"
@@ -953,7 +953,7 @@ impl DatabaseProvider for SqliteDatabase {
         .bind(public_key_pem)
         .bind(created_at)
         .bind(is_active)
-        .bind(key_size_bits)
+        .bind(i64::try_from(key_size_bits).context("RSA key size exceeds maximum supported value")?)
         .execute(self.inner.pool())
         .await?;
 
@@ -1527,18 +1527,20 @@ impl DatabaseProvider for SqliteDatabase {
     ) -> Result<()> {
         let query = r"
             INSERT INTO oauth2_auth_codes
-            (code, client_id, user_id, redirect_uri, scope, expires_at, used, code_challenge, code_challenge_method)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            (code, client_id, user_id, tenant_id, redirect_uri, scope, expires_at, used, state, code_challenge, code_challenge_method)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
         ";
 
         sqlx::query(query)
             .bind(&auth_code.code)
             .bind(&auth_code.client_id)
             .bind(auth_code.user_id.to_string())
+            .bind(&auth_code.tenant_id)
             .bind(&auth_code.redirect_uri)
             .bind(&auth_code.scope)
             .bind(auth_code.expires_at)
             .bind(auth_code.used)
+            .bind(&auth_code.state)
             .bind(&auth_code.code_challenge)
             .bind(&auth_code.code_challenge_method)
             .execute(self.inner.pool())
@@ -1554,7 +1556,7 @@ impl DatabaseProvider for SqliteDatabase {
         code: &str,
     ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>> {
         let query = r"
-            SELECT code, client_id, user_id, redirect_uri, scope, expires_at, used, code_challenge, code_challenge_method
+            SELECT code, client_id, user_id, tenant_id, redirect_uri, scope, expires_at, used, state, code_challenge, code_challenge_method
             FROM oauth2_auth_codes
             WHERE code = ?1
         ";
@@ -1573,10 +1575,12 @@ impl DatabaseProvider for SqliteDatabase {
                 code: row.get("code"),
                 client_id: row.get("client_id"),
                 user_id,
+                tenant_id: row.get("tenant_id"),
                 redirect_uri: row.get("redirect_uri"),
                 scope: row.get("scope"),
                 expires_at: row.get("expires_at"),
                 used: row.get("used"),
+                state: row.get("state"),
                 code_challenge: row.get("code_challenge"),
                 code_challenge_method: row.get("code_challenge_method"),
             }))
@@ -1613,14 +1617,15 @@ impl DatabaseProvider for SqliteDatabase {
     ) -> Result<()> {
         let query = r"
             INSERT INTO oauth2_refresh_tokens
-            (token, client_id, user_id, scope, expires_at, created_at, revoked)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            (token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
         ";
 
         sqlx::query(query)
             .bind(&refresh_token.token)
             .bind(&refresh_token.client_id)
             .bind(refresh_token.user_id.to_string())
+            .bind(&refresh_token.tenant_id)
             .bind(&refresh_token.scope)
             .bind(refresh_token.expires_at)
             .bind(refresh_token.created_at)
@@ -1638,7 +1643,7 @@ impl DatabaseProvider for SqliteDatabase {
         token: &str,
     ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>> {
         let query = r"
-            SELECT token, client_id, user_id, scope, expires_at, created_at, revoked
+            SELECT token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
             FROM oauth2_refresh_tokens
             WHERE token = ?1
         ";
@@ -1658,6 +1663,7 @@ impl DatabaseProvider for SqliteDatabase {
                 token: row.try_get("token")?,
                 client_id: row.try_get("client_id")?,
                 user_id,
+                tenant_id: row.try_get("tenant_id")?,
                 scope: row.try_get("scope")?,
                 expires_at: row.try_get("expires_at")?,
                 created_at: row.try_get("created_at")?,
@@ -1704,7 +1710,7 @@ impl DatabaseProvider for SqliteDatabase {
               AND redirect_uri = ?3
               AND used = 0
               AND expires_at > ?4
-            RETURNING code, client_id, user_id, redirect_uri, scope, expires_at, used, code_challenge, code_challenge_method
+            RETURNING code, client_id, user_id, tenant_id, redirect_uri, scope, expires_at, used, state, code_challenge, code_challenge_method
         ";
 
         let row = sqlx::query(query)
@@ -1717,19 +1723,21 @@ impl DatabaseProvider for SqliteDatabase {
             .context("Failed to atomically consume OAuth2 auth code")?;
 
         if let Some(row) = row {
-            let user_id = Uuid::parse_str(&row.get::<String, _>("user_id"))
+            let user_id = Uuid::parse_str(&row.try_get::<String, _>("user_id")?)
                 .context("Invalid user_id UUID format in consumed auth code")?;
 
             Ok(Some(crate::oauth2::models::OAuth2AuthCode {
-                code: row.get("code"),
-                client_id: row.get("client_id"),
+                code: row.try_get("code")?,
+                client_id: row.try_get("client_id")?,
                 user_id,
-                redirect_uri: row.get("redirect_uri"),
-                scope: row.get("scope"),
-                expires_at: row.get("expires_at"),
-                used: row.get("used"),
-                code_challenge: row.get("code_challenge"),
-                code_challenge_method: row.get("code_challenge_method"),
+                tenant_id: row.try_get("tenant_id")?,
+                redirect_uri: row.try_get("redirect_uri")?,
+                scope: row.try_get("scope")?,
+                expires_at: row.try_get("expires_at")?,
+                used: row.try_get("used")?,
+                state: row.try_get("state")?,
+                code_challenge: row.try_get("code_challenge")?,
+                code_challenge_method: row.try_get("code_challenge_method")?,
             }))
         } else {
             Ok(None)
@@ -1753,7 +1761,7 @@ impl DatabaseProvider for SqliteDatabase {
               AND client_id = ?2
               AND revoked = 0
               AND expires_at > ?3
-            RETURNING token, client_id, user_id, scope, expires_at, created_at, revoked
+            RETURNING token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
         ";
 
         let row = sqlx::query(query)
@@ -1773,10 +1781,89 @@ impl DatabaseProvider for SqliteDatabase {
                 token: row.try_get("token")?,
                 client_id: row.try_get("client_id")?,
                 user_id,
+                tenant_id: row.try_get("tenant_id")?,
                 scope: row.try_get("scope")?,
                 expires_at: row.try_get("expires_at")?,
                 created_at: row.try_get("created_at")?,
                 revoked: row.try_get("revoked")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Store OAuth2 state for CSRF protection
+    async fn store_oauth2_state(&self, state: &crate::oauth2::models::OAuth2State) -> Result<()> {
+        let query = r"
+            INSERT INTO oauth2_states
+            (state, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, created_at, expires_at, used)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+        ";
+
+        sqlx::query(query)
+            .bind(&state.state)
+            .bind(&state.client_id)
+            .bind(state.user_id.map(|id| id.to_string()))
+            .bind(&state.tenant_id)
+            .bind(&state.redirect_uri)
+            .bind(&state.scope)
+            .bind(&state.code_challenge)
+            .bind(&state.code_challenge_method)
+            .bind(state.created_at)
+            .bind(state.expires_at)
+            .bind(state.used)
+            .execute(self.inner.pool())
+            .await
+            .context("Failed to store OAuth2 state")?;
+
+        Ok(())
+    }
+
+    /// Consume OAuth2 state (atomically check and mark as used)
+    async fn consume_oauth2_state(
+        &self,
+        state_value: &str,
+        client_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<crate::oauth2::models::OAuth2State>> {
+        let query = r"
+            UPDATE oauth2_states
+            SET used = 1
+            WHERE state = ?1
+              AND client_id = ?2
+              AND used = 0
+              AND expires_at > ?3
+            RETURNING state, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, created_at, expires_at, used
+        ";
+
+        let row = sqlx::query(query)
+            .bind(state_value)
+            .bind(client_id)
+            .bind(now)
+            .fetch_optional(self.inner.pool())
+            .await
+            .context("Failed to atomically consume OAuth2 state")?;
+
+        if let Some(row) = row {
+            let user_id_str: Option<String> = row.try_get("user_id")?;
+            let user_id = user_id_str
+                .as_ref()
+                .map(|s| Uuid::parse_str(s))
+                .transpose()
+                .context("Invalid user_id UUID format in consumed state")?;
+
+            Ok(Some(crate::oauth2::models::OAuth2State {
+                state: row.try_get("state")?,
+                client_id: row.try_get("client_id")?,
+                user_id,
+                tenant_id: row.try_get("tenant_id")?,
+                redirect_uri: row.try_get("redirect_uri")?,
+                scope: row.try_get("scope")?,
+                code_challenge: row.try_get("code_challenge")?,
+                code_challenge_method: row.try_get("code_challenge_method")?,
+                created_at: row.try_get("created_at")?,
+                expires_at: row.try_get("expires_at")?,
+                used: row.try_get("used")?,
             }))
         } else {
             Ok(None)
