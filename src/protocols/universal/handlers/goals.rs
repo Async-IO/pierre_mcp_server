@@ -104,8 +104,10 @@ pub fn handle_suggest_goals(
             .await
         {
             // Create provider and get activities (simplified approach)
-            if let Ok(provider) =
-                crate::providers::create_provider(crate::constants::oauth_providers::STRAVA)
+            if let Ok(provider) = executor
+                .resources
+                .provider_registry
+                .create_provider(crate::constants::oauth_providers::STRAVA)
             {
                 if let Ok(provider_activities) = provider.get_activities(Some(10), None).await {
                     activities = provider_activities;

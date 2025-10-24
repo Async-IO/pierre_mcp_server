@@ -171,7 +171,11 @@ impl AuthService {
         };
 
         // Create Strava provider using the factory function
-        match crate::providers::create_provider(oauth_providers::STRAVA) {
+        match self
+            .resources
+            .provider_registry
+            .create_provider(oauth_providers::STRAVA)
+        {
             Ok(provider) => {
                 // Prepare credentials in the correct format
                 let credentials = OAuth2Credentials {
