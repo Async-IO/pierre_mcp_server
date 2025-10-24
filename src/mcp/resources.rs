@@ -18,7 +18,7 @@ use crate::a2a::system_user::A2ASystemUserService;
 use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::cache::factory::Cache;
-use crate::database_plugins::factory::Database;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::intelligence::ActivityIntelligence;
 use crate::mcp::schema::OAuthCompletedNotification;
 use crate::middleware::redaction::RedactionConfig;
@@ -215,7 +215,10 @@ impl ServerResources {
         // Try to load persisted keys from database
         match database.load_rsa_keypairs().await {
             Ok(keypairs) if !keypairs.is_empty() => {
-                tracing::info!("Loading {} persisted RSA keypairs from database", keypairs.len());
+                tracing::info!(
+                    "Loading {} persisted RSA keypairs from database",
+                    keypairs.len()
+                );
                 jwks_manager.load_keys_from_database(keypairs)?;
                 tracing::info!("Successfully loaded RSA keys from database");
             }
@@ -234,7 +237,15 @@ impl ServerResources {
                 let public_pem = key.export_public_key_pem()?;
 
                 database
-                    .save_rsa_keypair(&kid, &private_pem, &public_pem, key.created_at, true, rsa_key_size_bits)
+                    .save_rsa_keypair(
+                        &kid,
+                        &private_pem,
+                        &public_pem,
+                        key.created_at,
+                        true,
+                        i32::try_from(rsa_key_size_bits)
+                            .expect("RSA key size must fit in i32 (max 2147483647 bits)"),
+                    )
                     .await?;
 
                 tracing::info!("Generated and persisted new RSA keypair: {}", kid);

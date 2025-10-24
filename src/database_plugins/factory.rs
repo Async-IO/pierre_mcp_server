@@ -1979,4 +1979,61 @@ impl DatabaseProvider for Database {
             }
         }
     }
+
+    /// Save RSA keypair to database
+    async fn save_rsa_keypair(
+        &self,
+        kid: &str,
+        private_key_pem: &str,
+        public_key_pem: &str,
+        created_at: chrono::DateTime<chrono::Utc>,
+        is_active: bool,
+        key_size_bits: i32,
+    ) -> Result<()> {
+        match self {
+            Self::SQLite(db) => {
+                db.save_rsa_keypair(
+                    kid,
+                    private_key_pem,
+                    public_key_pem,
+                    created_at,
+                    is_active,
+                    key_size_bits,
+                )
+                .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.save_rsa_keypair(
+                    kid,
+                    private_key_pem,
+                    public_key_pem,
+                    created_at,
+                    is_active,
+                    key_size_bits,
+                )
+                .await
+            }
+        }
+    }
+
+    /// Load all RSA keypairs from database
+    async fn load_rsa_keypairs(
+        &self,
+    ) -> Result<Vec<(String, String, String, chrono::DateTime<chrono::Utc>, bool)>> {
+        match self {
+            Self::SQLite(db) => db.load_rsa_keypairs().await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.load_rsa_keypairs().await,
+        }
+    }
+
+    /// Update active status of RSA keypair
+    async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.update_rsa_keypair_active_status(kid, is_active).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.update_rsa_keypair_active_status(kid, is_active).await,
+        }
+    }
 }

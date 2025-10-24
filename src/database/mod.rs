@@ -20,7 +20,7 @@ pub use errors::{DatabaseError, DatabaseResult};
 
 use crate::errors::AppError;
 use anyhow::Result;
-use sqlx::{Pool, Sqlite, SqlitePool};
+use sqlx::{Pool, Row, Sqlite, SqlitePool};
 
 #[derive(Clone)]
 pub struct Database {
@@ -708,7 +708,7 @@ impl Database {
         public_key_pem: &str,
         created_at: chrono::DateTime<chrono::Utc>,
         is_active: bool,
-        key_size_bits: usize,
+        key_size_bits: i32,
     ) -> Result<()> {
         sqlx::query(
             r"
@@ -725,7 +725,7 @@ impl Database {
         .bind(public_key_pem)
         .bind(created_at)
         .bind(is_active)
-        .bind(key_size_bits as i64)
+        .bind(key_size_bits)
         .execute(&self.pool)
         .await?;
 
@@ -765,11 +765,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database operation fails
-    pub async fn update_rsa_keypair_active_status(
-        &self,
-        kid: &str,
-        is_active: bool,
-    ) -> Result<()> {
+    pub async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
         sqlx::query("UPDATE rsa_keypairs SET is_active = $1 WHERE kid = $2")
             .bind(is_active)
             .bind(kid)

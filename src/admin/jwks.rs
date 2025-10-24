@@ -402,14 +402,15 @@ impl JwksManager {
             return;
         }
 
-        // Sort keys by creation time
+        // Sort keys by creation time, with kid as tiebreaker for deterministic behavior
+        // This ensures consistent ordering on systems with low timestamp resolution (Windows)
         let mut sorted_keys: Vec<_> = self
             .keys
             .iter()
             .map(|(kid, key)| (kid.clone(), key.created_at))
             .collect();
 
-        sorted_keys.sort_by_key(|(_, created_at)| *created_at);
+        sorted_keys.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
 
         // Remove oldest keys beyond limit
         let to_remove = sorted_keys.len() - MAX_HISTORICAL_KEYS;

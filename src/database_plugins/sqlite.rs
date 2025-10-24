@@ -936,7 +936,7 @@ impl DatabaseProvider for SqliteDatabase {
         public_key_pem: &str,
         created_at: DateTime<Utc>,
         is_active: bool,
-        key_size_bits: usize,
+        key_size_bits: i32,
     ) -> Result<()> {
         sqlx::query(
             r"
@@ -953,7 +953,7 @@ impl DatabaseProvider for SqliteDatabase {
         .bind(public_key_pem)
         .bind(created_at)
         .bind(is_active)
-        .bind(key_size_bits as i64)
+        .bind(key_size_bits)
         .execute(self.inner.pool())
         .await?;
 

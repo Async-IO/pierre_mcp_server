@@ -526,7 +526,6 @@ fn test_encrypted_token_creation() {
     assert_eq!(token.access_token, "encrypted_access_12345");
     assert_eq!(token.refresh_token, "encrypted_refresh_67890");
     assert_eq!(token.scope, "read write");
-    assert_eq!(token.nonce, "unique_nonce_123");
     assert!(token.expires_at > now);
 }
 

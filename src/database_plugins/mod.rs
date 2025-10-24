@@ -496,13 +496,12 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         public_key_pem: &str,
         created_at: DateTime<Utc>,
         is_active: bool,
-        key_size_bits: usize,
+        key_size_bits: i32,
     ) -> Result<()>;
 
     /// Load all RSA keypairs from database
-    async fn load_rsa_keypairs(
-        &self,
-    ) -> Result<Vec<(String, String, String, DateTime<Utc>, bool)>>;
+    async fn load_rsa_keypairs(&self)
+        -> Result<Vec<(String, String, String, DateTime<Utc>, bool)>>;
 
     /// Update active status of RSA keypair
     async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()>;
