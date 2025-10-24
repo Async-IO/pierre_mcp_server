@@ -183,8 +183,16 @@ impl AuthService {
             .await
             .map_err(|_| AppError::auth_invalid("Invalid email or password"))?;
 
-        // Verify password
-        if !bcrypt::verify(&request.password, &user.password_hash)? {
+        // Verify password using spawn_blocking to avoid blocking async executor
+        let password = request.password.clone();
+        let password_hash = user.password_hash.clone();
+        let is_valid =
+            tokio::task::spawn_blocking(move || bcrypt::verify(&password, &password_hash))
+                .await
+                .map_err(|e| AppError::internal(format!("Password verification task failed: {e}")))?
+                .map_err(|e| AppError::internal(format!("Password verification error: {e}")))?;
+
+        if !is_valid {
             tracing::error!("Invalid password for user: {}", request.email);
             return Err(auth_error(error_messages::INVALID_CREDENTIALS).into());
         }

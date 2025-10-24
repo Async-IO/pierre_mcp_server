@@ -13,18 +13,12 @@ use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::multitenant::{McpRequest, MultiTenantMcpServer},
     models::{Tenant, User},
-    providers::ProviderRegistry,
 };
 use serde_json::json;
-use std::sync::Arc;
 
 mod common;
 
 // === Test Setup Helpers ===
-
-fn create_mock_provider_registry() -> Arc<ProviderRegistry> {
-    Arc::new(ProviderRegistry::new())
-}
 
 async fn create_test_server() -> Result<MultiTenantMcpServer> {
     let resources = common::create_test_server_resources().await?;
@@ -475,7 +469,6 @@ async fn test_provider_tools_without_connection() -> Result<()> {
             metadata: std::collections::HashMap::new(),
         };
 
-        let _provider_registry = create_mock_provider_registry();
         let _response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
         // Should either fail gracefully or succeed
@@ -518,7 +511,6 @@ async fn test_intelligence_tools() -> Result<()> {
             metadata: std::collections::HashMap::new(),
         };
 
-        let _provider_registry = create_mock_provider_registry();
         let _response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
         // Should either succeed or fail gracefully
@@ -676,7 +668,6 @@ async fn test_concurrent_requests() -> Result<()> {
                 metadata: std::collections::HashMap::new(),
             };
 
-            let _provider_registry = create_mock_provider_registry();
             MultiTenantMcpServer::handle_request(request, &resources_clone).await
         }));
     }

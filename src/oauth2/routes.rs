@@ -825,7 +825,7 @@ async fn authenticate_user_with_auth_manager(
         .ok_or_else(|| AppError::not_found("User not found"))?;
 
     // Verify password hash
-    if !verify_password(password, &user.password_hash) {
+    if !verify_password(password, &user.password_hash).await {
         return Err(AppError::auth_invalid("Invalid password").into());
     }
 
@@ -836,10 +836,17 @@ async fn authenticate_user_with_auth_manager(
     Ok(token)
 }
 
-/// Verify password against hash using bcrypt
-fn verify_password(password: &str, hash: &str) -> bool {
-    // Use bcrypt to verify password against stored hash
-    bcrypt::verify(password, hash).unwrap_or(false)
+/// Verify password against hash using bcrypt with `spawn_blocking`
+///
+/// Uses `tokio::task::spawn_blocking` to avoid blocking the async executor
+/// with CPU-intensive bcrypt operations.
+async fn verify_password(password: &str, hash: &str) -> bool {
+    let password = password.to_string();
+    let hash = hash.to_string();
+
+    tokio::task::spawn_blocking(move || bcrypt::verify(&password, &hash).unwrap_or(false))
+        .await
+        .unwrap_or(false)
 }
 
 /// Handle OAuth login page (GET /oauth2/login)

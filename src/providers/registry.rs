@@ -200,9 +200,16 @@ impl Default for ProviderRegistry {
 }
 
 /// Global provider registry instance (singleton)
+///
+/// Note: For test isolation, prefer creating local `ProviderRegistry::new()` instances
+/// instead of using this global singleton. Tests that use the global singleton will
+/// share state and cannot customize provider configuration per-test.
 static REGISTRY: std::sync::OnceLock<Arc<ProviderRegistry>> = std::sync::OnceLock::new();
 
 /// Get the global provider registry
+///
+/// This should be used in production code for convenience. For tests requiring isolation,
+/// use `ProviderRegistry::new()` directly to create test-specific instances.
 #[must_use]
 pub fn global_registry() -> Arc<ProviderRegistry> {
     REGISTRY
@@ -210,7 +217,10 @@ pub fn global_registry() -> Arc<ProviderRegistry> {
         .clone() // Safe: Arc clone for provider registry access
 }
 
-/// Convenience function to create a provider
+/// Convenience function to create a provider using the global registry
+///
+/// For test isolation, prefer creating a local `ProviderRegistry` instance and calling
+/// `registry.create_provider()` instead of using this global function.
 ///
 /// # Errors
 ///
@@ -219,7 +229,10 @@ pub fn create_provider(provider_name: &str) -> Result<Box<dyn FitnessProvider>> 
     global_registry().create_provider(provider_name)
 }
 
-/// Convenience function to create a tenant provider
+/// Convenience function to create a tenant provider using the global registry
+///
+/// For test isolation, prefer creating a local `ProviderRegistry` instance and calling
+/// `registry.create_tenant_provider()` instead of using this global function.
 ///
 /// # Errors
 ///
@@ -233,12 +246,16 @@ pub fn create_tenant_provider(
 }
 
 /// Convenience function to check if a provider is supported
+///
+/// Uses the global registry. For test isolation, create a local `ProviderRegistry` instance.
 #[must_use]
 pub fn is_provider_supported(provider_name: &str) -> bool {
     global_registry().is_supported(provider_name)
 }
 
 /// Convenience function to get all supported providers
+///
+/// Uses the global registry. For test isolation, create a local `ProviderRegistry` instance.
 #[must_use]
 pub fn get_supported_providers() -> Vec<&'static str> {
     global_registry().supported_providers()
