@@ -22,7 +22,7 @@ use pierre_mcp_server::{
 use std::sync::Once;
 use uuid::Uuid;
 
-/// Ensure ServerConfig is initialized only once across all tests
+/// Ensure `ServerConfig` is initialized only once across all tests
 static INIT_SERVER_CONFIG: Once = Once::new();
 
 fn ensure_server_config_initialized() {
