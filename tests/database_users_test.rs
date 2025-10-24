@@ -353,7 +353,7 @@ async fn test_update_user_status_nonexistent() {
         .await;
 
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("No user found"));
+    assert!(result.unwrap_err().to_string().contains("not found"));
 }
 
 #[tokio::test]
