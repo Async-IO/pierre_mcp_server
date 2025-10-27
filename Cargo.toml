@@ -91,6 +91,7 @@ dotenvy = "0.15"
 # toml = "0.8"  # Removed: Environment-only configuration approach
 dirs = "5.0"
 uuid = { version = "1.11", features = ["v4", "serde"] }
+dashmap = "5.5"
 urlencoding = "2.1"
 sha2 = "0.10"
 rand = "0.8"

@@ -29,7 +29,10 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
     let sse_manager = Arc::new(SseConnectionManager::new());
 
     // Simulate SSE connection registration (MCP client connects)
-    let mut sse_receiver = sse_manager.register_connection(user_id.to_string()).await;
+    let mut sse_receiver = sse_manager
+        .register_connection(user_id.to_string())
+        .await
+        .expect("failed to register SSE connection");
     println!("✅ SSE connection registered for user: {user_id}");
 
     // Generate JWT token for user
@@ -183,7 +186,10 @@ async fn test_mcp_client_oauth_notification_flow() -> Result<()> {
     }
 
     // Test SSE connection for real-time notifications
-    let mut receiver = sse_manager.register_connection(user_id.to_string()).await;
+    let mut receiver = sse_manager
+        .register_connection(user_id.to_string())
+        .await
+        .expect("failed to register SSE connection");
     println!("✅ MCP client SSE connection established");
 
     // Simulate OAuth completion notification
@@ -255,7 +261,8 @@ async fn test_oauth_sse_error_scenarios() -> Result<()> {
     // Test connection cleanup
     let receiver = sse_manager
         .register_connection("test-user".to_string())
-        .await;
+        .await
+        .expect("failed to register SSE connection");
     assert_eq!(sse_manager.active_connections().await, 1);
 
     drop(receiver); // Simulate client disconnect

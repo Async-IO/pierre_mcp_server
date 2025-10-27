@@ -680,17 +680,22 @@ async fn handle_token_validate(
     }
 }
 
+/// OAuth error template embedded at compile-time
+/// Loaded with `include_str`!() to avoid blocking filesystem IO at runtime
+const OAUTH_ERROR_TEMPLATE: &str = include_str!("../../templates/oauth_error.html");
+
 /// Render HTML error page for OAuth errors shown in browser
+/// Uses compile-time embedded template to avoid blocking async executor on IO
 fn render_oauth_error_html(error: &OAuth2Error) -> String {
     let error_title = match error.error.as_str() {
-        "invalid_client" => "Invalid Client",
-        "unauthorized_client" => "Unauthorized Client",
-        "access_denied" => "Access Denied",
-        "unsupported_response_type" => "Unsupported Response Type",
-        "invalid_scope" => "Invalid Scope",
-        "server_error" => "Server Error",
-        "temporarily_unavailable" => "Temporarily Unavailable",
-        _ => "OAuth Error",
+        "invalid_client" => "✗ Invalid Client",
+        "unauthorized_client" => "✗ Unauthorized Client",
+        "access_denied" => "✗ Access Denied",
+        "unsupported_response_type" => "✗ Unsupported Response Type",
+        "invalid_scope" => "✗ Invalid Scope",
+        "server_error" => "✗ Server Error",
+        "temporarily_unavailable" => "✗ Temporarily Unavailable",
+        _ => "✗ OAuth Error",
     };
 
     let default_description =
@@ -700,23 +705,15 @@ fn render_oauth_error_html(error: &OAuth2Error) -> String {
         .as_ref()
         .unwrap_or(&default_description);
 
-    // Load template from file
-    let template_path = std::path::Path::new("templates/oauth_error.html");
-    let template = std::fs::read_to_string(template_path).unwrap_or_else(|_| {
-        // Fallback to simple inline HTML if template file is missing
-        format!(
-            r"<!DOCTYPE html>
-<html><head><title>OAuth Error</title></head>
-<body><h1>{}</h1><p>{}</p><p>Error: {}</p></body></html>",
-            error_title, error_description, error.error
-        )
-    });
-
-    // Replace template variables
-    template
+    // Use embedded template - zero filesystem IO, guaranteed to exist at compile-time
+    OAUTH_ERROR_TEMPLATE
         .replace("{{error_title}}", error_title)
-        .replace("{{error_description}}", error_description)
-        .replace("{{error_code}}", &error.error)
+        .replace("{{ERROR}}", &error.error)
+        .replace("{{PROVIDER}}", "Pierre MCP Server")
+        .replace(
+            "{{DESCRIPTION}}",
+            &format!(r#"<div class="description">{error_description}</div>"#),
+        )
 }
 
 /// Parse query parameters into `AuthorizeRequest`

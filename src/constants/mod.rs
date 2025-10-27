@@ -537,6 +537,8 @@ pub mod network_config {
     pub const HTTP_CLIENT_ERROR_THRESHOLD: u16 = 400;
     /// SSE broadcast channel size
     pub const SSE_BROADCAST_CHANNEL_SIZE: usize = 1000;
+    /// Maximum concurrent SSE connections per user (`DoS` prevention)
+    pub const SSE_MAX_CONNECTIONS_PER_USER: usize = 5;
 }
 
 /// Physiology constants
