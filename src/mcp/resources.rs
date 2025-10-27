@@ -55,7 +55,7 @@ pub struct ServerResources {
     pub cache: Arc<Cache>,
     pub plugin_executor: Option<Arc<PluginToolExecutor>>,
     pub redaction_config: Arc<RedactionConfig>,
-    pub oauth2_rate_limiter: Arc<crate::oauth2::rate_limiting::OAuth2RateLimiter>,
+    pub oauth2_rate_limiter: Arc<crate::oauth2_server::rate_limiting::OAuth2RateLimiter>,
 }
 
 impl ServerResources {
@@ -153,7 +153,8 @@ impl ServerResources {
         ));
 
         // Create OAuth2 rate limiter once for shared use
-        let oauth2_rate_limiter = Arc::new(crate::oauth2::rate_limiting::OAuth2RateLimiter::new());
+        let oauth2_rate_limiter =
+            Arc::new(crate::oauth2_server::rate_limiting::OAuth2RateLimiter::new());
 
         Self {
             database: database_arc,

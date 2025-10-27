@@ -20,7 +20,7 @@ use std::sync::Arc;
 /// Create and configure Strava provider with token credentials
 async fn create_configured_strava_provider(
     provider_registry: &Arc<crate::providers::ProviderRegistry>,
-    token_data: &crate::oauth::TokenData,
+    token_data: &crate::protocols::universal::auth_service::TokenData,
     config: &crate::config::environment::OAuthProviderConfig,
 ) -> Result<Box<dyn FitnessProvider>, String> {
     let provider = provider_registry
@@ -262,7 +262,7 @@ async fn cache_athlete_result(
 async fn fetch_and_cache_athlete(
     provider_registry: &Arc<crate::providers::ProviderRegistry>,
     cache: &Arc<Cache>,
-    token_data: &crate::oauth::TokenData,
+    token_data: &crate::protocols::universal::auth_service::TokenData,
     cache_key: &CacheKey,
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
@@ -605,7 +605,7 @@ async fn try_get_cached_stats(
 async fn fetch_and_cache_stats(
     provider_registry: &Arc<crate::providers::ProviderRegistry>,
     cache: &Arc<Cache>,
-    token_data: &crate::oauth::TokenData,
+    token_data: &crate::protocols::universal::auth_service::TokenData,
     athlete_cache_key: &CacheKey,
     tenant_uuid: uuid::Uuid,
     user_uuid: uuid::Uuid,

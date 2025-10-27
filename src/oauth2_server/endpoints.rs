@@ -8,14 +8,14 @@
 // - String ownership transfers to struct constructors (OAuth2AuthCode, TokenResponse)
 // - Arc clone for database manager creation
 
+use super::client_registration::ClientRegistrationManager;
+use super::models::{
+    AuthorizeRequest, AuthorizeResponse, OAuth2AuthCode, OAuth2Error, TokenRequest, TokenResponse,
+};
 use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
-use crate::oauth2::client_registration::ClientRegistrationManager;
-use crate::oauth2::models::{
-    AuthorizeRequest, AuthorizeResponse, OAuth2AuthCode, OAuth2Error, TokenRequest, TokenResponse,
-};
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{Duration, Utc};
@@ -223,7 +223,7 @@ impl OAuth2AuthorizationServer {
         })?;
         let refresh_token_expires_at = Utc::now() + Duration::days(30); // 30 days
 
-        let refresh_token = crate::oauth2::models::OAuth2RefreshToken {
+        let refresh_token = super::models::OAuth2RefreshToken {
             token: refresh_token_value.clone(),   // Safe: Clone for storage
             client_id: request.client_id.clone(), // Safe: Clone for ownership
             user_id: auth_code.user_id,
@@ -325,7 +325,7 @@ impl OAuth2AuthorizationServer {
         })?;
         let refresh_token_expires_at = Utc::now() + Duration::days(30); // 30 days
 
-        let new_refresh_token = crate::oauth2::models::OAuth2RefreshToken {
+        let new_refresh_token = super::models::OAuth2RefreshToken {
             token: new_refresh_token_value.clone(), // Safe: Clone for storage
             client_id: request.client_id.clone(),   // Safe: Clone for ownership
             user_id: old_refresh_token.user_id,
@@ -407,7 +407,7 @@ impl OAuth2AuthorizationServer {
         //
         // See docs/oauth2-server.md "State Parameter Validation" for integration guide
         if let Some(state_value) = params.state {
-            let oauth2_state = crate::oauth2::models::OAuth2State {
+            let oauth2_state = super::models::OAuth2State {
                 state: state_value.to_string(),
                 client_id: params.client_id.to_string(),
                 user_id: Some(params.user_id),
@@ -667,7 +667,7 @@ impl OAuth2AuthorizationServer {
     /// Store refresh token (database operation)
     async fn store_refresh_token(
         &self,
-        refresh_token: &crate::oauth2::models::OAuth2RefreshToken,
+        refresh_token: &super::models::OAuth2RefreshToken,
     ) -> Result<()> {
         self.database
             .store_oauth2_refresh_token(refresh_token)
@@ -679,7 +679,7 @@ impl OAuth2AuthorizationServer {
         &self,
         token: &str,
         client_id: &str,
-    ) -> Result<crate::oauth2::models::OAuth2RefreshToken, OAuth2Error> {
+    ) -> Result<super::models::OAuth2RefreshToken, OAuth2Error> {
         // Atomically consume refresh token (prevents TOCTOU race conditions)
         // This validates client_id, revoked status, and expiration in a single atomic operation
         let refresh_token = self
@@ -716,8 +716,8 @@ impl OAuth2AuthorizationServer {
     pub async fn validate_and_refresh(
         &self,
         access_token: &str,
-        request: crate::oauth2::models::ValidateRefreshRequest,
-    ) -> Result<crate::oauth2::models::ValidateRefreshResponse> {
+        request: super::models::ValidateRefreshRequest,
+    ) -> Result<super::models::ValidateRefreshResponse> {
         // Validate the JWT token
         match self
             .auth_manager
@@ -735,8 +735,8 @@ impl OAuth2AuthorizationServer {
     async fn handle_valid_token_claims(
         &self,
         claims: crate::auth::Claims,
-    ) -> Result<crate::oauth2::models::ValidateRefreshResponse> {
-        use crate::oauth2::models::{ValidateRefreshResponse, ValidationStatus};
+    ) -> Result<super::models::ValidateRefreshResponse> {
+        use super::models::{ValidateRefreshResponse, ValidationStatus};
 
         match Uuid::parse_str(&claims.sub) {
             Ok(user_id) => match self.database.get_user(user_id).await {
@@ -762,8 +762,8 @@ impl OAuth2AuthorizationServer {
     /// Handle JWT validation errors
     fn handle_token_validation_error(
         validation_error: crate::auth::JwtValidationError,
-        request: &crate::oauth2::models::ValidateRefreshRequest,
-    ) -> crate::oauth2::models::ValidateRefreshResponse {
+        request: &super::models::ValidateRefreshRequest,
+    ) -> super::models::ValidateRefreshResponse {
         use crate::auth::JwtValidationError;
 
         match validation_error {
@@ -785,8 +785,8 @@ impl OAuth2AuthorizationServer {
     }
 
     /// Create an invalid token response
-    fn create_invalid_response(reason: &str) -> crate::oauth2::models::ValidateRefreshResponse {
-        use crate::oauth2::models::{ValidateRefreshResponse, ValidationStatus};
+    fn create_invalid_response(reason: &str) -> super::models::ValidateRefreshResponse {
+        use super::models::{ValidateRefreshResponse, ValidationStatus};
 
         ValidateRefreshResponse {
             status: ValidationStatus::Invalid,

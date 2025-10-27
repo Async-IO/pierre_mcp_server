@@ -1438,7 +1438,7 @@ impl DatabaseProvider for SqliteDatabase {
     /// Store OAuth 2.0 client registration
     async fn store_oauth2_client(
         &self,
-        client: &crate::oauth2::models::OAuth2Client,
+        client: &crate::oauth2_server::models::OAuth2Client,
     ) -> Result<()> {
         let query = r"
             INSERT INTO oauth2_clients
@@ -1477,7 +1477,7 @@ impl DatabaseProvider for SqliteDatabase {
     async fn get_oauth2_client(
         &self,
         client_id: &str,
-    ) -> Result<Option<crate::oauth2::models::OAuth2Client>> {
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>> {
         let query = r"
             SELECT id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at
             FROM oauth2_clients
@@ -1502,7 +1502,7 @@ impl DatabaseProvider for SqliteDatabase {
                 serde_json::from_str(&row.get::<String, _>("response_types"))
                     .context("Failed to deserialize response_types")?;
 
-            Ok(Some(crate::oauth2::models::OAuth2Client {
+            Ok(Some(crate::oauth2_server::models::OAuth2Client {
                 id: row.get("id"),
                 client_id: row.get("client_id"),
                 client_secret_hash: row.get("client_secret_hash"),
@@ -1523,7 +1523,7 @@ impl DatabaseProvider for SqliteDatabase {
     /// Store OAuth 2.0 authorization code
     async fn store_oauth2_auth_code(
         &self,
-        auth_code: &crate::oauth2::models::OAuth2AuthCode,
+        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
     ) -> Result<()> {
         let query = r"
             INSERT INTO oauth2_auth_codes
@@ -1554,7 +1554,7 @@ impl DatabaseProvider for SqliteDatabase {
     async fn get_oauth2_auth_code(
         &self,
         code: &str,
-    ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>> {
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         let query = r"
             SELECT code, client_id, user_id, tenant_id, redirect_uri, scope, expires_at, used, state, code_challenge, code_challenge_method
             FROM oauth2_auth_codes
@@ -1571,7 +1571,7 @@ impl DatabaseProvider for SqliteDatabase {
             let user_id = Uuid::parse_str(&row.get::<String, _>("user_id"))
                 .context("Invalid user_id UUID format")?;
 
-            Ok(Some(crate::oauth2::models::OAuth2AuthCode {
+            Ok(Some(crate::oauth2_server::models::OAuth2AuthCode {
                 code: row.get("code"),
                 client_id: row.get("client_id"),
                 user_id,
@@ -1592,7 +1592,7 @@ impl DatabaseProvider for SqliteDatabase {
     /// Update OAuth 2.0 authorization code (mark as used)
     async fn update_oauth2_auth_code(
         &self,
-        auth_code: &crate::oauth2::models::OAuth2AuthCode,
+        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
     ) -> Result<()> {
         let query = r"
             UPDATE oauth2_auth_codes
@@ -1613,7 +1613,7 @@ impl DatabaseProvider for SqliteDatabase {
     /// Store OAuth 2.0 refresh token
     async fn store_oauth2_refresh_token(
         &self,
-        refresh_token: &crate::oauth2::models::OAuth2RefreshToken,
+        refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
     ) -> Result<()> {
         let query = r"
             INSERT INTO oauth2_refresh_tokens
@@ -1641,7 +1641,7 @@ impl DatabaseProvider for SqliteDatabase {
     async fn get_oauth2_refresh_token(
         &self,
         token: &str,
-    ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>> {
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         let query = r"
             SELECT token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
             FROM oauth2_refresh_tokens
@@ -1659,7 +1659,7 @@ impl DatabaseProvider for SqliteDatabase {
             let user_id =
                 Uuid::parse_str(&user_id_str).context("Failed to parse user_id as UUID")?;
 
-            Ok(Some(crate::oauth2::models::OAuth2RefreshToken {
+            Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
                 token: row.try_get("token")?,
                 client_id: row.try_get("client_id")?,
                 user_id,
@@ -1701,7 +1701,7 @@ impl DatabaseProvider for SqliteDatabase {
         client_id: &str,
         redirect_uri: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>> {
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         let query = r"
             UPDATE oauth2_auth_codes
             SET used = 1
@@ -1726,7 +1726,7 @@ impl DatabaseProvider for SqliteDatabase {
             let user_id = Uuid::parse_str(&row.try_get::<String, _>("user_id")?)
                 .context("Invalid user_id UUID format in consumed auth code")?;
 
-            Ok(Some(crate::oauth2::models::OAuth2AuthCode {
+            Ok(Some(crate::oauth2_server::models::OAuth2AuthCode {
                 code: row.try_get("code")?,
                 client_id: row.try_get("client_id")?,
                 user_id,
@@ -1753,7 +1753,7 @@ impl DatabaseProvider for SqliteDatabase {
         token: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>> {
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         let query = r"
             UPDATE oauth2_refresh_tokens
             SET revoked = 1
@@ -1777,7 +1777,7 @@ impl DatabaseProvider for SqliteDatabase {
             let user_id = Uuid::parse_str(&user_id_str)
                 .context("Invalid user_id UUID format in consumed refresh token")?;
 
-            Ok(Some(crate::oauth2::models::OAuth2RefreshToken {
+            Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
                 token: row.try_get("token")?,
                 client_id: row.try_get("client_id")?,
                 user_id,
@@ -1793,7 +1793,10 @@ impl DatabaseProvider for SqliteDatabase {
     }
 
     /// Store OAuth2 state for CSRF protection
-    async fn store_oauth2_state(&self, state: &crate::oauth2::models::OAuth2State) -> Result<()> {
+    async fn store_oauth2_state(
+        &self,
+        state: &crate::oauth2_server::models::OAuth2State,
+    ) -> Result<()> {
         let query = r"
             INSERT INTO oauth2_states
             (state, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, created_at, expires_at, used)
@@ -1825,7 +1828,7 @@ impl DatabaseProvider for SqliteDatabase {
         state_value: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2::models::OAuth2State>> {
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2State>> {
         let query = r"
             UPDATE oauth2_states
             SET used = 1
@@ -1852,7 +1855,7 @@ impl DatabaseProvider for SqliteDatabase {
                 .transpose()
                 .context("Invalid user_id UUID format in consumed state")?;
 
-            Ok(Some(crate::oauth2::models::OAuth2State {
+            Ok(Some(crate::oauth2_server::models::OAuth2State {
                 state: row.try_get("state")?,
                 client_id: row.try_get("client_id")?,
                 user_id,

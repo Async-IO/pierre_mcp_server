@@ -72,7 +72,7 @@ pub mod context;
 /// Application constants and configuration values
 pub mod constants;
 
-/// `OAuth2` client for secure `API` authentication
+/// OAuth 2.0 client (Pierre as client to fitness providers)
 pub mod oauth2_client;
 
 /// Model Context Protocol server implementation
@@ -153,9 +153,6 @@ pub mod admin_routes;
 /// Universal protocol support for MCP and A2A
 pub mod protocols;
 
-/// Unified OAuth management for all fitness providers
-pub mod oauth;
-
 /// Unified rate limiting system for API keys and JWT tokens
 pub mod rate_limiting;
 
@@ -180,8 +177,8 @@ pub mod lifecycle;
 /// Unified Server-Sent Events system for OAuth notifications and MCP protocol streaming
 pub mod sse;
 
-/// OAuth 2.0 server implementation with JWT tokens
-pub mod oauth2;
+/// OAuth 2.0 authorization server (Pierre as provider for MCP clients)
+pub mod oauth2_server;
 
 // Utility modules
 pub mod tenant;

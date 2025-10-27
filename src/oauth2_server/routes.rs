@@ -9,15 +9,15 @@
 // - Resource Arc sharing for HTTP route handlers
 // - String ownership for OAuth protocol responses
 
-use crate::admin::jwks::JwksManager;
-use crate::auth::AuthManager;
-use crate::database_plugins::{factory::Database, DatabaseProvider};
-use crate::errors::AppError;
-use crate::oauth2::{
+use super::{
     client_registration::ClientRegistrationManager,
     endpoints::OAuth2AuthorizationServer,
     models::{AuthorizeRequest, ClientRegistrationRequest, OAuth2Error, TokenRequest},
 };
+use crate::admin::jwks::JwksManager;
+use crate::auth::AuthManager;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::errors::AppError;
 use anyhow::Result;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -30,7 +30,7 @@ pub fn oauth2_routes(
     auth_manager: &Arc<AuthManager>,
     jwks_manager: &Arc<JwksManager>,
     config: &Arc<crate::config::environment::ServerConfig>,
-    rate_limiter: &Arc<crate::oauth2::rate_limiting::OAuth2RateLimiter>,
+    rate_limiter: &Arc<super::rate_limiting::OAuth2RateLimiter>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     let client_registration_routes = client_registration_routes(database.clone(), rate_limiter);
     let authorization_routes = authorization_routes(
@@ -99,7 +99,7 @@ fn oauth2_discovery_route(
 /// Client registration routes (RFC 7591)
 fn client_registration_routes(
     database: Arc<Database>,
-    rate_limiter: &Arc<crate::oauth2::rate_limiting::OAuth2RateLimiter>,
+    rate_limiter: &Arc<super::rate_limiting::OAuth2RateLimiter>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     // Safe: filter() takes &self and clones internally for warp closure
     let rate_limiter_filter = rate_limiter.filter("register");
@@ -122,7 +122,7 @@ fn authorization_routes(
     auth_manager: &Arc<AuthManager>,
     jwks_manager: &Arc<JwksManager>,
     config: &Arc<crate::config::environment::ServerConfig>,
-    rate_limiter: &Arc<crate::oauth2::rate_limiting::OAuth2RateLimiter>,
+    rate_limiter: &Arc<super::rate_limiting::OAuth2RateLimiter>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     // Safe: filter() takes &self and clones internally for warp closure
     let rate_limiter_filter = rate_limiter.filter("authorize");
@@ -168,7 +168,7 @@ fn token_routes(
     database: Arc<Database>,
     auth_manager: &Arc<AuthManager>,
     jwks_manager: &Arc<JwksManager>,
-    rate_limiter: &Arc<crate::oauth2::rate_limiting::OAuth2RateLimiter>,
+    rate_limiter: &Arc<super::rate_limiting::OAuth2RateLimiter>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     // Safe: filter() takes &self and clones internally for warp closure
     let rate_limiter_filter = rate_limiter.filter("token");
@@ -524,7 +524,7 @@ async fn handle_token(
 /// Handle validate and refresh request (POST /oauth2/validate-and-refresh)
 async fn handle_validate_and_refresh(
     auth_header: Option<String>,
-    request: crate::oauth2::models::ValidateRefreshRequest,
+    request: super::models::ValidateRefreshRequest,
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
     jwks_manager: Arc<JwksManager>,
@@ -634,8 +634,7 @@ async fn handle_token_validate(
 
     // Validate client_id if provided
     if let Some(cid) = client_id {
-        let client_manager =
-            crate::oauth2::client_registration::ClientRegistrationManager::new(database);
+        let client_manager = super::client_registration::ClientRegistrationManager::new(database);
         match client_manager.get_client(cid).await {
             Ok(_) => {
                 // Both token (if provided) and client_id are valid

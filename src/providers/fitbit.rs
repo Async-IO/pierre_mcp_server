@@ -19,7 +19,7 @@
 use super::{AuthData, FitnessProvider};
 use crate::errors::AppError;
 use crate::models::{Activity, Athlete, HeartRateZone, PersonalRecord, SportType, Stats};
-use crate::oauth2_client::PkceParams;
+use crate::oauth2_client::client::PkceParams;
 use crate::pagination::{CursorPage, PaginationParams};
 use crate::utils::http_client::api_client;
 use anyhow::{Context, Result};

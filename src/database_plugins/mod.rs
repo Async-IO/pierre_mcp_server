@@ -560,44 +560,46 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     // ================================
 
     /// Store OAuth 2.0 client registration
-    async fn store_oauth2_client(&self, client: &crate::oauth2::models::OAuth2Client)
-        -> Result<()>;
+    async fn store_oauth2_client(
+        &self,
+        client: &crate::oauth2_server::models::OAuth2Client,
+    ) -> Result<()>;
 
     /// Get OAuth 2.0 client by client_id
     async fn get_oauth2_client(
         &self,
         client_id: &str,
-    ) -> Result<Option<crate::oauth2::models::OAuth2Client>>;
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>>;
 
     /// Store OAuth 2.0 authorization code
     async fn store_oauth2_auth_code(
         &self,
-        auth_code: &crate::oauth2::models::OAuth2AuthCode,
+        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
     ) -> Result<()>;
 
     /// Get OAuth 2.0 authorization code
     async fn get_oauth2_auth_code(
         &self,
         code: &str,
-    ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>>;
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>>;
 
     /// Update OAuth 2.0 authorization code (mark as used)
     async fn update_oauth2_auth_code(
         &self,
-        auth_code: &crate::oauth2::models::OAuth2AuthCode,
+        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
     ) -> Result<()>;
 
     /// Store OAuth 2.0 refresh token
     async fn store_oauth2_refresh_token(
         &self,
-        refresh_token: &crate::oauth2::models::OAuth2RefreshToken,
+        refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
     ) -> Result<()>;
 
     /// Get OAuth 2.0 refresh token
     async fn get_oauth2_refresh_token(
         &self,
         token: &str,
-    ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>>;
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>>;
 
     /// Revoke OAuth 2.0 refresh token
     async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()>;
@@ -621,7 +623,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         client_id: &str,
         redirect_uri: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>>;
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>>;
 
     /// Atomically consume OAuth 2.0 refresh token (check-and-revoke in single operation)
     ///
@@ -640,7 +642,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         token: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>>;
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>>;
 
     /// Store authorization code
     async fn store_authorization_code(
@@ -659,7 +661,10 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn delete_authorization_code(&self, code: &str) -> Result<()>;
 
     /// Store OAuth2 state for CSRF protection
-    async fn store_oauth2_state(&self, state: &crate::oauth2::models::OAuth2State) -> Result<()>;
+    async fn store_oauth2_state(
+        &self,
+        state: &crate::oauth2_server::models::OAuth2State,
+    ) -> Result<()>;
 
     /// Consume OAuth2 state (atomically check and mark as used)
     ///
@@ -672,7 +677,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         state_value: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2::models::OAuth2State>>;
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2State>>;
 
     // ================================
     // Key Rotation & Security

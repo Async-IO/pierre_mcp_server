@@ -173,12 +173,9 @@ impl SseConnectionManager {
     /// // Task runs in background until handle is dropped or server shuts down
     /// ```
     #[must_use]
-    pub fn spawn_cleanup_task(
-        manager: Arc<Self>,
-    ) -> tokio::task::JoinHandle<()> {
-        let cleanup_interval = std::time::Duration::from_secs(
-            crate::constants::timeouts::SSE_CLEANUP_INTERVAL_SECS,
-        );
+    pub fn spawn_cleanup_task(manager: Arc<Self>) -> tokio::task::JoinHandle<()> {
+        let cleanup_interval =
+            std::time::Duration::from_secs(crate::constants::timeouts::SSE_CLEANUP_INTERVAL_SECS);
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(cleanup_interval);

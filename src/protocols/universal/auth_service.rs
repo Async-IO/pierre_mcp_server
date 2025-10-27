@@ -7,11 +7,34 @@
 use crate::constants::oauth_providers;
 use crate::database_plugins::DatabaseProvider;
 use crate::mcp::resources::ServerResources;
-use crate::oauth::{OAuthError, TokenData};
 use crate::protocols::universal::UniversalResponse;
 use crate::providers::{CoreFitnessProvider, OAuth2Credentials};
+use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use uuid::Uuid;
+
+/// OAuth token data structure
+#[derive(Debug, Clone)]
+pub struct TokenData {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub expires_at: DateTime<Utc>,
+    pub scopes: String,
+    pub provider: String,
+}
+
+/// OAuth error types
+#[derive(Debug, thiserror::Error)]
+pub enum OAuthError {
+    #[error("Token exchange failed: {0}")]
+    TokenExchangeFailed(String),
+
+    #[error("Token refresh failed: {0}")]
+    TokenRefreshFailed(String),
+
+    #[error("Database error: {0}")]
+    DatabaseError(String),
+}
 
 /// Service responsible for authentication and provider creation
 /// Centralizes OAuth token management and reduces duplication across handlers

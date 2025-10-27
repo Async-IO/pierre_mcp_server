@@ -41,7 +41,7 @@ use crate::constants::{
 use crate::dashboard_routes::DashboardRoutes;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::fitness_configuration_routes::FitnessConfigurationRoutes;
-use crate::oauth2::routes::oauth2_routes;
+use crate::oauth2_server::routes::oauth2_routes;
 use crate::providers::ProviderRegistry;
 use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest};
 use crate::security::headers::SecurityConfig;

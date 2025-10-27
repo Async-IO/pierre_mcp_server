@@ -8,7 +8,9 @@ use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use pierre_mcp_server::{
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
-    oauth2::{client_registration::ClientRegistrationManager, models::ClientRegistrationRequest},
+    oauth2_server::{
+        client_registration::ClientRegistrationManager, models::ClientRegistrationRequest,
+    },
 };
 use std::sync::Arc;
 

@@ -8,7 +8,7 @@ use super::{AuthData, FitnessProvider};
 use crate::config::FitnessConfig;
 use crate::constants::api_provider_limits;
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
-use crate::oauth2_client::PkceParams;
+use crate::oauth2_client::client::PkceParams;
 use crate::pagination::{CursorPage, PaginationParams};
 use crate::providers::errors::ProviderError;
 use crate::utils::http_client::api_client;

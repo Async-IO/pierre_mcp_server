@@ -471,35 +471,16 @@ impl OAuthService {
         user_id: uuid::Uuid,
         user: &crate::models::User,
     ) -> Result<crate::oauth2_client::OAuth2Token> {
-        use crate::constants::oauth_providers;
-
         let oauth_config = self.create_oauth_config(provider)?;
         let oauth_client = crate::oauth2_client::OAuth2Client::new(oauth_config.clone());
 
-        let token = match provider {
-            oauth_providers::STRAVA => crate::oauth2_client::strava::exchange_strava_code(
-                oauth_client.http_client(),
-                &oauth_config.client_id,
-                &oauth_config.client_secret,
-                code,
-            )
-            .await
-            .map(|(token, _athlete)| token)
-            .map_err(|e| {
-                tracing::error!(
-                    "OAuth token exchange failed for {provider} - user_id: {user_id}, email: {}, code: {code}, error: {e}",
-                    user.email
-                );
-                AppError::internal(format!("Failed to exchange OAuth code for token: {e}"))
-            })?,
-            _ => oauth_client.exchange_code(code).await.map_err(|e| {
-                tracing::error!(
-                    "OAuth token exchange failed for {provider} - user_id: {user_id}, email: {}, code: {code}, error: {e}",
-                    user.email
-                );
-                AppError::internal(format!("Failed to exchange OAuth code for token: {e}"))
-            })?,
-        };
+        let token = oauth_client.exchange_code(code).await.map_err(|e| {
+            tracing::error!(
+                "OAuth token exchange failed for {provider} - user_id: {user_id}, email: {}, code: {code}, error: {e}",
+                user.email
+            );
+            AppError::internal(format!("Failed to exchange OAuth code for token: {e}"))
+        })?;
 
         Ok(token)
     }

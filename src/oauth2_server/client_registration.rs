@@ -4,11 +4,11 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::database_plugins::DatabaseProvider;
-use crate::errors::AppError;
-use crate::oauth2::models::{
+use super::models::{
     ClientRegistrationRequest, ClientRegistrationResponse, OAuth2Client, OAuth2Error,
 };
+use crate::database_plugins::DatabaseProvider;
+use crate::errors::AppError;
 use anyhow::Result;
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},

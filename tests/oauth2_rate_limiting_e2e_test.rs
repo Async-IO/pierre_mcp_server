@@ -4,7 +4,7 @@
 use pierre_mcp_server::{
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
-    oauth2::{
+    oauth2_server::{
         client_registration::ClientRegistrationManager, models::ClientRegistrationRequest,
         rate_limiting::OAuth2RateLimiter,
     },

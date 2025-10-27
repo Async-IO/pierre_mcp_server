@@ -1314,7 +1314,7 @@ impl DatabaseProvider for Database {
 
     async fn store_oauth2_client(
         &self,
-        client: &crate::oauth2::models::OAuth2Client,
+        client: &crate::oauth2_server::models::OAuth2Client,
     ) -> Result<()> {
         match self {
             Self::SQLite(db) => db.store_oauth2_client(client).await,
@@ -1326,7 +1326,7 @@ impl DatabaseProvider for Database {
     async fn get_oauth2_client(
         &self,
         client_id: &str,
-    ) -> Result<Option<crate::oauth2::models::OAuth2Client>> {
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>> {
         match self {
             Self::SQLite(db) => db.get_oauth2_client(client_id).await,
             #[cfg(feature = "postgresql")]
@@ -1336,7 +1336,7 @@ impl DatabaseProvider for Database {
 
     async fn store_oauth2_auth_code(
         &self,
-        auth_code: &crate::oauth2::models::OAuth2AuthCode,
+        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
     ) -> Result<()> {
         match self {
             Self::SQLite(db) => db.store_oauth2_auth_code(auth_code).await,
@@ -1348,7 +1348,7 @@ impl DatabaseProvider for Database {
     async fn get_oauth2_auth_code(
         &self,
         code: &str,
-    ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>> {
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         match self {
             Self::SQLite(db) => db.get_oauth2_auth_code(code).await,
             #[cfg(feature = "postgresql")]
@@ -1358,7 +1358,7 @@ impl DatabaseProvider for Database {
 
     async fn update_oauth2_auth_code(
         &self,
-        auth_code: &crate::oauth2::models::OAuth2AuthCode,
+        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
     ) -> Result<()> {
         match self {
             Self::SQLite(db) => db.update_oauth2_auth_code(auth_code).await,
@@ -1369,7 +1369,7 @@ impl DatabaseProvider for Database {
 
     async fn store_oauth2_refresh_token(
         &self,
-        refresh_token: &crate::oauth2::models::OAuth2RefreshToken,
+        refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
     ) -> Result<()> {
         match self {
             Self::SQLite(db) => db.store_oauth2_refresh_token(refresh_token).await,
@@ -1381,7 +1381,7 @@ impl DatabaseProvider for Database {
     async fn get_oauth2_refresh_token(
         &self,
         token: &str,
-    ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>> {
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         match self {
             Self::SQLite(db) => db.get_oauth2_refresh_token(token).await,
             #[cfg(feature = "postgresql")]
@@ -1403,7 +1403,7 @@ impl DatabaseProvider for Database {
         client_id: &str,
         redirect_uri: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>> {
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         match self {
             Self::SQLite(db) => {
                 db.consume_auth_code(code, client_id, redirect_uri, now)
@@ -1422,7 +1422,7 @@ impl DatabaseProvider for Database {
         token: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>> {
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         match self {
             Self::SQLite(db) => db.consume_refresh_token(token, client_id, now).await,
             #[cfg(feature = "postgresql")]
@@ -1467,7 +1467,10 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn store_oauth2_state(&self, state: &crate::oauth2::models::OAuth2State) -> Result<()> {
+    async fn store_oauth2_state(
+        &self,
+        state: &crate::oauth2_server::models::OAuth2State,
+    ) -> Result<()> {
         match self {
             Self::SQLite(db) => db.store_oauth2_state(state).await,
             #[cfg(feature = "postgresql")]
@@ -1480,7 +1483,7 @@ impl DatabaseProvider for Database {
         state_value: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2::models::OAuth2State>> {
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2State>> {
         match self {
             Self::SQLite(db) => db.consume_oauth2_state(state_value, client_id, now).await,
             #[cfg(feature = "postgresql")]

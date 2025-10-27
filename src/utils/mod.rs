@@ -8,6 +8,5 @@ pub mod auth;
 pub mod errors;
 pub mod http_client;
 pub mod json_responses;
-pub mod oauth;
 pub mod route_timeout;
 pub mod uuid;
