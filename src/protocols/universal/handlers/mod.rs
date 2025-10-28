@@ -18,7 +18,9 @@ pub use configuration::{
 };
 
 // OAuth provider connection handlers
-pub use connections::{handle_disconnect_provider, handle_get_connection_status};
+pub use connections::{
+    handle_connect_provider, handle_disconnect_provider, handle_get_connection_status,
+};
 
 // Goal setting and tracking handlers
 pub use goals::{

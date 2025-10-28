@@ -20,6 +20,7 @@ pub enum ToolId {
     AnalyzeActivity,
     GetActivityIntelligence,
     GetConnectionStatus,
+    ConnectProvider,
     DisconnectProvider,
 
     // Goal and planning tools
@@ -59,6 +60,7 @@ impl ToolId {
             "analyze_activity" => Some(Self::AnalyzeActivity),
             "get_activity_intelligence" => Some(Self::GetActivityIntelligence),
             "get_connection_status" => Some(Self::GetConnectionStatus),
+            "connect_provider" => Some(Self::ConnectProvider),
             "disconnect_provider" => Some(Self::DisconnectProvider),
             "set_goal" => Some(Self::SetGoal),
             "suggest_goals" => Some(Self::SuggestGoals),
@@ -92,6 +94,7 @@ impl ToolId {
             Self::AnalyzeActivity => "analyze_activity",
             Self::GetActivityIntelligence => "get_activity_intelligence",
             Self::GetConnectionStatus => "get_connection_status",
+            Self::ConnectProvider => "connect_provider",
             Self::DisconnectProvider => "disconnect_provider",
             Self::SetGoal => "set_goal",
             Self::SuggestGoals => "suggest_goals",
@@ -128,6 +131,7 @@ impl ToolId {
             }
             Self::GetActivityIntelligence => "Get AI-powered intelligence analysis for an activity",
             Self::GetConnectionStatus => "Check OAuth connection status for fitness providers",
+            Self::ConnectProvider => "Connect to a fitness data provider via OAuth",
             Self::DisconnectProvider => "Disconnect user from a fitness data provider",
             Self::SetGoal => "Set a new fitness goal for the user",
             Self::SuggestGoals => "Get AI-suggested fitness goals based on user's activity history",

@@ -8,13 +8,13 @@ use super::auth_service::AuthService;
 use super::handlers::{
     handle_analyze_activity, handle_analyze_goal_feasibility, handle_analyze_performance_trends,
     handle_analyze_training_load, handle_calculate_fitness_score, handle_calculate_metrics,
-    handle_calculate_personalized_zones, handle_compare_activities, handle_detect_patterns,
-    handle_disconnect_provider, handle_generate_recommendations, handle_get_activities,
-    handle_get_activity_intelligence, handle_get_athlete, handle_get_configuration_catalog,
-    handle_get_configuration_profiles, handle_get_connection_status, handle_get_stats,
-    handle_get_user_configuration, handle_predict_performance, handle_set_goal,
-    handle_suggest_goals, handle_track_progress, handle_update_user_configuration,
-    handle_validate_configuration,
+    handle_calculate_personalized_zones, handle_compare_activities, handle_connect_provider,
+    handle_detect_patterns, handle_disconnect_provider, handle_generate_recommendations,
+    handle_get_activities, handle_get_activity_intelligence, handle_get_athlete,
+    handle_get_configuration_catalog, handle_get_configuration_profiles,
+    handle_get_connection_status, handle_get_stats, handle_get_user_configuration,
+    handle_predict_performance, handle_set_goal, handle_suggest_goals, handle_track_progress,
+    handle_update_user_configuration, handle_validate_configuration,
 };
 use super::tool_registry::{ToolId, ToolInfo, ToolRegistry};
 use crate::mcp::resources::ServerResources;
@@ -144,8 +144,7 @@ impl UniversalExecutor {
     }
 
     /// Register all tools with type-safe handlers
-    fn register_all_tools(registry: &mut ToolRegistry) {
-        // Strava API tools (async)
+    fn register_strava_tools(registry: &mut ToolRegistry) {
         registry.register(ToolInfo::async_tool(
             ToolId::GetActivities,
             |executor, request| Box::pin(handle_get_activities(executor, request)),
@@ -162,18 +161,24 @@ impl UniversalExecutor {
             ToolId::AnalyzeActivity,
             |executor, request| Box::pin(handle_analyze_activity(executor, request)),
         ));
+    }
 
-        // Connection management tools (async)
+    fn register_connection_tools(registry: &mut ToolRegistry) {
         registry.register(ToolInfo::async_tool(
             ToolId::GetConnectionStatus,
             |executor, request| Box::pin(handle_get_connection_status(executor, request)),
         ));
         registry.register(ToolInfo::async_tool(
+            ToolId::ConnectProvider,
+            |executor, request| Box::pin(handle_connect_provider(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
             ToolId::DisconnectProvider,
             |executor, request| Box::pin(handle_disconnect_provider(executor, request)),
         ));
+    }
 
-        // Configuration tools (mixed sync/async)
+    fn register_configuration_tools(registry: &mut ToolRegistry) {
         registry.register(ToolInfo::sync_tool(
             ToolId::GetConfigurationCatalog,
             handle_get_configuration_catalog,
@@ -198,8 +203,9 @@ impl UniversalExecutor {
             ToolId::ValidateConfiguration,
             handle_validate_configuration,
         ));
+    }
 
-        // Intelligence tools (mixed sync/async) - delegated to handlers
+    fn register_intelligence_tools(registry: &mut ToolRegistry) {
         registry.register(ToolInfo::sync_tool(
             ToolId::CalculateMetrics,
             handle_calculate_metrics,
@@ -236,8 +242,9 @@ impl UniversalExecutor {
             ToolId::AnalyzeTrainingLoad,
             |executor, request| Box::pin(handle_analyze_training_load(executor, request)),
         ));
+    }
 
-        // Goal management tools (async) - implemented in handlers
+    fn register_goal_tools(registry: &mut ToolRegistry) {
         registry.register(ToolInfo::async_tool(
             ToolId::SetGoal,
             |executor, request| Box::pin(handle_set_goal(executor, request)),
@@ -254,6 +261,14 @@ impl UniversalExecutor {
             ToolId::TrackProgress,
             |executor, request| Box::pin(handle_track_progress(executor, request)),
         ));
+    }
+
+    fn register_all_tools(registry: &mut ToolRegistry) {
+        Self::register_strava_tools(registry);
+        Self::register_connection_tools(registry);
+        Self::register_configuration_tools(registry);
+        Self::register_intelligence_tools(registry);
+        Self::register_goal_tools(registry);
     }
 
     /// Execute a tool with type-safe routing (no string matching!)

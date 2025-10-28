@@ -7,7 +7,7 @@
 use crate::cache::{factory::Cache, CacheKey, CacheResource};
 use crate::constants::oauth_providers;
 use crate::intelligence::physiological_constants::api_limits::{
-    DEFAULT_ACTIVITY_LIMIT, MAX_ACTIVITY_LIMIT,
+    DEFAULT_ACTIVITY_LIMIT, DEFAULT_ACTIVITY_LIMIT_U32, MAX_ACTIVITY_LIMIT, QUICK_ACTIVITY_LIMIT,
 };
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
@@ -383,7 +383,7 @@ pub fn handle_get_activities(
             .parameters
             .get("limit")
             .and_then(serde_json::Value::as_u64)
-            .unwrap_or(10)
+            .unwrap_or(QUICK_ACTIVITY_LIMIT)
             .try_into()
             .unwrap_or(DEFAULT_ACTIVITY_LIMIT);
 
@@ -398,8 +398,7 @@ pub fn handle_get_activities(
 
         // For caching activities, use page=1 and per_page=limit
         // Safe: limit is bounded by MAX_ACTIVITY_LIMIT which fits in u32
-        let per_page = u32::try_from(limit)
-            .unwrap_or_else(|_| u32::try_from(DEFAULT_ACTIVITY_LIMIT).unwrap_or(30));
+        let per_page = u32::try_from(limit).unwrap_or(DEFAULT_ACTIVITY_LIMIT_U32);
         let cache_key = CacheKey::new(
             tenant_uuid,
             user_uuid,
@@ -825,48 +824,38 @@ pub fn handle_analyze_activity(
                 .await
                 {
                     Ok(provider) => {
-                        // Get activities to find the target activity
-                        match provider
-                            .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
-                            .await
-                        {
-                            Ok(activities) => {
-                                if activities.iter().any(|a| a.id == activity_id) {
-                                    // Activity found - process analysis
-                                    process_activity_analysis(
-                                        executor,
-                                        request,
-                                        &activity_id,
-                                        user_uuid,
-                                    )
-                                    .await
-                                } else {
-                                    // Activity not found
-                                    Ok(UniversalResponse {
-                                        success: false,
-                                        result: None,
-                                        error: Some(format!("Activity {activity_id} not found")),
-                                        metadata: Some({
-                                            let mut map = std::collections::HashMap::new();
-                                            map.insert(
-                                                "activity_id".to_string(),
-                                                serde_json::Value::String(activity_id.to_string()),
-                                            );
-                                            map.insert(
-                                                "provider".to_string(),
-                                                serde_json::Value::String("strava".to_string()),
-                                            );
-                                            map
-                                        }),
-                                    })
-                                }
+                        // Fetch the specific activity directly - efficient single API call
+                        match provider.get_activity(&activity_id).await {
+                            Ok(_activity) => {
+                                // Activity found - process analysis
+                                process_activity_analysis(
+                                    executor,
+                                    request,
+                                    &activity_id,
+                                    user_uuid,
+                                )
+                                .await
                             }
-                            Err(e) => Ok(UniversalResponse {
-                                success: false,
-                                result: None,
-                                error: Some(format!("Failed to fetch activities: {e}")),
-                                metadata: None,
-                            }),
+                            Err(e) => {
+                                // Activity not found or API error
+                                Ok(UniversalResponse {
+                                    success: false,
+                                    result: None,
+                                    error: Some(format!("Activity {activity_id} not found: {e}")),
+                                    metadata: Some({
+                                        let mut map = std::collections::HashMap::new();
+                                        map.insert(
+                                            "activity_id".to_string(),
+                                            serde_json::Value::String(activity_id.to_string()),
+                                        );
+                                        map.insert(
+                                            "provider".to_string(),
+                                            serde_json::Value::String("strava".to_string()),
+                                        );
+                                        map
+                                    }),
+                                })
+                            }
                         }
                     }
                     Err(e) => Ok(UniversalResponse {
@@ -881,7 +870,7 @@ pub fn handle_analyze_activity(
                 success: false,
                 result: None,
                 error: Some(
-                    "No valid Strava token found. Please connect your Strava account.".to_string(),
+                    "No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string(),
                 ),
                 metadata: None,
             }),

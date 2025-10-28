@@ -59,6 +59,15 @@ pub mod heart_rate {
     /// Reference: Tanaka, H., Monahan, K.D., & Seals, D.R. (2001). Age-predicted maximal heart rate revisited
     /// <https://pubmed.ncbi.nlm.nih.gov/11153730/>
     pub const MAX_REALISTIC_HEART_RATE: u32 = 220;
+
+    /// Fox formula constant for age-based max HR estimation
+    ///
+    /// Formula: Max HR = `AGE_BASED_MAX_HR_CONSTANT` - age
+    /// This is the classic "220 - age" formula, though newer research suggests 207 - (0.7 * age)
+    ///
+    /// Reference: Fox, S.M., Naughton, J.P., & Haskell, W.L. (1971)
+    /// Physical activity and the prevention of coronary heart disease
+    pub const AGE_BASED_MAX_HR_CONSTANT: u32 = 220;
 }
 
 /// Power-to-weight ratio thresholds for cycling performance
@@ -614,8 +623,15 @@ pub mod weather_impact_factors {
 ///
 /// Reference: System performance and resource management
 pub mod api_limits {
+    /// Quick activity fetch limit for minimal requests
+    /// Used as default when user doesn't specify limit
+    pub const QUICK_ACTIVITY_LIMIT: u64 = 10;
+
     /// Default activity fetch limit for analysis
     pub const DEFAULT_ACTIVITY_LIMIT: usize = 100;
+
+    /// Default activity limit as u32 for page size calculations
+    pub const DEFAULT_ACTIVITY_LIMIT_U32: u32 = 100;
 
     /// Small activity fetch limit for quick analysis
     pub const SMALL_ACTIVITY_LIMIT: usize = 50;
@@ -647,11 +663,213 @@ pub mod goal_feasibility {
     /// Simple heuristic threshold for goal progress (50%)
     pub const SIMPLE_PROGRESS_THRESHOLD: f64 = 50.0;
 
-    /// High feasibility threshold (75%)
-    pub const HIGH_FEASIBILITY_THRESHOLD: f64 = 75.0;
-
     /// Moderate feasibility threshold (50%)
     pub const MODERATE_FEASIBILITY_THRESHOLD: f64 = 50.0;
+
+    /// Safe monthly improvement rate (percentage)
+    ///
+    /// Based on the "10% rule" in sports training - athletes should not increase
+    /// training volume/intensity by more than 10% per month to avoid injury
+    ///
+    /// Reference: Johnston, C.A., et al. (2003). Preventing running injuries
+    /// <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1724790/>
+    pub const SAFE_MONTHLY_IMPROVEMENT_RATE_PERCENT: f64 = 10.0;
+
+    /// Feasibility score penalty for safe improvement range (80-100 range)
+    ///
+    /// Applied when improvement required is within safe capacity
+    /// Lower penalty = higher feasibility score
+    pub const SAFE_RANGE_PENALTY_FACTOR: f64 = 20.0;
+
+    /// Feasibility score penalty for excessive improvement (0-80 range)
+    ///
+    /// Applied when improvement required exceeds safe capacity
+    /// Higher penalty = lower feasibility score, indicating higher risk
+    pub const EXCESSIVE_IMPROVEMENT_PENALTY_FACTOR: f64 = 40.0;
+
+    /// Threshold for requiring volume doubling (multiplier)
+    ///
+    /// If projected performance is less than 50% of target, goal requires
+    /// more than doubling current volume, which is high risk
+    pub const VOLUME_DOUBLING_THRESHOLD: f64 = 0.5;
+
+    /// High confidence level for feasibility analysis
+    ///
+    /// Used when sufficient historical data (20+ activities) is available
+    pub const HIGH_CONFIDENCE_LEVEL: f64 = 0.9;
+
+    /// Good confidence level for feasibility analysis
+    ///
+    /// Used when moderate historical data (10-19 activities) is available
+    pub const GOOD_CONFIDENCE_LEVEL: f64 = 0.7;
+
+    /// Medium confidence level for feasibility analysis
+    ///
+    /// Used when limited historical data (5-9 activities) is available
+    pub const MEDIUM_CONFIDENCE_LEVEL: f64 = 0.6;
+
+    /// Low confidence level for feasibility analysis
+    ///
+    /// Used when minimal historical data (1-4 activities) is available
+    pub const LOW_CONFIDENCE_LEVEL: f64 = 0.5;
+
+    /// Very low confidence level for feasibility analysis
+    ///
+    /// Used when insufficient historical data or unknown parameters
+    pub const VERY_LOW_CONFIDENCE_LEVEL: f64 = 0.3;
+
+    /// Minimum confidence level for goal analysis
+    ///
+    /// Used when no historical data is available
+    pub const MINIMUM_CONFIDENCE_LEVEL: f64 = 0.2;
+
+    /// Excellent data quality threshold (activity count)
+    ///
+    /// 20+ activities provides excellent basis for goal feasibility analysis
+    pub const EXCELLENT_DATA_QUALITY_THRESHOLD: usize = 20;
+
+    /// Good data quality threshold (activity count)
+    ///
+    /// 10-19 activities provides good basis for goal feasibility analysis
+    pub const GOOD_DATA_QUALITY_THRESHOLD: usize = 10;
+
+    /// Minimum adequate data quality threshold (activity count)
+    ///
+    /// 15+ activities provides adequate basis for frequency goal analysis
+    pub const ADEQUATE_FREQUENCY_DATA_THRESHOLD: u32 = 15;
+
+    /// Progress tracking activity fetch limit
+    ///
+    /// Maximum number of recent activities to fetch for progress tracking and feasibility analysis
+    /// Balance between comprehensive analysis and API efficiency
+    pub const PROGRESS_TRACKING_ACTIVITY_LIMIT: usize = 50;
+
+    /// Assumed training history period for activity rate calculations (weeks)
+    ///
+    /// When calculating activity frequency and projected performance, assume
+    /// recent activity data represents approximately 4 weeks of training
+    ///
+    /// This is a reasonable default for users tracking their recent training patterns
+    pub const ASSUMED_TRAINING_HISTORY_WEEKS: f64 = 4.0;
+
+    /// Default goal timeframe in days when not specified
+    ///
+    /// 90 days (approximately 3 months) provides a reasonable goal duration
+    /// that's long enough to achieve meaningful progress but short enough to maintain focus
+    pub const DEFAULT_TIMEFRAME_DAYS: u32 = 90;
+
+    /// Maximum percentage value
+    ///
+    /// Used for capping percentage calculations and scores
+    pub const MAX_PERCENTAGE: f64 = 100.0;
+
+    /// Penalty base for unsafe improvement calculations
+    ///
+    /// Starting penalty value that gets adjusted based on improvement requirements
+    pub const UNSAFE_IMPROVEMENT_PENALTY_BASE: f64 = 80.0;
+
+    /// Activity count threshold for good confidence (as f64 for comparisons)
+    pub const GOOD_ACTIVITY_COUNT_F64: f64 = 10.0;
+
+    /// Activity count threshold for excellent confidence (as f64 for comparisons)
+    pub const EXCELLENT_ACTIVITY_COUNT_F64: f64 = 20.0;
+
+    /// High feasibility threshold (80+)
+    ///
+    /// Goals with 80+ feasibility score are considered highly achievable
+    pub const HIGH_FEASIBILITY_THRESHOLD: f64 = 80.0;
+
+    /// Days per month approximation for timeframe calculations
+    ///
+    /// Used for converting goal timeframes from days to months
+    pub const DAYS_PER_MONTH_APPROX: f64 = 30.0;
+
+    /// Confidence level threshold for good data quality (>= 10 activities)
+    pub const GOOD_CONFIDENCE_THRESHOLD: f64 = 0.7;
+
+    /// Confidence level threshold for excellent data quality (>= 20 activities)
+    pub const EXCELLENT_CONFIDENCE_THRESHOLD: f64 = 0.9;
+
+    /// Confidence level for limited data quality (< 10 activities)
+    pub const LIMITED_CONFIDENCE_LEVEL: f64 = 0.5;
+
+    /// Minimum activity count for good confidence calculations
+    pub const MIN_ACTIVITIES_FOR_GOOD_CONFIDENCE: f64 = 10.0;
+
+    /// Minimum activity count for excellent confidence calculations
+    pub const MIN_ACTIVITIES_FOR_EXCELLENT_CONFIDENCE: f64 = 20.0;
+
+    /// Default activity limit for goal suggestions
+    pub const GOAL_SUGGESTION_ACTIVITY_LIMIT: usize = 10;
+}
+
+/// Default physiological values for zone calculations and athlete profiles
+pub mod physiological_defaults {
+    /// Default resting heart rate (bpm)
+    pub const DEFAULT_RESTING_HR: u64 = 60;
+
+    /// Default maximum heart rate (bpm)
+    pub const DEFAULT_MAX_HR: u64 = 200;
+
+    /// Default lactate threshold as percentage of max HR
+    pub const DEFAULT_LACTATE_THRESHOLD: f64 = 0.85;
+
+    /// Default sport efficiency factor
+    pub const DEFAULT_SPORT_EFFICIENCY: f64 = 1.0;
+
+    /// Default estimated FTP (Functional Threshold Power) in watts
+    pub const DEFAULT_ESTIMATED_FTP: u32 = 275;
+
+    /// Number of training zones used in calculations
+    pub const TRAINING_ZONE_COUNT: usize = 5;
+}
+
+/// Heart rate zone percentages (expressed as permille for integer arithmetic)
+pub mod heart_rate_zones {
+    /// Zone 1 minimum percentage (0%)
+    pub const ZONE_1_MIN_PERMILLE: u32 = 0;
+
+    /// Zone 1/2 boundary percentage (60%)
+    pub const ZONE_1_MAX_PERMILLE: u32 = 600;
+
+    /// Zone 2/3 boundary percentage (70%)
+    pub const ZONE_2_MAX_PERMILLE: u32 = 700;
+
+    /// Zone 3/4 boundary percentage (80%)
+    pub const ZONE_3_MAX_PERMILLE: u32 = 800;
+
+    /// Zone 4/5 boundary percentage (90%)
+    pub const ZONE_4_MAX_PERMILLE: u32 = 900;
+
+    /// Lactate threshold percentage (85%)
+    pub const LACTATE_THRESHOLD_PERMILLE: u32 = 850;
+
+    /// Aerobic threshold percentage (75%)
+    pub const AEROBIC_THRESHOLD_PERMILLE: u32 = 750;
+
+    /// Divisor for converting permille to percentage
+    pub const PERMILLE_DIVISOR: u64 = 1000;
+}
+
+/// Training zone power values (watts)
+pub mod power_zones {
+    /// Zone 1 minimum watts
+    pub const ZONE_1_MIN_WATTS: u32 = 100;
+
+    /// Zone 1 maximum watts
+    pub const ZONE_1_MAX_WATTS: u32 = 150;
+
+    /// Zone 2 maximum watts
+    pub const ZONE_2_MAX_WATTS: u32 = 200;
+
+    /// Zone 3 maximum watts
+    pub const ZONE_3_MAX_WATTS: u32 = 250;
+
+    /// Zone 4 maximum watts
+    pub const ZONE_4_MAX_WATTS: u32 = 300;
+
+    /// Zone 5 maximum watts
+    pub const ZONE_5_MAX_WATTS: u32 = 400;
 }
 
 /// Performance calculation factors for effort and intensity analysis

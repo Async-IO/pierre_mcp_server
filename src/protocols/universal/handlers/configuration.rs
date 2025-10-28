@@ -144,7 +144,7 @@ pub fn handle_get_user_configuration(
                         "user_id": user_uuid.to_string(),
                         "active_profile": "custom",
                         "configuration": configuration,
-                        "available_parameters": 25
+                        "available_parameters": crate::constants::configuration_system::AVAILABLE_PARAMETERS_COUNT
                     })),
                     error: None,
                     metadata: Some({
@@ -172,7 +172,7 @@ pub fn handle_get_user_configuration(
                         "session_overrides": {},
                         "last_modified": chrono::Utc::now().to_rfc3339()
                     },
-                    "available_parameters": 25
+                    "available_parameters": crate::constants::configuration_system::AVAILABLE_PARAMETERS_COUNT
                 })),
                 error: None,
                 metadata: Some({
@@ -300,13 +300,28 @@ pub fn handle_calculate_personalized_zones(
                     "zone_5": { "min_pace": "5:30", "max_pace": "6:00" }
                 },
                 "power_zones": {
-                    "zone_1": { "min_watts": 100, "max_watts": 150 },
-                    "zone_2": { "min_watts": 150, "max_watts": 200 },
-                    "zone_3": { "min_watts": 200, "max_watts": 250 },
-                    "zone_4": { "min_watts": 250, "max_watts": 300 },
-                    "zone_5": { "min_watts": 300, "max_watts": 400 }
+                    "zone_1": {
+                        "min_watts": crate::intelligence::physiological_constants::power_zones::ZONE_1_MIN_WATTS,
+                        "max_watts": crate::intelligence::physiological_constants::power_zones::ZONE_1_MAX_WATTS
+                    },
+                    "zone_2": {
+                        "min_watts": crate::intelligence::physiological_constants::power_zones::ZONE_1_MAX_WATTS,
+                        "max_watts": crate::intelligence::physiological_constants::power_zones::ZONE_2_MAX_WATTS
+                    },
+                    "zone_3": {
+                        "min_watts": crate::intelligence::physiological_constants::power_zones::ZONE_2_MAX_WATTS,
+                        "max_watts": crate::intelligence::physiological_constants::power_zones::ZONE_3_MAX_WATTS
+                    },
+                    "zone_4": {
+                        "min_watts": crate::intelligence::physiological_constants::power_zones::ZONE_3_MAX_WATTS,
+                        "max_watts": crate::intelligence::physiological_constants::power_zones::ZONE_4_MAX_WATTS
+                    },
+                    "zone_5": {
+                        "min_watts": crate::intelligence::physiological_constants::power_zones::ZONE_4_MAX_WATTS,
+                        "max_watts": crate::intelligence::physiological_constants::power_zones::ZONE_5_MAX_WATTS
+                    }
                 },
-                "estimated_ftp": 275
+                "estimated_ftp": crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_ESTIMATED_FTP
             },
             "zone_calculations": zone_calculations
         })),
@@ -321,7 +336,7 @@ pub fn handle_calculate_personalized_zones(
             );
             map.insert(
                 "zone_count".to_string(),
-                serde_json::Value::Number(5.into()),
+                serde_json::Value::Number(crate::intelligence::physiological_constants::physiological_defaults::TRAINING_ZONE_COUNT.into()),
             );
             map
         }),
@@ -349,25 +364,27 @@ fn extract_zone_parameters(request: &UniversalRequest) -> Result<ZoneParams, Pro
         .parameters
         .get("resting_hr")
         .and_then(serde_json::Value::as_u64)
-        .unwrap_or(60);
+        .unwrap_or(crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_RESTING_HR);
 
     let max_hr = request
         .parameters
         .get("max_hr")
         .and_then(serde_json::Value::as_u64)
-        .unwrap_or(200);
+        .unwrap_or(
+            crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_MAX_HR,
+        );
 
     let lactate_threshold = request
         .parameters
         .get("lactate_threshold")
         .and_then(serde_json::Value::as_f64)
-        .unwrap_or(0.85);
+        .unwrap_or(crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_LACTATE_THRESHOLD);
 
     let sport_efficiency = request
         .parameters
         .get("sport_efficiency")
         .and_then(serde_json::Value::as_f64)
-        .unwrap_or(1.0);
+        .unwrap_or(crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_SPORT_EFFICIENCY);
 
     Ok(ZoneParams {
         vo2_max,
@@ -391,29 +408,66 @@ fn create_user_profile(params: &ZoneParams) -> serde_json::Value {
 
 /// Calculate heart rate zone offset using integer arithmetic to avoid casting warnings
 fn calculate_zone_offset(hr_range: u64, percentage: u32) -> u64 {
-    // Use integer arithmetic: (hr_range * percentage) / 100
-    // percentage represents the zone percentage * 10 to avoid floating point
-    hr_range.saturating_mul(u64::from(percentage)) / 1000
+    // Use integer arithmetic: (hr_range * percentage) / 1000
+    // percentage represents the zone percentage in permille (thousandths)
+    hr_range.saturating_mul(u64::from(percentage))
+        / crate::intelligence::physiological_constants::heart_rate_zones::PERMILLE_DIVISOR
 }
 
 /// Calculate heart rate zones using integer arithmetic to avoid casting warnings
 fn calculate_heart_rate_zones(params: &ZoneParams) -> (serde_json::Value, serde_json::Value) {
     let hr_range = params.max_hr.saturating_sub(params.resting_hr);
 
-    // Calculate zone boundaries using integer arithmetic (percentages * 10 to avoid decimals)
-    let zone_1_min = params.resting_hr + calculate_zone_offset(hr_range, 0); // 0%
-    let zone_1_max = params.resting_hr + calculate_zone_offset(hr_range, 600); // 60%
-    let zone_2_min = params.resting_hr + calculate_zone_offset(hr_range, 600); // 60%
-    let zone_2_max = params.resting_hr + calculate_zone_offset(hr_range, 700); // 70%
-    let zone_3_min = params.resting_hr + calculate_zone_offset(hr_range, 700); // 70%
-    let zone_3_max = params.resting_hr + calculate_zone_offset(hr_range, 800); // 80%
-    let zone_4_min = params.resting_hr + calculate_zone_offset(hr_range, 800); // 80%
-    let zone_4_max = params.resting_hr + calculate_zone_offset(hr_range, 900); // 90%
-    let zone_5_min = params.resting_hr + calculate_zone_offset(hr_range, 900); // 90%
+    // Calculate zone boundaries using integer arithmetic with permille constants
+    let zone_1_min = params.resting_hr
+        + calculate_zone_offset(
+            hr_range,
+            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_1_MIN_PERMILLE,
+        );
+    let zone_1_max = params.resting_hr
+        + calculate_zone_offset(
+            hr_range,
+            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_1_MAX_PERMILLE,
+        );
+    let zone_2_min = params.resting_hr
+        + calculate_zone_offset(
+            hr_range,
+            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_1_MAX_PERMILLE,
+        );
+    let zone_2_max = params.resting_hr
+        + calculate_zone_offset(
+            hr_range,
+            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_2_MAX_PERMILLE,
+        );
+    let zone_3_min = params.resting_hr
+        + calculate_zone_offset(
+            hr_range,
+            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_2_MAX_PERMILLE,
+        );
+    let zone_3_max = params.resting_hr
+        + calculate_zone_offset(
+            hr_range,
+            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_3_MAX_PERMILLE,
+        );
+    let zone_4_min = params.resting_hr
+        + calculate_zone_offset(
+            hr_range,
+            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_3_MAX_PERMILLE,
+        );
+    let zone_4_max = params.resting_hr
+        + calculate_zone_offset(
+            hr_range,
+            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_4_MAX_PERMILLE,
+        );
+    let zone_5_min = params.resting_hr
+        + calculate_zone_offset(
+            hr_range,
+            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_4_MAX_PERMILLE,
+        );
 
-    // Use common lactate threshold value (85%) to avoid floating point conversion
-    let lactate_threshold_hr = params.resting_hr + calculate_zone_offset(hr_range, 850); // ~85% typical lactate threshold
-    let aerobic_threshold_hr = params.resting_hr + calculate_zone_offset(hr_range, 750); // 75%
+    // Use lactate and aerobic threshold constants
+    let lactate_threshold_hr = params.resting_hr + calculate_zone_offset(hr_range, crate::intelligence::physiological_constants::heart_rate_zones::LACTATE_THRESHOLD_PERMILLE);
+    let aerobic_threshold_hr = params.resting_hr + calculate_zone_offset(hr_range, crate::intelligence::physiological_constants::heart_rate_zones::AEROBIC_THRESHOLD_PERMILLE);
 
     let zones = serde_json::json!({
         "zone_1": {

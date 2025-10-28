@@ -187,6 +187,9 @@ pub mod oauth_config {
     pub const STATE_LENGTH: usize = 32;
     /// OAuth code challenge length
     pub const CODE_CHALLENGE_LENGTH: usize = 128;
+    /// OAuth authorization URL expiration time in minutes
+    /// Authorization URLs remain valid for 10 minutes
+    pub const AUTHORIZATION_EXPIRES_MINUTES: u32 = 10;
 }
 
 /// API key system configuration
@@ -243,6 +246,15 @@ pub mod defaults {
     pub const DEFAULT_WEATHER_CACHE_TTL_SECS: u64 = 1800; // 30 minutes
     /// Default analytics cache TTL
     pub const DEFAULT_ANALYTICS_CACHE_TTL_SECS: u64 = 3600; // 1 hour
+}
+
+/// Configuration system constants
+pub mod configuration_system {
+    /// Number of available configuration parameters in catalog
+    ///
+    /// Total count of configuration options exposed via MCP configuration tools
+    /// Used for catalog size reporting and validation
+    pub const AVAILABLE_PARAMETERS_COUNT: usize = 25;
 }
 
 /// Database configuration
@@ -359,7 +371,13 @@ pub mod time_constants {
     /// Hours per day
     pub const HOURS_PER_DAY: u64 = 24;
     /// Days per week
-    pub const DAYS_PER_WEEK: u64 = 7;
+    pub const DAYS_PER_WEEK: u32 = 7;
+    /// Days per month (30-day approximation for calculations)
+    pub const DAYS_PER_MONTH: u32 = 30;
+    /// Days per quarter (90-day approximation for calculations)
+    pub const DAYS_PER_QUARTER: u32 = 90;
+    /// Days per year (standard calendar year)
+    pub const DAYS_PER_YEAR: u32 = 365;
 }
 
 /// Error messages
