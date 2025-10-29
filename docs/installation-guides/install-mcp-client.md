@@ -6,7 +6,7 @@ Install and configure the Pierre MCP Client SDK for any MCP-compatible applicati
 
 - **MCP-compatible application** installed (Claude Desktop, ChatGPT Desktop, etc.)
 - **Node.js 18+** and npm
-- **Pierre MCP Server** running (see [main README](../../README.md) for server setup)
+- **Pierre Fitness Platform** running (see [main README](../../README.md) for server setup)
 
 ## Quick Start
 
@@ -33,7 +33,7 @@ npm install
 npm run build
 ```
 
-### 2. Start the Pierre MCP Server
+### 2. Start Pierre Fitness Platform
 
 ```bash
 # If you haven't already, start the server
@@ -41,7 +41,7 @@ cd pierre_mcp_server
 cargo run --bin pierre-mcp-server
 ```
 
-The server will start on port 8081 by default.
+The platform will start on port 8081 by default.
 
 ### 3. Configure Your MCP Client
 

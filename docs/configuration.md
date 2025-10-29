@@ -2,7 +2,7 @@
 
 ## environment variables
 
-pierre configured entirely via environment variables. no config files.
+Pierre Fitness Platform configured entirely via environment variables. no config files.
 
 ### required variables
 

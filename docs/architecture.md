@@ -1,6 +1,6 @@
 # architecture
 
-pierre is a multi-protocol fitness data server that connects AI assistants to strava, garmin, and fitbit. single binary, single port (8081), multiple protocols.
+Pierre Fitness Platform is a multi-protocol fitness data platform that connects AI assistants to strava, garmin, and fitbit. single binary, single port (8081), multiple protocols.
 
 ## system design
 
@@ -17,7 +17,7 @@ pierre is a multi-protocol fitness data server that connects AI assistants to st
          │ http + oauth2
          ▼
 ┌─────────────────────────────────────────┐
-│   pierre server (rust)                  │
+│   Pierre Fitness Platform (rust)        │
 │   port 8081 (all protocols)             │
 │                                          │
 │   • mcp protocol (json-rpc 2.0)        │
@@ -76,7 +76,7 @@ pierre is a multi-protocol fitness data server that connects AI assistants to st
 
 ## error handling
 
-pierre uses structured error types for precise error handling and propagation.
+Pierre Fitness Platform uses structured error types for precise error handling and propagation.
 
 ### error type hierarchy
 

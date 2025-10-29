@@ -1,4 +1,4 @@
-# Pierre MCP Server
+# Pierre Fitness Platform
 
 <div align="center">
   <img src="templates/pierre-logo.svg" width="120" height="120" alt="Pierre Fitness Platform Logo">
@@ -11,7 +11,7 @@
 
 **Development Status**: This project is under active development. APIs and features may change.
 
-Pierre MCP Server connects AI assistants to fitness data from Strava, Garmin, and Fitbit. The server implements the Model Context Protocol (MCP) for integration with Claude, ChatGPT, and other AI assistants.
+Pierre Fitness Platform connects AI assistants to fitness data from Strava, Garmin, and Fitbit. The platform implements the Model Context Protocol (MCP), A2A protocol, OAuth 2.0, and REST APIs for integration with Claude, ChatGPT, and other AI assistants.
 
 ## Features
 
@@ -30,12 +30,12 @@ Pierre MCP Server connects AI assistants to fitness data from Strava, Garmin, an
 
 ## Architecture
 
-Pierre runs as a single HTTP server on port 8081 (configurable). All protocols (MCP, OAuth 2.0, REST API) share the same port.
+Pierre Fitness Platform runs as a single HTTP server on port 8081 (configurable). All protocols (MCP, OAuth 2.0, REST API) share the same port.
 
 ```
 ┌─────────────────┐    stdio     ┌─────────────────┐    HTTP+OAuth   ┌─────────────────┐
-│   MCP Client    │ ◄─────────►  │ Pierre SDK      │ ◄─────────────► │ Pierre MCP      │
-│                 │              │ Bridge          │                 │ Server          │
+│   MCP Client    │ ◄─────────►  │ Pierre SDK      │ ◄─────────────► │ Pierre Fitness  │
+│                 │              │ Bridge          │                 │ Platform        │
 └─────────────────┘              └─────────────────┘                 └─────────────────┘
 ```
 
@@ -83,7 +83,7 @@ cargo build --release
 
 #### Using `.envrc` (Recommended)
 
-Pierre includes a `.envrc` file for environment configuration. Use [direnv](https://direnv.net/) to automatically load environment variables:
+Pierre Fitness Platform includes a `.envrc` file for environment configuration. Use [direnv](https://direnv.net/) to automatically load environment variables:
 
 ```bash
 # Install direnv (macOS)
@@ -163,7 +163,7 @@ curl -X POST http://localhost:8081/admin/setup \
 
 ## MCP Client Integration
 
-Pierre includes an SDK bridge for direct integration with MCP clients. The SDK handles OAuth 2.0 authentication automatically.
+Pierre Fitness Platform includes an SDK bridge for direct integration with MCP clients. The SDK handles OAuth 2.0 authentication automatically.
 
 ### SDK Installation
 
@@ -233,7 +233,7 @@ Replace `/absolute/path/to/` with your actual path for local installations.
 
 When the MCP client starts, the SDK will:
 
-1. Register an OAuth 2.0 client with Pierre (RFC 7591)
+1. Register an OAuth 2.0 client with Pierre Fitness Platform (RFC 7591)
 2. Open your browser for authentication
 3. Handle the OAuth callback and token exchange
 4. Use JWT tokens for all MCP requests
@@ -242,7 +242,7 @@ No manual token management required.
 
 ## Available MCP Tools
 
-Pierre provides 25 tools through the MCP protocol. Tool definitions are in `src/protocols/universal/tool_registry.rs:12-45`.
+Pierre Fitness Platform provides 25 tools through the MCP protocol. Tool definitions are in `src/protocols/universal/tool_registry.rs:12-45`.
 
 ### Core Fitness Data
 
@@ -293,32 +293,32 @@ Tool descriptions from `src/protocols/universal/tool_registry.rs:114-162`.
 
 ## Authentication
 
-Pierre supports multiple authentication methods for different use cases.
+Pierre Fitness Platform supports multiple authentication methods for different use cases.
 
 ### OAuth vs OAuth2 - Two Different Systems
 
-Pierre implements two distinct OAuth systems with different purposes:
+The platform implements two distinct OAuth systems with different purposes:
 
 **`oauth` module** (Fitness Provider Integration):
-- Pierre acts as an OAuth **client** connecting TO external fitness providers (Strava, Garmin, Fitbit)
+- The platform acts as an OAuth **client** connecting TO external fitness providers (Strava, Garmin, Fitbit)
 - Manages user connections and tokens for accessing fitness data from these providers
 - Implementation in `src/oauth/` and `src/providers/`
 - Configuration via `STRAVA_CLIENT_ID`, `GARMIN_CLIENT_ID`, etc.
 - Used internally when fetching fitness data
 
 **`oauth2` module** (Authorization Server):
-- Pierre acts as an OAuth **server** for MCP clients connecting TO Pierre
+- The platform acts as an OAuth **server** for MCP clients connecting TO Pierre Fitness Platform
 - Implements RFC 7591 (Dynamic Client Registration) and RFC 7636 (PKCE)
 - Issues JWT access tokens for MCP protocol authentication
 - Implementation in `src/oauth2/`
 - Endpoints: `/oauth2/register`, `/oauth2/authorize`, `/oauth2/token`
-- Used by MCP clients (Claude, ChatGPT, etc.) to authenticate with Pierre
+- Used by MCP clients (Claude, ChatGPT, etc.) to authenticate with Pierre Fitness Platform
 
-**Summary**: Use `oauth` configuration for fitness provider credentials. Use `oauth2` endpoints when building MCP clients that connect to Pierre.
+**Summary**: Use `oauth` configuration for fitness provider credentials. Use `oauth2` endpoints when building MCP clients that connect to Pierre Fitness Platform.
 
 ### OAuth 2.0 Authorization Server
 
-Pierre implements an OAuth 2.0 Authorization Server for MCP client authentication. Implementation in `src/oauth2/`.
+Pierre Fitness Platform implements an OAuth 2.0 Authorization Server for MCP client authentication. Implementation in `src/oauth2/`.
 
 **OAuth 2.0 Endpoints**:
 - `GET /.well-known/oauth-authorization-server` - Server metadata (RFC 8414)
@@ -396,7 +396,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:8081/api/endpoint
 
 ## A2A (Agent-to-Agent) Protocol
 
-Pierre supports agent-to-agent communication for autonomous AI systems. Implementation in `src/a2a/`.
+Pierre Fitness Platform supports agent-to-agent communication for autonomous AI systems. Implementation in `src/a2a/`.
 
 **A2A Features**:
 - Agent Cards for capability discovery (`src/a2a/agent_card.rs`)
@@ -436,7 +436,7 @@ async fn main() -> Result<()> {
 
 ## Real-Time Notifications
 
-Pierre provides Server-Sent Events (SSE) for real-time updates. Implementation in `src/notifications/sse.rs` and `src/sse.rs`.
+Pierre Fitness Platform provides Server-Sent Events (SSE) for real-time updates. Implementation in `src/notifications/sse.rs` and `src/sse.rs`.
 
 **SSE Endpoint**:
 ```
@@ -483,7 +483,7 @@ cargo test -- --nocapture
 
 ### RSA Key Size Configuration
 
-Pierre uses RS256 asymmetric signing for JWT tokens. Key size affects both security and performance:
+Pierre Fitness Platform uses RS256 asymmetric signing for JWT tokens. Key size affects both security and performance:
 
 **Production (4096-bit keys - default)**:
 - Higher security with larger key size
@@ -501,7 +501,7 @@ export PIERRE_RSA_KEY_SIZE=2048
 
 ### Test Performance Optimization
 
-Pierre includes a shared test JWKS manager to eliminate RSA key generation overhead:
+Pierre Fitness Platform includes a shared test JWKS manager to eliminate RSA key generation overhead:
 
 **Shared Test JWKS Pattern** (implemented in `tests/common.rs:40-52`):
 ```rust
@@ -568,7 +568,7 @@ Installation guide for MCP clients:
 
 ## Code Quality
 
-Pierre uses validation scripts to maintain code quality and prevent common issues:
+Pierre Fitness Platform uses validation scripts to maintain code quality and prevent common issues:
 
 **Pre-commit Validation**:
 - Pattern validation via `scripts/validation-patterns.toml`
