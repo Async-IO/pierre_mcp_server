@@ -176,7 +176,7 @@ else
 
         # Wait for server to be ready (health check)
         echo -e "${BLUE}==== Waiting for Pierre MCP server to be ready... ====${NC}"
-        MAX_WAIT=30
+        MAX_WAIT=60
         WAIT_COUNT=0
         while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
             # Check if server process is still alive
