@@ -72,19 +72,29 @@
                         stroke-linecap="round" transform="rotate(-90 50 50)">
                     <animate attributeName="stroke-dasharray" from="0 251" to="176 251" dur="2s" fill="freeze"/>
                 </circle>
-                <!-- Inner Ring - Heart Rate (Red) -->
+                <!-- Inner Ring - Heart Rate (Soft Red) -->
                 <circle cx="50" cy="50" r="22" fill="none" stroke="#e5e7eb" stroke-width="8" opacity="0.2"/>
-                <circle cx="50" cy="50" r="22" fill="none" stroke="#dc2626" stroke-width="8"
+                <circle cx="50" cy="50" r="22" fill="none" stroke="#ef4444" stroke-width="8"
                         stroke-dasharray="138 138" stroke-dashoffset="0"
                         stroke-linecap="round" transform="rotate(-90 50 50)">
                     <animate attributeName="stroke-dasharray" from="0 138" to="125 138" dur="2s" fill="freeze"/>
                 </circle>
-                <!-- Center Heart Rate Line -->
+                <!-- ECG Waveform - Renders LAST (on top, fully visible) -->
                 <g transform="translate(50, 50)">
-                    <polyline points="-18,0 -14,0 -12,-10 -10,12 -8,0 -4,0 -2,-8 0,10 2,0 18,0"
-                              fill="none" stroke="#374151" stroke-width="2.5"
+                    <!-- Heart rate waveform - scrolling like real ECG monitor -->
+                    <polyline points="-15,0 -13,0 -11,-8 -9,9 -7,-3 -5,0 -3,0 -1,-7 1,8 3,-2 5,0 7,0 15,0"
+                              fill="none" stroke="#16a34a" stroke-width="3"
                               stroke-linecap="round" stroke-linejoin="round">
-                        <animate attributeName="opacity" values="0.4;1;0.4" dur="1.5s" repeatCount="indefinite"/>
+                        <!-- Slower scroll animation - realistic resting heart rate -->
+                        <animateTransform attributeName="transform" type="translate"
+                                          from="-30 0" to="0 0" dur="5s" repeatCount="indefinite"/>
+                    </polyline>
+                    <!-- Second waveform for seamless loop -->
+                    <polyline points="-15,0 -13,0 -11,-8 -9,9 -7,-3 -5,0 -3,0 -1,-7 1,8 3,-2 5,0 7,0 15,0"
+                              fill="none" stroke="#16a34a" stroke-width="3"
+                              stroke-linecap="round" stroke-linejoin="round">
+                        <animateTransform attributeName="transform" type="translate"
+                                          from="0 0" to="30 0" dur="5s" repeatCount="indefinite"/>
                     </polyline>
                 </g>
             </svg>
