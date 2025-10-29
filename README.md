@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="templates/pierre-logo.png" width="150" height="150" alt="Pierre Fitness Platform Logo">
+  <img src="templates/pierre-logo.svg" width="150" height="150" alt="Pierre Fitness Platform Logo">
   <h1>Pierre Fitness Platform</h1>
 </div>
 
