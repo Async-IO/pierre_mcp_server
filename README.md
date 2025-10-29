@@ -1,8 +1,7 @@
-# Pierre Fitness Platform
-
 <div align="center">
   <img src="templates/pierre-logo.svg" width="120" height="120" alt="Pierre Fitness Platform Logo">
-  <br><br>
+  <br>
+  <h1>Pierre Fitness Platform</h1>
 </div>
 
 [![Backend CI](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml)
