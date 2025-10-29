@@ -3,39 +3,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
     <title>OAuth Error - {{PROVIDER}}</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .error { color: #e74c3c; font-size: 24px; margin-bottom: 20px; }
-        .info { color: #2c3e50; margin: 10px 0; }
-        .description { background: #ffeaa7; padding: 15px; border-radius: 4px; margin: 15px 0; }
+        /* Pierre OAuth Template Design System */
+        :root {
+            --pierre-gray-50: #f9fafb;
+            --pierre-gray-200: #e5e7eb;
+            --pierre-gray-700: #374151;
+            --pierre-red-600: #dc2626;
+            --pierre-red-700: #b91c1c;
+            --pierre-yellow-100: #fef3c7;
+            --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            --font-mono: Monaco, Menlo, Ubuntu Mono, Consolas, monospace;
+            --spacing-4: 1rem;
+            --spacing-6: 1.5rem;
+            --spacing-8: 2rem;
+            --spacing-10: 2.5rem;
+            --text-sm: 0.875rem;
+            --text-base: 1rem;
+            --text-2xl: 1.5rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        body { font-family: var(--font-sans); margin: var(--spacing-10); background-color: var(--pierre-gray-50); line-height: 1.6; color: var(--pierre-gray-700); }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: var(--spacing-8); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); }
+        .error { color: var(--pierre-red-700); font-size: var(--text-2xl); margin-bottom: var(--spacing-6); font-weight: 600; }
+        .info { color: var(--pierre-gray-700); margin: var(--spacing-4) 0; font-size: var(--text-base); }
+        .code { background: var(--pierre-gray-200); padding: 0.5rem 0.75rem; border-radius: var(--radius-md); font-family: var(--font-mono); font-size: var(--text-sm); display: inline-block; }
+        .description { background: var(--pierre-yellow-100); padding: var(--spacing-4); border-radius: var(--radius-md); margin: var(--spacing-4) 0; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border: none; border-radius: var(--radius-md); font-size: var(--text-sm); font-weight: 500; cursor: pointer; transition: all var(--transition-base); margin-top: var(--spacing-4); }
+        .btn:focus { outline: 2px solid currentColor; outline-offset: 2px; }
+        .btn-danger { background-color: var(--pierre-red-600); color: white; }
+        .btn-danger:hover { background-color: var(--pierre-red-700); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+        @media (max-width: 640px) {
+            body { margin: var(--spacing-4); }
+            .container { padding: var(--spacing-6); }
+            .error { font-size: 1.25rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+        }
+        @media print {
+            body { background: white; margin: 0; }
+            .btn { display: none; }
+        }
     </style>
-    <script>
-        // Auto-close window after 30 seconds with countdown
-        window.onload = function() {
-            let seconds = 30;
-            const countdownEl = document.getElementById('countdown');
-            const interval = setInterval(() => {
-                seconds--;
-                if (countdownEl) countdownEl.textContent = seconds;
-                if (seconds <= 0) {
-                    clearInterval(interval);
-                    window.close();
-                }
-            }, 1000);
-        };
-    </script>
 </head>
 <body>
     <div class="container">
-        <h1 class="error">✗ OAuth Authorization Failed</h1>
+        <!-- Pierre Fitness Platform Logo -->
+        <div style="text-align: center; margin-bottom: var(--spacing-6);">
+            <svg width="60" height="60" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <!-- Outer Ring - Endurance (Blue) -->
+                <circle cx="50" cy="50" r="42" fill="none" stroke="#e5e7eb" stroke-width="8" opacity="0.2"/>
+                <circle cx="50" cy="50" r="42" fill="none" stroke="#2563eb" stroke-width="8"
+                        stroke-dasharray="264 311" stroke-dashoffset="0"
+                        stroke-linecap="round" transform="rotate(-90 50 50)">
+                    <animate attributeName="stroke-dasharray" from="0 311" to="264 311" dur="2s" fill="freeze"/>
+                </circle>
+                <!-- Middle Ring - Strength (Green) -->
+                <circle cx="50" cy="50" r="32" fill="none" stroke="#e5e7eb" stroke-width="8" opacity="0.2"/>
+                <circle cx="50" cy="50" r="32" fill="none" stroke="#16a34a" stroke-width="8"
+                        stroke-dasharray="176 251" stroke-dashoffset="0"
+                        stroke-linecap="round" transform="rotate(-90 50 50)">
+                    <animate attributeName="stroke-dasharray" from="0 251" to="176 251" dur="2s" fill="freeze"/>
+                </circle>
+                <!-- Inner Ring - Heart Rate (Red) -->
+                <circle cx="50" cy="50" r="22" fill="none" stroke="#e5e7eb" stroke-width="8" opacity="0.2"/>
+                <circle cx="50" cy="50" r="22" fill="none" stroke="#dc2626" stroke-width="8"
+                        stroke-dasharray="138 138" stroke-dashoffset="0"
+                        stroke-linecap="round" transform="rotate(-90 50 50)">
+                    <animate attributeName="stroke-dasharray" from="0 138" to="125 138" dur="2s" fill="freeze"/>
+                </circle>
+                <!-- Center Heart Rate Line -->
+                <g transform="translate(50, 50)">
+                    <polyline points="-18,0 -14,0 -12,-10 -10,12 -8,0 -4,0 -2,-8 0,10 2,0 18,0"
+                              fill="none" stroke="#374151" stroke-width="2.5"
+                              stroke-linecap="round" stroke-linejoin="round">
+                        <animate attributeName="opacity" values="0.4;1;0.4" dur="1.5s" repeatCount="indefinite"/>
+                    </polyline>
+                </g>
+            </svg>
+        </div>
+        <h1 class="error">Authentication Failed</h1>
         <div class="info"><strong>Provider:</strong> {{PROVIDER}}</div>
-        <div class="info"><strong>Error:</strong> {{ERROR}}</div>
+        <div class="info"><strong>Error:</strong> <span class="code">{{ERROR}}</span></div>
         {{DESCRIPTION}}
-        <p>Please try again or contact support if the problem persists.</p>
-        <p><small>This window will close automatically in <span id="countdown">30</span> seconds...</small></p>
-        <button onclick="window.close()" style="padding: 10px 20px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; font-size: 14px;">Close this window now</button>
+        <p>Please return to your MCP client and try connecting again. If the problem persists, contact support.</p>
+        <button onclick="window.close()" class="btn btn-danger" aria-label="Close this window">Close this window</button>
     </div>
 </body>
 </html>
