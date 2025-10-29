@@ -12,8 +12,11 @@
             --pierre-gray-50: #f9fafb;
             --pierre-gray-200: #e5e7eb;
             --pierre-gray-700: #374151;
+            --pierre-blue-600: #2563eb;
             --pierre-green-600: #16a34a;
             --pierre-green-700: #15803d;
+            --pierre-red-500: #ef4444;
+            --pierre-teal-500: #14b8a6;
             --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             --font-mono: Monaco, Menlo, Ubuntu Mono, Consolas, monospace;
             --spacing-4: 1rem;
@@ -34,13 +37,19 @@
         .info { color: var(--pierre-gray-700); margin: var(--spacing-4) 0; font-size: var(--text-base); }
         .code { background: var(--pierre-gray-200); padding: 0.5rem 0.75rem; border-radius: var(--radius-md); font-family: var(--font-mono); font-size: var(--text-sm); display: inline-block; }
         .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border: none; border-radius: var(--radius-md); font-size: var(--text-sm); font-weight: 500; cursor: pointer; transition: all var(--transition-base); margin-top: var(--spacing-4); }
-        .btn:focus { outline: 2px solid currentColor; outline-offset: 2px; }
+        .btn:focus { outline: none; }
+        .btn:focus-visible { outline: 2px solid var(--pierre-blue-600); outline-offset: 2px; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1); }
         .btn-success { background-color: var(--pierre-green-600); color: white; }
         .btn-success:hover { background-color: var(--pierre-green-700); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+        .logo-container { text-align: center; margin-bottom: var(--spacing-6); }
         @media (max-width: 640px) {
             body { margin: var(--spacing-4); }
             .container { padding: var(--spacing-6); }
             .success { font-size: 1.25rem; }
+        }
+        @media (min-width: 641px) and (max-width: 1024px) {
+            body { margin: var(--spacing-6); }
+            .container { padding: 1.75rem; max-width: 540px; }
         }
         @media (prefers-reduced-motion: reduce) {
             * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -54,8 +63,16 @@
 <body>
     <div class="container">
         <!-- Pierre Fitness Platform Logo -->
-        <div style="text-align: center; margin-bottom: var(--spacing-6);">
-            <svg width="60" height="60" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <div class="logo-container">
+            <svg width="60" height="60" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="logo-title logo-desc">
+                <title id="logo-title">Pierre Fitness Platform</title>
+                <desc id="logo-desc">Three concentric activity rings representing endurance, strength, and heart rate</desc>
+                <defs>
+                    <clipPath id="ecg-ring-clip">
+                        <circle cx="50" cy="50" r="32" fill="white"/>
+                        <circle cx="50" cy="50" r="22" fill="black"/>
+                    </clipPath>
+                </defs>
                 <!-- Outer Ring - Endurance (Blue) -->
                 <circle cx="50" cy="50" r="42" fill="none" stroke="#e5e7eb" stroke-width="8" opacity="0.2"/>
                 <circle cx="50" cy="50" r="42" fill="none" stroke="#2563eb" stroke-width="8"
@@ -77,19 +94,16 @@
                         stroke-linecap="round" transform="rotate(-90 50 50)">
                     <animate attributeName="stroke-dasharray" from="0 138" to="125 138" dur="2s" fill="freeze"/>
                 </circle>
-                <!-- ECG Waveform - Renders LAST (on top, fully visible) -->
-                <g transform="translate(50, 50)">
-                    <!-- Heart rate waveform - scrolling like real ECG monitor -->
+                <!-- ECG Waveform - Subtle, clipped between green and red rings -->
+                <g transform="translate(50, 50)" clip-path="url(#ecg-ring-clip)">
                     <polyline points="-15,0 -13,0 -11,-8 -9,9 -7,-3 -5,0 -3,0 -1,-7 1,8 3,-2 5,0 7,0 15,0"
-                              fill="none" stroke="#16a34a" stroke-width="3"
+                              fill="none" stroke="#14b8a6" stroke-width="2" opacity="0.45"
                               stroke-linecap="round" stroke-linejoin="round">
-                        <!-- Slower scroll animation - realistic resting heart rate -->
                         <animateTransform attributeName="transform" type="translate"
                                           from="-30 0" to="0 0" dur="5s" repeatCount="indefinite"/>
                     </polyline>
-                    <!-- Second waveform for seamless loop -->
                     <polyline points="-15,0 -13,0 -11,-8 -9,9 -7,-3 -5,0 -3,0 -1,-7 1,8 3,-2 5,0 7,0 15,0"
-                              fill="none" stroke="#16a34a" stroke-width="3"
+                              fill="none" stroke="#14b8a6" stroke-width="2" opacity="0.45"
                               stroke-linecap="round" stroke-linejoin="round">
                         <animateTransform attributeName="transform" type="translate"
                                           from="0 0" to="30 0" dur="5s" repeatCount="indefinite"/>
