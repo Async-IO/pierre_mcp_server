@@ -79,6 +79,7 @@ jobs:
           DATABASE_URL: "sqlite::memory:"
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
           PIERRE_ALLOW_INTERACTIVE_OAUTH: "false"
+          PIERRE_RSA_KEY_SIZE: "2048"
 
       - name: Clean up validation artifacts
         if: always()
