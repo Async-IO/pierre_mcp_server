@@ -274,6 +274,74 @@ pub fn handle_update_user_configuration(
     })
 }
 
+/// Calculate pace zones from VO2 max using Jack Daniels VDOT formulas
+///
+/// Returns pace zones in format "min:sec/km" based on training intensities
+fn calculate_pace_zones_from_vo2max(vo2_max: f64) -> serde_json::Value {
+    // Jack Daniels VDOT pace calculations
+    // Formula: pace (min/km) = 1000 / (velocity_m_per_min)
+    // Velocity from VO2: velocity = (VO2 + 4.60) / 0.182258 (simplified from VDOT formula)
+
+    let base_velocity = (vo2_max + 4.60) / 0.182_258; // meters per minute at VO2max
+
+    // Calculate paces for different training zones (as % of VO2max velocity)
+    let easy_velocity = base_velocity * 0.70; // 70% VO2max
+    let tempo_velocity = base_velocity * 0.82; // 82% VO2max
+    let threshold_velocity = base_velocity * 0.88; // 88% VO2max
+    let interval_velocity = base_velocity * 0.98; // 98% VO2max
+    let repetition_velocity = base_velocity * 1.10; // 110% VO2max
+
+    // Convert to min:sec per km
+    let format_pace = |velocity_m_per_min: f64| -> String {
+        let seconds_per_km = 1000.0 / velocity_m_per_min.max(1.0);
+
+        // Saturating conversion from f64 to u32 with explicit bounds checking
+        // Note: clippy::cast_possible_truncation will warn in ultra-strict mode but conversion is validated
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let total_secs = if !seconds_per_km.is_finite() || seconds_per_km < 0.0 {
+            0_u32
+        } else if seconds_per_km >= 4_294_967_295.0 {
+            u32::MAX
+        } else {
+            seconds_per_km.round() as u32
+        };
+
+        let minutes = total_secs / 60;
+        let seconds = total_secs % 60;
+        format!("{minutes}:{seconds:02}")
+    };
+
+    serde_json::json!({
+        "zone_1_easy": { "min_pace": format_pace(easy_velocity * 0.85), "max_pace": format_pace(easy_velocity * 0.95) },
+        "zone_2_moderate": { "min_pace": format_pace(tempo_velocity * 0.9), "max_pace": format_pace(tempo_velocity * 1.05) },
+        "zone_3_threshold": { "min_pace": format_pace(threshold_velocity * 0.95), "max_pace": format_pace(threshold_velocity * 1.05) },
+        "zone_4_interval": { "min_pace": format_pace(interval_velocity * 0.95), "max_pace": format_pace(interval_velocity * 1.05) },
+        "zone_5_repetition": { "min_pace": format_pace(repetition_velocity * 0.95), "max_pace": format_pace(repetition_velocity * 1.05) }
+    })
+}
+
+/// Calculate power zones from FTP (Functional Threshold Power)
+///
+/// Returns power zones in watts based on standard FTP percentages
+fn calculate_power_zones_from_ftp(ftp: u32) -> serde_json::Value {
+    // Use integer arithmetic to avoid f64→u32 cast warnings
+    // Standard FTP-based power zones using percentage multiplication with try_from
+    let zone_1_min = 0_u32; // Active Recovery: 0-55%
+    let zone_1_max = u32::try_from(u64::from(ftp) * 55 / 100).unwrap_or(u32::MAX);
+    let zone_2_max = u32::try_from(u64::from(ftp) * 75 / 100).unwrap_or(u32::MAX); // Endurance: 56-75%
+    let zone_3_max = u32::try_from(u64::from(ftp) * 90 / 100).unwrap_or(u32::MAX); // Tempo: 76-90%
+    let zone_4_max = u32::try_from(u64::from(ftp) * 105 / 100).unwrap_or(u32::MAX); // Threshold: 91-105%
+    let zone_5_max = u32::try_from(u64::from(ftp) * 120 / 100).unwrap_or(u32::MAX); // VO2max: 106-120%
+
+    serde_json::json!({
+        "zone_1": { "min_watts": zone_1_min, "max_watts": zone_1_max },
+        "zone_2": { "min_watts": zone_1_max, "max_watts": zone_2_max },
+        "zone_3": { "min_watts": zone_2_max, "max_watts": zone_3_max },
+        "zone_4": { "min_watts": zone_3_max, "max_watts": zone_4_max },
+        "zone_5": { "min_watts": zone_4_max, "max_watts": zone_5_max }
+    })
+}
+
 /// Handle `calculate_personalized_zones` tool - calculate training zones based on VO2 max
 ///
 /// # Errors
@@ -286,42 +354,29 @@ pub fn handle_calculate_personalized_zones(
     let user_profile = create_user_profile(&params);
     let (zones, zone_calculations) = calculate_heart_rate_zones(&params);
 
+    // Calculate personalized pace zones from VO2 max
+    let pace_zones = calculate_pace_zones_from_vo2max(params.vo2_max);
+
+    // Get FTP from parameters (optional) - if not provided, use default estimate
+    let ftp = request
+        .parameters
+        .get("ftp")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|f| u32::try_from(f).ok())
+        .unwrap_or(crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_ESTIMATED_FTP);
+
+    // Calculate power zones using FTP (either provided or default estimate)
+    let power_zones_result = calculate_power_zones_from_ftp(ftp);
+
     Ok(UniversalResponse {
         success: true,
         result: Some(serde_json::json!({
             "user_profile": user_profile,
             "personalized_zones": {
                 "heart_rate_zones": zones,
-                "pace_zones": {
-                    "zone_1": { "min_pace": "8:00", "max_pace": "9:00" },
-                    "zone_2": { "min_pace": "7:00", "max_pace": "8:00" },
-                    "zone_3": { "min_pace": "6:30", "max_pace": "7:00" },
-                    "zone_4": { "min_pace": "6:00", "max_pace": "6:30" },
-                    "zone_5": { "min_pace": "5:30", "max_pace": "6:00" }
-                },
-                "power_zones": {
-                    "zone_1": {
-                        "min_watts": crate::intelligence::physiological_constants::power_zones::ZONE_1_MIN_WATTS,
-                        "max_watts": crate::intelligence::physiological_constants::power_zones::ZONE_1_MAX_WATTS
-                    },
-                    "zone_2": {
-                        "min_watts": crate::intelligence::physiological_constants::power_zones::ZONE_1_MAX_WATTS,
-                        "max_watts": crate::intelligence::physiological_constants::power_zones::ZONE_2_MAX_WATTS
-                    },
-                    "zone_3": {
-                        "min_watts": crate::intelligence::physiological_constants::power_zones::ZONE_2_MAX_WATTS,
-                        "max_watts": crate::intelligence::physiological_constants::power_zones::ZONE_3_MAX_WATTS
-                    },
-                    "zone_4": {
-                        "min_watts": crate::intelligence::physiological_constants::power_zones::ZONE_3_MAX_WATTS,
-                        "max_watts": crate::intelligence::physiological_constants::power_zones::ZONE_4_MAX_WATTS
-                    },
-                    "zone_5": {
-                        "min_watts": crate::intelligence::physiological_constants::power_zones::ZONE_4_MAX_WATTS,
-                        "max_watts": crate::intelligence::physiological_constants::power_zones::ZONE_5_MAX_WATTS
-                    }
-                },
-                "estimated_ftp": crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_ESTIMATED_FTP
+                "pace_zones": pace_zones,
+                "power_zones": power_zones_result,
+                "estimated_ftp": ftp
             },
             "zone_calculations": zone_calculations
         })),
@@ -337,6 +392,18 @@ pub fn handle_calculate_personalized_zones(
             map.insert(
                 "zone_count".to_string(),
                 serde_json::Value::Number(crate::intelligence::physiological_constants::physiological_defaults::TRAINING_ZONE_COUNT.into()),
+            );
+            map.insert(
+                "ftp_used".to_string(),
+                serde_json::Value::Number(ftp.into()),
+            );
+            map.insert(
+                "ftp_source".to_string(),
+                serde_json::Value::String(if request.parameters.get("ftp").is_some() {
+                    "provided".to_string()
+                } else {
+                    "default_estimate".to_string()
+                }),
             );
             map
         }),
@@ -509,6 +576,144 @@ fn calculate_heart_rate_zones(params: &ZoneParams) -> (serde_json::Value, serde_
     (zones, zone_calculations)
 }
 
+/// Validate physiological parameter ranges
+fn validate_parameter_ranges(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    errors: &mut Vec<String>,
+) -> bool {
+    use crate::intelligence::physiological_constants::configuration_validation;
+
+    let mut all_valid = true;
+
+    // Extract parameter values
+    let max_hr = obj.get("max_hr").and_then(serde_json::Value::as_u64);
+    let resting_hr = obj.get("resting_hr").and_then(serde_json::Value::as_u64);
+    let threshold_hr = obj.get("threshold_hr").and_then(serde_json::Value::as_u64);
+    let vo2_max = obj.get("vo2_max").and_then(serde_json::Value::as_f64);
+    let ftp = obj.get("ftp").and_then(serde_json::Value::as_u64);
+
+    // Validate max_hr
+    if let Some(hr) = max_hr {
+        if !(configuration_validation::MAX_HR_MIN..=configuration_validation::MAX_HR_MAX)
+            .contains(&hr)
+        {
+            all_valid = false;
+            errors.push(format!(
+                "max_hr must be between {} and {} bpm, got {}",
+                configuration_validation::MAX_HR_MIN,
+                configuration_validation::MAX_HR_MAX,
+                hr
+            ));
+        }
+    }
+
+    // Validate resting_hr
+    if let Some(hr) = resting_hr {
+        if !(configuration_validation::RESTING_HR_MIN..=configuration_validation::RESTING_HR_MAX)
+            .contains(&hr)
+        {
+            all_valid = false;
+            errors.push(format!(
+                "resting_hr must be between {} and {} bpm, got {}",
+                configuration_validation::RESTING_HR_MIN,
+                configuration_validation::RESTING_HR_MAX,
+                hr
+            ));
+        }
+    }
+
+    // Validate threshold_hr
+    if let Some(hr) = threshold_hr {
+        if !(configuration_validation::THRESHOLD_HR_MIN
+            ..=configuration_validation::THRESHOLD_HR_MAX)
+            .contains(&hr)
+        {
+            all_valid = false;
+            errors.push(format!(
+                "threshold_hr must be between {} and {} bpm, got {}",
+                configuration_validation::THRESHOLD_HR_MIN,
+                configuration_validation::THRESHOLD_HR_MAX,
+                hr
+            ));
+        }
+    }
+
+    // Validate vo2_max
+    if let Some(vo2) = vo2_max {
+        if !(configuration_validation::VO2_MAX_MIN..=configuration_validation::VO2_MAX_MAX)
+            .contains(&vo2)
+        {
+            all_valid = false;
+            errors.push(format!(
+                "vo2_max must be between {} and {} ml/kg/min, got {:.1}",
+                configuration_validation::VO2_MAX_MIN,
+                configuration_validation::VO2_MAX_MAX,
+                vo2
+            ));
+        }
+    }
+
+    // Validate ftp
+    if let Some(power) = ftp {
+        if !(configuration_validation::FTP_MIN..=configuration_validation::FTP_MAX).contains(&power)
+        {
+            all_valid = false;
+            errors.push(format!(
+                "ftp must be between {} and {} watts, got {}",
+                configuration_validation::FTP_MIN,
+                configuration_validation::FTP_MAX,
+                power
+            ));
+        }
+    }
+
+    all_valid
+}
+
+/// Validate physiological parameter relationships
+fn validate_parameter_relationships(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    errors: &mut Vec<String>,
+) -> bool {
+    let mut all_valid = true;
+
+    let max_hr = obj.get("max_hr").and_then(serde_json::Value::as_u64);
+    let resting_hr = obj.get("resting_hr").and_then(serde_json::Value::as_u64);
+    let threshold_hr = obj.get("threshold_hr").and_then(serde_json::Value::as_u64);
+
+    // Validate resting_hr < max_hr
+    if let (Some(resting), Some(max)) = (resting_hr, max_hr) {
+        if resting >= max {
+            all_valid = false;
+            errors.push(format!(
+                "resting_hr ({resting}) must be less than max_hr ({max})"
+            ));
+        }
+    }
+
+    // Validate resting_hr < threshold_hr
+    if let (Some(resting), Some(threshold)) = (resting_hr, threshold_hr) {
+        if resting >= threshold {
+            all_valid = false;
+            errors.push(format!(
+                "resting_hr ({resting}) must be less than threshold_hr ({threshold})"
+            ));
+        }
+    }
+
+    // Validate threshold_hr < max_hr
+    if let (Some(threshold), Some(max)) = (threshold_hr, max_hr) {
+        if threshold >= max {
+            all_valid = false;
+            errors.push(format!(
+                "threshold_hr ({threshold}) must be less than max_hr ({max})"
+            ));
+        }
+    }
+
+    all_valid
+}
+
 /// Handle `validate_configuration` tool - validate configuration parameters
 ///
 /// # Errors
@@ -527,37 +732,56 @@ pub fn handle_validate_configuration(
     if parameters.is_object() {
         let param_count = parameters.as_object().map_or(0, serde_json::Map::len);
 
-        // Check for invalid parameter names or values
-        let mut validation_passed = true;
+        // Collect validation errors
         let mut errors = Vec::new();
 
         if let Some(obj) = parameters.as_object() {
+            // Perform range validations
+            let ranges_valid = validate_parameter_ranges(obj, &mut errors);
+
+            // Perform relationship validations
+            let relationships_valid = validate_parameter_relationships(obj, &mut errors);
+
+            // Legacy check for "invalid" string patterns (backward compatibility)
+            let mut legacy_valid = true;
             for (key, value) in obj {
-                // Check for invalid parameter naming pattern
                 if key.contains("invalid") || key.starts_with("invalid.") {
-                    validation_passed = false;
+                    legacy_valid = false;
                     errors.push(format!("Invalid parameter name: {key}"));
                 }
 
-                // Check for invalid values
                 if value.is_string() && value.as_str() == Some("invalid_value") {
-                    validation_passed = false;
+                    legacy_valid = false;
                     errors.push(format!("Invalid value for parameter: {key}"));
                 }
             }
+
+            let validation_passed = ranges_valid && relationships_valid && legacy_valid;
+
+            return Ok(UniversalResponse {
+                success: true,
+                result: Some(serde_json::json!({
+                    "validation_passed": validation_passed,
+                    "parameters_validated": param_count,
+                    "message": if validation_passed {
+                        "Configuration parameters are valid"
+                    } else {
+                        "Configuration validation failed"
+                    },
+                    "errors": if errors.is_empty() { serde_json::Value::Null } else { serde_json::json!(errors) }
+                })),
+                error: None,
+                metadata: None,
+            });
         }
 
         Ok(UniversalResponse {
             success: true,
             result: Some(serde_json::json!({
-                "validation_passed": validation_passed,
+                "validation_passed": true,
                 "parameters_validated": param_count,
-                "message": if validation_passed {
-                    "Configuration parameters are valid"
-                } else {
-                    "Configuration validation failed"
-                },
-                "errors": if errors.is_empty() { serde_json::Value::Null } else { serde_json::json!(errors) }
+                "message": "Configuration parameters are valid",
+                "errors": serde_json::Value::Null
             })),
             error: None,
             metadata: None,

@@ -339,10 +339,10 @@ pub fn handle_suggest_goals(
                 // Try to deserialize as UserFitnessProfile
                 serde_json::from_value(profile_json).unwrap_or_else(|_| {
                     // Fallback if profile doesn't match structure
-                    create_fallback_profile(request.user_id.clone())
+                    create_fallback_profile(request.user_id.clone(), &activities)
                 })
             }
-            Ok(None) | Err(_) => create_fallback_profile(request.user_id.clone()),
+            Ok(None) | Err(_) => create_fallback_profile(request.user_id.clone(), &activities),
         };
 
         match goal_engine.suggest_goals(&user_profile, &activities).await {
@@ -468,6 +468,36 @@ pub fn handle_analyze_goal_feasibility(
     })
 }
 
+/// Calculate actual training history weeks from activity date range
+///
+/// Calculates the number of weeks covered by activities based on their `start_date` timestamps.
+/// Falls back to `ASSUMED_TRAINING_HISTORY_WEEKS` if fewer than 2 activities (cannot calculate range).
+///
+/// # Arguments
+/// * `activities` - Slice of activities to analyze
+///
+/// # Returns
+/// Number of weeks covered by activities, minimum 1.0 week
+fn calculate_training_history_weeks(activities: &[crate::models::Activity]) -> f64 {
+    if activities.len() < 2 {
+        return crate::intelligence::physiological_constants::goal_feasibility::ASSUMED_TRAINING_HISTORY_WEEKS;
+    }
+
+    // Find earliest and latest activity dates
+    let mut dates: Vec<chrono::DateTime<chrono::Utc>> =
+        activities.iter().map(|a| a.start_date).collect();
+    dates.sort();
+
+    if let (Some(first), Some(last)) = (dates.first(), dates.last()) {
+        let days = (*last - *first).num_days();
+        let weeks = safe_i64_to_f64(days.max(1)) / 7.0;
+        // Return at least 1 week, or the actual range
+        weeks.max(1.0)
+    } else {
+        crate::intelligence::physiological_constants::goal_feasibility::ASSUMED_TRAINING_HISTORY_WEEKS
+    }
+}
+
 /// Analyze feasibility of distance goal
 fn analyze_distance_goal_feasibility(
     activities: &[crate::models::Activity],
@@ -494,9 +524,10 @@ fn analyze_distance_goal_feasibility(
     let activity_count = safe_usize_to_f64(activities.len());
     let avg_distance_per_activity = recent_total_distance / activity_count;
 
-    // Estimate activities per week
+    // Calculate actual training history from activity dates
+    let training_weeks = calculate_training_history_weeks(activities);
     let weeks_in_timeframe = f64::from(timeframe_days) / 7.0;
-    let estimated_activities = (activity_count / crate::intelligence::physiological_constants::goal_feasibility::ASSUMED_TRAINING_HISTORY_WEEKS) * weeks_in_timeframe; // Assume current data is ~4 weeks
+    let estimated_activities = (activity_count / training_weeks) * weeks_in_timeframe;
 
     let projected_distance = avg_distance_per_activity * estimated_activities;
 
@@ -548,8 +579,9 @@ fn analyze_duration_goal_feasibility(
         f64::from(u32::try_from(total_duration.min(u64::from(u32::MAX))).unwrap_or(u32::MAX))
             / crate::constants::time_constants::SECONDS_PER_HOUR_F64;
 
+    let training_weeks = calculate_training_history_weeks(activities);
     let weeks_in_timeframe = f64::from(timeframe_days) / 7.0;
-    let projected_hours = (current_hours / crate::intelligence::physiological_constants::goal_feasibility::ASSUMED_TRAINING_HISTORY_WEEKS) * weeks_in_timeframe;
+    let projected_hours = (current_hours / training_weeks) * weeks_in_timeframe;
 
     let confidence = if activities.len() >= crate::intelligence::physiological_constants::goal_feasibility::EXCELLENT_DATA_QUALITY_THRESHOLD { crate::intelligence::physiological_constants::goal_feasibility::HIGH_CONFIDENCE_LEVEL } else { crate::intelligence::physiological_constants::goal_feasibility::MEDIUM_CONFIDENCE_LEVEL };
 
@@ -569,8 +601,9 @@ fn analyze_frequency_goal_feasibility(
 ) -> (f64, f64, Vec<String>, Vec<String>) {
     // Convert activity count to f64 with safe conversion helper
     let current_count = safe_usize_to_f64(activities.len());
+    let training_weeks = calculate_training_history_weeks(activities);
     let weeks_in_timeframe = f64::from(timeframe_days) / 7.0;
-    let current_weekly_frequency = current_count / crate::intelligence::physiological_constants::goal_feasibility::ASSUMED_TRAINING_HISTORY_WEEKS; // Assume ~4 weeks of data
+    let current_weekly_frequency = current_count / training_weeks;
     let projected_count = current_weekly_frequency * weeks_in_timeframe;
 
     let confidence = if current_count >= f64::from(crate::intelligence::physiological_constants::goal_feasibility::ADEQUATE_FREQUENCY_DATA_THRESHOLD) {
@@ -587,17 +620,97 @@ fn analyze_frequency_goal_feasibility(
     )
 }
 
+/// Calculate training history in months from activity dates
+fn calculate_training_history_months(activities: &[crate::models::Activity]) -> i32 {
+    if activities.is_empty() {
+        return 0;
+    }
+
+    // Find earliest activity date
+    let earliest_date = activities
+        .iter()
+        .map(|a| a.start_date)
+        .min()
+        .unwrap_or_else(chrono::Utc::now);
+
+    // Calculate months since earliest activity
+    let now = chrono::Utc::now();
+    let duration = now.signed_duration_since(earliest_date);
+    let days = duration.num_days();
+
+    // Convert days to months (using 30.44 days per month average)
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+    ((days as f64 / 30.44).round() as i32).max(0)
+}
+
+/// Detect primary sport from activity frequency
+fn detect_primary_sport(activities: &[crate::models::Activity]) -> Vec<String> {
+    use std::collections::HashMap;
+
+    if activities.is_empty() {
+        return vec![];
+    }
+
+    // Count activities by sport type
+    let mut sport_counts: HashMap<String, usize> = HashMap::new();
+    for activity in activities {
+        let sport_name = format!("{:?}", activity.sport_type);
+        *sport_counts.entry(sport_name).or_insert(0) += 1;
+    }
+
+    // Find sport with most activities
+    sport_counts
+        .into_iter()
+        .max_by_key(|(_, count)| *count)
+        .map(|(sport, _)| vec![sport])
+        .unwrap_or_default()
+}
+
+/// Infer fitness level from training consistency
+fn infer_fitness_level(
+    activities: &[crate::models::Activity],
+) -> crate::intelligence::FitnessLevel {
+    if activities.is_empty() {
+        return crate::intelligence::FitnessLevel::Beginner;
+    }
+
+    let training_weeks = calculate_training_history_weeks(activities);
+    #[allow(clippy::cast_precision_loss)]
+    let activities_per_week = activities.len() as f64 / training_weeks;
+
+    // Classify based on training volume and consistency
+    if activities_per_week >= 5.0 && training_weeks >= 26.0 {
+        crate::intelligence::FitnessLevel::Advanced
+    } else if activities_per_week >= 3.0 && training_weeks >= 12.0 {
+        crate::intelligence::FitnessLevel::Intermediate
+    } else {
+        crate::intelligence::FitnessLevel::Beginner
+    }
+}
+
 /// Create a fallback user profile when database profile is unavailable
-fn create_fallback_profile(user_id: String) -> crate::intelligence::UserFitnessProfile {
+///
+/// Calculates real values from activity data instead of using hardcoded defaults:
+/// - `training_history_months`: calculated from earliest activity date
+/// - `primary_sports`: detected from activity frequency
+/// - `fitness_level`: inferred from training consistency and volume
+fn create_fallback_profile(
+    user_id: String,
+    activities: &[crate::models::Activity],
+) -> crate::intelligence::UserFitnessProfile {
+    let training_history_months = calculate_training_history_months(activities);
+    let primary_sports = detect_primary_sport(activities);
+    let fitness_level = infer_fitness_level(activities);
+
     crate::intelligence::UserFitnessProfile {
         user_id,
         age: None,
         gender: None,
         weight: None,
         height: None,
-        fitness_level: crate::intelligence::FitnessLevel::Beginner,
-        primary_sports: vec![],
-        training_history_months: 0,
+        fitness_level,
+        primary_sports,
+        training_history_months,
         preferences: crate::intelligence::UserPreferences {
             preferred_units: "metric".into(),
             training_focus: vec![],

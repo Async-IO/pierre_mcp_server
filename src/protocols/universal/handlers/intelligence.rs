@@ -6,6 +6,7 @@
 
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
+use chrono::{Duration, Utc};
 use std::future::Future;
 use std::pin::Pin;
 
@@ -142,6 +143,13 @@ pub fn handle_calculate_metrics(
 fn generate_activity_insights(
     activity: &crate::models::Activity,
 ) -> (Vec<String>, Vec<&'static str>) {
+    use crate::intelligence::physiological_constants::{
+        business_thresholds::{
+            ACHIEVEMENT_DISTANCE_THRESHOLD_KM, ACHIEVEMENT_ELEVATION_THRESHOLD_M,
+        },
+        heart_rate::HIGH_INTENSITY_HR_THRESHOLD,
+    };
+
     let mut insights = Vec::new();
     let mut recommendations = Vec::new();
 
@@ -149,7 +157,7 @@ fn generate_activity_insights(
     if let Some(distance) = activity.distance_meters {
         let km = distance / 1000.0;
         insights.push(format!("Activity covered {km:.2} km"));
-        if km > 10.0 {
+        if km > ACHIEVEMENT_DISTANCE_THRESHOLD_KM {
             recommendations.push("Great long-distance effort! Ensure proper recovery time");
         }
     }
@@ -157,7 +165,7 @@ fn generate_activity_insights(
     // Analyze elevation
     if let Some(elevation) = activity.elevation_gain {
         insights.push(format!("Total elevation gain: {elevation:.0} meters"));
-        if elevation > 500.0 {
+        if elevation > ACHIEVEMENT_ELEVATION_THRESHOLD_M {
             recommendations.push("Significant elevation - consider targeted hill training");
         }
     }
@@ -165,7 +173,7 @@ fn generate_activity_insights(
     // Analyze heart rate
     if let Some(avg_hr) = activity.average_heart_rate {
         insights.push(format!("Average heart rate: {avg_hr} bpm"));
-        if avg_hr > 160 {
+        if avg_hr > HIGH_INTENSITY_HR_THRESHOLD {
             recommendations.push("High-intensity effort detected - monitor recovery");
         }
     }
@@ -474,6 +482,10 @@ pub fn handle_compare_activities(
             .get("comparison_type")
             .and_then(|v| v.as_str())
             .unwrap_or("similar_activities");
+        let compare_activity_id = request
+            .parameters
+            .get("compare_activity_id")
+            .and_then(|v| v.as_str());
 
         match executor
             .auth_service
@@ -515,6 +527,7 @@ pub fn handle_compare_activities(
                             &target_activity,
                             &all_activities,
                             comparison_type,
+                            compare_activity_id,
                         );
 
                         Ok(UniversalResponse {
@@ -1019,7 +1032,7 @@ fn analyze_performance_trend(
     metric: &str,
     timeframe: &str,
 ) -> serde_json::Value {
-    use chrono::{DateTime, Utc};
+    use crate::intelligence::SafeMetricExtractor;
 
     if activities.is_empty() {
         return serde_json::json!({
@@ -1031,11 +1044,26 @@ fn analyze_performance_trend(
         });
     }
 
+    // Parse metric string to MetricType
+    let metric_type = match parse_metric_type(metric) {
+        Ok(mt) => mt,
+        Err(error_msg) => {
+            return serde_json::json!({
+                "metric": metric,
+                "timeframe": timeframe,
+                "trend": "invalid_metric",
+                "activities_analyzed": 0,
+                "insights": [error_msg]
+            });
+        }
+    };
+
     // Filter activities by timeframe
     let cutoff_date = calculate_cutoff_date(timeframe);
-    let filtered_activities: Vec<&crate::models::Activity> = activities
+    let filtered_activities: Vec<crate::models::Activity> = activities
         .iter()
         .filter(|a| a.start_date >= cutoff_date)
+        .cloned()
         .collect();
 
     if filtered_activities.len() < 2 {
@@ -1048,15 +1076,20 @@ fn analyze_performance_trend(
         });
     }
 
-    // Extract metric values with timestamps
-    let data_points: Vec<(DateTime<Utc>, f64)> = filtered_activities
-        .iter()
-        .filter_map(|activity| {
-            extract_metric_value(activity, metric).map(|value| (activity.start_date, value))
-        })
-        .collect();
+    // Extract metric values using SafeMetricExtractor
+    let Ok(data_points_with_timestamp) =
+        SafeMetricExtractor::extract_metric_values(&filtered_activities, metric_type)
+    else {
+        return serde_json::json!({
+            "metric": metric,
+            "timeframe": timeframe,
+            "trend": "insufficient_data",
+            "activities_analyzed": filtered_activities.len(),
+            "insights": [format!("Metric '{}' not available in enough activities", metric)]
+        });
+    };
 
-    if data_points.len() < 2 {
+    if data_points_with_timestamp.len() < 2 {
         return serde_json::json!({
             "metric": metric,
             "timeframe": timeframe,
@@ -1066,41 +1099,102 @@ fn analyze_performance_trend(
         });
     }
 
-    // Perform linear regression
-    let regression_result = calculate_linear_regression(&data_points);
+    // Convert to TrendDataPoint format and perform regression
+    compute_trend_statistics(metric, timeframe, metric_type, &data_points_with_timestamp)
+}
 
-    // Calculate moving average (7-day window)
-    let moving_avg = calculate_moving_average(&data_points, 7);
+/// Compute trend statistics from data points
+fn compute_trend_statistics(
+    metric: &str,
+    timeframe: &str,
+    metric_type: crate::intelligence::MetricType,
+    data_points_with_timestamp: &[(chrono::DateTime<chrono::Utc>, f64)],
+) -> serde_json::Value {
+    use crate::intelligence::{StatisticalAnalyzer, TrendDataPoint, TrendDirection};
 
-    // Determine trend direction and confidence
-    let trend_direction =
-        determine_trend_direction(regression_result.slope, regression_result.r_squared);
+    // Convert to TrendDataPoint format
+    let trend_data_points: Vec<TrendDataPoint> = data_points_with_timestamp
+        .iter()
+        .map(|(date, value)| TrendDataPoint {
+            date: *date,
+            value: *value,
+            smoothed_value: None,
+        })
+        .collect();
+
+    // Perform linear regression using StatisticalAnalyzer
+    let Ok(regression_result) = StatisticalAnalyzer::linear_regression(&trend_data_points) else {
+        return serde_json::json!({
+            "metric": metric,
+            "timeframe": timeframe,
+            "trend": "calculation_error",
+            "activities_analyzed": trend_data_points.len(),
+            "insights": ["Unable to calculate trend statistics"]
+        });
+    };
+
+    // Calculate simple average for comparison
+    let sum: f64 = data_points_with_timestamp.iter().map(|(_, v)| v).sum();
+    #[allow(clippy::cast_precision_loss)]
+    let moving_avg = sum / data_points_with_timestamp.len() as f64;
+
+    // Determine trend direction using proper logic
+    let slope_threshold = 0.01;
+    let trend_direction_enum = StatisticalAnalyzer::determine_trend_direction(
+        &regression_result,
+        metric_type.is_lower_better(),
+        slope_threshold,
+    );
+
+    let trend_direction = match trend_direction_enum {
+        TrendDirection::Improving => "improving",
+        TrendDirection::Stable => "stable",
+        TrendDirection::Declining => "declining",
+    };
 
     // Generate insights
     let insights = generate_trend_insights(
         metric,
-        &trend_direction,
+        trend_direction,
         regression_result.slope,
         regression_result.r_squared,
-        &data_points,
+        data_points_with_timestamp,
     );
 
     serde_json::json!({
         "metric": metric,
         "timeframe": timeframe,
         "trend": trend_direction,
-        "activities_analyzed": data_points.len(),
+        "activities_analyzed": data_points_with_timestamp.len(),
         "statistics": {
             "slope": regression_result.slope,
             "r_squared": regression_result.r_squared,
             "confidence": regression_result.r_squared,
+            "correlation": regression_result.correlation,
+            "standard_error": regression_result.standard_error,
+            "p_value": regression_result.p_value,
             "moving_average_7day": moving_avg,
-            "start_value": data_points.first().map(|(_, v)| v),
-            "end_value": data_points.last().map(|(_, v)| v),
-            "percent_change": calculate_percent_change(&data_points),
+            "start_value": data_points_with_timestamp.first().map(|(_, v)| v),
+            "end_value": data_points_with_timestamp.last().map(|(_, v)| v),
+            "percent_change": calculate_percent_change(data_points_with_timestamp),
         },
         "insights": insights,
     })
+}
+
+/// Parse metric string to `MetricType`
+fn parse_metric_type(metric: &str) -> Result<crate::intelligence::MetricType, String> {
+    use crate::intelligence::MetricType;
+    match metric.to_lowercase().as_str() {
+        "pace" => Ok(MetricType::Pace),
+        "speed" => Ok(MetricType::Speed),
+        "heart_rate" | "hr" => Ok(MetricType::HeartRate),
+        "distance" => Ok(MetricType::Distance),
+        "duration" => Ok(MetricType::Duration),
+        "elevation" => Ok(MetricType::Elevation),
+        "power" => Ok(MetricType::Power),
+        _ => Err(format!("Unknown metric type: {metric}")),
+    }
 }
 
 /// Calculate cutoff date based on timeframe
@@ -1113,136 +1207,6 @@ fn calculate_cutoff_date(timeframe: &str) -> chrono::DateTime<chrono::Utc> {
         "quarter" => now - Duration::days(90),
         "year" => now - Duration::days(365),
         _ => now - Duration::days(30), // default to month
-    }
-}
-
-/// Extract metric value from activity
-fn extract_metric_value(activity: &crate::models::Activity, metric: &str) -> Option<f64> {
-    match metric {
-        "pace" => {
-            // pace in min/km
-            if let Some(distance) = activity.distance_meters {
-                if distance > 0.0 && activity.duration_seconds > 0 {
-                    #[allow(clippy::cast_precision_loss)]
-                    let seconds_per_km = (activity.duration_seconds as f64 / distance) * 1000.0;
-                    return Some(seconds_per_km / 60.0); // convert to min/km
-                }
-            }
-            None
-        }
-        "speed" => activity.average_speed,
-        "distance" => activity.distance_meters,
-        "duration" => {
-            #[allow(clippy::cast_precision_loss)]
-            let duration_f64 = activity.duration_seconds as f64;
-            Some(duration_f64)
-        }
-        "heart_rate" | "hr" => activity.average_heart_rate.map(f64::from),
-        "power" => activity.average_power.map(f64::from),
-        "elevation" => activity.elevation_gain,
-        _ => None,
-    }
-}
-
-#[derive(Debug)]
-struct RegressionResult {
-    slope: f64,
-    r_squared: f64,
-}
-
-/// Calculate linear regression on time-series data
-fn calculate_linear_regression(data: &[(chrono::DateTime<chrono::Utc>, f64)]) -> RegressionResult {
-    if data.len() < 2 {
-        return RegressionResult {
-            slope: 0.0,
-            r_squared: 0.0,
-        };
-    }
-
-    // Convert timestamps to days since first activity
-    let first_timestamp = data[0].0.timestamp();
-    #[allow(clippy::cast_precision_loss)]
-    let x_values: Vec<f64> = data
-        .iter()
-        .map(|(date, _)| (date.timestamp() - first_timestamp) as f64 / 86400.0) // days
-        .collect();
-    let y_values: Vec<f64> = data.iter().map(|(_, value)| *value).collect();
-
-    #[allow(clippy::cast_precision_loss)]
-    let n = x_values.len() as f64;
-
-    // Calculate means
-    let x_mean = x_values.iter().sum::<f64>() / n;
-    let y_mean = y_values.iter().sum::<f64>() / n;
-
-    // Calculate slope and intercept
-    let mut numerator = 0.0;
-    let mut denominator = 0.0;
-    for (x, y) in x_values.iter().zip(y_values.iter()) {
-        numerator += (x - x_mean) * (y - y_mean);
-        denominator += (x - x_mean) * (x - x_mean);
-    }
-
-    let slope = if denominator.abs() > f64::EPSILON {
-        numerator / denominator
-    } else {
-        0.0
-    };
-
-    // Calculate R²
-    let y_variance: f64 = y_values.iter().map(|y| (y - y_mean).powi(2)).sum();
-    let residual_variance: f64 = x_values
-        .iter()
-        .zip(y_values.iter())
-        .map(|(x, y)| {
-            let predicted = slope.mul_add(x - x_mean, y_mean);
-            (y - predicted).powi(2)
-        })
-        .sum();
-
-    let r_squared = if y_variance.abs() > f64::EPSILON {
-        1.0 - (residual_variance / y_variance)
-    } else {
-        0.0
-    };
-
-    RegressionResult {
-        slope,
-        r_squared: r_squared.clamp(0.0, 1.0),
-    }
-}
-
-/// Calculate moving average over window
-fn calculate_moving_average(
-    data: &[(chrono::DateTime<chrono::Utc>, f64)],
-    _window_days: u32,
-) -> f64 {
-    if data.is_empty() {
-        return 0.0;
-    }
-
-    // Simple average for now (could be enhanced to use actual window)
-    let sum: f64 = data.iter().map(|(_, v)| v).sum();
-    #[allow(clippy::cast_precision_loss)]
-    let avg = sum / data.len() as f64;
-    avg
-}
-
-/// Determine trend direction from slope and confidence
-fn determine_trend_direction(slope: f64, r_squared: f64) -> String {
-    const IMPROVEMENT_THRESHOLD: f64 = 0.01;
-    const CONFIDENCE_THRESHOLD: f64 = 0.3;
-
-    if r_squared < CONFIDENCE_THRESHOLD {
-        return "stable".to_string();
-    }
-
-    if slope.abs() < IMPROVEMENT_THRESHOLD {
-        "stable".to_string()
-    } else if slope > 0.0 {
-        "improving".to_string()
-    } else {
-        "declining".to_string()
     }
 }
 
@@ -1333,14 +1297,14 @@ fn compare_activity_logic(
     target: &crate::models::Activity,
     all_activities: &[crate::models::Activity],
     comparison_type: &str,
+    compare_activity_id: Option<&str>,
 ) -> serde_json::Value {
     match comparison_type {
         "pr_comparison" => compare_with_personal_records(target, all_activities),
-        "specific_activity" => {
-            // For specific activity, we'd need a second activity_id parameter
-            // For now, compare with most similar recent activity
-            compare_with_similar_activities(target, all_activities)
-        }
+        "specific_activity" => compare_activity_id.map_or_else(
+            || compare_with_similar_activities(target, all_activities),
+            |compare_id| compare_with_specific_activity(target, all_activities, compare_id),
+        ),
         _ => compare_with_similar_activities(target, all_activities),
     }
 }
@@ -1550,7 +1514,160 @@ fn compare_with_personal_records(
     })
 }
 
-/// Check if two distances are similar (within 20%)
+/// Compare activity with a specific activity by ID
+fn compare_with_specific_activity(
+    target: &crate::models::Activity,
+    all_activities: &[crate::models::Activity],
+    compare_id: &str,
+) -> serde_json::Value {
+    // Find the specific activity to compare with
+    let compare_activity = all_activities.iter().find(|a| a.id == compare_id);
+
+    let Some(compare) = compare_activity else {
+        return serde_json::json!({
+            "activity_id": target.id,
+            "comparison_type": "specific_activity",
+            "error": format!("Activity with ID '{}' not found", compare_id),
+            "insights": [format!("Could not find activity '{}' for comparison", compare_id)],
+        });
+    };
+
+    // Calculate metrics for both activities
+    let target_pace = calculate_pace(target);
+    let compare_pace = calculate_pace(compare);
+    let target_hr = target.average_heart_rate.map(f64::from);
+    let compare_hr = compare.average_heart_rate.map(f64::from);
+
+    let mut comparisons = Vec::new();
+    let mut insights = Vec::new();
+
+    // Distance comparison
+    if let (Some(target_dist), Some(compare_dist)) =
+        (target.distance_meters, compare.distance_meters)
+    {
+        let dist_diff_pct = ((target_dist - compare_dist) / compare_dist) * 100.0;
+        comparisons.push(serde_json::json!({
+            "metric": "distance",
+            "current": target_dist,
+            "comparison": compare_dist,
+            "difference_percent": dist_diff_pct,
+        }));
+    }
+
+    // Pace comparison
+    if let (Some(target_p), Some(compare_p)) = (target_pace, compare_pace) {
+        let pace_diff_pct = ((target_p - compare_p) / compare_p) * 100.0;
+        comparisons.push(serde_json::json!({
+            "metric": "pace",
+            "current": target_p,
+            "comparison": compare_p,
+            "difference_percent": pace_diff_pct,
+            "improved": pace_diff_pct < 0.0, // faster pace = lower value
+        }));
+        add_pace_insights(pace_diff_pct, &mut insights);
+    }
+
+    // Heart rate comparison
+    if let (Some(target_h), Some(compare_h)) = (target_hr, compare_hr) {
+        let hr_diff_pct = ((target_h - compare_h) / compare_h) * 100.0;
+        comparisons.push(serde_json::json!({
+            "metric": "heart_rate",
+            "current": target_h,
+            "comparison": compare_h,
+            "difference_percent": hr_diff_pct,
+            "improved": hr_diff_pct < 0.0, // lower HR = better efficiency
+        }));
+        add_heart_rate_insights(hr_diff_pct, &mut insights);
+    }
+
+    // Duration comparison
+    #[allow(clippy::cast_precision_loss)]
+    let duration_diff_pct = ((target.duration_seconds as f64 - compare.duration_seconds as f64)
+        / compare.duration_seconds as f64)
+        * 100.0;
+    comparisons.push(serde_json::json!({
+        "metric": "duration",
+        "current": target.duration_seconds,
+        "comparison": compare.duration_seconds,
+        "difference_percent": duration_diff_pct,
+    }));
+
+    // Elevation comparison
+    if let (Some(target_elev), Some(compare_elev)) = (target.elevation_gain, compare.elevation_gain)
+    {
+        let elev_diff_pct = ((target_elev - compare_elev) / compare_elev) * 100.0;
+        comparisons.push(serde_json::json!({
+            "metric": "elevation_gain",
+            "current": target_elev,
+            "comparison": compare_elev,
+            "difference_percent": elev_diff_pct,
+        }));
+    }
+
+    // Power comparison (if available)
+    if let (Some(target_power), Some(compare_power)) = (target.average_power, compare.average_power)
+    {
+        let power_diff_pct = ((f64::from(target_power) - f64::from(compare_power))
+            / f64::from(compare_power))
+            * 100.0;
+        comparisons.push(serde_json::json!({
+            "metric": "average_power",
+            "current": target_power,
+            "comparison": compare_power,
+            "difference_percent": power_diff_pct,
+            "improved": power_diff_pct > 0.0, // higher power = better
+        }));
+        add_power_insights(power_diff_pct, &mut insights);
+    }
+
+    if insights.is_empty() {
+        insights.push("Metrics are similar to the comparison activity".to_string());
+    }
+
+    serde_json::json!({
+        "activity_id": target.id,
+        "comparison_type": "specific_activity",
+        "comparison_activity_id": compare_id,
+        "comparison_activity_name": compare.name,
+        "sport_type": format!("{:?}", target.sport_type),
+        "comparisons": comparisons,
+        "insights": insights,
+    })
+}
+
+/// Helper to generate pace comparison insights
+fn add_pace_insights(pace_diff_pct: f64, insights: &mut Vec<String>) {
+    if pace_diff_pct < -5.0 {
+        insights.push(format!(
+            "Pace improved by {:.1}% compared to the selected activity",
+            pace_diff_pct.abs()
+        ));
+    } else if pace_diff_pct > 5.0 {
+        insights.push(format!(
+            "Pace was {pace_diff_pct:.1}% slower than the selected activity"
+        ));
+    } else {
+        insights.push("Pace was similar to the selected activity".to_string());
+    }
+}
+
+/// Helper to generate heart rate comparison insights
+fn add_heart_rate_insights(hr_diff_pct: f64, insights: &mut Vec<String>) {
+    if hr_diff_pct < -5.0 {
+        insights.push("Heart rate efficiency improved - same effort at lower HR".to_string());
+    } else if hr_diff_pct > 5.0 {
+        insights.push("Heart rate was higher - review pacing or recovery status".to_string());
+    }
+}
+
+/// Helper to generate power comparison insights
+fn add_power_insights(power_diff_pct: f64, insights: &mut Vec<String>) {
+    if power_diff_pct > 5.0 {
+        insights.push(format!("Power output increased by {power_diff_pct:.1}%"));
+    }
+}
+
+/// Check if two distances are similar (within 10%)
 fn is_similar_distance(dist1: Option<f64>, dist2: Option<f64>) -> bool {
     match (dist1, dist2) {
         (Some(d1), Some(d2)) => {
@@ -1558,7 +1675,7 @@ fn is_similar_distance(dist1: Option<f64>, dist2: Option<f64>) -> bool {
                 return false;
             }
             let ratio = (d1 / d2 - 1.0).abs();
-            ratio < 0.2 // within 20%
+            ratio < 0.1 // within 10%
         }
         _ => false,
     }
@@ -1624,6 +1741,8 @@ fn detect_activity_patterns(
     activities: &[crate::models::Activity],
     pattern_type: &str,
 ) -> serde_json::Value {
+    use crate::intelligence::PatternDetector;
+
     if activities.len() < 3 {
         return serde_json::json!({
             "pattern_type": pattern_type,
@@ -1635,77 +1754,75 @@ fn detect_activity_patterns(
     }
 
     match pattern_type {
-        "training_blocks" => detect_training_blocks(activities),
-        "progression" => detect_progression_pattern(activities),
-        "overtraining" => detect_overtraining_signs(activities),
-        _ => detect_weekly_schedule_pattern(activities), // default
+        "training_blocks" => {
+            format_hard_easy_pattern(&PatternDetector::detect_hard_easy_pattern(activities))
+        }
+        "progression" => {
+            format_volume_progression(&PatternDetector::detect_volume_progression(activities))
+        }
+        "overtraining" => {
+            format_overtraining_signals(&PatternDetector::detect_overtraining_signals(activities))
+        }
+        _ => format_weekly_schedule(&PatternDetector::detect_weekly_schedule(activities)), // default: weekly_schedule
     }
 }
 
-/// Detect weekly training schedule patterns (which days user trains)
-fn detect_weekly_schedule_pattern(activities: &[crate::models::Activity]) -> serde_json::Value {
-    use chrono::Datelike;
-    use std::collections::HashMap;
+/// Format weekly schedule pattern results for JSON response
+fn format_weekly_schedule(
+    pattern: &crate::intelligence::WeeklySchedulePattern,
+) -> serde_json::Value {
+    use chrono::Weekday;
 
-    // Count activities by day of week
-    let mut day_counts: HashMap<u32, usize> = HashMap::new();
-    for activity in activities {
-        let weekday = activity.start_date.weekday().num_days_from_monday();
-        *day_counts.entry(weekday).or_insert(0) += 1;
-    }
-
-    // Find preferred training days
-    let total = activities.len();
-    let mut preferred_days = Vec::new();
-    let mut patterns = Vec::new();
-
-    for (day, count) in &day_counts {
-        #[allow(clippy::cast_precision_loss)]
-        let percentage = (*count as f64 / total as f64) * 100.0;
-        if percentage > 20.0 {
-            // Trains on this day more than 20% of the time
-            let day_name = match day {
-                0 => "Monday",
-                1 => "Tuesday",
-                2 => "Wednesday",
-                3 => "Thursday",
-                4 => "Friday",
-                5 => "Saturday",
-                6 => "Sunday",
-                _ => "Unknown",
-            };
-            preferred_days.push(serde_json::json!({
-                "day": day_name,
-                "frequency": count,
-                "percentage": percentage,
-            }));
+    // Convert Weekday enum to string
+    let day_to_string = |weekday: &Weekday| -> &str {
+        match weekday {
+            Weekday::Mon => "Monday",
+            Weekday::Tue => "Tuesday",
+            Weekday::Wed => "Wednesday",
+            Weekday::Thu => "Thursday",
+            Weekday::Fri => "Friday",
+            Weekday::Sat => "Saturday",
+            Weekday::Sun => "Sunday",
         }
+    };
+
+    // Build preferred days list with frequencies
+    let preferred_days: Vec<serde_json::Value> = pattern
+        .day_frequencies
+        .iter()
+        .map(|(day, &count)| {
+            serde_json::json!({
+                "day": day,
+                "frequency": count,
+            })
+        })
+        .collect();
+
+    // Generate pattern descriptions
+    let mut patterns = Vec::new();
+    if pattern.consistency_score > 30.0 {
+        patterns.push(format!(
+            "Consistent weekly schedule detected: primarily trains on {}",
+            pattern
+                .most_common_days
+                .iter()
+                .map(day_to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
     }
 
-    // Detect patterns
-    if preferred_days.len() >= 3 && preferred_days.len() <= 5 {
-        patterns.push("Consistent weekly training schedule detected".to_string());
-    }
-
-    let weekend_count = day_counts.get(&5).unwrap_or(&0) + day_counts.get(&6).unwrap_or(&0);
-    #[allow(clippy::cast_precision_loss)]
-    let weekend_pct = (weekend_count as f64 / total as f64) * 100.0;
-    if weekend_pct > 40.0 {
-        patterns.push("Weekend warrior pattern - most training on weekends".to_string());
-    }
-
-    let weekday_count = (0..5)
-        .map(|d| day_counts.get(&d).unwrap_or(&0))
-        .sum::<usize>();
-    #[allow(clippy::cast_precision_loss)]
-    let weekday_pct = (weekday_count as f64 / total as f64) * 100.0;
-    if weekday_pct > 70.0 {
-        patterns.push("Weekday training pattern - primarily trains during work week".to_string());
-    }
+    // Determine confidence based on consistency score
+    let confidence = if pattern.consistency_score > 40.0 {
+        "high"
+    } else if pattern.consistency_score > 20.0 {
+        "medium"
+    } else {
+        "low"
+    };
 
     serde_json::json!({
         "pattern_type": "weekly_schedule",
-        "activities_analyzed": activities.len(),
         "preferred_training_days": preferred_days,
         "patterns_detected": patterns,
         "insights": if patterns.is_empty() {
@@ -1713,264 +1830,155 @@ fn detect_weekly_schedule_pattern(activities: &[crate::models::Activity]) -> ser
         } else {
             patterns.clone()
         },
-        "confidence": if preferred_days.len() >= 2 { "high" } else { "low" },
+        "consistency_score": pattern.consistency_score,
+        "avg_activities_per_week": pattern.avg_activities_per_week,
+        "confidence": confidence,
     })
 }
 
-/// Detect hard/easy training blocks
-fn detect_training_blocks(activities: &[crate::models::Activity]) -> serde_json::Value {
-    if activities.len() < 7 {
-        return serde_json::json!({
-            "pattern_type": "training_blocks",
-            "activities_analyzed": activities.len(),
-            "insights": ["Need at least 7 activities to detect training block patterns"],
-            "confidence": "insufficient_data",
-        });
+/// Format hard/easy pattern results for JSON response
+fn format_hard_easy_pattern(pattern: &crate::intelligence::HardEasyPattern) -> serde_json::Value {
+    let mut insights = vec![pattern.pattern_description.clone()];
+
+    if !pattern.adequate_recovery {
+        insights.push("Consider adding more recovery days between hard efforts".to_string());
     }
 
-    // Calculate intensity for each activity (based on HR if available)
-    let intensities: Vec<(String, f64)> = activities
-        .iter()
-        .filter_map(|a| a.average_heart_rate.map(|hr| (a.id.clone(), f64::from(hr))))
-        .collect();
-
-    if intensities.len() < 5 {
-        return serde_json::json!({
-            "pattern_type": "training_blocks",
-            "activities_analyzed": activities.len(),
-            "insights": ["Need heart rate data for training block detection"],
-            "confidence": "insufficient_data",
-        });
-    }
-
-    // Calculate average intensity
-    #[allow(clippy::cast_precision_loss)]
-    let avg_intensity =
-        intensities.iter().map(|(_, hr)| hr).sum::<f64>() / intensities.len() as f64;
-
-    // Detect hard/easy patterns
-    let mut patterns = Vec::new();
-    let mut hard_count = 0;
-    let mut easy_count = 0;
-
-    for (_, hr) in &intensities {
-        if *hr > avg_intensity * 1.1 {
-            hard_count += 1;
-        } else if *hr < avg_intensity * 0.9 {
-            easy_count += 1;
-        }
-    }
-
-    #[allow(clippy::cast_precision_loss)]
-    let hard_pct = (f64::from(hard_count) / intensities.len() as f64) * 100.0;
-    #[allow(clippy::cast_precision_loss)]
-    let easy_pct = (f64::from(easy_count) / intensities.len() as f64) * 100.0;
-
-    if hard_pct > 30.0 && easy_pct > 30.0 {
-        patterns.push("Good hard/easy training balance detected".to_string());
-    } else if hard_pct > 50.0 {
-        patterns
-            .push("High intensity pattern - consider adding more recovery workouts".to_string());
-    } else if easy_pct > 70.0 {
-        patterns.push("Low intensity pattern - consider adding harder efforts".to_string());
-    }
+    let confidence = if pattern.pattern_detected {
+        "medium"
+    } else {
+        "low"
+    };
 
     serde_json::json!({
         "pattern_type": "training_blocks",
-        "activities_analyzed": intensities.len(),
+        "pattern_detected": pattern.pattern_detected,
         "intensity_distribution": {
-            "hard_workouts": hard_count,
-            "easy_workouts": easy_count,
-            "hard_percentage": hard_pct,
-            "easy_percentage": easy_pct,
+            "hard_percentage": pattern.hard_percentage,
+            "easy_percentage": pattern.easy_percentage,
         },
-        "patterns_detected": patterns.clone(),
-        "insights": if patterns.is_empty() {
-            vec!["Training intensity is relatively uniform".to_string()]
+        "adequate_recovery": pattern.adequate_recovery,
+        "patterns_detected": if pattern.pattern_detected {
+            vec![pattern.pattern_description.clone()]
         } else {
-            patterns
+            Vec::<String>::new()
         },
-        "confidence": "medium",
+        "insights": insights,
+        "confidence": confidence,
     })
 }
 
-/// Detect progression patterns (gradual improvements)
-fn detect_progression_pattern(activities: &[crate::models::Activity]) -> serde_json::Value {
-    if activities.len() < 5 {
-        return serde_json::json!({
-            "pattern_type": "progression",
-            "activities_analyzed": activities.len(),
-            "insights": ["Need at least 5 activities to detect progression patterns"],
-            "confidence": "insufficient_data",
-        });
-    }
+/// Format volume progression pattern results for JSON response
+fn format_volume_progression(
+    pattern: &crate::intelligence::VolumeProgressionPattern,
+) -> serde_json::Value {
+    use crate::intelligence::VolumeTrend;
 
-    // Analyze distance progression
-    let distances: Vec<f64> = activities
-        .iter()
-        .filter_map(|a| a.distance_meters)
-        .collect();
-
-    let mut patterns = Vec::new();
-
-    if distances.len() >= 5 {
-        // Calculate moving average to smooth out variations
-        #[allow(clippy::cast_precision_loss)]
-        let first_half_avg =
-            distances[..distances.len() / 2].iter().sum::<f64>() / (distances.len() / 2) as f64;
-        #[allow(clippy::cast_precision_loss)]
-        let second_half_avg = distances[distances.len() / 2..].iter().sum::<f64>()
-            / (distances.len() - distances.len() / 2) as f64;
-
-        let change_pct = ((second_half_avg - first_half_avg) / first_half_avg) * 100.0;
-
-        if change_pct > 10.0 {
-            patterns.push(format!(
-                "Progressive distance increase detected: {change_pct:.1}% growth"
-            ));
-        } else if change_pct < -10.0 {
-            patterns.push(format!(
-                "Distance reduction pattern: {:.1}% decrease (taper or recovery?)",
-                change_pct.abs()
-            ));
-        } else {
-            patterns.push("Stable distance pattern - maintaining consistent volume".to_string());
+    let mut insights = Vec::new();
+    let trend_description = match pattern.trend {
+        VolumeTrend::Increasing => {
+            insights.push("Volume is increasing - progressive overload detected".to_string());
+            "increasing"
         }
-
-        #[allow(clippy::items_after_statements)]
-        // Check for sudden spikes (injury risk)
-        for window in distances.windows(2) {
-            let increase = ((window[1] - window[0]) / window[0]) * 100.0;
-            if increase > 25.0 {
-                patterns
-                    .push("⚠️ Warning: Sudden distance spike detected - injury risk".to_string());
-                break;
-            }
+        VolumeTrend::Decreasing => {
+            insights.push("Volume is decreasing - taper or recovery phase".to_string());
+            "decreasing"
         }
+        VolumeTrend::Stable => {
+            insights.push("Volume is stable - maintaining consistent training load".to_string());
+            "stable"
+        }
+    };
+
+    if pattern.volume_spikes_detected {
+        insights.push(format!(
+            "Volume spikes detected in weeks: {} - monitor for injury risk",
+            pattern
+                .spike_weeks
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
     }
 
     serde_json::json!({
         "pattern_type": "progression",
-        "activities_analyzed": activities.len(),
-        "patterns_detected": patterns.clone(),
-        "insights": patterns,
-        "confidence": if distances.len() >= 5 { "medium" } else { "low" },
+        "trend": trend_description,
+        "weekly_volumes": pattern.weekly_volumes,
+        "week_numbers": pattern.week_numbers,
+        "volume_spikes_detected": pattern.volume_spikes_detected,
+        "spike_weeks": pattern.spike_weeks,
+        "patterns_detected": insights.clone(),
+        "insights": insights,
+        "confidence": "medium",
     })
 }
 
-/// Detect overtraining warning signs
-fn detect_overtraining_signs(activities: &[crate::models::Activity]) -> serde_json::Value {
-    use chrono::Duration;
-
-    if activities.len() < 7 {
-        return serde_json::json!({
-            "pattern_type": "overtraining",
-            "activities_analyzed": activities.len(),
-            "insights": ["Need at least 7 activities to detect overtraining patterns"],
-            "confidence": "insufficient_data",
-        });
-    }
+/// Format overtraining signals results for JSON response
+fn format_overtraining_signals(
+    signals: &crate::intelligence::OvertrainingSignals,
+) -> serde_json::Value {
+    use crate::intelligence::RiskLevel;
 
     let mut warning_signs = Vec::new();
-    let mut risk_score = 0;
 
-    // Check 1: High activity frequency (no rest days)
-    let mut consecutive_days = 0;
-    let mut max_consecutive = 0;
-
-    let mut sorted = activities.to_vec();
-    sorted.sort_by(|a, b| a.start_date.cmp(&b.start_date));
-
-    for window in sorted.windows(2) {
-        let gap = window[1].start_date - window[0].start_date;
-        if gap < Duration::days(2) {
-            consecutive_days += 1;
-            max_consecutive = max_consecutive.max(consecutive_days);
+    if signals.hr_drift_detected {
+        if let Some(drift_pct) = signals.hr_drift_percent {
+            warning_signs.push(format!(
+                "Heart rate drift detected: {drift_pct:.1}% increase - possible fatigue"
+            ));
         } else {
-            consecutive_days = 0;
+            warning_signs.push("Heart rate drift detected - possible fatigue".to_string());
         }
     }
 
-    if max_consecutive >= 7 {
-        warning_signs.push("⚠️ Extended period without rest days detected".to_string());
-        risk_score += 2;
+    if signals.performance_decline {
+        warning_signs.push("Performance declining despite training - check recovery".to_string());
     }
 
-    // Check 2: Declining performance with maintained volume
-    let recent_activities = if activities.len() > 10 {
-        &activities[..10]
-    } else {
-        activities
+    if signals.insufficient_recovery {
+        warning_signs.push("Insufficient recovery time between hard efforts".to_string());
+    }
+
+    let risk_level_str = match signals.risk_level {
+        RiskLevel::Low => "low",
+        RiskLevel::Moderate => "moderate",
+        RiskLevel::High => "high",
     };
 
-    let avg_speeds: Vec<f64> = recent_activities
-        .iter()
-        .filter_map(|a| a.average_speed)
-        .collect();
-
-    if avg_speeds.len() >= 4 {
-        #[allow(clippy::cast_precision_loss)]
-        let first_half_avg =
-            avg_speeds[..avg_speeds.len() / 2].iter().sum::<f64>() / (avg_speeds.len() / 2) as f64;
-        #[allow(clippy::cast_precision_loss)]
-        let second_half_avg = avg_speeds[avg_speeds.len() / 2..].iter().sum::<f64>()
-            / (avg_speeds.len() - avg_speeds.len() / 2) as f64;
-
-        let speed_change = ((second_half_avg - first_half_avg) / first_half_avg) * 100.0;
-
-        if speed_change < -10.0 {
-            warning_signs
-                .push("Performance declining despite training - possible fatigue".to_string());
-            risk_score += 2;
-        }
-    }
-
-    // Check 3: Elevated resting heart rate trend
-    let hrs: Vec<u32> = recent_activities
-        .iter()
-        .filter_map(|a| a.average_heart_rate)
-        .collect();
-
-    if hrs.len() >= 5 {
-        #[allow(clippy::cast_possible_truncation)]
-        let first_avg = hrs[..hrs.len() / 2].iter().sum::<u32>() / (hrs.len() / 2) as u32;
-        #[allow(clippy::cast_possible_truncation)]
-        let recent_avg =
-            hrs[hrs.len() / 2..].iter().sum::<u32>() / (hrs.len() - hrs.len() / 2) as u32;
-
-        if recent_avg > first_avg + 5 {
-            warning_signs.push("Elevated heart rate pattern detected - check recovery".to_string());
-            risk_score += 1;
-        }
-    }
-
-    let risk_level = match risk_score {
-        0..=1 => "low",
-        2..=3 => "moderate",
-        _ => "high",
+    let recommendations = match signals.risk_level {
+        RiskLevel::High => vec![
+            "Take additional rest days",
+            "Reduce training intensity and volume",
+            "Focus on recovery and sleep quality",
+            "Consider consulting with a coach or sports medicine professional",
+        ],
+        RiskLevel::Moderate => vec![
+            "Monitor recovery closely",
+            "Ensure adequate rest days",
+            "Review training intensity distribution",
+        ],
+        RiskLevel::Low => vec![
+            "Continue current training approach",
+            "Maintain good recovery habits",
+        ],
     };
 
     serde_json::json!({
         "pattern_type": "overtraining",
-        "activities_analyzed": activities.len(),
-        "risk_level": risk_level,
-        "risk_score": risk_score,
-        "warning_signs": warning_signs.clone(),
+        "risk_level": risk_level_str,
+        "warning_signs": warning_signs,
         "insights": if warning_signs.is_empty() {
             vec!["No significant overtraining signs detected - training load appears manageable".to_string()]
         } else {
-            warning_signs
+            warning_signs.clone()
         },
+        "hr_drift_detected": signals.hr_drift_detected,
+        "performance_decline": signals.performance_decline,
+        "insufficient_recovery": signals.insufficient_recovery,
         "confidence": "medium",
-        "recommendations": if risk_score >= 2 {
-            vec![
-                "Consider scheduling rest days",
-                "Review training intensity and volume",
-                "Monitor sleep quality and recovery",
-            ]
-        } else {
-            vec!["Continue monitoring training load and recovery"]
-        },
+        "recommendations": recommendations,
     })
 }
 
@@ -1987,289 +1995,394 @@ fn generate_training_recommendations(
         return serde_json::json!({
             "recommendation_type": recommendation_type,
             "recommendations": ["Start with 2-3 easy activities per week to build base fitness"],
-            "rationale": "No recent training data available",
+            "priority": "medium",
+            "reasoning": "No recent training data available",
+        });
+    }
+
+    // Filter to last 4 weeks for recommendation generation
+    let four_weeks_ago = Utc::now() - Duration::days(28);
+    let recent_activities: Vec<_> = activities
+        .iter()
+        .filter(|a| a.start_date >= four_weeks_ago)
+        .cloned()
+        .collect();
+
+    if recent_activities.is_empty() {
+        return serde_json::json!({
+            "recommendation_type": recommendation_type,
+            "recommendations": ["Resume training gradually - start with 2-3 easy sessions per week"],
+            "priority": "high",
+            "reasoning": "No training activity in the last 4 weeks",
         });
     }
 
     match recommendation_type {
-        "training_plan" => generate_training_plan_recommendations(activities),
-        "recovery" => generate_recovery_recommendations(activities),
-        "intensity" => generate_intensity_recommendations(activities),
-        "goal_specific" => generate_goal_specific_recommendations(activities),
-        _ => generate_comprehensive_recommendations(activities),
+        "training_plan" => generate_training_plan_recommendations(&recent_activities),
+        "recovery" => generate_recovery_recommendations(&recent_activities),
+        "intensity" => generate_intensity_recommendations(&recent_activities),
+        "goal_specific" => generate_goal_specific_recommendations(&recent_activities),
+        _ => generate_comprehensive_recommendations(&recent_activities),
     }
 }
 
-/// Generate weekly training plan recommendations
+/// Generate weekly training plan recommendations using training load analysis
 fn generate_training_plan_recommendations(
     activities: &[crate::models::Activity],
 ) -> serde_json::Value {
-    // Analyze current training frequency
-    let days_with_activities: std::collections::HashSet<_> = activities
-        .iter()
-        .map(|a| a.start_date.date_naive())
-        .collect();
+    use crate::intelligence::{PatternDetector, TrainingLoadCalculator};
 
-    let weekly_frequency = days_with_activities.len();
-    let total_volume: f64 = activities.iter().filter_map(|a| a.distance_meters).sum();
+    // Analyze volume progression to detect spikes
+    let volume_pattern = PatternDetector::detect_volume_progression(activities);
+    let weekly_schedule = PatternDetector::detect_weekly_schedule(activities);
+
+    // Calculate training load metrics
+    let calculator = TrainingLoadCalculator::new();
+    let training_load = calculator
+        .calculate_training_load(activities, None, None, None, None, None)
+        .ok();
 
     let mut recommendations = Vec::new();
-    let mut weekly_structure = Vec::new();
-
-    // Determine training level
-    if weekly_frequency < 3 {
+    let mut priority = "medium";
+    let reasoning = if volume_pattern.volume_spikes_detected {
         recommendations.push(
-            "Increase training frequency to 3-4 days per week for consistent progress".to_string(),
+            "Volume spike detected - reduce next week's volume by 10-15% to prevent injury"
+                .to_string(),
         );
-        weekly_structure.push(serde_json::json!({
-            "day": "Monday",
-            "workout_type": "Easy run",
-            "duration": "30-40 minutes",
-        }));
-        weekly_structure.push(serde_json::json!({
-            "day": "Wednesday",
-            "workout_type": "Tempo or threshold",
-            "duration": "35-45 minutes",
-        }));
-        weekly_structure.push(serde_json::json!({
-            "day": "Saturday",
-            "workout_type": "Long run",
-            "duration": "45-60 minutes",
-        }));
-    } else if weekly_frequency <= 5 {
-        recommendations
-            .push("Good training frequency - follow 80/20 rule (80% easy, 20% hard)".to_string());
-        weekly_structure.push(serde_json::json!({
-            "day": "Monday",
-            "workout_type": "Easy run",
-            "duration": "40-50 minutes",
-        }));
-        weekly_structure.push(serde_json::json!({
-            "day": "Tuesday",
-            "workout_type": "Intervals or speed work",
-            "duration": "45 minutes with warm-up/cool-down",
-        }));
-        weekly_structure.push(serde_json::json!({
-            "day": "Thursday",
-            "workout_type": "Tempo run",
-            "duration": "40-50 minutes",
-        }));
-        weekly_structure.push(serde_json::json!({
-            "day": "Saturday",
-            "workout_type": "Long run",
-            "duration": "60-90 minutes",
-        }));
-        weekly_structure.push(serde_json::json!({
-            "day": "Sunday",
-            "workout_type": "Easy recovery run",
-            "duration": "30-40 minutes",
-        }));
+        priority = "high";
+        format!(
+            "Training volume increased rapidly (spike detected in weeks: {})",
+            volume_pattern
+                .spike_weeks
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
     } else {
-        recommendations.push(
-            "High training frequency - ensure adequate recovery between sessions".to_string(),
-        );
-        recommendations.push("Consider periodization: alternate hard/easy weeks".to_string());
+        String::from("Based on volume and consistency analysis")
+    };
+
+    // Training load recommendations
+    if let Some(load) = &training_load {
+        if load.atl > 150.0 {
+            recommendations
+                .push("Acute training load is very high - schedule a recovery week".to_string());
+            priority = "high";
+        } else if load.ctl < 40.0 {
+            recommendations
+                .push("Build fitness gradually - increase weekly volume by 5-10%".to_string());
+        } else if load.ctl > 100.0 {
+            recommendations.push(
+                "Strong fitness base - maintain current volume and add quality work".to_string(),
+            );
+        }
     }
 
-    // Volume recommendations
-    #[allow(clippy::cast_precision_loss)]
-    let avg_distance = total_volume / activities.len() as f64;
-    if avg_distance < 5_000.0 {
-        recommendations.push("Gradually increase run distance by 10% per week".to_string());
-    } else if avg_distance > 15_000.0 {
+    // Consistency recommendations
+    if weekly_schedule.consistency_score < 20.0 {
         recommendations
-            .push("Monitor for overtraining - high average distance detected".to_string());
+            .push("Training schedule is inconsistent - aim for same days each week".to_string());
+        if weekly_schedule.avg_activities_per_week < 3.0 {
+            recommendations.push("Increase frequency to 3-4 activities per week".to_string());
+            if priority == "medium" {
+                priority = "high";
+            }
+        }
+    } else if weekly_schedule.avg_activities_per_week > 6.0 {
+        recommendations
+            .push("Very high training frequency - ensure at least 1 complete rest day".to_string());
     }
+
+    // Provide structured weekly plan based on consistency
+    let suggested_structure = if weekly_schedule.avg_activities_per_week < 3.0 {
+        vec![serde_json::json!({
+            "focus": "Build frequency",
+            "sessions_per_week": 3,
+            "key_workouts": ["Easy run", "Tempo run", "Long run"],
+        })]
+    } else if weekly_schedule.avg_activities_per_week <= 5.0 {
+        vec![serde_json::json!({
+            "focus": "Balanced training",
+            "sessions_per_week": 4,
+            "key_workouts": ["2 easy runs", "1 quality session (intervals/tempo)", "1 long run"],
+        })]
+    } else {
+        vec![serde_json::json!({
+            "focus": "High volume management",
+            "sessions_per_week": "5-6",
+            "key_workouts": ["Mostly easy runs (80%)", "1-2 quality sessions", "1 long run"],
+        })]
+    };
 
     serde_json::json!({
         "recommendation_type": "training_plan",
-        "current_frequency": weekly_frequency,
+        "priority": priority,
+        "reasoning": reasoning,
         "recommendations": recommendations,
-        "suggested_weekly_structure": weekly_structure,
-        "principles": [
-            "Follow the 10% rule - increase volume by max 10% per week",
-            "Include 1-2 rest days per week",
-            "Build aerobic base before adding intensity",
-        ],
+        "suggested_structure": suggested_structure,
+        "metrics": {
+            "avg_activities_per_week": weekly_schedule.avg_activities_per_week,
+            "consistency_score": weekly_schedule.consistency_score,
+            "volume_spike_detected": volume_pattern.volume_spikes_detected,
+            "ctl": training_load.as_ref().map(|l| l.ctl),
+            "atl": training_load.as_ref().map(|l| l.atl),
+        },
     })
 }
 
-/// Generate recovery recommendations
+/// Helper to process TSB status and add recommendations
+fn process_tsb_recommendations(
+    load: &crate::intelligence::training_load::TrainingLoad,
+    recommendations: &mut Vec<String>,
+    priority: &mut &str,
+    recovery_status: &mut &str,
+    reasoning: &mut String,
+) {
+    use crate::intelligence::{RiskLevel, TrainingLoadCalculator, TrainingStatus};
+
+    let status = TrainingLoadCalculator::interpret_tsb(load.tsb);
+    let recovery_days = TrainingLoadCalculator::recommend_recovery_days(load.tsb);
+
+    match status {
+        TrainingStatus::Overreaching => {
+            recommendations.push(format!(
+                "You're overreaching (TSB: {:.1}) - take {recovery_days} recovery days",
+                load.tsb
+            ));
+            *priority = "high";
+            *recovery_status = "overreaching";
+            *reasoning = format!(
+                "TSB is {:.1}, indicating deep fatigue requiring immediate recovery",
+                load.tsb
+            );
+        }
+        TrainingStatus::Productive => {
+            recommendations
+                .push("Good training zone - maintain current load with recovery days".to_string());
+            *recovery_status = "productive";
+        }
+        TrainingStatus::Fresh => {
+            recommendations.push("Well-recovered - ready for quality training".to_string());
+            *recovery_status = "fresh";
+        }
+        TrainingStatus::Detraining => {
+            recommendations
+                .push("TSB is high - consider increasing training load gradually".to_string());
+            *recovery_status = "detraining_risk";
+        }
+    }
+
+    // Check for overtraining risk
+    let risk = TrainingLoadCalculator::check_overtraining_risk(load);
+    if risk.risk_level == RiskLevel::High {
+        *priority = "high";
+        recommendations.push("High overtraining risk detected - prioritize recovery".to_string());
+        for factor in &risk.risk_factors {
+            recommendations.push(format!("⚠️ {factor}"));
+        }
+    }
+}
+
+/// Generate recovery recommendations using TSB and overtraining signals
 fn generate_recovery_recommendations(activities: &[crate::models::Activity]) -> serde_json::Value {
-    use chrono::{Duration, Utc};
+    use crate::intelligence::{PatternDetector, RiskLevel, TrainingLoadCalculator};
 
-    let now = Utc::now();
+    // Calculate TSB (Training Stress Balance)
+    let calculator = TrainingLoadCalculator::new();
+    let training_load = calculator
+        .calculate_training_load(activities, None, None, None, None, None)
+        .ok();
+
+    // Detect overtraining signals
+    let overtraining_signals = PatternDetector::detect_overtraining_signals(activities);
+
     let mut recommendations = Vec::new();
+    let mut priority = "medium";
     let mut recovery_status = "unknown";
+    let mut reasoning = String::from("Based on training stress balance analysis");
 
-    // Check time since last activity
-    if let Some(last_activity) = activities.first() {
-        let days_since = (now - last_activity.start_date).num_days();
-
-        if days_since == 0 {
-            recommendations
-                .push("You trained today - ensure proper nutrition and hydration".to_string());
-            recovery_status = "active";
-        } else if days_since == 1 {
-            recommendations.push("Consider an easy recovery day or complete rest".to_string());
-            recovery_status = "recovering";
-        } else if days_since >= 3 {
-            recommendations
-                .push("Good recovery time - ready for next training session".to_string());
-            recovery_status = "recovered";
-        }
+    // TSB-based recovery recommendations (highest priority)
+    if let Some(load) = &training_load {
+        process_tsb_recommendations(
+            load,
+            &mut recommendations,
+            &mut priority,
+            &mut recovery_status,
+            &mut reasoning,
+        );
     }
 
-    // Check for consecutive training days
-    let mut sorted = activities.to_vec();
-    sorted.sort_by(|a, b| b.start_date.cmp(&a.start_date));
-
-    let mut consecutive_days = 0;
-    for window in sorted.windows(2) {
-        let gap = window[0].start_date - window[1].start_date;
-        if gap < Duration::days(2) {
-            consecutive_days += 1;
-        } else {
-            break;
-        }
-    }
-
-    if consecutive_days >= 3 {
-        recommendations.push(format!(
-            "⚠️ {consecutive_days} consecutive training days detected - schedule a rest day"
-        ));
-        recovery_status = "needs_rest";
-    }
-
-    // HR-based recovery check
-    let recent_hrs: Vec<u32> = sorted
-        .iter()
-        .take(5)
-        .filter_map(|a| a.average_heart_rate)
-        .collect();
-
-    if recent_hrs.len() >= 3 {
-        #[allow(clippy::cast_possible_truncation)]
-        let recent_avg = recent_hrs.iter().sum::<u32>() / recent_hrs.len() as u32;
-
-        let older_hrs: Vec<u32> = sorted
-            .iter()
-            .skip(5)
-            .take(5)
-            .filter_map(|a| a.average_heart_rate)
-            .collect();
-
-        if let Some(older_avg) = older_hrs.first() {
-            if recent_avg > older_avg + 5 {
-                recommendations
-                    .push("Elevated heart rate trend - prioritize recovery this week".to_string());
+    // Overtraining signal detection
+    if overtraining_signals.hr_drift_detected {
+        if let Some(drift_pct) = overtraining_signals.hr_drift_percent {
+            recommendations.push(format!(
+                "Heart rate drift detected ({drift_pct:.1}% increase) - sign of fatigue"
+            ));
+            if priority == "medium" {
+                priority = "high";
             }
         }
     }
 
-    if recommendations.is_empty() {
-        recommendations.push("Recovery status looks good - maintain current routine".to_string());
+    if overtraining_signals.performance_decline {
+        recommendations
+            .push("Performance declining despite training - increase recovery".to_string());
     }
+
+    if overtraining_signals.insufficient_recovery {
+        recommendations
+            .push("Insufficient recovery between hard sessions - add easy days".to_string());
+    }
+
+    // Provide recovery-specific tips based on status
+    let recovery_actions = match recovery_status {
+        "overreaching" => vec![
+            "Take complete rest days",
+            "Focus on sleep quality (8-9 hours)",
+            "Light stretching or yoga only",
+            "Monitor resting heart rate daily",
+        ],
+        "productive" => vec![
+            "Include 1-2 easy recovery days per week",
+            "Maintain 7-8 hours of sleep",
+            "Active recovery (easy swimming/walking)",
+        ],
+        _ => vec![
+            "Maintain current recovery routine",
+            "7-9 hours of sleep per night",
+            "Stay hydrated (2-3L water daily)",
+        ],
+    };
 
     serde_json::json!({
         "recommendation_type": "recovery",
+        "priority": priority,
+        "reasoning": reasoning,
         "recovery_status": recovery_status,
-        "consecutive_training_days": consecutive_days,
         "recommendations": recommendations,
-        "recovery_tips": [
-            "Aim for 7-9 hours of sleep per night",
-            "Stay hydrated - drink 2-3L water daily",
-            "Include protein within 30min post-workout",
-            "Consider foam rolling or massage for muscle recovery",
-        ],
+        "recovery_actions": recovery_actions,
+        "metrics": {
+            "tsb": training_load.as_ref().map(|l| l.tsb),
+            "ctl": training_load.as_ref().map(|l| l.ctl),
+            "atl": training_load.as_ref().map(|l| l.atl),
+            "hr_drift_detected": overtraining_signals.hr_drift_detected,
+            "risk_level": match overtraining_signals.risk_level {
+                RiskLevel::Low => "low",
+                RiskLevel::Moderate => "moderate",
+                RiskLevel::High => "high",
+            },
+        },
     })
 }
 
-/// Generate intensity recommendations
+/// Generate intensity recommendations using hard/easy pattern detection
 fn generate_intensity_recommendations(activities: &[crate::models::Activity]) -> serde_json::Value {
-    let hrs_with_values: Vec<&crate::models::Activity> = activities
-        .iter()
-        .filter(|a| a.average_heart_rate.is_some())
-        .collect();
+    use crate::intelligence::PatternDetector;
 
-    if hrs_with_values.len() < 3 {
+    // Detect hard/easy pattern
+    let pattern = PatternDetector::detect_hard_easy_pattern(activities);
+
+    let mut recommendations = Vec::new();
+    let mut priority = "medium";
+    let mut reasoning = String::from("Based on intensity distribution analysis");
+
+    // Check if pattern was detected
+    if !pattern.pattern_detected {
+        recommendations.push(
+            "Unable to detect clear intensity pattern - ensure heart rate data is available"
+                .to_string(),
+        );
         return serde_json::json!({
             "recommendation_type": "intensity",
-            "recommendations": ["Need more activities with heart rate data for intensity analysis"],
+            "priority": "low",
+            "reasoning": "Insufficient heart rate data for analysis",
+            "recommendations": recommendations,
         });
     }
 
-    // Calculate intensity distribution
-    #[allow(clippy::cast_precision_loss)]
-    let avg_hr: f64 = hrs_with_values
-        .iter()
-        .filter_map(|a| a.average_heart_rate.map(f64::from))
-        .sum::<f64>()
-        / hrs_with_values.len() as f64;
+    // Analyze 80/20 principle adherence
+    let easy_pct = pattern.easy_percentage;
 
-    let mut easy_count = 0;
-    let mut moderate_count = 0;
-    let mut hard_count = 0;
-
-    for activity in &hrs_with_values {
-        if let Some(hr) = activity.average_heart_rate {
-            let hr_f64 = f64::from(hr);
-            if hr_f64 < avg_hr * 0.85 {
-                easy_count += 1;
-            } else if hr_f64 < avg_hr * 1.05 {
-                moderate_count += 1;
-            } else {
-                hard_count += 1;
-            }
-        }
-    }
-
-    let total = hrs_with_values.len();
-    #[allow(clippy::cast_precision_loss)]
-    let easy_pct = (f64::from(easy_count) / total as f64) * 100.0;
-    #[allow(clippy::cast_precision_loss)]
-    let hard_pct = (f64::from(hard_count) / total as f64) * 100.0;
-
-    let mut recommendations = Vec::new();
-
-    // Check 80/20 principle
     if easy_pct < 70.0 {
-        recommendations.push("Add more easy/recovery runs - aim for 80% easy effort".to_string());
+        recommendations.push(
+            "Too much high-intensity training - add more easy/recovery runs (aim for 80% easy)"
+                .to_string(),
+        );
+        priority = "high";
+        reasoning = format!("Only {easy_pct:.0}% easy training detected - risk of overtraining");
     } else if easy_pct > 90.0 {
-        recommendations.push("Include 1-2 harder efforts per week to improve fitness".to_string());
+        recommendations.push(
+            "Mostly easy training - include 1-2 quality sessions per week for fitness gains"
+                .to_string(),
+        );
+        priority = "medium";
     } else {
         recommendations.push("Good intensity balance following 80/20 principle".to_string());
     }
 
-    // Specific workout recommendations
-    if hard_count == 0 {
+    // Check recovery adequacy
+    if pattern.adequate_recovery {
+        recommendations.push("Good recovery pattern between hard sessions".to_string());
+    } else {
         recommendations
-            .push("Add interval training: 5x800m @ 5K pace with 90s recovery".to_string());
-        recommendations.push("Add tempo run: 20min @ comfortably hard pace".to_string());
-    } else if hard_count >= 3 {
-        recommendations.push("Reduce high-intensity frequency to prevent overtraining".to_string());
+            .push("Consider adding more recovery days between hard sessions".to_string());
     }
+
+    // Specific workout recommendations based on hard percentage
+    let hard_pct = pattern.hard_percentage;
+    if hard_pct < 10.0 {
+        recommendations.push("Add quality work:".to_string());
+        recommendations
+            .push("  • Interval training: 6x800m @ 5K pace with 2min recovery".to_string());
+        recommendations.push("  • Tempo run: 20-30min @ comfortably hard pace".to_string());
+    } else if hard_pct > 30.0 {
+        recommendations
+            .push("Reduce high-intensity frequency to 1-2 sessions per week".to_string());
+        if priority != "high" {
+            priority = "high";
+        }
+    }
+
+    // Provide intensity zones guidance
+    let intensity_guidance = if easy_pct < 70.0 {
+        vec![
+            "Most runs should be conversational pace",
+            "Hard efforts should feel genuinely hard (8-9/10 effort)",
+            "Recovery runs should be very easy (5-6/10 effort)",
+        ]
+    } else {
+        vec![
+            "Maintain mostly easy training",
+            "Quality sessions: intervals, tempo, or threshold",
+            "Allow 48h recovery after hard sessions",
+        ]
+    };
 
     serde_json::json!({
         "recommendation_type": "intensity",
-        "intensity_distribution": {
-            "easy": easy_count,
-            "moderate": moderate_count,
-            "hard": hard_count,
-            "easy_percentage": easy_pct,
-            "hard_percentage": hard_pct,
-        },
+        "priority": priority,
+        "reasoning": reasoning,
         "recommendations": recommendations,
-        "target_distribution": "80% easy, 10% moderate, 10% hard (80/20 rule)",
+        "intensity_guidance": intensity_guidance,
+        "metrics": {
+            "pattern_detected": pattern.pattern_detected,
+            "pattern_description": pattern.pattern_description,
+            "hard_percentage": pattern.hard_percentage,
+            "easy_percentage": pattern.easy_percentage,
+            "adequate_recovery": pattern.adequate_recovery,
+        },
     })
 }
 
-/// Generate goal-specific recommendations
+/// Generate goal-specific recommendations using performance prediction
 fn generate_goal_specific_recommendations(
     activities: &[crate::models::Activity],
 ) -> serde_json::Value {
-    // Detect primary sport
+    use crate::intelligence::PerformancePredictor;
     use std::collections::HashMap;
+
+    // Detect primary sport
     let mut sport_counts: HashMap<String, usize> = HashMap::new();
     for activity in activities {
         let sport = format!("{:?}", activity.sport_type);
@@ -2281,61 +2394,179 @@ fn generate_goal_specific_recommendations(
         .max_by_key(|(_, count)| *count)
         .map_or("Unknown", |(sport, _)| sport.as_str());
 
-    let mut recommendations = Vec::new();
+    // Find best recent performance for predictions
+    let best_performance = activities
+        .iter()
+        .filter(|a| a.distance_meters.is_some() && a.duration_seconds > 0)
+        .filter_map(|a| {
+            let distance = a.distance_meters?;
+            #[allow(clippy::cast_precision_loss)]
+            let time_secs = a.duration_seconds as f64;
+            if distance > 3_000.0 && distance < 50_000.0 && time_secs > 0.0 {
+                Some((distance, time_secs))
+            } else {
+                None
+            }
+        })
+        .max_by(|a, b| {
+            let pace_a = a.1 / (a.0 / 1000.0);
+            let pace_b = b.1 / (b.0 / 1000.0);
+            pace_b
+                .partial_cmp(&pace_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
-    // Sport-specific recommendations
+    let mut recommendations = Vec::new();
+    let priority = "medium";
+    let mut race_predictions = None;
+
+    // Generate race time predictions if we have performance data
+    if let Some((distance, time)) = best_performance {
+        if let Ok(predictions) = PerformancePredictor::generate_race_predictions(distance, time) {
+            race_predictions = Some(serde_json::json!({
+                "based_on": format!("{:.1}km in {}", distance / 1000.0, PerformancePredictor::format_time(time)),
+                "vdot": predictions.vdot,
+                "race_times": predictions.predictions,
+            }));
+
+            recommendations.push(format!(
+                "Your VDOT is {:.1} - use this to set appropriate training paces",
+                predictions.vdot
+            ));
+        }
+    }
+
+    // Sport-specific goal recommendations
     if primary_sport.contains("Run") {
-        recommendations.push("For 5K goal: Include weekly speed work (intervals)".to_string());
-        recommendations.push("For 10K goal: Build weekly long run to 12-15K".to_string());
-        recommendations.push("For half marathon: Progressive long runs up to 18-20K".to_string());
-        recommendations.push("Add strides 2x/week to improve running economy".to_string());
+        recommendations.push("Build aerobic base with easy long runs".to_string());
+        recommendations.push("Add weekly quality: tempo run or interval session".to_string());
+        recommendations.push("Include race-pace intervals 4-6 weeks before goal race".to_string());
+        recommendations.push("Taper 10-14 days before race: reduce volume 30-50%".to_string());
     } else if primary_sport.contains("Ride") {
-        recommendations.push("Build FTP with 2x20min threshold intervals".to_string());
-        recommendations.push("Include hill repeats for strength".to_string());
-        recommendations.push("Long endurance rides on weekends".to_string());
+        recommendations.push("Build FTP with structured threshold intervals".to_string());
+        recommendations.push("Include weekly hill repeats for strength".to_string());
+        recommendations.push("Long endurance rides on weekends (3-5 hours)".to_string());
     } else {
-        recommendations.push("Continue building aerobic base with consistent training".to_string());
+        recommendations.push("Focus on consistent training to build aerobic base".to_string());
+        recommendations.push("Gradually increase training volume by 5-10% per week".to_string());
     }
 
     serde_json::json!({
         "recommendation_type": "goal_specific",
+        "priority": priority,
+        "reasoning": "Based on recent performance and sport type",
         "primary_sport": primary_sport,
         "recommendations": recommendations,
-        "training_phases": [
-            "Phase 1 (Base): Build aerobic endurance - 4-6 weeks",
-            "Phase 2 (Build): Add tempo and threshold work - 4-6 weeks",
-            "Phase 3 (Peak): Race-specific intensity - 2-3 weeks",
-            "Phase 4 (Taper): Reduce volume, maintain intensity - 1-2 weeks",
+        "race_predictions": race_predictions,
+        "periodization_phases": [
+            "Base Phase: Build aerobic foundation (4-8 weeks)",
+            "Build Phase: Add tempo and threshold work (4-6 weeks)",
+            "Peak Phase: Race-specific intensity (2-3 weeks)",
+            "Taper: Reduce volume, maintain sharpness (1-2 weeks)",
         ],
     })
 }
 
-/// Generate comprehensive recommendations (all types)
+/// Generate comprehensive recommendations combining all analyses
 fn generate_comprehensive_recommendations(
     activities: &[crate::models::Activity],
 ) -> serde_json::Value {
-    let frequency_check = if activities.len() < 12 {
-        "Aim for 3-4 activities per week for consistent progress"
-    } else {
-        "Good training consistency maintained"
-    };
+    use crate::intelligence::{PatternDetector, TrainingLoadCalculator};
+
+    // Comprehensive analysis using all available modules
+    let calculator = TrainingLoadCalculator::new();
+    let training_load = calculator
+        .calculate_training_load(activities, None, None, None, None, None)
+        .ok();
+
+    let volume_pattern = PatternDetector::detect_volume_progression(activities);
+    let intensity_pattern = PatternDetector::detect_hard_easy_pattern(activities);
+    let overtraining = PatternDetector::detect_overtraining_signals(activities);
+
+    let mut recommendations = Vec::new();
+    let mut priority = "medium";
+    let mut key_insights = Vec::new();
+
+    // Training load insights
+    if let Some(load) = &training_load {
+        if load.tsb < -10.0 {
+            recommendations.push(format!(
+                "Immediate recovery needed - TSB is {:.1} (overreaching zone)",
+                load.tsb
+            ));
+            priority = "high";
+            key_insights.push("Fatigue is accumulating faster than fitness".to_string());
+        } else if load.ctl > 80.0 {
+            key_insights.push(format!("Strong fitness base (CTL: {:.1})", load.ctl));
+        } else if load.ctl < 40.0 {
+            key_insights.push("Building fitness - continue gradual progression".to_string());
+        }
+    }
+
+    // Volume management
+    if volume_pattern.volume_spikes_detected {
+        recommendations
+            .push("Reduce volume next week - spike detected in recent training".to_string());
+        if priority == "medium" {
+            priority = "high";
+        }
+        key_insights.push("Training volume increased too rapidly".to_string());
+    }
+
+    // Intensity balance
+    if intensity_pattern.pattern_detected {
+        let hard_pct = intensity_pattern.hard_percentage;
+        if hard_pct > 30.0 {
+            recommendations
+                .push("Too much high-intensity work - add more easy training days".to_string());
+        } else if hard_pct < 10.0 {
+            recommendations.push("Include 1-2 quality sessions per week".to_string());
+        }
+
+        if intensity_pattern.adequate_recovery {
+            key_insights.push("Good recovery pattern between hard sessions".to_string());
+        }
+    }
+
+    // Overtraining checks
+    if overtraining.hr_drift_detected {
+        recommendations
+            .push("Heart rate drift detected - prioritize recovery this week".to_string());
+        key_insights.push("Possible fatigue accumulation detected".to_string());
+    }
+
+    // General best practices if no specific issues
+    if recommendations.is_empty() {
+        recommendations.push("Training load is balanced - maintain current approach".to_string());
+        recommendations.push("Continue following 80/20 intensity distribution".to_string());
+        recommendations.push("Monitor weekly volume changes (keep under 10% increase)".to_string());
+    }
+
+    // Add general best practices
+    recommendations.push("Include 1-2 complete rest days per week".to_string());
+    recommendations.push("Prioritize sleep quality (7-9 hours per night)".to_string());
 
     serde_json::json!({
         "recommendation_type": "comprehensive",
-        "recommendations": [
-            frequency_check,
-            "Follow progressive overload: gradually increase distance/intensity",
-            "Include strength training 2x/week for injury prevention",
-            "Listen to your body - rest when fatigued",
-            "Track sleep and recovery metrics",
-        ],
-        "key_principles": {
-            "consistency": "Regular training beats sporadic hard efforts",
-            "recovery": "Adaptation happens during rest, not training",
-            "progression": "Follow 10% rule for volume increases",
-            "variety": "Mix easy, moderate, and hard efforts",
+        "priority": priority,
+        "reasoning": "Holistic analysis of training load, volume, and intensity patterns",
+        "key_insights": key_insights,
+        "recommendations": recommendations,
+        "training_summary": {
+            "activities_analyzed": activities.len(),
+            "ctl": training_load.as_ref().map(|l| l.ctl),
+            "atl": training_load.as_ref().map(|l| l.atl),
+            "tsb": training_load.as_ref().map(|l| l.tsb),
+            "volume_spike_detected": volume_pattern.volume_spikes_detected,
+            "intensity_pattern_detected": intensity_pattern.pattern_detected,
+            "overtraining_signals": overtraining.hr_drift_detected || overtraining.performance_decline,
         },
-        "activities_analyzed": activities.len(),
+        "core_principles": {
+            "consistency": "Regular training beats sporadic hard efforts",
+            "recovery": "Fitness improves during rest, not during training",
+            "progression": "Increase volume gradually (10% rule)",
+            "intensity": "Follow 80/20 rule (80% easy, 20% hard)",
+        },
     })
 }
 
@@ -2344,224 +2575,225 @@ fn generate_comprehensive_recommendations(
 // ============================================================================
 
 /// Calculate fitness metrics using CTL/ATL/TSS methodology
+/// Calculate fitness metrics using proper 3-component formula with `TrainingLoadCalculator`
 fn calculate_fitness_metrics(
     activities: &[crate::models::Activity],
     timeframe: &str,
 ) -> serde_json::Value {
+    use crate::intelligence::TrainingLoadCalculator;
+    use chrono::{Duration, Utc};
+
     if activities.is_empty() {
         return serde_json::json!({
             "timeframe": timeframe,
             "fitness_score": 0,
+            "level": "Beginner",
             "message": "No activities found for fitness calculation",
         });
     }
 
-    // Calculate TSS for each activity
-    let mut activity_tss: Vec<(chrono::DateTime<chrono::Utc>, f64)> = activities
+    // Filter activities by timeframe
+    let now = Utc::now();
+    let timeframe_days = match timeframe {
+        "last_90_days" => 90,
+        "all_time" => 365 * 10, // 10 years
+        _ => 30,                // default to 30 days (includes "last_30_days")
+    };
+
+    let cutoff_date = now - Duration::days(timeframe_days);
+    let filtered_activities: Vec<_> = activities
         .iter()
-        .filter_map(|a| {
-            let tss = estimate_tss(a);
-            if tss > 0.0 {
-                Some((a.start_date, tss))
-            } else {
-                None
-            }
-        })
+        .filter(|a| a.start_date >= cutoff_date)
+        .cloned()
         .collect();
 
-    activity_tss.sort_by(|a, b| a.0.cmp(&b.0));
-
-    if activity_tss.is_empty() {
+    if filtered_activities.is_empty() {
         return serde_json::json!({
             "timeframe": timeframe,
             "fitness_score": 0,
-            "message": "Insufficient data for TSS calculation",
+            "level": "Beginner",
+            "message": format!("No activities found in the last {timeframe_days} days"),
         });
     }
 
-    // Calculate CTL (42-day rolling average)
-    let ctl = calculate_ctl(&activity_tss);
+    // Component 1: CTL (Chronic Training Load) - 40% weight
+    let calculator = TrainingLoadCalculator::new();
+    let training_load = calculator
+        .calculate_training_load(&filtered_activities, None, None, None, None, None)
+        .ok();
 
-    // Calculate ATL (7-day rolling average)
-    let atl = calculate_atl(&activity_tss);
+    let ctl = training_load.as_ref().map_or(0.0, |l| l.ctl);
+    let atl = training_load.as_ref().map_or(0.0, |l| l.atl);
+    let tsb = training_load.as_ref().map_or(0.0, |l| l.tsb);
 
-    // Calculate TSB (Training Stress Balance) = CTL - ATL
-    let tsb = ctl - atl;
+    // CTL component: normalize to 0-100 scale (150 CTL = 100 score)
+    let ctl_score = (ctl / 150.0 * 100.0).min(100.0);
 
-    // Form/freshness interpretation
-    let form_status = if tsb > 10.0 {
-        "fresh"
-    } else if tsb > -10.0 {
-        "balanced"
-    } else if tsb > -30.0 {
-        "fatigued"
-    } else {
-        "very_fatigued"
-    };
+    // Component 2: Consistency (% weeks with 3+ activities) - 30% weight
+    let consistency_score = calculate_consistency_score(&filtered_activities);
 
-    // Fitness level interpretation
-    let fitness_level = if ctl > 100.0 {
-        "elite"
-    } else if ctl > 70.0 {
-        "advanced"
-    } else if ctl > 40.0 {
-        "intermediate"
-    } else if ctl > 20.0 {
-        "beginner"
-    } else {
-        "novice"
-    };
+    // Component 3: Performance trend (pace improvement) - 30% weight
+    let performance_score = calculate_performance_trend(&filtered_activities);
+
+    // Combine components with weights: 40% CTL, 30% consistency, 30% performance
+    let fitness_score =
+        ctl_score.mul_add(0.4, consistency_score.mul_add(0.3, performance_score * 0.3));
+
+    // Classify fitness level based on score
+    let fitness_level = classify_fitness_level(fitness_score);
+
+    // Determine trend (comparing first half vs second half)
+    let trend = calculate_trend(&filtered_activities);
 
     #[allow(clippy::cast_possible_truncation)]
-    let fitness_score = ctl.round() as i32;
+    let fitness_score_int = fitness_score.round() as i32;
 
     serde_json::json!({
         "timeframe": timeframe,
-        "fitness_score": fitness_score,
+        "fitness_score": fitness_score_int,
+        "level": fitness_level,
+        "trend": trend,
+        "components": {
+            "ctl_score": ctl_score.round(),
+            "consistency_score": consistency_score.round(),
+            "performance_score": performance_score.round(),
+        },
         "metrics": {
             "ctl": ctl.round(),
             "atl": atl.round(),
             "tsb": tsb.round(),
         },
-        "fitness_level": fitness_level,
-        "form_status": form_status,
+        "activities_analyzed": filtered_activities.len(),
         "interpretation": {
             "ctl": "Chronic Training Load - long-term fitness (42-day average)",
-            "atl": "Acute Training Load - recent fatigue (7-day average)",
-            "tsb": "Training Stress Balance - form/freshness indicator",
+            "consistency": "Training frequency and regularity",
+            "performance": "Pace/speed improvement over time",
         },
-        "recommendations": generate_fitness_recommendations(ctl, atl, tsb),
-        "activities_analyzed": activity_tss.len(),
     })
 }
 
-/// Estimate Training Stress Score (TSS) for an activity
-fn estimate_tss(activity: &crate::models::Activity) -> f64 {
-    // TSS formula: (duration_hours * IF^2 * 100)
-    // IF (Intensity Factor) estimated from heart rate or pace
+/// Calculate consistency score: percentage of weeks with 3+ activities
+fn calculate_consistency_score(activities: &[crate::models::Activity]) -> f64 {
+    use std::collections::HashMap;
 
-    #[allow(clippy::cast_precision_loss)]
-    #[allow(clippy::cast_precision_loss)]
-    let duration_hours = activity.duration_seconds as f64 / 3600.0;
-
-    // Estimate intensity factor
-    let intensity_factor = activity.average_heart_rate.map_or_else(
-        || {
-            activity.distance_meters.map_or(0.7, |distance| {
-                if distance > 0.0 && activity.duration_seconds > 0 {
-                    #[allow(clippy::cast_precision_loss)]
-                    let pace_mps = distance / activity.duration_seconds as f64;
-                    // Typical running pace: 3-5 m/s, cycling: 5-10 m/s
-                    (pace_mps / 4.0).clamp(0.5, 1.5)
-                } else {
-                    0.7 // default moderate intensity
-                }
-            })
-        },
-        |hr| {
-            // Assume max HR around 190, threshold around 170
-            let hr_ratio = f64::from(hr) / 170.0;
-            hr_ratio.clamp(0.5, 1.2)
-        },
-    );
-
-    duration_hours * intensity_factor.powi(2) * 100.0
-}
-
-/// Calculate CTL (Chronic Training Load) - 42-day exponentially weighted average
-fn calculate_ctl(activity_tss: &[(chrono::DateTime<chrono::Utc>, f64)]) -> f64 {
-    const CTL_TIME_CONSTANT: f64 = 42.0;
-
-    if activity_tss.is_empty() {
+    if activities.is_empty() {
         return 0.0;
     }
 
-    // Exponential decay constant for 42 days
-    let decay_factor = 1.0 / CTL_TIME_CONSTANT;
+    // Get the date range
+    let first_date = activities.iter().map(|a| a.start_date).min();
+    let last_date = activities.iter().map(|a| a.start_date).max();
 
-    let mut ctl = 0.0;
-    let mut previous_date = activity_tss[0].0;
-
-    for (date, tss) in activity_tss {
-        #[allow(clippy::cast_precision_loss)]
-        let days_gap = (*date - previous_date).num_days() as f64;
-
-        // Apply exponential decay
-        if days_gap > 0.0 {
-            ctl *= (1.0 - decay_factor).powf(days_gap);
-        }
-
-        // Add today's TSS
-        ctl = ctl.mul_add(1.0 - decay_factor, tss * decay_factor);
-        previous_date = *date;
-    }
-
-    ctl
-}
-
-/// Calculate ATL (Acute Training Load) - 7-day exponentially weighted average
-fn calculate_atl(activity_tss: &[(chrono::DateTime<chrono::Utc>, f64)]) -> f64 {
-    const ATL_TIME_CONSTANT: f64 = 7.0;
-
-    if activity_tss.is_empty() {
+    let (Some(first), Some(last)) = (first_date, last_date) else {
         return 0.0;
+    };
+
+    // Calculate total weeks spanned
+    let weeks_spanned = ((last - first).num_days() / 7).max(1);
+
+    // Group activities by week number (days since first / 7)
+    let mut activities_per_week: HashMap<i64, u32> = HashMap::new();
+
+    for activity in activities {
+        let days_since_first = (activity.start_date - first).num_days();
+        let week_number = days_since_first / 7;
+        *activities_per_week.entry(week_number).or_insert(0) += 1;
     }
 
-    // Exponential decay constant for 7 days
-    let decay_factor = 1.0 / ATL_TIME_CONSTANT;
+    // Count weeks with 3+ activities
+    let active_weeks = activities_per_week
+        .values()
+        .filter(|&&count| count >= 3)
+        .count();
 
-    let mut atl = 0.0;
-    let mut previous_date = activity_tss[0].0;
-
-    for (date, tss) in activity_tss {
-        #[allow(clippy::cast_precision_loss)]
-        let days_gap = (*date - previous_date).num_days() as f64;
-
-        // Apply exponential decay
-        if days_gap > 0.0 {
-            atl *= (1.0 - decay_factor).powf(days_gap);
-        }
-
-        // Add today's TSS
-        atl = atl.mul_add(1.0 - decay_factor, tss * decay_factor);
-        previous_date = *date;
-    }
-
-    atl
+    // Calculate consistency score as percentage
+    #[allow(clippy::cast_precision_loss)]
+    let score = (active_weeks as f64 / weeks_spanned as f64) * 100.0;
+    score.min(100.0)
 }
 
-/// Generate recommendations based on fitness metrics
-fn generate_fitness_recommendations(ctl: f64, atl: f64, tsb: f64) -> Vec<String> {
-    let mut recommendations = Vec::new();
+/// Calculate performance trend: improvement in average pace over time
+fn calculate_performance_trend(activities: &[crate::models::Activity]) -> f64 {
+    let activities_with_pace: Vec<_> = activities
+        .iter()
+        .filter(|a| a.distance_meters.is_some() && a.duration_seconds > 0)
+        .collect();
 
-    // TSB-based recommendations
-    if tsb > 15.0 {
-        recommendations
-            .push("You're very fresh - good time for hard workouts or races".to_string());
-    } else if tsb > 5.0 {
-        recommendations.push("Good form - ready for quality training".to_string());
-    } else if tsb > -10.0 {
-        recommendations.push("Balanced training stress - maintain current load".to_string());
-    } else if tsb > -25.0 {
-        recommendations.push("Moderate fatigue - consider adding recovery days".to_string());
+    if activities_with_pace.len() < 4 {
+        return 50.0; // neutral score for insufficient data
+    }
+
+    // Split into first and second half
+    let mid_point = activities_with_pace.len() / 2;
+    let first_half = &activities_with_pace[..mid_point];
+    let second_half = &activities_with_pace[mid_point..];
+
+    // Calculate average pace for each half (seconds per meter)
+    #[allow(clippy::cast_precision_loss)]
+    let first_avg_pace: f64 = first_half
+        .iter()
+        .map(|a| a.duration_seconds as f64 / a.distance_meters.unwrap_or(1.0))
+        .sum::<f64>()
+        / first_half.len() as f64;
+
+    #[allow(clippy::cast_precision_loss)]
+    let second_avg_pace: f64 = second_half
+        .iter()
+        .map(|a| a.duration_seconds as f64 / a.distance_meters.unwrap_or(1.0))
+        .sum::<f64>()
+        / second_half.len() as f64;
+
+    // Lower pace is better (faster), so improvement is first_pace - second_pace
+    let pace_improvement_pct = ((first_avg_pace - second_avg_pace) / first_avg_pace) * 100.0;
+
+    // Map improvement to 0-100 score
+    // -10% to +10% improvement maps to 0-100
+    let score = (pace_improvement_pct + 10.0) * 5.0;
+    score.clamp(0.0, 100.0)
+}
+
+/// Classify fitness level based on composite score (0-100)
+fn classify_fitness_level(score: f64) -> &'static str {
+    if score >= 80.0 {
+        "Excellent"
+    } else if score >= 60.0 {
+        "Good"
+    } else if score >= 40.0 {
+        "Moderate"
+    } else if score >= 20.0 {
+        "Developing"
     } else {
-        recommendations.push("⚠️ High fatigue detected - prioritize rest and recovery".to_string());
+        "Beginner"
+    }
+}
+
+/// Calculate fitness trend by comparing recent vs older activities
+fn calculate_trend(activities: &[crate::models::Activity]) -> &'static str {
+    if activities.len() < 4 {
+        return "stable";
     }
 
-    // CTL-based recommendations
-    if ctl < 30.0 {
-        recommendations.push("Build aerobic base with consistent easy training".to_string());
-    } else if ctl > 80.0 && atl > 100.0 {
-        recommendations.push("High training load - watch for overtraining signs".to_string());
-    }
+    let mid_point = activities.len() / 2;
+    let older_half = &activities[..mid_point];
+    let recent_half = &activities[mid_point..];
 
-    // ATL vs CTL ratio
-    let ratio = if ctl > 0.0 { atl / ctl } else { 0.0 };
-    if ratio > 1.5 {
-        recommendations.push("Recent spike in training - allow time to adapt".to_string());
-    }
+    #[allow(clippy::cast_precision_loss)]
+    let older_avg_duration =
+        older_half.iter().map(|a| a.duration_seconds).sum::<u64>() as f64 / older_half.len() as f64;
 
-    recommendations
+    #[allow(clippy::cast_precision_loss)]
+    let recent_avg_duration = recent_half.iter().map(|a| a.duration_seconds).sum::<u64>() as f64
+        / recent_half.len() as f64;
+
+    let change_pct = ((recent_avg_duration - older_avg_duration) / older_avg_duration) * 100.0;
+
+    if change_pct > 15.0 {
+        "improving"
+    } else if change_pct < -15.0 {
+        "declining"
+    } else {
+        "stable"
+    }
 }
 
 // ============================================================================
@@ -2569,10 +2801,13 @@ fn generate_fitness_recommendations(ctl: f64, atl: f64, tsb: f64) -> Vec<String>
 // ============================================================================
 
 /// Predict race performance using VDOT and Riegel formulas
+/// Predict race performance using VDOT methodology from `PerformancePredictor`
 fn predict_race_performance(
     activities: &[crate::models::Activity],
     target_sport: &str,
 ) -> serde_json::Value {
+    use crate::intelligence::PerformancePredictor;
+
     // Filter activities by sport type
     let running_activities: Vec<&crate::models::Activity> = activities
         .iter()
@@ -2583,263 +2818,150 @@ fn predict_race_performance(
         return serde_json::json!({
             "target_sport": target_sport,
             "message": "No running activities found for prediction",
-            "predictions": [],
+            "predictions": {},
         });
     }
 
-    // Find best recent performance (fastest pace over distance > 3km)
-    let Some((best_distance, best_time)) = find_best_performance(&running_activities) else {
+    // Find best recent performance using PerformancePredictor
+    let owned_activities: Vec<_> = running_activities.iter().copied().cloned().collect();
+    let Some(best_activity) = PerformancePredictor::find_best_performance(&owned_activities) else {
         return serde_json::json!({
             "target_sport": target_sport,
-            "message": "No suitable activities found for prediction (need distance > 3km)",
-            "predictions": [],
+            "message": "No suitable activities found for prediction (need distance > 3km with valid time)",
+            "predictions": {},
         });
     };
 
-    // Calculate VDOT from best performance
-    let vdot = calculate_vdot(best_distance, best_time);
+    let best_distance = best_activity.distance_meters.unwrap_or(0.0);
+    #[allow(clippy::cast_precision_loss)]
+    let best_time = best_activity.duration_seconds as f64;
 
-    // Generate race predictions using VDOT tables
-    let predictions = generate_race_predictions(vdot);
+    // Generate race predictions using PerformancePredictor (includes VDOT calculation)
+    match PerformancePredictor::generate_race_predictions(best_distance, best_time) {
+        Ok(race_predictions) => {
+            // Calculate confidence based on data quality
+            let confidence =
+                calculate_prediction_confidence(&running_activities, &best_activity.start_date);
 
-    // Calculate confidence based on data quality
-    let confidence = calculate_prediction_confidence(&running_activities);
-
-    serde_json::json!({
-        "target_sport": target_sport,
-        "vdot": vdot.round(),
-        "best_performance": {
-            "distance_meters": best_distance,
-            "time_seconds": best_time,
-            "pace_min_km": (best_time / 60.0) / (best_distance / 1000.0),
-        },
-        "race_predictions": predictions,
-        "confidence": confidence,
-        "activities_analyzed": running_activities.len(),
-        "notes": [
-            "Predictions assume proper race preparation and taper",
-            "Based on VDOT methodology by Jack Daniels",
-            "Actual performance may vary with conditions and training",
-        ],
-    })
-}
-
-/// Find best performance (fastest pace over meaningful distance)
-#[allow(clippy::cast_precision_loss)]
-fn find_best_performance(activities: &[&crate::models::Activity]) -> Option<(f64, f64)> {
-    const MIN_DISTANCE: f64 = 3000.0; // 3km minimum
-
-    activities
-        .iter()
-        .filter_map(|a| {
-            a.distance_meters.and_then(|distance| {
-                if distance >= MIN_DISTANCE && a.duration_seconds > 0 {
-                    #[allow(clippy::cast_precision_loss)]
-                    let time_seconds = a.duration_seconds as f64;
-                    let pace = time_seconds / distance; // seconds per meter
-                    Some((distance, time_seconds, pace))
-                } else {
-                    None
-                }
-            })
-        })
-        .min_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal))
-        .map(|(dist, time, _)| (dist, time))
-}
-
-/// Calculate VDOT from race performance
-/// `VDOT` formula: `VO2max` estimation based on race time and distance
-#[allow(
-    clippy::suboptimal_flops,
-    clippy::unreadable_literal,
-    clippy::similar_names
-)]
-fn calculate_vdot(distance_meters: f64, time_seconds: f64) -> f64 {
-    // Simplified VDOT calculation
-    // Full formula is complex; this is an approximation
-
-    let velocity_mps = distance_meters / time_seconds;
-    let velocity_mpm = velocity_mps * 60.0; // meters per minute
-
-    // Oxygen cost of running (ml/kg/min)
-    // VO2 = -4.60 + 0.182258 * velocity + 0.000104 * velocity^2
-    let vo2 = velocity_mpm.mul_add(0.182258, -4.60 + 0.000104 * velocity_mpm.powi(2));
-
-    // Percentage of VO2max based on duration
-    let duration_minutes = time_seconds / 60.0;
-    let percent_max = if duration_minutes < 3.0 {
-        1.0 // Very short = max effort
-    } else if duration_minutes < 10.0 {
-        0.98
-    } else if duration_minutes < 30.0 {
-        0.95
-    } else if duration_minutes < 60.0 {
-        0.90
-    } else if duration_minutes < 150.0 {
-        0.85
-    } else {
-        0.80
-    };
-
-    // VDOT = VO2 at race pace / percentage of max
-    (vo2 / percent_max).clamp(30.0, 85.0)
-}
-
-/// Generate race time predictions for standard distances
-fn generate_race_predictions(vdot: f64) -> Vec<serde_json::Value> {
-    let mut predictions = Vec::new();
-
-    // Standard race distances (meters)
-    let races = vec![
-        (5_000.0, "5K"),
-        (10_000.0, "10K"),
-        (21_097.5, "Half Marathon"),
-        (42_195.0, "Marathon"),
-    ];
-
-    for (distance, name) in races {
-        let predicted_time = predict_time_from_vdot(vdot, distance);
-
-        predictions.push(serde_json::json!({
-            "distance": name,
-            "distance_meters": distance,
-            "predicted_time_seconds": predicted_time.round(),
-            "predicted_time_formatted": format_time(predicted_time),
-            "predicted_pace_min_km": format_pace((predicted_time / 60.0) / (distance / 1000.0)),
-        }));
-    }
-
-    predictions
-}
-
-/// Predict race time from VDOT for a given distance
-#[allow(clippy::items_after_statements)]
-fn predict_time_from_vdot(vdot: f64, distance_meters: f64) -> f64 {
-    // Reverse VDOT calculation to get time
-    // This is a simplification using Riegel's formula as approximation
-
-    // Reference: 5K at given VDOT
-    let reference_distance = 5000.0;
-    let reference_velocity = calculate_velocity_from_vdot(vdot, reference_distance);
-    let reference_time = reference_distance / reference_velocity;
-
-    // Riegel's formula: T2 = T1 * (D2/D1)^1.06
-    // Fatigue factor: longer distances require slower pace
-    const FATIGUE_EXPONENT: f64 = 1.06;
-    reference_time * (distance_meters / reference_distance).powf(FATIGUE_EXPONENT)
-}
-
-/// Calculate running velocity from VDOT
-#[allow(
-    clippy::similar_names,
-    clippy::suboptimal_flops,
-    clippy::unreadable_literal
-)]
-fn calculate_velocity_from_vdot(vdot: f64, distance_meters: f64) -> f64 {
-    // Estimate velocity that would produce this VDOT
-    // Simplified inverse calculation
-
-    let duration_estimate = if distance_meters <= 5_000.0 {
-        0.95 // ~95% VO2max for 5K
-    } else if distance_meters <= 10_000.0 {
-        0.92
-    } else if distance_meters <= 21_097.5 {
-        0.88
-    } else {
-        0.82 // ~82% VO2max for marathon
-    };
-
-    let vo2_at_pace = vdot * duration_estimate;
-
-    // Solve for velocity from VO2 equation
-    // VO2 = -4.60 + 0.182258*V + 0.000104*V^2
-    // Using quadratic formula
-    let a: f64 = 0.000104;
-    let b: f64 = 0.182258;
-    let c: f64 = -4.60 - vo2_at_pace;
-
-    let discriminant = b.mul_add(b, -(4.0 * a * c));
-    if discriminant < 0.0 {
-        return 3.0; // fallback: ~12 min/km
-    }
-
-    let velocity_mpm = (-b + discriminant.sqrt()) / (2.0 * a);
-    velocity_mpm / 60.0 // convert to m/s
-}
-
-/// Format time in HH:MM:SS
-fn format_time(seconds: f64) -> String {
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    {
-        let hours = (seconds / 3600.0).floor() as u32;
-        let minutes = ((seconds % 3600.0) / 60.0).floor() as u32;
-        let secs = (seconds % 60.0).round() as u32;
-
-        if hours > 0 {
-            format!("{hours}:{minutes:02}:{secs:02}")
-        } else {
-            format!("{minutes}:{secs:02}")
-        }
-    }
-}
-
-/// Format pace in MM:SS/km
-fn format_pace(minutes_per_km: f64) -> String {
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    {
-        let mins = minutes_per_km.floor() as u32;
-        let secs = ((minutes_per_km - f64::from(mins)) * 60.0).round() as u32;
-        format!("{mins}:{secs:02}/km")
-    }
-}
-
-/// Calculate prediction confidence based on data quality
-#[allow(clippy::cast_precision_loss, clippy::similar_names)]
-fn calculate_prediction_confidence(activities: &[&crate::models::Activity]) -> String {
-    if activities.len() < 3 {
-        "low"
-    } else if activities.len() < 10 {
-        "medium"
-    } else {
-        // Check consistency of recent performances
-        let recent_paces: Vec<f64> = activities
-            .iter()
-            .take(5)
-            .filter_map(|a| {
-                a.distance_meters.and_then(|distance| {
-                    if distance > 3_000.0 && a.duration_seconds > 0 {
-                        #[allow(clippy::cast_precision_loss)]
-                        let time = a.duration_seconds as f64;
-                        Some(time / distance)
-                    } else {
-                        None
-                    }
-                })
-            })
-            .collect();
-
-        if recent_paces.len() >= 3 {
-            #[allow(clippy::cast_precision_loss)]
-            let avg_pace = recent_paces.iter().sum::<f64>() / recent_paces.len() as f64;
-            #[allow(clippy::cast_precision_loss)]
-            let variance: f64 = recent_paces
+            // Convert predictions HashMap to JSON array format for consistency
+            let predictions_array: Vec<serde_json::Value> = race_predictions
+                .predictions
                 .iter()
-                .map(|p| (p - avg_pace).powi(2))
-                .sum::<f64>()
-                / recent_paces.len() as f64;
-            let std_dev = variance.sqrt();
+                .map(|(name, time_seconds)| {
+                    let distance_meters = match name.as_str() {
+                        "5K" => 5_000.0,
+                        "10K" => 10_000.0,
+                        "Half Marathon" => 21_097.5,
+                        "Marathon" => 42_195.0,
+                        _ => 0.0,
+                    };
+                    let pace_per_km = if distance_meters > 0.0 {
+                        PerformancePredictor::format_pace_per_km(distance_meters / time_seconds)
+                    } else {
+                        "N/A".to_string()
+                    };
 
-            // Low variance = high confidence
-            if std_dev / avg_pace < 0.1 {
-                "high"
-            } else {
-                "medium"
-            }
-        } else {
-            "medium"
+                    serde_json::json!({
+                        "distance": name,
+                        "distance_meters": distance_meters,
+                        "predicted_time_seconds": time_seconds.round(),
+                        "predicted_time_formatted": PerformancePredictor::format_time(*time_seconds),
+                        "predicted_pace_min_km": pace_per_km,
+                    })
+                })
+                .collect();
+
+            serde_json::json!({
+                "target_sport": target_sport,
+                "vdot": race_predictions.vdot.round(),
+                "best_performance": {
+                    "distance_meters": best_distance,
+                    "time_seconds": best_time,
+                    "pace_min_km": PerformancePredictor::format_pace_per_km(best_distance / best_time),
+                    "date": best_activity.start_date.to_rfc3339(),
+                },
+                "race_predictions": predictions_array,
+                "confidence": confidence,
+                "activities_analyzed": running_activities.len(),
+                "notes": [
+                    "Predictions assume proper race preparation and taper",
+                    "Based on VDOT methodology by Jack Daniels",
+                    "Actual performance may vary with conditions and training",
+                ],
+            })
+        }
+        // Error handling for generate_race_predictions failure
+        Err(e) => {
+            serde_json::json!({
+                "target_sport": target_sport,
+                "error": format!("Failed to generate predictions: {}", e),
+                "predictions": [],
+                "message": "Unable to calculate race predictions from available data",
+            })
         }
     }
-    .to_string()
+}
+
+/// Calculate prediction confidence based on recency, training volume, and data quality
+///
+/// Confidence factors per B6 roadmap:
+/// - Recency of best performance (< 30 days = high confidence)
+/// - Training volume (high CTL = more confidence)
+/// - Number of recent races and consistency
+#[allow(clippy::cast_precision_loss, clippy::bool_to_int_with_if)] // Multi-level threshold scoring, not simple boolean conversion
+fn calculate_prediction_confidence(
+    activities: &[&crate::models::Activity],
+    best_activity_date: &chrono::DateTime<chrono::Utc>,
+) -> String {
+    use crate::intelligence::TrainingLoadCalculator;
+    use chrono::Utc;
+
+    // Factor 1: Recency (< 30 days = high confidence)
+    let days_since_best = (Utc::now() - *best_activity_date).num_days();
+    let recency_score = if days_since_best < 30 {
+        2 // Recent performance
+    } else if days_since_best < 90 {
+        1 // Moderately recent
+    } else {
+        0 // Old performance
+    };
+
+    // Factor 2: Training volume (CTL)
+    let owned_activities: Vec<_> = activities.iter().copied().cloned().collect();
+    let calculator = TrainingLoadCalculator::new();
+    let ctl_score = if let Ok(training_load) =
+        calculator.calculate_training_load(&owned_activities, None, None, None, None, None)
+    {
+        if training_load.ctl > 80.0 {
+            2 // High training load
+        } else if training_load.ctl > 40.0 {
+            1 // Moderate training load
+        } else {
+            0 // Low training load
+        }
+    } else {
+        0
+    };
+
+    // Factor 3: Number of activities
+    let volume_score = if activities.len() >= 20 {
+        2
+    } else if activities.len() >= 10 {
+        1
+    } else {
+        0
+    };
+
+    // Combine factors (max score = 6)
+    let total_score = recency_score + ctl_score + volume_score;
+
+    if total_score >= 5 {
+        "high".to_string()
+    } else if total_score >= 3 {
+        "medium".to_string()
+    } else {
+        "low".to_string()
+    }
 }
 
 // ============================================================================
@@ -2851,6 +2973,8 @@ fn analyze_detailed_training_load(
     activities: &[crate::models::Activity],
     timeframe: &str,
 ) -> serde_json::Value {
+    use crate::intelligence::TrainingLoadCalculator;
+
     if activities.is_empty() {
         return serde_json::json!({
             "timeframe": timeframe,
@@ -2858,35 +2982,31 @@ fn analyze_detailed_training_load(
         });
     }
 
-    // Calculate TSS for each activity (reuse from fitness score)
-    let mut activity_tss: Vec<(chrono::DateTime<chrono::Utc>, f64)> = activities
-        .iter()
-        .filter_map(|a| {
-            let tss = estimate_tss(a);
-            if tss > 0.0 {
-                Some((a.start_date, tss))
-            } else {
-                None
-            }
-        })
-        .collect();
+    // Use TrainingLoadCalculator from Phase 1 foundation
+    let calculator = TrainingLoadCalculator::new();
 
-    activity_tss.sort_by(|a, b| a.0.cmp(&b.0));
-
-    if activity_tss.is_empty() {
+    // Calculate training load (CTL, ATL, TSB) using real TSS calculation
+    // Note: For accurate TSS, we'd need user's FTP, LTHR, max_hr, etc.
+    // For now, use None values which will trigger estimation
+    let Ok(training_load) = calculator.calculate_training_load(
+        activities, None, // FTP
+        None, // LTHR
+        None, // max_hr
+        None, // resting_hr
+        None, // weight_kg
+    ) else {
         return serde_json::json!({
             "timeframe": timeframe,
-            "message": "Insufficient data for training load calculation",
+            "message": "Unable to calculate training load - insufficient activity data",
         });
-    }
+    };
 
-    // Calculate CTL, ATL, TSB (reuse existing functions)
-    let ctl = calculate_ctl(&activity_tss);
-    let atl = calculate_atl(&activity_tss);
-    let tsb = ctl - atl;
+    let ctl = training_load.ctl;
+    let atl = training_load.atl;
+    let tsb = training_load.tsb;
 
-    // Calculate weekly TSS totals
-    let weekly_tss = calculate_weekly_tss_totals(&activity_tss);
+    // Calculate weekly TSS totals from TSS history
+    let weekly_tss = calculate_weekly_tss_from_history(&training_load.tss_history);
 
     // Determine load status
     let load_status = determine_load_status(ctl, atl, tsb);
@@ -2939,7 +3059,7 @@ fn analyze_detailed_training_load(
         "periodization_suggestions": periodization_suggestions,
         "training_zones": classify_training_load(ctl),
         "recommendations": generate_load_recommendations(ctl, atl, tsb),
-        "activities_analyzed": activity_tss.len(),
+        "activities_analyzed": training_load.tss_history.len(),
         "interpretation": {
             "ctl": "Chronic Training Load - fitness level (42-day average TSS)",
             "atl": "Acute Training Load - fatigue level (7-day average TSS)",
@@ -2950,25 +3070,25 @@ fn analyze_detailed_training_load(
     })
 }
 
-/// Calculate weekly TSS totals
-#[allow(clippy::cast_possible_truncation)]
-fn calculate_weekly_tss_totals(
-    activity_tss: &[(chrono::DateTime<chrono::Utc>, f64)],
+/// Calculate weekly TSS totals from `TssDataPoint` history (Phase 1 format)
+fn calculate_weekly_tss_from_history(
+    tss_history: &[crate::intelligence::TssDataPoint],
 ) -> Vec<serde_json::Value> {
     use std::collections::HashMap;
 
-    if activity_tss.is_empty() {
+    if tss_history.is_empty() {
         return Vec::new();
     }
 
     // Group by week
     let mut weekly_totals: HashMap<i32, f64> = HashMap::new();
-    let first_date = activity_tss[0].0;
+    let first_date = tss_history[0].date;
 
-    for (date, tss) in activity_tss {
-        let days_diff = (*date - first_date).num_days();
-        let week_number = days_diff / 7;
-        *weekly_totals.entry(week_number as i32).or_insert(0.0) += tss;
+    for point in tss_history {
+        let days_diff = (point.date - first_date).num_days();
+        #[allow(clippy::cast_possible_truncation)]
+        let week_number_i32 = (days_diff / 7) as i32;
+        *weekly_totals.entry(week_number_i32).or_insert(0.0) += point.tss;
     }
 
     // Convert to sorted vec

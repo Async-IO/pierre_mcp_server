@@ -40,8 +40,11 @@ pub mod recommendation_engine;
 // New improved modules addressing critical issues
 pub mod analysis_config;
 pub mod metrics_extractor;
+pub mod pattern_detection;
 pub mod performance_analyzer_v2;
+pub mod performance_prediction;
 pub mod statistical_analysis;
+pub mod training_load;
 
 // Activity analysis capabilities
 pub use activity_analyzer::{ActivityAnalyzerTrait, AdvancedActivityAnalyzer};
@@ -68,11 +71,19 @@ pub use recommendation_engine::{AdvancedRecommendationEngine, RecommendationEngi
 // Re-export improved modules with v2 types (preferred versions)
 pub use analysis_config::{AnalysisConfig, AnalysisConfigError, ConfidenceLevel};
 pub use metrics_extractor::{MetricSummary, MetricType, SafeMetricExtractor};
+pub use pattern_detection::{
+    HardEasyPattern, OvertrainingSignals, PatternDetector, VolumeProgressionPattern, VolumeTrend,
+    WeeklySchedulePattern,
+};
 pub use performance_analyzer_v2::{
     ActivityGoal, FitnessScore, PerformanceAnalyzerV2, PerformancePrediction, TrainingLoadAnalysis,
     WeeklyLoad,
 };
+pub use performance_prediction::{PerformancePredictor, RacePredictions};
 pub use statistical_analysis::{RegressionResult, SignificanceLevel, StatisticalAnalyzer};
+pub use training_load::{
+    OvertrainingRisk, RiskLevel, TrainingLoad, TrainingLoadCalculator, TrainingStatus, TssDataPoint,
+};
 
 // Re-export configuration types for external use
 pub use crate::config::intelligence_config::{

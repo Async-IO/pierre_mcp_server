@@ -1007,6 +1007,10 @@ pub mod business_thresholds {
     /// Distance threshold for achievement insights (kilometers)
     /// Activities above this distance generate achievement insights
     pub const ACHIEVEMENT_DISTANCE_THRESHOLD_KM: f64 = 10.0;
+
+    /// Elevation threshold for achievement insights (meters)
+    /// Activities with elevation gain above this threshold generate climbing insights
+    pub const ACHIEVEMENT_ELEVATION_THRESHOLD_M: f64 = 500.0;
 }
 
 /// Unit conversion constants for various measurements
@@ -1148,4 +1152,54 @@ pub mod zone_distributions {
         /// Upper limit for running shoe usage before replacement
         pub const SHOE_REPLACEMENT_MAX_KM: f64 = 800.0;
     }
+}
+
+/// Configuration validation ranges for physiological parameters
+///
+/// These ranges represent biologically plausible values for human physiology.
+/// Values outside these ranges indicate measurement errors or data entry mistakes.
+///
+/// References:
+/// - ACSM Guidelines for Exercise Testing and Prescription, 11th Edition
+/// - European Society of Cardiology guidelines on exercise testing
+pub mod configuration_validation {
+    /// Minimum valid maximum heart rate (bpm)
+    /// Lower bound for adult maximum heart rate
+    pub const MAX_HR_MIN: u64 = 100;
+
+    /// Maximum valid maximum heart rate (bpm)
+    /// Upper bound for adult maximum heart rate
+    pub const MAX_HR_MAX: u64 = 220;
+
+    /// Minimum valid resting heart rate (bpm)
+    /// Lower bound for adult resting heart rate (elite athletes can have lower)
+    pub const RESTING_HR_MIN: u64 = 30;
+
+    /// Maximum valid resting heart rate (bpm)
+    /// Upper bound for healthy adult resting heart rate
+    pub const RESTING_HR_MAX: u64 = 100;
+
+    /// Minimum valid threshold heart rate (bpm)
+    /// Lower bound for lactate threshold heart rate
+    pub const THRESHOLD_HR_MIN: u64 = 100;
+
+    /// Maximum valid threshold heart rate (bpm)
+    /// Upper bound for lactate threshold heart rate
+    pub const THRESHOLD_HR_MAX: u64 = 200;
+
+    /// Minimum valid VO2 max (ml/kg/min)
+    /// Lower bound for adult VO2 max values
+    pub const VO2_MAX_MIN: f64 = 20.0;
+
+    /// Maximum valid VO2 max (ml/kg/min)
+    /// Upper bound for adult VO2 max values (elite athletes)
+    pub const VO2_MAX_MAX: f64 = 90.0;
+
+    /// Minimum valid FTP (watts)
+    /// Lower bound for adult functional threshold power
+    pub const FTP_MIN: u64 = 50;
+
+    /// Maximum valid FTP (watts)
+    /// Upper bound for adult functional threshold power
+    pub const FTP_MAX: u64 = 600;
 }
