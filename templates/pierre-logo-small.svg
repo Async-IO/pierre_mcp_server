@@ -1,0 +1,13 @@
+<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="logo-title-small logo-desc-small">
+  <title id="logo-title-small">Pierre Fitness Platform</title>
+  <desc id="logo-desc-small">Simplified energy wave for small sizes, single wave in solid brand green</desc>
+
+  <!-- Single wave in solid brand green (no gradient, no secondary waves) -->
+  <path d="M 15 65 Q 30 45, 45 50 T 75 35"
+        fill="none" stroke="#16a34a" stroke-width="8"
+        stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+
+  <!-- Energy burst at endpoint -->
+  <circle cx="75" cy="35" r="4" fill="#16a34a"/>
+  <circle cx="75" cy="35" r="7" fill="none" stroke="#16a34a" stroke-width="1.5" opacity="0.5" vector-effect="non-scaling-stroke"/>
+</svg>
