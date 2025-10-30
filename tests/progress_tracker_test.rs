@@ -12,9 +12,7 @@ async fn test_progress_tracking_lifecycle() {
     let tracker = ProgressTracker::new();
 
     // Start operation
-    let token = tracker
-        .start_operation("test_operation".to_string(), Some(100.0))
-        .await;
+    let token = tracker.start_operation("test_operation", Some(100.0)).await;
     assert!(!token.is_empty());
 
     // Check initial state
@@ -52,7 +50,7 @@ async fn test_progress_notifications() {
     let tracker = ProgressTracker::with_notifications(sender);
 
     let token = tracker
-        .start_operation("notification_test".to_string(), Some(10.0))
+        .start_operation("notification_test", Some(10.0))
         .await;
 
     // Should receive initial notification
@@ -78,8 +76,8 @@ async fn test_progress_notifications() {
 async fn test_cleanup_completed() {
     let tracker = ProgressTracker::new();
 
-    let token1 = tracker.start_operation("op1".to_string(), None).await;
-    let token2 = tracker.start_operation("op2".to_string(), None).await;
+    let token1 = tracker.start_operation("op1", None).await;
+    let token2 = tracker.start_operation("op2", None).await;
 
     // Complete one operation
     tracker.complete_operation(&token1, None).await.unwrap();
@@ -98,9 +96,7 @@ async fn test_cleanup_completed() {
 async fn test_operation_cancellation() {
     let tracker = ProgressTracker::new();
 
-    let token = tracker
-        .start_operation("cancellable_op".to_string(), Some(50.0))
-        .await;
+    let token = tracker.start_operation("cancellable_op", Some(50.0)).await;
 
     // Update progress
     tracker
@@ -139,7 +135,7 @@ async fn test_cancellation_notifications() {
     let tracker = ProgressTracker::with_notifications(sender);
 
     let token = tracker
-        .start_operation("notify_cancel_test".to_string(), Some(20.0))
+        .start_operation("notify_cancel_test", Some(20.0))
         .await;
 
     // Clear initial notification

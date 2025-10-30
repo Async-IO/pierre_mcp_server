@@ -51,11 +51,11 @@ impl ProgressTracker {
     }
 
     /// Start tracking progress for a new operation
-    pub async fn start_operation(&self, operation_name: String, total: Option<f64>) -> String {
+    pub async fn start_operation(&self, operation_name: &str, total: Option<f64>) -> String {
         let progress_token = Uuid::new_v4().to_string();
 
         let state = ProgressState {
-            operation_name: operation_name.clone(),
+            operation_name: operation_name.to_string(),
             current: 0.0,
             total,
             message: Some(format!("Starting {operation_name}...")),

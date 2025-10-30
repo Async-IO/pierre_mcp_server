@@ -455,13 +455,13 @@ impl ConfigurationRoutes {
         // Apply parameter overrides
         for (key, value) in parameter_overrides {
             if let Some(float_val) = value.as_f64() {
-                let _ = config.set_override(key.clone(), ConfigValue::Float(float_val));
+                let _ = config.set_override(&key, ConfigValue::Float(float_val));
             } else if let Some(int_val) = value.as_i64() {
-                let _ = config.set_override(key.clone(), ConfigValue::Integer(int_val));
+                let _ = config.set_override(&key, ConfigValue::Integer(int_val));
             } else if let Some(bool_val) = value.as_bool() {
-                let _ = config.set_override(key.clone(), ConfigValue::Boolean(bool_val));
+                let _ = config.set_override(&key, ConfigValue::Boolean(bool_val));
             } else if let Some(str_val) = value.as_str() {
-                let _ = config.set_override(key.clone(), ConfigValue::String(str_val.to_string()));
+                let _ = config.set_override(&key, ConfigValue::String(str_val.to_string()));
             }
         }
 

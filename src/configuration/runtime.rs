@@ -217,18 +217,18 @@ impl RuntimeConfig {
     ///
     /// This function currently doesn't return any errors but is designed to validate
     /// configuration changes in the future.
-    pub fn set_override(&mut self, key: String, value: ConfigValue) -> Result<(), String> {
-        let old_value = self.get_value(&key);
+    pub fn set_override(&mut self, key: &str, value: ConfigValue) -> Result<(), String> {
+        let old_value = self.get_value(key);
 
         self.log_change(
             "session".into(),
-            key.clone(),
+            key.to_string(),
             old_value,
             value.clone(),
             None,
         );
 
-        self.session_overrides.insert(key, value);
+        self.session_overrides.insert(key.to_string(), value);
         self.last_modified = Utc::now();
 
         Ok(())

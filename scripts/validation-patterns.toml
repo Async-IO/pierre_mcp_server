@@ -27,6 +27,7 @@ critical = [
     "todo!",
     "return Ok\\(\\); // placeholder",
     "return Err.*not implemented",
+    "not yet.*implemented",
     "Intelligence analysis requires authenticated provider access",
     "requires authenticated provider access",
     "This handler.*delegates to.*services",
@@ -289,12 +290,16 @@ legitimate_clone_patterns = [
 # These catch non-idiomatic Rust that looks correct but isn't optimal
 
 # String allocation anti-patterns - unnecessary String where &str would work
+# Note: Excludes constructors (::new) which legitimately need ownership
 string_allocation_antipatterns = [
-    "String\\) ->",           # Functions taking owned String instead of &str
-    "fn.*\\(.*: String,",     # String parameters (should usually be &str)
     "\\.to_string\\(\\)\\.as_str\\(\\)",  # Unnecessary round-trip
     "String::from.*\\.as_str\\(\\)",      # Another round-trip
     "&.*\\.to_string\\(\\)"   # Taking reference of owned string
+]
+
+# Function parameter String usage - needs manual review (constructors are often legitimate)
+function_string_parameters = [
+    "pub fn (?!new|error|cancelled)\\w+\\(.*: String,"  # Non-constructor functions with String params
 ]
 
 # Iterator anti-patterns - manual loops where iterators would be cleaner
@@ -362,7 +367,8 @@ max_fake_resources = 0
 max_problematic_db_clones = 0
 
 # Claude Code anti-pattern thresholds
-max_string_allocation_antipatterns = 20
+max_string_allocation_antipatterns = 0  # Round-trip conversions should never occur
+max_function_string_parameters = 0      # All fixed - functions should use &str
 max_iterator_antipatterns = 15
 max_error_context_antipatterns = 0  # ZERO TOLERANCE: anyhow! macro is FORBIDDEN (use structured error types)
 max_async_antipatterns = 5

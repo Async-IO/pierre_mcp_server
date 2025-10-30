@@ -212,6 +212,7 @@ if [ -f "$VALIDATION_PATTERNS_FILE" ]; then
 
     # Claude Code anti-pattern analysis
     TOML_STRING_ALLOCATIONS=$(rg "$STRING_ALLOCATION_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_FUNCTION_STRING_PARAMS=$(rg "$FUNCTION_STRING_PARAMETERS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     TOML_ITERATOR_ANTIPATTERNS=$(rg "$ITERATOR_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     TOML_ERROR_CONTEXT=$(rg "$ERROR_CONTEXT_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     TOML_ASYNC_ANTIPATTERNS=$(rg "$ASYNC_ANTIPATTERNS_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
@@ -681,12 +682,20 @@ fi
 echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"
 
 # Claude Code Anti-Patterns (AI-generated code quality)
-printf "│ %-35s │ %5d │ " "String allocations (String vs &str)" "$TOML_STRING_ALLOCATIONS"
-if [ "$TOML_STRING_ALLOCATIONS" -le 20 ]; then
-    printf "$(format_status "✅ PASS")│ %-39s │\n" "Good string handling"
+printf "│ %-35s │ %5d │ " "String round-trip conversions" "$TOML_STRING_ALLOCATIONS"
+if [ "$TOML_STRING_ALLOCATIONS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "No unnecessary conversions"
 else
-    FIRST_STRING=$(get_first_location 'rg "String\\) ->|fn.*\\(.*: String," src/ -g "!src/bin/*" -g "!tests/*" -n')
-    printf "$(format_status "⚠️ INFO")│ %-39s │\n" "$FIRST_STRING"
+    FIRST_STRING=$(get_first_location 'rg "$STRING_ALLOCATION_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_STRING"
+fi
+
+printf "│ %-35s │ %5d │ " "Function String parameters" "$TOML_FUNCTION_STRING_PARAMS"
+if [ "$TOML_FUNCTION_STRING_PARAMS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "All functions use &str (optimized)"
+else
+    FIRST_FUNC_STRING=$(get_first_location 'rg "$FUNCTION_STRING_PARAMETERS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_FUNC_STRING"
 fi
 
 printf "│ %-35s │ %5d │ " "Iterator anti-patterns" "$TOML_ITERATOR_ANTIPATTERNS"
@@ -741,7 +750,7 @@ fi
 # Report comprehensive summary based on actual findings
 # Note: Clone validation now uses clippy analysis instead of arbitrary thresholds
 CRITICAL_ISSUES=$((NULL_UUIDS + PROBLEMATIC_DB_CLONES + PROBLEMATIC_UNWRAPS + PROBLEMATIC_EXPECTS + PANICS + IGNORED_TESTS + IMPLEMENTATION_PLACEHOLDERS + PLACEHOLDER_WARNINGS))
-CRITICAL_ISSUES=$((CRITICAL_ISSUES + TOML_PRODUCTION_HYGIENE + CFG_TEST_IN_SRC + DEAD_CODE))
+CRITICAL_ISSUES=$((CRITICAL_ISSUES + TOML_PRODUCTION_HYGIENE + CFG_TEST_IN_SRC + DEAD_CODE + TOML_STRING_ALLOCATIONS))
 
 WARNINGS=$((FAKE_RESOURCES + (OBSOLETE_FUNCTIONS > 1 ? OBSOLETE_FUNCTIONS - 1 : 0)))
 WARNINGS=$((WARNINGS + RESOURCE_CREATION + TODOS + PROBLEMATIC_UNDERSCORE_NAMES + TEMP_SOLUTIONS))
@@ -749,7 +758,7 @@ WARNINGS=$((WARNINGS + (CLIPPY_CLONE_WARNINGS > 0 ? 1 : 0) + (POTENTIALLY_PROBLE
 WARNINGS=$((WARNINGS + (TOML_DEVELOPMENT_ARTIFACTS > 0 ? 1 : 0) + (TOML_TEMPORARY_CODE > MAX_TEMPORARY_CODE ? 1 : 0) + (TOML_MAGIC_NUMBERS > MAX_MAGIC_NUMBERS ? 1 : 0)))
 
 # Claude Code anti-pattern warnings (informational - encourage better Rust idioms)
-WARNINGS=$((WARNINGS + (TOML_STRING_ALLOCATIONS > 20 ? 1 : 0)))
+WARNINGS=$((WARNINGS + (TOML_FUNCTION_STRING_PARAMS > 0 ? 1 : 0)))
 WARNINGS=$((WARNINGS + (TOML_ITERATOR_ANTIPATTERNS > 15 ? 1 : 0)))
 WARNINGS=$((WARNINGS + (TOML_ERROR_CONTEXT > 10 ? 1 : 0)))
 WARNINGS=$((WARNINGS + (TOML_ASYNC_ANTIPATTERNS > 5 ? 1 : 0)))

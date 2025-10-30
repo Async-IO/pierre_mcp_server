@@ -26,9 +26,7 @@ fn test_config_value_override() {
     assert!(base_value.is_some());
 
     // Set override
-    config
-        .set_override(key.clone(), ConfigValue::Float(90.0))
-        .unwrap();
+    config.set_override(&key, ConfigValue::Float(90.0)).unwrap();
 
     // Verify override takes precedence
     if let Some(ConfigValue::Float(value)) = config.get_value(&key) {
@@ -44,10 +42,7 @@ fn test_module_values() {
 
     // Add some overrides
     config
-        .set_override(
-            "heart_rate.custom_threshold".into(),
-            ConfigValue::Float(82.5),
-        )
+        .set_override("heart_rate.custom_threshold", ConfigValue::Float(82.5))
         .unwrap();
 
     let hr_values = config.get_module_values("heart_rate");
@@ -60,7 +55,7 @@ fn test_change_logging() {
     let mut config = RuntimeConfig::new();
 
     config
-        .set_override("test.parameter".into(), ConfigValue::Float(50.0))
+        .set_override("test.parameter", ConfigValue::Float(50.0))
         .unwrap();
 
     let changes = config.get_recent_changes(10);
