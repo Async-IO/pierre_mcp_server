@@ -352,91 +352,6 @@ Pierre Fitness Platform provides 25 tools through the MCP protocol. Tool definit
 
 Tool descriptions from `src/protocols/universal/tool_registry.rs:114-162`.
 
-## Authentication
-
-Pierre Fitness Platform supports multiple authentication methods for different use cases.
-
-### two oauth systems
-
-pierre implements two separate oauth systems:
-
-**oauth client** (pierre → fitness providers):
-- pierre connects TO fitness providers (strava, garmin, fitbit) to fetch user activity data
-- configure with provider credentials: `STRAVA_CLIENT_ID`, `FITBIT_CLIENT_ID`, `GARMIN_CLIENT_ID`
-- handles user authorization and automatic token refresh
-- implementation: `src/oauth2_client/`, `src/providers/`
-- see [oauth client documentation](docs/oauth-client.md) for technical details
-
-**oauth server** (mcp clients → pierre):
-- mcp clients (claude desktop, custom integrations) connect TO pierre for authentication
-- implements rfc 7591 (dynamic client registration) and rfc 7636 (pkce)
-- issues jwt access tokens for mcp protocol requests
-- implementation: `src/oauth2_server/`
-- endpoints: `/oauth2/register`, `/oauth2/authorize`, `/oauth2/token`, `/oauth2/jwks`
-- see [oauth2 server documentation](docs/oauth2-server.md) for technical details
-
-**quick summary**: configure fitness provider credentials for data access. mcp clients use oauth2 endpoints for authentication.
-
-### oauth 2.0 for mcp clients
-
-the pierre sdk (`pierre-mcp-client` npm package) handles oauth 2.0 authentication automatically for stdio transport. for streamable http transport:
-
-**discovery endpoint:**
-```
-GET /.well-known/oauth-authorization-server
-```
-
-**registration:**
-```bash
-POST /oauth2/register
-{
-  "redirect_uris": ["https://client.example.com/callback"],
-  "client_name": "My MCP Client",
-  "grant_types": ["authorization_code"]
-}
-```
-
-**authorization and token exchange:**
-1. redirect user to `/oauth2/authorize` with client_id and pkce challenge
-2. exchange authorization code at `/oauth2/token` for jwt access token
-3. use jwt token in `Authorization: Bearer <token>` header for all mcp requests
-
-see [oauth2 server documentation](docs/oauth2-server.md) for complete flow, pkce requirements, and error handling.
-
-### JWT Authentication
-
-For direct REST API access:
-
-```bash
-# Register user
-curl -X POST http://localhost:8081/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "password123", "display_name": "User"}'
-
-# Login to get JWT token
-curl -X POST http://localhost:8081/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "password123"}'
-
-# Use JWT token
-curl -H "Authorization: Bearer YOUR_JWT_TOKEN" http://localhost:8081/mcp
-```
-
-### API Key Authentication
-
-For service-to-service integration:
-
-```bash
-# Create API key (requires admin or user JWT)
-curl -X POST http://localhost:8081/api/keys \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "My Service", "tier": "professional"}'
-
-# Use API key
-curl -H "X-API-Key: YOUR_API_KEY" http://localhost:8081/api/endpoint
-```
-
 ## A2A (Agent-to-Agent) Protocol
 
 Pierre Fitness Platform supports agent-to-agent communication for autonomous AI systems. Implementation in `src/a2a/`.
@@ -603,6 +518,8 @@ Complete documentation is in the `docs/` directory:
 - **[Architecture](docs/architecture.md)** - system design and components
 - **[Protocols](docs/protocols.md)** - mcp, oauth2, a2a, rest protocols
 - **[Authentication](docs/authentication.md)** - jwt, api keys, oauth2
+- **[OAuth Client](docs/oauth-client.md)** - fitness provider oauth connections (strava, fitbit, garmin)
+- **[OAuth2 Server](docs/oauth2-server.md)** - mcp client authentication
 - **[Configuration](docs/configuration.md)** - environment variables and settings
 - **[Contributing](docs/contributing.md)** - development guidelines
 
