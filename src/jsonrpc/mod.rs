@@ -38,6 +38,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fmt;
 
 /// JSON-RPC 2.0 version string
 pub const JSONRPC_VERSION: &str = "2.0";
@@ -46,7 +47,7 @@ pub const JSONRPC_VERSION: &str = "2.0";
 ///
 /// This is the unified request structure used by all protocols.
 /// Protocol-specific extensions (like MCP/A2A's `auth_token`) are included as optional fields.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct JsonRpcRequest {
     /// JSON-RPC version (always "2.0")
     pub jsonrpc: String,
@@ -74,6 +75,31 @@ pub struct JsonRpcRequest {
     /// Not part of JSON-RPC spec, but useful for future extensions
     #[serde(skip_serializing_if = "HashMap::is_empty", default)]
     pub metadata: HashMap<String, String>,
+}
+
+// Custom Debug implementation that redacts sensitive auth tokens
+impl fmt::Debug for JsonRpcRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("JsonRpcRequest")
+            .field("jsonrpc", &self.jsonrpc)
+            .field("method", &self.method)
+            .field("params", &self.params)
+            .field("id", &self.id)
+            .field(
+                "auth_token",
+                &self.auth_token.as_ref().map(|token| {
+                    // Redact token: show first 10 and last 8 characters, or "[REDACTED]" if short
+                    if token.len() > 20 {
+                        format!("{}...{}", &token[..10], &token[token.len() - 8..])
+                    } else {
+                        "[REDACTED]".to_string()
+                    }
+                }),
+            )
+            .field("headers", &self.headers)
+            .field("metadata", &self.metadata)
+            .finish()
+    }
 }
 
 /// JSON-RPC 2.0 Response

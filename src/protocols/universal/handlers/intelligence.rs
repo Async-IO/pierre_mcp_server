@@ -2880,7 +2880,7 @@ fn predict_race_performance(
                     "pace_min_km": PerformancePredictor::format_pace_per_km(best_distance / best_time),
                     "date": best_activity.start_date.to_rfc3339(),
                 },
-                "race_predictions": predictions_array,
+                "predictions": predictions_array,
                 "confidence": confidence,
                 "activities_analyzed": running_activities.len(),
                 "notes": [

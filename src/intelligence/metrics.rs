@@ -193,32 +193,48 @@ impl MetricsCalculator {
 
     /// Calculate TSS from activity data
     fn calculate_tss_from_data(&self, activity: &Activity) -> Option<f64> {
-        // Calculate TSS from power data if available
-        if let (Some(avg_power), Some(ftp)) = (activity.average_power, self.ftp) {
-            // Safe conversion for duration
-            let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
-                f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
-            } else {
-                f64::from(u32::try_from(activity.duration_seconds).unwrap_or(u32::MAX))
-                    / crate::constants::time_constants::SECONDS_PER_HOUR_F64
-            };
-            Some(Self::calculate_tss(avg_power, ftp, duration_hours))
-        } else if let (Some(avg_hr), Some(ftp)) = (activity.average_heart_rate, self.ftp) {
-            // Fallback to HR-based TSS estimation
-            let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
-                f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
-            } else {
-                f64::from(u32::try_from(activity.duration_seconds).unwrap_or(u32::MAX))
-                    / crate::constants::time_constants::SECONDS_PER_HOUR_F64
-            };
-            self.max_hr.map(|max_hr| {
-                let hr_percentage = f64::from(avg_hr) / max_hr;
-                let estimated_power = ftp * hr_percentage;
-                Self::calculate_tss_from_f64(estimated_power, ftp, duration_hours)
-            })
+        // Helper to calculate duration in hours
+        let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
+            f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
         } else {
-            None
+            f64::from(u32::try_from(activity.duration_seconds).unwrap_or(u32::MAX))
+                / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+        };
+
+        // 1. Try power-based TSS (most accurate)
+        if let (Some(avg_power), Some(ftp)) = (activity.average_power, self.ftp) {
+            return Some(Self::calculate_tss(avg_power, ftp, duration_hours));
         }
+
+        // 2. Try HR-based TSS using LTHR (per methodology.md line 347)
+        if let (Some(avg_hr), Some(lthr)) = (activity.average_heart_rate, self.lthr) {
+            let hr_ratio = f64::from(avg_hr) / lthr;
+            let tss = duration_hours * hr_ratio.powi(2) * 100.0;
+            return Some(tss);
+        }
+
+        // 3. Fallback: Pace-based TSS estimation for running activities without sensors
+        if let Some(distance_m) = activity.distance_meters {
+            if distance_m > 0.0 && activity.duration_seconds > 0 {
+                // Estimate TSS from pace relative to moderate effort
+                // Assumes 10 min/km as baseline moderate effort (TSS = duration in hours * 100)
+                #[allow(clippy::cast_precision_loss)]
+                let pace_s_per_km = activity.duration_seconds as f64 / (distance_m / 1000.0);
+                let baseline_pace = 600.0; // 10 min/km in seconds
+
+                // Intensity factor: faster pace = higher intensity
+                // Running at baseline pace = IF of 0.75 (moderate)
+                // Running 20% faster (8 min/km) = IF of ~0.9
+                let pace_ratio = baseline_pace / pace_s_per_km;
+                let intensity_factor = (pace_ratio * 0.75).clamp(0.5, 1.2);
+
+                let tss = duration_hours * intensity_factor.powi(2) * 100.0;
+                return Some(tss);
+            }
+        }
+
+        // 4. No data available for TSS calculation
+        None
     }
 
     /// Calculate intensity factor from activity data
@@ -364,12 +380,6 @@ impl MetricsCalculator {
     /// Calculate Training Stress Score (TSS)
     fn calculate_tss(avg_power: u32, ftp: f64, duration_hours: f64) -> f64 {
         let intensity_factor = f64::from(avg_power) / ftp;
-        (duration_hours * intensity_factor * intensity_factor * TSS_BASE_MULTIPLIER).round()
-    }
-
-    /// Calculate Training Stress Score (TSS) from f64 power value
-    fn calculate_tss_from_f64(avg_power: f64, ftp: f64, duration_hours: f64) -> f64 {
-        let intensity_factor = avg_power / ftp;
         (duration_hours * intensity_factor * intensity_factor * TSS_BASE_MULTIPLIER).round()
     }
 
