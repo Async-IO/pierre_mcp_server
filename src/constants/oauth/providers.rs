@@ -15,6 +15,9 @@ pub const FITBIT: &str = "fitbit";
 /// Garmin fitness provider identifier
 pub const GARMIN: &str = "garmin";
 
+/// Synthetic fitness provider identifier (for testing)
+pub const SYNTHETIC: &str = "synthetic";
+
 /// Get all supported OAuth providers
 #[must_use]
 pub const fn all() -> &'static [&'static str] {

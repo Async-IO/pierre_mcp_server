@@ -926,7 +926,7 @@ pub struct PersonalRecord {
 ///
 /// Each metric represents a different aspect of athletic performance
 /// that can be optimized and tracked over time.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum PrMetric {
     /// Fastest pace achieved (seconds per meter)
