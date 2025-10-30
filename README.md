@@ -42,23 +42,37 @@ See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md) f
 
 Pierre Fitness Platform runs as a single HTTP server on port 8081 (configurable). All protocols (MCP, OAuth 2.0, REST API) share the same port.
 
+### Connection Modes
+
 ```
-┌─────────────────┐    stdio     ┌─────────────────┐    HTTP+OAuth   ┌─────────────────┐
-│   MCP Client    │ ◄─────────►  │ Pierre SDK      │ ◄─────────────► │ Pierre Fitness  │
-│                 │              │ Bridge          │                 │ Platform        │
-└─────────────────┘              └─────────────────┘                 └─────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│                              MCP Client Integration                                  │
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                      │
+│  Mode 1: SDK Bridge (stdio-based clients)                                            │
+│  ┌─────────────────┐    stdio     ┌─────────────────┐    HTTP+OAuth   ┌──────────┐   │
+│  │   MCP Client    │ ◄─────────►  │ Pierre SDK      │ ◄─────────────► │ Pierre   │   │
+│  │ (Claude Desktop)│              │ Bridge          │                 │ Fitness  │   │
+│  └─────────────────┘              └─────────────────┘                 │ Platform │   │ 
+│                                                                       │          │   │
+│  Mode 2: Direct Connection (HTTP transport clients)                   │          │   │
+│  ┌─────────────────┐    MCP-over-HTTP+OAuth                           │          │   │
+│  │   MCP Client    │ ◄──────────────────────────────────────────────► │          │   │
+│  │ (HTTP-native)   │                                                  │          │   │
+│  └─────────────────┘                                                  └──────────┘   │
+│                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Core Components** (from `src/lib.rs:58-182`):
-- `mcp`: MCP protocol server implementation
-- `oauth2`: OAuth 2.0 authorization server (RFC 7591)
-- `a2a`: Agent-to-agent protocol with agent cards
-- `providers`: Fitness provider integrations (Strava, Garmin, Fitbit)
-- `intelligence`: Activity analysis and insights
-- `database_plugins`: SQLite and PostgreSQL support
-- `cache`: Pluggable cache system (in-memory LRU, Redis future)
-- `auth`: JWT token authentication
-- `crypto`: Two-tier key management system
+**Mode 1: SDK Bridge** (via `pierre-mcp-client` npm package)
+- For MCP clients using stdio transport (Claude Desktop, most existing clients)
+- Handles OAuth 2.0 flow and token management automatically
+- Configuration: Add SDK command to MCP client config (see MCP Client Integration section)
+
+**Mode 2: Direct Connection** (native HTTP transport)
+- For MCP clients with built-in HTTP transport support (remote MCP)
+- Direct MCP-over-HTTP communication with OAuth 2.0 authentication
+- Configuration: Implement OAuth 2.0 flow and connect to `http://localhost:8081/mcp`
 
 ## LLM Interaction
 
@@ -249,6 +263,40 @@ When the MCP client starts, the SDK will:
 4. Use JWT tokens for all MCP requests
 
 No manual token management required.
+
+## Direct Connection with Remote Protocol
+
+Some MCP clients support native HTTP/remote protocol and can connect directly to Pierre Fitness Platform without the SDK bridge.
+
+### Direct Connection Setup
+
+MCP clients with HTTP transport support can connect directly to the MCP endpoint:
+
+```
+Endpoint: http://localhost:8081/mcp (development)
+Endpoint: https://your-server.com/mcp (production)
+```
+
+### Direct Connection Authentication
+
+Direct connections use OAuth 2.0 authorization code flow:
+
+1. Client discovers OAuth configuration from `/.well-known/oauth-authorization-server`
+2. Client registers dynamically using RFC 7591 (`/oauth2/register`)
+3. Opens browser for user authentication (`/oauth2/authorize`)
+4. Exchanges authorization code for JWT token (`/oauth2/token`)
+5. Uses JWT token for all subsequent MCP requests
+
+### Choosing Connection Mode
+
+| Feature | SDK Bridge | Direct Connection |
+|---------|-----------|-------------------|
+| **Best For** | Claude Desktop, ChatGPT, existing stdio clients | Custom integrations, HTTP-native clients |
+| **Transport** | stdio (stdin/stdout) | MCP-over-HTTP |
+| **Setup** | npm package installation | Custom HTTP client implementation |
+| **OAuth Flow** | Automatic via SDK | Client must implement OAuth 2.0 flow |
+| **Performance** | Low latency (local process) | Network overhead (HTTP requests) |
+| **Use Cases** | Desktop applications, IDE integrations | Web services, distributed systems, custom tooling |
 
 ## Available MCP Tools
 
