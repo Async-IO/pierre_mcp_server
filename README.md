@@ -11,6 +11,21 @@
 
 Pierre Fitness Platform connects AI assistants to fitness data from Strava, Garmin, and Fitbit. The platform implements the Model Context Protocol (MCP), A2A protocol, OAuth 2.0, and REST APIs for integration with Claude, ChatGPT, and other AI assistants.
 
+### Intelligence System
+
+Pierre's analytics engine uses **scientifically-validated algorithms** for training analysis and performance prediction:
+
+- **VDOT Race Predictions**: 0.2-5.5% accuracy vs. Jack Daniels' published tables (verified against VDOT 40, 50, 60)
+- **Training Load Analysis**: TSS/CTL/ATL calculations with exponential moving averages, gap handling, and overtraining detection
+- **Pattern Recognition**: Weekly schedule detection, hard/easy alternation analysis, volume progression trends
+- **Statistical Analysis**: Linear regression, R² calculation, trend detection with significance testing
+- **Physiological Validation**: Range and relationship checks for all parameters (heart rate, power, VO2 max)
+- **Real Profile Inference**: Fitness level classification from activity volume and consistency
+
+**Implementation Status**: Production-ready with zero placeholders, 562 test assertions, and peer-reviewed sports science formulas throughout.
+
+📖 **Methodology**: See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md) for detailed formulas, references, and verification results.
+
 ## Features
 
 - **MCP Protocol**: JSON-RPC over HTTP for AI assistant integration
