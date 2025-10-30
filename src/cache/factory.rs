@@ -25,7 +25,7 @@ impl Cache {
     pub async fn new(config: CacheConfig) -> Result<Self> {
         if config.redis_url.is_some() {
             tracing::warn!(
-                "Redis cache requested but not yet implemented. Using in-memory cache instead."
+                "Redis cache configuration detected but Redis backend is currently unavailable. Falling back to in-memory cache."
             );
         }
 
