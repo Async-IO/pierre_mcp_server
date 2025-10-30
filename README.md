@@ -55,7 +55,7 @@ Pierre Fitness Platform runs as a single HTTP server on port 8081 (configurable)
 │  │ (Claude Desktop)│              │ Bridge          │                 │ Fitness  │   │
 │  └─────────────────┘              └─────────────────┘                 │ Platform │   │
 │                                                                       │          │   │
-│  streamable http transport (server-based)                              │          │   │
+│  streamable http transport (server-based)                             │          │   │
 │  ┌─────────────────┐    MCP-over-HTTP+OAuth                           │          │   │
 │  │   MCP Client    │ ◄──────────────────────────────────────────────► │          │   │
 │  │ (HTTP-native)   │                                                  │          │   │
