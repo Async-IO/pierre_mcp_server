@@ -13,18 +13,15 @@ Pierre Fitness Platform connects AI assistants to fitness data from Strava, Garm
 
 ### Intelligence System
 
-Pierre's analytics engine uses **scientifically-validated algorithms** for training analysis and performance prediction:
+The platform calculates fitness metrics using established sports science formulas:
 
-- **VDOT Race Predictions**: 0.2-5.5% accuracy vs. Jack Daniels' published tables (verified against VDOT 40, 50, 60)
-- **Training Load Analysis**: TSS/CTL/ATL calculations with exponential moving averages, gap handling, and overtraining detection
-- **Pattern Recognition**: Weekly schedule detection, hard/easy alternation analysis, volume progression trends
-- **Statistical Analysis**: Linear regression, R² calculation, trend detection with significance testing
-- **Physiological Validation**: Range and relationship checks for all parameters (heart rate, power, VO2 max)
-- **Real Profile Inference**: Fitness level classification from activity volume and consistency
+- **Training Load**: TSS (Training Stress Score) from power or heart rate data, CTL (42-day fitness), ATL (7-day fatigue), TSB (form indicator)
+- **Race Predictions**: VDOT-based predictions using Jack Daniels' VO2max formula, Riegel formula for distance scaling
+- **Statistical Analysis**: Linear regression for performance trends, R² coefficient for fit quality, moving averages for smoothing
+- **Pattern Detection**: Weekly training schedule consistency, hard/easy workout alternation, volume progression analysis
+- **Physiological Validation**: Bounds checking for heart rate (100-220 bpm max), power (50-600W FTP), VO2 max (20-90 ml/kg/min)
 
-**Implementation Status**: Production-ready with zero placeholders, 562 test assertions, and peer-reviewed sports science formulas throughout.
-
-📖 **Methodology**: See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md) for detailed formulas, references, and verification results.
+See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md) for formulas, implementation details, and scientific references.
 
 ## Features
 
