@@ -41,15 +41,15 @@ optional provider oauth (connect to strava/garmin/fitbit):
 # local development only
 export STRAVA_CLIENT_ID=your_id
 export STRAVA_CLIENT_SECRET=your_secret
-export STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava  # local dev
+export STRAVA_REDIRECT_URI=http://localhost:8081/api/oauth/callback/strava  # local dev
 
 export GARMIN_CLIENT_ID=your_key
 export GARMIN_CLIENT_SECRET=your_secret
-export GARMIN_REDIRECT_URI=http://localhost:8081/oauth/callback/garmin  # local dev
+export GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin  # local dev
 
 # production: use https for callback urls (required)
-# export STRAVA_REDIRECT_URI=https://api.example.com/oauth/callback/strava
-# export GARMIN_REDIRECT_URI=https://api.example.com/oauth/callback/garmin
+# export STRAVA_REDIRECT_URI=https://api.example.com/api/oauth/callback/strava
+# export GARMIN_REDIRECT_URI=https://api.example.com/api/oauth/callback/garmin
 ```
 
 **security**: http callback urls only for local development. production must use https to protect authorization codes.

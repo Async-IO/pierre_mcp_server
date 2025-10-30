@@ -48,10 +48,16 @@ Pierre Fitness Platform is a multi-protocol fitness data platform that connects 
 - sse transport for streaming
 - tool registry and execution
 
-### oauth2 server (`src/oauth2/`)
+### oauth2 server (`src/oauth2_server/`)
 - rfc 7591 dynamic client registration
 - rfc 7636 pkce support
 - jwt access tokens for mcp clients
+
+### oauth2 client (`src/oauth2_client/`)
+- pierre connects to fitness providers as oauth client
+- pkce support for enhanced security
+- automatic token refresh
+- multi-tenant credential isolation
 
 ### providers (`src/providers/`)
 - trait-based fitness provider abstraction
@@ -212,20 +218,24 @@ business logic in `protocols::universal` works for both mcp and a2a. write once,
 src/
 ├── bin/
 │   ├── pierre-mcp-server.rs  # main binary
-│   └── admin-setup.rs         # admin cli tool
+│   └── admin_setup.rs         # admin cli tool (binary: admin-setup)
 ├── protocols/
 │   └── universal/             # shared business logic
 ├── mcp/                       # mcp protocol
-├── oauth2/                    # oauth2 authorization server
+├── oauth2_server/             # oauth2 authorization server (mcp clients → pierre)
+├── oauth2_client/             # oauth2 client (pierre → fitness providers)
 ├── a2a/                       # a2a protocol
 ├── providers/                 # fitness integrations
 ├── intelligence/              # activity analysis
 ├── database_plugins/          # database backends
+├── admin/                     # admin authentication
 ├── auth.rs                    # authentication
-├── oauth/                     # provider oauth
 ├── tenant/                    # multi-tenancy
 ├── tools/                     # tool execution engine
 ├── cache/                     # caching layer
+├── config/                    # configuration
+├── constants/                 # constants and defaults
+├── crypto/                    # encryption utilities
 └── lib.rs                     # public api
 ```
 

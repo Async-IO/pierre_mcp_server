@@ -82,6 +82,9 @@ rfc 7591 (dynamic client registration) + rfc 7636 (pkce) compliant oauth2 server
 - `GET /oauth2/authorize` - authorization endpoint
 - `POST /oauth2/token` - token endpoint
 - `GET /oauth2/jwks` - json web key set
+- `GET /.well-known/jwks.json` - jwks at standard oidc location
+- `POST /oauth2/validate-and-refresh` - validate and refresh jwt tokens
+- `POST /oauth2/token-validate` - validate jwt token
 
 ### registration flow
 
@@ -260,7 +263,7 @@ X-RateLimit-Remaining: 0
 X-RateLimit-Reset: 1704067200
 ```
 
-implementation: `src/oauth2/`, `src/oauth2/rate_limiting.rs`
+implementation: `src/oauth2_server/`, `src/oauth2_server/rate_limiting.rs`
 
 ## a2a (agent-to-agent protocol)
 
@@ -409,7 +412,7 @@ implementation: `src/notifications/sse.rs`, `src/sse.rs`
 | auth method | jwt bearer | - | api key | jwt bearer |
 | transport | http + sse | http | http | http |
 | format | json-rpc 2.0 | oauth2 | json | json |
-| implementation | `src/mcp/` | `src/oauth2/` | `src/a2a/` | `src/routes.rs` |
+| implementation | `src/mcp/` | `src/oauth2_server/` | `src/a2a/` | `src/routes/` |
 
 ## choosing a protocol
 

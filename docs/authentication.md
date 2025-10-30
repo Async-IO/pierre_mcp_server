@@ -117,12 +117,12 @@ pierre acts as oauth2 authorization server for mcp clients.
 
 pierre implements two oauth systems:
 
-1. **oauth2 module** (`src/oauth2/`): pierre AS oauth2 server
+1. **oauth2_server module** (`src/oauth2_server/`): pierre AS oauth2 server
    - mcp clients authenticate TO pierre
    - rfc 7591 dynamic client registration
    - issues jwt access tokens
 
-2. **oauth module** (`src/oauth/`): pierre AS oauth2 client
+2. **oauth2_client module** (`src/oauth2_client/`): pierre AS oauth2 client
    - pierre authenticates TO fitness providers (strava, garmin, fitbit)
    - manages provider tokens
    - handles token refresh
@@ -450,7 +450,7 @@ implementation: `src/database_plugins/sqlite.rs`, `src/database_plugins/postgres
 
 - jwt authentication: `src/auth.rs`
 - api key management: `src/api_keys.rs`
-- oauth2 server: `src/oauth2/`
-- provider oauth: `src/oauth/`
+- oauth2 server: `src/oauth2_server/`
+- provider oauth: `src/oauth2_client/`
 - encryption: `src/crypto/`, `src/key_management.rs`
 - rate limiting: `src/rate_limiting.rs`
