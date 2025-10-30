@@ -392,36 +392,6 @@ async fn main() -> Result<()> {
 }
 ```
 
-## Real-Time Notifications
-
-Pierre Fitness Platform provides Server-Sent Events (SSE) for real-time updates. Implementation in `src/notifications/sse.rs` and `src/sse.rs`.
-
-**SSE Endpoint**:
-```
-GET /notifications/sse?user_id={user_id}
-```
-
-**Notification Types**:
-- OAuth authorization completion
-- OAuth errors and failures
-- System status updates
-- A2A message notifications
-
-**Example JavaScript Integration**:
-```javascript
-const eventSource = new EventSource('/notifications/sse?user_id=user-123');
-
-eventSource.onmessage = function(event) {
-    const notification = JSON.parse(event.data);
-    console.log('Notification:', notification);
-
-    if (notification.type === 'oauth_complete') {
-        // Handle OAuth completion
-        window.location.reload();
-    }
-};
-```
-
 ## Testing
 
 ```bash
