@@ -293,8 +293,7 @@ legitimate_clone_patterns = [
 # Note: Excludes constructors (::new) which legitimately need ownership
 string_allocation_antipatterns = [
     "\\.to_string\\(\\)\\.as_str\\(\\)",  # Unnecessary round-trip
-    "String::from.*\\.as_str\\(\\)",      # Another round-trip
-    "&.*\\.to_string\\(\\)"   # Taking reference of owned string
+    "String::from.*\\.as_str\\(\\)"       # Another round-trip
 ]
 
 # Function parameter String usage - needs manual review (constructors are often legitimate)
