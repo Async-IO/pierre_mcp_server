@@ -1430,6 +1430,17 @@ impl DatabaseProvider for Database {
         }
     }
 
+    async fn get_refresh_token_by_value(
+        &self,
+        token: &str,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+        match self {
+            Self::SQLite(db) => db.get_refresh_token_by_value(token).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_refresh_token_by_value(token).await,
+        }
+    }
+
     async fn store_authorization_code(
         &self,
         code: &str,

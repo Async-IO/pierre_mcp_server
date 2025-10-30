@@ -4929,6 +4929,36 @@ impl DatabaseProvider for PostgresDatabase {
         }
     }
 
+    async fn get_refresh_token_by_value(
+        &self,
+        token: &str,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+        let row = sqlx::query(
+            "SELECT token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
+             FROM oauth2_refresh_tokens
+             WHERE token = $1",
+        )
+        .bind(token)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            use sqlx::Row;
+            Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
+                token: row.try_get("token")?,
+                client_id: row.try_get("client_id")?,
+                user_id: row.try_get("user_id")?,
+                tenant_id: row.try_get("tenant_id")?,
+                scope: row.try_get("scope")?,
+                expires_at: row.try_get("expires_at")?,
+                created_at: row.try_get("created_at")?,
+                revoked: row.try_get("revoked")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Store OAuth2 state for CSRF protection
     async fn store_oauth2_state(
         &self,

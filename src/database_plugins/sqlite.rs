@@ -1792,6 +1792,42 @@ impl DatabaseProvider for SqliteDatabase {
         }
     }
 
+    async fn get_refresh_token_by_value(
+        &self,
+        token: &str,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+        let query = r"
+            SELECT token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
+            FROM oauth2_refresh_tokens
+            WHERE token = ?1
+        ";
+
+        let row = sqlx::query(query)
+            .bind(token)
+            .fetch_optional(self.inner.pool())
+            .await
+            .context("Failed to look up OAuth2 refresh token by value")?;
+
+        if let Some(row) = row {
+            let user_id_str: String = row.try_get("user_id")?;
+            let user_id = Uuid::parse_str(&user_id_str)
+                .context("Invalid user_id UUID format in refresh token")?;
+
+            Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
+                token: row.try_get("token")?,
+                client_id: row.try_get("client_id")?,
+                user_id,
+                tenant_id: row.try_get("tenant_id")?,
+                scope: row.try_get("scope")?,
+                expires_at: row.try_get("expires_at")?,
+                created_at: row.try_get("created_at")?,
+                revoked: row.try_get("revoked")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Store OAuth2 state for CSRF protection
     async fn store_oauth2_state(
         &self,

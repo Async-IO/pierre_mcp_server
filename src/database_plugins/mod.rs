@@ -644,6 +644,21 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         now: DateTime<Utc>,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>>;
 
+    /// Look up a refresh token by its value (without client_id constraint)
+    ///
+    /// This is used by the validate-and-refresh endpoint where we only have the token value
+    /// and need to look it up to verify ownership.
+    ///
+    /// # Arguments
+    /// * `token` - The refresh token value to look up
+    ///
+    /// # Returns
+    /// The refresh token data if found, None if not found
+    async fn get_refresh_token_by_value(
+        &self,
+        token: &str,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>>;
+
     /// Store authorization code
     async fn store_authorization_code(
         &self,

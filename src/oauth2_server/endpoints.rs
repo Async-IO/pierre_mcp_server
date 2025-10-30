@@ -724,10 +724,10 @@ impl OAuth2AuthorizationServer {
             .validate_token_detailed(access_token, &self.jwks_manager)
         {
             Ok(claims) => self.handle_valid_token_claims(claims).await,
-            Err(validation_error) => Ok(Self::handle_token_validation_error(
-                validation_error,
-                &request,
-            )),
+            Err(validation_error) => {
+                self.handle_token_validation_error(validation_error, access_token, &request)
+                    .await
+            }
         }
     }
 
@@ -760,27 +760,85 @@ impl OAuth2AuthorizationServer {
     }
 
     /// Handle JWT validation errors
-    fn handle_token_validation_error(
+    async fn handle_token_validation_error(
+        &self,
         validation_error: crate::auth::JwtValidationError,
+        expired_access_token: &str,
         request: &super::models::ValidateRefreshRequest,
-    ) -> super::models::ValidateRefreshResponse {
+    ) -> Result<super::models::ValidateRefreshResponse> {
+        use super::models::{ValidateRefreshResponse, ValidationStatus};
         use crate::auth::JwtValidationError;
 
         match validation_error {
             JwtValidationError::TokenExpired { .. } => {
-                if request.refresh_token.is_some() {
-                    tracing::warn!("Token expired but refresh not yet fully implemented");
-                    Self::create_invalid_response("token_expired_refresh_not_implemented")
+                if let Some(refresh_token_value) = &request.refresh_token {
+                    tracing::info!(
+                        "Access token expired, attempting refresh with provided refresh_token"
+                    );
+
+                    // Decode expired token to extract user_id and client info (without validation)
+                    // We can safely decode expired tokens to read claims
+                    match Self::decode_expired_token(expired_access_token) {
+                        Ok(claims) => {
+                            // Look up refresh token by value and verify it belongs to this user
+                            match self
+                                .lookup_and_validate_refresh_token(refresh_token_value, &claims.sub)
+                                .await
+                            {
+                                Ok(refresh_token_data) => {
+                                    // Generate new access token
+                                    match self.generate_access_token(
+                                        &refresh_token_data.client_id,
+                                        Some(refresh_token_data.user_id),
+                                        refresh_token_data.scope.as_deref(),
+                                    ) {
+                                        Ok(new_access_token) => {
+                                            tracing::info!(
+                                                "Successfully refreshed access token for user {}",
+                                                claims.sub
+                                            );
+                                            Ok(ValidateRefreshResponse {
+                                                status: ValidationStatus::Refreshed,
+                                                expires_in: Some(3600), // 1 hour
+                                                access_token: Some(new_access_token),
+                                                refresh_token: Some(refresh_token_value.clone()),
+                                                token_type: Some("Bearer".to_string()),
+                                                reason: None,
+                                                requires_full_reauth: None,
+                                            })
+                                        }
+                                        Err(e) => {
+                                            tracing::error!(
+                                                "Failed to generate new access token: {}",
+                                                e
+                                            );
+                                            Ok(Self::create_invalid_response(
+                                                "refresh_failed_token_generation",
+                                            ))
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::warn!("Refresh token validation failed: {}", e);
+                                    Ok(Self::create_invalid_response("invalid_refresh_token"))
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to decode expired token: {}", e);
+                            Ok(Self::create_invalid_response("malformed_expired_token"))
+                        }
+                    }
                 } else {
-                    Self::create_invalid_response("token_expired")
+                    Ok(Self::create_invalid_response("token_expired"))
                 }
             }
-            JwtValidationError::TokenInvalid { reason } => {
-                Self::create_invalid_response(&format!("invalid_signature: {reason}"))
-            }
-            JwtValidationError::TokenMalformed { details } => {
-                Self::create_invalid_response(&format!("malformed_token: {details}"))
-            }
+            JwtValidationError::TokenInvalid { reason } => Ok(Self::create_invalid_response(
+                &format!("invalid_signature: {reason}"),
+            )),
+            JwtValidationError::TokenMalformed { details } => Ok(Self::create_invalid_response(
+                &format!("malformed_token: {details}"),
+            )),
         }
     }
 
@@ -797,5 +855,96 @@ impl OAuth2AuthorizationServer {
             reason: Some(reason.to_string()),
             requires_full_reauth: Some(true),
         }
+    }
+
+    /// Decode an expired JWT token without validation to extract claims
+    ///
+    /// This is safe because we only need to read the claims, not trust them.
+    /// The refresh token will be validated separately.
+    fn decode_expired_token(token: &str) -> Result<crate::auth::Claims> {
+        use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
+
+        // Create a permissive validation that doesn't check expiry or signature
+        let mut validation = Validation::new(Algorithm::RS256);
+        validation.validate_exp = false; // Don't validate expiration
+        validation.insecure_disable_signature_validation(); // We just need to read claims
+
+        // Decode without validation - we only need the claims data
+        let token_data = decode::<crate::auth::Claims>(
+            token,
+            &DecodingKey::from_secret(&[]), // Dummy key since we're not validating signature
+            &validation,
+        )
+        .map_err(|e| {
+            crate::errors::AppError::new(
+                crate::errors::ErrorCode::AuthMalformed,
+                format!("Failed to decode expired token: {e}"),
+            )
+        })?;
+
+        Ok(token_data.claims)
+    }
+
+    /// Look up refresh token by value and validate it belongs to the specified user
+    async fn lookup_and_validate_refresh_token(
+        &self,
+        refresh_token_value: &str,
+        user_id_str: &str,
+    ) -> Result<super::models::OAuth2RefreshToken> {
+        // Parse user_id from string
+        let user_id = Uuid::parse_str(user_id_str).map_err(|e| {
+            crate::errors::AppError::new(
+                crate::errors::ErrorCode::AuthMalformed,
+                format!("Invalid user_id in token claims: {e}"),
+            )
+        })?;
+
+        // Look up refresh token in database
+        // We need to find it without knowing the client_id
+        let refresh_token = self
+            .database
+            .get_refresh_token_by_value(refresh_token_value)
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::new(
+                    crate::errors::ErrorCode::DatabaseError,
+                    format!("Database error looking up refresh token: {e}"),
+                )
+            })?
+            .ok_or_else(|| {
+                crate::errors::AppError::new(
+                    crate::errors::ErrorCode::ResourceNotFound,
+                    "Refresh token not found",
+                )
+            })?;
+
+        // Verify the refresh token belongs to this user
+        if refresh_token.user_id != user_id {
+            return Err(crate::errors::AppError::new(
+                crate::errors::ErrorCode::AuthInvalid,
+                "Refresh token does not belong to the user in the access token",
+            )
+            .into());
+        }
+
+        // Verify the refresh token hasn't expired
+        if refresh_token.expires_at < Utc::now() {
+            return Err(crate::errors::AppError::new(
+                crate::errors::ErrorCode::AuthExpired,
+                "Refresh token has expired",
+            )
+            .into());
+        }
+
+        // Verify the refresh token hasn't been revoked
+        if refresh_token.revoked {
+            return Err(crate::errors::AppError::new(
+                crate::errors::ErrorCode::AuthInvalid,
+                "Refresh token has been revoked",
+            )
+            .into());
+        }
+
+        Ok(refresh_token)
     }
 }
