@@ -2632,7 +2632,7 @@ Example 4: Boundary condition (exactly 7 hours, 85% efficiency)
 
 3. **calculate weighted overall score**:
    ```bash
-   sleep_quality = (duration_score × 0.35) + (stages_score × 0.40) + (efficiency_score × 0.25)
+   sleep_quality = (duration_score × 0.40) + (stages_score × 0.35) + (efficiency_score × 0.25)
    assert 0 ≤ sleep_quality ≤ 100
    ```
 
@@ -2709,116 +2709,147 @@ pub fn calculate_recovery_score(
 
 #### TSB Normalization
 
-training stress balance maps to recovery score using piecewise linear normalization:
+training stress balance maps to recovery score using **configurable thresholds**, not fixed breakpoints:
 
-**TSB normalization function** (maps TSB ∈ [−30, +30] → score ∈ [0, 100]):
+**configurable TSB thresholds** (from `SleepRecoveryConfig.training_stress_balance`):
 
-```
-TSB_score(TSB) = 90 + 10 × min(10, TSB − 15) / 10,  if TSB ≥ 15
-               = 80 + 10(TSB − 5) / 10,              if 5 ≤ TSB < 15
-               = 60 + 20(TSB + 5) / 10,              if −5 ≤ TSB < 5
-               = 40 + 20(TSB + 10) / 5,              if −10 ≤ TSB < −5
-               = 20 + 20(TSB + 15) / 5,              if −15 ≤ TSB < −10
-               = max(0, 20(TSB + 30) / 15),          if TSB < −15
+```rust
+// Default configuration values (src/config/intelligence_config.rs:1178)
+TsbConfig {
+    highly_fatigued_tsb: -15.0,    // Extreme fatigue threshold
+    fatigued_tsb: -10.0,            // Productive fatigue threshold
+    fresh_tsb_min: 5.0,             // Optimal fresh range start
+    fresh_tsb_max: 15.0,            // Optimal fresh range end
+    detraining_tsb: 25.0,           // Detraining risk threshold
+}
 ```
 
 **rust implementation**:
 
 ```rust
-fn normalize_tsb(tsb: f64) -> f64 {
-    // TSB ranges and recovery interpretation:
-    // +25 to +15: overtrained/detraining (score 90-100)
-    // +15 to +5:  fresh/race ready (score 80-90)
-    // +5 to -5:   optimal training (score 60-80)
-    // -5 to -10:  fatigued (score 40-60)
-    // -10 to -15: very fatigued (score 20-40)
-    // -15 to -30: overreaching (score 0-20)
+// src/intelligence/recovery_calculator.rs:250
+pub fn score_tsb(
+    tsb: f64,
+    config: &SleepRecoveryConfig,
+) -> f64 {
+    let detraining_tsb = config.training_stress_balance.detraining_tsb;
+    let fresh_tsb_max = config.training_stress_balance.fresh_tsb_max;
+    let fresh_tsb_min = config.training_stress_balance.fresh_tsb_min;
+    let fatigued_tsb = config.training_stress_balance.fatigued_tsb;
+    let highly_fatigued_tsb = config.training_stress_balance.highly_fatigued_tsb;
 
-    if tsb >= 15.0 {
-        90.0 + ((tsb - 15.0).min(10.0) / 10.0) * 10.0
-    } else if tsb >= 5.0 {
-        80.0 + ((tsb - 5.0) / 10.0) * 10.0
-    } else if tsb >= -5.0 {
-        60.0 + ((tsb + 5.0) / 10.0) * 20.0
-    } else if tsb >= -10.0 {
-        40.0 + ((tsb + 10.0) / 5.0) * 20.0
-    } else if tsb >= -15.0 {
-        20.0 + ((tsb + 15.0) / 5.0) * 20.0
+    if (fresh_tsb_min..=fresh_tsb_max).contains(&tsb) {
+        // Optimal fresh range: 100 points
+        100.0
+    } else if tsb > detraining_tsb {
+        // Too fresh (risk of detraining): penalize
+        100.0 - ((tsb - detraining_tsb) * 2.0).min(30.0)
+    } else if tsb > fresh_tsb_max {
+        // Between optimal and detraining: slight penalty
+        ((tsb - fresh_tsb_max) / (detraining_tsb - fresh_tsb_max)).mul_add(-10.0, 100.0)
+    } else if tsb >= 0.0 {
+        // Slightly fresh (0 to fresh_tsb_min): 85-100 points
+        (tsb / fresh_tsb_min).mul_add(15.0, 85.0)
+    } else if tsb >= fatigued_tsb {
+        // Productive fatigue: 60-85 points
+        ((tsb - fatigued_tsb) / fatigued_tsb.abs()).mul_add(25.0, 60.0)
+    } else if tsb >= highly_fatigued_tsb {
+        // High fatigue: 30-60 points
+        ((tsb - highly_fatigued_tsb) / (fatigued_tsb - highly_fatigued_tsb)).mul_add(30.0, 30.0)
     } else {
-        (0.0_f64).max((tsb + 30.0) / 15.0 * 20.0)
+        // Extreme fatigue: 0-30 points
+        30.0 - ((tsb.abs() - highly_fatigued_tsb.abs()) / highly_fatigued_tsb.abs() * 30.0)
+            .min(30.0)
     }
 }
 ```
 
-**physiological interpretation**:
-- **TSB ≥ +15**: score ∈ [90, 100] - detraining (too much rest)
-- **+5 ≤ TSB < +15**: score ∈ [80, 90] - fresh (race ready)
-- **−5 ≤ TSB < +5**: score ∈ [60, 80] - optimal (productive training)
-- **−10 ≤ TSB < −5**: score ∈ [40, 60] - fatigued (building fitness)
-- **−15 ≤ TSB < −10**: score ∈ [20, 40] - very fatigued (overreaching risk)
-- **TSB < −15**: score ∈ [0, 20] - overreaching (recovery needed)
+**scoring ranges** (with default config):
+- **TSB > +25**: score ∈ [70, 100] decreasing - detraining risk (too much rest)
+- **+15 < TSB ≤ +25**: score ∈ [90, 100] - approaching detraining
+- **+5 ≤ TSB ≤ +15**: score = **100** - optimal fresh zone (race ready)
+- **0 ≤ TSB < +5**: score ∈ [85, 100] - slightly fresh
+- **−10 ≤ TSB < 0**: score ∈ [60, 85] - productive fatigue (building fitness)
+- **−15 ≤ TSB < −10**: score ∈ [30, 60] - high fatigue
+- **TSB < −15**: score ∈ [0, 30] - extreme fatigue (recovery needed)
+
+**configurable via environment**:
+- `INTELLIGENCE_TSB_HIGHLY_FATIGUED` (default: -15.0)
+- `INTELLIGENCE_TSB_FATIGUED` (default: -10.0)
+- `INTELLIGENCE_TSB_FRESH_MIN` (default: 5.0)
+- `INTELLIGENCE_TSB_FRESH_MAX` (default: 15.0)
+- `INTELLIGENCE_TSB_DETRAINING` (default: 25.0)
 
 **reference**: Banister, E.W. (1991). Modeling elite athletic performance. *Human Kinetics*.
 
 #### HRV Scoring
 
-heart rate variability assessment based on RMSSD deviation from baseline:
+heart rate variability assessment based on categorical recovery status, not continuous RMSSD scoring:
 
-**RMSSD delta calculation**:
+**recovery status determination**:
 
-```
-Δ_RMSSD = RMSSD_current − RMSSD_baseline
-```
-
-where:
-- `RMSSD` = root mean square of successive RR interval differences (milliseconds)
-- `RMSSD_baseline` = individual's baseline RMSSD (established over 7-14 days)
-
-**piecewise linear HRV scoring function**:
-
-```
-HRV_score(Δ) = 90 + 10 × min(10, Δ − 5) / 10,  if Δ ≥ 5
-             = 70 + 20 × Δ / 5,                 if 0 ≤ Δ < 5
-             = 50 + 20(Δ + 3) / 3,              if −3 ≤ Δ < 0
-             = 20 + 30(Δ + 10) / 7,             if −10 ≤ Δ < −3
-             = max(0, 20(Δ + 20) / 10),         if Δ < −10
-```
-
-where `Δ = Δ_RMSSD` (milliseconds)
-
-**rust implementation**:
+pierre first classifies HRV into a **categorical recovery status** (`HrvRecoveryStatus` enum) based on RMSSD comparison to baseline and weekly average:
 
 ```rust
-fn score_hrv(hrv: HrvData, config: &SleepRecoveryConfig) -> f64 {
-    let rmssd_delta = hrv.rmssd - hrv.baseline_rmssd;
+// src/intelligence/sleep_analysis.rs:558
+fn determine_hrv_recovery_status(
+    current: f64,
+    weekly_avg: f64,
+    baseline_deviation: Option<f64>,
+    config: &SleepRecoveryConfig,
+) -> HrvRecoveryStatus {
+    // Check baseline deviation first (if available)
+    if let Some(deviation) = baseline_deviation {
+        if deviation < -baseline_deviation_concern {
+            return HrvRecoveryStatus::HighlyFatigued;
+        } else if deviation < -5.0 {
+            return HrvRecoveryStatus::Fatigued;
+        }
+    }
 
-    if rmssd_delta >= 5.0 {
-        // +5ms or more: excellent recovery (score 90-100)
-        90.0 + (rmssd_delta.min(10.0) / 10.0) * 10.0
-    } else if rmssd_delta >= 0.0 {
-        // 0 to +5ms: good recovery (score 70-90)
-        70.0 + (rmssd_delta / 5.0) * 20.0
-    } else if rmssd_delta >= -3.0 {
-        // -3 to 0ms: adequate (score 50-70)
-        50.0 + ((rmssd_delta + 3.0) / 3.0) * 20.0
-    } else if rmssd_delta >= -10.0 {
-        // -3 to -10ms: poor recovery (score 20-50)
-        20.0 + ((rmssd_delta + 10.0) / 7.0) * 30.0
+    // Compare to weekly average
+    let change_from_avg = current - weekly_avg;
+    if change_from_avg >= rmssd_increase_threshold {
+        HrvRecoveryStatus::Recovered
+    } else if change_from_avg <= rmssd_decrease_threshold {
+        HrvRecoveryStatus::Fatigued
     } else {
-        // < -10ms: very poor (score 0-20)
-        (0.0_f64).max((rmssd_delta + 20.0) / 10.0 * 20.0)
+        HrvRecoveryStatus::Normal
     }
 }
 ```
 
-**physiological interpretation**:
-- **Δ ≥ +5ms**: score ∈ [90, 100] - excellent recovery, parasympathetic dominance
-- **0 ≤ Δ < +5ms**: score ∈ [70, 90] - good recovery, positive adaptation
-- **−3 ≤ Δ < 0ms**: score ∈ [50, 70] - adequate recovery, stable state
-- **−10 ≤ Δ < −3ms**: score ∈ [20, 50] - poor recovery, accumulated fatigue
-- **Δ < −10ms**: score ∈ [0, 20] - very poor recovery, overreaching concern
+**discrete HRV scoring function**:
 
-**scientific basis**: HRV (specifically RMSSD) reflects autonomic nervous system recovery. decreases indicate accumulated fatigue, increases indicate good adaptation.
+pierre maps the categorical recovery status to a **fixed discrete score**, not a continuous function:
+
+```rust
+// src/intelligence/recovery_calculator.rs:288
+pub const fn score_hrv(hrv: &HrvTrendAnalysis) -> f64 {
+    match hrv.recovery_status {
+        HrvRecoveryStatus::Recovered => 100.0,
+        HrvRecoveryStatus::Normal => 70.0,
+        HrvRecoveryStatus::Fatigued => 40.0,
+        HrvRecoveryStatus::HighlyFatigued => 20.0,
+    }
+}
+```
+
+**recovery status interpretation**:
+- **Recovered**: score = **100** - elevated HRV, ready for high-intensity training
+- **Normal**: score = **70** - HRV within normal range, continue current training load
+- **Fatigued**: score = **40** - decreased HRV, consider reducing training intensity
+- **HighlyFatigued**: score = **20** - significantly decreased HRV, prioritize recovery
+
+where:
+- `RMSSD` = root mean square of successive RR interval differences (milliseconds)
+- `weekly_avg` = 7-day rolling average of RMSSD
+- `baseline_deviation` = percent change from long-term baseline (if established)
+- `rmssd_increase_threshold` = typically +5ms (configurable)
+- `rmssd_decrease_threshold` = typically -10ms (configurable)
+- `baseline_deviation_concern` = typically -15% (configurable)
+
+**scientific basis**: HRV (specifically RMSSD) reflects autonomic nervous system recovery. decreases indicate accumulated fatigue, increases indicate good adaptation. pierre uses discrete categories rather than continuous scoring to provide clear, actionable recovery guidance.
 
 **reference**: Plews, D.J. et al. (2013). Training adaptation and heart rate variability in elite endurance athletes. *Int J Sports Physiol Perform*, 8(3), 286-293.
 
@@ -2857,19 +2888,19 @@ Example 1: Excellent recovery (with HRV, fresh athlete)
        sleep_score = 92.0
 
     3. HRV score:
-       Δ_RMSSD = 55.0 − 50.0 = 5.0
-       Δ = 5.0 ≥ 5 → score = 90 + 10 × min(10, 5.0 − 5) / 10
-                           = 90 + 0 = 90
+       current_rmssd = 55.0, weekly_avg_rmssd ≈ 50.0
+       change_from_avg = 55.0 − 50.0 = +5.0ms
+       +5.0 ≥ +5.0 threshold → HrvRecoveryStatus::Recovered → score = 100
 
     4. Recovery score (with HRV: 40% TSB, 40% sleep, 20% HRV):
-       recovery_score = (83 × 0.4) + (92 × 0.4) + (90 × 0.2)
-                     = 33.2 + 36.8 + 18.0 = 88.0
+       recovery_score = (83 × 0.4) + (92 × 0.4) + (100 × 0.2)
+                     = 33.2 + 36.8 + 20.0 = 90.0
 
     5. Classification:
-       88.0 ≥ 85 → "excellent"
+       90.0 ≥ 85 → "excellent"
 
   Expected Output:
-    recovery_score = 88.0
+    recovery_score = 90.0
     recovery_level = "excellent"
 
 Example 2: Good recovery (no HRV, moderate training)
@@ -2915,19 +2946,19 @@ Example 3: Poor recovery (fatigued with poor sleep)
        sleep_score = 55.0
 
     3. HRV score:
-       Δ_RMSSD = 42.0 − 50.0 = -8.0
-       -10 ≤ -8.0 < -3
-       score = 20 + 30 × (-8.0 + 10.0) / 7 = 20 + 8.57 = 28.57
+       current_rmssd = 42.0, baseline = 50.0
+       baseline_deviation = (42.0 − 50.0) / 50.0 × 100 = -16%
+       -16% < -5.0% threshold → HrvRecoveryStatus::Fatigued → score = 40
 
     4. Recovery score (with HRV):
-       recovery_score = (32 × 0.4) + (55 × 0.4) + (28.57 × 0.2)
-                     = 12.8 + 22.0 + 5.71 = 40.5
+       recovery_score = (32 × 0.4) + (55 × 0.4) + (40 × 0.2)
+                     = 12.8 + 22.0 + 8.0 = 42.8
 
     5. Classification:
-       40.5 < 50 → "poor"
+       42.8 < 50 → "poor"
 
   Expected Output:
-    recovery_score = 40.5
+    recovery_score = 42.8
     recovery_level = "poor"
 
 Example 4: Fair recovery (overreached but sleeping well)
@@ -2973,19 +3004,19 @@ Example 5: Boundary condition (extreme fatigue, excellent sleep/HRV)
        sleep_score = 95.0
 
     3. HRV score:
-       Δ_RMSSD = 62.0 − 50.0 = 12.0
-       Δ ≥ 5 → score = 90 + 10 × min(10, 12.0 − 5) / 10
-                     = 90 + 7.0 = 97.0
+       current_rmssd = 62.0, weekly_avg_rmssd ≈ 50.0
+       change_from_avg = 62.0 − 50.0 = +12.0ms
+       +12.0 ≥ +5.0 threshold → HrvRecoveryStatus::Recovered → score = 100
 
     4. Recovery score:
-       recovery_score = (6.67 × 0.4) + (95 × 0.4) + (97 × 0.2)
-                     = 2.67 + 38.0 + 19.4 = 60.1
+       recovery_score = (6.67 × 0.4) + (95 × 0.4) + (100 × 0.2)
+                     = 2.67 + 38.0 + 20.0 = 60.67
 
     5. Classification:
-       50 ≤ 60.1 < 70 → "fair"
+       50 ≤ 60.67 < 70 → "fair"
 
   Expected Output:
-    recovery_score = 60.1
+    recovery_score = 60.67
     recovery_level = "fair"
     Note: Despite excellent sleep and HRV, extreme training fatigue (TSB=-25)
     significantly impacts overall recovery. This demonstrates TSB's 40% weight.
@@ -3111,10 +3142,13 @@ Example 5: Boundary condition (extreme fatigue, excellent sleep/HRV)
 
 3. **score HRV if available**:
    ```bash
-   if hrv_rmssd and hrv_baseline:
-       delta = hrv_rmssd - hrv_baseline
-       hrv_score = score_hrv(delta)  # See HRV scoring formula
-       assert 0.0 ≤ hrv_score ≤ 100.0
+   if hrv_rmssd and weekly_avg_rmssd and baseline_deviation:
+       # Determine categorical recovery status
+       hrv_status = determine_hrv_recovery_status(hrv_rmssd, weekly_avg_rmssd, baseline_deviation)
+
+       # Map status to discrete score
+       hrv_score = score_hrv(hrv_status)  # Recovered→100, Normal→70, Fatigued→40, HighlyFatigued→20
+       assert hrv_score ∈ {100.0, 70.0, 40.0, 20.0}
    ```
 
 4. **calculate weighted recovery score**:
@@ -3885,7 +3919,7 @@ Fix: Apply penalty before weighting stages component
 **example debugging session:**
 
 ```
-User reports: TSB=8, sleep=92, HRV=55 (baseline=50) → score=85, but pierre returns 88
+User reports: TSB=8, sleep=92, HRV=55 (weekly_avg=50) → score=85, but pierre returns 90
 
 Debug steps:
   1. TSB normalization (5 ≤ 8 < 15):
@@ -3895,12 +3929,12 @@ Debug steps:
      sleep_score = 92.0 ✓
 
   3. HRV score:
-     delta = 55 - 50 = 5.0
-     User: delta ≥ 5 → score = 90.0 ✓ (correct formula)
+     change_from_avg = 55 - 50 = +5.0ms
+     +5.0 ≥ +5.0 threshold → HrvRecoveryStatus::Recovered → score = 100 ✓
 
   4. Recovery score:
      User calculated: (83×0.5) + (92×0.5) = 87.5 ❌
-     Pierre: (83×0.4) + (92×0.4) + (90×0.2) = 88.0 ✓
+     Pierre: (83×0.4) + (92×0.4) + (100×0.2) = 90.0 ✓
 
 Root cause: User applied 50/50 weights even though HRV available
   Wrong: 50% TSB, 50% sleep (HRV ignored)
@@ -4258,7 +4292,7 @@ A: fitbit, garmin, and whoop provide sleep data. strava does not (returns `Unsup
 **REM**: rapid eye movement sleep (cognitive recovery, memory consolidation)
 **N3/deep sleep**: slow-wave sleep (physical recovery, growth hormone release)
 **sleep efficiency**: (time asleep / time in bed) × 100 (fragmentation indicator)
-**sleep quality**: combined score (35% duration, 40% stages, 25% efficiency)
+**sleep quality**: combined score (40% duration, 35% stages, 25% efficiency)
 **recovery score**: training readiness (40% TSB, 40% sleep, 20% HRV)
 
 ---
