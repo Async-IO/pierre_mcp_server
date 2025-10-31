@@ -41,11 +41,11 @@ pierre's intelligence system uses a **foundation modules** approach for code reu
 │ TSS/CTL/ATL │ │ VDOT/Riegel  │ │ Weekly   │ │Regression │ │ Sleep Score  │
 │ TSB/Risk    │ │ Race Times   │ │ Patterns │ │ Trends    │ │ Recovery Calc│
 └─────────────┘ └──────────────┘ └──────────┘ └───────────┘ └──────────────┘
-         FOUNDATION MODULES (Phase 1 + Phase 2)
-         Shared by all intelligence tools
+                       FOUNDATION MODULES 
+                Shared by all intelligence tools
 ```
 
-### foundation modules (phase 1)
+### foundation modules
 
 **`src/intelligence/training_load.rs`** - training stress calculations
 - TSS (Training Stress Score) from power or heart rate
@@ -74,8 +74,6 @@ pierre's intelligence system uses a **foundation modules** approach for code reu
 - Correlation analysis
 - Moving averages and smoothing
 - Significance level assessment
-
-### foundation modules (phase 2)
 
 **`src/intelligence/sleep_analysis.rs`** - sleep quality scoring
 - Duration scoring with NSF guidelines (7-9 hours optimal for adults, 8-10 for athletes)
@@ -159,19 +157,12 @@ fitness activities via oauth2 authorization from multiple providers:
 - **zone model**: karvonen (HR reserve) or percentage max HR
 
 ### provider normalization
-pierre normalizes data from different providers into a unified format:
-
-```rust
-// src/providers/ - unified activity model
-pub struct Activity {
-    pub provider: Provider, // Strava, Garmin, Fitbit
-    pub start_date: DateTime<Utc>,
-    pub distance: Option<f64>,
-    pub moving_time: u64,
-    pub sport_type: String,
-    // ... normalized fields
-}
-```
+pierre normalizes data from different providers into a unified activity data model containing:
+- provider identifier (Strava, Garmin, Fitbit)
+- temporal data: start_date (UTC timestamp)
+- spatial data: distance (meters), moving_time (seconds)
+- sport classification: sport_type (string)
+- physiological metrics: heart rate, power, cadence (provider-dependent)
 
 **provider-specific features**:
 - **strava**: full power metrics, segments, kudos
@@ -194,20 +185,13 @@ pub struct Activity {
 
 when `max_hr` not provided, pierre uses tanaka formula (more accurate than fox):
 
-```rust
-// src/intelligence/physiological_constants.rs
-pub const TANAKA_CONSTANT: f64 = 208.0;
-pub const TANAKA_AGE_COEFFICIENT: f64 = 0.7;
+**formula**:
 
-fn estimate_max_hr(age: i32) -> u32 {
-    let estimated = TANAKA_CONSTANT - (TANAKA_AGE_COEFFICIENT * age as f64);
-    estimated.clamp(160.0, 210.0) as u32
-}
-```
+max_hr(age) = 208 − (0.7 × age)
 
-**formula**: `max_hr = 208 − (0.7 × age)`
+**bounds**:
 
-**bounds**: [160, 210] bpm to exclude physiologically implausible values.
+max_hr ∈ [160, 210] bpm to exclude physiologically implausible values.
 
 **reference**: Tanaka, H., Monahan, K.D., & Seals, D.R. (2001). Age-predicted maximal heart rate revisited. *Journal of the American College of Cardiology*, 37(1), 153-156.
 
@@ -217,37 +201,21 @@ fn estimate_max_hr(age: i32) -> u32 {
 
 pierre implements **karvonen method** (HR reserve) when `resting_hr` available:
 
-```rust
-// src/intelligence/metrics.rs
-pub fn calculate_hr_zones(max_hr: u32, resting_hr: u32) -> HRZones {
-    let reserve = (max_hr - resting_hr) as f64;
+**karvonen formula**:
 
-    HRZones {
-        zone1: Zone { // Recovery (50-60% reserve)
-            lower: (reserve * 0.50 + resting_hr as f64) as u32,
-            upper: (reserve * 0.60 + resting_hr as f64) as u32,
-        },
-        zone2: Zone { // Endurance (60-70%)
-            lower: (reserve * 0.60 + resting_hr as f64) as u32,
-            upper: (reserve * 0.70 + resting_hr as f64) as u32,
-        },
-        zone3: Zone { // Tempo (70-80%)
-            lower: (reserve * 0.70 + resting_hr as f64) as u32,
-            upper: (reserve * 0.80 + resting_hr as f64) as u32,
-        },
-        zone4: Zone { // Threshold (80-90%)
-            lower: (reserve * 0.80 + resting_hr as f64) as u32,
-            upper: (reserve * 0.90 + resting_hr as f64) as u32,
-        },
-        zone5: Zone { // VO2max (90-100%)
-            lower: (reserve * 0.90 + resting_hr as f64) as u32,
-            upper: max_hr,
-        },
-    }
-}
-```
+target_hr(intensity%) = (HR_reserve × intensity%) + HR_rest
 
-**formula**: `target_hr = (hr_reserve × intensity%) + resting_hr`
+where:
+- HR_reserve = HR_max − HR_rest
+- intensity% ∈ [0, 1]
+
+**five-zone model**:
+
+Zone 1 (Recovery): HR ∈ [HR_rest + 0.50 × HR_reserve, HR_rest + 0.60 × HR_reserve]
+Zone 2 (Endurance): HR ∈ [HR_rest + 0.60 × HR_reserve, HR_rest + 0.70 × HR_reserve]
+Zone 3 (Tempo): HR ∈ [HR_rest + 0.70 × HR_reserve, HR_rest + 0.80 × HR_reserve]
+Zone 4 (Threshold): HR ∈ [HR_rest + 0.80 × HR_reserve, HR_rest + 0.90 × HR_reserve]
+Zone 5 (VO2max): HR ∈ [HR_rest + 0.90 × HR_reserve, HR_max]
 
 **fallback**: when `resting_hr` unavailable, uses simple percentage of `max_hr` (50%, 60%, 70%, 80%, 90%).
 
@@ -257,20 +225,15 @@ pub fn calculate_hr_zones(max_hr: u32, resting_hr: u32) -> HRZones {
 
 five-zone model based on functional threshold power (FTP):
 
-```rust
-// src/intelligence/physiological_constants.rs
-pub fn calculate_power_zones(ftp: f64) -> PowerZones {
-    PowerZones {
-        zone1: (0.0,         ftp * 0.55), // Active recovery
-        zone2: (ftp * 0.55,  ftp * 0.75), // Endurance
-        zone3: (ftp * 0.75,  ftp * 0.90), // Tempo
-        zone4: (ftp * 0.90,  ftp * 1.05), // Threshold
-        zone5: (ftp * 1.05,  f64::MAX),   // VO2max+
-    }
-}
-```
+**power zones**:
 
-**zones**:
+Zone 1 (Active Recovery): P ∈ [0, 0.55 × FTP)
+Zone 2 (Endurance): P ∈ [0.55 × FTP, 0.75 × FTP)
+Zone 3 (Tempo): P ∈ [0.75 × FTP, 0.90 × FTP)
+Zone 4 (Threshold): P ∈ [0.90 × FTP, 1.05 × FTP)
+Zone 5 (VO2max+): P ∈ [1.05 × FTP, ∞)
+
+**physiological adaptations**:
 - **Z1 (active recovery)**: < 55% FTP - flush metabolites, active rest
 - **Z2 (endurance)**: 55-75% FTP - aerobic base building
 - **Z3 (tempo)**: 75-90% FTP - muscular endurance
@@ -285,21 +248,25 @@ pub fn calculate_power_zones(ftp: f64) -> PowerZones {
 
 ### pace vs speed
 
-```rust
-// src/intelligence/metrics.rs
+**pace formula** (time per distance, seconds per kilometer):
 
-// pace: time per distance (seconds per km)
-pub fn calculate_pace(moving_time_s: u64, distance_m: f64) -> f64 {
-    if distance_m < 1.0 { return 0.0; }
-    (moving_time_s as f64) / (distance_m / 1000.0)
-}
+         ⎧ 0,                    if d < 1 meter
+pace = ⎨
+         ⎩ t / (d / 1000),       if d ≥ 1 meter
 
-// speed: distance per time (m/s)
-pub fn calculate_speed(distance_m: f64, moving_time_s: u64) -> f64 {
-    if moving_time_s == 0 { return 0.0; }
-    distance_m / (moving_time_s as f64)
-}
-```
+where:
+- t = moving time (seconds)
+- d = distance (meters)
+
+**speed formula** (distance per time, meters per second):
+
+          ⎧ 0,        if t = 0
+speed = ⎨
+          ⎩ d / t,    if t > 0
+
+where:
+- d = distance (meters)
+- t = moving time (seconds)
 
 ---
 
@@ -309,44 +276,36 @@ TSS quantifies training load accounting for intensity and duration.
 
 ### power-based TSS (preferred)
 
-```rust
-// src/intelligence/training_load.rs
-pub fn calculate_tss_power(
-    normalized_power: f64,
-    duration_hours: f64,
-    ftp: f64,
-) -> f64 {
-    let intensity_factor = normalized_power / ftp;
-    duration_hours * intensity_factor.powi(2) * 100.0
-}
-```
+**formula**:
 
-**formula**: `TSS = (duration_hours × IF² × 100)` where `IF = normalized_power / FTP`
+TSS = duration_hours × IF² × 100
+
+where:
+- IF = intensity factor = NP / FTP
+- NP = normalized power (watts)
+- FTP = functional threshold power (watts)
+- duration_hours = activity duration (hours)
 
 **example**: 2-hour ride at 250W NP with FTP=300W
-- IF = 250/300 = 0.833
+- IF = 250 / 300 = 0.833
 - TSS = 2.0 × (0.833)² × 100 = 138.9
 
 ### heart rate-based TSS (hrTSS)
 
-```rust
-pub fn calculate_tss_hr(
-    avg_hr: u32,
-    duration_hours: f64,
-    lthr: u32,
-) -> f64 {
-    let hr_ratio = (avg_hr as f64) / (lthr as f64);
-    duration_hours * hr_ratio.powi(2) * 100.0
-}
-```
+**formula**:
 
-**formula**: `hrTSS = (duration_hours × (avg_hr / lthr)² × 100)`
+hrTSS = duration_hours × (HR_avg / HR_threshold)² × 100
+
+where:
+- HR_avg = average heart rate during activity (bpm)
+- HR_threshold = lactate threshold heart rate (bpm)
+- duration_hours = activity duration (hours)
 
 **interpretation**:
-- < 150: low training stress
-- 150-300: moderate training stress
-- 300-450: high training stress
-- > 450: very high training stress
+- TSS < 150: low training stress
+- 150 ≤ TSS < 300: moderate training stress
+- 300 ≤ TSS < 450: high training stress
+- TSS ≥ 450: very high training stress
 
 **reference**: Coggan, A. (2003). Training Stress Score. *TrainingPeaks*.
 
@@ -354,35 +313,33 @@ pub fn calculate_tss_hr(
 
 ## normalized power (NP)
 
-accounts for variability in cycling efforts:
+accounts for variability in cycling efforts using a three-step algorithm:
 
-```rust
-// src/intelligence/metrics.rs
-pub fn calculate_normalized_power(power_stream: &[f64]) -> f64 {
-    if power_stream.len() < 30 {
-        return power_stream.iter().sum::<f64>() / power_stream.len() as f64;
-    }
+**algorithm**:
 
-    // Step 1: 30-second rolling average
-    let mut rolling_avg = Vec::new();
-    for window in power_stream.windows(30) {
-        rolling_avg.push(window.iter().sum::<f64>() / 30.0);
-    }
+1. Calculate 30-second rolling average:
+   For each 30-second window i:
 
-    // Step 2: Raise to 4th power
-    let sum_fourth_power: f64 = rolling_avg
-        .iter()
-        .map(|&p| p.powi(4))
-        .sum();
+   P̄ᵢ = (1/30) × Σⱼ₌₀²⁹ Pᵢ₊ⱼ
 
-    // Step 3: Take 4th root
-    (sum_fourth_power / rolling_avg.len() as f64).powf(0.25)
-}
-```
+2. Raise each rolling average to 4th power:
 
-**formula**: `NP = ⁴√(average(30s_rolling_avg⁴))`
+   Qᵢ = (P̄ᵢ)⁴
 
-**why 4th power?** matches physiological cost of variable efforts. 200W/150W alternating costs more than steady 175W.
+3. Calculate 4th root of average:
+
+   NP = ⁴√((1/n) × Σᵢ₌₁ⁿ Qᵢ)
+
+where:
+- Pᵢ = instantaneous power at second i (watts)
+- n = number of 30-second windows
+- P̄ᵢ = 30-second rolling average power (watts)
+
+**fallback** (if data < 30 seconds):
+
+NP = (1/n) × Σᵢ₌₁ⁿ Pᵢ
+
+**physiological basis**: 4th power weighting matches metabolic cost of variable efforts. Alternating 200W/150W has higher physiological cost than steady 175W.
 
 ---
 
@@ -390,106 +347,55 @@ pub fn calculate_normalized_power(power_stream: &[f64]) -> f64 {
 
 CTL ("fitness") and ATL ("fatigue") track training stress using exponential moving averages.
 
-### implementation
+### mathematical formulation
 
-```rust
-// src/intelligence/training_load.rs
-const CTL_WINDOW_DAYS: i64 = 42; // 6 weeks
-const ATL_WINDOW_DAYS: i64 = 7;  // 1 week
+**exponential moving average (EMA)**:
 
-pub fn calculate_training_load(
-    activities: &[Activity],
-    ftp: Option<f64>,
-    lthr: Option<f64>,
-    max_hr: Option<f64>,
-    resting_hr: Option<f64>,
-    weight_kg: Option<f64>,
-) -> Result<TrainingLoad> {
-    // Handle empty activities
-    if activities.is_empty() {
-        return Ok(TrainingLoad {
-            ctl: 0.0,
-            atl: 0.0,
-            tsb: 0.0,
-            tss_history: Vec::new(),
-        });
-    }
-
-    // Calculate TSS for each activity
-    let mut tss_data: Vec<TssDataPoint> = Vec::new();
-    for activity in activities {
-        if let Ok(tss) = calculate_tss(activity, ftp, lthr, max_hr, resting_hr, weight_kg) {
-            tss_data.push(TssDataPoint {
-                date: activity.start_date,
-                tss,
-            });
-        }
-    }
-
-    // Handle no valid TSS calculations
-    if tss_data.is_empty() {
-        return Ok(TrainingLoad {
-            ctl: 0.0,
-            atl: 0.0,
-            tsb: 0.0,
-            tss_history: Vec::new(),
-        });
-    }
-
-    let ctl = calculate_ema(&tss_data, CTL_WINDOW_DAYS);
-    let atl = calculate_ema(&tss_data, ATL_WINDOW_DAYS);
-    let tsb = ctl - atl;
-
-    Ok(TrainingLoad { ctl, atl, tsb, tss_history: tss_data })
-}
-
-fn calculate_ema(tss_data: &[TssDataPoint], window_days: i64) -> f64 {
-    if tss_data.is_empty() {
-        return 0.0;
-    }
-
-    let alpha = 2.0 / (window_days as f64 + 1.0);
-
-    // Create daily TSS map (handles multiple activities per day)
-    let mut tss_map = std::collections::HashMap::new();
-    for point in tss_data {
-        let date_key = point.date.date_naive();
-        *tss_map.entry(date_key).or_insert(0.0) += point.tss;
-    }
-
-    // Calculate EMA day by day, filling gaps with 0.0
-    let first_date = tss_data[0].date;
-    let last_date = tss_data[tss_data.len() - 1].date;
-    let days_span = (last_date - first_date).num_days();
-
-    let mut ema = 0.0;
-    for day_offset in 0..=days_span {
-        let current_date = first_date + Duration::days(day_offset);
-        let date_key = current_date.date_naive();
-        let daily_tss = tss_map.get(&date_key).copied().unwrap_or(0.0); // Gap = 0
-
-        ema = daily_tss.mul_add(alpha, ema * (1.0 - alpha));
-    }
-
-    ema
-}
-```
-
-**formulas**:
-```
 α = 2 / (N + 1)
-EMA_today = (TSS_today × α) + (EMA_yesterday × (1 - α))
 
-CTL = 42-day EMA of daily TSS
-ATL = 7-day EMA of daily TSS
-TSB = CTL - ATL
-```
+EMAₜ = α × TSSₜ + (1 − α) × EMAₜ₋₁
+
+where:
+- N = window size (days)
+- TSSₜ = training stress score on day t
+- EMAₜ = exponential moving average on day t
+- α = smoothing factor ∈ (0, 1)
+
+**chronic training load (CTL)**:
+
+CTL = EMA₄₂(TSS_daily)
+
+42-day exponential moving average of daily TSS, representing long-term fitness
+
+**acute training load (ATL)**:
+
+ATL = EMA₇(TSS_daily)
+
+7-day exponential moving average of daily TSS, representing short-term fatigue
+
+**training stress balance (TSB)**:
+
+TSB = CTL − ATL
+
+difference between fitness and fatigue, representing current form
+
+**daily TSS aggregation** (multiple activities per day):
+
+TSS_daily = Σᵢ₌₁ⁿ TSSᵢ
+
+where n = number of activities on a given day
+
+**gap handling** (missing training days):
+
+For days with no activities: TSSₜ = 0
+
+This causes exponential decay: EMAₜ = (1 − α) × EMAₜ₋₁
 
 **edge case handling**:
-- **zero activities**: returns CTL=0, ATL=0, TSB=0
-- **training gaps**: zero-fills missing days (realistic fitness decay)
-- **multiple activities per day**: sums TSS values
-- **failed TSS calculations**: skips activities, continues with valid data
+- **zero activities**: CTL = 0, ATL = 0, TSB = 0
+- **training gaps**: TSSₜ = 0 (realistic fitness decay through exponential decline)
+- **multiple activities per day**: sum all TSS values for that day
+- **failed TSS calculations**: skip invalid activities, continue with valid data
 
 **reference**: Banister, E.W. (1991). Modeling elite athletic performance. Human Kinetics.
 
@@ -497,24 +403,22 @@ TSB = CTL - ATL
 
 ## training stress balance (TSB)
 
-TSB indicates form/freshness:
+TSB indicates form/freshness using piecewise classification:
 
-```rust
-pub fn interpret_tsb(tsb: f64) -> TrainingStatus {
-    match tsb {
-        t if t < -10.0 => TrainingStatus::Overreaching,
-        t if t < 0.0   => TrainingStatus::Productive,
-        t if t <= 10.0 => TrainingStatus::Fresh,
-        _              => TrainingStatus::Detraining,
-    }
-}
-```
+**training status classification**:
+
+                   ⎧ Overreaching,     if TSB < −10
+                   ⎪
+TrainingStatus = ⎨ Productive,       if −10 ≤ TSB < 0
+                   ⎪
+                   ⎪ Fresh,            if 0 ≤ TSB ≤ 10
+                   ⎩ Detraining,       if TSB > 10
 
 **interpretation**:
-- **< -10**: overreaching (high fatigue) - recovery needed
-- **-10 to 0**: productive training - building fitness
-- **0 to +10**: fresh - ready for hard efforts
-- **> +10**: risk of detraining
+- **TSB < −10**: overreaching (high fatigue) - recovery needed
+- **−10 ≤ TSB < 0**: productive training - building fitness
+- **0 ≤ TSB ≤ 10**: fresh - ready for hard efforts
+- **TSB > 10**: risk of detraining
 
 **reference**: Banister, E.W., Calvert, T.W., Savage, M.V., & Bach, T. (1975). A systems model of training. *Australian Journal of Sports Medicine*, 7(3), 57-61.
 
@@ -522,41 +426,31 @@ pub fn interpret_tsb(tsb: f64) -> TrainingStatus {
 
 ## overtraining risk detection
 
-```rust
-// src/intelligence/training_load.rs
-pub fn check_overtraining_risk(training_load: &TrainingLoad) -> OvertrainingRisk {
-    let mut risk_factors = Vec::new();
+**three-factor risk assessment**:
 
-    // 1. Acute load spike
-    if training_load.ctl > 0.0 && training_load.atl > training_load.ctl * 1.3 {
-        risk_factors.push(
-            "Acute load spike >30% above chronic load".to_string()
-        );
-    }
+Risk Factor 1 (Acute Load Spike):
+Triggered when: (CTL > 0) ∧ (ATL > 1.3 × CTL)
 
-    // 2. Very high acute load
-    if training_load.atl > 150.0 {
-        risk_factors.push(
-            "Very high acute load (>150 TSS/day)".to_string()
-        );
-    }
+Risk Factor 2 (Very High Acute Load):
+Triggered when: ATL > 150
 
-    // 3. Deep fatigue
-    if training_load.tsb < -10.0 {
-        risk_factors.push(
-            "Deep fatigue (TSB < -10)".to_string()
-        );
-    }
+Risk Factor 3 (Deep Fatigue):
+Triggered when: TSB < −10
 
-    let risk_level = match risk_factors.len() {
-        0 => RiskLevel::Low,
-        1 => RiskLevel::Moderate,
-        _ => RiskLevel::High,
-    };
+**risk level classification**:
 
-    OvertrainingRisk { risk_level, risk_factors }
-}
-```
+                    ⎧ Low,        if |risk_factors| = 0
+                    ⎪
+RiskLevel = ⎨ Moderate,   if |risk_factors| = 1
+                    ⎪
+                    ⎩ High,       if |risk_factors| ≥ 2
+
+where |risk_factors| = count of triggered risk factors
+
+**physiological interpretation**:
+- **Acute load spike**: fatigue (ATL) exceeds fitness (CTL) by >30%, indicating sudden increase
+- **Very high acute load**: average daily TSS >150 in past week, exceeding sustainable threshold
+- **Deep fatigue**: negative TSB <−10, indicating accumulated fatigue without recovery
 
 **reference**: Halson, S.L. (2014). Monitoring training load to understand fatigue. *Sports Medicine*, 44(Suppl 2), 139-147.
 
@@ -564,59 +458,43 @@ pub fn check_overtraining_risk(training_load: &TrainingLoad) -> OvertrainingRisk
 
 ## statistical trend analysis
 
-pierre uses proper linear regression for trend detection:
+pierre uses ordinary least squares linear regression for trend detection:
 
-```rust
-// src/intelligence/statistical_analysis.rs
-pub fn linear_regression(data_points: &[TrendDataPoint]) -> Result<RegressionResult> {
-    let n = data_points.len() as f64;
-    let x_values: Vec<f64> = (0..data_points.len()).map(|i| i as f64).collect();
-    let y_values: Vec<f64> = data_points.iter().map(|p| p.value).collect();
+**linear regression formulation**:
 
-    let sum_x = x_values.iter().sum::<f64>();
-    let sum_y = y_values.iter().sum::<f64>();
-    let sum_xx = x_values.iter().map(|x| x * x).sum::<f64>();
-    let sum_xy = x_values.iter().zip(&y_values).map(|(x, y)| x * y).sum::<f64>();
-    let sum_yy = y_values.iter().map(|y| y * y).sum::<f64>();
+Given n data points (xᵢ, yᵢ), fit line: ŷ = β₀ + β₁x
 
-    let mean_x = sum_x / n;
-    let mean_y = sum_y / n;
+**slope calculation**:
 
-    // Calculate slope and intercept
-    let numerator = sum_xy - n * mean_x * mean_y;
-    let denominator = sum_xx - n * mean_x * mean_x;
+β₁ = (Σᵢ₌₁ⁿ xᵢyᵢ − n × x̄ × ȳ) / (Σᵢ₌₁ⁿ xᵢ² − n × x̄²)
 
-    let slope = numerator / denominator;
-    let intercept = mean_y - slope * mean_x;
+**intercept calculation**:
 
-    // Calculate R² (coefficient of determination)
-    let ss_tot = sum_yy - n * mean_y * mean_y;
-    let ss_res: f64 = y_values
-        .iter()
-        .zip(&x_values)
-        .map(|(y, x)| {
-            let predicted = slope * x + intercept;
-            (y - predicted).powi(2)
-        })
-        .sum();
+β₀ = ȳ − β₁ × x̄
 
-    let r_squared = 1.0 - (ss_res / ss_tot);
-    let correlation = r_squared.sqrt() * slope.signum();
+where:
+- x̄ = (1/n) × Σᵢ₌₁ⁿ xᵢ (mean of x values)
+- ȳ = (1/n) × Σᵢ₌₁ⁿ yᵢ (mean of y values)
+- n = number of data points
 
-    Ok(RegressionResult {
-        slope,
-        intercept,
-        r_squared,
-        correlation,
-    })
-}
-```
+**coefficient of determination (R²)**:
+
+R² = 1 − (SS_res / SS_tot)
+
+where:
+- SS_tot = Σᵢ₌₁ⁿ (yᵢ − ȳ)² (total sum of squares)
+- SS_res = Σᵢ₌₁ⁿ (yᵢ − ŷᵢ)² (residual sum of squares)
+- ŷᵢ = β₀ + β₁xᵢ (predicted value)
+
+**correlation coefficient**:
+
+r = sign(β₁) × √R²
 
 **R² interpretation**:
-- 0.0-0.3: weak relationship
-- 0.3-0.5: moderate relationship
-- 0.5-0.7: strong relationship
-- 0.7-1.0: very strong relationship
+- 0.0 ≤ R² < 0.3: weak relationship
+- 0.3 ≤ R² < 0.5: moderate relationship
+- 0.5 ≤ R² < 0.7: strong relationship
+- 0.7 ≤ R² ≤ 1.0: very strong relationship
 
 **reference**: Draper, N.R. & Smith, H. (1998). *Applied Regression Analysis* (3rd ed.). Wiley.
 
@@ -626,45 +504,38 @@ pub fn linear_regression(data_points: &[TrendDataPoint]) -> Result<RegressionRes
 
 VDOT is jack daniels' VO2max adjusted for running economy:
 
-```rust
-// src/intelligence/performance_prediction.rs
-pub fn calculate_vdot(distance_m: f64, time_s: f64) -> Result<f64> {
-    // Convert to velocity (m/min)
-    let velocity = (distance_m / time_s) * 60.0;
+### VDOT calculation from race performance
 
-    // Validate velocity range
-    if !(100.0..=500.0).contains(&velocity) {
-        return Err(AppError::invalid_input(
-            format!("Velocity {velocity:.1} m/min outside valid range (100-500)")
-        ));
-    }
+**step 1: convert to velocity** (meters per minute):
 
-    // Jack Daniels' VO2 formula
-    // VO2 = -4.60 + 0.182258×v + 0.000104×v²
-    let vo2 = (0.000104 * velocity).mul_add(
-        velocity,
-        0.182258f64.mul_add(velocity, -4.60)
-    );
+v = (d / t) × 60
 
-    // Adjust for race duration
-    let percent_max = calculate_percent_max_adjustment(time_s);
+where:
+- d = distance (meters)
+- t = time (seconds)
+- v ∈ [100, 500] m/min (validated range)
 
-    // VDOT = VO2 / percent_used
-    Ok(vo2 / percent_max)
-}
+**step 2: calculate VO2 consumption** (Jack Daniels' formula):
 
-fn calculate_percent_max_adjustment(time_s: f64) -> f64 {
-    let time_minutes = time_s / 60.0;
+VO₂ = −4.60 + 0.182258v + 0.000104v²
 
-    match time_minutes {
-        t if t < 5.0  => 0.97, // Very short - oxygen deficit
-        t if t < 15.0 => 0.99, // 5K range
-        t if t < 30.0 => 1.00, // 10K-15K range - optimal
-        t if t < 90.0 => 0.98, // Half marathon range
-        _             => 0.95, // Marathon+ - fatigue accumulation
-    }
-}
-```
+**step 3: adjust for race duration**:
+
+                    ⎧ 0.97,   if t_min < 5 (very short, oxygen deficit)
+                    ⎪
+                    ⎪ 0.99,   if 5 ≤ t_min < 15 (5K range)
+                    ⎪
+percent_max(t) = ⎨ 1.00,   if 15 ≤ t_min < 30 (10K-15K, optimal)
+                    ⎪
+                    ⎪ 0.98,   if 30 ≤ t_min < 90 (half marathon)
+                    ⎪
+                    ⎩ 0.95,   if t_min ≥ 90 (marathon+, fatigue)
+
+where t_min = t / 60 (time in minutes)
+
+**step 4: calculate VDOT**:
+
+VDOT = VO₂ / percent_max(t)
 
 **VDOT ranges**:
 - 30-40: beginner
@@ -672,56 +543,46 @@ fn calculate_percent_max_adjustment(time_s: f64) -> f64 {
 - 50-60: competitive amateur
 - 60-70: sub-elite
 - 70-85: elite
+- VDOT ∈ [30, 85] (typical range)
 
-**race time prediction**:
+### race time prediction from VDOT
 
-```rust
-pub fn predict_time_vdot(vdot: f64, target_distance_m: f64) -> Result<f64> {
-    // Validate VDOT range
-    if !(30.0..=85.0).contains(&vdot) {
-        return Err(AppError::invalid_input(
-            format!("VDOT {vdot:.1} outside typical range (30-85)")
-        ));
-    }
+**step 1: calculate velocity at VO2max** (inverse of Jack Daniels' formula):
 
-    // Calculate velocity at VO2max (reverse of VDOT formula)
-    // vo2 = -4.60 + 0.182258 × v + 0.000104 × v²
-    // Solve quadratic: 0.000104v² + 0.182258v - (vo2 + 4.60) = 0
+Solve quadratic equation: 0.000104v² + 0.182258v − (VDOT + 4.60) = 0
 
-    let a = 0.000104;
-    let b = 0.182258;
-    let c = -(vdot + 4.60);
+Using quadratic formula: v = (−b + √(b² − 4ac)) / (2a)
 
-    let discriminant = b.mul_add(b, -(4.0 * a * c));
-    let velocity_max = (-b + discriminant.sqrt()) / (2.0 * a);
+where:
+- a = 0.000104
+- b = 0.182258
+- c = −(VDOT + 4.60)
 
-    // Adjust for race distance
-    let race_velocity = calculate_race_velocity(velocity_max, target_distance_m);
+**step 2: adjust velocity for race distance**:
 
-    // Calculate time
-    Ok((target_distance_m / race_velocity) * 60.0)
-}
+                      ⎧ 0.98 × v_max,                            if d ≤ 5,000 m
+                      ⎪
+                      ⎪ 0.94 × v_max,                            if 5,000 < d ≤ 10,000 m
+                      ⎪
+                      ⎪ 0.91 × v_max,                            if 10,000 < d ≤ 15,000 m
+                      ⎪
+v_race(d, v_max) = ⎨ 0.88 × v_max,                            if 15,000 < d ≤ 21,097.5 m
+                      ⎪
+                      ⎪ 0.84 × v_max,                            if 21,097.5 < d ≤ 42,195 m
+                      ⎪
+                      ⎪ max(0.70, 0.84 − 0.02(r − 1)) × v_max,  if d > 42,195 m
+                      ⎩
 
-fn calculate_race_velocity(velocity_max: f64, distance_m: f64) -> f64 {
-    let percent_max = if distance_m <= 5_000.0 {
-        0.98 // 5K: 98% of VO2max velocity
-    } else if distance_m <= 10_000.0 {
-        0.94 // 10K: 94%
-    } else if distance_m <= 15_000.0 {
-        0.91 // 15K: 91%
-    } else if distance_m <= 21_097.5 {
-        0.88 // Half: 88%
-    } else if distance_m <= 42_195.0 {
-        0.84 // Marathon: 84%
-    } else {
-        // Ultra: progressively lower
-        let marathon_ratio = distance_m / 42_195.0;
-        (marathon_ratio - 1.0).mul_add(-0.02, 0.84).max(0.70)
-    };
+where r = d / 42,195 (marathon ratio for ultra distances)
 
-    velocity_max * percent_max
-}
-```
+**step 3: calculate predicted time**:
+
+t_predicted = (d / v_race) × 60
+
+where:
+- d = target distance (meters)
+- v_race = race velocity (meters/minute)
+- t_predicted = predicted time (seconds)
 
 ### VDOT accuracy verification ✅
 
@@ -760,34 +621,26 @@ Overall accuracy: 0.2-5.5% difference across all distances
 
 ## performance prediction: riegel formula
 
-predicts race times across distances:
+predicts race times across distances using power-law relationship:
 
-```rust
-// src/intelligence/performance_prediction.rs
-const RIEGEL_EXPONENT: f64 = 1.06;
+**riegel formula**:
 
-pub fn predict_time_riegel(
-    known_distance_m: f64,
-    known_time_s: f64,
-    target_distance_m: f64,
-) -> Result<f64> {
-    if known_distance_m <= 0.0 || known_time_s <= 0.0 || target_distance_m <= 0.0 {
-        return Err(AppError::invalid_input(
-            "All distances and times must be positive"
-        ));
-    }
+T₂ = T₁ × (D₂ / D₁)^1.06
 
-    let distance_ratio = target_distance_m / known_distance_m;
-    Ok(known_time_s * distance_ratio.powf(RIEGEL_EXPONENT))
-}
-```
+where:
+- T₁ = known race time (seconds)
+- D₁ = known race distance (meters)
+- T₂ = predicted race time (seconds)
+- D₂ = target race distance (meters)
+- 1.06 = riegel exponent (empirically derived constant)
 
-**formula**: `T₂ = T₁ × (D₂ / D₁)^1.06`
+**domain constraints**:
+- D₁ > 0, T₁ > 0, D₂ > 0 (all values must be positive)
 
-**example**: predict marathon from half:
-- half: 1:30:00 (5400s), 21097m
-- marathon: 42195m
-- predicted: 5400 × (42195/21097)^1.06 ≈ 11340s ≈ 3:09:00
+**example**: predict marathon from half marathon:
+- Given: T₁ = 1:30:00 = 5400s, D₁ = 21,097m
+- Target: D₂ = 42,195m
+- Calculation: T₂ = 5400 × (42,195 / 21,097)^1.06 ≈ 11,340s ≈ 3:09:00
 
 **reference**: Riegel, P.S. (1981). Athletic records and human endurance. *American Scientist*, 69(3), 285-290.
 
@@ -797,90 +650,61 @@ pub fn predict_time_riegel(
 
 ### weekly schedule
 
-```rust
-// src/intelligence/pattern_detection.rs
-pub fn detect_weekly_schedule(activities: &[Activity]) -> WeeklySchedulePattern {
-    let mut day_counts: HashMap<Weekday, u32> = HashMap::new();
+**algorithm**:
 
-    for activity in activities {
-        *day_counts.entry(activity.start_date.weekday()).or_insert(0) += 1;
-    }
+1. Count activities by weekday: C(d) = |{activities on weekday d}|
+2. Sort weekdays by frequency: rank by descending C(d)
+3. Calculate consistency score based on distribution
 
-    let mut day_freq: Vec<(Weekday, u32)> = day_counts.into_iter().collect();
-    day_freq.sort_by(|a, b| b.1.cmp(&a.1));
-
-    let consistency_score = calculate_consistency(&day_freq, activities.len());
-
-    WeeklySchedulePattern {
-        most_common_days: day_freq.iter().take(3).map(|(d, _)| *d).collect(),
-        consistency_score,
-    }
-}
-```
+**output**:
+- most_common_days = top 3 weekdays by activity count
+- consistency_score ∈ [0, 100]
 
 **consistency interpretation**:
-- 0-30%: highly variable
-- 30-60%: moderate consistency
-- 60-80%: consistent schedule
-- 80-100%: very consistent routine
+- 0 ≤ score < 30: highly variable
+- 30 ≤ score < 60: moderate consistency
+- 60 ≤ score < 80: consistent schedule
+- 80 ≤ score ≤ 100: very consistent routine
 
 ### hard/easy alternation
 
-```rust
-pub fn detect_hard_easy_pattern(activities: &[Activity]) -> HardEasyPattern {
-    let mut intensities = Vec::new();
+**algorithm**:
 
-    for activity in activities {
-        let intensity = calculate_relative_intensity(activity);
-        intensities.push((activity.start_date, intensity));
-    }
+1. Classify each activity intensity: I(a) ∈ {Hard, Easy}
+2. Sort activities chronologically by date
+3. Count alternations in consecutive activities:
 
-    intensities.sort_by_key(|(date, _)| *date);
+   alternations = |{i : (I(aᵢ) = Hard ∧ I(aᵢ₊₁) = Easy) ∨ (I(aᵢ) = Easy ∧ I(aᵢ₊₁) = Hard)}|
 
-    // Detect alternation
-    let mut alternations = 0;
-    for window in intensities.windows(2) {
-        if (window[0].1 == Intensity::Hard && window[1].1 == Intensity::Easy)
-            || (window[0].1 == Intensity::Easy && window[1].1 == Intensity::Hard)
-        {
-            alternations += 1;
-        }
-    }
+4. Calculate pattern strength:
 
-    let pattern_strength = (alternations as f64) / (intensities.len() as f64 - 1.0);
+   pattern_strength = alternations / (n − 1)
 
-    HardEasyPattern {
-        follows_pattern: pattern_strength > 0.6,
-        pattern_strength,
-    }
-}
-```
+   where n = number of activities
+
+**classification**:
+
+follows_pattern = ⎧ true,   if pattern_strength > 0.6
+                  ⎩ false,  if pattern_strength ≤ 0.6
 
 ### volume progression
 
-```rust
-pub fn detect_volume_progression(activities: &[Activity]) -> VolumeProgressionPattern {
-    // Group by weeks
-    let weekly_volumes = group_by_weeks(activities);
+**algorithm**:
 
-    // Calculate trend
-    let trend_result = StatisticalAnalyzer::linear_regression(&weekly_volumes)?;
+1. Group activities by week: compute total volume per week
+2. Apply linear regression to weekly volumes (see statistical trend analysis section)
+3. Classify trend based on slope:
 
-    let trend = if trend_result.slope > 0.05 {
-        VolumeTrend::Increasing
-    } else if trend_result.slope < -0.05 {
-        VolumeTrend::Decreasing
-    } else {
-        VolumeTrend::Stable
-    };
+                   ⎧ Increasing,   if slope > 0.05
+                   ⎪
+VolumeTrend = ⎨ Decreasing,   if slope < −0.05
+                   ⎪
+                   ⎩ Stable,       if −0.05 ≤ slope ≤ 0.05
 
-    VolumeProgressionPattern {
-        trend,
-        slope: trend_result.slope,
-        r_squared: trend_result.r_squared,
-    }
-}
-```
+**output**:
+- trend classification
+- slope (rate of change)
+- R² (goodness of fit)
 
 **reference**: Esteve-Lanao, J. et al. (2005). How do endurance runners train? *Med Sci Sports Exerc*, 37(3), 496-504.
 
@@ -898,29 +722,28 @@ pierre uses NSF (National Sleep Foundation) and AASM (American Academy of Sleep 
 
 based on NSF recommendations with athlete-specific adjustments:
 
-```rust
-// src/intelligence/sleep_analysis.rs
-pub fn sleep_duration_score(duration_hours: f64, config: &SleepRecoveryConfig) -> f64 {
-    if duration_hours >= config.athlete_optimal_hours {        // >=8h → 100
-        100.0
-    } else if duration_hours >= config.adult_min_hours {       // 7-8h → 85-100
-        85.0 + ((duration_hours - 7.0) / 1.0) * 15.0
-    } else if duration_hours >= config.short_sleep_threshold { // 6-7h → 60-85
-        60.0 + ((duration_hours - 6.0) / 1.0) * 25.0
-    } else if duration_hours >= config.very_short_sleep_threshold { // 5-6h → 30-60
-        30.0 + ((duration_hours - 5.0) / 1.0) * 30.0
-    } else {                                                   // <5h → 0-30
-        (duration_hours / 5.0) * 30.0
-    }
-}
-```
+**piecewise linear scoring function**:
 
-**thresholds** (configurable via `PIERRE_SLEEP_ADULT_MIN_HOURS` etc):
-- **8+ hours**: 100 (optimal for athletes)
-- **7-8 hours**: 85-100 (adequate for adults)
-- **6-7 hours**: 60-85 (short sleep)
-- **5-6 hours**: 30-60 (very short)
-- **<5 hours**: 0-30 (severe deprivation)
+                         ⎧ 100,                               if d ≥ 8
+                         ⎪
+                         ⎪ 85 + 15(d − 7),                    if 7 ≤ d < 8
+                         ⎪
+duration_score(d) = ⎨ 60 + 25(d − 6),                    if 6 ≤ d < 7
+                         ⎪
+                         ⎪ 30 + 30(d − 5),                    if 5 ≤ d < 6
+                         ⎪
+                         ⎩ 30(d / 5),                         if d < 5
+
+where:
+- d = sleep duration (hours)
+- thresholds configurable via environment variables (see configuration section)
+
+**default thresholds**:
+- **d ≥ 8 hours**: score = 100 (optimal for athletes)
+- **7 ≤ d < 8 hours**: score ∈ [85, 100] (adequate for adults)
+- **6 ≤ d < 7 hours**: score ∈ [60, 85] (short sleep)
+- **5 ≤ d < 6 hours**: score ∈ [30, 60] (very short)
+- **d < 5 hours**: score ∈ [0, 30] (severe deprivation)
 
 **scientific basis**: NSF recommends 7-9h for adults, 8-10h for athletes. <6h linked to increased injury risk and impaired performance.
 
@@ -930,32 +753,37 @@ pub fn sleep_duration_score(duration_hours: f64, config: &SleepRecoveryConfig) -
 
 based on AASM guidelines for healthy sleep stage distribution:
 
-```rust
-// src/intelligence/sleep_analysis.rs
-pub fn sleep_stages_score(
-    deep_percent: f64,
-    rem_percent: f64,
-    light_percent: f64,
-    awake_percent: f64,
-    config: &SleepRecoveryConfig
-) -> f64 {
-    // Deep sleep: 40% weight (physical recovery)
-    let deep_score = if deep_percent >= 20.0 { 100.0 }
-                     else if deep_percent >= 15.0 { 70.0 + ((deep_percent - 15.0) / 5.0) * 30.0 }
-                     else { (deep_percent / 15.0) * 70.0 };
+**deep sleep scoring function**:
 
-    // REM sleep: 40% weight (cognitive recovery)
-    let rem_score = if rem_percent >= 25.0 { 100.0 }
-                    else if rem_percent >= 20.0 { 70.0 + ((rem_percent - 20.0) / 5.0) * 30.0 }
-                    else { (rem_percent / 20.0) * 70.0 };
+                      ⎧ 100,                      if p_deep ≥ 20
+                      ⎪
+deep_score(p_deep) = ⎨ 70 + 30(p_deep − 15)/5,    if 15 ≤ p_deep < 20
+                      ⎪
+                      ⎩ 70(p_deep / 15),          if p_deep < 15
 
-    // Awake time penalty: >5% awake reduces score
-    let awake_penalty = if awake_percent > 5.0 { (awake_percent - 5.0) * 2.0 } else { 0.0 };
+**REM sleep scoring function**:
 
-    // Combined: 40% deep, 40% REM, 20% light, minus awake penalty
-    ((deep_score * 0.4) + (rem_score * 0.4) + (light_percent * 0.2) - awake_penalty).clamp(0.0, 100.0)
-}
-```
+                     ⎧ 100,                     if p_rem ≥ 25
+                     ⎪
+rem_score(p_rem) = ⎨ 70 + 30(p_rem − 20)/5,     if 20 ≤ p_rem < 25
+                     ⎪
+                     ⎩ 70(p_rem / 20),          if p_rem < 20
+
+**awake time penalty**:
+
+                   ⎧ 0,                     if p_awake ≤ 5
+penalty(p_awake) = ⎨
+                   ⎩ 2(p_awake − 5),        if p_awake > 5
+
+**combined stages score**:
+
+stages_score = max(0, min(100, 0.4 × deep_score + 0.4 × rem_score + 0.2 × p_light − penalty))
+
+where:
+- p_deep = deep sleep percentage (%)
+- p_rem = REM sleep percentage (%)
+- p_light = light sleep percentage (%)
+- p_awake = awake time percentage (%)
 
 **optimal ranges**:
 - **deep sleep**: 15-25% (physical recovery, growth hormone release)
@@ -971,28 +799,32 @@ pub fn sleep_stages_score(
 
 based on clinical sleep medicine thresholds:
 
-```rust
-// src/intelligence/sleep_analysis.rs
-pub fn sleep_efficiency_score(efficiency_percent: f64, config: &SleepRecoveryConfig) -> f64 {
-    if efficiency_percent >= 90.0 {       // >=90% → 100 (excellent)
-        100.0
-    } else if efficiency_percent >= 85.0 { // 85-90% → 85-100 (good)
-        85.0 + ((efficiency_percent - 85.0) / 5.0) * 15.0
-    } else if efficiency_percent >= 75.0 { // 75-85% → 65-85 (fair)
-        65.0 + ((efficiency_percent - 75.0) / 10.0) * 20.0
-    } else {                              // <75% → 0-65 (poor)
-        (efficiency_percent / 75.0) * 65.0
-    }
-}
-```
+**sleep efficiency formula**:
 
-**formula**: `efficiency = (time_asleep / time_in_bed) × 100`
+efficiency = (t_asleep / t_bed) × 100
+
+where:
+- t_asleep = total time asleep (minutes)
+- t_bed = total time in bed (minutes)
+- efficiency ∈ [0, 100] (percentage)
+
+**piecewise linear scoring function**:
+
+                            ⎧ 100,                        if e ≥ 90
+                            ⎪
+                            ⎪ 85 + 15(e − 85)/5,          if 85 ≤ e < 90
+                            ⎪
+efficiency_score(e) = ⎨ 65 + 20(e − 75)/10,               if 75 ≤ e < 85
+                            ⎪
+                            ⎩ 65(e / 75),                 if e < 75
+
+where e = efficiency percentage
 
 **thresholds**:
-- **>90%**: excellent (minimal sleep fragmentation)
-- **85-90%**: good (normal range)
-- **75-85%**: fair (moderate fragmentation)
-- **<75%**: poor (severe fragmentation)
+- **e ≥ 90%**: score = 100 (excellent, minimal sleep fragmentation)
+- **85 ≤ e < 90%**: score ∈ [85, 100] (good, normal range)
+- **75 ≤ e < 85%**: score ∈ [65, 85] (fair, moderate fragmentation)
+- **e < 75%**: score ∈ [0, 65] (poor, severe fragmentation)
 
 **scientific basis**: sleep efficiency >85% considered normal in clinical sleep medicine.
 
@@ -1000,80 +832,52 @@ pub fn sleep_efficiency_score(efficiency_percent: f64, config: &SleepRecoveryCon
 
 pierre calculates training readiness by combining TSB, sleep quality, and HRV (when available):
 
-```rust
-// src/intelligence/recovery_calculator.rs
-pub fn calculate_recovery_score(
-    tsb: f64,
-    sleep_quality: f64,
-    hrv_data: Option<HrvData>,
-    config: &SleepRecoveryConfig
-) -> RecoveryScore {
-    // 1. Normalize TSB from [-30, +30] to [0, 100]
-    let tsb_score = normalize_tsb(tsb);
+**weighted recovery score formula**:
 
-    // 2. Sleep already scored [0, 100]
+                     ⎧ 0.4 × TSB_score + 0.4 × sleep_score + 0.2 × HRV_score,   if HRV available
+recovery_score = ⎨
+                     ⎩ 0.5 × TSB_score + 0.5 × sleep_score,                     if HRV unavailable
 
-    // 3. Score HRV if available
-    let (recovery_score, components) = match hrv_data {
-        Some(hrv) => {
-            let hrv_score = score_hrv(hrv, config);
-            // Weights: 40% TSB, 40% sleep, 20% HRV
-            let score = (tsb_score * 0.4) + (sleep_quality * 0.4) + (hrv_score * 0.2);
-            (score, (tsb_score, sleep_quality, Some(hrv_score)))
-        },
-        None => {
-            // Weights: 50% TSB, 50% sleep (no HRV)
-            let score = (tsb_score * 0.5) + (sleep_quality * 0.5);
-            (score, (tsb_score, sleep_quality, None))
-        }
-    };
+where:
+- TSB_score = normalized TSB score ∈ [0, 100] (see TSB normalization below)
+- sleep_score = overall sleep quality score ∈ [0, 100] (from sleep analysis)
+- HRV_score = heart rate variability score ∈ [0, 100] (when available)
 
-    // 4. Classify recovery level
-    let level = if recovery_score >= 85.0 { "excellent" }
-                else if recovery_score >= 70.0 { "good" }
-                else if recovery_score >= 50.0 { "fair" }
-                else { "poor" };
+**recovery level classification**:
 
-    RecoveryScore { score: recovery_score, level, components }
-}
-```
+                       ⎧ excellent,    if score ≥ 85
+                       ⎪
+                       ⎪ good,         if 70 ≤ score < 85
+                       ⎪
+recovery_level = ⎨ fair,         if 50 ≤ score < 70
+                       ⎪
+                       ⎩ poor,         if score < 50
 
 #### TSB normalization
 
-training stress balance maps to recovery score:
+training stress balance maps to recovery score using piecewise linear normalization:
 
-```rust
-fn normalize_tsb(tsb: f64) -> f64 {
-    // TSB ranges and recovery interpretation:
-    // +25 to +15: overtrained/detraining (score 90-100)
-    // +15 to +5:  fresh/race ready (score 80-90)
-    // +5 to -5:   optimal training (score 60-80)
-    // -5 to -10:  fatigued (score 40-60)
-    // -10 to -15: very fatigued (score 20-40)
-    // -15 to -30: overreaching (score 0-20)
+**TSB normalization function** (maps TSB ∈ [−30, +30] → score ∈ [0, 100]):
 
-    if tsb >= 15.0 {
-        90.0 + ((tsb - 15.0).min(10.0) / 10.0) * 10.0
-    } else if tsb >= 5.0 {
-        80.0 + ((tsb - 5.0) / 10.0) * 10.0
-    } else if tsb >= -5.0 {
-        60.0 + ((tsb + 5.0) / 10.0) * 20.0
-    } else if tsb >= -10.0 {
-        40.0 + ((tsb + 10.0) / 5.0) * 20.0
-    } else if tsb >= -15.0 {
-        20.0 + ((tsb + 15.0) / 5.0) * 20.0
-    } else {
-        (0.0_f64).max((tsb + 30.0) / 15.0 * 20.0)
-    }
-}
-```
+                     ⎧ 90 + 10 × min(10, TSB − 15) / 10,       if TSB ≥ 15
+                     ⎪
+                     ⎪ 80 + 10(TSB − 5) / 10,                  if 5 ≤ TSB < 15
+                     ⎪
+                     ⎪ 60 + 20(TSB + 5) / 10,                  if −5 ≤ TSB < 5
+TSB_score(TSB) = ⎨
+                     ⎪ 40 + 20(TSB + 10) / 5,                  if −10 ≤ TSB < −5
+                     ⎪
+                     ⎪ 20 + 20(TSB + 15) / 5,                  if −15 ≤ TSB < −10
+                     ⎪
+                     ⎩ max(0, 20(TSB + 30) / 15),              if TSB < −15
 
-**interpretation**:
-- **TSB > +15**: detraining (too much rest)
-- **TSB +5 to +15**: fresh (race ready)
-- **TSB -5 to +5**: optimal (productive training)
-- **TSB -10 to -5**: fatigued (building fitness)
-- **TSB < -10**: overreaching (recovery needed)
+**physiological interpretation**:
+- **TSB ≥ +15**: score ∈ [90, 100] - detraining (too much rest)
+- **+5 ≤ TSB < +15**: score ∈ [80, 90] - fresh (race ready)
+- **−5 ≤ TSB < +5**: score ∈ [60, 80] - optimal (productive training)
+- **−10 ≤ TSB < −5**: score ∈ [40, 60] - fatigued (building fitness)
+- **−15 ≤ TSB < −10**: score ∈ [20, 40] - very fatigued (overreaching risk)
+- **TSB < −15**: score ∈ [0, 20] - overreaching (recovery needed)
 
 **reference**: Banister, E.W. (1991). Modeling elite athletic performance. *Human Kinetics*.
 
@@ -1081,33 +885,34 @@ fn normalize_tsb(tsb: f64) -> f64 {
 
 heart rate variability assessment based on RMSSD deviation from baseline:
 
-```rust
-fn score_hrv(hrv: HrvData, config: &SleepRecoveryConfig) -> f64 {
-    let rmssd_delta = hrv.rmssd - hrv.baseline_rmssd;
+**RMSSD delta calculation**:
 
-    if rmssd_delta >= 5.0 {
-        // +5ms or more: excellent recovery (score 90-100)
-        90.0 + (rmssd_delta.min(10.0) / 10.0) * 10.0
-    } else if rmssd_delta >= 0.0 {
-        // 0 to +5ms: good recovery (score 70-90)
-        70.0 + (rmssd_delta / 5.0) * 20.0
-    } else if rmssd_delta >= -3.0 {
-        // -3 to 0ms: adequate (score 50-70)
-        50.0 + ((rmssd_delta + 3.0) / 3.0) * 20.0
-    } else if rmssd_delta >= -10.0 {
-        // -3 to -10ms: poor recovery (score 20-50)
-        20.0 + ((rmssd_delta + 10.0) / 7.0) * 30.0
-    } else {
-        // < -10ms: very poor (score 0-20)
-        (0.0_f64).max((rmssd_delta + 20.0) / 10.0 * 20.0)
-    }
-}
-```
+Δ_RMSSD = RMSSD_current − RMSSD_baseline
 
-**RMSSD thresholds** (root mean square of successive differences):
-- **+5ms or higher**: excellent recovery, parasympathetic dominance
-- **±3ms**: stable, normal recovery
-- **-10ms or lower**: poor recovery, overreaching concern
+where:
+- RMSSD = root mean square of successive RR interval differences (milliseconds)
+- RMSSD_baseline = individual's baseline RMSSD (established over 7-14 days)
+
+**piecewise linear HRV scoring function**:
+
+                    ⎧ 90 + 10 × min(10, Δ − 5) / 10,      if Δ ≥ 5
+                    ⎪
+                    ⎪ 70 + 20 × Δ / 5,                    if 0 ≤ Δ < 5
+                    ⎪
+HRV_score(Δ) = ⎨ 50 + 20(Δ + 3) / 3,                 if −3 ≤ Δ < 0
+                    ⎪
+                    ⎪ 20 + 30(Δ + 10) / 7,                if −10 ≤ Δ < −3
+                    ⎪
+                    ⎩ max(0, 20(Δ + 20) / 10),            if Δ < −10
+
+where Δ = Δ_RMSSD (milliseconds)
+
+**physiological interpretation**:
+- **Δ ≥ +5ms**: score ∈ [90, 100] - excellent recovery, parasympathetic dominance
+- **0 ≤ Δ < +5ms**: score ∈ [70, 90] - good recovery, positive adaptation
+- **−3 ≤ Δ < 0ms**: score ∈ [50, 70] - adequate recovery, stable state
+- **−10 ≤ Δ < −3ms**: score ∈ [20, 50] - poor recovery, accumulated fatigue
+- **Δ < −10ms**: score ∈ [0, 20] - very poor recovery, overreaching concern
 
 **scientific basis**: HRV (specifically RMSSD) reflects autonomic nervous system recovery. decreases indicate accumulated fatigue, increases indicate good adaptation.
 
@@ -1117,42 +922,40 @@ fn score_hrv(hrv: HrvData, config: &SleepRecoveryConfig) -> f64 {
 
 all sleep/recovery thresholds configurable via environment variables:
 
-```bash
-# Sleep duration thresholds (hours)
-PIERRE_SLEEP_ADULT_MIN_HOURS=7.0
-PIERRE_SLEEP_ATHLETE_OPTIMAL_HOURS=8.0
-PIERRE_SLEEP_SHORT_THRESHOLD=6.0
-PIERRE_SLEEP_VERY_SHORT_THRESHOLD=5.0
+**sleep duration thresholds** (hours):
+- PIERRE_SLEEP_ADULT_MIN_HOURS = 7.0
+- PIERRE_SLEEP_ATHLETE_OPTIMAL_HOURS = 8.0
+- PIERRE_SLEEP_SHORT_THRESHOLD = 6.0
+- PIERRE_SLEEP_VERY_SHORT_THRESHOLD = 5.0
 
-# Sleep stages thresholds (percentage)
-PIERRE_SLEEP_DEEP_MIN_PERCENT=15.0
-PIERRE_SLEEP_DEEP_OPTIMAL_PERCENT=20.0
-PIERRE_SLEEP_REM_MIN_PERCENT=20.0
-PIERRE_SLEEP_REM_OPTIMAL_PERCENT=25.0
+**sleep stages thresholds** (percentage):
+- PIERRE_SLEEP_DEEP_MIN_PERCENT = 15.0
+- PIERRE_SLEEP_DEEP_OPTIMAL_PERCENT = 20.0
+- PIERRE_SLEEP_REM_MIN_PERCENT = 20.0
+- PIERRE_SLEEP_REM_OPTIMAL_PERCENT = 25.0
 
-# Sleep efficiency thresholds (percentage)
-PIERRE_SLEEP_EFFICIENCY_EXCELLENT=90.0
-PIERRE_SLEEP_EFFICIENCY_GOOD=85.0
-PIERRE_SLEEP_EFFICIENCY_POOR=70.0
+**sleep efficiency thresholds** (percentage):
+- PIERRE_SLEEP_EFFICIENCY_EXCELLENT = 90.0
+- PIERRE_SLEEP_EFFICIENCY_GOOD = 85.0
+- PIERRE_SLEEP_EFFICIENCY_POOR = 70.0
 
-# HRV thresholds (milliseconds)
-PIERRE_HRV_RMSSD_DECREASE_CONCERN=-10.0
-PIERRE_HRV_RMSSD_INCREASE_GOOD=5.0
+**HRV thresholds** (milliseconds):
+- PIERRE_HRV_RMSSD_DECREASE_CONCERN = −10.0
+- PIERRE_HRV_RMSSD_INCREASE_GOOD = 5.0
 
-# TSB thresholds
-PIERRE_TSB_HIGHLY_FATIGUED=-15.0
-PIERRE_TSB_FATIGUED=-10.0
-PIERRE_TSB_FRESH_MIN=5.0
-PIERRE_TSB_FRESH_MAX=15.0
-PIERRE_TSB_DETRAINING=25.0
+**TSB thresholds**:
+- PIERRE_TSB_HIGHLY_FATIGUED = −15.0
+- PIERRE_TSB_FATIGUED = −10.0
+- PIERRE_TSB_FRESH_MIN = 5.0
+- PIERRE_TSB_FRESH_MAX = 15.0
+- PIERRE_TSB_DETRAINING = 25.0
 
-# Recovery scoring weights
-PIERRE_RECOVERY_TSB_WEIGHT_FULL=0.4
-PIERRE_RECOVERY_SLEEP_WEIGHT_FULL=0.4
-PIERRE_RECOVERY_HRV_WEIGHT_FULL=0.2
-PIERRE_RECOVERY_TSB_WEIGHT_NO_HRV=0.5
-PIERRE_RECOVERY_SLEEP_WEIGHT_NO_HRV=0.5
-```
+**recovery scoring weights**:
+- PIERRE_RECOVERY_TSB_WEIGHT_FULL = 0.4
+- PIERRE_RECOVERY_SLEEP_WEIGHT_FULL = 0.4
+- PIERRE_RECOVERY_HRV_WEIGHT_FULL = 0.2
+- PIERRE_RECOVERY_TSB_WEIGHT_NO_HRV = 0.5
+- PIERRE_RECOVERY_SLEEP_WEIGHT_NO_HRV = 0.5
 
 defaults based on peer-reviewed research (NSF, AASM, Shaffer & Ginsberg 2017).
 
@@ -1162,96 +965,24 @@ defaults based on peer-reviewed research (NSF, AASM, Shaffer & Ginsberg 2017).
 
 ### parameter bounds (physiological ranges)
 
-```rust
-// src/intelligence/physiological_constants.rs::configuration_validation
-pub const MAX_HR_MIN: u64 = 100;
-pub const MAX_HR_MAX: u64 = 220;
-pub const RESTING_HR_MIN: u64 = 30;
-pub const RESTING_HR_MAX: u64 = 100;
-pub const THRESHOLD_HR_MIN: u64 = 100;
-pub const THRESHOLD_HR_MAX: u64 = 200;
-pub const VO2_MAX_MIN: f64 = 20.0;
-pub const VO2_MAX_MAX: f64 = 90.0;
-pub const FTP_MIN: u64 = 50;
-pub const FTP_MAX: u64 = 600;
+**physiological parameter ranges**:
 
-// src/protocols/universal/handlers/configuration.rs
-pub fn validate_parameter_ranges(
-    obj: &serde_json::Map<String, serde_json::Value>,
-    errors: &mut Vec<String>,
-) -> bool {
-    let mut all_valid = true;
+max_hr ∈ [100, 220] bpm
+resting_hr ∈ [30, 100] bpm
+threshold_hr ∈ [100, 200] bpm
+VO2max ∈ [20.0, 90.0] ml/kg/min
+FTP ∈ [50, 600] watts
 
-    // Validate max_hr
-    if let Some(hr) = obj.get("max_hr").and_then(Value::as_u64) {
-        if !(MAX_HR_MIN..=MAX_HR_MAX).contains(&hr) {
-            all_valid = false;
-            errors.push(format!(
-                "max_hr must be between {MAX_HR_MIN} and {MAX_HR_MAX} bpm, got {hr}"
-            ));
-        }
-    }
+**range validation**: each parameter verified against physiologically plausible bounds
 
-    // Validate resting_hr
-    if let Some(hr) = obj.get("resting_hr").and_then(Value::as_u64) {
-        if !(RESTING_HR_MIN..=RESTING_HR_MAX).contains(&hr) {
-            all_valid = false;
-            errors.push(format!(
-                "resting_hr must be between {RESTING_HR_MIN} and {RESTING_HR_MAX} bpm, got {hr}"
-            ));
-        }
-    }
+**relationship validation**:
 
-    // ... other validations
+resting_hr < threshold_hr < max_hr
 
-    all_valid
-}
-
-pub fn validate_parameter_relationships(
-    obj: &serde_json::Map<String, serde_json::Value>,
-    errors: &mut Vec<String>,
-) -> bool {
-    let mut all_valid = true;
-
-    let max_hr = obj.get("max_hr").and_then(Value::as_u64);
-    let resting_hr = obj.get("resting_hr").and_then(Value::as_u64);
-    let threshold_hr = obj.get("threshold_hr").and_then(Value::as_u64);
-
-    // Validate resting_hr < threshold_hr < max_hr
-    if let (Some(resting), Some(max)) = (resting_hr, max_hr) {
-        if resting >= max {
-            all_valid = false;
-            errors.push(format!(
-                "resting_hr ({resting}) must be less than max_hr ({max})"
-            ));
-        }
-    }
-
-    if let (Some(resting), Some(threshold)) = (resting_hr, threshold_hr) {
-        if resting >= threshold {
-            all_valid = false;
-            errors.push(format!(
-                "resting_hr ({resting}) must be less than threshold_hr ({threshold})"
-            ));
-        }
-    }
-
-    if let (Some(threshold), Some(max)) = (threshold_hr, max_hr) {
-        if threshold >= max {
-            all_valid = false;
-            errors.push(format!(
-                "threshold_hr ({threshold}) must be less than max_hr ({max})"
-            ));
-        }
-    }
-
-    all_valid
-}
-```
-
-**validation types**:
-1. **range validation**: each parameter within physiologically plausible bounds
-2. **relationship validation**: resting_hr < threshold_hr < max_hr
+validation constraints:
+- HR_rest < HR_max (resting heart rate below maximum)
+- HR_rest < HR_threshold (resting heart rate below threshold)
+- HR_threshold < HR_max (threshold heart rate below maximum)
 
 **references**:
 - ACSM Guidelines for Exercise Testing and Prescription, 11th Edition
@@ -1259,99 +990,90 @@ pub fn validate_parameter_relationships(
 
 ### confidence levels
 
-```rust
-pub fn calculate_confidence(
-    data_points: usize,
-    r_squared: f64,
-) -> ConfidenceLevel {
-    match (data_points, r_squared) {
-        (n, r) if n >= 15 && r >= 0.7 => ConfidenceLevel::High,
-        (n, r) if n >= 8  && r >= 0.5 => ConfidenceLevel::Medium,
-        (n, r) if n >= 3  && r >= 0.3 => ConfidenceLevel::Low,
-        _ => ConfidenceLevel::VeryLow,
-    }
-}
-```
+**confidence level classification**:
+
+                          ⎧ High,       if (n ≥ 15) ∧ (R² ≥ 0.7)
+                          ⎪
+                          ⎪ Medium,     if (n ≥ 8) ∧ (R² ≥ 0.5)
+                          ⎪
+confidence(n, R²) = ⎨ Low,        if (n ≥ 3) ∧ (R² ≥ 0.3)
+                          ⎪
+                          ⎩ VeryLow,    otherwise
+
+where:
+- n = number of data points
+- R² = coefficient of determination ∈ [0, 1]
 
 ### edge case handling
 
 **1. users with no activities**:
-```rust
-if activities.is_empty() {
-    return Ok(TrainingLoad {
-        ctl: 0.0,
-        atl: 0.0,
-        tsb: 0.0,
-        tss_history: Vec::new(),
-    });
-}
-```
+
+If |activities| = 0, return:
+- CTL = 0
+- ATL = 0
+- TSB = 0
+- TSS_history = ∅ (empty set)
 
 **2. training gaps (TSS sequence breaks)**:
-```rust
-// Zero-fill missing days in EMA calculation
-let daily_tss = tss_map.get(&date_key).copied().unwrap_or(0.0); // Gap = 0
-ema = daily_tss.mul_add(alpha, ema * (1.0 - alpha));
-```
+
+For missing days: TSS_daily = 0
+
+Exponential decay: EMAₜ = (1 − α) × EMAₜ₋₁
+
 Result: CTL/ATL naturally decay during breaks (realistic fitness loss)
 
 **3. invalid physiological parameters**:
-```rust
-// Range validation catches: max_hr=250 (exceeds 220), resting_hr=120 (exceeds 100)
-// Relationship validation catches: max_hr=150 < resting_hr=160
-// Returns detailed error messages for each violation
-```
+
+Range validation checks:
+- max_hr = 250 → rejected (exceeds upper bound 220)
+- resting_hr = 120 → rejected (exceeds upper bound 100)
+
+Relationship validation checks:
+- max_hr = 150, resting_hr = 160 → rejected (violates HR_rest < HR_max)
+
+Returns detailed error messages for each violation
 
 **4. invalid race velocities**:
-```rust
-if !(MIN_VELOCITY..=MAX_VELOCITY).contains(&velocity) {
-    return Err(AppError::invalid_input(format!(
-        "Velocity {velocity:.1} m/min outside valid range (100-500)"
-    )));
-}
-```
+
+Velocity constraint: v ∈ [100, 500] m/min
+
+If v ∉ [100, 500], reject with error message
 
 **5. VDOT out of range**:
-```rust
-if !(30.0..=85.0).contains(&vdot) {
-    return Err(AppError::invalid_input(format!(
-        "VDOT {vdot:.1} outside typical range (30-85)"
-    )));
-}
-```
+
+VDOT constraint: VDOT ∈ [30, 85]
+
+If VDOT ∉ [30, 85], reject with error message
 
 ---
 
 ## configuration strategies
 
-three strategies adjust thresholds:
+three strategies adjust training thresholds:
 
-### conservative
-```rust
-impl IntelligenceStrategy for ConservativeStrategy {
-    fn max_weekly_load_increase(&self) -> f64 { 0.05 } // 5%
-    fn recovery_threshold(&self) -> f64 { 1.2 }
-}
-```
-**use**: injury recovery, beginners, older athletes
+### conservative strategy
 
-### default
-```rust
-impl IntelligenceStrategy for DefaultStrategy {
-    fn max_weekly_load_increase(&self) -> f64 { 0.10 } // 10%
-    fn recovery_threshold(&self) -> f64 { 1.3 }
-}
-```
-**use**: general training, recreational athletes
+**parameters**:
+- max_weekly_load_increase = 0.05 (5%)
+- recovery_threshold = 1.2
 
-### aggressive
-```rust
-impl IntelligenceStrategy for AggressiveStrategy {
-    fn max_weekly_load_increase(&self) -> f64 { 0.15 } // 15%
-    fn recovery_threshold(&self) -> f64 { 1.5 }
-}
-```
-**use**: competitive athletes, experienced trainers
+**recommended for**: injury recovery, beginners, older athletes
+
+### default strategy
+
+**parameters**:
+- max_weekly_load_increase = 0.10 (10%)
+- recovery_threshold = 1.3
+
+**recommended for**: general training, recreational athletes
+
+### aggressive strategy
+
+**parameters**:
+- max_weekly_load_increase = 0.15 (15%)
+- recovery_threshold = 1.5
+
+**recommended for**: competitive athletes, experienced trainers
 
 ---
 
