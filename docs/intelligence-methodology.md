@@ -16,38 +16,6 @@ this comprehensive guide explains the scientific methods, algorithms, and decisi
 
 ---
 
-## ⚠️ implementation status: production-ready
-
-**as of 2025-10-29**, pierre's intelligence system has undergone a complete rewrite eliminating all placeholder logic and mock calculations. every tool now uses real, peer-reviewed algorithms:
-
-### what was eliminated ❌
-- hardcoded fitness scores (was: return 75.0)
-- assumed training weeks (was: return 12)
-- mock race predictions (was: return current_pace * 1.05)
-- placeholder recommendations (was: return "train more")
-- fake pattern detection (was: return "no patterns")
-
-### what was implemented ✅
-- **VDOT race predictions**: 0.2-5.5% accuracy vs. jack daniels' tables
-- **TSS/CTL/ATL**: exponential moving averages with gap handling
-- **statistical analysis**: proper linear regression, R² calculation, significance testing
-- **pattern detection**: weekly schedules, overtraining signals, volume trends
-- **sleep and recovery**: NSF/AASM-based sleep quality scoring, TSB normalization, HRV-based recovery assessment
-- **physiological validation**: range + relationship checks for all parameters
-- **real profile inference**: fitness level from activity volume and consistency
-
-### verification ✅
-- **644 test assertions** across 109 test functions (562 original + 82 sleep/recovery)
-- **VDOT accuracy**: tested against published VDOT 40, 50, 60 reference tables
-- **sleep scoring accuracy**: validated against NSF guidelines and AASM recommendations
-- **edge cases**: zero activities, training gaps, missing sleep data, invalid parameters all handled
-- **zero placeholders**: comprehensive codebase scan confirms zero remaining
-- **zero warnings**: strict clippy (pedantic + nursery) passes
-
-**result**: pierre intelligence system is now production-ready with scientifically-validated, peer-reviewed algorithms throughout.
-
----
-
 ## architecture overview
 
 pierre's intelligence system uses a **foundation modules** approach for code reuse and consistency:
@@ -64,15 +32,15 @@ pierre's intelligence system uses a **foundation modules** approach for code reu
 │   (src/protocols/universal/handlers/)       │
 └──────────────────┬──────────────────────────┘
                    │
-    ┌──────────────┼──────────────┬───────────┬────────────┐
-    ▼              ▼              ▼           ▼            ▼
-┌─────────────┐ ┌──────────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐
+    ┌──────────────┼──────────────────┬───────────┬────────────┐
+    ▼              ▼                  ▼           ▼            ▼
+┌─────────────┐ ┌──────────────┐ ┌──────────┐ ┌───────────┐ ┌──────────────┐
 │ Training    │ │ Performance  │ │ Pattern  │ │Statistical│ │ Sleep &      │
-│ Load Calc   │ │ Predictor    │ │ Detector │ │ Analyzer │ │ Recovery     │
+│ Load Calc   │ │ Predictor    │ │ Detector │ │ Analyzer  │ │ Recovery     │
 │             │ │              │ │          │ │           │ │              │
 │ TSS/CTL/ATL │ │ VDOT/Riegel  │ │ Weekly   │ │Regression │ │ Sleep Score  │
 │ TSB/Risk    │ │ Race Times   │ │ Patterns │ │ Trends    │ │ Recovery Calc│
-└─────────────┘ └──────────────┘ └──────────┘ └──────────┘ └──────────────┘
+└─────────────┘ └──────────────┘ └──────────┘ └───────────┘ └──────────────┘
          FOUNDATION MODULES (Phase 1 + Phase 2)
          Shared by all intelligence tools
 ```
@@ -918,6 +886,278 @@ pub fn detect_volume_progression(activities: &[Activity]) -> VolumeProgressionPa
 
 ---
 
+## sleep and recovery analysis
+
+### sleep quality scoring
+
+pierre uses NSF (National Sleep Foundation) and AASM (American Academy of Sleep Medicine) guidelines for sleep quality assessment. the overall sleep quality score (0-100) combines three weighted components:
+
+**sleep quality = (duration_score × 0.35) + (stages_score × 0.40) + (efficiency_score × 0.25)**
+
+#### duration scoring
+
+based on NSF recommendations with athlete-specific adjustments:
+
+```rust
+// src/intelligence/sleep_analysis.rs
+pub fn sleep_duration_score(duration_hours: f64, config: &SleepRecoveryConfig) -> f64 {
+    if duration_hours >= config.athlete_optimal_hours {        // >=8h → 100
+        100.0
+    } else if duration_hours >= config.adult_min_hours {       // 7-8h → 85-100
+        85.0 + ((duration_hours - 7.0) / 1.0) * 15.0
+    } else if duration_hours >= config.short_sleep_threshold { // 6-7h → 60-85
+        60.0 + ((duration_hours - 6.0) / 1.0) * 25.0
+    } else if duration_hours >= config.very_short_sleep_threshold { // 5-6h → 30-60
+        30.0 + ((duration_hours - 5.0) / 1.0) * 30.0
+    } else {                                                   // <5h → 0-30
+        (duration_hours / 5.0) * 30.0
+    }
+}
+```
+
+**thresholds** (configurable via `PIERRE_SLEEP_ADULT_MIN_HOURS` etc):
+- **8+ hours**: 100 (optimal for athletes)
+- **7-8 hours**: 85-100 (adequate for adults)
+- **6-7 hours**: 60-85 (short sleep)
+- **5-6 hours**: 30-60 (very short)
+- **<5 hours**: 0-30 (severe deprivation)
+
+**scientific basis**: NSF recommends 7-9h for adults, 8-10h for athletes. <6h linked to increased injury risk and impaired performance.
+
+**reference**: Hirshkowitz, M. et al. (2015). National Sleep Foundation's sleep time duration recommendations. *Sleep Health*, 1(1), 40-43.
+
+#### stages scoring
+
+based on AASM guidelines for healthy sleep stage distribution:
+
+```rust
+// src/intelligence/sleep_analysis.rs
+pub fn sleep_stages_score(
+    deep_percent: f64,
+    rem_percent: f64,
+    light_percent: f64,
+    awake_percent: f64,
+    config: &SleepRecoveryConfig
+) -> f64 {
+    // Deep sleep: 40% weight (physical recovery)
+    let deep_score = if deep_percent >= 20.0 { 100.0 }
+                     else if deep_percent >= 15.0 { 70.0 + ((deep_percent - 15.0) / 5.0) * 30.0 }
+                     else { (deep_percent / 15.0) * 70.0 };
+
+    // REM sleep: 40% weight (cognitive recovery)
+    let rem_score = if rem_percent >= 25.0 { 100.0 }
+                    else if rem_percent >= 20.0 { 70.0 + ((rem_percent - 20.0) / 5.0) * 30.0 }
+                    else { (rem_percent / 20.0) * 70.0 };
+
+    // Awake time penalty: >5% awake reduces score
+    let awake_penalty = if awake_percent > 5.0 { (awake_percent - 5.0) * 2.0 } else { 0.0 };
+
+    // Combined: 40% deep, 40% REM, 20% light, minus awake penalty
+    ((deep_score * 0.4) + (rem_score * 0.4) + (light_percent * 0.2) - awake_penalty).clamp(0.0, 100.0)
+}
+```
+
+**optimal ranges**:
+- **deep sleep**: 15-25% (physical recovery, growth hormone release)
+- **REM sleep**: 20-25% (memory consolidation, cognitive function)
+- **light sleep**: 45-55% (transition stages)
+- **awake time**: <5% (sleep fragmentation indicator)
+
+**scientific basis**: AASM sleep stage guidelines. deep sleep critical for physical recovery, REM for cognitive processing.
+
+**reference**: Berry, R.B. et al. (2017). AASM Scoring Manual Version 2.4. *American Academy of Sleep Medicine*.
+
+#### efficiency scoring
+
+based on clinical sleep medicine thresholds:
+
+```rust
+// src/intelligence/sleep_analysis.rs
+pub fn sleep_efficiency_score(efficiency_percent: f64, config: &SleepRecoveryConfig) -> f64 {
+    if efficiency_percent >= 90.0 {       // >=90% → 100 (excellent)
+        100.0
+    } else if efficiency_percent >= 85.0 { // 85-90% → 85-100 (good)
+        85.0 + ((efficiency_percent - 85.0) / 5.0) * 15.0
+    } else if efficiency_percent >= 75.0 { // 75-85% → 65-85 (fair)
+        65.0 + ((efficiency_percent - 75.0) / 10.0) * 20.0
+    } else {                              // <75% → 0-65 (poor)
+        (efficiency_percent / 75.0) * 65.0
+    }
+}
+```
+
+**formula**: `efficiency = (time_asleep / time_in_bed) × 100`
+
+**thresholds**:
+- **>90%**: excellent (minimal sleep fragmentation)
+- **85-90%**: good (normal range)
+- **75-85%**: fair (moderate fragmentation)
+- **<75%**: poor (severe fragmentation)
+
+**scientific basis**: sleep efficiency >85% considered normal in clinical sleep medicine.
+
+### recovery score calculation
+
+pierre calculates training readiness by combining TSB, sleep quality, and HRV (when available):
+
+```rust
+// src/intelligence/recovery_calculator.rs
+pub fn calculate_recovery_score(
+    tsb: f64,
+    sleep_quality: f64,
+    hrv_data: Option<HrvData>,
+    config: &SleepRecoveryConfig
+) -> RecoveryScore {
+    // 1. Normalize TSB from [-30, +30] to [0, 100]
+    let tsb_score = normalize_tsb(tsb);
+
+    // 2. Sleep already scored [0, 100]
+
+    // 3. Score HRV if available
+    let (recovery_score, components) = match hrv_data {
+        Some(hrv) => {
+            let hrv_score = score_hrv(hrv, config);
+            // Weights: 40% TSB, 40% sleep, 20% HRV
+            let score = (tsb_score * 0.4) + (sleep_quality * 0.4) + (hrv_score * 0.2);
+            (score, (tsb_score, sleep_quality, Some(hrv_score)))
+        },
+        None => {
+            // Weights: 50% TSB, 50% sleep (no HRV)
+            let score = (tsb_score * 0.5) + (sleep_quality * 0.5);
+            (score, (tsb_score, sleep_quality, None))
+        }
+    };
+
+    // 4. Classify recovery level
+    let level = if recovery_score >= 85.0 { "excellent" }
+                else if recovery_score >= 70.0 { "good" }
+                else if recovery_score >= 50.0 { "fair" }
+                else { "poor" };
+
+    RecoveryScore { score: recovery_score, level, components }
+}
+```
+
+#### TSB normalization
+
+training stress balance maps to recovery score:
+
+```rust
+fn normalize_tsb(tsb: f64) -> f64 {
+    // TSB ranges and recovery interpretation:
+    // +25 to +15: overtrained/detraining (score 90-100)
+    // +15 to +5:  fresh/race ready (score 80-90)
+    // +5 to -5:   optimal training (score 60-80)
+    // -5 to -10:  fatigued (score 40-60)
+    // -10 to -15: very fatigued (score 20-40)
+    // -15 to -30: overreaching (score 0-20)
+
+    if tsb >= 15.0 {
+        90.0 + ((tsb - 15.0).min(10.0) / 10.0) * 10.0
+    } else if tsb >= 5.0 {
+        80.0 + ((tsb - 5.0) / 10.0) * 10.0
+    } else if tsb >= -5.0 {
+        60.0 + ((tsb + 5.0) / 10.0) * 20.0
+    } else if tsb >= -10.0 {
+        40.0 + ((tsb + 10.0) / 5.0) * 20.0
+    } else if tsb >= -15.0 {
+        20.0 + ((tsb + 15.0) / 5.0) * 20.0
+    } else {
+        (0.0_f64).max((tsb + 30.0) / 15.0 * 20.0)
+    }
+}
+```
+
+**interpretation**:
+- **TSB > +15**: detraining (too much rest)
+- **TSB +5 to +15**: fresh (race ready)
+- **TSB -5 to +5**: optimal (productive training)
+- **TSB -10 to -5**: fatigued (building fitness)
+- **TSB < -10**: overreaching (recovery needed)
+
+**reference**: Banister, E.W. (1991). Modeling elite athletic performance. *Human Kinetics*.
+
+#### HRV scoring
+
+heart rate variability assessment based on RMSSD deviation from baseline:
+
+```rust
+fn score_hrv(hrv: HrvData, config: &SleepRecoveryConfig) -> f64 {
+    let rmssd_delta = hrv.rmssd - hrv.baseline_rmssd;
+
+    if rmssd_delta >= 5.0 {
+        // +5ms or more: excellent recovery (score 90-100)
+        90.0 + (rmssd_delta.min(10.0) / 10.0) * 10.0
+    } else if rmssd_delta >= 0.0 {
+        // 0 to +5ms: good recovery (score 70-90)
+        70.0 + (rmssd_delta / 5.0) * 20.0
+    } else if rmssd_delta >= -3.0 {
+        // -3 to 0ms: adequate (score 50-70)
+        50.0 + ((rmssd_delta + 3.0) / 3.0) * 20.0
+    } else if rmssd_delta >= -10.0 {
+        // -3 to -10ms: poor recovery (score 20-50)
+        20.0 + ((rmssd_delta + 10.0) / 7.0) * 30.0
+    } else {
+        // < -10ms: very poor (score 0-20)
+        (0.0_f64).max((rmssd_delta + 20.0) / 10.0 * 20.0)
+    }
+}
+```
+
+**RMSSD thresholds** (root mean square of successive differences):
+- **+5ms or higher**: excellent recovery, parasympathetic dominance
+- **±3ms**: stable, normal recovery
+- **-10ms or lower**: poor recovery, overreaching concern
+
+**scientific basis**: HRV (specifically RMSSD) reflects autonomic nervous system recovery. decreases indicate accumulated fatigue, increases indicate good adaptation.
+
+**reference**: Plews, D.J. et al. (2013). Training adaptation and heart rate variability in elite endurance athletes. *Int J Sports Physiol Perform*, 8(3), 286-293.
+
+### configuration
+
+all sleep/recovery thresholds configurable via environment variables:
+
+```bash
+# Sleep duration thresholds (hours)
+PIERRE_SLEEP_ADULT_MIN_HOURS=7.0
+PIERRE_SLEEP_ATHLETE_OPTIMAL_HOURS=8.0
+PIERRE_SLEEP_SHORT_THRESHOLD=6.0
+PIERRE_SLEEP_VERY_SHORT_THRESHOLD=5.0
+
+# Sleep stages thresholds (percentage)
+PIERRE_SLEEP_DEEP_MIN_PERCENT=15.0
+PIERRE_SLEEP_DEEP_OPTIMAL_PERCENT=20.0
+PIERRE_SLEEP_REM_MIN_PERCENT=20.0
+PIERRE_SLEEP_REM_OPTIMAL_PERCENT=25.0
+
+# Sleep efficiency thresholds (percentage)
+PIERRE_SLEEP_EFFICIENCY_EXCELLENT=90.0
+PIERRE_SLEEP_EFFICIENCY_GOOD=85.0
+PIERRE_SLEEP_EFFICIENCY_POOR=70.0
+
+# HRV thresholds (milliseconds)
+PIERRE_HRV_RMSSD_DECREASE_CONCERN=-10.0
+PIERRE_HRV_RMSSD_INCREASE_GOOD=5.0
+
+# TSB thresholds
+PIERRE_TSB_HIGHLY_FATIGUED=-15.0
+PIERRE_TSB_FATIGUED=-10.0
+PIERRE_TSB_FRESH_MIN=5.0
+PIERRE_TSB_FRESH_MAX=15.0
+PIERRE_TSB_DETRAINING=25.0
+
+# Recovery scoring weights
+PIERRE_RECOVERY_TSB_WEIGHT_FULL=0.4
+PIERRE_RECOVERY_SLEEP_WEIGHT_FULL=0.4
+PIERRE_RECOVERY_HRV_WEIGHT_FULL=0.2
+PIERRE_RECOVERY_TSB_WEIGHT_NO_HRV=0.5
+PIERRE_RECOVERY_SLEEP_WEIGHT_NO_HRV=0.5
+```
+
+defaults based on peer-reviewed research (NSF, AASM, Shaffer & Ginsberg 2017).
+
+---
+
 ## validation and safety
 
 ### parameter bounds (physiological ranges)
@@ -1270,6 +1510,16 @@ rg "unwrap\(\)|expect\(|panic!\(|anyhow!\(" src/ | wc -l
 
 11. **Draper, N.R. & Smith, H.** (1998). *Applied Regression Analysis* (3rd ed.). Wiley.
 
+12. **Hirshkowitz, M. et al.** (2015). National Sleep Foundation's sleep time duration recommendations: methodology and results summary. *Sleep Health*, 1(1), 40-43.
+
+13. **Berry, R.B. et al.** (2017). The AASM Manual for the Scoring of Sleep and Associated Events: Rules, Terminology and Technical Specifications, Version 2.4. *American Academy of Sleep Medicine*.
+
+14. **Watson, N.F. et al.** (2015). Recommended Amount of Sleep for a Healthy Adult: A Joint Consensus Statement of the American Academy of Sleep Medicine and Sleep Research Society. *Sleep*, 38(6), 843-844.
+
+15. **Plews, D.J. et al.** (2013). Training adaptation and heart rate variability in elite endurance athletes: opening the door to effective monitoring. *Int J Sports Physiol Perform*, 8(3), 286-293.
+
+16. **Shaffer, F. & Ginsberg, J.P.** (2017). An Overview of Heart Rate Variability Metrics and Norms. *Front Public Health*, 5, 258.
+
 ---
 
 ## faq
@@ -1298,6 +1548,21 @@ A: verified 0.2-5.5% accuracy against jack daniels' published tables. prediction
 **Q: what if my parameters are outside the valid ranges?**
 A: validation will reject with specific error messages. ranges are based on human physiology research (ACSM guidelines).
 
+**Q: how much sleep do athletes need?**
+A: 8-10 hours for optimal recovery (NSF guidelines). minimum 7 hours for adults. <6 hours increases injury risk and impairs performance.
+
+**Q: what's more important: sleep duration or quality?**
+A: both matter. 8 hours of fragmented sleep (70% efficiency) scores lower than 7 hours of solid sleep (95% efficiency). aim for both duration and quality.
+
+**Q: why is my recovery score low despite good sleep?**
+A: recovery combines TSB (40%), sleep (40%), HRV (20%). negative TSB from high training load lowers score even with good sleep. this accurately reflects accumulated fatigue.
+
+**Q: how does HRV affect recovery scoring?**
+A: HRV (RMSSD) indicates autonomic nervous system recovery. +5ms above baseline = excellent, ±3ms = normal, -10ms = poor recovery. when unavailable, recovery uses 50% TSB + 50% sleep.
+
+**Q: what providers support sleep tracking?**
+A: fitbit, garmin, and whoop provide sleep data. strava does not (returns `UnsupportedFeature` error). use provider with sleep tracking for full recovery analysis.
+
 ---
 
 ## glossary
@@ -1313,6 +1578,15 @@ A: validation will reject with specific error messages. ranges are based on huma
 **NP**: normalized power (4th root method)
 **R²**: coefficient of determination (fit quality, 0-1)
 **IF**: intensity factor (NP / FTP)
+**RMSSD**: root mean square of successive differences (HRV metric, milliseconds)
+**HRV**: heart rate variability (autonomic nervous system recovery indicator)
+**NSF**: National Sleep Foundation (sleep duration guidelines)
+**AASM**: American Academy of Sleep Medicine (sleep stage scoring standards)
+**REM**: rapid eye movement sleep (cognitive recovery, memory consolidation)
+**N3/deep sleep**: slow-wave sleep (physical recovery, growth hormone release)
+**sleep efficiency**: (time asleep / time in bed) × 100 (fragmentation indicator)
+**sleep quality**: combined score (35% duration, 40% stages, 25% efficiency)
+**recovery score**: training readiness (40% TSB, 40% sleep, 20% HRV)
 
 ---
 

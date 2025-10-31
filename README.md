@@ -22,7 +22,7 @@ The platform calculates fitness metrics using established sports science formula
 - **Sleep and Recovery**: NSF/AASM-based sleep quality scoring, TSB normalization, HRV-based recovery assessment, weighted recovery calculations
 - **Physiological Validation**: Bounds checking for heart rate (100-220 bpm max), power (50-600W FTP), VO2 max (20-90 ml/kg/min)
 
-See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md) and [Sleep and Recovery Methodology](docs/sleep-recovery-methodology.md) for formulas, implementation details, and scientific references.
+See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md) for formulas, implementation details, and scientific references (includes sleep and recovery analysis).
 
 ## Features
 
