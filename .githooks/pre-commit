@@ -1,6 +1,8 @@
 #!/bin/bash
-# ABOUTME: Pre-commit hook to prevent AI-generated commit messages
-# ABOUTME: Blocks commits with Claude/AI signatures to enforce clean commit messages
+# ABOUTME: Unified pre-commit hook for code quality enforcement
+# ABOUTME: Blocks AI-generated commit messages, suspicious files, and prevents accidental commits
+
+set -e
 
 # Check for AI-generated commit signatures in the commit message
 check_commit_message() {
@@ -23,14 +25,78 @@ check_commit_message() {
     return 0
 }
 
+# Check for claude_docs files (AI documentation that should never be committed)
+check_claude_docs() {
+    local claude_docs_files=$(git diff --cached --name-only --diff-filter=ACM | grep '^claude_docs/' || true)
+    
+    if [ -n "$claude_docs_files" ]; then
+        echo "❌ ERROR: Commit blocked - Found claude_docs/ files:"
+        echo "$claude_docs_files" | sed 's/^/  - /'
+        echo ""
+        echo "Files in claude_docs/ are AI working notes and must never be committed."
+        echo "Please unstage them with: git reset HEAD claude_docs/"
+        return 1
+    fi
+    return 0
+}
+
+# Check for *.md files in root directory (except README.md, CHANGELOG.md, and CONTRIBUTING.md)
+check_root_markdown() {
+    local root_md_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^[^/]+\.md$' | grep -v -E '^(README|CHANGELOG|CONTRIBUTING)\.md$' || true)
+    
+    if [ -n "$root_md_files" ]; then
+        echo "❌ ERROR: Commit blocked - Found markdown files in root directory:"
+        echo "$root_md_files" | sed 's/^/  - /'
+        echo ""
+        echo "Only README.md, CHANGELOG.md, and CONTRIBUTING.md are allowed in the root directory."
+        echo "Please move these files to a subdirectory or remove them."
+        echo "To unstage: git reset HEAD <file>"
+        return 1
+    fi
+    return 0
+}
+
+# Check for files with suspicious patterns (backups, old files, etc.)
+check_suspicious_files() {
+    local suspicious_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(bak|orig|tmp|swp)$|_old\.|old_|\.old\.|rs:' || true)
+    
+    if [ -n "$suspicious_files" ]; then
+        echo "❌ ERROR: Commit blocked - Found suspicious files:"
+        echo "$suspicious_files" | sed 's/^/  - /'
+        echo ""
+        echo "These files appear to be backups, old versions, or contain invalid patterns."
+        echo "Please remove them or rename them before committing."
+        return 1
+    fi
+    return 0
+}
+
 # Main execution
 main() {
-    # Check commit message for AI signatures
+    local checks_passed=true
+    
+    # Run all checks
     if ! check_commit_message; then
+        checks_passed=false
+    fi
+    
+    if ! check_claude_docs; then
+        checks_passed=false
+    fi
+    
+    if ! check_root_markdown; then
+        checks_passed=false
+    fi
+    
+    if ! check_suspicious_files; then
+        checks_passed=false
+    fi
+    
+    if [ "$checks_passed" = false ]; then
         exit 1
     fi
-
-    echo "✅ Commit message check passed"
+    
+    echo "✅ All pre-commit checks passed"
     exit 0
 }
 

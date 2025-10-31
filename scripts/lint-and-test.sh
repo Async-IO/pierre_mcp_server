@@ -105,22 +105,13 @@ trap handle_interrupt INT TERM
 echo ""
 echo -e "${BLUE}==== Rust Backend Checks ====${NC}"
 
-# Auto-format Rust code
-echo -e "${BLUE}==== Auto-formatting Rust code... ====${NC}"
-if cargo fmt --all; then
-    echo -e "${GREEN}[OK] Rust code formatting applied${NC}"
-else
-    echo -e "${RED}[CRITICAL] Rust code formatting failed${NC}"
-    echo -e "${RED}FAST FAIL: Fix formatting errors immediately${NC}"
-    exit 1
-fi
-
-# Check Rust formatting to verify it's correct
-echo -e "${BLUE}==== Verifying Rust code formatting... ====${NC}"
+# Check Rust formatting (enforces proper formatting without auto-fixing)
+echo -e "${BLUE}==== Checking Rust code formatting... ====${NC}"
 if cargo fmt --all -- --check; then
     echo -e "${GREEN}[OK] Rust code formatting is correct${NC}"
 else
-    echo -e "${RED}[CRITICAL] Rust code formatting issues found after auto-format${NC}"
+    echo -e "${RED}[CRITICAL] Rust code formatting check failed${NC}"
+    echo -e "${RED}Run 'cargo fmt --all' to fix formatting issues${NC}"
     echo -e "${RED}FAST FAIL: Fix formatting errors immediately${NC}"
     exit 1
 fi
@@ -855,7 +846,7 @@ echo -e "${BLUE}==== Running Rust tests... ====${NC}"
 # Use 2048-bit RSA keys for faster test execution (4096-bit is production default)
 # RSA key generation is expensive: 2048-bit is ~4-8x faster than 4096-bit
 export PIERRE_RSA_KEY_SIZE=2048
-if cargo test --all-targets; then
+if cargo test --all-targets --no-fail-fast; then
     echo -e "${GREEN}[OK] All Rust tests passed${NC}"
 else
     echo -e "${RED}[FAIL] Some Rust tests failed${NC}"
