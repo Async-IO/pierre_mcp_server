@@ -107,16 +107,22 @@ echo -e "${BLUE}==== Rust Backend Checks ====${NC}"
 
 # Auto-format Rust code
 echo -e "${BLUE}==== Auto-formatting Rust code... ====${NC}"
-cargo fmt --all
-echo -e "${GREEN}[OK] Rust code formatting applied${NC}"
+if cargo fmt --all; then
+    echo -e "${GREEN}[OK] Rust code formatting applied${NC}"
+else
+    echo -e "${RED}[CRITICAL] Rust code formatting failed${NC}"
+    echo -e "${RED}FAST FAIL: Fix formatting errors immediately${NC}"
+    exit 1
+fi
 
 # Check Rust formatting to verify it's correct
 echo -e "${BLUE}==== Verifying Rust code formatting... ====${NC}"
 if cargo fmt --all -- --check; then
     echo -e "${GREEN}[OK] Rust code formatting is correct${NC}"
 else
-    echo -e "${RED}[FAIL] Rust code formatting issues found after auto-format${NC}"
-    ALL_PASSED=false
+    echo -e "${RED}[CRITICAL] Rust code formatting issues found after auto-format${NC}"
+    echo -e "${RED}FAST FAIL: Fix formatting errors immediately${NC}"
+    exit 1
 fi
 
 # Function to report warning
