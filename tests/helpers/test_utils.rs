@@ -233,4 +233,3 @@ pub fn assert_r_squared_good_fit(r_squared: f64, min_acceptable: f64) {
         "R² indicates poor fit: actual={r_squared:.4}, minimum={min_acceptable:.4}"
     );
 }
-
