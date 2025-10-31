@@ -1,6 +1,6 @@
-# pierre intelligence and analytics methodology
+# Pierre intelligence and analytics methodology
 
-## what this document covers
+## What this document covers
 
 this comprehensive guide explains the scientific methods, algorithms, and decision rules behind pierre's analytics engine. it provides transparency into:
 
@@ -14,9 +14,9 @@ this comprehensive guide explains the scientific methods, algorithms, and decisi
 
 ---
 
-## table of contents
+## Table of contents
 
-### core architecture
+### Core Architecture
 - [architecture overview](#architecture-overview)
   - [foundation modules](#foundation-modules)
   - [core modules](#core-modules)
@@ -28,13 +28,13 @@ this comprehensive guide explains the scientific methods, algorithms, and decisi
   - [provider normalization](#provider-normalization)
   - [data retention and privacy](#data-retention-and-privacy)
 
-### personalization and zones
+### Personalization And Zones
 - [personalization engine](#personalization-engine)
   - [age-based max heart rate estimation](#age-based-max-heart-rate-estimation)
   - [heart rate zones](#heart-rate-zones)
   - [power zones (cycling)](#power-zones-cycling)
 
-### core metrics and calculations
+### Core Metrics And Calculations
 - [core metrics](#core-metrics)
   - [pace vs speed](#pace-vs-speed)
 - [training stress score (TSS)](#training-stress-score-tss)
@@ -46,46 +46,46 @@ this comprehensive guide explains the scientific methods, algorithms, and decisi
 - [training stress balance (TSB)](#training-stress-balance-tsb)
 - [overtraining risk detection](#overtraining-risk-detection)
 
-### statistical analysis
+### Statistical Analysis
 - [statistical trend analysis](#statistical-trend-analysis)
 
-### performance prediction
+### Performance Prediction
 - [performance prediction: VDOT](#performance-prediction-vdot)
   - [VDOT calculation from race performance](#vdot-calculation-from-race-performance)
   - [race time prediction from VDOT](#race-time-prediction-from-vdot)
   - [VDOT accuracy verification ✅](#vdot-accuracy-verification-)
 - [performance prediction: riegel formula](#performance-prediction-riegel-formula)
 
-### pattern recognition
+### Pattern Recognition
 - [pattern detection](#pattern-detection)
   - [weekly schedule](#weekly-schedule)
   - [hard/easy alternation](#hardeasy-alternation)
   - [volume progression](#volume-progression)
 
-### sleep and recovery
+### Sleep And Recovery
 - [sleep and recovery analysis](#sleep-and-recovery-analysis)
   - [sleep quality scoring](#sleep-quality-scoring)
   - [recovery score calculation](#recovery-score-calculation)
   - [configuration](#configuration-1)
 
-### validation and safety
+### Validation And Safety
 - [validation and safety](#validation-and-safety)
   - [parameter bounds (physiological ranges)](#parameter-bounds-physiological-ranges)
   - [confidence levels](#confidence-levels)
   - [edge case handling](#edge-case-handling)
 
-### configuration
+### Configuration
 - [configuration strategies](#configuration-strategies)
   - [conservative strategy](#conservative-strategy)
   - [default strategy](#default-strategy)
   - [aggressive strategy](#aggressive-strategy)
 
-### testing and quality
+### Testing And Quality
 - [testing and verification](#testing-and-verification)
   - [test coverage](#test-coverage)
   - [verification methods](#verification-methods)
 
-### debugging guide
+### Debugging Guide
 - [debugging and validation guide](#debugging-and-validation-guide)
   - [general debugging workflow](#general-debugging-workflow)
   - [metric-specific debugging](#metric-specific-debugging)
@@ -94,7 +94,7 @@ this comprehensive guide explains the scientific methods, algorithms, and decisi
   - [when to contact support](#when-to-contact-support)
   - [debugging tools and utilities](#debugging-tools-and-utilities)
 
-### reference information
+### Reference Information
 - [limitations](#limitations)
   - [model assumptions](#model-assumptions)
   - [known issues](#known-issues)
@@ -106,7 +106,7 @@ this comprehensive guide explains the scientific methods, algorithms, and decisi
 
 ---
 
-## architecture overview
+## Architecture Overview
 
 pierre's intelligence system uses a **foundation modules** approach for code reuse and consistency:
 
@@ -135,7 +135,7 @@ pierre's intelligence system uses a **foundation modules** approach for code reu
              Shared by all intelligence tools
 ```
 
-### foundation modules
+### Foundation Modules
 
 **`src/intelligence/training_load.rs`** - training stress calculations
 - TSS (Training Stress Score) from power or heart rate
@@ -180,7 +180,7 @@ pierre's intelligence system uses a **foundation modules** approach for code reu
 - Recovery classification (excellent/good/fair/poor) with actionable thresholds
 - Dependency injection with `SleepRecoveryConfig` for configurability
 
-### core modules
+### Core Modules
 
 **`src/intelligence/metrics.rs`** - advanced metrics calculation
 **`src/intelligence/performance_analyzer_v2.rs`** - performance analysis framework
@@ -188,7 +188,7 @@ pierre's intelligence system uses a **foundation modules** approach for code reu
 **`src/intelligence/recommendation_engine.rs`** - training recommendations
 **`src/intelligence/goal_engine.rs`** - goal tracking and progress
 
-### intelligence tools (30 tools)
+### Intelligence Tools (30 tools)
 
 all 30 MCP tools now use real calculations from foundation modules:
 
@@ -221,9 +221,9 @@ all 30 MCP tools now use real calculations from foundation modules:
 
 ---
 
-## data sources and permissions
+## Data Sources And Permissions
 
-### primary data
+### Primary Data
 fitness activities via oauth2 authorization from multiple providers:
 
 **supported providers**: strava, garmin, fitbit
@@ -235,18 +235,18 @@ fitness activities via oauth2 authorization from multiple providers:
 - **power**: `average_watts`, `weighted_average_watts`, `kilojoules`, power stream (strava, garmin)
 - **sport metadata**: `type`, `sport_type`, `workout_type`
 
-### user profile (optional)
+### User Profile (optional)
 - **demographics**: `age`, `gender`, `weight_kg`, `height_cm`
 - **thresholds**: `max_hr`, `resting_hr`, `lthr`, `ftp`, `cp`, `vo2max`
 - **preferences**: `units`, `training_focus`, `injury_history`
 - **fitness level**: `beginner`, `intermediate`, `advanced`, `elite`
 
-### configuration
+### Configuration
 - **strategy**: `conservative`, `default`, `aggressive` (affects thresholds)
 - **units**: metric (km, m, kg) or imperial (mi, ft, lb)
 - **zone model**: karvonen (HR reserve) or percentage max HR
 
-### provider normalization
+### Provider Normalization
 pierre normalizes data from different providers into a unified format:
 
 ```rust
@@ -266,7 +266,7 @@ pub struct Activity {
 - **garmin**: advanced running dynamics, training effect, recovery time
 - **fitbit**: all-day heart rate, sleep tracking, steps
 
-### data retention and privacy
+### Data Retention And Privacy
 - activities cached for 7 days (configurable)
 - analysis results cached for 24 hours
 - token revocation purges all cached data within 1 hour
@@ -276,9 +276,9 @@ pub struct Activity {
 
 ---
 
-## personalization engine
+## Personalization Engine
 
-### age-based max heart rate estimation
+### Age-based Max Heart Rate Estimation
 
 when `max_hr` not provided, pierre uses the classic fox formula:
 
@@ -311,7 +311,7 @@ fn estimate_max_hr(age: i32) -> u32 {
 
 **note**: while newer research suggests the Tanaka formula (`208 − 0.7 × age`) may be more accurate, pierre uses the classic Fox formula (`220 − age`) for simplicity and widespread familiarity. The difference is typically 3-8 bpm for ages 20-60.
 
-### heart rate zones
+### Heart Rate Zones
 
 pierre's HR zone calculations use **karvonen method** (HR reserve) internally for threshold determination:
 
@@ -349,7 +349,7 @@ pub const AEROBIC_THRESHOLD_PERCENT: f64 = 0.70;   // 70% of HR reserve
 
 **reference**: Karvonen, M.J., Kentala, E., & Mustala, O. (1957). The effects of training on heart rate; a longitudinal study. *Annales medicinae experimentalis et biologiae Fenniae*, 35(3), 307-315.
 
-### power zones (cycling)
+### Power Zones (cycling)
 
 five-zone model based on functional threshold power (FTP):
 
@@ -389,9 +389,9 @@ pub fn calculate_power_zones(ftp: f64) -> PowerZones {
 
 ---
 
-## core metrics
+## Core Metrics
 
-### pace vs speed
+### Pace Vs Speed
 
 **pace formula** (time per distance, seconds per kilometer):
 
@@ -435,11 +435,11 @@ pub fn calculate_speed(distance_m: f64, moving_time_s: u64) -> f64 {
 
 ---
 
-## training stress score (TSS)
+## Training Stress Score (TSS)
 
 TSS quantifies training load accounting for intensity and duration.
 
-### power-based TSS (preferred)
+### Power-based TSS (preferred)
 
 **formula**:
 
@@ -580,7 +580,7 @@ Interpretation: Moderate-high training stress
    - Solution: Check activity has valid power stream data
    - Fallback: If no power data, API uses heart rate method (hrTSS)
 
-### heart rate-based TSS (hrTSS)
+### Heart Rate-based TSS (hrTSS)
 
 **formula**:
 
@@ -705,7 +705,7 @@ Interpretation: Moderate training stress
 
 ---
 
-## normalized power (NP)
+## Normalized Power (NP)
 
 accounts for variability in cycling efforts using coggan's algorithm:
 
@@ -778,11 +778,11 @@ pub fn calculate_normalized_power(&self, power_data: &[u32]) -> Option<f64> {
 
 ---
 
-## chronic training load (CTL) and acute training load (ATL)
+## Chronic Training Load (CTL) And Acute Training Load (ATL)
 
 CTL ("fitness") and ATL ("fatigue") track training stress using exponential moving averages.
 
-### mathematical formulation
+### Mathematical Formulation
 
 **exponential moving average (EMA)**:
 
@@ -1131,7 +1131,7 @@ Confirm: API_tsb ≈ API_ctl - API_atl (±0.1)
 
 ---
 
-## training stress balance (TSB)
+## Training Stress Balance (TSB)
 
 TSB indicates form/freshness using piecewise classification:
 
@@ -1167,7 +1167,7 @@ pub fn interpret_tsb(tsb: f64) -> TrainingStatus {
 
 ---
 
-## overtraining risk detection
+## Overtraining Risk Detection
 
 **three-factor risk assessment**:
 
@@ -1239,7 +1239,7 @@ pub fn check_overtraining_risk(training_load: &TrainingLoad) -> OvertrainingRisk
 
 ---
 
-## statistical trend analysis
+## Statistical Trend Analysis
 
 pierre uses ordinary least squares linear regression for trend detection:
 
@@ -1339,11 +1339,11 @@ pub fn linear_regression(data_points: &[TrendDataPoint]) -> Result<RegressionRes
 
 ---
 
-## performance prediction: VDOT
+## Performance Prediction: VDOT
 
 VDOT is jack daniels' VO2max adjusted for running economy:
 
-### VDOT calculation from race performance
+### VDOT Calculation From Race Performance
 
 **step 1: convert to velocity** (meters per minute):
 
@@ -1624,7 +1624,7 @@ Example 4: Half marathon race (recreational competitive)
    - Accept 0-6% difference as normal
    - If difference >6%, investigate input data quality
 
-### race time prediction from VDOT
+### Race Time Prediction From VDOT
 
 **step 1: calculate velocity at VO2max** (inverse of Jack Daniels' formula):
 
@@ -1937,7 +1937,7 @@ Example 3: Predict 10K time from VDOT 40
    - Accept 0-6% difference as normal
    - If >6% difference, verify calculation steps
 
-### VDOT accuracy verification ✅
+### VDOT Accuracy Verification ✅
 
 pierre's VDOT predictions have been verified against jack daniels' published tables:
 
@@ -1972,7 +1972,7 @@ Overall accuracy: 0.2-5.5% difference across all distances
 
 ---
 
-## performance prediction: riegel formula
+## Performance Prediction: Riegel Formula
 
 predicts race times across distances using power-law relationship:
 
@@ -2023,9 +2023,9 @@ pub fn predict_time_riegel(
 
 ---
 
-## pattern detection
+## Pattern Detection
 
-### weekly schedule
+### Weekly Schedule
 
 **algorithm**:
 
@@ -2066,7 +2066,7 @@ pub fn detect_weekly_schedule(activities: &[Activity]) -> WeeklySchedulePattern 
 - 60 ≤ score < 80: consistent schedule
 - 80 ≤ score ≤ 100: very consistent routine
 
-### hard/easy alternation
+### Hard/Easy Alternation
 
 **algorithm**:
 
@@ -2122,7 +2122,7 @@ pub fn detect_hard_easy_pattern(activities: &[Activity]) -> HardEasyPattern {
 }
 ```
 
-### volume progression
+### Volume Progression
 
 **algorithm**:
 
@@ -2170,9 +2170,9 @@ pub fn detect_volume_progression(activities: &[Activity]) -> VolumeProgressionPa
 
 ---
 
-## sleep and recovery analysis
+## Sleep And Recovery Analysis
 
-### sleep quality scoring
+### Sleep Quality Scoring
 
 pierre uses NSF (National Sleep Foundation) and AASM (American Academy of Sleep Medicine) guidelines for sleep quality assessment. the overall sleep quality score (0-100) combines three weighted components:
 
@@ -2187,7 +2187,7 @@ where:
 - `stages_score` weight: **35%** (sleep architecture quality)
 - `efficiency_score` weight: **25%** (sleep fragmentation)
 
-#### duration scoring
+#### Duration Scoring
 
 based on NSF recommendations with athlete-specific adjustments:
 
@@ -2233,7 +2233,7 @@ pub fn sleep_duration_score(duration_hours: f64, config: &SleepRecoveryConfig) -
 
 **reference**: Hirshkowitz, M. et al. (2015). National Sleep Foundation's sleep time duration recommendations. *Sleep Health*, 1(1), 40-43.
 
-#### stages scoring
+#### Stages Scoring
 
 based on AASM guidelines for healthy sleep stage distribution:
 
@@ -2312,7 +2312,7 @@ pub fn sleep_stages_score(
 
 **reference**: Berry, R.B. et al. (2017). AASM Scoring Manual Version 2.4. *American Academy of Sleep Medicine*.
 
-#### efficiency scoring
+#### Efficiency Scoring
 
 based on clinical sleep medicine thresholds:
 
@@ -2642,7 +2642,7 @@ Example 4: Boundary condition (exactly 7 hours, 85% efficiency)
    - Fair: 50-70
    - Poor: <50
 
-### recovery score calculation
+### Recovery Score Calculation
 
 pierre calculates training readiness by combining TSB, sleep quality, and HRV (when available):
 
@@ -2707,7 +2707,7 @@ pub fn calculate_recovery_score(
 }
 ```
 
-#### TSB normalization
+#### TSB Normalization
 
 training stress balance maps to recovery score using piecewise linear normalization:
 
@@ -2760,7 +2760,7 @@ fn normalize_tsb(tsb: f64) -> f64 {
 
 **reference**: Banister, E.W. (1991). Modeling elite athletic performance. *Human Kinetics*.
 
-#### HRV scoring
+#### HRV Scoring
 
 heart rate variability assessment based on RMSSD deviation from baseline:
 
@@ -3145,7 +3145,7 @@ Example 5: Boundary condition (extreme fatigue, excellent sleep/HRV)
    assert abs(total_contribution - recovery_score) < 0.1  # floating point tolerance
    ```
 
-### configuration
+### Configuration
 
 all sleep/recovery thresholds configurable via environment variables:
 
@@ -3190,9 +3190,9 @@ defaults based on peer-reviewed research (NSF, AASM, Shaffer & Ginsberg 2017).
 
 ---
 
-## validation and safety
+## Validation And Safety
 
-### parameter bounds (physiological ranges)
+### Parameter Bounds (physiological ranges)
 
 **physiological parameter ranges**:
 
@@ -3310,7 +3310,7 @@ pub fn validate_parameter_relationships(
 - ACSM Guidelines for Exercise Testing and Prescription, 11th Edition
 - European Society of Cardiology guidelines on exercise testing
 
-### confidence levels
+### Confidence Levels
 
 **confidence level classification**:
 
@@ -3341,7 +3341,7 @@ pub fn calculate_confidence(
 }
 ```
 
-### edge case handling
+### Edge Case Handling
 
 **1. users with no activities**:
 
@@ -3425,11 +3425,11 @@ if !(30.0..=85.0).contains(&vdot) {
 
 ---
 
-## configuration strategies
+## Configuration Strategies
 
 three strategies adjust training thresholds:
 
-### conservative strategy
+### Conservative Strategy
 
 **parameters**:
 - `max_weekly_load_increase = 0.05` (5%)
@@ -3445,7 +3445,7 @@ impl IntelligenceStrategy for ConservativeStrategy {
 
 **recommended for**: injury recovery, beginners, older athletes
 
-### default strategy
+### Default Strategy
 
 **parameters**:
 - `max_weekly_load_increase = 0.10` (10%)
@@ -3461,7 +3461,7 @@ impl IntelligenceStrategy for DefaultStrategy {
 
 **recommended for**: general training, recreational athletes
 
-### aggressive strategy
+### Aggressive Strategy
 
 **parameters**:
 - `max_weekly_load_increase = 0.15` (15%)
@@ -3479,9 +3479,9 @@ impl IntelligenceStrategy for AggressiveStrategy {
 
 ---
 
-## testing and verification
+## Testing And Verification
 
-### test coverage
+### Test Coverage
 
 **unit tests** (22 functions, 562 assertions):
 - `tests/pattern_detection_test.rs` - 4 tests
@@ -3506,7 +3506,7 @@ impl IntelligenceStrategy for AggressiveStrategy {
 - `test_utils.rs` - test utilities and scenario builders
 - enables testing all 8 intelligence tools without OAuth dependencies
 
-### verification methods
+### Verification Methods
 
 **1. scientific validation**:
 - VDOT predictions: 0.2-5.5% accuracy vs. jack daniels' tables
@@ -3588,11 +3588,11 @@ rg "unwrap\(\)|expect\(|panic!\(|anyhow!\(" src/ | wc -l
 
 ---
 
-## debugging and validation guide
+## Debugging And Validation Guide
 
 this comprehensive guide helps API users troubleshoot discrepancies between expected and actual calculations.
 
-### general debugging workflow
+### General Debugging Workflow
 
 when your calculated values don't match pierre's API responses, follow this systematic approach:
 
@@ -3644,9 +3644,9 @@ if (calculated_value - expected_value).abs() < tolerance { ... }  // ✅ CORRECT
 
 See metric-specific sections below for detailed error patterns.
 
-### metric-specific debugging
+### Metric-specific Debugging
 
-#### debugging TSS calculations
+#### Debugging TSS Calculations
 
 **symptom: TSS values differ by 5-20%**
 
@@ -3690,7 +3690,7 @@ Root cause: User was using duration in seconds directly
   Fix: Convert seconds to hours first
 ```
 
-#### debugging CTL/ATL/TSB calculations
+#### Debugging CTL/ATL/TSB Calculations
 
 **symptom: CTL/ATL drift over time, doesn't match pierre**
 
@@ -3738,7 +3738,7 @@ Root cause: User implementing simple moving average instead of exponential
 Fix: Use EMA formula with decay factor (41/42 for CTL, 6/7 for ATL)
 ```
 
-#### debugging VDOT calculations
+#### Debugging VDOT Calculations
 
 **symptom: VDOT differs by 2-5 points**
 
@@ -3793,7 +3793,7 @@ Root cause: User calculated vo2 incorrectly (likely rounding error)
   Fix: Use full precision coefficients
 ```
 
-#### debugging sleep quality scoring
+#### Debugging Sleep Quality Scoring
 
 **symptom: sleep score differs by 10-20 points**
 
@@ -3853,7 +3853,7 @@ Root cause: User forgot to subtract awake_penalty from stages_score
 Fix: Apply penalty before weighting stages component
 ```
 
-#### debugging recovery score
+#### Debugging Recovery Score
 
 **symptom: recovery score differs by 5-10 points**
 
@@ -3909,9 +3909,9 @@ Root cause: User applied 50/50 weights even though HRV available
 Fix: When HRV available, use 40/40/20 split
 ```
 
-### common platform-specific issues
+### Common Platform-specific Issues
 
-#### javascript/typescript precision
+#### Javascript/Typescript Precision
 
 ```javascript
 // JavaScript number is IEEE 754 double precision (same as Rust f64)
@@ -3930,7 +3930,7 @@ const if_squared = Math.pow(intensity_factor, 2);
 const if_squared = intensity_factor * intensity_factor;
 ```
 
-#### python precision
+#### Python Precision
 
 ```python
 # Python 3 uses arbitrary precision integers
@@ -3950,7 +3950,7 @@ import math
 normalized_power = math.pow(sum(powers) / len(powers), 0.25)
 ```
 
-#### REST API / JSON precision
+#### REST API / JSON Precision
 
 ```bash
 # JSON numbers are typically parsed as double precision
@@ -3967,7 +3967,7 @@ tolerance = 0.1
 assert abs(received_tss - expected_tss) < tolerance
 ```
 
-### data quality validation
+### Data Quality Validation
 
 before debugging calculation logic, verify input data quality:
 
@@ -4031,7 +4031,7 @@ match (tsb, sleep_quality, hrv_data) {
 }
 ```
 
-### when to contact support
+### When To Contact Support
 
 contact pierre support team if:
 
@@ -4081,7 +4081,7 @@ Debugging Steps Taken:
 - [List what you've already tried]
 ```
 
-### debugging tools and utilities
+### Debugging Tools And Utilities
 
 **command-line validation**
 
@@ -4137,29 +4137,29 @@ def test_tss_validation_examples():
 
 ---
 
-## limitations
+## Limitations
 
-### model assumptions
+### Model Assumptions
 1. **linear progression**: assumes linear improvement, but adaptation is non-linear
 2. **steady-state**: assumes consistent training environment
 3. **population averages**: formulas may not fit individual physiology
 4. **data quality**: sensor accuracy affects calculations
 
-### known issues
+### Known Issues
 - **HR metrics**: affected by caffeine, sleep, stress, heat, altitude
 - **power metrics**: require proper FTP testing, affected by wind/drafting
 - **pace metrics**: terrain and weather significantly affect running
 
-### prediction accuracy
+### Prediction Accuracy
 - **VDOT**: ±5% typical variance from actual race performance
 - **TSB**: individual response to training load varies
 - **patterns**: require sufficient data (minimum 3 weeks for trends)
 
 ---
 
-## references
+## References
 
-### scientific literature
+### Scientific Literature
 
 1. **Banister, E.W.** (1991). Modeling elite athletic performance. Human Kinetics.
 
@@ -4195,7 +4195,7 @@ def test_tss_validation_examples():
 
 ---
 
-## faq
+## FAQ
 
 **Q: why doesn't my prediction match race day?**
 A: predictions are ranges (±5%), not exact. affected by: weather, course, pacing, nutrition, taper, mental state.
@@ -4238,7 +4238,7 @@ A: fitbit, garmin, and whoop provide sleep data. strava does not (returns `Unsup
 
 ---
 
-## glossary
+## Glossary
 
 **ATL**: acute training load (7-day EMA of TSS) - fatigue
 **CTL**: chronic training load (42-day EMA of TSS) - fitness
