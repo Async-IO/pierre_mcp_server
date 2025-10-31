@@ -46,6 +46,10 @@ pub mod performance_prediction;
 pub mod statistical_analysis;
 pub mod training_load;
 
+// Sleep and recovery analysis modules (Phase 1)
+pub mod recovery_calculator;
+pub mod sleep_analysis;
+
 // Activity analysis capabilities
 pub use activity_analyzer::{ActivityAnalyzerTrait, AdvancedActivityAnalyzer};
 pub use analyzer::ActivityAnalyzer;
@@ -83,6 +87,16 @@ pub use performance_prediction::{PerformancePredictor, RacePredictions};
 pub use statistical_analysis::{RegressionResult, SignificanceLevel, StatisticalAnalyzer};
 pub use training_load::{
     OvertrainingRisk, RiskLevel, TrainingLoad, TrainingLoadCalculator, TrainingStatus, TssDataPoint,
+};
+
+// Re-export sleep and recovery types
+pub use recovery_calculator::{
+    RecoveryCalculator, RecoveryCategory, RecoveryComponents, RecoveryScore, RestDayRecommendation,
+    TrainingReadiness,
+};
+pub use sleep_analysis::{
+    HrvRecoveryStatus, HrvTrend, HrvTrendAnalysis, SleepAnalyzer, SleepData, SleepQualityCategory,
+    SleepQualityScore,
 };
 
 // Re-export configuration types for external use

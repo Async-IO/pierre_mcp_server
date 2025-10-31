@@ -46,6 +46,13 @@ pub enum ToolId {
     UpdateUserConfiguration,
     CalculatePersonalizedZones,
     ValidateConfiguration,
+
+    // Sleep and recovery analysis tools
+    AnalyzeSleepQuality,
+    CalculateRecoveryScore,
+    SuggestRestDay,
+    TrackSleepTrends,
+    OptimizeSleepSchedule,
 }
 
 impl ToolId {
@@ -80,6 +87,11 @@ impl ToolId {
             "update_user_configuration" => Some(Self::UpdateUserConfiguration),
             "calculate_personalized_zones" => Some(Self::CalculatePersonalizedZones),
             "validate_configuration" => Some(Self::ValidateConfiguration),
+            "analyze_sleep_quality" => Some(Self::AnalyzeSleepQuality),
+            "calculate_recovery_score" => Some(Self::CalculateRecoveryScore),
+            "suggest_rest_day" => Some(Self::SuggestRestDay),
+            "track_sleep_trends" => Some(Self::TrackSleepTrends),
+            "optimize_sleep_schedule" => Some(Self::OptimizeSleepSchedule),
             _ => None,
         }
     }
@@ -114,6 +126,11 @@ impl ToolId {
             Self::UpdateUserConfiguration => "update_user_configuration",
             Self::CalculatePersonalizedZones => "calculate_personalized_zones",
             Self::ValidateConfiguration => "validate_configuration",
+            Self::AnalyzeSleepQuality => "analyze_sleep_quality",
+            Self::CalculateRecoveryScore => "calculate_recovery_score",
+            Self::SuggestRestDay => "suggest_rest_day",
+            Self::TrackSleepTrends => "track_sleep_trends",
+            Self::OptimizeSleepSchedule => "optimize_sleep_schedule",
         }
     }
 
@@ -164,6 +181,21 @@ impl ToolId {
             }
             Self::ValidateConfiguration => {
                 "Validate configuration parameters against safety rules and constraints"
+            }
+            Self::AnalyzeSleepQuality => {
+                "Analyze sleep quality from Fitbit/Garmin data using NSF/AASM guidelines"
+            }
+            Self::CalculateRecoveryScore => {
+                "Calculate holistic recovery score combining TSB, sleep quality, and HRV"
+            }
+            Self::SuggestRestDay => {
+                "AI-powered rest day recommendation based on recovery indicators"
+            }
+            Self::TrackSleepTrends => {
+                "Track sleep patterns and correlate with performance over time"
+            }
+            Self::OptimizeSleepSchedule => {
+                "Optimize sleep duration based on training load and recovery needs"
             }
         }
     }

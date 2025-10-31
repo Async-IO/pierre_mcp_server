@@ -8,6 +8,7 @@ pub mod configuration;
 pub mod connections;
 pub mod goals;
 pub mod intelligence;
+pub mod sleep_recovery;
 pub mod strava_api;
 
 // Configuration management handlers
@@ -33,6 +34,12 @@ pub use intelligence::{
     handle_calculate_fitness_score, handle_calculate_metrics, handle_compare_activities,
     handle_detect_patterns, handle_generate_recommendations, handle_get_activity_intelligence,
     handle_predict_performance,
+};
+
+// Sleep and recovery analysis handlers
+pub use sleep_recovery::{
+    handle_analyze_sleep_quality, handle_calculate_recovery_score, handle_optimize_sleep_schedule,
+    handle_suggest_rest_day, handle_track_sleep_trends,
 };
 
 // Strava API integration handlers

@@ -371,6 +371,104 @@ fn test_config_environment_variable_overrides() {
 }
 
 #[test]
+fn test_sleep_recovery_config_duration_validation() {
+    let config = IntelligenceConfig::default();
+    let sleep_dur = &config.sleep_recovery.sleep_duration;
+
+    // Test sleep duration thresholds are in valid order
+    assert!(sleep_dur.adult_min_hours < sleep_dur.adult_max_hours);
+    assert!(sleep_dur.athlete_min_hours <= sleep_dur.athlete_optimal_hours);
+    assert!(sleep_dur.very_short_sleep_threshold < sleep_dur.short_sleep_threshold);
+
+    // Test reasonable default values
+    assert!(sleep_dur.adult_min_hours >= 6.0);
+    assert!(sleep_dur.adult_max_hours <= 10.0);
+    assert!(sleep_dur.athlete_optimal_hours > 7.0);
+}
+
+#[test]
+fn test_sleep_recovery_config_stages_validation() {
+    let config = IntelligenceConfig::default();
+    let stages = &config.sleep_recovery.sleep_stages;
+
+    // Test sleep stages are in valid ranges
+    assert!(stages.deep_sleep_min_percent < stages.deep_sleep_max_percent);
+    assert!(stages.rem_sleep_min_percent < stages.rem_sleep_max_percent);
+    assert!(stages.light_sleep_min_percent < stages.light_sleep_max_percent);
+    assert!(stages.awake_time_healthy_percent < stages.awake_time_acceptable_percent);
+
+    // Test reasonable percentages
+    assert!(stages.deep_sleep_min_percent >= 10.0);
+    assert!(stages.deep_sleep_max_percent <= 30.0);
+    assert!(stages.rem_sleep_min_percent >= 15.0);
+    assert!(stages.rem_sleep_max_percent <= 35.0);
+    assert!(stages.light_sleep_min_percent >= 40.0);
+    assert!(stages.light_sleep_max_percent <= 60.0);
+}
+
+#[test]
+fn test_sleep_recovery_config_efficiency_validation() {
+    let config = IntelligenceConfig::default();
+    let efficiency = &config.sleep_recovery.sleep_efficiency;
+
+    // Test efficiency thresholds are in ascending order
+    assert!(efficiency.poor_threshold < efficiency.good_threshold);
+    assert!(efficiency.good_threshold < efficiency.excellent_threshold);
+
+    // Test reasonable percentage values
+    assert!(efficiency.poor_threshold >= 60.0);
+    assert!(efficiency.excellent_threshold <= 100.0);
+}
+
+#[test]
+fn test_sleep_recovery_config_tsb_validation() {
+    let config = IntelligenceConfig::default();
+    let tsb = &config.sleep_recovery.training_stress_balance;
+
+    // Test TSB thresholds are in ascending order
+    assert!(tsb.highly_fatigued_tsb < tsb.fatigued_tsb);
+    assert!(tsb.fresh_tsb_min < tsb.fresh_tsb_max);
+    assert!(tsb.fresh_tsb_max < tsb.detraining_tsb);
+
+    // Test reasonable TSB values (typically in range -20 to +30)
+    assert!(tsb.highly_fatigued_tsb < 0.0);
+    assert!(tsb.fatigued_tsb < 0.0);
+    assert!(tsb.fresh_tsb_min >= 0.0);
+    assert!(tsb.fresh_tsb_max > 0.0);
+    assert!(tsb.detraining_tsb > 0.0);
+}
+
+#[test]
+fn test_sleep_recovery_config_scoring_validation() {
+    let config = IntelligenceConfig::default();
+    let recovery = &config.sleep_recovery.recovery_scoring;
+
+    // Test recovery scoring thresholds are in ascending order
+    assert!(recovery.fair_threshold < recovery.good_threshold);
+    assert!(recovery.good_threshold < recovery.excellent_threshold);
+
+    // Test recovery weights (full scenario) sum to 1.0
+    let full_sum = recovery.tsb_weight_full + recovery.sleep_weight_full + recovery.hrv_weight_full;
+    assert!((full_sum - 1.0).abs() < 0.01);
+
+    // Test recovery weights (no HRV scenario) sum to 1.0
+    let no_hrv_sum = recovery.tsb_weight_no_hrv + recovery.sleep_weight_no_hrv;
+    assert!((no_hrv_sum - 1.0).abs() < 0.01);
+}
+
+#[test]
+fn test_sleep_recovery_hrv_config_validation() {
+    let config = IntelligenceConfig::default();
+    let hrv = &config.sleep_recovery.hrv;
+
+    // Test HRV thresholds are reasonable
+    assert!(hrv.rmssd_decrease_concern_threshold < 0.0); // Negative indicates decrease
+    assert!(hrv.rmssd_increase_good_threshold > 0.0); // Positive indicates increase
+    assert!(hrv.baseline_deviation_concern_percent > 0.0);
+    assert!(hrv.baseline_deviation_concern_percent < 50.0); // Should be reasonable percentage
+}
+
+#[test]
 fn test_recommendation_config_message_customization() {
     let config = IntelligenceConfig::default();
     let messages = &config.recommendation_engine.messages;

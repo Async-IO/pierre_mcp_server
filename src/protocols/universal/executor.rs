@@ -7,14 +7,15 @@
 use super::auth_service::AuthService;
 use super::handlers::{
     handle_analyze_activity, handle_analyze_goal_feasibility, handle_analyze_performance_trends,
-    handle_analyze_training_load, handle_calculate_fitness_score, handle_calculate_metrics,
-    handle_calculate_personalized_zones, handle_compare_activities, handle_connect_provider,
-    handle_detect_patterns, handle_disconnect_provider, handle_generate_recommendations,
-    handle_get_activities, handle_get_activity_intelligence, handle_get_athlete,
-    handle_get_configuration_catalog, handle_get_configuration_profiles,
-    handle_get_connection_status, handle_get_stats, handle_get_user_configuration,
-    handle_predict_performance, handle_set_goal, handle_suggest_goals, handle_track_progress,
-    handle_update_user_configuration, handle_validate_configuration,
+    handle_analyze_sleep_quality, handle_analyze_training_load, handle_calculate_fitness_score,
+    handle_calculate_metrics, handle_calculate_personalized_zones, handle_calculate_recovery_score,
+    handle_compare_activities, handle_connect_provider, handle_detect_patterns,
+    handle_disconnect_provider, handle_generate_recommendations, handle_get_activities,
+    handle_get_activity_intelligence, handle_get_athlete, handle_get_configuration_catalog,
+    handle_get_configuration_profiles, handle_get_connection_status, handle_get_stats,
+    handle_get_user_configuration, handle_optimize_sleep_schedule, handle_predict_performance,
+    handle_set_goal, handle_suggest_goals, handle_suggest_rest_day, handle_track_progress,
+    handle_track_sleep_trends, handle_update_user_configuration, handle_validate_configuration,
 };
 use super::tool_registry::{ToolId, ToolInfo, ToolRegistry};
 use crate::mcp::resources::ServerResources;
@@ -263,12 +264,36 @@ impl UniversalExecutor {
         ));
     }
 
+    fn register_sleep_recovery_tools(registry: &mut ToolRegistry) {
+        registry.register(ToolInfo::async_tool(
+            ToolId::AnalyzeSleepQuality,
+            |executor, request| Box::pin(handle_analyze_sleep_quality(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::CalculateRecoveryScore,
+            |executor, request| Box::pin(handle_calculate_recovery_score(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::SuggestRestDay,
+            |executor, request| Box::pin(handle_suggest_rest_day(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::TrackSleepTrends,
+            |executor, request| Box::pin(handle_track_sleep_trends(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::OptimizeSleepSchedule,
+            |executor, request| Box::pin(handle_optimize_sleep_schedule(executor, request)),
+        ));
+    }
+
     fn register_all_tools(registry: &mut ToolRegistry) {
         Self::register_strava_tools(registry);
         Self::register_connection_tools(registry);
         Self::register_configuration_tools(registry);
         Self::register_intelligence_tools(registry);
         Self::register_goal_tools(registry);
+        Self::register_sleep_recovery_tools(registry);
     }
 
     /// Execute a tool with type-safe routing (no string matching!)

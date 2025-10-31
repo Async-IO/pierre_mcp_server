@@ -45,6 +45,7 @@ pub struct IntelligenceConfig<const VALIDATED: bool = false> {
     pub weather_analysis: WeatherAnalysisConfig,
     pub activity_analyzer: ActivityAnalyzerConfig,
     pub metrics: MetricsConfig,
+    pub sleep_recovery: SleepRecoveryConfig,
     _phantom: PhantomData<()>,
 }
 
@@ -292,6 +293,111 @@ pub struct MetricsAggregationConfig {
     pub trend_calculation_method: String,
 }
 
+/// Sleep and Recovery Configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SleepRecoveryConfig {
+    pub sleep_duration: SleepDurationConfig,
+    pub sleep_stages: SleepStagesConfig,
+    pub sleep_efficiency: SleepEfficiencyConfig,
+    pub hrv: HrvConfig,
+    pub training_stress_balance: TsbConfig,
+    pub recovery_scoring: RecoveryScoringConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SleepDurationConfig {
+    /// Minimum optimal sleep duration for adults (hours)
+    pub adult_min_hours: f64,
+    /// Maximum optimal sleep duration for adults (hours)
+    pub adult_max_hours: f64,
+    /// Optimal sleep duration for athletes (hours)
+    pub athlete_optimal_hours: f64,
+    /// Minimum optimal sleep for athletes (hours)
+    pub athlete_min_hours: f64,
+    /// Short sleep threshold (hours)
+    pub short_sleep_threshold: f64,
+    /// Very short sleep threshold (hours)
+    pub very_short_sleep_threshold: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SleepStagesConfig {
+    /// Minimum healthy deep sleep percentage
+    pub deep_sleep_min_percent: f64,
+    /// Optimal deep sleep percentage
+    pub deep_sleep_optimal_percent: f64,
+    /// Maximum healthy deep sleep percentage
+    pub deep_sleep_max_percent: f64,
+    /// Minimum healthy REM sleep percentage
+    pub rem_sleep_min_percent: f64,
+    /// Optimal REM sleep percentage
+    pub rem_sleep_optimal_percent: f64,
+    /// Maximum healthy REM sleep percentage
+    pub rem_sleep_max_percent: f64,
+    /// Minimum healthy light sleep percentage
+    pub light_sleep_min_percent: f64,
+    /// Maximum healthy light sleep percentage
+    pub light_sleep_max_percent: f64,
+    /// Healthy awake time threshold (percentage)
+    pub awake_time_healthy_percent: f64,
+    /// Acceptable awake time threshold (percentage)
+    pub awake_time_acceptable_percent: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SleepEfficiencyConfig {
+    /// Excellent sleep efficiency threshold (percentage)
+    pub excellent_threshold: f64,
+    /// Good sleep efficiency threshold (percentage)
+    pub good_threshold: f64,
+    /// Poor sleep efficiency threshold (percentage)
+    pub poor_threshold: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HrvConfig {
+    /// RMSSD decrease threshold indicating concern (ms, negative value)
+    pub rmssd_decrease_concern_threshold: f64,
+    /// RMSSD increase threshold indicating good recovery (ms)
+    pub rmssd_increase_good_threshold: f64,
+    /// Baseline deviation percentage indicating concern
+    pub baseline_deviation_concern_percent: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TsbConfig {
+    /// Highly fatigued TSB threshold
+    pub highly_fatigued_tsb: f64,
+    /// Fatigued TSB threshold
+    pub fatigued_tsb: f64,
+    /// Fresh TSB minimum (optimal range start)
+    pub fresh_tsb_min: f64,
+    /// Fresh TSB maximum (optimal range end)
+    pub fresh_tsb_max: f64,
+    /// Detraining TSB threshold (too much rest)
+    pub detraining_tsb: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecoveryScoringConfig {
+    /// Excellent recovery threshold (score 0-100)
+    pub excellent_threshold: f64,
+    /// Good recovery threshold (score 0-100)
+    pub good_threshold: f64,
+    /// Fair recovery threshold (score 0-100)
+    pub fair_threshold: f64,
+    /// TSB weight when all components available
+    pub tsb_weight_full: f64,
+    /// Sleep weight when all components available
+    pub sleep_weight_full: f64,
+    /// HRV weight when all components available
+    pub hrv_weight_full: f64,
+    /// TSB weight when HRV not available
+    pub tsb_weight_no_hrv: f64,
+    /// Sleep weight when HRV not available
+    pub sleep_weight_no_hrv: f64,
+}
+
 /// Global configuration singleton
 static INTELLIGENCE_CONFIG: OnceLock<IntelligenceConfig<true>> = OnceLock::new();
 
@@ -324,6 +430,8 @@ impl IntelligenceConfig<true> {
     }
 
     /// Validate the configuration
+    // Long function: Comprehensive validation of all intelligence config subsystems (recommendation, weather, HR zones, sleep/recovery)
+    #[allow(clippy::too_many_lines)]
     fn validate(&self) -> Result<(), ConfigError> {
         // Validate recommendation thresholds
         if self.recommendation_engine.thresholds.low_weekly_distance_km
@@ -379,10 +487,115 @@ impl IntelligenceConfig<true> {
             ));
         }
 
+        // Validate sleep duration thresholds
+        let sleep_dur = &self.sleep_recovery.sleep_duration;
+        if sleep_dur.adult_min_hours >= sleep_dur.adult_max_hours {
+            return Err(ConfigError::InvalidRange(
+                "adult_min_hours must be < adult_max_hours",
+            ));
+        }
+        if sleep_dur.athlete_min_hours > sleep_dur.athlete_optimal_hours {
+            return Err(ConfigError::InvalidRange(
+                "athlete_min_hours must be <= athlete_optimal_hours",
+            ));
+        }
+        if sleep_dur.very_short_sleep_threshold >= sleep_dur.short_sleep_threshold {
+            return Err(ConfigError::InvalidRange(
+                "very_short_sleep_threshold must be < short_sleep_threshold",
+            ));
+        }
+
+        // Validate sleep stages percentages
+        let stages = &self.sleep_recovery.sleep_stages;
+        if stages.deep_sleep_min_percent >= stages.deep_sleep_max_percent {
+            return Err(ConfigError::InvalidRange(
+                "deep_sleep_min_percent must be < deep_sleep_max_percent",
+            ));
+        }
+        if stages.rem_sleep_min_percent >= stages.rem_sleep_max_percent {
+            return Err(ConfigError::InvalidRange(
+                "rem_sleep_min_percent must be < rem_sleep_max_percent",
+            ));
+        }
+        if stages.light_sleep_min_percent >= stages.light_sleep_max_percent {
+            return Err(ConfigError::InvalidRange(
+                "light_sleep_min_percent must be < light_sleep_max_percent",
+            ));
+        }
+        if stages.awake_time_healthy_percent >= stages.awake_time_acceptable_percent {
+            return Err(ConfigError::InvalidRange(
+                "awake_time_healthy_percent must be < awake_time_acceptable_percent",
+            ));
+        }
+
+        // Validate sleep efficiency thresholds
+        let efficiency = &self.sleep_recovery.sleep_efficiency;
+        if efficiency.poor_threshold >= efficiency.good_threshold {
+            return Err(ConfigError::InvalidRange(
+                "sleep efficiency: poor_threshold must be < good_threshold",
+            ));
+        }
+        if efficiency.good_threshold >= efficiency.excellent_threshold {
+            return Err(ConfigError::InvalidRange(
+                "sleep efficiency: good_threshold must be < excellent_threshold",
+            ));
+        }
+
+        // Validate TSB thresholds
+        let tsb = &self.sleep_recovery.training_stress_balance;
+        if tsb.highly_fatigued_tsb >= tsb.fatigued_tsb {
+            return Err(ConfigError::InvalidRange(
+                "TSB: highly_fatigued must be < fatigued",
+            ));
+        }
+        if tsb.fresh_tsb_min >= tsb.fresh_tsb_max {
+            return Err(ConfigError::InvalidRange(
+                "TSB: fresh_tsb_min must be < fresh_tsb_max",
+            ));
+        }
+        if tsb.fresh_tsb_max >= tsb.detraining_tsb {
+            return Err(ConfigError::InvalidRange(
+                "TSB: fresh_tsb_max must be < detraining_tsb",
+            ));
+        }
+
+        // Validate recovery scoring thresholds
+        let recovery = &self.sleep_recovery.recovery_scoring;
+        if recovery.fair_threshold >= recovery.good_threshold {
+            return Err(ConfigError::InvalidRange(
+                "recovery: fair_threshold must be < good_threshold",
+            ));
+        }
+        if recovery.good_threshold >= recovery.excellent_threshold {
+            return Err(ConfigError::InvalidRange(
+                "recovery: good_threshold must be < excellent_threshold",
+            ));
+        }
+
+        // Validate recovery weights (full scenario)
+        let full_weight_sum =
+            recovery.tsb_weight_full + recovery.sleep_weight_full + recovery.hrv_weight_full;
+        if (full_weight_sum - 1.0).abs() > 0.01 {
+            return Err(ConfigError::InvalidWeights(
+                "Recovery weights (full) must sum to 1.0",
+            ));
+        }
+
+        // Validate recovery weights (no HRV scenario)
+        let no_hrv_weight_sum = recovery.tsb_weight_no_hrv + recovery.sleep_weight_no_hrv;
+        if (no_hrv_weight_sum - 1.0).abs() > 0.01 {
+            return Err(ConfigError::InvalidWeights(
+                "Recovery weights (no HRV) must sum to 1.0",
+            ));
+        }
+
         Ok(())
     }
 
     /// Apply environment variable overrides
+    // Long function: Systematic env var parsing for all intelligence subsystems (recommendation, weather, sleep/recovery with 24+ variables)
+    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::cognitive_complexity)]
     fn apply_env_overrides(mut self) -> Result<Self, ConfigError> {
         // Recommendation engine overrides
         if let Ok(val) = std::env::var("INTELLIGENCE_RECOMMENDATION_LOW_DISTANCE") {
@@ -413,6 +626,171 @@ impl IntelligenceConfig<true> {
             })?;
         }
 
+        // Sleep duration overrides
+        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_ADULT_MIN_HOURS") {
+            self.sleep_recovery.sleep_duration.adult_min_hours = val.parse().map_err(|_| {
+                ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_ADULT_MIN_HOURS".into())
+            })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_ADULT_MAX_HOURS") {
+            self.sleep_recovery.sleep_duration.adult_max_hours = val.parse().map_err(|_| {
+                ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_ADULT_MAX_HOURS".into())
+            })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_ATHLETE_OPTIMAL_HOURS") {
+            self.sleep_recovery.sleep_duration.athlete_optimal_hours =
+                val.parse().map_err(|_| {
+                    ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_ATHLETE_OPTIMAL_HOURS".into())
+                })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_ATHLETE_MIN_HOURS") {
+            self.sleep_recovery.sleep_duration.athlete_min_hours = val.parse().map_err(|_| {
+                ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_ATHLETE_MIN_HOURS".into())
+            })?;
+        }
+
+        // Sleep stages overrides
+        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_DEEP_MIN_PERCENT") {
+            self.sleep_recovery.sleep_stages.deep_sleep_min_percent =
+                val.parse().map_err(|_| {
+                    ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_DEEP_MIN_PERCENT".into())
+                })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_DEEP_MAX_PERCENT") {
+            self.sleep_recovery.sleep_stages.deep_sleep_max_percent =
+                val.parse().map_err(|_| {
+                    ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_DEEP_MAX_PERCENT".into())
+                })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_REM_MIN_PERCENT") {
+            self.sleep_recovery.sleep_stages.rem_sleep_min_percent = val.parse().map_err(|_| {
+                ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_REM_MIN_PERCENT".into())
+            })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_REM_MAX_PERCENT") {
+            self.sleep_recovery.sleep_stages.rem_sleep_max_percent = val.parse().map_err(|_| {
+                ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_REM_MAX_PERCENT".into())
+            })?;
+        }
+
+        // Sleep efficiency overrides
+        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_EFFICIENCY_EXCELLENT") {
+            self.sleep_recovery.sleep_efficiency.excellent_threshold =
+                val.parse().map_err(|_| {
+                    ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_EFFICIENCY_EXCELLENT".into())
+                })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_EFFICIENCY_GOOD") {
+            self.sleep_recovery.sleep_efficiency.good_threshold = val.parse().map_err(|_| {
+                ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_EFFICIENCY_GOOD".into())
+            })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_EFFICIENCY_POOR") {
+            self.sleep_recovery.sleep_efficiency.poor_threshold = val.parse().map_err(|_| {
+                ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_EFFICIENCY_POOR".into())
+            })?;
+        }
+
+        // HRV overrides
+        if let Ok(val) = std::env::var("INTELLIGENCE_HRV_RMSSD_DECREASE_CONCERN") {
+            self.sleep_recovery.hrv.rmssd_decrease_concern_threshold =
+                val.parse().map_err(|_| {
+                    ConfigError::Parse("Invalid INTELLIGENCE_HRV_RMSSD_DECREASE_CONCERN".into())
+                })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_HRV_RMSSD_INCREASE_GOOD") {
+            self.sleep_recovery.hrv.rmssd_increase_good_threshold = val.parse().map_err(|_| {
+                ConfigError::Parse("Invalid INTELLIGENCE_HRV_RMSSD_INCREASE_GOOD".into())
+            })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_HRV_BASELINE_DEVIATION_CONCERN") {
+            self.sleep_recovery.hrv.baseline_deviation_concern_percent =
+                val.parse().map_err(|_| {
+                    ConfigError::Parse("Invalid INTELLIGENCE_HRV_BASELINE_DEVIATION_CONCERN".into())
+                })?;
+        }
+
+        // TSB (Training Stress Balance) overrides
+        if let Ok(val) = std::env::var("INTELLIGENCE_TSB_HIGHLY_FATIGUED") {
+            self.sleep_recovery
+                .training_stress_balance
+                .highly_fatigued_tsb = val.parse().map_err(|_| {
+                ConfigError::Parse("Invalid INTELLIGENCE_TSB_HIGHLY_FATIGUED".into())
+            })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_TSB_FATIGUED") {
+            self.sleep_recovery.training_stress_balance.fatigued_tsb = val
+                .parse()
+                .map_err(|_| ConfigError::Parse("Invalid INTELLIGENCE_TSB_FATIGUED".into()))?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_TSB_FRESH_MIN") {
+            self.sleep_recovery.training_stress_balance.fresh_tsb_min = val
+                .parse()
+                .map_err(|_| ConfigError::Parse("Invalid INTELLIGENCE_TSB_FRESH_MIN".into()))?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_TSB_FRESH_MAX") {
+            self.sleep_recovery.training_stress_balance.fresh_tsb_max = val
+                .parse()
+                .map_err(|_| ConfigError::Parse("Invalid INTELLIGENCE_TSB_FRESH_MAX".into()))?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_TSB_DETRAINING") {
+            self.sleep_recovery.training_stress_balance.detraining_tsb = val
+                .parse()
+                .map_err(|_| ConfigError::Parse("Invalid INTELLIGENCE_TSB_DETRAINING".into()))?;
+        }
+
+        // Recovery scoring overrides
+        if let Ok(val) = std::env::var("INTELLIGENCE_RECOVERY_EXCELLENT_THRESHOLD") {
+            self.sleep_recovery.recovery_scoring.excellent_threshold =
+                val.parse().map_err(|_| {
+                    ConfigError::Parse("Invalid INTELLIGENCE_RECOVERY_EXCELLENT_THRESHOLD".into())
+                })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_RECOVERY_GOOD_THRESHOLD") {
+            self.sleep_recovery.recovery_scoring.good_threshold = val.parse().map_err(|_| {
+                ConfigError::Parse("Invalid INTELLIGENCE_RECOVERY_GOOD_THRESHOLD".into())
+            })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_RECOVERY_FAIR_THRESHOLD") {
+            self.sleep_recovery.recovery_scoring.fair_threshold = val.parse().map_err(|_| {
+                ConfigError::Parse("Invalid INTELLIGENCE_RECOVERY_FAIR_THRESHOLD".into())
+            })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_RECOVERY_TSB_WEIGHT_FULL") {
+            self.sleep_recovery.recovery_scoring.tsb_weight_full = val.parse().map_err(|_| {
+                ConfigError::Parse("Invalid INTELLIGENCE_RECOVERY_TSB_WEIGHT_FULL".into())
+            })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_RECOVERY_SLEEP_WEIGHT_FULL") {
+            self.sleep_recovery.recovery_scoring.sleep_weight_full = val.parse().map_err(|_| {
+                ConfigError::Parse("Invalid INTELLIGENCE_RECOVERY_SLEEP_WEIGHT_FULL".into())
+            })?;
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_RECOVERY_HRV_WEIGHT_FULL") {
+            self.sleep_recovery.recovery_scoring.hrv_weight_full = val.parse().map_err(|_| {
+                ConfigError::Parse("Invalid INTELLIGENCE_RECOVERY_HRV_WEIGHT_FULL".into())
+            })?;
+        }
+
         Ok(self)
     }
 }
@@ -426,6 +804,7 @@ impl Default for IntelligenceConfig<true> {
             weather_analysis: Self::default_weather_analysis_config(),
             activity_analyzer: Self::default_activity_analyzer_config(),
             metrics: Self::default_metrics_config(),
+            sleep_recovery: Self::default_sleep_recovery_config(),
             _phantom: PhantomData,
         }
     }
@@ -728,6 +1107,95 @@ impl IntelligenceConfig<true> {
             weekly_aggregation_method: "average".into(),
             monthly_aggregation_method: "weighted_average".into(),
             trend_calculation_method: "linear_regression".into(),
+        }
+    }
+
+    /// Create default sleep recovery configuration
+    const fn default_sleep_recovery_config() -> SleepRecoveryConfig {
+        SleepRecoveryConfig {
+            sleep_duration: Self::default_sleep_duration_config(),
+            sleep_stages: Self::default_sleep_stages_config(),
+            sleep_efficiency: Self::default_sleep_efficiency_config(),
+            hrv: Self::default_hrv_config(),
+            training_stress_balance: Self::default_tsb_config(),
+            recovery_scoring: Self::default_recovery_scoring_config(),
+        }
+    }
+
+    /// Create default sleep duration configuration
+    /// Based on NSF/AASM guidelines (Watson et al. 2015, Hirshkowitz et al. 2015)
+    const fn default_sleep_duration_config() -> SleepDurationConfig {
+        SleepDurationConfig {
+            adult_min_hours: 7.0,
+            adult_max_hours: 9.0,
+            athlete_optimal_hours: 8.0,
+            athlete_min_hours: 7.5,
+            short_sleep_threshold: 6.0,
+            very_short_sleep_threshold: 5.0,
+        }
+    }
+
+    /// Create default sleep stages configuration
+    /// Based on AASM sleep stage guidelines
+    const fn default_sleep_stages_config() -> SleepStagesConfig {
+        SleepStagesConfig {
+            deep_sleep_min_percent: 15.0,
+            deep_sleep_optimal_percent: 20.0,
+            deep_sleep_max_percent: 25.0,
+            rem_sleep_min_percent: 20.0,
+            rem_sleep_optimal_percent: 25.0,
+            rem_sleep_max_percent: 30.0,
+            light_sleep_min_percent: 45.0,
+            light_sleep_max_percent: 55.0,
+            awake_time_healthy_percent: 5.0,
+            awake_time_acceptable_percent: 10.0,
+        }
+    }
+
+    /// Create default sleep efficiency configuration
+    const fn default_sleep_efficiency_config() -> SleepEfficiencyConfig {
+        SleepEfficiencyConfig {
+            excellent_threshold: 90.0,
+            good_threshold: 85.0,
+            poor_threshold: 70.0,
+        }
+    }
+
+    /// Create default HRV configuration
+    /// Based on Shaffer & Ginsberg (2017) and Plews et al. (2013)
+    const fn default_hrv_config() -> HrvConfig {
+        HrvConfig {
+            rmssd_decrease_concern_threshold: -10.0, // -10ms indicates poor recovery
+            rmssd_increase_good_threshold: 5.0,      // +5ms indicates good recovery
+            baseline_deviation_concern_percent: 15.0, // >15% below baseline = concern
+        }
+    }
+
+    /// Create default TSB configuration
+    /// Based on Banister training load model
+    const fn default_tsb_config() -> TsbConfig {
+        TsbConfig {
+            highly_fatigued_tsb: -15.0,
+            fatigued_tsb: -10.0,
+            fresh_tsb_min: 5.0,
+            fresh_tsb_max: 15.0,
+            detraining_tsb: 25.0,
+        }
+    }
+
+    /// Create default recovery scoring configuration
+    const fn default_recovery_scoring_config() -> RecoveryScoringConfig {
+        RecoveryScoringConfig {
+            excellent_threshold: 85.0,
+            good_threshold: 70.0,
+            fair_threshold: 50.0,
+            // When all components available: TSB 40%, Sleep 40%, HRV 20%
+            tsb_weight_full: 0.4,
+            sleep_weight_full: 0.4,
+            hrv_weight_full: 0.2,
+            // When HRV not available: TSB 50%, Sleep 50%
+            tsb_weight_no_hrv: 0.5,
+            sleep_weight_no_hrv: 0.5,
         }
     }
 }

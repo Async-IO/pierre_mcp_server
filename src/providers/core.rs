@@ -4,8 +4,11 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::models::{Activity, Athlete, PersonalRecord, Stats};
+use crate::models::{
+    Activity, Athlete, HealthMetrics, PersonalRecord, RecoveryMetrics, SleepSession, Stats,
+};
 use crate::pagination::{CursorPage, PaginationParams};
+use crate::providers::errors::ProviderError;
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -79,6 +82,77 @@ pub trait FitnessProvider: Send + Sync {
 
     /// Get user's personal records
     async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>>;
+
+    /// Get sleep sessions for a date range
+    ///
+    /// Returns sleep data from providers that support sleep tracking (Fitbit, Garmin).
+    /// Providers without sleep data support return `UnsupportedFeature` error.
+    async fn get_sleep_sessions(
+        &self,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
+    ) -> Result<Vec<SleepSession>, ProviderError> {
+        let date_range = format!(
+            "{} to {}",
+            start_date.format("%Y-%m-%d"),
+            end_date.format("%Y-%m-%d")
+        );
+        Err(ProviderError::UnsupportedFeature {
+            provider: self.name().to_string(),
+            feature: format!("sleep_sessions (requested: {date_range})"),
+        })
+    }
+
+    /// Get the most recent sleep session
+    ///
+    /// Convenience method for providers that support sleep tracking.
+    /// Returns `UnsupportedFeature` for providers without sleep data.
+    async fn get_latest_sleep_session(&self) -> Result<SleepSession, ProviderError> {
+        Err(ProviderError::UnsupportedFeature {
+            provider: self.name().to_string(),
+            feature: "latest_sleep_session".to_string(),
+        })
+    }
+
+    /// Get recovery and readiness metrics for a date range
+    ///
+    /// Returns daily recovery scores, HRV status, and training readiness.
+    /// Available from providers with recovery tracking (Fitbit, Garmin, Whoop).
+    async fn get_recovery_metrics(
+        &self,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
+    ) -> Result<Vec<RecoveryMetrics>, ProviderError> {
+        let date_range = format!(
+            "{} to {}",
+            start_date.format("%Y-%m-%d"),
+            end_date.format("%Y-%m-%d")
+        );
+        Err(ProviderError::UnsupportedFeature {
+            provider: self.name().to_string(),
+            feature: format!("recovery_metrics (requested: {date_range})"),
+        })
+    }
+
+    /// Get health metrics for a date range
+    ///
+    /// Returns comprehensive health data including weight, body composition, vital signs.
+    /// Supported by health-focused providers (Fitbit, Garmin, Apple Health).
+    async fn get_health_metrics(
+        &self,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
+    ) -> Result<Vec<HealthMetrics>, ProviderError> {
+        let date_range = format!(
+            "{} to {}",
+            start_date.format("%Y-%m-%d"),
+            end_date.format("%Y-%m-%d")
+        );
+        Err(ProviderError::UnsupportedFeature {
+            provider: self.name().to_string(),
+            feature: format!("health_metrics (requested: {date_range})"),
+        })
+    }
 
     /// Revoke access tokens (disconnect)
     async fn disconnect(&self) -> Result<()>;

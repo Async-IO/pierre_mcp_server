@@ -32,13 +32,15 @@ this comprehensive guide explains the scientific methods, algorithms, and decisi
 - **TSS/CTL/ATL**: exponential moving averages with gap handling
 - **statistical analysis**: proper linear regression, R² calculation, significance testing
 - **pattern detection**: weekly schedules, overtraining signals, volume trends
+- **sleep and recovery**: NSF/AASM-based sleep quality scoring, TSB normalization, HRV-based recovery assessment
 - **physiological validation**: range + relationship checks for all parameters
 - **real profile inference**: fitness level from activity volume and consistency
 
 ### verification ✅
-- **562 new test assertions** across 22 test functions
+- **644 test assertions** across 109 test functions (562 original + 82 sleep/recovery)
 - **VDOT accuracy**: tested against published VDOT 40, 50, 60 reference tables
-- **edge cases**: zero activities, training gaps, invalid parameters all handled
+- **sleep scoring accuracy**: validated against NSF guidelines and AASM recommendations
+- **edge cases**: zero activities, training gaps, missing sleep data, invalid parameters all handled
 - **zero placeholders**: comprehensive codebase scan confirms zero remaining
 - **zero warnings**: strict clippy (pedantic + nursery) passes
 
@@ -58,20 +60,20 @@ pierre's intelligence system uses a **foundation modules** approach for code reu
                    │
                    ▼
 ┌─────────────────────────────────────────────┐
-│   intelligence tools (26 tools)             │
+│   intelligence tools (30 tools)             │
 │   (src/protocols/universal/handlers/)       │
 └──────────────────┬──────────────────────────┘
                    │
-    ┌──────────────┼──────────────┬───────────┐
-    ▼              ▼              ▼           ▼
-┌─────────────┐ ┌──────────────┐ ┌──────────┐ ┌──────────────┐
-│ Training    │ │ Performance  │ │ Pattern  │ │ Statistical  │
-│ Load Calc   │ │ Predictor    │ │ Detector │ │ Analyzer     │
-│             │ │              │ │          │ │              │
-│ TSS/CTL/ATL │ │ VDOT/Riegel  │ │ Weekly   │ │ Regression   │
-│ TSB/Risk    │ │ Race Times   │ │ Patterns │ │ Trends       │
-└─────────────┘ └──────────────┘ └──────────┘ └──────────────┘
-         FOUNDATION MODULES (Phase 1)
+    ┌──────────────┼──────────────┬───────────┬────────────┐
+    ▼              ▼              ▼           ▼            ▼
+┌─────────────┐ ┌──────────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐
+│ Training    │ │ Performance  │ │ Pattern  │ │Statistical│ │ Sleep &      │
+│ Load Calc   │ │ Predictor    │ │ Detector │ │ Analyzer │ │ Recovery     │
+│             │ │              │ │          │ │           │ │              │
+│ TSS/CTL/ATL │ │ VDOT/Riegel  │ │ Weekly   │ │Regression │ │ Sleep Score  │
+│ TSB/Risk    │ │ Race Times   │ │ Patterns │ │ Trends    │ │ Recovery Calc│
+└─────────────┘ └──────────────┘ └──────────┘ └──────────┘ └──────────────┘
+         FOUNDATION MODULES (Phase 1 + Phase 2)
          Shared by all intelligence tools
 ```
 
@@ -105,6 +107,23 @@ pierre's intelligence system uses a **foundation modules** approach for code reu
 - Moving averages and smoothing
 - Significance level assessment
 
+### foundation modules (phase 2)
+
+**`src/intelligence/sleep_analysis.rs`** - sleep quality scoring
+- Duration scoring with NSF guidelines (7-9 hours optimal for adults, 8-10 for athletes)
+- Stages scoring with AASM recommendations (deep 15-25%, REM 20-25%)
+- Efficiency scoring with clinical thresholds (excellent >90%, good >85%, poor <70%)
+- Overall quality calculation (weighted average of components)
+- Dependency injection with `SleepRecoveryConfig` for all thresholds
+
+**`src/intelligence/recovery_calculator.rs`** - recovery assessment
+- TSB normalization (-30 to +30 → 0-100 recovery score)
+- HRV scoring based on RMSSD baseline comparison (±3ms stable, >5ms good recovery)
+- Weighted recovery calculation (40% TSB, 40% sleep, 20% HRV when available)
+- Fallback scoring when HRV unavailable (50% TSB, 50% sleep)
+- Recovery classification (excellent/good/fair/poor) with actionable thresholds
+- Dependency injection with `SleepRecoveryConfig` for configurability
+
 ### core modules
 
 **`src/intelligence/metrics.rs`** - advanced metrics calculation
@@ -113,9 +132,9 @@ pierre's intelligence system uses a **foundation modules** approach for code reu
 **`src/intelligence/recommendation_engine.rs`** - training recommendations
 **`src/intelligence/goal_engine.rs`** - goal tracking and progress
 
-### intelligence tools (26 tools)
+### intelligence tools (30 tools)
 
-all 26 MCP tools now use real calculations from foundation modules:
+all 30 MCP tools now use real calculations from foundation modules:
 
 **group 1: analysis** (use StatisticalAnalyzer + PatternDetector)
 - analyze_performance_trends
@@ -136,6 +155,13 @@ all 26 MCP tools now use real calculations from foundation modules:
 
 **group 5: goals** (use 10% improvement rule)
 - analyze_goal_feasibility
+
+**group 6: sleep and recovery** (use SleepAnalyzer + RecoveryCalculator)
+- analyze_sleep_quality (NSF/AASM-based scoring)
+- calculate_recovery_score (TSB + sleep + HRV)
+- track_sleep_trends (longitudinal analysis)
+- optimize_sleep_schedule (personalized timing)
+- get_rest_day_recommendations (training load-based)
 
 ---
 

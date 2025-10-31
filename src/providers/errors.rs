@@ -58,6 +58,10 @@ pub enum ProviderError {
     #[error("Provider {provider} configuration error: {details}")]
     ConfigurationError { provider: String, details: String },
 
+    /// Feature not supported by provider
+    #[error("Provider {provider} does not support {feature}")]
+    UnsupportedFeature { provider: String, feature: String },
+
     /// Generic provider error
     #[error("Provider operation failed: {0}")]
     Other(String),
@@ -75,6 +79,7 @@ impl ProviderError {
             | Self::NotFound { .. }
             | Self::InvalidData { .. }
             | Self::ConfigurationError { .. }
+            | Self::UnsupportedFeature { .. }
             | Self::Other(_) => false,
         }
     }

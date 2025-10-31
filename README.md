@@ -19,9 +19,10 @@ The platform calculates fitness metrics using established sports science formula
 - **Race Predictions**: VDOT-based predictions using Jack Daniels' VO2max formula, Riegel formula for distance scaling
 - **Statistical Analysis**: Linear regression for performance trends, R² coefficient for fit quality, moving averages for smoothing
 - **Pattern Detection**: Weekly training schedule consistency, hard/easy workout alternation, volume progression analysis
+- **Sleep and Recovery**: NSF/AASM-based sleep quality scoring, TSB normalization, HRV-based recovery assessment, weighted recovery calculations
 - **Physiological Validation**: Bounds checking for heart rate (100-220 bpm max), power (50-600W FTP), VO2 max (20-90 ml/kg/min)
 
-See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md) for formulas, implementation details, and scientific references.
+See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md) and [Sleep and Recovery Methodology](docs/sleep-recovery-methodology.md) for formulas, implementation details, and scientific references.
 
 ## Features
 
@@ -291,7 +292,7 @@ streamable http connections use oauth 2.0 authorization code flow:
 
 ## Available MCP Tools
 
-Pierre Fitness Platform provides 25 tools through the MCP protocol. Tool definitions are in `src/protocols/universal/tool_registry.rs:12-45`.
+Pierre Fitness Platform provides 30 tools through the MCP protocol. Tool definitions are in `src/protocols/universal/tool_registry.rs:12-45`.
 
 ### Core Fitness Data
 
@@ -326,6 +327,16 @@ Pierre Fitness Platform provides 25 tools through the MCP protocol. Tool definit
 | `calculate_fitness_score` | Calculate overall fitness score | None |
 | `predict_performance` | Predict future performance based on training | None |
 | `analyze_training_load` | Analyze training load and recovery | None |
+
+### Sleep and Recovery
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `analyze_sleep_quality` | Analyze sleep quality with NSF/AASM scoring | `sleep_session` (required) |
+| `calculate_recovery_score` | Calculate recovery readiness from TSB, sleep, HRV | `tsb`, `sleep_quality`, `hrv_data` (optional) |
+| `track_sleep_trends` | Track sleep patterns and trends over time | `start_date`, `end_date` (required) |
+| `optimize_sleep_schedule` | Get personalized sleep timing recommendations | `preferences` (optional) |
+| `get_rest_day_recommendations` | Get rest day recommendations based on recovery | `tsb`, `recent_load`, `sleep_quality` (optional) |
 
 ### Configuration Management
 
