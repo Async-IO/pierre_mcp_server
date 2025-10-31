@@ -353,10 +353,10 @@ traditional rest endpoints for web applications.
 
 ### provider oauth endpoints
 
-- `GET /oauth/connect/{provider}` - initiate oauth (strava, garmin, fitbit)
-- `GET /oauth/callback/{provider}` - oauth callback
-- `GET /oauth/status` - connection status
-- `POST /oauth/disconnect/{provider}` - disconnect provider
+- `GET /api/oauth/connect/{provider}` - initiate oauth (strava, garmin, fitbit)
+- `GET /api/oauth/callback/{provider}` - oauth callback
+- `GET /api/oauth/status` - connection status
+- `POST /api/oauth/disconnect/{provider}` - disconnect provider
 
 ### admin endpoints
 

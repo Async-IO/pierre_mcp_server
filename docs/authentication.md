@@ -190,18 +190,18 @@ set environment variables:
 # strava (local development)
 export STRAVA_CLIENT_ID=your_id
 export STRAVA_CLIENT_SECRET=your_secret
-export STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava  # local dev only
+export STRAVA_REDIRECT_URI=http://localhost:8081/api/oauth/callback/strava  # local dev only
 
 # strava (production)
-export STRAVA_REDIRECT_URI=https://api.example.com/oauth/callback/strava  # required
+export STRAVA_REDIRECT_URI=https://api.example.com/api/oauth/callback/strava  # required
 
 # garmin (local development)
 export GARMIN_CLIENT_ID=your_key
 export GARMIN_CLIENT_SECRET=your_secret
-export GARMIN_REDIRECT_URI=http://localhost:8081/oauth/callback/garmin  # local dev only
+export GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin  # local dev only
 
 # garmin (production)
-export GARMIN_REDIRECT_URI=https://api.example.com/oauth/callback/garmin  # required
+export GARMIN_REDIRECT_URI=https://api.example.com/api/oauth/callback/garmin  # required
 ```
 
 **callback url security requirements**:
@@ -228,10 +228,10 @@ curl -H "Authorization: Bearer <jwt>" \
 opens browser for provider authentication. after approval, redirected to callback:
 ```bash
 # local development
-http://localhost:8081/oauth/callback/strava?code=<auth_code>
+http://localhost:8081/api/oauth/callback/strava?code=<auth_code>
 
 # production (https required)
-https://api.example.com/oauth/callback/strava?code=<auth_code>
+https://api.example.com/api/oauth/callback/strava?code=<auth_code>
 ```
 
 pierre exchanges code for access/refresh tokens, stores encrypted.

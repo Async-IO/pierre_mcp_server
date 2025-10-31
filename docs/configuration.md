@@ -48,12 +48,12 @@ PASSWORD_HASH_ALGORITHM=argon2    # argon2 or bcrypt (default: argon2)
 ```bash
 STRAVA_CLIENT_ID=your_id
 STRAVA_CLIENT_SECRET=your_secret
-STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava  # local development only
+STRAVA_REDIRECT_URI=http://localhost:8081/api/oauth/callback/strava  # local development only
 ```
 
 **security warning**: http callback urls only for local development. production must use https:
 ```bash
-STRAVA_REDIRECT_URI=https://api.example.com/oauth/callback/strava  # production
+STRAVA_REDIRECT_URI=https://api.example.com/api/oauth/callback/strava  # production
 ```
 
 get credentials: https://www.strava.com/settings/api
@@ -63,12 +63,12 @@ get credentials: https://www.strava.com/settings/api
 ```bash
 GARMIN_CLIENT_ID=your_consumer_key
 GARMIN_CLIENT_SECRET=your_consumer_secret
-GARMIN_REDIRECT_URI=http://localhost:8081/oauth/callback/garmin  # local development only
+GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin  # local development only
 ```
 
 **security warning**: http callback urls only for local development. production must use https:
 ```bash
-GARMIN_REDIRECT_URI=https://api.example.com/oauth/callback/garmin  # production
+GARMIN_REDIRECT_URI=https://api.example.com/api/oauth/callback/garmin  # production
 ```
 
 get credentials: https://developer.garmin.com/
@@ -78,12 +78,12 @@ get credentials: https://developer.garmin.com/
 ```bash
 FITBIT_CLIENT_ID=your_id
 FITBIT_CLIENT_SECRET=your_secret
-FITBIT_REDIRECT_URI=http://localhost:8081/oauth/callback/fitbit  # local development only
+FITBIT_REDIRECT_URI=http://localhost:8081/api/oauth/callback/fitbit  # local development only
 ```
 
 **security warning**: http callback urls only for local development. production must use https:
 ```bash
-FITBIT_REDIRECT_URI=https://api.example.com/oauth/callback/fitbit  # production
+FITBIT_REDIRECT_URI=https://api.example.com/api/oauth/callback/fitbit  # production
 ```
 
 get credentials: https://dev.fitbit.com/apps
@@ -296,7 +296,7 @@ export DATABASE_URL=sqlite:./data/pierre.db
 # provider credentials (dev)
 export STRAVA_CLIENT_ID=dev_client_id
 export STRAVA_CLIENT_SECRET=dev_secret
-export STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava
+export STRAVA_REDIRECT_URI=http://localhost:8081/api/oauth/callback/strava
 
 # load from file
 if [ -f .env.local ]; then
@@ -331,7 +331,7 @@ RUST_LOG=info
 # provider credentials from secrets manager
 STRAVA_CLIENT_ID=prod_id
 STRAVA_CLIENT_SECRET=prod_secret
-STRAVA_REDIRECT_URI=https://api.example.com/oauth/callback/strava
+STRAVA_REDIRECT_URI=https://api.example.com/api/oauth/callback/strava
 
 # tls
 TLS_CERT_PATH=/etc/pierre/tls/cert.pem

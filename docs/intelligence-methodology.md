@@ -1099,11 +1099,22 @@ impl IntelligenceStrategy for AggressiveStrategy {
 - `tests/training_load_test.rs` - 6 tests
 - `tests/vdot_table_verification_test.rs` - 3 tests
 
-**integration tests** (116 test files):
+**integration tests** (116+ test files):
 - Full MCP tool workflows
 - Multi-provider scenarios
 - Edge case handling
 - Error recovery
+
+**automated intelligence testing** (30+ integration tests):
+- `tests/intelligence_tools_basic_test.rs` - 10 tests covering basic fitness data tools
+- `tests/intelligence_tools_advanced_test.rs` - 20+ tests covering analytics, predictions, and goals
+- `tests/intelligence_synthetic_helpers_test.rs` - synthetic data generation validation
+
+**synthetic data framework** (`tests/helpers/`):
+- `synthetic_provider.rs` - mock fitness provider with realistic activity data
+- `synthetic_data.rs` - configurable test scenarios (beginner runner, experienced cyclist, multi-sport)
+- `test_utils.rs` - test utilities and scenario builders
+- enables testing all 8 intelligence tools without OAuth dependencies
 
 ### verification methods
 
@@ -1148,6 +1159,30 @@ fn test_invalid_hr_relationships() {
 # Zero placeholders confirmed
 rg -i "placeholder|todo|fixme|hack|stub" src/ | wc -l
 # Output: 0
+```
+
+**5. synthetic data testing**:
+```rust
+// Example: Test fitness score calculation with synthetic data
+#[tokio::test]
+async fn test_fitness_score_calculation() {
+    let provider = create_synthetic_provider_with_scenario(
+        TestScenario::ExperiencedCyclistConsistent
+    );
+
+    let activities = provider.get_activities(Some(100), None)
+        .await.expect("Should get activities");
+
+    let analyzer = PerformanceAnalyzerV2::new(Box::new(DefaultStrategy))
+        .expect("Should create analyzer");
+
+    let fitness_score = analyzer.calculate_fitness_score(&activities)
+        .expect("Should calculate fitness score");
+
+    // Verify realistic fitness score for experienced cyclist
+    assert!(fitness_score.overall_score >= 70.0);
+    assert!(fitness_score.overall_score <= 90.0);
+}
 ```
 
 **4. code quality**:

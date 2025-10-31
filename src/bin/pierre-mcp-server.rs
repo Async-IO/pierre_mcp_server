@@ -269,10 +269,14 @@ fn display_auth_endpoints(host: &str, port: u16) {
         endpoints: &[
             ("User Registration:", "POST", "/auth/register"),
             ("User Login:", "POST", "/auth/login"),
-            ("OAuth Authorize:", "GET", "/oauth/authorize/{provider}"),
-            ("OAuth Callback:", "GET", "/oauth/callback/{provider}"),
-            ("OAuth Status:", "GET", "/oauth/status"),
-            ("OAuth Disconnect:", "POST", "/oauth/disconnect/{provider}"),
+            ("OAuth Authorize:", "GET", "/api/oauth/authorize/{provider}"),
+            ("OAuth Callback:", "GET", "/api/oauth/callback/{provider}"),
+            ("OAuth Status:", "GET", "/api/oauth/status"),
+            (
+                "OAuth Disconnect:",
+                "POST",
+                "/api/oauth/disconnect/{provider}",
+            ),
         ],
     };
     display_endpoint_category(&category, host, port);

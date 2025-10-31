@@ -143,16 +143,16 @@ export PIERRE_RSA_KEY_SIZE=4096    # RSA key size for JWT signing (default: 4096
 # Fitness provider OAuth (for data integration)
 export STRAVA_CLIENT_ID=your_client_id
 export STRAVA_CLIENT_SECRET=your_client_secret
-export STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava  # local dev only
+export STRAVA_REDIRECT_URI=http://localhost:8081/api/oauth/callback/strava  # local dev only
 
 # Garmin Connect OAuth (optional)
 export GARMIN_CLIENT_ID=your_consumer_key
 export GARMIN_CLIENT_SECRET=your_consumer_secret
-export GARMIN_REDIRECT_URI=http://localhost:8081/oauth/callback/garmin  # local dev only
+export GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin  # local dev only
 
 # Production: Use HTTPS for callback URLs
-# export STRAVA_REDIRECT_URI=https://api.example.com/oauth/callback/strava
-# export GARMIN_REDIRECT_URI=https://api.example.com/oauth/callback/garmin
+# export STRAVA_REDIRECT_URI=https://api.example.com/api/oauth/callback/strava
+# export GARMIN_REDIRECT_URI=https://api.example.com/api/oauth/callback/garmin
 
 # Weather data (optional)
 export OPENWEATHER_API_KEY=your_api_key
@@ -189,7 +189,7 @@ curl -X POST http://localhost:8081/admin/setup \
 
 ## MCP Client Integration
 
-Pierre Fitness Platform includes an SDK bridge for direct integration with MCP clients. The SDK handles OAuth 2.0 authentication automatically.
+Pierre Fitness Platform includes an SDK bridge for direct integration with MCP clients that only support stdin/out. The SDK handles OAuth 2.0 authentication automatically.
 
 ### SDK Installation
 
@@ -266,11 +266,11 @@ When the MCP client starts, the SDK will:
 
 No manual token management required.
 
-## streamable http transport
+## Streamable http transport
 
 mcp clients with streamable http transport support can connect directly to pierre without the sdk bridge.
 
-### http transport setup
+### Http transport setup
 
 mcp clients with streamable http transport connect directly to the mcp endpoint:
 
@@ -279,7 +279,7 @@ endpoint: http://localhost:8081/mcp (development)
 endpoint: https://your-server.com/mcp (production)
 ```
 
-### http transport authentication
+### Http transport authentication
 
 streamable http connections use oauth 2.0 authorization code flow:
 
@@ -288,18 +288,6 @@ streamable http connections use oauth 2.0 authorization code flow:
 3. opens browser for user authentication (`/oauth2/authorize`)
 4. exchanges authorization code for jwt token (`/oauth2/token`)
 5. uses jwt token for all subsequent mcp requests
-
-### choosing transport mode
-
-| feature | stdio transport | streamable http transport |
-|---------|----------------|---------------------------|
-| **best for** | claude desktop, chatgpt, existing mcp clients | web services, distributed systems, custom tooling |
-| **connection** | subprocess (stdin/stdout) | http server |
-| **setup** | npm package (`pierre-mcp-client`) | http client implementation |
-| **oauth flow** | automatic via sdk bridge | client implements oauth 2.0 flow |
-| **performance** | low latency (local ipc) | network overhead (http) |
-| **multi-client** | one client per process | multiple concurrent clients |
-| **use cases** | desktop applications, ide integrations | remote deployments, multi-tenant systems |
 
 ## Available MCP Tools
 
@@ -394,13 +382,17 @@ async fn main() -> Result<()> {
 
 ## Testing
 
+Pierre Fitness Platform includes comprehensive test coverage with automated intelligence testing using synthetic data.
+
 ```bash
 # Run all tests
 cargo test
 
-# Run specific test suite
+# Run specific test suites
 cargo test --test mcp_protocol_comprehensive_test
 cargo test --test mcp_multitenant_complete_test
+cargo test --test intelligence_tools_basic_test
+cargo test --test intelligence_tools_advanced_test
 
 # Run with output
 cargo test -- --nocapture
@@ -408,6 +400,23 @@ cargo test -- --nocapture
 # Lint and test (comprehensive validation)
 ./scripts/lint-and-test.sh
 ```
+
+### Intelligence Testing Framework
+
+The platform includes 30+ integration tests covering all 8 intelligence tools without OAuth dependencies:
+
+**Test Categories**:
+- **Basic Tools**: `get_athlete`, `get_activities`, `get_stats`, `compare_activities`
+- **Advanced Analytics**: `calculate_fitness_score`, `predict_performance`, `analyze_training_load`
+- **Goal Management**: `suggest_goals`, `analyze_goal_feasibility`, `track_progress`
+
+**Synthetic Data Scenarios**:
+- Beginner runner improving over time
+- Experienced cyclist with consistent training
+- Multi-sport athlete (triathlete pattern)
+- Training gaps and recovery periods
+
+See `tests/intelligence_tools_basic_test.rs` and `tests/intelligence_tools_advanced_test.rs` for details.
 
 ### RSA Key Size Configuration
 
