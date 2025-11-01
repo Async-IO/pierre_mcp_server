@@ -11,6 +11,4 @@
 pub mod usda_client;
 
 // Re-export commonly used types
-pub use usda_client::{
-    FoodDetails, FoodNutrient, FoodSearchResult, MockUsdaClient, UsdaClient, UsdaClientConfig,
-};
+pub use usda_client::{FoodDetails, FoodNutrient, FoodSearchResult, UsdaClient, UsdaClientConfig};

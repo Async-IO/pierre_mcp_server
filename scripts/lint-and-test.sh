@@ -766,6 +766,7 @@ if [ "$CRITICAL_ISSUES" -gt 0 ]; then
     echo -e "${RED}Critical architectural issues found - must be fixed before deployment${NC}"
     VALIDATION_FAILED=true
     ALL_PASSED=false
+    exit 1
 elif [ "$WARNINGS" -gt 0 ]; then
     echo -e "${YELLOW}⚠️  ARCHITECTURAL WARNING${NC}"
     echo -e "${YELLOW}Architectural validation completed with $WARNINGS warning(s) - review table above${NC}"
@@ -810,8 +811,10 @@ echo -e "${BLUE}==== Checking Rust compilation... ====${NC}"
 if cargo check --all-targets --quiet; then
     echo -e "${GREEN}[OK] Rust compilation check passed${NC}"
 else
-    echo -e "${RED}[FAIL] Rust compilation failed${NC}"
+    echo -e "${RED}[CRITICAL] Rust compilation failed${NC}"
+    echo -e "${RED}FAST FAIL: Fix compilation errors before running tests${NC}"
     ALL_PASSED=false
+    exit 1
 fi
 
 # Check for backup files (Claude Code anti-pattern)

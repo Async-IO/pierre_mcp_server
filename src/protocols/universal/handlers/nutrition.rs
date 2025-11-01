@@ -4,7 +4,7 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::external::{MockUsdaClient, UsdaClient, UsdaClientConfig};
+use crate::external::{UsdaClient, UsdaClientConfig};
 use crate::intelligence::{
     calculate_daily_nutrition_needs, calculate_nutrient_timing, ActivityLevel,
     DailyNutritionParams, Gender, TrainingGoal, WorkoutIntensity,
@@ -15,57 +15,44 @@ use serde_json::{json, Value};
 use std::future::Future;
 use std::pin::Pin;
 
-/// Fetch food details from USDA API or mock
+/// Fetch food details from USDA API
 async fn fetch_food_details(
     fdc_id: u64,
-    use_mock: bool,
     executor: &crate::protocols::universal::UniversalToolExecutor,
 ) -> Result<crate::external::FoodDetails, UniversalResponse> {
-    if use_mock {
-        let mock_client = MockUsdaClient::new();
-        mock_client
-            .get_food_details(fdc_id)
-            .map_err(|e| UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Mock food lookup failed: {e}")),
-                metadata: None,
-            })
-    } else {
-        let api_key = executor
-            .resources
-            .config
-            .usda_api_key
-            .clone()
-            .unwrap_or_default();
+    let api_key = executor
+        .resources
+        .config
+        .usda_api_key
+        .clone()
+        .unwrap_or_default();
 
-        if api_key.is_empty() {
-            return Err(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(
-                    "USDA API key not configured. Set USDA_API_KEY environment variable or use mock mode.".to_string(),
-                ),
-                metadata: None,
-            });
-        }
-
-        let usda_config = UsdaClientConfig {
-            api_key,
-            ..UsdaClientConfig::default()
-        };
-
-        let client = UsdaClient::new(usda_config);
-        client
-            .get_food_details(fdc_id)
-            .await
-            .map_err(|e| UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("USDA API request failed: {e}")),
-                metadata: None,
-            })
+    if api_key.is_empty() {
+        return Err(UniversalResponse {
+            success: false,
+            result: None,
+            error: Some(
+                "USDA API key not configured. Set USDA_API_KEY environment variable.".to_string(),
+            ),
+            metadata: None,
+        });
     }
+
+    let usda_config = UsdaClientConfig {
+        api_key,
+        ..UsdaClientConfig::default()
+    };
+
+    let client = UsdaClient::new(usda_config);
+    client
+        .get_food_details(fdc_id)
+        .await
+        .map_err(|e| UniversalResponse {
+            success: false,
+            result: None,
+            error: Some(format!("USDA API request failed: {e}")),
+            metadata: None,
+        })
 }
 
 /// Parse gender from string parameter
@@ -424,7 +411,6 @@ pub fn handle_get_nutrient_timing(
 /// # Parameters
 /// - `query`: Search query (e.g., "apple", "chicken breast") (required)
 /// - `page_size`: Number of results to return (1-200, default: 10) (optional)
-/// - `use_mock`: Use mock data instead of real API (default: true for testing) (optional)
 ///
 /// # Returns
 /// JSON array of foods with:
@@ -469,43 +455,33 @@ pub fn handle_search_food(
             });
         };
 
-        let use_mock = request
-            .parameters
-            .get("use_mock")
-            .and_then(Value::as_bool)
-            .unwrap_or(true);
+        // Search foods using USDA API
+        let api_key = executor
+            .resources
+            .config
+            .usda_api_key
+            .clone()
+            .unwrap_or_default();
 
-        // Search foods using appropriate client
-        let search_result = if use_mock {
-            let mock_client = MockUsdaClient::new();
-            mock_client.search_foods(query, page_size)
-        } else {
-            let api_key = executor
-                .resources
-                .config
-                .usda_api_key
-                .clone()
-                .unwrap_or_default();
+        if api_key.is_empty() {
+            return Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(
+                    "USDA API key not configured. Set USDA_API_KEY environment variable."
+                        .to_string(),
+                ),
+                metadata: None,
+            });
+        }
 
-            if api_key.is_empty() {
-                return Ok(UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(
-                        "USDA API key not configured. Set USDA_API_KEY environment variable or use mock mode.".to_string(),
-                    ),
-                    metadata: None,
-                });
-            }
-
-            let usda_config = UsdaClientConfig {
-                api_key,
-                ..UsdaClientConfig::default()
-            };
-
-            let client = UsdaClient::new(usda_config);
-            client.search_foods(query, page_size).await
+        let usda_config = UsdaClientConfig {
+            api_key,
+            ..UsdaClientConfig::default()
         };
+
+        let client = UsdaClient::new(usda_config);
+        let search_result = client.search_foods(query, page_size).await;
 
         match search_result {
             Ok(foods) => Ok(UniversalResponse {
@@ -533,7 +509,6 @@ pub fn handle_search_food(
 ///
 /// # Parameters
 /// - `fdc_id`: `FoodData` Central ID (required)
-/// - `use_mock`: Use mock data instead of real API (default: true for testing) (optional)
 ///
 /// # Returns
 /// JSON object with:
@@ -560,43 +535,33 @@ pub fn handle_get_food_details(
                 )
             })?;
 
-        let use_mock = request
-            .parameters
-            .get("use_mock")
-            .and_then(Value::as_bool)
-            .unwrap_or(true);
+        // Get food details using USDA API
+        let api_key = executor
+            .resources
+            .config
+            .usda_api_key
+            .clone()
+            .unwrap_or_default();
 
-        // Get food details using appropriate client
-        let details_result = if use_mock {
-            let mock_client = MockUsdaClient::new();
-            mock_client.get_food_details(fdc_id)
-        } else {
-            let api_key = executor
-                .resources
-                .config
-                .usda_api_key
-                .clone()
-                .unwrap_or_default();
+        if api_key.is_empty() {
+            return Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(
+                    "USDA API key not configured. Set USDA_API_KEY environment variable."
+                        .to_string(),
+                ),
+                metadata: None,
+            });
+        }
 
-            if api_key.is_empty() {
-                return Ok(UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(
-                        "USDA API key not configured. Set USDA_API_KEY environment variable or use mock mode.".to_string(),
-                    ),
-                    metadata: None,
-                });
-            }
-
-            let usda_config = UsdaClientConfig {
-                api_key,
-                ..UsdaClientConfig::default()
-            };
-
-            let client = UsdaClient::new(usda_config);
-            client.get_food_details(fdc_id).await
+        let usda_config = UsdaClientConfig {
+            api_key,
+            ..UsdaClientConfig::default()
         };
+
+        let client = UsdaClient::new(usda_config);
+        let details_result = client.get_food_details(fdc_id).await;
 
         match details_result {
             Ok(food) => Ok(UniversalResponse {
@@ -633,7 +598,6 @@ pub fn handle_get_food_details(
 ///
 /// # Parameters
 /// - `foods`: Array of food items with `fdc_id` and `grams` (required)
-/// - `use_mock`: Use mock data instead of real API (default: true for testing) (optional)
 ///
 /// # Example
 /// ```json
@@ -671,12 +635,6 @@ pub fn handle_analyze_meal_nutrition(
                 )
             })?;
 
-        let use_mock = request
-            .parameters
-            .get("use_mock")
-            .and_then(Value::as_bool)
-            .unwrap_or(true);
-
         // Parse food items
         let mut meal_foods = Vec::new();
         for food_item in foods_array {
@@ -705,7 +663,7 @@ pub fn handle_analyze_meal_nutrition(
         let mut food_details = Vec::new();
 
         for (fdc_id, grams) in meal_foods {
-            let food = match fetch_food_details(fdc_id, use_mock, executor).await {
+            let food = match fetch_food_details(fdc_id, executor).await {
                 Ok(f) => f,
                 Err(response) => return Ok(response),
             };
