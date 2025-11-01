@@ -224,6 +224,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     let cache_config = pierre_mcp_server::cache::CacheConfig {

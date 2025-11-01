@@ -20,9 +20,10 @@ The platform calculates fitness metrics using established sports science formula
 - **Statistical Analysis**: Linear regression for performance trends, R² coefficient for fit quality, moving averages for smoothing
 - **Pattern Detection**: Weekly training schedule consistency, hard/easy workout alternation, volume progression analysis
 - **Sleep and Recovery**: NSF/AASM-based sleep quality scoring, TSB normalization, HRV-based recovery assessment, weighted recovery calculations
+- **Nutrition and USDA Integration**: Mifflin-St Jeor BMR, TDEE with activity factors, sport-specific protein/carb/fat recommendations, nutrient timing, USDA FoodData Central integration (350,000+ foods)
 - **Physiological Validation**: Bounds checking for heart rate (100-220 bpm max), power (50-600W FTP), VO2 max (20-90 ml/kg/min)
 
-See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md) for formulas, implementation details, and scientific references (includes sleep and recovery analysis).
+See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md), [Sleep and Recovery Methodology](docs/sleep-recovery-methodology.md), and [Nutrition Methodology](docs/nutrition-methodology.md) for formulas, implementation details, and scientific references.
 
 ## Features
 
@@ -85,9 +86,10 @@ AI assistants query fitness data through natural language. The LLM determines wh
 
 | Natural Language Request | What Happens | Tools Used |
 |--------------------------|--------------|------------|
-| "Get my last 10 activities and propose a week-long meal plan with protein targets based on my training load" | Retrieves recent activities, analyzes intensity and duration, calculates caloric expenditure, generates nutrition recommendations with macro breakdowns | `get_activities`, `analyze_training_load`, `calculate_metrics` |
+| "Calculate my daily nutrition needs for marathon training and suggest pre-workout meals" | Calculates BMR/TDEE based on user profile, determines macros for endurance goal, calculates nutrient timing, searches USDA database for suitable pre-workout foods | `calculate_daily_nutrition`, `calculate_nutrient_timing`, `search_foods` |
+| "Get my last 10 activities and propose a week-long meal plan with protein targets based on my training load" | Retrieves recent activities, analyzes intensity and duration, calculates caloric expenditure, generates nutrition recommendations with macro breakdowns | `get_activities`, `analyze_training_load`, `calculate_daily_nutrition` |
 | "Compare my three longest runs this month and identify areas for improvement" | Fetches top runs by distance, analyzes pace consistency, heart rate zones, elevation patterns, provides feedback | `get_activities`, `compare_activities`, `analyze_performance_trends` |
-| "Analyze my cycling data from the past 3 months and suggest realistic goals for next quarter" | Reviews historical performance, detects trends and patterns, evaluates fitness progression, recommends targets | `get_activities`, `analyze_performance_trends`, `suggest_goals`, `analyze_goal_feasibility` |
+| "Analyze this meal: 150g chicken breast, 200g rice, 100g broccoli" | Looks up each food in USDA database, retrieves complete nutrient breakdown, calculates total macros and calories for the meal | `analyze_meal_nutrition`, `get_food_details` |
 | "Check my training load for the last two weeks and tell me if I need a recovery day" | Calculates cumulative training stress, analyzes recovery metrics, provides rest recommendations | `analyze_training_load`, `get_activities`, `generate_recommendations` |
 | "When's the best day this week for an outdoor run based on my typical schedule and weather conditions?" | Analyzes activity patterns, checks weather forecasts, recommends timing | `detect_patterns`, `get_activities`, weather integration |
 

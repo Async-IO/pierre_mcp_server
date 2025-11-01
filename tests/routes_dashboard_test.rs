@@ -306,6 +306,7 @@ impl DashboardTestSetup {
                 max_entries: 10000,
                 cleanup_interval_secs: 300,
             },
+            usda_api_key: None,
         });
 
         // Create test cache
@@ -690,6 +691,7 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();

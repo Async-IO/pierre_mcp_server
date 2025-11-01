@@ -263,6 +263,8 @@ pub struct ServerConfig {
     pub security: SecurityConfig,
     /// External service configuration
     pub external_services: ExternalServicesConfig,
+    /// USDA `FoodData` Central API key (optional, for nutrition features)
+    pub usda_api_key: Option<String>,
     /// Application behavior settings
     pub app_behavior: AppBehaviorConfig,
     /// HTTP client timeout configuration
@@ -814,6 +816,7 @@ impl ServerConfig {
             oauth2_server: Self::load_oauth2_server_config(),
             security: Self::load_security_config()?,
             external_services: Self::load_external_services_config()?,
+            usda_api_key: env::var("USDA_API_KEY").ok(),
             app_behavior: Self::load_app_behavior_config()?,
             http_client: Self::load_http_client_config(),
             sse: Self::load_sse_config()?,

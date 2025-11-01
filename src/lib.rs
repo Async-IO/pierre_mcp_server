@@ -81,6 +81,9 @@ pub mod mcp;
 /// Athlete Intelligence for activity analysis and insights
 pub mod intelligence;
 
+/// External API clients (USDA, weather services)
+pub mod external;
+
 /// Configuration management and runtime parameter system
 pub mod configuration;
 

@@ -242,6 +242,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     // Create ServerResources for the test

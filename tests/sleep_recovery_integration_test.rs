@@ -155,6 +155,7 @@ fn create_test_config() -> Arc<ServerConfig> {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     })
 }
 

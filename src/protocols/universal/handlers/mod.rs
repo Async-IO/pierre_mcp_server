@@ -8,6 +8,7 @@ pub mod configuration;
 pub mod connections;
 pub mod goals;
 pub mod intelligence;
+pub mod nutrition;
 pub mod sleep_recovery;
 pub mod strava_api;
 
@@ -40,6 +41,12 @@ pub use intelligence::{
 pub use sleep_recovery::{
     handle_analyze_sleep_quality, handle_calculate_recovery_score, handle_optimize_sleep_schedule,
     handle_suggest_rest_day, handle_track_sleep_trends,
+};
+
+// Nutrition analysis and USDA food database handlers
+pub use nutrition::{
+    handle_analyze_meal_nutrition, handle_calculate_daily_nutrition, handle_get_food_details,
+    handle_get_nutrient_timing, handle_search_food,
 };
 
 // Strava API integration handlers

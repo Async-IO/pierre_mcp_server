@@ -153,6 +153,7 @@ async fn test_email_validation() {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -351,6 +352,7 @@ async fn test_password_validation() {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -521,6 +523,7 @@ async fn test_duplicate_user_registration() {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -682,6 +685,7 @@ async fn test_login_with_correct_credentials() {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -887,6 +891,7 @@ async fn test_login_with_wrong_password() {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1055,6 +1060,7 @@ async fn test_login_with_non_existent_user() {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();

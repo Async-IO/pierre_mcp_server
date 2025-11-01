@@ -53,6 +53,13 @@ pub enum ToolId {
     SuggestRestDay,
     TrackSleepTrends,
     OptimizeSleepSchedule,
+
+    // Nutrition analysis and USDA food database tools
+    CalculateDailyNutrition,
+    GetNutrientTiming,
+    SearchFood,
+    GetFoodDetails,
+    AnalyzeMealNutrition,
 }
 
 impl ToolId {
@@ -92,6 +99,11 @@ impl ToolId {
             "suggest_rest_day" => Some(Self::SuggestRestDay),
             "track_sleep_trends" => Some(Self::TrackSleepTrends),
             "optimize_sleep_schedule" => Some(Self::OptimizeSleepSchedule),
+            "calculate_daily_nutrition" => Some(Self::CalculateDailyNutrition),
+            "get_nutrient_timing" => Some(Self::GetNutrientTiming),
+            "search_food" => Some(Self::SearchFood),
+            "get_food_details" => Some(Self::GetFoodDetails),
+            "analyze_meal_nutrition" => Some(Self::AnalyzeMealNutrition),
             _ => None,
         }
     }
@@ -131,6 +143,11 @@ impl ToolId {
             Self::SuggestRestDay => "suggest_rest_day",
             Self::TrackSleepTrends => "track_sleep_trends",
             Self::OptimizeSleepSchedule => "optimize_sleep_schedule",
+            Self::CalculateDailyNutrition => "calculate_daily_nutrition",
+            Self::GetNutrientTiming => "get_nutrient_timing",
+            Self::SearchFood => "search_food",
+            Self::GetFoodDetails => "get_food_details",
+            Self::AnalyzeMealNutrition => "analyze_meal_nutrition",
         }
     }
 
@@ -196,6 +213,21 @@ impl ToolId {
             }
             Self::OptimizeSleepSchedule => {
                 "Optimize sleep duration based on training load and recovery needs"
+            }
+            Self::CalculateDailyNutrition => {
+                "Calculate daily calorie and macronutrient needs based on athlete biometrics, activity level, and training goal using Mifflin-St Jeor BMR formula"
+            }
+            Self::GetNutrientTiming => {
+                "Get optimal pre/post-workout nutrition recommendations based on workout intensity and training goals following ISSN guidelines"
+            }
+            Self::SearchFood => {
+                "Search USDA FoodData Central database for foods by name/description (free API with 24h caching)"
+            }
+            Self::GetFoodDetails => {
+                "Get detailed nutritional information for a specific food from USDA database including all macro/micronutrients"
+            }
+            Self::AnalyzeMealNutrition => {
+                "Analyze total calories and macronutrients for a meal composed of multiple USDA foods"
             }
         }
     }

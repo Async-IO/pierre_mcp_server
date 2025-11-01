@@ -6,14 +6,16 @@
 
 use super::auth_service::AuthService;
 use super::handlers::{
-    handle_analyze_activity, handle_analyze_goal_feasibility, handle_analyze_performance_trends,
-    handle_analyze_sleep_quality, handle_analyze_training_load, handle_calculate_fitness_score,
-    handle_calculate_metrics, handle_calculate_personalized_zones, handle_calculate_recovery_score,
+    handle_analyze_activity, handle_analyze_goal_feasibility, handle_analyze_meal_nutrition,
+    handle_analyze_performance_trends, handle_analyze_sleep_quality, handle_analyze_training_load,
+    handle_calculate_daily_nutrition, handle_calculate_fitness_score, handle_calculate_metrics,
+    handle_calculate_personalized_zones, handle_calculate_recovery_score,
     handle_compare_activities, handle_connect_provider, handle_detect_patterns,
     handle_disconnect_provider, handle_generate_recommendations, handle_get_activities,
     handle_get_activity_intelligence, handle_get_athlete, handle_get_configuration_catalog,
-    handle_get_configuration_profiles, handle_get_connection_status, handle_get_stats,
-    handle_get_user_configuration, handle_optimize_sleep_schedule, handle_predict_performance,
+    handle_get_configuration_profiles, handle_get_connection_status, handle_get_food_details,
+    handle_get_nutrient_timing, handle_get_stats, handle_get_user_configuration,
+    handle_optimize_sleep_schedule, handle_predict_performance, handle_search_food,
     handle_set_goal, handle_suggest_goals, handle_suggest_rest_day, handle_track_progress,
     handle_track_sleep_trends, handle_update_user_configuration, handle_validate_configuration,
 };
@@ -287,6 +289,29 @@ impl UniversalExecutor {
         ));
     }
 
+    fn register_nutrition_tools(registry: &mut ToolRegistry) {
+        registry.register(ToolInfo::async_tool(
+            ToolId::CalculateDailyNutrition,
+            |executor, request| Box::pin(handle_calculate_daily_nutrition(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::GetNutrientTiming,
+            |executor, request| Box::pin(handle_get_nutrient_timing(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::SearchFood,
+            |executor, request| Box::pin(handle_search_food(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::GetFoodDetails,
+            |executor, request| Box::pin(handle_get_food_details(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::AnalyzeMealNutrition,
+            |executor, request| Box::pin(handle_analyze_meal_nutrition(executor, request)),
+        ));
+    }
+
     fn register_all_tools(registry: &mut ToolRegistry) {
         Self::register_strava_tools(registry);
         Self::register_connection_tools(registry);
@@ -294,6 +319,7 @@ impl UniversalExecutor {
         Self::register_intelligence_tools(registry);
         Self::register_goal_tools(registry);
         Self::register_sleep_recovery_tools(registry);
+        Self::register_nutrition_tools(registry);
     }
 
     /// Execute a tool with type-safe routing (no string matching!)

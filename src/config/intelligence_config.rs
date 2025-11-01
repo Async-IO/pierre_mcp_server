@@ -46,6 +46,7 @@ pub struct IntelligenceConfig<const VALIDATED: bool = false> {
     pub activity_analyzer: ActivityAnalyzerConfig,
     pub metrics: MetricsConfig,
     pub sleep_recovery: SleepRecoveryConfig,
+    pub nutrition: NutritionConfig,
     _phantom: PhantomData<()>,
 }
 
@@ -398,6 +399,133 @@ pub struct RecoveryScoringConfig {
     pub sleep_weight_no_hrv: f64,
 }
 
+/// Nutrition Analysis Configuration
+///
+/// Scientific references:
+/// - BMR: Mifflin et al. (1990) DOI: 10.1093/ajcn/51.2.241
+/// - Protein: Phillips & Van Loon (2011) DOI: 10.1080/02640414.2011.619204
+/// - Carbs: Burke et al. (2011) DOI: 10.1080/02640414.2011.585473
+/// - Timing: Kerksick et al. (2017) DOI: 10.1186/s12970-017-0189-4
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NutritionConfig {
+    pub bmr: BmrConfig,
+    pub activity_factors: ActivityFactorsConfig,
+    pub macronutrients: MacronutrientConfig,
+    pub nutrient_timing: NutrientTimingConfig,
+    pub usda_api: UsdaApiConfig,
+}
+
+/// BMR (Basal Metabolic Rate) calculation configuration
+///
+/// Reference: Mifflin, M.D., et al. (1990). A new predictive equation for resting energy expenditure.
+/// American Journal of Clinical Nutrition, 51(2), 241-247. DOI: 10.1093/ajcn/51.2.241
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BmrConfig {
+    /// Mifflin-St Jeor formula enabled (recommended)
+    pub use_mifflin_st_jeor: bool,
+    /// Harris-Benedict formula enabled (legacy)
+    pub use_harris_benedict: bool,
+    /// Mifflin-St Jeor weight coefficient (10.0)
+    pub msj_weight_coef: f64,
+    /// Mifflin-St Jeor height coefficient (6.25)
+    pub msj_height_coef: f64,
+    /// Mifflin-St Jeor age coefficient (-5.0)
+    pub msj_age_coef: f64,
+    /// Mifflin-St Jeor male constant (+5)
+    pub msj_male_constant: f64,
+    /// Mifflin-St Jeor female constant (-161)
+    pub msj_female_constant: f64,
+}
+
+/// Activity factor multipliers for TDEE calculation
+///
+/// Reference: `McArdle`, W.D., Katch, F.I., & Katch, V.L. (2010). Exercise Physiology
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActivityFactorsConfig {
+    /// Sedentary (little/no exercise): 1.2
+    pub sedentary: f64,
+    /// Lightly active (1-3 days/week): 1.375
+    pub lightly_active: f64,
+    /// Moderately active (3-5 days/week): 1.55
+    pub moderately_active: f64,
+    /// Very active (6-7 days/week): 1.725
+    pub very_active: f64,
+    /// Extra active (hard training 2x/day): 1.9
+    pub extra_active: f64,
+}
+
+/// Macronutrient recommendation configuration
+///
+/// References:
+/// - Protein: Phillips & Van Loon (2011) DOI: 10.1080/02640414.2011.619204
+/// - Carbs: Burke et al. (2011) DOI: 10.1080/02640414.2011.585473
+/// - Fats: DRI (Dietary Reference Intakes)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MacronutrientConfig {
+    /// Minimum protein (g/kg bodyweight) - sedentary: 0.8
+    pub protein_min_g_per_kg: f64,
+    /// Moderate activity protein (g/kg): 1.2-1.4
+    pub protein_moderate_g_per_kg: f64,
+    /// Athlete protein (g/kg): 1.6-2.2
+    pub protein_athlete_g_per_kg: f64,
+    /// Endurance athlete max protein (g/kg): 2.0
+    pub protein_endurance_max_g_per_kg: f64,
+    /// Strength athlete max protein (g/kg): 2.2
+    pub protein_strength_max_g_per_kg: f64,
+    /// Minimum carbs (g/kg) - low activity: 3.0
+    pub carbs_low_activity_g_per_kg: f64,
+    /// Moderate activity carbs (g/kg): 5-7
+    pub carbs_moderate_activity_g_per_kg: f64,
+    /// High endurance carbs (g/kg): 8-12
+    pub carbs_high_endurance_g_per_kg: f64,
+    /// Minimum fat percentage of TDEE: 20%
+    pub fat_min_percent_tdee: f64,
+    /// Maximum fat percentage of TDEE: 35%
+    pub fat_max_percent_tdee: f64,
+    /// Optimal fat percentage: 25-30%
+    pub fat_optimal_percent_tdee: f64,
+}
+
+/// Nutrient timing configuration
+///
+/// References:
+/// - Kerksick et al. (2017) DOI: 10.1186/s12970-017-0189-4
+/// - Aragon & Schoenfeld (2013) DOI: 10.1186/1550-2783-10-5
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NutrientTimingConfig {
+    /// Pre-workout window (hours before): 1-3 hours
+    pub pre_workout_window_hours: f64,
+    /// Post-workout anabolic window (hours): 2 hours
+    pub post_workout_window_hours: f64,
+    /// Pre-workout carbs (g/kg): 0.5-1.0
+    pub pre_workout_carbs_g_per_kg: f64,
+    /// Post-workout protein minimum (g): 20g
+    pub post_workout_protein_g_min: f64,
+    /// Post-workout protein maximum (g): 40g
+    pub post_workout_protein_g_max: f64,
+    /// Post-workout carbs (g/kg): 0.8-1.2
+    pub post_workout_carbs_g_per_kg: f64,
+    /// Minimum protein meals per day
+    pub protein_meals_per_day_min: u8,
+    /// Optimal protein meals per day
+    pub protein_meals_per_day_optimal: u8,
+}
+
+/// USDA `FoodData` Central API configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UsdaApiConfig {
+    /// Base URL for USDA `FoodData` Central
+    pub base_url: String,
+    /// API request timeout (seconds)
+    pub timeout_secs: u64,
+    /// Cache TTL (hours) - 24 hours recommended
+    pub cache_ttl_hours: u64,
+    /// Max cached items (LRU eviction)
+    pub max_cache_items: usize,
+    /// Rate limit: requests per minute
+    pub rate_limit_per_minute: u32,
+}
+
 /// Global configuration singleton
 static INTELLIGENCE_CONFIG: OnceLock<IntelligenceConfig<true>> = OnceLock::new();
 
@@ -586,6 +714,105 @@ impl IntelligenceConfig<true> {
         if (no_hrv_weight_sum - 1.0).abs() > 0.01 {
             return Err(ConfigError::InvalidWeights(
                 "Recovery weights (no HRV) must sum to 1.0",
+            ));
+        }
+
+        // Validate nutrition configuration
+        let nutr = &self.nutrition;
+
+        // Validate BMR coefficients are positive
+        if nutr.bmr.msj_weight_coef <= 0.0 || nutr.bmr.msj_height_coef <= 0.0 {
+            return Err(ConfigError::ValueOutOfRange(
+                "BMR weight and height coefficients must be positive",
+            ));
+        }
+
+        // Validate activity factors are > 1.0 and ascending
+        if nutr.activity_factors.sedentary < 1.0 || nutr.activity_factors.extra_active > 2.5 {
+            return Err(ConfigError::ValueOutOfRange(
+                "Activity factors must be between 1.0 and 2.5",
+            ));
+        }
+        if nutr.activity_factors.sedentary >= nutr.activity_factors.lightly_active
+            || nutr.activity_factors.lightly_active >= nutr.activity_factors.moderately_active
+            || nutr.activity_factors.moderately_active >= nutr.activity_factors.very_active
+            || nutr.activity_factors.very_active >= nutr.activity_factors.extra_active
+        {
+            return Err(ConfigError::InvalidRange(
+                "Activity factors must be in ascending order",
+            ));
+        }
+
+        // Validate protein recommendations are reasonable (0.5-3.0 g/kg)
+        if nutr.macronutrients.protein_min_g_per_kg < 0.5
+            || nutr.macronutrients.protein_strength_max_g_per_kg > 3.0
+        {
+            return Err(ConfigError::ValueOutOfRange(
+                "Protein recommendations must be between 0.5 and 3.0 g/kg",
+            ));
+        }
+        if nutr.macronutrients.protein_min_g_per_kg >= nutr.macronutrients.protein_moderate_g_per_kg
+        {
+            return Err(ConfigError::InvalidRange(
+                "protein_min must be < protein_moderate",
+            ));
+        }
+
+        // Validate carb recommendations are reasonable (1.0-15.0 g/kg)
+        if nutr.macronutrients.carbs_low_activity_g_per_kg < 1.0
+            || nutr.macronutrients.carbs_high_endurance_g_per_kg > 15.0
+        {
+            return Err(ConfigError::ValueOutOfRange(
+                "Carb recommendations must be between 1.0 and 15.0 g/kg",
+            ));
+        }
+
+        // Validate fat percentages
+        if nutr.macronutrients.fat_min_percent_tdee < 10.0
+            || nutr.macronutrients.fat_max_percent_tdee > 50.0
+        {
+            return Err(ConfigError::ValueOutOfRange(
+                "Fat percentage must be between 10% and 50% of TDEE",
+            ));
+        }
+        if nutr.macronutrients.fat_min_percent_tdee >= nutr.macronutrients.fat_max_percent_tdee {
+            return Err(ConfigError::InvalidRange(
+                "fat_min_percent must be < fat_max_percent",
+            ));
+        }
+
+        // Validate nutrient timing windows
+        if nutr.nutrient_timing.pre_workout_window_hours > 6.0
+            || nutr.nutrient_timing.post_workout_window_hours > 6.0
+        {
+            return Err(ConfigError::ValueOutOfRange(
+                "Pre/post workout windows must be <= 6 hours",
+            ));
+        }
+        if nutr.nutrient_timing.post_workout_protein_g_min
+            >= nutr.nutrient_timing.post_workout_protein_g_max
+        {
+            return Err(ConfigError::InvalidRange(
+                "post_workout_protein_min must be < post_workout_protein_max",
+            ));
+        }
+        if nutr.nutrient_timing.protein_meals_per_day_min == 0
+            || nutr.nutrient_timing.protein_meals_per_day_optimal == 0
+        {
+            return Err(ConfigError::ValueOutOfRange(
+                "Protein meals per day must be at least 1",
+            ));
+        }
+
+        // Validate USDA API config
+        if nutr.usda_api.timeout_secs == 0 || nutr.usda_api.timeout_secs > 60 {
+            return Err(ConfigError::ValueOutOfRange(
+                "USDA API timeout must be between 1 and 60 seconds",
+            ));
+        }
+        if nutr.usda_api.cache_ttl_hours == 0 || nutr.usda_api.cache_ttl_hours > 168 {
+            return Err(ConfigError::ValueOutOfRange(
+                "Cache TTL must be between 1 and 168 hours (7 days)",
             ));
         }
 
@@ -805,6 +1032,7 @@ impl Default for IntelligenceConfig<true> {
             activity_analyzer: Self::default_activity_analyzer_config(),
             metrics: Self::default_metrics_config(),
             sleep_recovery: Self::default_sleep_recovery_config(),
+            nutrition: Self::default_nutrition_config(),
             _phantom: PhantomData,
         }
     }
@@ -1196,6 +1424,88 @@ impl IntelligenceConfig<true> {
             // When HRV not available: TSB 50%, Sleep 50%
             tsb_weight_no_hrv: 0.5,
             sleep_weight_no_hrv: 0.5,
+        }
+    }
+
+    /// Create default nutrition configuration
+    /// Based on peer-reviewed scientific research (see struct documentation)
+    fn default_nutrition_config() -> NutritionConfig {
+        NutritionConfig {
+            bmr: Self::default_bmr_config(),
+            activity_factors: Self::default_activity_factors_config(),
+            macronutrients: Self::default_macronutrient_config(),
+            nutrient_timing: Self::default_nutrient_timing_config(),
+            usda_api: Self::default_usda_api_config(),
+        }
+    }
+
+    /// Create default BMR configuration
+    /// Based on Mifflin-St Jeor equation (Mifflin et al. 1990)
+    const fn default_bmr_config() -> BmrConfig {
+        BmrConfig {
+            use_mifflin_st_jeor: true,
+            use_harris_benedict: false,
+            msj_weight_coef: 10.0,
+            msj_height_coef: 6.25,
+            msj_age_coef: -5.0,
+            msj_male_constant: 5.0,
+            msj_female_constant: -161.0,
+        }
+    }
+
+    /// Create default activity factors configuration
+    /// Based on `McArdle` et al. (2010) Exercise Physiology
+    const fn default_activity_factors_config() -> ActivityFactorsConfig {
+        ActivityFactorsConfig {
+            sedentary: 1.2,
+            lightly_active: 1.375,
+            moderately_active: 1.55,
+            very_active: 1.725,
+            extra_active: 1.9,
+        }
+    }
+
+    /// Create default macronutrient configuration
+    /// Based on Phillips & Van Loon (2011), Burke et al. (2011), DRI guidelines
+    const fn default_macronutrient_config() -> MacronutrientConfig {
+        MacronutrientConfig {
+            protein_min_g_per_kg: 0.8,
+            protein_moderate_g_per_kg: 1.3,
+            protein_athlete_g_per_kg: 1.8,
+            protein_endurance_max_g_per_kg: 2.0,
+            protein_strength_max_g_per_kg: 2.2,
+            carbs_low_activity_g_per_kg: 3.0,
+            carbs_moderate_activity_g_per_kg: 6.0,
+            carbs_high_endurance_g_per_kg: 10.0,
+            fat_min_percent_tdee: 20.0,
+            fat_max_percent_tdee: 35.0,
+            fat_optimal_percent_tdee: 27.5,
+        }
+    }
+
+    /// Create default nutrient timing configuration
+    /// Based on Kerksick et al. (2017), Aragon & Schoenfeld (2013)
+    const fn default_nutrient_timing_config() -> NutrientTimingConfig {
+        NutrientTimingConfig {
+            pre_workout_window_hours: 2.0,
+            post_workout_window_hours: 2.0,
+            pre_workout_carbs_g_per_kg: 0.75,
+            post_workout_protein_g_min: 20.0,
+            post_workout_protein_g_max: 40.0,
+            post_workout_carbs_g_per_kg: 1.0,
+            protein_meals_per_day_min: 3,
+            protein_meals_per_day_optimal: 4,
+        }
+    }
+
+    /// Create default USDA API configuration
+    fn default_usda_api_config() -> UsdaApiConfig {
+        UsdaApiConfig {
+            base_url: "https://api.nal.usda.gov/fdc/v1".to_string(),
+            timeout_secs: 10,
+            cache_ttl_hours: 24,
+            max_cache_items: 1000,
+            rate_limit_per_minute: 30,
         }
     }
 }

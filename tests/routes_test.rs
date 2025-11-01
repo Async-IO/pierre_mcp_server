@@ -200,6 +200,7 @@ async fn test_register_user() {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -361,6 +362,7 @@ async fn test_register_duplicate_user() {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(

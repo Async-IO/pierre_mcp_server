@@ -50,6 +50,9 @@ pub mod training_load;
 pub mod recovery_calculator;
 pub mod sleep_analysis;
 
+// Nutrition analysis module (Phase 2)
+pub mod nutrition_calculator;
+
 // Activity analysis capabilities
 pub use activity_analyzer::{ActivityAnalyzerTrait, AdvancedActivityAnalyzer};
 pub use analyzer::ActivityAnalyzer;
@@ -97,6 +100,15 @@ pub use recovery_calculator::{
 pub use sleep_analysis::{
     HrvRecoveryStatus, HrvTrend, HrvTrendAnalysis, SleepAnalyzer, SleepData, SleepQualityCategory,
     SleepQualityScore,
+};
+
+// Re-export nutrition types
+pub use nutrition_calculator::{
+    calculate_carb_needs, calculate_daily_nutrition_needs, calculate_fat_needs,
+    calculate_mifflin_st_jeor, calculate_nutrient_timing, calculate_protein_needs, calculate_tdee,
+    ActivityLevel, DailyNutritionNeeds, DailyNutritionParams, Gender, MacroPercentages,
+    NutrientTimingPlan, PostWorkoutNutrition, PreWorkoutNutrition, ProteinDistribution,
+    TrainingGoal, WorkoutIntensity,
 };
 
 // Re-export configuration types for external use

@@ -260,6 +260,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -527,6 +528,7 @@ async fn test_user_login_success() -> Result<()> {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -790,6 +792,7 @@ async fn test_token_refresh_success() -> Result<()> {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -996,6 +999,7 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1445,6 +1449,7 @@ async fn test_complete_auth_flow() -> Result<()> {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1723,6 +1728,7 @@ async fn test_concurrent_logins() -> Result<()> {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     let cache = common::create_test_cache().await.unwrap();

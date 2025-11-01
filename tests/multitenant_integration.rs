@@ -308,6 +308,7 @@ async fn test_multitenant_auth_flow() -> Result<()> {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     // Create test cache with background cleanup disabled
@@ -763,6 +764,7 @@ async fn test_input_validation() -> Result<()> {
             max_entries: 10000,
             cleanup_interval_secs: 300,
         },
+        usda_api_key: None,
     });
 
     // Create test cache with background cleanup disabled
