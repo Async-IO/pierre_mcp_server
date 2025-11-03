@@ -22,8 +22,9 @@ The platform calculates fitness metrics using established sports science formula
 - **Sleep and Recovery**: NSF/AASM-based sleep quality scoring, TSB normalization, HRV-based recovery assessment, weighted recovery calculations
 - **Nutrition and USDA Integration**: Mifflin-St Jeor BMR, TDEE with activity factors, sport-specific protein/carb/fat recommendations, nutrient timing, USDA FoodData Central integration (350,000+ foods)
 - **Physiological Validation**: Bounds checking for heart rate (100-220 bpm max), power (50-600W FTP), VO2 max (20-90 ml/kg/min)
+- **Configurable Algorithms**: All calculation algorithms support multiple variants (e.g., Daniels vs Riegel for VDOT, Bannister vs Edwards for TRIMP) selectable via environment variables for runtime customization
 
-See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md), [Sleep and Recovery Methodology](docs/sleep-recovery-methodology.md), and [Nutrition Methodology](docs/nutrition-methodology.md) for formulas, implementation details, and scientific references.
+See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md), [Sleep and Recovery Methodology](docs/sleep-recovery-methodology.md), and [Nutrition Methodology](docs/nutrition-methodology.md) for formulas, implementation details, and scientific references. See [Algorithm Configuration](docs/configuration.md#algorithm-configuration) for available algorithm variants and configuration options.
 
 ## Features
 
@@ -159,6 +160,18 @@ export GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin  # lo
 
 # Weather data (optional)
 export OPENWEATHER_API_KEY=your_api_key
+
+# Algorithm configuration (optional - defaults optimized for most users)
+export PIERRE_MAXHR_ALGORITHM=tanaka           # Max heart rate: fox, tanaka, nes, gulati
+export PIERRE_TRIMP_ALGORITHM=hybrid           # Training impulse: bannister_male, bannister_female, edwards_simplified, lucia_banded, hybrid
+export PIERRE_TSS_ALGORITHM=avg_power          # Training stress score: avg_power, normalized_power, hybrid
+export PIERRE_VDOT_ALGORITHM=daniels           # Running performance: daniels, riegel, hybrid
+export PIERRE_TRAINING_LOAD_ALGORITHM=ema      # Training load: ema, sma, wma, kalman
+export PIERRE_RECOVERY_ALGORITHM=weighted      # Recovery aggregation: weighted, additive, multiplicative, minmax, neural
+export PIERRE_FTP_ALGORITHM=from_vo2max        # Functional threshold power: 20min_test, 8min_test, ramp_test, from_vo2max, hybrid
+export PIERRE_LTHR_ALGORITHM=from_maxhr        # Lactate threshold HR: from_maxhr, from_30min, from_race, lab_test, hybrid
+export PIERRE_VO2MAX_ALGORITHM=from_vdot       # VO2max estimation: from_vdot, cooper, rockport, astrand, bruce, hybrid
+# See docs/configuration.md#algorithm-configuration for details
 
 # Cache configuration
 export CACHE_MAX_ENTRIES=10000                    # Maximum cached entries (default: 10,000)

@@ -290,6 +290,155 @@ no runtime loading, zero overhead plugin discovery.
 
 implementation: `src/intelligence/plugins/mod.rs`, `src/lifecycle/`
 
+## algorithm dependency injection
+
+zero-overhead algorithm dispatch using rust enums instead of hardcoded formulas.
+
+### design pattern
+
+fitness intelligence uses enum-based dependency injection for all calculation algorithms:
+
+```rust
+pub enum VdotAlgorithm {
+    Daniels,                    // Jack Daniels' formula
+    Riegel { exponent: f64 },   // Power-law model
+    Hybrid,                     // Auto-select based on data
+}
+
+impl VdotAlgorithm {
+    pub fn calculate_vdot(&self, distance: f64, time: f64) -> Result<f64, AppError> {
+        match self {
+            Self::Daniels => Self::calculate_daniels(distance, time),
+            Self::Riegel { exponent } => Self::calculate_riegel(distance, time, *exponent),
+            Self::Hybrid => Self::calculate_hybrid(distance, time),
+        }
+    }
+}
+```
+
+### benefits
+
+**compile-time dispatch**: zero runtime overhead, inlined by llvm
+**configuration flexibility**: runtime algorithm selection via environment variables
+**defensive programming**: hybrid variants with automatic fallback
+**testability**: each variant independently testable
+**maintainability**: all algorithm logic in single enum file
+**no magic strings**: type-safe algorithm selection
+
+### algorithm types
+
+nine algorithm categories with multiple variants each:
+
+1. **max heart rate** (`src/intelligence/algorithms/max_heart_rate.rs`)
+   - fox, tanaka, nes, gulati
+   - environment: `PIERRE_MAXHR_ALGORITHM`
+
+2. **training impulse (trimp)** (`src/intelligence/algorithms/trimp.rs`)
+   - bannister male/female, edwards, lucia, hybrid
+   - environment: `PIERRE_TRIMP_ALGORITHM`
+
+3. **training stress score (tss)** (`src/intelligence/algorithms/tss.rs`)
+   - avg_power, normalized_power, hybrid
+   - environment: `PIERRE_TSS_ALGORITHM`
+
+4. **vdot** (`src/intelligence/algorithms/vdot.rs`)
+   - daniels, riegel, hybrid
+   - environment: `PIERRE_VDOT_ALGORITHM`
+
+5. **training load** (`src/intelligence/algorithms/training_load.rs`)
+   - ema, sma, wma, kalman filter
+   - environment: `PIERRE_TRAINING_LOAD_ALGORITHM`
+
+6. **recovery aggregation** (`src/intelligence/algorithms/recovery_aggregation.rs`)
+   - weighted, additive, multiplicative, minmax, neural
+   - environment: `PIERRE_RECOVERY_ALGORITHM`
+
+7. **functional threshold power (ftp)** (`src/intelligence/algorithms/ftp.rs`)
+   - 20min_test, 8min_test, ramp_test, from_vo2max, hybrid
+   - environment: `PIERRE_FTP_ALGORITHM`
+
+8. **lactate threshold heart rate (lthr)** (`src/intelligence/algorithms/lthr.rs`)
+   - from_maxhr, from_30min, from_race, lab_test, hybrid
+   - environment: `PIERRE_LTHR_ALGORITHM`
+
+9. **vo2max estimation** (`src/intelligence/algorithms/vo2max_estimation.rs`)
+   - from_vdot, cooper, rockport, astrand, bruce, hybrid
+   - environment: `PIERRE_VO2MAX_ALGORITHM`
+
+### configuration integration
+
+algorithms configured via `src/config/intelligence_config.rs`:
+
+```rust
+pub struct AlgorithmConfig {
+    pub max_heart_rate: String,     // PIERRE_MAXHR_ALGORITHM
+    pub trimp: String,               // PIERRE_TRIMP_ALGORITHM
+    pub tss: String,                 // PIERRE_TSS_ALGORITHM
+    pub vdot: String,                // PIERRE_VDOT_ALGORITHM
+    pub training_load: String,       // PIERRE_TRAINING_LOAD_ALGORITHM
+    pub recovery_aggregation: String, // PIERRE_RECOVERY_ALGORITHM
+    pub ftp: String,                 // PIERRE_FTP_ALGORITHM
+    pub lthr: String,                // PIERRE_LTHR_ALGORITHM
+    pub vo2max: String,              // PIERRE_VO2MAX_ALGORITHM
+}
+```
+
+defaults optimized for balanced accuracy vs data requirements.
+
+### enforcement
+
+automated validation ensures no hardcoded algorithms bypass the enum system.
+
+validation script: `scripts/validate-algorithm-di.sh`
+patterns defined: `scripts/validation-patterns.toml`
+
+checks for:
+- hardcoded formulas (e.g., `220 - age`)
+- magic numbers (e.g., `0.182258` in non-algorithm files)
+- algorithmic logic outside enum implementations
+
+exclusions documented in validation patterns (e.g., tests, algorithm enum files).
+
+ci pipeline fails on algorithm di violations (zero tolerance).
+
+### hybrid algorithms
+
+special variant that provides defensive fallback logic:
+
+```rust
+pub enum TssAlgorithm {
+    AvgPower,                // Simple, always works
+    NormalizedPower { .. },  // Accurate, requires power stream
+    Hybrid,                  // Try NP, fallback to avg_power
+}
+
+impl TssAlgorithm {
+    fn calculate_hybrid(&self, activity: &Activity, ...) -> Result<f64, AppError> {
+        Self::calculate_np_tss(activity, ...)
+            .or_else(|_| Self::calculate_avg_power_tss(activity, ...))
+    }
+}
+```
+
+hybrid algorithms maximize reliability while preferring accuracy when data available.
+
+### usage pattern
+
+all intelligence calculations use algorithm enums:
+
+```rust
+use crate::intelligence::algorithms::vdot::VdotAlgorithm;
+use crate::config::intelligence_config::get_config;
+
+let config = get_config();
+let algorithm = VdotAlgorithm::from_str(&config.algorithms.vdot)?;
+let vdot = algorithm.calculate_vdot(5000.0, 1200.0)?; // 5K in 20:00
+```
+
+no hardcoded formulas anywhere in intelligence layer.
+
+implementation: `src/intelligence/algorithms/`, `src/config/intelligence_config.rs`, `scripts/validate-algorithm-di.sh`
+
 ## pii redaction
 
 middleware layer removes sensitive data from logs and responses.

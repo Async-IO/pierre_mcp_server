@@ -107,6 +107,144 @@ OPENWEATHER_API_KEY=your_api_key
 
 get key: https://openweathermap.org/api
 
+### algorithm configuration
+
+fitness intelligence algorithms configurable via environment variables. each algorithm has multiple variants with different accuracy, performance, and data requirements.
+
+#### max heart rate estimation
+
+```bash
+PIERRE_MAXHR_ALGORITHM=tanaka  # default
+```
+
+**available algorithms**:
+- `fox`: Classic 220 - age formula (simple, least accurate)
+- `tanaka`: 208 - (0.7 × age) (default, validated in large studies)
+- `nes`: 211 - (0.64 × age) (most accurate for fit individuals)
+- `gulati`: 206 - (0.88 × age) (gender-specific for females)
+
+#### training impulse (trimp)
+
+```bash
+PIERRE_TRIMP_ALGORITHM=hybrid  # default
+```
+
+**available algorithms**:
+- `bannister_male`: Exponential formula for males (exp(1.92), requires resting HR)
+- `bannister_female`: Exponential formula for females (exp(1.67), requires resting HR)
+- `edwards_simplified`: Zone-based TRIMP (5 zones, linear weighting)
+- `lucia_banded`: Sport-specific intensity bands (cycling, running)
+- `hybrid`: Auto-select Bannister if data available, fallback to Edwards (default)
+
+#### training stress score (tss)
+
+```bash
+PIERRE_TSS_ALGORITHM=avg_power  # default
+```
+
+**available algorithms**:
+- `avg_power`: Fast calculation using average power (default, always works)
+- `normalized_power`: Industry standard using 30s rolling window (requires power stream)
+- `hybrid`: Try normalized power, fallback to average power if stream unavailable
+
+#### vdot (running performance)
+
+```bash
+PIERRE_VDOT_ALGORITHM=daniels  # default
+```
+
+**available algorithms**:
+- `daniels`: Jack Daniels' formula (VO2 = -4.60 + 0.182258×v + 0.000104×v²) (default)
+- `riegel`: Power-law model (T2 = T1 × (D2/D1)^1.06) (good for ultra distances)
+- `hybrid`: Auto-select Daniels for 5K-Marathon, Riegel for ultra distances
+
+#### training load (ctl/atl/tsb)
+
+```bash
+PIERRE_TRAINING_LOAD_ALGORITHM=ema  # default
+```
+
+**available algorithms**:
+- `ema`: Exponential Moving Average (TrainingPeaks standard, CTL=42d, ATL=7d) (default)
+- `sma`: Simple Moving Average (equal weights, simpler but less responsive)
+- `wma`: Weighted Moving Average (linear weights, compromise between EMA and SMA)
+- `kalman`: Kalman Filter (optimal for noisy data, complex tuning)
+
+#### recovery aggregation
+
+```bash
+PIERRE_RECOVERY_ALGORITHM=weighted  # default
+```
+
+**available algorithms**:
+- `weighted`: Weighted average with physiological priorities (default)
+- `additive`: Simple sum of recovery scores
+- `multiplicative`: Product of normalized recovery factors
+- `minmax`: Minimum score (conservative, limited by worst metric)
+- `neural`: ML-based aggregation (requires training data)
+
+#### functional threshold power (ftp)
+
+```bash
+PIERRE_FTP_ALGORITHM=from_vo2max  # default
+```
+
+**available algorithms**:
+- `20min_test`: 95% of 20-minute max average power (most common field test)
+- `8min_test`: 90% of 8-minute max average power (shorter alternative)
+- `ramp_test`: Protocol-specific extraction (Zwift, TrainerRoad formats)
+- `60min_power`: 100% of 60-minute max average power (gold standard, very difficult)
+- `critical_power`: 2-parameter model (requires multiple test durations)
+- `from_vo2max`: Estimate from VO2max (FTP = VO2max × 13.5 × fitness_factor) (default)
+- `hybrid`: Try best available method based on recent activity data
+
+#### lactate threshold heart rate (lthr)
+
+```bash
+PIERRE_LTHR_ALGORITHM=from_maxhr  # default
+```
+
+**available algorithms**:
+- `from_maxhr`: 85-90% of max HR based on fitness level (default, simple)
+- `from_30min`: 95-100% of 30-minute test average HR (field test)
+- `from_race`: Extract from race efforts (10K-Half Marathon pace)
+- `lab_test`: Direct lactate measurement (requires lab equipment)
+- `hybrid`: Auto-select best method from available data
+
+#### vo2max estimation
+
+```bash
+PIERRE_VO2MAX_ALGORITHM=from_vdot  # default
+```
+
+**available algorithms**:
+- `from_vdot`: Calculate from running VDOT (VO2max = VDOT in ml/kg/min) (default)
+- `cooper`: 12-minute run test (VO2max = (distance_m - 504.9) / 44.73)
+- `rockport`: 1-mile walk test (considers HR, age, gender, weight)
+- `astrand`: Submaximal cycle test (requires HR response)
+- `bruce`: Treadmill protocol (clinical setting, progressive grades)
+- `hybrid`: Auto-select from available test data
+
+**algorithm selection strategy**:
+- **default algorithms**: balanced accuracy vs data requirements
+- **hybrid algorithms**: defensive programming, fallback to simpler methods
+- **specialized algorithms**: higher accuracy but more data/computation required
+
+**configuration example** (.envrc):
+```bash
+# conservative setup (less data required)
+export PIERRE_MAXHR_ALGORITHM=tanaka
+export PIERRE_TRIMP_ALGORITHM=edwards_simplified
+export PIERRE_TSS_ALGORITHM=avg_power
+export PIERRE_RECOVERY_ALGORITHM=weighted
+
+# performance setup (requires more data)
+export PIERRE_TRIMP_ALGORITHM=bannister_male
+export PIERRE_TSS_ALGORITHM=normalized_power
+export PIERRE_TRAINING_LOAD_ALGORITHM=kalman
+export PIERRE_RECOVERY_ALGORITHM=neural
+```
+
 ### database configuration
 
 #### sqlite (development)

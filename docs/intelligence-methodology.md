@@ -12,6 +12,8 @@ this comprehensive guide explains the scientific methods, algorithms, and decisi
 - **limitations and guardrails**: edge cases, confidence levels, and safety mechanisms
 - **verification**: validation against published sports science data
 
+**algorithm implementation**: all algorithms described in this document are implemented using enum-based dependency injection for runtime configuration flexibility. each algorithm category (max heart rate, TRIMP, TSS, VDOT, training load, recovery, FTP, LTHR, VO2max) supports multiple variants selectable via environment variables. see [configuration.md](configuration.md#algorithm-configuration) for available algorithm variants and [architecture.md](architecture.md#algorithm-dependency-injection) for implementation details.
+
 ---
 
 ## Table of contents
