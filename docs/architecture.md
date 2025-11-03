@@ -1,6 +1,6 @@
 # architecture
 
-Pierre Fitness Platform is a multi-protocol fitness data platform that connects AI assistants to strava, garmin, and fitbit. single binary, single port (8081), multiple protocols.
+Pierre Fitness Platform is a multi-protocol fitness data platform that connects AI assistants to strava, garmin, and fitbit. Single binary, single port (8081), multiple protocols.
 
 ## system design
 
@@ -119,14 +119,14 @@ AppError (src/errors.rs)
 
 ### error propagation
 
-all fallible operations return `Result<T, E>` types:
+All fallible operations return `Result<T, E>` types:
 ```rust
 pub async fn get_user(db: &Database, user_id: &str) -> Result<User, DatabaseError>
 pub async fn fetch_activities(provider: &Strava) -> Result<Vec<Activity>, ProviderError>
 pub async fn process_request(req: Request) -> Result<Response, AppError>
 ```
 
-errors propagate using `?` operator and convert automatically:
+Errors propagate using `?` operator and convert automatically:
 ```rust
 // DatabaseError converts to AppError
 let user = db.get_user(user_id).await?;
@@ -137,7 +137,7 @@ let activities = provider.fetch_activities().await?;
 
 ### error responses
 
-structured json error responses:
+Structured json error responses:
 ```json
 {
   "error": {
@@ -151,14 +151,14 @@ structured json error responses:
 }
 ```
 
-http status mapping:
+Http status mapping:
 - `DatabaseError::NotFound` → 404
 - `ProviderError::ApiError` → 502/503
 - `AppError::Validation` → 400
 - `AppError::Authentication` → 401
 - `AppError::Authorization` → 403
 
-implementation: `src/errors.rs`, `src/database/errors.rs`, `src/providers/errors.rs`
+Implementation: `src/errors.rs`, `src/database/errors.rs`, `src/providers/errors.rs`
 
 ## request flow
 
@@ -190,7 +190,7 @@ response
 
 ## multi-tenancy
 
-every request operates within tenant context:
+Every request operates within tenant context:
 - isolated data per tenant
 - tenant-specific encryption keys
 - custom rate limits
@@ -199,13 +199,13 @@ every request operates within tenant context:
 ## key design decisions
 
 ### single port architecture
-all protocols share port 8081. simplified deployment, easier oauth2 callback handling, unified tls/security.
+All protocols share port 8081. Simplified deployment, easier oauth2 callback handling, unified tls/security.
 
 ### dependency injection via serverresources
-all components initialized once at startup, shared via `Arc<T>`. eliminates resource creation anti-patterns.
+All components initialized once at startup, shared via `Arc<T>`. Eliminates resource creation anti-patterns.
 
 ### protocol abstraction
-business logic in `protocols::universal` works for both mcp and a2a. write once, use everywhere.
+Business logic in `protocols::universal` works for both mcp and a2a. Write once, use everywhere.
 
 ### pluggable architecture
 - database: sqlite (dev) or postgresql (prod)
@@ -256,7 +256,7 @@ src/
 ## scalability
 
 ### horizontal scaling
-stateless server design. scale by adding instances behind load balancer. shared postgresql + redis for state.
+Stateless server design. Scale by adding instances behind load balancer. Shared postgresql + redis for state.
 
 ### database sharding
 - tenant-based sharding
@@ -271,32 +271,32 @@ stateless server design. scale by adding instances behind load balancer. shared 
 
 ## plugin lifecycle
 
-compile-time plugin system using `linkme` crate for intelligence modules.
+Compile-time plugin system using `linkme` crate for intelligence modules.
 
-plugins stored in `src/intelligence/plugins/`:
+Plugins stored in `src/intelligence/plugins/`:
 - zone-based intensity analysis
 - training recommendations
 - performance trend detection
 - goal feasibility analysis
 
-lifecycle hooks:
+Lifecycle hooks:
 - `init()` - plugin initialization
 - `execute()` - tool execution
 - `validate()` - parameter validation
 - `cleanup()` - resource cleanup
 
-plugins registered at compile time via `#[distributed_slice(PLUGINS)]` attribute.
-no runtime loading, zero overhead plugin discovery.
+Plugins registered at compile time via `#[distributed_slice(PLUGINS)]` attribute.
+No runtime loading, zero overhead plugin discovery.
 
-implementation: `src/intelligence/plugins/mod.rs`, `src/lifecycle/`
+Implementation: `src/intelligence/plugins/mod.rs`, `src/lifecycle/`
 
 ## algorithm dependency injection
 
-zero-overhead algorithm dispatch using rust enums instead of hardcoded formulas.
+Zero-overhead algorithm dispatch using rust enums instead of hardcoded formulas.
 
 ### design pattern
 
-fitness intelligence uses enum-based dependency injection for all calculation algorithms:
+Fitness intelligence uses enum-based dependency injection for all calculation algorithms:
 
 ```rust
 pub enum VdotAlgorithm {
@@ -327,7 +327,7 @@ impl VdotAlgorithm {
 
 ### algorithm types
 
-nine algorithm categories with multiple variants each:
+Nine algorithm categories with multiple variants each:
 
 1. **max heart rate** (`src/intelligence/algorithms/max_heart_rate.rs`)
    - fox, tanaka, nes, gulati
@@ -367,7 +367,7 @@ nine algorithm categories with multiple variants each:
 
 ### configuration integration
 
-algorithms configured via `src/config/intelligence_config.rs`:
+Algorithms configured via `src/config/intelligence_config.rs`:
 
 ```rust
 pub struct AlgorithmConfig {
@@ -383,27 +383,27 @@ pub struct AlgorithmConfig {
 }
 ```
 
-defaults optimized for balanced accuracy vs data requirements.
+Defaults optimized for balanced accuracy vs data requirements.
 
 ### enforcement
 
-automated validation ensures no hardcoded algorithms bypass the enum system.
+Automated validation ensures no hardcoded algorithms bypass the enum system.
 
-validation script: `scripts/validate-algorithm-di.sh`
-patterns defined: `scripts/validation-patterns.toml`
+Validation script: `scripts/validate-algorithm-di.sh`
+Patterns defined: `scripts/validation-patterns.toml`
 
-checks for:
+Checks for:
 - hardcoded formulas (e.g., `220 - age`)
 - magic numbers (e.g., `0.182258` in non-algorithm files)
 - algorithmic logic outside enum implementations
 
-exclusions documented in validation patterns (e.g., tests, algorithm enum files).
+Exclusions documented in validation patterns (e.g., tests, algorithm enum files).
 
-ci pipeline fails on algorithm di violations (zero tolerance).
+Ci pipeline fails on algorithm di violations (zero tolerance).
 
 ### hybrid algorithms
 
-special variant that provides defensive fallback logic:
+Special variant that provides defensive fallback logic:
 
 ```rust
 pub enum TssAlgorithm {
@@ -420,11 +420,11 @@ impl TssAlgorithm {
 }
 ```
 
-hybrid algorithms maximize reliability while preferring accuracy when data available.
+Hybrid algorithms maximize reliability while preferring accuracy when data available.
 
 ### usage pattern
 
-all intelligence calculations use algorithm enums:
+All intelligence calculations use algorithm enums:
 
 ```rust
 use crate::intelligence::algorithms::vdot::VdotAlgorithm;
@@ -435,59 +435,59 @@ let algorithm = VdotAlgorithm::from_str(&config.algorithms.vdot)?;
 let vdot = algorithm.calculate_vdot(5000.0, 1200.0)?; // 5K in 20:00
 ```
 
-no hardcoded formulas anywhere in intelligence layer.
+No hardcoded formulas anywhere in intelligence layer.
 
-implementation: `src/intelligence/algorithms/`, `src/config/intelligence_config.rs`, `scripts/validate-algorithm-di.sh`
+Implementation: `src/intelligence/algorithms/`, `src/config/intelligence_config.rs`, `scripts/validate-algorithm-di.sh`
 
 ## pii redaction
 
-middleware layer removes sensitive data from logs and responses.
+Middleware layer removes sensitive data from logs and responses.
 
-redacted fields:
+Redacted fields:
 - email addresses
 - passwords
 - tokens (jwt, oauth, api keys)
 - user ids
 - tenant ids
 
-redaction patterns:
+Redaction patterns:
 - email: `***@***.***`
 - token: `[REDACTED-<type>]`
 - uuid: `[REDACTED-UUID]`
 
-enabled via `LOG_FORMAT=json` for structured logging.
-implementation: `src/middleware/redaction.rs`
+Enabled via `LOG_FORMAT=json` for structured logging.
+Implementation: `src/middleware/redaction.rs`
 
 ## cursor pagination
 
-keyset pagination using composite cursor (`created_at`, `id`) for consistent ordering.
+Keyset pagination using composite cursor (`created_at`, `id`) for consistent ordering.
 
-benefits:
+Benefits:
 - no duplicate results during data changes
 - stable pagination across pages
 - efficient for large datasets
 
-cursor format: base64-encoded json with timestamp (milliseconds) + id.
+Cursor format: base64-encoded json with timestamp (milliseconds) + id.
 
-example:
+Example:
 ```
 cursor: "eyJ0aW1lc3RhbXAiOjE3MDAwMDAwMDAsImlkIjoiYWJjMTIzIn0="
 decoded: {"timestamp":1700000000,"id":"abc123"}
 ```
 
-endpoints using cursor pagination:
+Endpoints using cursor pagination:
 - `GET /admin/users/pending?cursor=<cursor>&limit=20`
 - `GET /admin/users/active?cursor=<cursor>&limit=20`
 
-implementation: `src/pagination/`, `src/database/users.rs:668-737`, `src/database_plugins/postgres.rs:378-420`
+Implementation: `src/pagination/`, `src/database/users.rs:668-737`, `src/database_plugins/postgres.rs:378-420`
 
 ## monitoring
 
-health endpoint: `GET /health`
+Health endpoint: `GET /health`
 - database connectivity
 - provider availability
 - system uptime
 - cache statistics
 
-logs: structured json via tracing + opentelemetry
-metrics: request latency, error rates, provider api usage
+Logs: structured json via tracing + opentelemetry
+Metrics: request latency, error rates, provider api usage

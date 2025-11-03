@@ -1,6 +1,6 @@
 # authentication
 
-pierre supports multiple authentication methods for different use cases.
+Pierre supports multiple authentication methods for different use cases.
 
 ## authentication methods
 
@@ -24,7 +24,7 @@ curl -X POST http://localhost:8081/auth/register \
   }'
 ```
 
-response:
+Response:
 ```json
 {
   "user_id": "uuid",
@@ -45,11 +45,11 @@ curl -X POST http://localhost:8081/auth/login \
   }'
 ```
 
-response includes jwt token. store securely.
+Response includes jwt token. Store securely.
 
 ### using jwt tokens
 
-include in authorization header:
+Include in authorization header:
 ```bash
 curl -H "Authorization: Bearer <jwt_token>" \
   http://localhost:8081/mcp
@@ -57,9 +57,9 @@ curl -H "Authorization: Bearer <jwt_token>" \
 
 ### token expiry
 
-default: 24 hours (configurable via `JWT_EXPIRY_HOURS`)
+Default: 24 hours (configurable via `JWT_EXPIRY_HOURS`)
 
-refresh before expiry:
+Refresh before expiry:
 ```bash
 curl -X POST http://localhost:8081/auth/refresh \
   -H "Authorization: Bearer <current_token>"
@@ -67,11 +67,11 @@ curl -X POST http://localhost:8081/auth/refresh \
 
 ## api key authentication
 
-for a2a systems and service-to-service communication.
+For a2a systems and service-to-service communication.
 
 ### creating api keys
 
-requires admin or user jwt:
+Requires admin or user jwt:
 ```bash
 curl -X POST http://localhost:8081/api/keys \
   -H "Authorization: Bearer <jwt_token>" \
@@ -82,7 +82,7 @@ curl -X POST http://localhost:8081/api/keys \
   }'
 ```
 
-response:
+Response:
 ```json
 {
   "api_key": "generated_key",
@@ -92,7 +92,7 @@ response:
 }
 ```
 
-save api key - cannot be retrieved later.
+Save api key - cannot be retrieved later.
 
 ### using api keys
 
@@ -107,15 +107,15 @@ curl -H "X-API-Key: <api_key>" \
 - `professional`: 10,000 requests/day
 - `enterprise`: unlimited
 
-rate limits enforced per tier.
+Rate limits enforced per tier.
 
 ## oauth2 (mcp client authentication)
 
-pierre acts as oauth2 authorization server for mcp clients.
+Pierre acts as oauth2 authorization server for mcp clients.
 
 ### oauth2 vs oauth (terminology)
 
-pierre implements two oauth systems:
+Pierre implements two oauth systems:
 
 1. **oauth2_server module** (`src/oauth2_server/`): pierre AS oauth2 server
    - mcp clients authenticate TO pierre
@@ -129,7 +129,7 @@ pierre implements two oauth systems:
 
 ### oauth2 flow (mcp clients)
 
-sdk handles automatically. manual flow:
+Sdk handles automatically. Manual flow:
 
 1. **register client**:
 ```bash
@@ -162,20 +162,20 @@ curl -X POST http://localhost:8081/oauth2/token \
       code_verifier=<verifier>"
 ```
 
-receives jwt access token.
+Receives jwt access token.
 
 ### pkce enforcement
 
-pierre requires pkce (rfc 7636) for security:
+Pierre requires pkce (rfc 7636) for security:
 - code verifier: 43-128 random characters
 - code challenge: base64url(sha256(verifier))
 - challenge method: S256 only
 
-no plain text challenge methods allowed.
+No plain text challenge methods allowed.
 
 ## provider oauth (fitness data)
 
-pierre acts as oauth client to fitness providers.
+Pierre acts as oauth client to fitness providers.
 
 ### supported providers
 
@@ -185,7 +185,7 @@ pierre acts as oauth client to fitness providers.
 
 ### configuration
 
-set environment variables:
+Set environment variables:
 ```bash
 # strava (local development)
 export STRAVA_CLIENT_ID=your_id
@@ -214,18 +214,18 @@ export GARMIN_REDIRECT_URI=https://api.example.com/api/oauth/callback/garmin  # 
 
 ### connecting providers
 
-via mcp tool:
+Via mcp tool:
 ```
 user: "connect to strava"
 ```
 
-or via rest api:
+Or via rest api:
 ```bash
 curl -H "Authorization: Bearer <jwt>" \
   http://localhost:8081/oauth/connect/strava
 ```
 
-opens browser for provider authentication. after approval, redirected to callback:
+Opens browser for provider authentication. After approval, redirected to callback:
 ```bash
 # local development
 http://localhost:8081/api/oauth/callback/strava?code=<auth_code>
@@ -234,13 +234,13 @@ http://localhost:8081/api/oauth/callback/strava?code=<auth_code>
 https://api.example.com/api/oauth/callback/strava?code=<auth_code>
 ```
 
-pierre exchanges code for access/refresh tokens, stores encrypted.
+Pierre exchanges code for access/refresh tokens, stores encrypted.
 
-**security**: authorization codes in callback urls must be protected with tls in production. http callbacks leak codes to network observers.
+**security**: authorization codes in callback urls must be protected with tls in production. Http callbacks leak codes to network observers.
 
 ### token storage
 
-provider tokens stored encrypted in database:
+Provider tokens stored encrypted in database:
 - encryption key: tenant-specific key (derived from master key)
 - algorithm: aes-256-gcm
 - rotation: automatic refresh before expiry
@@ -252,7 +252,7 @@ curl -H "Authorization: Bearer <jwt>" \
   http://localhost:8081/oauth/status
 ```
 
-response:
+Response:
 ```json
 {
   "connected_providers": ["strava"],
@@ -286,14 +286,14 @@ response:
 
 ### rs256/jwks
 
-asymmetric signing for distributed token verification.
+Asymmetric signing for distributed token verification.
 
-public keys available at `/admin/jwks` (legacy) and `/oauth2/jwks` (oauth2 clients):
+Public keys available at `/admin/jwks` (legacy) and `/oauth2/jwks` (oauth2 clients):
 ```bash
 curl http://localhost:8081/oauth2/jwks
 ```
 
-response (rfc 7517 compliant):
+Response (rfc 7517 compliant):
 ```json
 {
   "keys": [
@@ -310,19 +310,19 @@ response (rfc 7517 compliant):
 
 **cache-control headers**: jwks endpoint returns `Cache-Control: public, max-age=3600` allowing browsers to cache public keys for 1 hour.
 
-clients verify tokens using public key. pierre signs with private key.
+Clients verify tokens using public key. Pierre signs with private key.
 
-benefits:
+Benefits:
 - private key never leaves server
 - clients verify without shared secret
 - supports key rotation with grace period
 - browser caching reduces jwks endpoint load
 
-**key rotation**: when keys are rotated, old keys are retained during grace period to allow existing tokens to validate. new tokens are signed with the current key.
+**key rotation**: when keys are rotated, old keys are retained during grace period to allow existing tokens to validate. New tokens are signed with the current key.
 
 ### rate limiting
 
-token bucket algorithm per authentication method:
+Token bucket algorithm per authentication method:
 - jwt tokens: per-tenant limits
 - api keys: per-tier limits (free: 100/day, professional: 10,000/day, enterprise: unlimited)
 - oauth2 endpoints: per-ip limits
@@ -330,7 +330,7 @@ token bucket algorithm per authentication method:
   - `/oauth2/token`: 30 requests/minute
   - `/oauth2/register`: 10 requests/minute
 
-oauth2 rate limit responses include:
+Oauth2 rate limit responses include:
 ```
 X-RateLimit-Limit: 60
 X-RateLimit-Remaining: 59
@@ -338,7 +338,7 @@ X-RateLimit-Reset: 1704067200
 Retry-After: 42
 ```
 
-implementation: `src/rate_limiting.rs`, `src/oauth2/rate_limiting.rs`
+Implementation: `src/rate_limiting.rs`, `src/oauth2/rate_limiting.rs`
 
 ### csrf protection
 
@@ -348,11 +348,11 @@ implementation: `src/rate_limiting.rs`, `src/oauth2/rate_limiting.rs`
 
 ### atomic token operations
 
-pierre prevents toctou (time-of-check to time-of-use) race conditions in token operations.
+Pierre prevents toctou (time-of-check to time-of-use) race conditions in token operations.
 
 **problem**: token reuse attacks
 
-standard token validation flow vulnerable to race conditions:
+Standard token validation flow vulnerable to race conditions:
 ```
 thread 1: check token valid → ✓ valid
 thread 2: check token valid → ✓ valid
@@ -362,7 +362,7 @@ thread 2: revoke token → success (token used twice!)
 
 **solution**: atomic check-and-revoke
 
-pierre uses database-level atomic operations:
+Pierre uses database-level atomic operations:
 ```sql
 -- single atomic transaction
 UPDATE oauth2_refresh_tokens
@@ -371,7 +371,7 @@ WHERE token = ? AND revoked_at IS NULL
 RETURNING *
 ```
 
-benefits:
+Benefits:
 - **race condition elimination**: only one thread can consume token
 - **database-level garantees**: transaction isolation prevents concurrent access
 - **zero-trust security**: every token exchange verified atomically
@@ -383,13 +383,13 @@ benefits:
 
 **implementation details**:
 
-atomic operations in database plugins (`src/database_plugins/`):
+Atomic operations in database plugins (`src/database_plugins/`):
 ```rust
 /// atomically consume oauth2 refresh token (check-and-revoke in single operation)
 async fn consume_refresh_token(&self, token: &str) -> Result<RefreshToken, DatabaseError>
 ```
 
-sqlite implementation uses `RETURNING` clause:
+Sqlite implementation uses `RETURNING` clause:
 ```rust
 UPDATE oauth2_refresh_tokens
 SET revoked_at = datetime('now')
@@ -397,7 +397,7 @@ WHERE token = ? AND revoked_at IS NULL
 RETURNING *
 ```
 
-postgresql implementation uses same pattern with `RETURNING`:
+Postgresql implementation uses same pattern with `RETURNING`:
 ```rust
 UPDATE oauth2_refresh_tokens
 SET revoked_at = NOW()
@@ -405,20 +405,20 @@ WHERE token = $1 AND revoked_at IS NULL
 RETURNING *
 ```
 
-if query returns no rows, token either:
+If query returns no rows, token either:
 - doesn't exist
 - already revoked (race condition detected)
 - expired
 
-all three cases result in authentication failure, preventing token reuse.
+All three cases result in authentication failure, preventing token reuse.
 
-security guarantees:
+Security guarantees:
 - **serializability**: database transactions prevent concurrent modifications
 - **atomicity**: check and revoke happen in single operation
 - **consistency**: no partial state changes possible
 - **isolation**: concurrent requests see consistent view
 
-implementation: `src/database_plugins/sqlite.rs`, `src/database_plugins/postgres.rs`, `src/oauth2/endpoints.rs`
+Implementation: `src/database_plugins/sqlite.rs`, `src/database_plugins/postgres.rs`, `src/oauth2/endpoints.rs`
 
 ## troubleshooting
 

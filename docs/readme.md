@@ -1,6 +1,6 @@
 # documentation
 
-concise documentation for pierre mcp server.
+Concise documentation for pierre mcp server.
 
 ## essential docs
 
@@ -14,7 +14,7 @@ concise documentation for pierre mcp server.
 ## quick links
 
 ### for ai assistant users
-start with [getting-started.md](getting-started.md) → connect claude/chatgpt to your fitness data
+Start with [getting-started.md](getting-started.md) → connect claude/chatgpt to your fitness data
 
 ### for developers
 1. [getting-started.md](getting-started.md) - setup dev environment
@@ -29,7 +29,7 @@ start with [getting-started.md](getting-started.md) → connect claude/chatgpt t
 
 ## installation guides
 
-located in `installation-guides/`:
+Located in `installation-guides/`:
 - `install-mcp-client.md` - sdk installation for claude desktop, chatgpt
 
 ## additional resources
@@ -45,4 +45,4 @@ located in `installation-guides/`:
 - **practical**: code examples that work
 - **lowercase**: consistent naming
 
-based on https://github.com/github/github-mcp-server style.
+Based on https://github.com/github/github-mcp-server style.

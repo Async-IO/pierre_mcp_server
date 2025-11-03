@@ -2,7 +2,7 @@
 
 ## What this document covers
 
-this comprehensive guide explains the scientific methods, algorithms, and decision rules behind pierre's analytics engine. it provides transparency into:
+This comprehensive guide explains the scientific methods, algorithms, and decision rules behind pierre's analytics engine. It provides transparency into:
 
 - **mathematical foundations**: formulas, statistical methods, and physiological models
 - **data sources and processing**: inputs, validation, and transformation pipelines
@@ -12,7 +12,7 @@ this comprehensive guide explains the scientific methods, algorithms, and decisi
 - **limitations and guardrails**: edge cases, confidence levels, and safety mechanisms
 - **verification**: validation against published sports science data
 
-**algorithm implementation**: all algorithms described in this document are implemented using enum-based dependency injection for runtime configuration flexibility. each algorithm category (max heart rate, TRIMP, TSS, VDOT, training load, recovery, FTP, LTHR, VO2max) supports multiple variants selectable via environment variables. see [configuration.md](configuration.md#algorithm-configuration) for available algorithm variants and [architecture.md](architecture.md#algorithm-dependency-injection) for implementation details.
+**algorithm implementation**: all algorithms described in this document are implemented using enum-based dependency injection for runtime configuration flexibility. Each algorithm category (max heart rate, TRIMP, TSS, VDOT, training load, recovery, FTP, LTHR, VO2max) supports multiple variants selectable via environment variables. See [configuration.md](configuration.md#algorithm-configuration) for available algorithm variants and [architecture.md](architecture.md#algorithm-dependency-injection) for implementation details.
 
 ---
 
@@ -110,7 +110,7 @@ this comprehensive guide explains the scientific methods, algorithms, and decisi
 
 ## Architecture Overview
 
-pierre's intelligence system uses a **foundation modules** approach for code reuse and consistency:
+Pierre's intelligence system uses a **foundation modules** approach for code reuse and consistency:
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -192,7 +192,7 @@ pierre's intelligence system uses a **foundation modules** approach for code reu
 
 ### Intelligence Tools (30 tools)
 
-all 30 MCP tools now use real calculations from foundation modules:
+All 30 MCP tools now use real calculations from foundation modules:
 
 **group 1: analysis** (use StatisticalAnalyzer + PatternDetector)
 - analyze_performance_trends
@@ -226,7 +226,7 @@ all 30 MCP tools now use real calculations from foundation modules:
 ## Data Sources And Permissions
 
 ### Primary Data
-fitness activities via oauth2 authorization from multiple providers:
+Fitness activities via oauth2 authorization from multiple providers:
 
 **supported providers**: strava, garmin, fitbit
 
@@ -249,7 +249,7 @@ fitness activities via oauth2 authorization from multiple providers:
 - **zone model**: karvonen (HR reserve) or percentage max HR
 
 ### Provider Normalization
-pierre normalizes data from different providers into a unified format:
+Pierre normalizes data from different providers into a unified format:
 
 ```rust
 // src/providers/ - unified activity model
@@ -282,7 +282,7 @@ pub struct Activity {
 
 ### Age-based Max Heart Rate Estimation
 
-when `max_hr` not provided, pierre uses the classic fox formula:
+When `max_hr` not provided, pierre uses the classic fox formula:
 
 **formula**:
 
@@ -315,7 +315,7 @@ fn estimate_max_hr(age: i32) -> u32 {
 
 ### Heart Rate Zones
 
-pierre's HR zone calculations use **karvonen method** (HR reserve) internally for threshold determination:
+Pierre's HR zone calculations use **karvonen method** (HR reserve) internally for threshold determination:
 
 **karvonen formula**:
 
@@ -323,7 +323,7 @@ pierre's HR zone calculations use **karvonen method** (HR reserve) internally fo
 target_hr(intensity%) = (HR_reserve × intensity%) + HR_rest
 ```
 
-where:
+Where:
 - `HR_reserve = HR_max − HR_rest`
 - `intensity% ∈ [0, 1]`
 
@@ -353,7 +353,7 @@ pub const AEROBIC_THRESHOLD_PERCENT: f64 = 0.70;   // 70% of HR reserve
 
 ### Power Zones (cycling)
 
-five-zone model based on functional threshold power (FTP):
+Five-zone model based on functional threshold power (FTP):
 
 **power zones**:
 
@@ -402,7 +402,7 @@ pace(d, t) = 0,              if d < 1 meter
            = t / (d / 1000), if d ≥ 1 meter
 ```
 
-where:
+Where:
 - `t` = moving time (seconds)
 - `d` = distance (meters)
 
@@ -413,7 +413,7 @@ speed(d, t) = 0,      if t = 0
             = d / t,  if t > 0
 ```
 
-where:
+Where:
 - `d` = distance (meters)
 - `t` = moving time (seconds)
 
@@ -449,7 +449,7 @@ TSS quantifies training load accounting for intensity and duration.
 TSS = duration_hours × IF² × 100
 ```
 
-where:
+Where:
 - `IF` = intensity factor = `avg_power / FTP`
 - `avg_power` = average power for the activity (watts)
 - `FTP` = functional threshold power (watts)
@@ -467,7 +467,7 @@ fn calculate_tss(avg_power: u32, ftp: f64, duration_hours: f64) -> f64 {
 }
 ```
 
-where `TSS_BASE_MULTIPLIER = 100.0`
+Where `TSS_BASE_MULTIPLIER = 100.0`
 
 **input/output specification**:
 
@@ -573,7 +573,7 @@ Interpretation: Moderate-high training stress
    - Solution: Use average power in your validation calculations
 
 4. **Floating point precision and rounding**
-   - Issue: Manual calculation shows 138.888... but API returns 139.0
+   - Issue: Manual calculation shows 138.888... But API returns 139.0
    - Solution: API rounds TSS to nearest integer using `.round()`
    - Tolerance: Accept ±1.0 difference as valid due to rounding
 
@@ -590,7 +590,7 @@ Interpretation: Moderate-high training stress
 hrTSS = duration_hours × (HR_avg / HR_threshold)² × 100
 ```
 
-where:
+Where:
 - `HR_avg` = average heart rate during activity (bpm)
 - `HR_threshold` = lactate threshold heart rate (bpm)
 - `duration_hours` = activity duration (hours)
@@ -709,7 +709,7 @@ Interpretation: Moderate training stress
 
 ## Normalized Power (NP)
 
-accounts for variability in cycling efforts using coggan's algorithm:
+Accounts for variability in cycling efforts using coggan's algorithm:
 
 **important note**: NP calculation is available via the `calculate_normalized_power()` method, but **TSS uses average power** (not NP) in the current implementation. See [TSS section](#power-based-tss-preferred) for details.
 
@@ -730,7 +730,7 @@ accounts for variability in cycling efforts using coggan's algorithm:
    NP = ⁴√((1/n) × Σₖ₌₁ⁿ P̄⁴ₖ)
    ```
 
-where:
+Where:
 - `Pᵢ` = instantaneous power at second i (watts)
 - `Qᵢ` = power raised to 4th power (watts⁴)
 - `P̄⁴ₖ` = 30-second rolling average of power⁴ values
@@ -794,7 +794,7 @@ CTL ("fitness") and ATL ("fatigue") track training stress using exponential movi
 EMAₜ = α × TSSₜ + (1 − α) × EMAₜ₋₁
 ```
 
-where:
+Where:
 - `N` = window size (days)
 - `TSSₜ` = training stress score on day t
 - `EMAₜ` = exponential moving average on day t
@@ -822,7 +822,7 @@ ATL = EMA₇(TSS_daily)
 TSB = CTL − ATL
 ```
 
-difference between fitness and fatigue, representing current form
+Difference between fitness and fatigue, representing current form
 
 **daily TSS aggregation** (multiple activities per day):
 
@@ -830,7 +830,7 @@ difference between fitness and fatigue, representing current form
 TSS_daily = Σᵢ₌₁ⁿ TSSᵢ
 ```
 
-where `n` = number of activities on a given day
+Where `n` = number of activities on a given day
 
 **gap handling** (missing training days):
 
@@ -1192,7 +1192,7 @@ RiskLevel = Low,       if |risk_factors| = 0
           = High,      if |risk_factors| ≥ 2
 ```
 
-where `|risk_factors|` = count of triggered risk factors
+Where `|risk_factors|` = count of triggered risk factors
 
 **rust implementation**:
 
@@ -1243,7 +1243,7 @@ pub fn check_overtraining_risk(training_load: &TrainingLoad) -> OvertrainingRisk
 
 ## Statistical Trend Analysis
 
-pierre uses ordinary least squares linear regression for trend detection:
+Pierre uses ordinary least squares linear regression for trend detection:
 
 **linear regression formulation**:
 
@@ -1261,7 +1261,7 @@ Given n data points `(xᵢ, yᵢ)`, fit line: `ŷ = β₀ + β₁x`
 β₀ = ȳ − β₁ × x̄
 ```
 
-where:
+Where:
 - `x̄ = (1/n) × Σᵢ₌₁ⁿ xᵢ` (mean of x values)
 - `ȳ = (1/n) × Σᵢ₌₁ⁿ yᵢ` (mean of y values)
 - `n` = number of data points
@@ -1272,7 +1272,7 @@ where:
 R² = 1 − (SS_res / SS_tot)
 ```
 
-where:
+Where:
 - `SS_tot = Σᵢ₌₁ⁿ (yᵢ − ȳ)²` (total sum of squares)
 - `SS_res = Σᵢ₌₁ⁿ (yᵢ − ŷᵢ)²` (residual sum of squares)
 - `ŷᵢ = β₀ + β₁xᵢ` (predicted value)
@@ -1353,7 +1353,7 @@ VDOT is jack daniels' VO2max adjusted for running economy:
 v = (d / t) × 60
 ```
 
-where:
+Where:
 - `d` = distance (meters)
 - `t` = time (seconds)
 - `v ∈ [100, 500]` m/min (validated range)
@@ -1374,7 +1374,7 @@ percent_max(t) = 0.97,   if t_min < 5      (very short, oxygen deficit)
                = 0.95,   if t_min ≥ 90      (marathon+, fatigue)
 ```
 
-where `t_min = t / 60` (time in minutes)
+Where `t_min = t / 60` (time in minutes)
 
 **step 4: calculate VDOT**:
 
@@ -1435,16 +1435,16 @@ fn calculate_percent_max_adjustment(time_s: f64) -> f64 {
 **input/output specification**:
 
 Inputs:
-  distance_m: f64         // Race distance in meters, must be > 0
-  time_s: f64             // Race time in seconds, must be > 0
+  Distance_m: f64         // Race distance in meters, must be > 0
+  Time_s: f64             // Race time in seconds, must be > 0
 
 Output:
-  vdot: f64               // VDOT value, typically 30-85
+  Vdot: f64               // VDOT value, typically 30-85
 
 Derived:
-  velocity: f64           // Calculated velocity (m/min), must be in [100, 500]
-  vo2: f64                // VO2 consumption (ml/kg/min)
-  percent_max: f64        // Race duration adjustment factor [0.95-1.00]
+  Velocity: f64           // Calculated velocity (m/min), must be in [100, 500]
+  Vo2: f64                // VO2 consumption (ml/kg/min)
+  Percent_max: f64        // Race duration adjustment factor [0.95-1.00]
 
 Precision: IEEE 754 double precision (f64)
 Tolerance: ±0.5 VDOT units due to floating point arithmetic and physiological variance
@@ -1500,9 +1500,9 @@ Example 3: Marathon race (sub-elite)
   Expected Output: VDOT = 46.1
 
   Note: This seems low for 3-hour marathon. In reality, sub-elite marathoners
-  typically have VDOT 60-70. This illustrates the importance of race-specific
-  calibration and proper pacing (marathon fatigue factor = 0.95 significantly
-  impacts VDOT calculation).
+  Typically have VDOT 60-70. This illustrates the importance of race-specific
+  Calibration and proper pacing (marathon fatigue factor = 0.95 significantly
+  Impacts VDOT calculation).
 
 Example 4: Half marathon race (recreational competitive)
   Input:
@@ -1601,24 +1601,24 @@ Example 4: Half marathon race (recreational competitive)
 1. **verify input data quality**:
    ```bash
    # Check velocity is in valid range
-   velocity = (distance_m / time_s) × 60
-   assert 100.0 ≤ velocity ≤ 500.0
+   Velocity = (distance_m / time_s) × 60
+   Assert 100.0 ≤ velocity ≤ 500.0
    ```
 
 2. **calculate intermediate values**:
    ```bash
    # Verify VO2 calculation
-   vo2 = -4.60 + (0.182258 × velocity) + (0.000104 × velocity²)
+   Vo2 = -4.60 + (0.182258 × velocity) + (0.000104 × velocity²)
 
    # Verify percent_max adjustment
-   time_minutes = time_s / 60
+   Time_minutes = time_s / 60
    # Check against percent_max ranges (see formula)
    ```
 
 3. **calculate VDOT**:
    ```bash
-   vdot = vo2 / percent_max
-   assert 30.0 ≤ vdot ≤ 85.0
+   Vdot = vo2 / percent_max
+   Assert 30.0 ≤ vdot ≤ 85.0
    ```
 
 4. **compare with reference**:
@@ -1640,7 +1640,7 @@ Using quadratic formula:
 v = (−b + √(b² − 4ac)) / (2a)
 ```
 
-where:
+Where:
 - `a = 0.000104`
 - `b = 0.182258`
 - `c = −(VDOT + 4.60)`
@@ -1656,7 +1656,7 @@ v_race(d, v_max) = 0.98 × v_max,                           if d ≤ 5,000 m
                  = max(0.70, 0.84 − 0.02(r − 1)) × v_max,  if d > 42,195 m
 ```
 
-where `r = d / 42,195` (marathon ratio for ultra distances)
+Where `r = d / 42,195` (marathon ratio for ultra distances)
 
 **step 3: calculate predicted time**:
 
@@ -1664,7 +1664,7 @@ where `r = d / 42,195` (marathon ratio for ultra distances)
 t_predicted = (d / v_race) × 60
 ```
 
-where:
+Where:
 - `d` = target distance (meters)
 - `v_race` = race velocity (meters/minute)
 - `t_predicted` = predicted time (seconds)
@@ -1722,16 +1722,16 @@ fn calculate_race_velocity(velocity_max: f64, distance_m: f64) -> f64 {
 **input/output specification for race time prediction**:
 
 Inputs:
-  vdot: f64               // VDOT value, must be in [30, 85]
-  target_distance_m: f64  // Target race distance in meters, must be > 0
+  Vdot: f64               // VDOT value, must be in [30, 85]
+  Target_distance_m: f64  // Target race distance in meters, must be > 0
 
 Output:
-  predicted_time_s: f64   // Predicted race time in seconds
+  Predicted_time_s: f64   // Predicted race time in seconds
 
 Derived:
-  velocity_max: f64       // Velocity at VO2max (m/min) from quadratic formula
-  race_velocity: f64      // Adjusted velocity for race distance (m/min)
-  percent_max: f64        // Distance-based velocity adjustment [0.70-0.98]
+  Velocity_max: f64       // Velocity at VO2max (m/min) from quadratic formula
+  Race_velocity: f64      // Adjusted velocity for race distance (m/min)
+  Percent_max: f64        // Distance-based velocity adjustment [0.70-0.98]
 
 Precision: IEEE 754 double precision (f64)
 Tolerance: ±2% for race time predictions (±3 seconds per 5K, ±6 seconds per 10K, ±3 minutes per marathon)
@@ -1909,29 +1909,29 @@ Example 3: Predict 10K time from VDOT 40
 
 1. **validate VDOT input**:
    ```bash
-   assert 30.0 ≤ vdot ≤ 85.0
+   Assert 30.0 ≤ vdot ≤ 85.0
    ```
 
 2. **solve quadratic for velocity_max**:
    ```bash
-   a = 0.000104
-   b = 0.182258
-   c = -(vdot + 4.60)
-   discriminant = b² - 4ac
-   assert discriminant > 0
-   velocity_max = (-b + √discriminant) / (2a)
+   A = 0.000104
+   B = 0.182258
+   C = -(vdot + 4.60)
+   Discriminant = b² - 4ac
+   Assert discriminant > 0
+   Velocity_max = (-b + √discriminant) / (2a)
    ```
 
 3. **calculate race velocity with distance adjustment**:
    ```bash
    # Check percent_max based on distance
    # 5K: 0.98, 10K: 0.94, 15K: 0.91, Half: 0.88, Marathon: 0.84, Ultra: see formula
-   race_velocity = percent_max × velocity_max
+   Race_velocity = percent_max × velocity_max
    ```
 
 4. **calculate predicted time**:
    ```bash
-   predicted_time_s = (target_distance_m / race_velocity) × 60
+   Predicted_time_s = (target_distance_m / race_velocity) × 60
    ```
 
 5. **compare with Jack Daniels' reference**:
@@ -1941,7 +1941,7 @@ Example 3: Predict 10K time from VDOT 40
 
 ### VDOT Accuracy Verification ✅
 
-pierre's VDOT predictions have been verified against jack daniels' published tables:
+Pierre's VDOT predictions have been verified against jack daniels' published tables:
 
 ```
 VDOT 50 (recreational competitive):
@@ -1976,7 +1976,7 @@ Overall accuracy: 0.2-5.5% difference across all distances
 
 ## Performance Prediction: Riegel Formula
 
-predicts race times across distances using power-law relationship:
+Predicts race times across distances using power-law relationship:
 
 **riegel formula**:
 
@@ -1984,7 +1984,7 @@ predicts race times across distances using power-law relationship:
 T₂ = T₁ × (D₂ / D₁)^1.06
 ```
 
-where:
+Where:
 - `T₁` = known race time (seconds)
 - `D₁` = known race distance (meters)
 - `T₂` = predicted race time (seconds)
@@ -2076,14 +2076,14 @@ pub fn detect_weekly_schedule(activities: &[Activity]) -> WeeklySchedulePattern 
 2. Sort activities chronologically by date
 3. Count alternations in consecutive activities:
    ```
-   alternations = |{i : (I(aᵢ) = Hard ∧ I(aᵢ₊₁) = Easy) ∨ (I(aᵢ) = Easy ∧ I(aᵢ₊₁) = Hard)}|
+   Alternations = |{i : (I(aᵢ) = Hard ∧ I(aᵢ₊₁) = Easy) ∨ (I(aᵢ) = Easy ∧ I(aᵢ₊₁) = Hard)}|
    ```
 
 4. Calculate pattern strength:
    ```
-   pattern_strength = alternations / (n − 1)
+   Pattern_strength = alternations / (n − 1)
    ```
-   where `n` = number of activities
+   Where `n` = number of activities
 
 **classification**:
 
@@ -2168,7 +2168,7 @@ pub fn detect_volume_progression(activities: &[Activity]) -> VolumeProgressionPa
 }
 ```
 
-**reference**: Esteve-Lanao, J. et al. (2005). How do endurance runners train? *Med Sci Sports Exerc*, 37(3), 496-504.
+**reference**: Esteve-Lanao, J. Et al. (2005). How do endurance runners train? *Med Sci Sports Exerc*, 37(3), 496-504.
 
 ---
 
@@ -2176,7 +2176,7 @@ pub fn detect_volume_progression(activities: &[Activity]) -> VolumeProgressionPa
 
 ### Sleep Quality Scoring
 
-pierre uses NSF (National Sleep Foundation) and AASM (American Academy of Sleep Medicine) guidelines for sleep quality assessment. the overall sleep quality score (0-100) combines three weighted components:
+Pierre uses NSF (National Sleep Foundation) and AASM (American Academy of Sleep Medicine) guidelines for sleep quality assessment. The overall sleep quality score (0-100) combines three weighted components:
 
 **sleep quality formula**:
 
@@ -2184,14 +2184,14 @@ pierre uses NSF (National Sleep Foundation) and AASM (American Academy of Sleep 
 sleep_quality = (duration_score × 0.40) + (stages_score × 0.35) + (efficiency_score × 0.25)
 ```
 
-where:
+Where:
 - `duration_score` weight: **40%** (emphasizes total sleep time)
 - `stages_score` weight: **35%** (sleep architecture quality)
 - `efficiency_score` weight: **25%** (sleep fragmentation)
 
 #### Duration Scoring
 
-based on NSF recommendations with athlete-specific adjustments:
+Based on NSF recommendations with athlete-specific adjustments:
 
 **piecewise linear scoring function**:
 
@@ -2203,7 +2203,7 @@ duration_score(d) = 100,                  if d ≥ 8
                   = 30(d / 5),            if d < 5
 ```
 
-where `d` = sleep duration (hours)
+Where `d` = sleep duration (hours)
 
 **rust implementation**:
 
@@ -2233,11 +2233,11 @@ pub fn sleep_duration_score(duration_hours: f64, config: &SleepRecoveryConfig) -
 
 **scientific basis**: NSF recommends 7-9h for adults, 8-10h for athletes. <6h linked to increased injury risk and impaired performance.
 
-**reference**: Hirshkowitz, M. et al. (2015). National Sleep Foundation's sleep time duration recommendations. *Sleep Health*, 1(1), 40-43.
+**reference**: Hirshkowitz, M. Et al. (2015). National Sleep Foundation's sleep time duration recommendations. *Sleep Health*, 1(1), 40-43.
 
 #### Stages Scoring
 
-based on AASM guidelines for healthy sleep stage distribution:
+Based on AASM guidelines for healthy sleep stage distribution:
 
 **deep sleep scoring function**:
 
@@ -2269,7 +2269,7 @@ stages_score = max(0, min(100,
                0.4 × deep_score + 0.4 × rem_score + 0.2 × p_light − penalty))
 ```
 
-where:
+Where:
 - `p_deep` = deep sleep percentage (%)
 - `p_rem` = REM sleep percentage (%)
 - `p_light` = light sleep percentage (%)
@@ -2310,13 +2310,13 @@ pub fn sleep_stages_score(
 - **light sleep**: 45-55% (transition stages)
 - **awake time**: <5% (sleep fragmentation indicator)
 
-**scientific basis**: AASM sleep stage guidelines. deep sleep critical for physical recovery, REM for cognitive processing.
+**scientific basis**: AASM sleep stage guidelines. Deep sleep critical for physical recovery, REM for cognitive processing.
 
-**reference**: Berry, R.B. et al. (2017). AASM Scoring Manual Version 2.4. *American Academy of Sleep Medicine*.
+**reference**: Berry, R.B. Et al. (2017). AASM Scoring Manual Version 2.4. *American Academy of Sleep Medicine*.
 
 #### Efficiency Scoring
 
-based on clinical sleep medicine thresholds:
+Based on clinical sleep medicine thresholds:
 
 **sleep efficiency formula**:
 
@@ -2324,7 +2324,7 @@ based on clinical sleep medicine thresholds:
 efficiency = (t_asleep / t_bed) × 100
 ```
 
-where:
+Where:
 - `t_asleep` = total time asleep (minutes)
 - `t_bed` = total time in bed (minutes)
 - `efficiency ∈ [0, 100]` (percentage)
@@ -2338,7 +2338,7 @@ efficiency_score(e) = 100,                     if e ≥ 90
                     = 65(e / 75),              if e < 75
 ```
 
-where `e` = efficiency percentage
+Where `e` = efficiency percentage
 
 **rust implementation**:
 
@@ -2368,20 +2368,20 @@ pub fn sleep_efficiency_score(efficiency_percent: f64, config: &SleepRecoveryCon
 **input/output specification for sleep quality scoring**:
 
 Inputs:
-  duration_hours: f64      // Sleep duration in hours, must be ≥ 0
-  deep_percent: f64        // Deep sleep percentage [0, 100]
-  rem_percent: f64         // REM sleep percentage [0, 100]
-  light_percent: f64       // Light sleep percentage [0, 100]
-  awake_percent: f64       // Awake time percentage [0, 100]
-  time_asleep_min: f64     // Total time asleep in minutes
-  time_in_bed_min: f64     // Total time in bed in minutes
+  Duration_hours: f64      // Sleep duration in hours, must be ≥ 0
+  Deep_percent: f64        // Deep sleep percentage [0, 100]
+  Rem_percent: f64         // REM sleep percentage [0, 100]
+  Light_percent: f64       // Light sleep percentage [0, 100]
+  Awake_percent: f64       // Awake time percentage [0, 100]
+  Time_asleep_min: f64     // Total time asleep in minutes
+  Time_in_bed_min: f64     // Total time in bed in minutes
 
 Outputs:
-  sleep_quality: f64       // Overall sleep quality score [0, 100]
-  duration_score: f64      // Duration component score [0, 100]
-  stages_score: f64        // Sleep stages component score [0, 100]
-  efficiency_score: f64    // Sleep efficiency component score [0, 100]
-  efficiency_percent: f64  // Calculated efficiency (time_asleep / time_in_bed) × 100
+  Sleep_quality: f64       // Overall sleep quality score [0, 100]
+  Duration_score: f64      // Duration component score [0, 100]
+  Stages_score: f64        // Sleep stages component score [0, 100]
+  Efficiency_score: f64    // Sleep efficiency component score [0, 100]
+  Efficiency_percent: f64  // Calculated efficiency (time_asleep / time_in_bed) × 100
 
 Precision: IEEE 754 double precision (f64)
 Tolerance: ±1.0 for overall score, ±2.0 for component scores due to piecewise function boundaries
@@ -2616,26 +2616,26 @@ Example 4: Boundary condition (exactly 7 hours, 85% efficiency)
 
 1. **validate input data**:
    ```bash
-   assert duration_hours ≥ 0
-   assert 0 ≤ deep_percent ≤ 100
-   assert 0 ≤ rem_percent ≤ 100
-   assert 0 ≤ light_percent ≤ 100
-   assert 0 ≤ awake_percent ≤ 100
-   assert time_asleep_min ≤ time_in_bed_min
+   Assert duration_hours ≥ 0
+   Assert 0 ≤ deep_percent ≤ 100
+   Assert 0 ≤ rem_percent ≤ 100
+   Assert 0 ≤ light_percent ≤ 100
+   Assert 0 ≤ awake_percent ≤ 100
+   Assert time_asleep_min ≤ time_in_bed_min
    ```
 
 2. **calculate component scores**:
    ```bash
-   duration_score = score_duration(duration_hours)
-   stages_score = score_stages(deep%, rem%, light%, awake%)
-   efficiency = (time_asleep / time_in_bed) × 100
-   efficiency_score = score_efficiency(efficiency)
+   Duration_score = score_duration(duration_hours)
+   Stages_score = score_stages(deep%, rem%, light%, awake%)
+   Efficiency = (time_asleep / time_in_bed) × 100
+   Efficiency_score = score_efficiency(efficiency)
    ```
 
 3. **calculate weighted overall score**:
    ```bash
-   sleep_quality = (duration_score × 0.40) + (stages_score × 0.35) + (efficiency_score × 0.25)
-   assert 0 ≤ sleep_quality ≤ 100
+   Sleep_quality = (duration_score × 0.40) + (stages_score × 0.35) + (efficiency_score × 0.25)
+   Assert 0 ≤ sleep_quality ≤ 100
    ```
 
 4. **compare with expected ranges**:
@@ -2646,7 +2646,7 @@ Example 4: Boundary condition (exactly 7 hours, 85% efficiency)
 
 ### Recovery Score Calculation
 
-pierre calculates training readiness by combining TSB, sleep quality, and HRV (when available):
+Pierre calculates training readiness by combining TSB, sleep quality, and HRV (when available):
 
 **weighted recovery score formula**:
 
@@ -2655,7 +2655,7 @@ recovery_score = 0.4 × TSB_score + 0.4 × sleep_score + 0.2 × HRV_score,  if H
                = 0.5 × TSB_score + 0.5 × sleep_score,                    if HRV unavailable
 ```
 
-where:
+Where:
 - `TSB_score` = normalized TSB score ∈ [0, 100] (see TSB normalization below)
 - `sleep_score` = overall sleep quality score ∈ [0, 100] (from sleep analysis)
 - `HRV_score` = heart rate variability score ∈ [0, 100] (when available)
@@ -2711,7 +2711,7 @@ pub fn calculate_recovery_score(
 
 #### TSB Normalization
 
-training stress balance maps to recovery score using **configurable thresholds**, not fixed breakpoints:
+Training stress balance maps to recovery score using **configurable thresholds**, not fixed breakpoints:
 
 **configurable TSB thresholds** (from `SleepRecoveryConfig.training_stress_balance`):
 
@@ -2786,11 +2786,11 @@ pub fn score_tsb(
 
 #### HRV Scoring
 
-heart rate variability assessment based on categorical recovery status, not continuous RMSSD scoring:
+Heart rate variability assessment based on categorical recovery status, not continuous RMSSD scoring:
 
 **recovery status determination**:
 
-pierre first classifies HRV into a **categorical recovery status** (`HrvRecoveryStatus` enum) based on RMSSD comparison to baseline and weekly average:
+Pierre first classifies HRV into a **categorical recovery status** (`HrvRecoveryStatus` enum) based on RMSSD comparison to baseline and weekly average:
 
 ```rust
 // src/intelligence/sleep_analysis.rs:558
@@ -2823,7 +2823,7 @@ fn determine_hrv_recovery_status(
 
 **discrete HRV scoring function**:
 
-pierre maps the categorical recovery status to a **fixed discrete score**, not a continuous function:
+Pierre maps the categorical recovery status to a **fixed discrete score**, not a continuous function:
 
 ```rust
 // src/intelligence/recovery_calculator.rs:288
@@ -2843,7 +2843,7 @@ pub const fn score_hrv(hrv: &HrvTrendAnalysis) -> f64 {
 - **Fatigued**: score = **40** - decreased HRV, consider reducing training intensity
 - **HighlyFatigued**: score = **20** - significantly decreased HRV, prioritize recovery
 
-where:
+Where:
 - `RMSSD` = root mean square of successive RR interval differences (milliseconds)
 - `weekly_avg` = 7-day rolling average of RMSSD
 - `baseline_deviation` = percent change from long-term baseline (if established)
@@ -2851,24 +2851,24 @@ where:
 - `rmssd_decrease_threshold` = typically -10ms (configurable)
 - `baseline_deviation_concern` = typically -15% (configurable)
 
-**scientific basis**: HRV (specifically RMSSD) reflects autonomic nervous system recovery. decreases indicate accumulated fatigue, increases indicate good adaptation. pierre uses discrete categories rather than continuous scoring to provide clear, actionable recovery guidance.
+**scientific basis**: HRV (specifically RMSSD) reflects autonomic nervous system recovery. Decreases indicate accumulated fatigue, increases indicate good adaptation. Pierre uses discrete categories rather than continuous scoring to provide clear, actionable recovery guidance.
 
-**reference**: Plews, D.J. et al. (2013). Training adaptation and heart rate variability in elite endurance athletes. *Int J Sports Physiol Perform*, 8(3), 286-293.
+**reference**: Plews, D.J. Et al. (2013). Training adaptation and heart rate variability in elite endurance athletes. *Int J Sports Physiol Perform*, 8(3), 286-293.
 
 **input/output specification for recovery score**:
 
 Inputs:
-  tsb: f64                 // Training Stress Balance, typically [-30, +30]
-  sleep_quality: f64       // Sleep quality score [0, 100]
-  hrv_rmssd: Option<f64>   // Current HRV RMSSD (ms), optional
-  hrv_baseline: Option<f64>  // Baseline HRV RMSSD (ms), optional
+  Tsb: f64                 // Training Stress Balance, typically [-30, +30]
+  Sleep_quality: f64       // Sleep quality score [0, 100]
+  Hrv_rmssd: Option<f64>   // Current HRV RMSSD (ms), optional
+  Hrv_baseline: Option<f64>  // Baseline HRV RMSSD (ms), optional
 
 Outputs:
-  recovery_score: f64      // Overall recovery score [0, 100]
-  tsb_score: f64           // Normalized TSB component [0, 100]
-  sleep_score: f64         // Sleep component [0, 100] (pass-through)
-  hrv_score: Option<f64>   // HRV component [0, 100], if available
-  recovery_level: String   // Classification: excellent/good/fair/poor
+  Recovery_score: f64      // Overall recovery score [0, 100]
+  Tsb_score: f64           // Normalized TSB component [0, 100]
+  Sleep_score: f64         // Sleep component [0, 100] (pass-through)
+  Hrv_score: Option<f64>   // HRV component [0, 100], if available
+  Recovery_level: String   // Classification: excellent/good/fair/poor
 
 Precision: IEEE 754 double precision (f64)
 Tolerance: ±2.0 for overall score due to piecewise function boundaries and component weighting
@@ -3127,24 +3127,24 @@ Example 5: Boundary condition (extreme fatigue, excellent sleep/HRV)
 1. **validate input data**:
    ```bash
    # TSB typically in [-30, +30] but accept wider range
-   assert -50.0 ≤ tsb ≤ +50.0
-   assert 0.0 ≤ sleep_quality ≤ 100.0
+   Assert -50.0 ≤ tsb ≤ +50.0
+   Assert 0.0 ≤ sleep_quality ≤ 100.0
 
    # If HRV provided, both current and baseline required
-   if hrv_rmssd.is_some():
+   If hrv_rmssd.is_some():
        assert hrv_baseline.is_some()
        assert hrv_rmssd > 0 && hrv_baseline > 0
    ```
 
 2. **normalize TSB**:
    ```bash
-   tsb_score = normalize_tsb(tsb)  # See TSB normalization formula
-   assert 0.0 ≤ tsb_score ≤ 100.0
+   Tsb_score = normalize_tsb(tsb)  # See TSB normalization formula
+   Assert 0.0 ≤ tsb_score ≤ 100.0
    ```
 
 3. **score HRV if available**:
    ```bash
-   if hrv_rmssd and weekly_avg_rmssd and baseline_deviation:
+   If hrv_rmssd and weekly_avg_rmssd and baseline_deviation:
        # Determine categorical recovery status
        hrv_status = determine_hrv_recovery_status(hrv_rmssd, weekly_avg_rmssd, baseline_deviation)
 
@@ -3155,17 +3155,17 @@ Example 5: Boundary condition (extreme fatigue, excellent sleep/HRV)
 
 4. **calculate weighted recovery score**:
    ```bash
-   if hrv_score:
+   If hrv_score:
        recovery = (tsb_score × 0.4) + (sleep_quality × 0.4) + (hrv_score × 0.2)
-   else:
+   Else:
        recovery = (tsb_score × 0.5) + (sleep_quality × 0.5)
 
-   assert 0.0 ≤ recovery ≤ 100.0
+   Assert 0.0 ≤ recovery ≤ 100.0
    ```
 
 5. **classify recovery level**:
    ```bash
-   level = if recovery ≥ 85.0: "excellent"
+   Level = if recovery ≥ 85.0: "excellent"
            else if recovery ≥ 70.0: "good"
            else if recovery ≥ 50.0: "fair"
            else: "poor"
@@ -3174,16 +3174,16 @@ Example 5: Boundary condition (extreme fatigue, excellent sleep/HRV)
 6. **validate component contributions**:
    ```bash
    # Component contributions should sum to recovery_score
-   total_contribution = (tsb_score × tsb_weight) +
+   Total_contribution = (tsb_score × tsb_weight) +
                        (sleep_quality × sleep_weight) +
                        (hrv_score × hrv_weight if HRV)
 
-   assert abs(total_contribution - recovery_score) < 0.1  # floating point tolerance
+   Assert abs(total_contribution - recovery_score) < 0.1  # floating point tolerance
    ```
 
 ### Configuration
 
-all sleep/recovery thresholds configurable via environment variables:
+All sleep/recovery thresholds configurable via environment variables:
 
 ```bash
 # Sleep duration thresholds (hours)
@@ -3222,7 +3222,7 @@ PIERRE_RECOVERY_TSB_WEIGHT_NO_HRV=0.5
 PIERRE_RECOVERY_SLEEP_WEIGHT_NO_HRV=0.5
 ```
 
-defaults based on peer-reviewed research (NSF, AASM, Shaffer & Ginsberg 2017).
+Defaults based on peer-reviewed research (NSF, AASM, Shaffer & Ginsberg 2017).
 
 ---
 
@@ -3248,7 +3248,7 @@ FTP ∈ [50, 600] watts
 resting_hr < threshold_hr < max_hr
 ```
 
-validation constraints:
+Validation constraints:
 - `HR_rest < HR_max` (resting heart rate below maximum)
 - `HR_rest < HR_threshold` (resting heart rate below threshold)
 - `HR_threshold < HR_max` (threshold heart rate below maximum)
@@ -3357,7 +3357,7 @@ confidence(n, R²) = High,      if (n ≥ 15) ∧ (R² ≥ 0.7)
                   = VeryLow,   otherwise
 ```
 
-where:
+Where:
 - `n` = number of data points
 - `R²` = coefficient of determination ∈ [0, 1]
 
@@ -3379,7 +3379,7 @@ pub fn calculate_confidence(
 
 ### Edge Case Handling
 
-**1. users with no activities**:
+**1. Users with no activities**:
 
 ```
 If |activities| = 0, return:
@@ -3401,7 +3401,7 @@ if activities.is_empty() {
 }
 ```
 
-**2. training gaps (TSS sequence breaks)**:
+**2. Training gaps (TSS sequence breaks)**:
 
 ```
 For missing days: TSS_daily = 0
@@ -3418,7 +3418,7 @@ let daily_tss = tss_map.get(&date_key).copied().unwrap_or(0.0); // Gap = 0
 ema = daily_tss.mul_add(alpha, ema * (1.0 - alpha));
 ```
 
-**3. invalid physiological parameters**:
+**3. Invalid physiological parameters**:
 
 Range validation checks:
 - `max_hr = 250` → rejected (exceeds upper bound 220)
@@ -3429,7 +3429,7 @@ Relationship validation checks:
 
 Returns detailed error messages for each violation
 
-**4. invalid race velocities**:
+**4. Invalid race velocities**:
 
 Velocity constraint: `v ∈ [100, 500]` m/min
 
@@ -3463,7 +3463,7 @@ if !(30.0..=85.0).contains(&vdot) {
 
 ## Configuration Strategies
 
-three strategies adjust training thresholds:
+Three strategies adjust training thresholds:
 
 ### Conservative Strategy
 
@@ -3544,12 +3544,12 @@ impl IntelligenceStrategy for AggressiveStrategy {
 
 ### Verification Methods
 
-**1. scientific validation**:
+**1. Scientific validation**:
 - VDOT predictions: 0.2-5.5% accuracy vs. jack daniels' tables
 - TSS formulas: match coggan's published methodology
 - Statistical methods: verified against standard regression algorithms
 
-**2. edge case testing**:
+**2. Edge case testing**:
 ```rust
 #[test]
 fn test_empty_activities() {
@@ -3580,14 +3580,14 @@ fn test_invalid_hr_relationships() {
 }
 ```
 
-**3. placeholder elimination**:
+**3. Placeholder elimination**:
 ```bash
 # Zero placeholders confirmed
 rg -i "placeholder|todo|fixme|hack|stub" src/ | wc -l
 # Output: 0
 ```
 
-**4. synthetic data testing**:
+**4. Synthetic data testing**:
 ```rust
 // Example: Test fitness score calculation with synthetic data
 #[tokio::test]
@@ -3611,7 +3611,7 @@ async fn test_fitness_score_calculation() {
 }
 ```
 
-**5. code quality**:
+**5. Code quality**:
 ```bash
 # Zero clippy warnings (pedantic + nursery)
 cargo clippy -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
@@ -3626,13 +3626,13 @@ rg "unwrap\(\)|expect\(|panic!\(|anyhow!\(" src/ | wc -l
 
 ## Debugging And Validation Guide
 
-this comprehensive guide helps API users troubleshoot discrepancies between expected and actual calculations.
+This comprehensive guide helps API users troubleshoot discrepancies between expected and actual calculations.
 
 ### General Debugging Workflow
 
-when your calculated values don't match pierre's API responses, follow this systematic approach:
+When your calculated values don't match pierre's API responses, follow this systematic approach:
 
-**1. verify input data quality**
+**1. Verify input data quality**
 
 ```bash
 # Check for data integrity issues
@@ -3642,7 +3642,7 @@ when your calculated values don't match pierre's API responses, follow this syst
 - Timestamp errors: activities in future, overlapping time periods
 ```
 
-**2. reproduce calculation step-by-step**
+**2. Reproduce calculation step-by-step**
 
 Use the validation examples in each metric section:
 - Start with the exact input values from the example
@@ -3650,7 +3650,7 @@ Use the validation examples in each metric section:
 - Compare intermediate values, not just final results
 - Identify exactly where your calculation diverges
 
-**3. check boundary conditions**
+**3. Check boundary conditions**
 
 Many formulas use piecewise functions with discrete boundaries:
 - TSS duration scaling: check if you're at 30min, 90min boundaries
@@ -3658,7 +3658,7 @@ Many formulas use piecewise functions with discrete boundaries:
 - Sleep duration scoring: check if you're at 5h, 6h, 7h, 8h boundaries
 - Recovery level classification: check if you're at 50, 70, 85 boundaries
 
-**4. verify floating point precision**
+**4. Verify floating point precision**
 
 ```rust
 // DON'T compare with exact equality
@@ -3676,7 +3676,7 @@ if (calculated_value - expected_value).abs() < tolerance { ... }  // ✅ CORRECT
 // Recovery score: ±2.0
 ```
 
-**5. eliminate common calculation errors**
+**5. Eliminate common calculation errors**
 
 See metric-specific sections below for detailed error patterns.
 
@@ -4005,7 +4005,7 @@ assert abs(received_tss - expected_tss) < tolerance
 
 ### Data Quality Validation
 
-before debugging calculation logic, verify input data quality:
+Before debugging calculation logic, verify input data quality:
 
 **activity data validation**
 
@@ -4069,19 +4069,19 @@ match (tsb, sleep_quality, hrv_data) {
 
 ### When To Contact Support
 
-contact pierre support team if:
+Contact pierre support team if:
 
-**1. consistent calculation discrepancies >10%**
+**1. Consistent calculation discrepancies >10%**
 - You've verified input data quality
 - You've reproduced calculation step-by-step
 - Discrepancy persists across multiple activities
 - Example: "All my TSS values are 15% higher than pierre's"
 
-**2. boundary condition bugs**
+**2. Boundary condition bugs**
 - Discrete jumps at boundaries larger than expected
 - Example: "At exactly 15 minutes, my VDOT jumps by 5 points"
 
-**3. platform-specific precision issues**
+**3. Platform-specific precision issues**
 - Same calculation produces different results on different platforms
 - Example: "VDOT matches on desktop but differs by 3 on mobile"
 
@@ -4203,15 +4203,15 @@ def test_tss_validation_examples():
 
 3. **Daniels, J.** (2013). *Daniels' Running Formula* (3rd ed.). Human Kinetics.
 
-4. **Esteve-Lanao, J. et al.** (2005). How do endurance runners train? *Med Sci Sports Exerc*, 37(3), 496-504.
+4. **Esteve-Lanao, J. Et al.** (2005). How do endurance runners train? *Med Sci Sports Exerc*, 37(3), 496-504.
 
 5. **Halson, S.L.** (2014). Monitoring training load to understand fatigue. *Sports Medicine*, 44(Suppl 2), 139-147.
 
-6. **Karvonen, M.J. et al.** (2057). The effects of training on heart rate. *Ann Med Exp Biol Fenn*, 35(3), 307-315.
+6. **Karvonen, M.J. Et al.** (2057). The effects of training on heart rate. *Ann Med Exp Biol Fenn*, 35(3), 307-315.
 
 7. **Riegel, P.S.** (1981). Athletic records and human endurance. *American Scientist*, 69(3), 285-290.
 
-8. **Tanaka, H. et al.** (2001). Age-predicted maximal heart rate revisited. *J Am Coll Cardiol*, 37(1), 153-156.
+8. **Tanaka, H. Et al.** (2001). Age-predicted maximal heart rate revisited. *J Am Coll Cardiol*, 37(1), 153-156.
 
 9. **Gabbett, T.J.** (2016). The training-injury prevention paradox. *Br J Sports Med*, 50(5), 273-280.
 
@@ -4219,13 +4219,13 @@ def test_tss_validation_examples():
 
 11. **Draper, N.R. & Smith, H.** (1998). *Applied Regression Analysis* (3rd ed.). Wiley.
 
-12. **Hirshkowitz, M. et al.** (2015). National Sleep Foundation's sleep time duration recommendations: methodology and results summary. *Sleep Health*, 1(1), 40-43.
+12. **Hirshkowitz, M. Et al.** (2015). National Sleep Foundation's sleep time duration recommendations: methodology and results summary. *Sleep Health*, 1(1), 40-43.
 
-13. **Berry, R.B. et al.** (2017). The AASM Manual for the Scoring of Sleep and Associated Events: Rules, Terminology and Technical Specifications, Version 2.4. *American Academy of Sleep Medicine*.
+13. **Berry, R.B. Et al.** (2017). The AASM Manual for the Scoring of Sleep and Associated Events: Rules, Terminology and Technical Specifications, Version 2.4. *American Academy of Sleep Medicine*.
 
-14. **Watson, N.F. et al.** (2015). Recommended Amount of Sleep for a Healthy Adult: A Joint Consensus Statement of the American Academy of Sleep Medicine and Sleep Research Society. *Sleep*, 38(6), 843-844.
+14. **Watson, N.F. Et al.** (2015). Recommended Amount of Sleep for a Healthy Adult: A Joint Consensus Statement of the American Academy of Sleep Medicine and Sleep Research Society. *Sleep*, 38(6), 843-844.
 
-15. **Plews, D.J. et al.** (2013). Training adaptation and heart rate variability in elite endurance athletes: opening the door to effective monitoring. *Int J Sports Physiol Perform*, 8(3), 286-293.
+15. **Plews, D.J. Et al.** (2013). Training adaptation and heart rate variability in elite endurance athletes: opening the door to effective monitoring. *Int J Sports Physiol Perform*, 8(3), 286-293.
 
 16. **Shaffer, F. & Ginsberg, J.P.** (2017). An Overview of Heart Rate Variability Metrics and Norms. *Front Public Health*, 5, 258.
 
@@ -4234,10 +4234,10 @@ def test_tss_validation_examples():
 ## FAQ
 
 **Q: why doesn't my prediction match race day?**
-A: predictions are ranges (±5%), not exact. affected by: weather, course, pacing, nutrition, taper, mental state.
+A: predictions are ranges (±5%), not exact. Affected by: weather, course, pacing, nutrition, taper, mental state.
 
 **Q: can analytics work without HR or power?**
-A: yes, but lower confidence. pace-based TSS estimates used. add HR/power for better accuracy.
+A: yes, but lower confidence. Pace-based TSS estimates used. Add HR/power for better accuracy.
 
 **Q: how often update FTP/LTHR?**
 A: FTP every 6-8 weeks, LTHR every 8-12 weeks, max HR annually.
@@ -4249,28 +4249,28 @@ A: normal during training. -30 to -10 = building fitness, -10 to 0 = productive,
 A: high (15+ points, R²>0.7) = actionable; medium = guidance; low = directional; very low = insufficient data.
 
 **Q: what happens if I have gaps in training?**
-A: CTL/ATL naturally decay with zero TSS during gaps. this accurately models fitness loss during breaks.
+A: CTL/ATL naturally decay with zero TSS during gaps. This accurately models fitness loss during breaks.
 
 **Q: how accurate are the VDOT predictions?**
-A: verified 0.2-5.5% accuracy against jack daniels' published tables. predictions assume proper training, taper, and race conditions.
+A: verified 0.2-5.5% accuracy against jack daniels' published tables. Predictions assume proper training, taper, and race conditions.
 
 **Q: what if my parameters are outside the valid ranges?**
-A: validation will reject with specific error messages. ranges are based on human physiology research (ACSM guidelines).
+A: validation will reject with specific error messages. Ranges are based on human physiology research (ACSM guidelines).
 
 **Q: how much sleep do athletes need?**
-A: 8-10 hours for optimal recovery (NSF guidelines). minimum 7 hours for adults. <6 hours increases injury risk and impairs performance.
+A: 8-10 hours for optimal recovery (NSF guidelines). Minimum 7 hours for adults. <6 hours increases injury risk and impairs performance.
 
 **Q: what's more important: sleep duration or quality?**
-A: both matter. 8 hours of fragmented sleep (70% efficiency) scores lower than 7 hours of solid sleep (95% efficiency). aim for both duration and quality.
+A: both matter. 8 hours of fragmented sleep (70% efficiency) scores lower than 7 hours of solid sleep (95% efficiency). Aim for both duration and quality.
 
 **Q: why is my recovery score low despite good sleep?**
-A: recovery combines TSB (40%), sleep (40%), HRV (20%). negative TSB from high training load lowers score even with good sleep. this accurately reflects accumulated fatigue.
+A: recovery combines TSB (40%), sleep (40%), HRV (20%). Negative TSB from high training load lowers score even with good sleep. This accurately reflects accumulated fatigue.
 
 **Q: how does HRV affect recovery scoring?**
-A: HRV (RMSSD) indicates autonomic nervous system recovery. +5ms above baseline = excellent, ±3ms = normal, -10ms = poor recovery. when unavailable, recovery uses 50% TSB + 50% sleep.
+A: HRV (RMSSD) indicates autonomic nervous system recovery. +5ms above baseline = excellent, ±3ms = normal, -10ms = poor recovery. When unavailable, recovery uses 50% TSB + 50% sleep.
 
 **Q: what providers support sleep tracking?**
-A: fitbit, garmin, and whoop provide sleep data. strava does not (returns `UnsupportedFeature` error). use provider with sleep tracking for full recovery analysis.
+A: fitbit, garmin, and whoop provide sleep data. Strava does not (returns `UnsupportedFeature` error). Use provider with sleep tracking for full recovery analysis.
 
 ---
 

@@ -2,7 +2,7 @@
 
 ## environment variables
 
-Pierre Fitness Platform configured entirely via environment variables. no config files.
+Pierre Fitness Platform configured entirely via environment variables. No config files.
 
 ### required variables
 
@@ -51,12 +51,12 @@ STRAVA_CLIENT_SECRET=your_secret
 STRAVA_REDIRECT_URI=http://localhost:8081/api/oauth/callback/strava  # local development only
 ```
 
-**security warning**: http callback urls only for local development. production must use https:
+**security warning**: http callback urls only for local development. Production must use https:
 ```bash
 STRAVA_REDIRECT_URI=https://api.example.com/api/oauth/callback/strava  # production
 ```
 
-get credentials: https://www.strava.com/settings/api
+Get credentials: https://www.strava.com/settings/api
 
 #### garmin
 
@@ -66,12 +66,12 @@ GARMIN_CLIENT_SECRET=your_consumer_secret
 GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin  # local development only
 ```
 
-**security warning**: http callback urls only for local development. production must use https:
+**security warning**: http callback urls only for local development. Production must use https:
 ```bash
 GARMIN_REDIRECT_URI=https://api.example.com/api/oauth/callback/garmin  # production
 ```
 
-get credentials: https://developer.garmin.com/
+Get credentials: https://developer.garmin.com/
 
 #### fitbit
 
@@ -81,12 +81,12 @@ FITBIT_CLIENT_SECRET=your_secret
 FITBIT_REDIRECT_URI=http://localhost:8081/api/oauth/callback/fitbit  # local development only
 ```
 
-**security warning**: http callback urls only for local development. production must use https:
+**security warning**: http callback urls only for local development. Production must use https:
 ```bash
 FITBIT_REDIRECT_URI=https://api.example.com/api/oauth/callback/fitbit  # production
 ```
 
-get credentials: https://dev.fitbit.com/apps
+Get credentials: https://dev.fitbit.com/apps
 
 **callback url security**:
 - **http**: local development only (`localhost` or `127.0.0.1`)
@@ -100,16 +100,16 @@ get credentials: https://dev.fitbit.com/apps
 
 #### openweather (optional)
 
-for weather-based recommendations:
+For weather-based recommendations:
 ```bash
 OPENWEATHER_API_KEY=your_api_key
 ```
 
-get key: https://openweathermap.org/api
+Get key: https://openweathermap.org/api
 
 ### algorithm configuration
 
-fitness intelligence algorithms configurable via environment variables. each algorithm has multiple variants with different accuracy, performance, and data requirements.
+Fitness intelligence algorithms configurable via environment variables. Each algorithm has multiple variants with different accuracy, performance, and data requirements.
 
 #### max heart rate estimation
 
@@ -253,7 +253,7 @@ export PIERRE_RECOVERY_ALGORITHM=neural
 DATABASE_URL="sqlite:./data/pierre.db"
 ```
 
-creates database file at path if not exists.
+Creates database file at path if not exists.
 
 #### postgresql (production)
 
@@ -318,11 +318,11 @@ TLS_KEY_PATH=/path/to/key.pem
 
 ## fitness configuration
 
-user-specific fitness parameters managed via mcp tools or rest api.
+User-specific fitness parameters managed via mcp tools or rest api.
 
 ### configuration profiles
 
-predefined fitness profiles:
+Predefined fitness profiles:
 
 - `beginner`: conservative zones, longer recovery
 - `intermediate`: standard zones, moderate training
@@ -348,7 +348,7 @@ predefined fitness profiles:
 
 ### training zones
 
-automatically calculated based on profile:
+Automatically calculated based on profile:
 
 ```json
 {
@@ -369,7 +369,7 @@ automatically calculated based on profile:
 
 ### updating configuration
 
-via mcp tool:
+Via mcp tool:
 ```json
 {
   "tool": "update_user_configuration",
@@ -381,7 +381,7 @@ via mcp tool:
 }
 ```
 
-via rest api:
+Via rest api:
 ```bash
 curl -X PUT http://localhost:8081/api/configuration/user \
   -H "Authorization: Bearer <jwt>" \
@@ -394,13 +394,13 @@ curl -X PUT http://localhost:8081/api/configuration/user \
 
 ### configuration catalog
 
-get all available parameters:
+Get all available parameters:
 ```bash
 curl -H "Authorization: Bearer <jwt>" \
   http://localhost:8081/api/configuration/catalog
 ```
 
-response describes each parameter:
+Response describes each parameter:
 - type (number, boolean, enum)
 - valid range
 - default value
@@ -408,7 +408,7 @@ response describes each parameter:
 
 ## using direnv
 
-recommended for local development.
+Recommended for local development.
 
 ### setup
 
@@ -424,7 +424,7 @@ direnv allow
 
 ### .envrc file
 
-edit `.envrc` in project root:
+Edit `.envrc` in project root:
 ```bash
 # development overrides
 export RUST_LOG=debug
@@ -442,11 +442,11 @@ if [ -f .env.local ]; then
 fi
 ```
 
-direnv automatically loads/unloads environment when entering/leaving directory.
+Direnv automatically loads/unloads environment when entering/leaving directory.
 
 ### .env.local (gitignored)
 
-store secrets in `.env.local`:
+Store secrets in `.env.local`:
 ```bash
 # never commit this file
 export PIERRE_MASTER_ENCRYPTION_KEY="<generated_key>"
@@ -457,7 +457,7 @@ export STRAVA_CLIENT_SECRET="<real_secret>"
 
 ### environment file
 
-create `/etc/pierre/environment`:
+Create `/etc/pierre/environment`:
 ```bash
 DATABASE_URL=postgresql://pierre:pass@db.internal:5432/pierre
 PIERRE_MASTER_ENCRYPTION_KEY=<strong_key>
@@ -530,7 +530,7 @@ EXPOSE 8081
 CMD ["pierre-mcp-server"]
 ```
 
-run:
+Run:
 ```bash
 docker run -d \
   --name pierre \
@@ -542,12 +542,12 @@ docker run -d \
 
 ## validation
 
-check configuration at startup:
+Check configuration at startup:
 ```bash
 RUST_LOG=info cargo run --bin pierre-mcp-server
 ```
 
-logs show:
+Logs show:
 - loaded environment variables
 - database connection status
 - enabled features
@@ -558,7 +558,7 @@ logs show:
 
 ### missing environment variables
 
-server fails to start. check required variables set:
+Server fails to start. Check required variables set:
 ```bash
 echo $DATABASE_URL
 echo $PIERRE_MASTER_ENCRYPTION_KEY
@@ -577,22 +577,22 @@ echo $PIERRE_MASTER_ENCRYPTION_KEY
 
 ### port conflicts
 
-change http_port:
+Change http_port:
 ```bash
 export HTTP_PORT=8082
 ```
 
 ### encryption key errors
 
-regenerate:
+Regenerate:
 ```bash
 openssl rand -base64 32
 ```
 
-must be exactly 32 bytes (base64 encoded = 44 characters).
+Must be exactly 32 bytes (base64 encoded = 44 characters).
 
 ## references
 
-all configuration constants: `src/constants/mod.rs`
-fitness profiles: `src/configuration/profiles.rs`
-database setup: `src/database_plugins/`
+All configuration constants: `src/constants/mod.rs`
+Fitness profiles: `src/configuration/profiles.rs`
+Database setup: `src/database_plugins/`

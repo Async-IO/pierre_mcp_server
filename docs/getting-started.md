@@ -14,7 +14,7 @@ cd pierre_mcp_server
 cargo build --release
 ```
 
-binary: `target/release/pierre-mcp-server`
+Binary: `target/release/pierre-mcp-server`
 
 ## configuration
 
@@ -26,17 +26,17 @@ cd pierre_mcp_server
 direnv allow
 ```
 
-edit `.envrc` for your environment. development defaults included.
+Edit `.envrc` for your environment. Development defaults included.
 
 ### manual setup
 
-required:
+Required:
 ```bash
 export DATABASE_URL="sqlite:./data/pierre.db"
 export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
 ```
 
-optional provider oauth (connect to strava/garmin/fitbit):
+Optional provider oauth (connect to strava/garmin/fitbit):
 ```bash
 # local development only
 export STRAVA_CLIENT_ID=your_id
@@ -52,9 +52,9 @@ export GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin  # lo
 # export GARMIN_REDIRECT_URI=https://api.example.com/api/oauth/callback/garmin
 ```
 
-**security**: http callback urls only for local development. production must use https to protect authorization codes.
+**security**: http callback urls only for local development. Production must use https to protect authorization codes.
 
-see `src/constants/mod.rs` for all environment variables.
+See `src/constants/mod.rs` for all environment variables.
 
 ## running the server
 
@@ -62,9 +62,9 @@ see `src/constants/mod.rs` for all environment variables.
 cargo run --bin pierre-mcp-server
 ```
 
-server starts on `http://localhost:8081`
+Server starts on `http://localhost:8081`
 
-logs show available endpoints:
+Logs show available endpoints:
 - `/health` - health check
 - `/mcp` - mcp protocol endpoint
 - `/oauth2/*` - oauth2 authorization server
@@ -83,7 +83,7 @@ curl -X POST http://localhost:8081/admin/setup \
   }'
 ```
 
-response includes jwt token. save it.
+Response includes jwt token. Save it.
 
 ## connect mcp client
 
@@ -93,7 +93,7 @@ response includes jwt token. save it.
 npm install -g pierre-mcp-client@next
 ```
 
-claude desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+Claude desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
@@ -113,7 +113,7 @@ npm install
 npm run build
 ```
 
-claude desktop config:
+Claude desktop config:
 ```json
 {
   "mcpServers": {
@@ -125,22 +125,22 @@ claude desktop config:
 }
 ```
 
-restart claude desktop.
+Restart claude desktop.
 
 ## authentication flow
 
-sdk handles oauth2 automatically:
-1. registers oauth2 client with Pierre Fitness Platform (rfc 7591)
-2. opens browser for login
-3. handles callback and token exchange
-4. stores jwt token
-5. uses jwt for all mcp requests
+Sdk handles oauth2 automatically:
+1. Registers oauth2 client with Pierre Fitness Platform (rfc 7591)
+2. Opens browser for login
+3. Handles callback and token exchange
+4. Stores jwt token
+5. Uses jwt for all mcp requests
 
-no manual token management needed.
+No manual token management needed.
 
 ## verify connection
 
-in claude desktop, ask:
+In claude desktop, ask:
 - "connect to strava" - initiates oauth flow
 - "get my last 5 activities" - fetches strava data
 - "analyze my training load" - runs intelligence engine
@@ -174,7 +174,7 @@ Pierre Fitness Platform provides 25 mcp tools:
 - `update_user_configuration` - update config
 - `calculate_personalized_zones` - training zones
 
-see `src/protocols/universal/tool_registry.rs` for complete tool definitions.
+See `src/protocols/universal/tool_registry.rs` for complete tool definitions.
 
 ## development workflow
 
@@ -211,16 +211,16 @@ cargo test -- --nocapture
 
 ### server won't start
 
-check logs for:
+Check logs for:
 - database connection errors → verify `DATABASE_URL`
 - encryption key errors → verify `PIERRE_MASTER_ENCRYPTION_KEY`
 - port conflicts → check port 8081 availability
 
 ### sdk connection fails
 
-1. verify server is running: `curl http://localhost:8081/health`
-2. check claude desktop logs: `~/Library/Logs/Claude/mcp*.log`
-3. test sdk directly: `npx pierre-mcp-client@next --server http://localhost:8081`
+1. Verify server is running: `curl http://localhost:8081/health`
+2. Check claude desktop logs: `~/Library/Logs/Claude/mcp*.log`
+3. Test sdk directly: `npx pierre-mcp-client@next --server http://localhost:8081`
 
 ### oauth2 flow fails
 

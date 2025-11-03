@@ -1,6 +1,6 @@
 # oauth client (fitness providers)
 
-pierre acts as an oauth 2.0 client to connect to fitness providers (strava, fitbit, garmin) on behalf of users.
+Pierre acts as an oauth 2.0 client to connect to fitness providers (strava, fitbit, garmin) on behalf of users.
 
 ## overview
 
@@ -22,7 +22,7 @@ pierre acts as an oauth 2.0 client to connect to fitness providers (strava, fitb
 | fitbit | oauth 2.0 | required | `activity`,`heartrate`,`location`,`nutrition`,`profile`,`settings`,`sleep`,`social`,`weight` | `src/providers/fitbit.rs` |
 | garmin | oauth 2.0 | required | `wellness:read`,`activities:read` | `src/providers/garmin_provider.rs` |
 
-implementation: `src/oauth2_client/mod.rs`
+Implementation: `src/oauth2_client/mod.rs`
 
 ## configuration
 
@@ -56,17 +56,17 @@ export FITBIT_REDIRECT_URI=https://api.example.com/api/oauth/callback/fitbit
 export GARMIN_REDIRECT_URI=https://api.example.com/api/oauth/callback/garmin
 ```
 
-constants: `src/constants/oauth/providers.rs`
+Constants: `src/constants/oauth/providers.rs`
 
 ## multi-tenant architecture
 
 ### credential hierarchy
 
-credentials resolved in priority order:
+Credentials resolved in priority order:
 1. **tenant-specific credentials** (database, encrypted)
 2. **server-level credentials** (environment variables)
 
-implementation: `src/oauth2_client/tenant_client.rs`
+Implementation: `src/oauth2_client/tenant_client.rs`
 
 ### tenant oauth client
 
@@ -91,7 +91,7 @@ curl -X GET "http://localhost:8081/api/oauth/authorize/strava?user_id=uuid" \
   -H "x-strava-client_secret: tenant_client_secret"
 ```
 
-credentials stored encrypted in database, bound to tenant.
+Credentials stored encrypted in database, bound to tenant.
 
 **via api:**
 ```rust
@@ -108,7 +108,7 @@ tenant_oauth_client.store_credentials(
 ).await?;
 ```
 
-implementation: `src/oauth2_client/tenant_client.rs:21-34`
+Implementation: `src/oauth2_client/tenant_client.rs:21-34`
 
 ### rate limiting
 
@@ -130,7 +130,7 @@ if current_usage >= daily_limit {
 }
 ```
 
-implementation: `src/oauth2_client/tenant_client.rs:64-75`
+Implementation: `src/oauth2_client/tenant_client.rs:64-75`
 
 ## oauth flow
 
@@ -148,14 +148,14 @@ curl -H "Authorization: Bearer <jwt>" \
 ```
 
 **flow manager** (`src/oauth2_client/flow_manager.rs:29-105`):
-1. validates user_id and tenant_id
-2. processes optional tenant credentials from headers
-3. generates authorization redirect url
-4. returns http 302 redirect to provider
+1. Validates user_id and tenant_id
+2. Processes optional tenant credentials from headers
+3. Generates authorization redirect url
+4. Returns http 302 redirect to provider
 
 ### step 2: user authorizes at provider
 
-pierre generates authorization url with:
+Pierre generates authorization url with:
 - **pkce s256 challenge** (128-character verifier)
 - **state parameter** for csrf protection (`{user_id}:{random_uuid}`)
 - **provider scopes** (activity read, heartrate, etc.)
@@ -182,11 +182,11 @@ pub fn generate() -> PkceParams {
 }
 ```
 
-user authenticates with provider and grants permissions.
+User authenticates with provider and grants permissions.
 
 ### step 3: oauth callback
 
-provider redirects to pierre callback:
+Provider redirects to pierre callback:
 ```
 http://localhost:8081/api/oauth/callback/strava?
   code=authorization_code&
@@ -194,23 +194,23 @@ http://localhost:8081/api/oauth/callback/strava?
 ```
 
 **callback handling** (`src/routes/auth.rs`):
-1. validates state parameter (csrf protection)
-2. extracts user_id from state
-3. exchanges authorization code for access token
-4. encrypts tokens with aes-256-gcm
-5. stores in database (tenant-isolated)
-6. renders success page
+1. Validates state parameter (csrf protection)
+2. Extracts user_id from state
+3. Exchanges authorization code for access token
+4. Encrypts tokens with aes-256-gcm
+5. Stores in database (tenant-isolated)
+6. Renders success page
 
 ### step 4: success page
 
-user sees branded html page:
+User sees branded html page:
 - provider name and connection status
 - user identifier
 - pierre logo
 - "close this window" button
 
-template: `templates/oauth_success.html`
-renderer: `src/oauth2_client/flow_manager.rs:350-393`
+Template: `templates/oauth_success.html`
+Renderer: `src/oauth2_client/flow_manager.rs:350-393`
 
 ## token management
 
@@ -241,7 +241,7 @@ impl OAuth2Token {
 
 ### storage
 
-tokens stored in `users` table with provider-specific columns:
+Tokens stored in `users` table with provider-specific columns:
 
 ```sql
 -- strava example
@@ -256,11 +256,11 @@ strava_scope            TEXT      -- comma-separated
 - key: tenant-specific (derived from `PIERRE_MASTER_ENCRYPTION_KEY`)
 - unique key per tenant ensures isolation
 
-implementation: `src/database/tokens.rs`, `src/crypto/`, `src/key_management.rs`
+Implementation: `src/database/tokens.rs`, `src/crypto/`, `src/key_management.rs`
 
 ### automatic refresh
 
-pierre refreshes expired tokens before api requests:
+Pierre refreshes expired tokens before api requests:
 
 **refresh criteria:**
 - access token expired or expiring within 5 minutes
@@ -323,7 +323,7 @@ database.update_oauth_token(
 database.clear_oauth_token(user_id, "strava").await?;
 ```
 
-implementation: `src/database/tokens.rs`
+Implementation: `src/database/tokens.rs`
 
 ## connection status
 
@@ -333,7 +333,7 @@ curl -H "Authorization: Bearer <jwt>" \
   http://localhost:8081/api/oauth/status
 ```
 
-response:
+Response:
 ```json
 {
   "connected_providers": ["strava", "fitbit"],
@@ -363,7 +363,7 @@ curl -X DELETE -H "Authorization: Bearer <jwt>" \
   http://localhost:8081/api/oauth/disconnect/strava
 ```
 
-implementation: `src/routes/auth.rs`
+Implementation: `src/routes/auth.rs`
 
 ## security features
 
@@ -371,7 +371,7 @@ implementation: `src/routes/auth.rs`
 
 **implementation** (`src/oauth2_client/client.rs:27-59`):
 
-all provider oauth flows use pkce (rfc 7636):
+All provider oauth flows use pkce (rfc 7636):
 
 **code verifier:**
 - 128 characters
@@ -383,18 +383,18 @@ all provider oauth flows use pkce (rfc 7636):
 - base64url encoded (no padding)
 - method: s256 only
 
-prevents authorization code interception attacks.
+Prevents authorization code interception attacks.
 
 ### state parameter validation
 
 **state format:** `{user_id}:{random_uuid}`
 
 **validation** (`src/oauth2_client/flow_manager.rs:162-215`):
-1. extract user_id from state
-2. verify user exists and belongs to tenant
-3. ensure state not reused (single-use)
+1. Extract user_id from state
+2. Verify user exists and belongs to tenant
+3. Ensure state not reused (single-use)
 
-invalid state results in authorization rejection.
+Invalid state results in authorization rejection.
 
 ### token encryption
 
@@ -410,22 +410,22 @@ invalid state results in authorization rejection.
 - refresh_token
 - client_secret (for tenant credentials)
 
-decryption requires:
-1. correct master key
-2. correct tenant_id
-3. valid encryption nonce
+Decryption requires:
+1. Correct master key
+2. Correct tenant_id
+3. Valid encryption nonce
 
 ### tenant isolation
 
-oauth artifacts never shared between tenants:
+Oauth artifacts never shared between tenants:
 - credentials stored per tenant_id
 - tokens bound to user and tenant
 - rate limits enforced per tenant
 - database queries include tenant_id filter
 
-cross-tenant access prevented at database layer.
+Cross-tenant access prevented at database layer.
 
-implementation: `src/tenant/oauth_manager.rs`
+Implementation: `src/tenant/oauth_manager.rs`
 
 ## provider-specific details
 
@@ -451,7 +451,7 @@ implementation: `src/tenant/oauth_manager.rs`
 - access token: 6 hours
 - refresh token: permanent (until revoked)
 
-implementation: `src/providers/strava.rs`, `src/providers/strava_provider.rs`
+Implementation: `src/providers/strava.rs`, `src/providers/strava_provider.rs`
 
 ### fitbit
 
@@ -479,7 +479,7 @@ implementation: `src/providers/strava.rs`, `src/providers/strava_provider.rs`
 - access token: 8 hours
 - refresh token: 1 year
 
-implementation: `src/providers/fitbit.rs`
+Implementation: `src/providers/fitbit.rs`
 
 ### garmin
 
@@ -505,13 +505,13 @@ implementation: `src/providers/fitbit.rs`
 
 **status:** in development
 
-implementation: `src/providers/garmin_provider.rs`
+Implementation: `src/providers/garmin_provider.rs`
 
 ## error handling
 
 ### authorization errors
 
-displayed on html error page (`templates/oauth_error.html`):
+Displayed on html error page (`templates/oauth_error.html`):
 
 **common errors:**
 - `access_denied` - user denied authorization
@@ -519,11 +519,11 @@ displayed on html error page (`templates/oauth_error.html`):
 - `invalid_scope` - requested scope not available
 - `server_error` - provider api error
 
-renderer: `src/oauth2_client/flow_manager.rs:329-347`
+Renderer: `src/oauth2_client/flow_manager.rs:329-347`
 
 ### callback errors
 
-returned as query parameters:
+Returned as query parameters:
 ```
 http://localhost:8081/api/oauth/callback/strava?
   error=access_denied&
@@ -550,7 +550,7 @@ http://localhost:8081/api/oauth/callback/strava?
 }
 ```
 
-implementation: `src/providers/errors.rs`
+Implementation: `src/providers/errors.rs`
 
 ## troubleshooting
 

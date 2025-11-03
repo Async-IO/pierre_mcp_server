@@ -1,6 +1,6 @@
 # oauth2 server
 
-pierre includes a standards-compliant oauth2 authorization server for secure mcp client authentication.
+Pierre includes a standards-compliant oauth2 authorization server for secure mcp client authentication.
 
 ## features
 
@@ -27,7 +27,7 @@ curl -X POST http://localhost:8081/oauth2/register \
   }'
 ```
 
-response:
+Response:
 ```json
 {
   "client_id": "mcp_client_abc123",
@@ -39,7 +39,7 @@ response:
 }
 ```
 
-**important:** save `client_secret` immediately. cannot be retrieved later.
+**important:** save `client_secret` immediately. Cannot be retrieved later.
 
 ### 2. generate pkce challenge
 
@@ -66,7 +66,7 @@ session['oauth_state'] = state
 
 ### 3. initiate authorization
 
-redirect user to authorization endpoint:
+Redirect user to authorization endpoint:
 
 ```
 https://pierre.example.com/oauth2/authorize?
@@ -79,7 +79,7 @@ https://pierre.example.com/oauth2/authorize?
   scope=read:activities write:goals
 ```
 
-user will authenticate and authorize. pierre redirects to callback with authorization code:
+User will authenticate and authorize. Pierre redirects to callback with authorization code:
 
 ```
 https://example.com/callback?
@@ -113,7 +113,7 @@ curl -X POST http://localhost:8081/oauth2/token \
   -d "code_verifier=<stored_code_verifier>"
 ```
 
-response:
+Response:
 ```json
 {
   "access_token": "jwt_access_token",
@@ -135,12 +135,12 @@ curl -H "Authorization: Bearer jwt_access_token" \
 
 ### register new client
 
-endpoint: `POST /oauth2/register`
+Endpoint: `POST /oauth2/register`
 
-required fields:
+Required fields:
 - `redirect_uris` - array of callback urls (https required except localhost)
 
-optional fields:
+Optional fields:
 - `client_name` - display name
 - `client_uri` - client homepage url
 - `grant_types` - defaults to `["authorization_code"]`
@@ -149,7 +149,7 @@ optional fields:
 
 ### redirect uri validation
 
-pierre enforces strict redirect uri validation:
+Pierre enforces strict redirect uri validation:
 
 **allowed:**
 - `https://` urls (production)
@@ -192,7 +192,7 @@ curl -X POST http://localhost:8081/oauth2/register \
 
 ### step 1: authorization request
 
-build authorization url with required parameters:
+Build authorization url with required parameters:
 
 ```python
 from urllib.parse import urlencode
@@ -210,28 +210,28 @@ params = {
 auth_url = f"https://pierre.example.com/oauth2/authorize?{urlencode(params)}"
 ```
 
-redirect user to `auth_url`.
+Redirect user to `auth_url`.
 
 ### step 2: user authentication
 
-if user not logged in, pierre displays login form. after successful login, shows authorization consent screen.
+If user not logged in, pierre displays login form. After successful login, shows authorization consent screen.
 
 ### step 3: authorization callback
 
-pierre redirects to your `redirect_uri` with authorization code:
+Pierre redirects to your `redirect_uri` with authorization code:
 
 ```
 https://example.com/callback?code=<auth_code>&state=<state>
 ```
 
-error response (if user denies):
+Error response (if user denies):
 ```
 https://example.com/callback?error=access_denied&error_description=User+denied+authorization
 ```
 
 ### step 4: token exchange
 
-exchange authorization code for access token:
+Exchange authorization code for access token:
 
 ```bash
 curl -X POST http://localhost:8081/oauth2/token \
@@ -250,9 +250,9 @@ curl -X POST http://localhost:8081/oauth2/token \
 
 ### access tokens
 
-jwt-based tokens with 1-hour expiration (configurable).
+Jwt-based tokens with 1-hour expiration (configurable).
 
-claims include:
+Claims include:
 - `sub` - user id
 - `email` - user email
 - `tenant_id` - tenant identifier
@@ -261,7 +261,7 @@ claims include:
 
 ### refresh tokens
 
-use refresh token to obtain new access token without re-authentication:
+Use refresh token to obtain new access token without re-authentication:
 
 ```bash
 curl -X POST http://localhost:8081/oauth2/token \
@@ -272,7 +272,7 @@ curl -X POST http://localhost:8081/oauth2/token \
   -d "client_secret=<client_secret>"
 ```
 
-response:
+Response:
 ```json
 {
   "access_token": "new_jwt_access_token",
@@ -283,11 +283,11 @@ response:
 }
 ```
 
-**refresh token rotation:** pierre issues new refresh token with each refresh request. old refresh token is revoked.
+**refresh token rotation:** pierre issues new refresh token with each refresh request. Old refresh token is revoked.
 
 ### token validation
 
-validate access token and optionally refresh if expired:
+Validate access token and optionally refresh if expired:
 
 ```bash
 curl -X POST http://localhost:8081/oauth2/validate \
@@ -298,7 +298,7 @@ curl -X POST http://localhost:8081/oauth2/validate \
   }'
 ```
 
-responses:
+Responses:
 
 **valid token:**
 ```json
@@ -331,7 +331,7 @@ responses:
 
 ### pkce (proof key for code exchange)
 
-pierre requires pkce for all authorization code flows.
+Pierre requires pkce for all authorization code flows.
 
 **supported methods:**
 - `S256` (sha256) - required
@@ -340,30 +340,30 @@ pierre requires pkce for all authorization code flows.
 - `plain` - insecure, not supported
 
 **implementation:**
-1. generate random `code_verifier` (43-128 characters)
-2. compute `code_challenge = base64url(sha256(code_verifier))`
-3. send `code_challenge` in authorization request
-4. send `code_verifier` in token exchange
-5. pierre validates `sha256(code_verifier) == code_challenge`
+1. Generate random `code_verifier` (43-128 characters)
+2. Compute `code_challenge = base64url(sha256(code_verifier))`
+3. Send `code_challenge` in authorization request
+4. Send `code_verifier` in token exchange
+5. Pierre validates `sha256(code_verifier) == code_challenge`
 
-prevents authorization code interception attacks.
+Prevents authorization code interception attacks.
 
 ### state parameter validation
 
-pierre implements defense-in-depth csrf protection with server-side state validation.
+Pierre implements defense-in-depth csrf protection with server-side state validation.
 
 **client requirements:**
-1. generate cryptographically random state (≥128 bits entropy)
-2. store state in session before authorization request
-3. include state in authorization request
-4. validate state matches in callback
+1. Generate cryptographically random state (≥128 bits entropy)
+2. Store state in session before authorization request
+3. Include state in authorization request
+4. Validate state matches in callback
 
 **server behavior:**
-1. stores state with 10-minute expiration
-2. binds state to client_id and user
-3. validates state on callback
-4. marks state as used (single-use)
-5. rejects expired, used, or mismatched states
+1. Stores state with 10-minute expiration
+2. Binds state to client_id and user
+3. Validates state on callback
+4. Marks state as used (single-use)
+5. Rejects expired, used, or mismatched states
 
 **example implementation:**
 ```python
@@ -383,7 +383,7 @@ if not received_state or received_state != stored_state:
 
 ### client secret hashing
 
-client secrets hashed with argon2id (memory-hard algorithm resistant to gpu attacks).
+Client secrets hashed with argon2id (memory-hard algorithm resistant to gpu attacks).
 
 **verification:**
 ```bash
@@ -394,15 +394,15 @@ curl -X POST http://localhost:8081/oauth2/token \
   ...
 ```
 
-pierre verifies secret using constant-time comparison to prevent timing attacks.
+Pierre verifies secret using constant-time comparison to prevent timing attacks.
 
 ### multi-tenant isolation
 
-all oauth artifacts (codes, tokens, states) bound to tenant_id. cross-tenant access prevented at database layer.
+All oauth artifacts (codes, tokens, states) bound to tenant_id. Cross-tenant access prevented at database layer.
 
 ## scopes
 
-pierre supports fine-grained permission control via oauth scopes.
+Pierre supports fine-grained permission control via oauth scopes.
 
 ### available scopes
 
@@ -423,7 +423,7 @@ pierre supports fine-grained permission control via oauth scopes.
 
 ### requesting scopes
 
-include in authorization request:
+Include in authorization request:
 
 ```
 /oauth2/authorize?
@@ -433,13 +433,13 @@ include in authorization request:
 
 ### scope validation
 
-pierre validates requested scopes against client's registered scopes. access tokens include granted scopes in jwt claims.
+Pierre validates requested scopes against client's registered scopes. Access tokens include granted scopes in jwt claims.
 
 ## error handling
 
 ### authorization errors
 
-returned as query parameters in redirect:
+Returned as query parameters in redirect:
 
 ```
 https://example.com/callback?
@@ -458,7 +458,7 @@ https://example.com/callback?
 
 ### token errors
 
-returned as json in response body:
+Returned as json in response body:
 
 ```json
 {
@@ -479,35 +479,35 @@ returned as json in response body:
 
 ### web application flow
 
-1. user clicks "connect with pierre"
-2. app redirects to pierre authorization endpoint
-3. user logs in (if needed) and approves
-4. pierre redirects back with authorization code
-5. app exchanges code for tokens (server-side)
-6. app stores tokens securely (encrypted database)
-7. app uses access token for api requests
-8. app refreshes token before expiration
+1. User clicks "connect with pierre"
+2. App redirects to pierre authorization endpoint
+3. User logs in (if needed) and approves
+4. Pierre redirects back with authorization code
+5. App exchanges code for tokens (server-side)
+6. App stores tokens securely (encrypted database)
+7. App uses access token for api requests
+8. App refreshes token before expiration
 
 ### native application flow
 
-1. app opens system browser to authorization url
-2. user authenticates and approves
-3. browser redirects to `http://localhost:port/callback`
-4. app's local server receives callback
-5. app exchanges code for tokens
-6. app stores tokens securely (os keychain)
+1. App opens system browser to authorization url
+2. User authenticates and approves
+3. Browser redirects to `http://localhost:port/callback`
+4. App's local server receives callback
+5. App exchanges code for tokens
+6. App stores tokens securely (os keychain)
 
 ### single page application (spa) flow
 
 **recommended:** use authorization code flow with pkce:
 
-1. spa redirects to pierre authorization endpoint
-2. pierre redirects back with authorization code
-3. spa exchanges code for tokens via backend proxy
-4. backend stores refresh token
-5. backend returns short-lived access token to spa
-6. spa uses access token for api requests
-7. spa requests new access token via backend when expired
+1. Spa redirects to pierre authorization endpoint
+2. Pierre redirects back with authorization code
+3. Spa exchanges code for tokens via backend proxy
+4. Backend stores refresh token
+5. Backend returns short-lived access token to spa
+6. Spa uses access token for api requests
+7. Spa requests new access token via backend when expired
 
 **not recommended:** implicit flow (deprecated)
 
@@ -517,7 +517,7 @@ returned as json in response body:
 
 **symptom:** `invalid_grant` error when exchanging code
 
-**solution:** authorization codes expire in 10 minutes. restart authorization flow.
+**solution:** authorization codes expire in 10 minutes. Restart authorization flow.
 
 ### pkce validation failed
 
@@ -579,7 +579,7 @@ returned as json in response body:
 
 ### customization
 
-modify defaults in `.env`:
+Modify defaults in `.env`:
 
 ```bash
 # shorter authorization code lifetime (5 minutes)

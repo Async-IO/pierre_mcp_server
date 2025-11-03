@@ -2,7 +2,7 @@
 
 ## what this document covers
 
-this comprehensive guide explains the scientific methods, algorithms, and data integration behind pierre's nutrition system. it provides transparency into:
+This comprehensive guide explains the scientific methods, algorithms, and data integration behind pierre's nutrition system. It provides transparency into:
 
 - **mathematical foundations**: BMR formulas, TDEE calculations, macronutrient distribution algorithms
 - **usda fooddata central integration**: real food database access with 350,000+ foods
@@ -46,7 +46,7 @@ this comprehensive guide explains the scientific methods, algorithms, and data i
 
 ## architecture overview
 
-pierre's nutrition system uses a **foundation modules** approach integrated with usda fooddata central:
+Pierre's nutrition system uses a **foundation modules** approach integrated with usda fooddata central:
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -199,8 +199,8 @@ pub struct BmrConfig {
 
 **mifflin, m.d., et al. (1990)**
 *"a new predictive equation for resting energy expenditure in healthy individuals"*
-american journal of clinical nutrition, 51(2), 241-247
-doi: 10.1093/ajcn/51.2.241
+American journal of clinical nutrition, 51(2), 241-247
+Doi: 10.1093/ajcn/51.2.241
 
 **key findings:**
 - validated on 498 healthy subjects (247 males, 251 females)
@@ -218,7 +218,7 @@ doi: 10.1093/ajcn/51.2.241
 
 #### activity levels
 
-based on mcardle, katch & katch exercise physiology (2010):
+Based on mcardle, katch & katch exercise physiology (2010):
 
 | activity level | description | multiplier | example activities |
 |----------------|-------------|------------|-------------------|
@@ -281,7 +281,7 @@ pub struct ActivityFactorsConfig {
 
 #### recommendations by activity and goal
 
-based on phillips & van loon (2011) doi: 10.1080/02640414.2011.619204:
+Based on phillips & van loon (2011) doi: 10.1080/02640414.2011.619204:
 
 | activity level | training goal | protein (g/kg) | rationale |
 |----------------|---------------|----------------|-----------|
@@ -337,7 +337,7 @@ pub fn calculate_protein_needs(
 
 #### recommendations by activity and goal
 
-based on burke et al. (2011) doi: 10.1080/02640414.2011.585473:
+Based on burke et al. (2011) doi: 10.1080/02640414.2011.585473:
 
 | activity level | training goal | carbs (g/kg) | rationale |
 |----------------|---------------|--------------|-----------|
@@ -387,7 +387,7 @@ pub fn calculate_carb_needs(
 
 #### dri guidelines
 
-dietary reference intakes (institute of medicine):
+Dietary reference intakes (institute of medicine):
 - **minimum**: 20% of tdee (hormone production, vitamin absorption)
 - **optimal**: 25-30% of tdee (satiety, performance)
 - **maximum**: 35% of tdee (avoid excess)
@@ -465,7 +465,7 @@ pub struct MacronutrientConfig {
 
 ### pre-workout nutrition
 
-based on kerksick et al. (2017) doi: 10.1186/s12970-017-0189-4:
+Based on kerksick et al. (2017) doi: 10.1186/s12970-017-0189-4:
 
 **timing**: 1-3 hours before workout
 **carbohydrates**: 0.5-1.0 g/kg (intensity-dependent)
@@ -698,7 +698,7 @@ pub struct UsdaApiConfig {
 
 ## 6. mcp tool integration
 
-pierre exposes 5 nutrition tools via mcp protocol:
+Pierre exposes 5 nutrition tools via mcp protocol:
 
 ### calculate_daily_nutrition
 
@@ -924,7 +924,7 @@ test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
 ## 8. configuration and customization
 
-all nutrition parameters are configurable via `src/config/intelligence_config.rs`:
+All nutrition parameters are configurable via `src/config/intelligence_config.rs`:
 
 ```rust
 pub struct NutritionConfig {
@@ -949,7 +949,7 @@ export DATABASE_URL=sqlite:./data/pierre.db
 
 ### dependency injection
 
-all calculation functions accept configuration structs:
+All calculation functions accept configuration structs:
 - **testable**: inject mock configs for testing
 - **flexible**: change thresholds without code changes
 - **documented**: configuration structs have inline documentation

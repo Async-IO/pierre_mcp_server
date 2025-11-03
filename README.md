@@ -284,11 +284,11 @@ No manual token management required.
 
 ## Streamable http transport
 
-mcp clients with streamable http transport support can connect directly to pierre without the sdk bridge.
+Mcp clients with streamable http transport support can connect directly to pierre without the sdk bridge.
 
 ### Http transport setup
 
-mcp clients with streamable http transport connect directly to the mcp endpoint:
+Mcp clients with streamable http transport connect directly to the mcp endpoint:
 
 ```
 endpoint: http://localhost:8081/mcp (development)
@@ -297,13 +297,13 @@ endpoint: https://your-server.com/mcp (production)
 
 ### Http transport authentication
 
-streamable http connections use oauth 2.0 authorization code flow:
+Streamable http connections use oauth 2.0 authorization code flow:
 
-1. client discovers oauth configuration from `/.well-known/oauth-authorization-server`
-2. client registers dynamically using rfc 7591 (`/oauth2/register`)
-3. opens browser for user authentication (`/oauth2/authorize`)
-4. exchanges authorization code for jwt token (`/oauth2/token`)
-5. uses jwt token for all subsequent mcp requests
+1. Client discovers oauth configuration from `/.well-known/oauth-authorization-server`
+2. Client registers dynamically using rfc 7591 (`/oauth2/register`)
+3. Opens browser for user authentication (`/oauth2/authorize`)
+4. Exchanges authorization code for jwt token (`/oauth2/token`)
+5. Uses jwt token for all subsequent mcp requests
 
 ## Available MCP Tools
 

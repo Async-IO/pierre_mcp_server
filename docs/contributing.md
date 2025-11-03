@@ -32,7 +32,7 @@ cargo test
 
 ### error handling
 
-no panics in production code:
+No panics in production code:
 ```rust
 // bad
 let value = some_option.unwrap();
@@ -66,12 +66,12 @@ let db = database.clone(); // clone for tokio::spawn thread safety
 
 ### test requirements
 
-every feature needs:
+Every feature needs:
 1. **unit tests**: test individual functions
 2. **integration tests**: test component interactions
 3. **e2e tests**: test complete workflows
 
-no exceptions. if you think a test doesn't apply, ask first.
+No exceptions. If you think a test doesn't apply, ask first.
 
 ### running tests
 
@@ -123,31 +123,31 @@ mod tests {
 
 ### creating features
 
-1. create feature branch:
+1. Create feature branch:
 ```bash
 git checkout -b feature/my-feature
 ```
 
-2. implement feature with tests
-3. run validation:
+2. Implement feature with tests
+3. Run validation:
 ```bash
 ./scripts/lint-and-test.sh
 ```
 
-4. commit:
+4. Commit:
 ```bash
 git add .
 git commit -m "feat: add my feature"
 ```
 
-5. push and create pr:
+5. Push and create pr:
 ```bash
 git push origin feature/my-feature
 ```
 
 ### fixing bugs
 
-bug fixes go directly to main branch:
+Bug fixes go directly to main branch:
 ```bash
 git checkout main
 # fix bug
@@ -157,7 +157,7 @@ git push origin main
 
 ### commit messages
 
-follow conventional commits:
+Follow conventional commits:
 - `feat:` - new feature
 - `fix:` - bug fix
 - `refactor:` - code refactoring
@@ -165,7 +165,7 @@ follow conventional commits:
 - `test:` - test additions/changes
 - `chore:` - maintenance tasks
 
-no ai assistant references in commits (automated text removed).
+No ai assistant references in commits (automated text removed).
 
 ## validation
 
@@ -175,11 +175,11 @@ no ai assistant references in commits (automated text removed).
 ./scripts/lint-and-test.sh
 ```
 
-runs:
-1. clippy with strict lints
-2. pattern validation (no unwrap, no placeholders)
-3. all tests
-4. format check
+Runs:
+1. Clippy with strict lints
+2. Pattern validation (no unwrap, no placeholders)
+3. All tests
+4. Format check
 
 ### clippy
 
@@ -187,11 +187,11 @@ runs:
 cargo clippy -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
 ```
 
-zero tolerance for warnings.
+Zero tolerance for warnings.
 
 ### pattern validation
 
-checks for banned patterns:
+Checks for banned patterns:
 ```bash
 # no unwrap/expect/panic
 rg "unwrap\(\)|expect\(|panic!\(" src/
@@ -208,18 +208,18 @@ rg "fn _|let _[a-zA-Z]|struct _|enum _" src/
 
 ### git hooks
 
-install pre-commit hook:
+Install pre-commit hook:
 ```bash
 ./scripts/install-hooks.sh
 ```
 
-runs validation automatically before commits.
+Runs validation automatically before commits.
 
 ## architecture guidelines
 
 ### dependency injection
 
-use `Arc<T>` for shared resources:
+Use `Arc<T>` for shared resources:
 ```rust
 pub struct ServerResources {
     pub database: Arc<Database>,
@@ -228,11 +228,11 @@ pub struct ServerResources {
 }
 ```
 
-pass resources to components, not global state.
+Pass resources to components, not global state.
 
 ### protocol abstraction
 
-business logic in `src/protocols/universal/`. protocol handlers (mcp, a2a) just translate requests/responses.
+Business logic in `src/protocols/universal/`. Protocol handlers (mcp, a2a) just translate requests/responses.
 
 ```rust
 // business logic - protocol agnostic
@@ -253,7 +253,7 @@ impl McpHandler {
 
 ### multi-tenant isolation
 
-every request needs tenant context:
+Every request needs tenant context:
 ```rust
 pub struct TenantContext {
     pub tenant_id: Uuid,
@@ -262,11 +262,11 @@ pub struct TenantContext {
 }
 ```
 
-database queries filter by tenant_id.
+Database queries filter by tenant_id.
 
 ### error handling
 
-use thiserror for custom errors:
+Use thiserror for custom errors:
 ```rust
 #[derive(Debug, thiserror::Error)]
 pub enum MyError {
@@ -278,13 +278,13 @@ pub enum MyError {
 }
 ```
 
-propagate with `?` operator.
+Propagate with `?` operator.
 
 ## adding new features
 
 ### new fitness provider
 
-1. implement `FitnessProvider` trait in `src/providers/`:
+1. Implement `FitnessProvider` trait in `src/providers/`:
 ```rust
 pub struct NewProvider {
     config: ProviderConfig,
@@ -298,13 +298,13 @@ impl FitnessProvider for NewProvider {
 }
 ```
 
-2. register in `src/providers/registry.rs`
-3. add oauth configuration in `src/oauth/`
-4. add tests
+2. Register in `src/providers/registry.rs`
+3. Add oauth configuration in `src/oauth/`
+4. Add tests
 
 ### new mcp tool
 
-1. define tool in `src/protocols/universal/tool_registry.rs`:
+1. Define tool in `src/protocols/universal/tool_registry.rs`:
 ```rust
 pub const TOOL_MY_FEATURE: ToolDefinition = ToolDefinition {
     name: "my_feature",
@@ -313,7 +313,7 @@ pub const TOOL_MY_FEATURE: ToolDefinition = ToolDefinition {
 };
 ```
 
-2. implement handler in `src/protocols/universal/handlers/`:
+2. Implement handler in `src/protocols/universal/handlers/`:
 ```rust
 pub async fn handle_my_feature(
     context: &UniversalContext,
@@ -323,12 +323,12 @@ pub async fn handle_my_feature(
 }
 ```
 
-3. register in tool executor
-4. add unit + integration tests
+3. Register in tool executor
+4. Add unit + integration tests
 
 ### new database backend
 
-1. implement `DatabaseProvider` trait in `src/database_plugins/`:
+1. Implement `DatabaseProvider` trait in `src/database_plugins/`:
 ```rust
 pub struct MyDbProvider { /* ... */ }
 
@@ -338,15 +338,15 @@ impl DatabaseProvider for MyDbProvider {
 }
 ```
 
-2. add to factory in `src/database_plugins/factory.rs`
-3. add migration support
-4. add comprehensive tests
+2. Add to factory in `src/database_plugins/factory.rs`
+3. Add migration support
+4. Add comprehensive tests
 
 ## documentation
 
 ### code documentation
 
-all public items need doc comments:
+All public items need doc comments:
 ```rust
 /// Brief description of function
 ///
@@ -368,11 +368,11 @@ pub fn my_function(param: Type) -> Result<Type> {
 
 ### updating docs
 
-after significant changes:
-1. update relevant docs in `docs/`
-2. keep docs concise and accurate
-3. remove outdated information
-4. test all code examples
+After significant changes:
+1. Update relevant docs in `docs/`
+2. Keep docs concise and accurate
+3. Remove outdated information
+4. Test all code examples
 
 ## getting help
 
@@ -383,21 +383,21 @@ after significant changes:
 
 ## review process
 
-1. automated checks must pass (ci)
-2. code review by maintainer
-3. all feedback addressed
-4. tests added/updated
-5. documentation updated
-6. merge to main
+1. Automated checks must pass (ci)
+2. Code review by maintainer
+3. All feedback addressed
+4. Tests added/updated
+5. Documentation updated
+6. Merge to main
 
 ## release process
 
-handled by maintainers:
-1. version bump in `Cargo.toml`
-2. update changelog
-3. create git tag
-4. publish to crates.io
-5. publish sdk to npm
+Handled by maintainers:
+1. Version bump in `Cargo.toml`
+2. Update changelog
+3. Create git tag
+4. Publish to crates.io
+5. Publish sdk to npm
 
 ## code of conduct
 

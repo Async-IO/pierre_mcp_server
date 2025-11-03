@@ -1,10 +1,10 @@
 # protocols
 
-pierre implements three protocols on a single http port (8081).
+Pierre implements three protocols on a single http port (8081).
 
 ## mcp (model context protocol)
 
-json-rpc 2.0 protocol for ai assistant integration.
+Json-rpc 2.0 protocol for ai assistant integration.
 
 ### endpoints
 
@@ -13,20 +13,20 @@ json-rpc 2.0 protocol for ai assistant integration.
 
 ### transport
 
-pierre supports both http and sse transports:
+Pierre supports both http and sse transports:
 - http: traditional request-response
 - sse: server-sent events for streaming responses
 
-sdk handles transport negotiation automatically.
+Sdk handles transport negotiation automatically.
 
 ### authentication
 
-mcp requests require jwt bearer token in authorization header:
+Mcp requests require jwt bearer token in authorization header:
 ```
 Authorization: Bearer <jwt_token>
 ```
 
-obtained via oauth2 flow (sdk handles automatically).
+Obtained via oauth2 flow (sdk handles automatically).
 
 ### request format
 
@@ -69,11 +69,11 @@ obtained via oauth2 flow (sdk handles automatically).
 - `resources/list` - list resources
 - `prompts/list` - list prompts
 
-implementation: `src/mcp/protocol.rs`, `src/protocols/universal/`
+Implementation: `src/mcp/protocol.rs`, `src/protocols/universal/`
 
 ## oauth2 authorization server
 
-rfc 7591 (dynamic client registration) + rfc 7636 (pkce) compliant oauth2 server for mcp client authentication.
+Rfc 7591 (dynamic client registration) + rfc 7636 (pkce) compliant oauth2 server for mcp client authentication.
 
 ### endpoints
 
@@ -109,7 +109,7 @@ curl -X POST https://api.example.com/oauth2/register \
   }'
 ```
 
-response:
+Response:
 ```json
 {
   "client_id": "generated_client_id",
@@ -119,7 +119,7 @@ response:
 }
 ```
 
-**callback url security**: redirect_uris using http only permitted for localhost/127.0.0.1 in development. production clients must use https to protect authorization codes from interception.
+**callback url security**: redirect_uris using http only permitted for localhost/127.0.0.1 in development. Production clients must use https to protect authorization codes from interception.
 
 2. **authorization request**:
 ```
@@ -131,7 +131,7 @@ GET /oauth2/authorize?
   code_challenge_method=S256
 ```
 
-user authenticates in browser, redirected to:
+User authenticates in browser, redirected to:
 ```
 <redirect_uri>?code=<authorization_code>
 ```
@@ -148,7 +148,7 @@ curl -X POST http://localhost:8081/oauth2/token \
       code_verifier=<pkce_verifier>"
 ```
 
-response:
+Response:
 ```json
 {
   "access_token": "jwt_token",
@@ -157,11 +157,11 @@ response:
 }
 ```
 
-jwt access token used for all mcp requests.
+Jwt access token used for all mcp requests.
 
 ### pkce requirement
 
-pierre enforces pkce (rfc 7636) for all authorization code flows. clients must:
+Pierre enforces pkce (rfc 7636) for all authorization code flows. Clients must:
 - generate code verifier (43-128 characters)
 - create code challenge: `base64url(sha256(verifier))`
 - include challenge in authorization request
@@ -169,13 +169,13 @@ pierre enforces pkce (rfc 7636) for all authorization code flows. clients must:
 
 ### server discovery (rfc 8414)
 
-pierre provides oauth2 server metadata for automatic configuration:
+Pierre provides oauth2 server metadata for automatic configuration:
 
 ```bash
 curl http://localhost:8081/.well-known/oauth-authorization-server
 ```
 
-response includes:
+Response includes:
 ```json
 {
   "issuer": "http://localhost:8081",
@@ -189,17 +189,17 @@ response includes:
 }
 ```
 
-issuer url configurable via `OAUTH2_ISSUER_URL` environment variable.
+Issuer url configurable via `OAUTH2_ISSUER_URL` environment variable.
 
 ### jwks endpoint
 
-public keys for jwt token verification available at `/oauth2/jwks`:
+Public keys for jwt token verification available at `/oauth2/jwks`:
 
 ```bash
 curl http://localhost:8081/oauth2/jwks
 ```
 
-response (rfc 7517 compliant):
+Response (rfc 7517 compliant):
 ```json
 {
   "keys": [
@@ -218,21 +218,21 @@ response (rfc 7517 compliant):
 
 ### key rotation
 
-pierre supports rs256 key rotation with grace period:
+Pierre supports rs256 key rotation with grace period:
 - new keys generated with timestamp-based kid (e.g., `key_2024_01_01_123456`)
 - old keys retained during grace period for existing token validation
 - tokens issued with old keys remain valid until expiration
 - new tokens signed with current key
 
-clients should:
-1. fetch jwks on startup
-2. cache public keys for 1 hour (respects cache-control header)
-3. refresh jwks if unknown kid encountered
-4. verify token signature using matching kid
+Clients should:
+1. Fetch jwks on startup
+2. Cache public keys for 1 hour (respects cache-control header)
+3. Refresh jwks if unknown kid encountered
+4. Verify token signature using matching kid
 
 ### rate limiting
 
-oauth2 endpoints protected by per-ip token bucket rate limiting:
+Oauth2 endpoints protected by per-ip token bucket rate limiting:
 
 | endpoint | requests per minute |
 |----------|---------------------|
@@ -240,7 +240,7 @@ oauth2 endpoints protected by per-ip token bucket rate limiting:
 | `/oauth2/token` | 30 (1/2 seconds) |
 | `/oauth2/register` | 10 (1/6 seconds) |
 
-rate limit headers included in all responses:
+Rate limit headers included in all responses:
 ```
 X-RateLimit-Limit: 60
 X-RateLimit-Remaining: 59
@@ -255,7 +255,7 @@ X-RateLimit-Reset: 1704067200
 }
 ```
 
-headers:
+Headers:
 ```
 Retry-After: 42
 X-RateLimit-Limit: 60
@@ -263,11 +263,11 @@ X-RateLimit-Remaining: 0
 X-RateLimit-Reset: 1704067200
 ```
 
-implementation: `src/oauth2_server/`, `src/oauth2_server/rate_limiting.rs`
+Implementation: `src/oauth2_server/`, `src/oauth2_server/rate_limiting.rs`
 
 ## a2a (agent-to-agent protocol)
 
-protocol for autonomous ai systems to communicate.
+Protocol for autonomous ai systems to communicate.
 
 ### endpoints
 
@@ -278,12 +278,12 @@ protocol for autonomous ai systems to communicate.
 
 ### authentication
 
-a2a uses api keys:
+A2a uses api keys:
 ```
 X-API-Key: <api_key>
 ```
 
-create api key via admin endpoint:
+Create api key via admin endpoint:
 ```bash
 curl -X POST http://localhost:8081/api/keys \
   -H "Authorization: Bearer <admin_jwt>" \
@@ -293,7 +293,7 @@ curl -X POST http://localhost:8081/api/keys \
 
 ### agent cards
 
-agents advertise capabilities via agent cards:
+Agents advertise capabilities via agent cards:
 ```json
 {
   "agent_id": "fitness-analyzer",
@@ -338,11 +338,11 @@ agents advertise capabilities via agent cards:
 }
 ```
 
-implementation: `src/a2a/`, `src/protocols/universal/`
+Implementation: `src/a2a/`, `src/protocols/universal/`
 
 ## rest api
 
-traditional rest endpoints for web applications.
+Traditional rest endpoints for web applications.
 
 ### authentication endpoints
 
@@ -371,11 +371,11 @@ traditional rest endpoints for web applications.
 - `GET /api/configuration/user` - user config
 - `PUT /api/configuration/user` - update config
 
-implementation: `src/routes.rs`, `src/admin_routes.rs`, `src/configuration_routes.rs`
+Implementation: `src/routes.rs`, `src/admin_routes.rs`, `src/configuration_routes.rs`
 
 ## sse (server-sent events)
 
-real-time notifications for oauth completions and system events.
+Real-time notifications for oauth completions and system events.
 
 ### endpoint
 
@@ -402,7 +402,7 @@ eventSource.onmessage = function(event) {
 };
 ```
 
-implementation: `src/notifications/sse.rs`, `src/sse.rs`
+Implementation: `src/notifications/sse.rs`, `src/sse.rs`
 
 ## protocol comparison
 
@@ -421,4 +421,4 @@ implementation: `src/notifications/sse.rs`, `src/sse.rs`
 - **autonomous agents**: use a2a
 - **client authentication**: use oauth2 (for mcp clients)
 
-all protocols share the same business logic via `src/protocols/universal/`.
+All protocols share the same business logic via `src/protocols/universal/`.
