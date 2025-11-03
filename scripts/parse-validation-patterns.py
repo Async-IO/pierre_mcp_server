@@ -103,5 +103,34 @@ def main():
         exclusion_list = " ".join(exclusion_patterns)
         print(f"{var_name}='{exclusion_list}'")
 
+    # Output algorithm DI patterns
+    algorithm_di_patterns = config.get('algorithm_di_patterns', {})
+    migrated_algorithms = algorithm_di_patterns.get('migrated_algorithms', [])
+
+    # Output list of migrated algorithms
+    print(f"MIGRATED_ALGORITHMS='{' '.join(migrated_algorithms)}'")
+
+    # For each algorithm, output its patterns and metadata
+    for algo in migrated_algorithms:
+        algo_config = algorithm_di_patterns.get(algo, {})
+        algo_upper = algo.upper()
+
+        # Output metadata
+        print(f"ALGORITHM_{algo_upper}_NAME='{algo_config.get('name', algo)}'")
+        print(f"ALGORITHM_{algo_upper}_ENUM='{algo_config.get('enum_name', '')}'")
+        print(f"ALGORITHM_{algo_upper}_MODULE='{algo_config.get('module_path', '')}'")
+
+        # Output exclude paths
+        exclude_paths = algo_config.get('exclude_paths', [])
+        if exclude_paths:
+            print(f"ALGORITHM_{algo_upper}_EXCLUDES='{' '.join(exclude_paths)}'")
+
+        # Output formula patterns
+        formulas = algo_config.get('formulas', {})
+        formula_patterns = list(formulas.values())
+        if formula_patterns:
+            combined_pattern = build_pattern_list(formula_patterns)
+            print(f"ALGORITHM_{algo_upper}_PATTERNS='{combined_pattern}'")
+
 if __name__ == "__main__":
     main()

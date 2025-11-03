@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::errors::AppError;
+use crate::intelligence::algorithms::VdotAlgorithm;
 use crate::models::Activity;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -18,12 +19,6 @@ const DISTANCE_MARATHON: f64 = 42_195.0;
 
 /// Riegel formula exponent (typical value for running)
 const RIEGEL_EXPONENT: f64 = 1.06;
-
-/// Minimum velocity for VDOT calculation (m/min)
-const MIN_VELOCITY: f64 = 100.0;
-
-/// Maximum velocity for VDOT calculation (m/min)
-const MAX_VELOCITY: f64 = 500.0;
 
 /// Race predictions for standard distances
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,8 +39,7 @@ impl PerformancePredictor {
     /// Calculate VDOT from race performance
     ///
     /// VDOT is Jack Daniels' VO2 max adjusted for running economy
-    /// Formula: VO2 = -4.60 + 0.182258 × velocity + 0.000104 × velocity²
-    /// where velocity is in meters per minute
+    /// Delegates to `VdotAlgorithm::Daniels` for the calculation
     ///
     /// # Arguments
     /// * `distance_meters` - Race distance in meters
@@ -57,61 +51,13 @@ impl PerformancePredictor {
     /// # Errors
     /// Returns `AppError::InvalidInput` if time or distance is non-positive, or if velocity is outside valid range
     pub fn calculate_vdot(distance_meters: f64, time_seconds: f64) -> Result<f64, AppError> {
-        if time_seconds <= 0.0 {
-            return Err(AppError::invalid_input("Time must be positive".to_string()));
-        }
-
-        if distance_meters <= 0.0 {
-            return Err(AppError::invalid_input(
-                "Distance must be positive".to_string(),
-            ));
-        }
-
-        // Convert to velocity in meters per minute
-        let velocity = (distance_meters / time_seconds) * 60.0;
-
-        if !(MIN_VELOCITY..=MAX_VELOCITY).contains(&velocity) {
-            return Err(AppError::invalid_input(format!(
-                "Velocity {velocity:.1} m/min is outside valid range ({MIN_VELOCITY}-{MAX_VELOCITY})"
-            )));
-        }
-
-        // Jack Daniels' VO2 formula: VO2 = -4.60 + 0.182258×v + 0.000104×v²
-        let vo2 = (0.000_104 * velocity).mul_add(velocity, 0.182_258f64.mul_add(velocity, -4.60));
-
-        // VDOT = VO2max. We divide by the percent-max adjustment because the adjustment
-        // represents what fraction of VO2max was used during the race.
-        // To get true VO2max (VDOT), we need: VDOT = VO2_during_race / percent_used
-        let percent_used = Self::calculate_percent_max_adjustment(time_seconds);
-        let vdot = vo2 / percent_used;
-
-        Ok(vdot)
-    }
-
-    /// Calculate adjustment factor based on race duration
-    ///
-    /// Shorter races use less of VO2 max due to oxygen deficit
-    /// Longer races use less due to accumulated fatigue
-    fn calculate_percent_max_adjustment(time_seconds: f64) -> f64 {
-        let time_minutes = time_seconds / 60.0;
-
-        // Adjustment factors based on race duration
-        if time_minutes < 5.0 {
-            0.97 // Very short race - oxygen deficit
-        } else if time_minutes < 15.0 {
-            0.99 // 5K range
-        } else if time_minutes < 30.0 {
-            1.00 // 10K-15K range - optimal
-        } else if time_minutes < 90.0 {
-            0.98 // Half marathon range
-        } else {
-            0.95 // Marathon+ range - fatigue accumulation
-        }
+        VdotAlgorithm::Daniels.calculate_vdot(distance_meters, time_seconds)
     }
 
     /// Predict race time using VDOT tables
     ///
     /// Uses Jack Daniels' VDOT training paces
+    /// Delegates to `VdotAlgorithm::Daniels` for the calculation
     ///
     /// # Arguments
     /// * `vdot` - VDOT value
@@ -123,57 +69,7 @@ impl PerformancePredictor {
     /// # Errors
     /// Returns `AppError::InvalidInput` if VDOT is outside typical range (30-85)
     pub fn predict_time_vdot(vdot: f64, target_distance_meters: f64) -> Result<f64, AppError> {
-        if !(30.0..=85.0).contains(&vdot) {
-            return Err(AppError::invalid_input(format!(
-                "VDOT {vdot:.1} is outside typical range (30-85)"
-            )));
-        }
-
-        // Calculate velocity at VO2 max (reverse of VDOT formula)
-        // vo2 = -4.60 + 0.182258 × v + 0.000104 × v²
-        // Solve quadratic: 0.000104v² + 0.182258v - (vo2 + 4.60) = 0
-
-        let a: f64 = 0.000_104;
-        let b: f64 = 0.182_258;
-        let c: f64 = -(vdot + 4.60);
-
-        let discriminant = b.mul_add(b, -(4.0 * a * c));
-        if discriminant < 0.0 {
-            return Err(AppError::internal("Invalid VDOT calculation".to_string()));
-        }
-
-        let velocity_max = (-b + discriminant.sqrt()) / (2.0 * a);
-
-        // Calculate race-specific velocity based on distance
-        let race_velocity = Self::calculate_race_velocity(velocity_max, target_distance_meters);
-
-        // Calculate time from velocity
-        let time_seconds = (target_distance_meters / race_velocity) * 60.0;
-
-        Ok(time_seconds)
-    }
-
-    /// Calculate sustainable race velocity based on distance
-    ///
-    /// Longer races require lower percentage of VO2 max velocity
-    fn calculate_race_velocity(velocity_max: f64, distance_meters: f64) -> f64 {
-        let percent_max = if distance_meters <= DISTANCE_5K {
-            0.98 // 5K: 98% of VO2 max velocity
-        } else if distance_meters <= DISTANCE_10K {
-            0.94 // 10K: 94% of VO2 max velocity
-        } else if distance_meters <= DISTANCE_15K {
-            0.91 // 15K: 91% of VO2 max velocity
-        } else if distance_meters <= DISTANCE_HALF_MARATHON {
-            0.88 // Half marathon: 88% of VO2 max velocity
-        } else if distance_meters <= DISTANCE_MARATHON {
-            0.84 // Marathon: 84% of VO2 max velocity
-        } else {
-            // Ultra distances: progressively lower percentages
-            let marathon_ratio = distance_meters / DISTANCE_MARATHON;
-            (marathon_ratio - 1.0).mul_add(-0.02, 0.84).max(0.70)
-        };
-
-        velocity_max * percent_max
+        VdotAlgorithm::Daniels.predict_time(vdot, target_distance_meters)
     }
 
     /// Predict race time using Riegel formula

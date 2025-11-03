@@ -284,6 +284,47 @@ else
     TOML_MAGIC_NUMBERS=0
 fi
 
+# Algorithm DI Architecture Enforcement - Check for hardcoded formulas (TOML-configured)
+# Dynamically check all algorithms defined in TOML
+TOTAL_ALGORITHM_VIOLATIONS=0
+ALGORITHMS_WITH_VIOLATIONS=""
+
+if [ -n "$MIGRATED_ALGORITHMS" ]; then
+    for algo in $MIGRATED_ALGORITHMS; do
+        algo_upper=$(echo "$algo" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
+
+        # Get patterns and excludes for this algorithm
+        patterns_var="ALGORITHM_${algo_upper}_PATTERNS"
+        excludes_var="ALGORITHM_${algo_upper}_EXCLUDES"
+        name_var="ALGORITHM_${algo_upper}_NAME"
+
+        eval "patterns=\$$patterns_var"
+        eval "excludes=\$$excludes_var"
+        eval "algo_name=\$$name_var"
+
+        if [ -n "$patterns" ] && [ -n "$excludes" ]; then
+            # Build exclude flags
+            EXCLUDE_FLAGS=""
+            for exclude in $excludes; do
+                EXCLUDE_FLAGS="$EXCLUDE_FLAGS -g !$exclude"
+            done
+
+            # Count violations (exclude comments)
+            violations=$(rg "$patterns" src/ $EXCLUDE_FLAGS 2>/dev/null | grep -v "^\s*//" | wc -l | awk '{print $1+0}')
+
+            # Track violations
+            if [ "$violations" -gt 0 ]; then
+                TOTAL_ALGORITHM_VIOLATIONS=$((TOTAL_ALGORITHM_VIOLATIONS + violations))
+                if [ -z "$ALGORITHMS_WITH_VIOLATIONS" ]; then
+                    ALGORITHMS_WITH_VIOLATIONS="$algo_name($violations)"
+                else
+                    ALGORITHMS_WITH_VIOLATIONS="$ALGORITHMS_WITH_VIOLATIONS, $algo_name($violations)"
+                fi
+            fi
+        fi
+    done
+fi
+
 # Memory Management Analysis - Enhanced with clippy validation
 TOTAL_CLONES=$(rg "\.clone\(\)" src/ | grep -v 'src/bin/' | wc -l 2>/dev/null || echo 0)
 
@@ -728,7 +769,27 @@ else
     printf "$(format_status "⚠️ WARN")│ %-39s │\n" "Multiple complex lifetime patterns found"
 fi
 
+echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"
+
+# Algorithm DI Architecture - Ensure enum-based dependency injection (TOML-configured)
+ALGO_COUNT=$(echo "$MIGRATED_ALGORITHMS" | wc -w | awk '{print $1}')
+printf "│ %-35s │ %5d │ " "Algorithm DI violations ($ALGO_COUNT algos)" "$TOTAL_ALGORITHM_VIOLATIONS"
+if [ "$TOTAL_ALGORITHM_VIOLATIONS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "All using enum-based DI (compliant)"
+else
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "Violations found"
+    fail_validation "Hardcoded algorithms detected: $ALGORITHMS_WITH_VIOLATIONS. Use enum-based DI in src/intelligence/algorithms/"
+fi
+
+if [ "$TOTAL_ALGORITHM_VIOLATIONS" -gt 0 ]; then
+    printf "│ %-35s │ %5s │ $(format_status "❌ FAIL")│ %-39s │\n" "Algorithms with violations" "" "$ALGORITHMS_WITH_VIOLATIONS"
+else
+    printf "│ %-35s │ %5s │ $(format_status "✅ PASS")│ %-39s │\n" "Algorithms detected" "" "None (MaxHR, TRIMP, TSS, VDOT, CTL...)"
+fi
+
 echo "└─────────────────────────────────────┴───────┴──────────┴─────────────────────────────────────────┘"
+
+echo ""
 
 # Critical Fast-Fail: Null UUIDs (must exit immediately)
 if [ "$NULL_UUIDS" -gt 0 ]; then
@@ -748,6 +809,7 @@ fi
 # Note: Clone validation now uses clippy analysis instead of arbitrary thresholds
 CRITICAL_ISSUES=$((NULL_UUIDS + PROBLEMATIC_DB_CLONES + PROBLEMATIC_UNWRAPS + PROBLEMATIC_EXPECTS + PANICS + IGNORED_TESTS + IMPLEMENTATION_PLACEHOLDERS + PLACEHOLDER_WARNINGS))
 CRITICAL_ISSUES=$((CRITICAL_ISSUES + TOML_PRODUCTION_HYGIENE + CFG_TEST_IN_SRC + DEAD_CODE + TOML_STRING_ALLOCATIONS))
+CRITICAL_ISSUES=$((CRITICAL_ISSUES + TOTAL_ALGORITHM_VIOLATIONS))
 
 WARNINGS=$((FAKE_RESOURCES + (OBSOLETE_FUNCTIONS > 1 ? OBSOLETE_FUNCTIONS - 1 : 0)))
 WARNINGS=$((WARNINGS + RESOURCE_CREATION + TODOS + PROBLEMATIC_UNDERSCORE_NAMES + TEMP_SOLUTIONS))

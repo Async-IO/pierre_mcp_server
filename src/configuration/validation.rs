@@ -281,7 +281,12 @@ impl ConfigValidator {
                             // Age-based safety checks
                             if let Some(profile) = profile {
                                 if let Some(age) = profile.age {
-                                    let estimated_max_hr = 220.0 - f64::from(age);
+                                    use crate::intelligence::algorithms::MaxHrAlgorithm;
+
+                                    // Use Fox formula via enum for conservative safety check
+                                    let estimated_max_hr = MaxHrAlgorithm::Fox
+                                        .estimate(u32::from(age), None)
+                                        .map_err(|e| format!("Failed to estimate max HR: {e}"))?;
                                     let actual_hr = estimated_max_hr * percentage / 100.0;
 
                                     if age > 65 && actual_hr > 160.0 {

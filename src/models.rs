@@ -1027,25 +1027,20 @@ impl UserPhysiologicalProfile {
         }
     }
 
-    /// Estimate max heart rate from age if not provided
+    /// Estimate max heart rate from age if not provided using Tanaka formula
     #[must_use]
+    #[allow(clippy::cast_possible_truncation)] // Safe: HR is constrained to 0-220 range
+    #[allow(clippy::cast_sign_loss)] // Safe: HR is always positive from algorithm
     pub fn estimated_max_hr(&self) -> Option<u16> {
         self.max_hr.or_else(|| {
             self.age.map(|age| {
-                // Use Tanaka formula: 208 - (0.7 × age)
-                {
-                    let hr = 0.7f64.mul_add(-f64::from(age), 208.0);
-                    // Ensure result is within u16 bounds (heart rate should be 0-300)
-                    if hr.is_finite() && hr >= 0.0 && hr <= f64::from(u16::MAX) {
-                        let rounded = hr.round();
-                        let hr_string = format!("{rounded:.0}");
-                        hr_string
-                            .parse::<u16>()
-                            .unwrap_or_else(|_| 220_u16.saturating_sub(age))
-                    } else {
-                        220_u16.saturating_sub(age)
-                    }
-                }
+                use crate::intelligence::algorithms::MaxHrAlgorithm;
+
+                // Use Tanaka formula via enum (gold standard: 208 - 0.7×age)
+                MaxHrAlgorithm::Tanaka
+                    .estimate(u32::from(age), None)
+                    .ok()
+                    .map_or_else(|| 220_u16.saturating_sub(age), |hr| hr.round() as u16)
             })
         })
     }

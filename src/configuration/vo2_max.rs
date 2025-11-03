@@ -6,6 +6,7 @@
 
 //! VO2 max-based physiological calculations for personalized thresholds
 
+use crate::intelligence::algorithms::{FtpAlgorithm, TrimpAlgorithm};
 use serde::{Deserialize, Serialize};
 
 /// Helper function to get configuration values with fallback
@@ -265,23 +266,16 @@ impl VO2MaxCalculator {
     pub fn estimate_ftp(&self) -> f64 {
         // Get power coefficient from configuration
         let power_coefficient = get_config_value("vo2.power_coefficient", 13.5);
-        let power_at_vo2max = self.vo2_max * power_coefficient;
 
-        // FTP percentage based on fitness level using configurable values
-        let ftp_percentage = match self.vo2_max {
-            v if v >= get_config_value("fitness.vo2_max_threshold_male_elite", 60.0) => {
-                get_config_value("ftp.elite_percentage", 0.85)
-            }
-            v if v >= get_config_value("fitness.vo2_max_threshold_male_advanced", 50.0) => {
-                get_config_value("ftp.advanced_percentage", 0.82)
-            }
-            v if v >= get_config_value("fitness.vo2_max_threshold_male_intermediate", 40.0) => {
-                get_config_value("ftp.intermediate_percentage", 0.78)
-            }
-            _ => get_config_value("ftp.beginner_percentage", 0.75),
+        // Use FtpAlgorithm enum for calculation
+        let algorithm = FtpAlgorithm::FromVo2Max {
+            vo2_max: self.vo2_max,
+            power_coefficient,
         };
 
-        power_at_vo2max * ftp_percentage
+        // Unwrap is safe here: FromVo2Max never returns Err unless VO2max is invalid,
+        // but this struct ensures valid VO2max via the constructor
+        algorithm.estimate_ftp().unwrap_or(0.0)
     }
 
     /// Calculate personalized power zones for cycling
@@ -315,19 +309,21 @@ impl VO2MaxCalculator {
         }
     }
 
-    /// Calculate training impulse (TRIMP) for an activity
+    /// Calculate training impulse (TRIMP) for an activity using enum-based algorithm selection
     #[must_use]
     pub fn calculate_trimp(&self, avg_hr: u16, duration_minutes: f64, gender: &str) -> f64 {
-        let hr_reserve = f64::from(self.max_hr - self.resting_hr);
-        let hr_ratio = f64::from(avg_hr - self.resting_hr) / hr_reserve;
+        // Use Hybrid algorithm which auto-selects appropriate formula based on gender
+        let algorithm = TrimpAlgorithm::Hybrid;
 
-        // Gender-specific weighting factor
-        let gender_factor: f64 = match gender {
-            "F" | "female" => 1.67,
-            _ => 1.92, // Male or unspecified
-        };
-
-        duration_minutes * hr_ratio * 0.64 * gender_factor.powf(hr_ratio)
+        algorithm
+            .calculate(
+                u32::from(avg_hr),
+                duration_minutes,
+                u32::from(self.max_hr),
+                Some(u32::from(self.resting_hr)),
+                Some(gender),
+            )
+            .unwrap_or(0.0) // Return 0.0 if calculation fails (shouldn't happen with valid inputs)
     }
 }
 

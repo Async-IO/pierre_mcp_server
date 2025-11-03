@@ -23,6 +23,7 @@
 //!   *Frontiers in Physiology*, 5, 73. <https://doi.org/10.3389/fphys.2014.00073>
 
 use crate::errors::AppError;
+use crate::intelligence::algorithms::RecoveryAggregationAlgorithm;
 use crate::intelligence::sleep_analysis::{
     HrvRecoveryStatus, HrvTrendAnalysis, SleepData, SleepQualityCategory, SleepQualityScore,
 };
@@ -142,20 +143,17 @@ pub struct RecoveryCalculator;
 impl RecoveryCalculator {
     /// Calculate holistic recovery score
     ///
-    /// Combines TSB, sleep quality, and HRV (if available) into a single recovery score.
-    ///
-    /// Weighting:
-    /// - TSB: 40% (training load balance)
-    /// - Sleep: 40% (recovery quality)
-    /// - HRV: 20% (if available, otherwise redistributed to TSB+Sleep)
+    /// Combines TSB, sleep quality, and HRV (if available) into a single recovery score
+    /// using the specified aggregation algorithm.
     ///
     /// # Errors
-    /// Returns error if input data is invalid
+    /// Returns error if input data is invalid or algorithm fails
     pub fn calculate_recovery_score(
         training_load: &TrainingLoad,
         sleep_quality: &SleepQualityScore,
         hrv_analysis: Option<&HrvTrendAnalysis>,
         config: &crate::config::intelligence_config::SleepRecoveryConfig,
+        algorithm: &RecoveryAggregationAlgorithm,
     ) -> Result<RecoveryScore, AppError> {
         // Calculate TSB-based recovery score
         let tsb_score = Self::score_tsb(training_load.tsb, config);
@@ -166,30 +164,11 @@ impl RecoveryCalculator {
         // Calculate HRV-based score if available
         let hrv_score = hrv_analysis.map(Self::score_hrv);
 
-        // Calculate weighted overall score using config weights
-        let (overall_score, components_available) = hrv_score.map_or(
-            // Only TSB and Sleep: use no_hrv weights
-            (
-                tsb_score.mul_add(
-                    config.recovery_scoring.tsb_weight_no_hrv,
-                    sleep_score * config.recovery_scoring.sleep_weight_no_hrv,
-                ),
-                2,
-            ),
-            |hrv| {
-                // All three components available: use full weights
-                (
-                    hrv.mul_add(
-                        config.recovery_scoring.hrv_weight_full,
-                        tsb_score.mul_add(
-                            config.recovery_scoring.tsb_weight_full,
-                            sleep_score * config.recovery_scoring.sleep_weight_full,
-                        ),
-                    ),
-                    3,
-                )
-            },
-        );
+        // Calculate overall score using the specified algorithm
+        let overall_score = algorithm.aggregate(tsb_score, sleep_score, hrv_score)?;
+
+        // Determine number of components available
+        let components_available = if hrv_score.is_some() { 3 } else { 2 };
 
         // Determine recovery category
         let recovery_category = Self::categorize_recovery(overall_score, config);

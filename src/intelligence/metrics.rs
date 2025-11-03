@@ -6,13 +6,11 @@
 //! Advanced fitness metrics calculation and analysis
 #![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges for fitness metrics
 
-// Future: use crate::config::intelligence_config::{IntelligenceConfig};
+use crate::config::intelligence_config::IntelligenceConfig;
 use crate::errors::AppError;
+use crate::intelligence::algorithms::{TrimpAlgorithm, TssAlgorithm};
 use crate::intelligence::physiological_constants::{
-    metrics_constants::{
-        EFFICIENCY_TIME_MULTIPLIER, MIN_DECOUPLING_DATA_POINTS, TRIMP_BASE_MULTIPLIER,
-        TRIMP_EXPONENTIAL_FACTOR, TSS_BASE_MULTIPLIER,
-    },
+    metrics_constants::{EFFICIENCY_TIME_MULTIPLIER, MIN_DECOUPLING_DATA_POINTS},
     zone_percentages::{
         HR_ZONE1_UPPER_LIMIT, HR_ZONE2_UPPER_LIMIT, HR_ZONE3_UPPER_LIMIT, HR_ZONE4_UPPER_LIMIT,
         POWER_ZONE1_UPPER_LIMIT, POWER_ZONE2_UPPER_LIMIT, POWER_ZONE3_UPPER_LIMIT,
@@ -201,9 +199,22 @@ impl MetricsCalculator {
                 / crate::constants::time_constants::SECONDS_PER_HOUR_F64
         };
 
-        // 1. Try power-based TSS (most accurate)
-        if let (Some(avg_power), Some(ftp)) = (activity.average_power, self.ftp) {
-            return Some(Self::calculate_tss(avg_power, ftp, duration_hours));
+        // 1. Try power-based TSS using configured algorithm (most accurate)
+        if self.ftp.is_some() {
+            // Load algorithm configuration
+            let config = IntelligenceConfig::global();
+            let tss_algorithm = config
+                .algorithms
+                .tss
+                .parse::<TssAlgorithm>()
+                .unwrap_or_default();
+
+            // Use enum-dispatched TSS calculation
+            if let Ok(tss) =
+                tss_algorithm.calculate(activity, self.ftp.unwrap_or(250.0), duration_hours)
+            {
+                return Some(tss);
+            }
         }
 
         // 2. Try HR-based TSS using LTHR (per methodology.md line 347)
@@ -359,28 +370,27 @@ impl MetricsCalculator {
             .map(Self::calculate_recovery_time);
     }
 
-    /// Calculate Training Impulse (TRIMP)
+    /// Calculate Training Impulse (TRIMP) using enum-based algorithm selection
     fn calculate_trimp(&self, avg_hr: u32, duration_seconds: i32) -> Option<f64> {
-        let max_hr = self.max_hr?;
-        let resting_hr = self.resting_hr?;
-
-        let hr_reserve = max_hr - resting_hr;
-        let hr_ratio = (f64::from(avg_hr) - resting_hr) / hr_reserve;
+        // Safe: Heart rates are constrained to positive values (validated in physiological constants)
+        #[allow(clippy::cast_sign_loss)]
+        let max_hr_u32 = self.max_hr.map(|hr| hr as u32)?;
+        #[allow(clippy::cast_sign_loss)]
+        let resting_hr_u32 = self.resting_hr.map(|hr| hr as u32)?;
         let duration_minutes = f64::from(duration_seconds) / 60.0;
 
-        // Simplified TRIMP calculation using established constants
-        Some(
-            duration_minutes
-                * hr_ratio
-                * TRIMP_BASE_MULTIPLIER
-                * (TRIMP_EXPONENTIAL_FACTOR * hr_ratio).exp(),
-        )
-    }
+        // Use Hybrid algorithm (auto-selects best method based on available data)
+        let algorithm = TrimpAlgorithm::Hybrid;
 
-    /// Calculate Training Stress Score (TSS)
-    fn calculate_tss(avg_power: u32, ftp: f64, duration_hours: f64) -> f64 {
-        let intensity_factor = f64::from(avg_power) / ftp;
-        (duration_hours * intensity_factor * intensity_factor * TSS_BASE_MULTIPLIER).round()
+        algorithm
+            .calculate(
+                avg_hr,
+                duration_minutes,
+                max_hr_u32,
+                Some(resting_hr_u32),
+                None, // Gender not available in MetricsCalculator
+            )
+            .ok()
     }
 
     /// Calculate normalized power (4th root of 30-second rolling average of power^4)

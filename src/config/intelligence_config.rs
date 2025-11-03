@@ -36,6 +36,95 @@ pub enum ConfigError {
     ValueOutOfRange(&'static str),
 }
 
+/// Algorithm Selection Configuration
+///
+/// Configures which algorithm implementation to use for various fitness calculations.
+/// Each algorithm type uses enum dispatch for type-safe selection with minimal runtime overhead.
+///
+/// # Algorithm Types
+///
+/// - **TSS**: Training Stress Score calculation (`avg_power`, `normalized_power`, `hybrid`)
+/// - **`MaxHR`**: Maximum heart rate estimation (`fox`, `tanaka`, `nes`, `gulati`)
+///
+/// # Configuration Methods
+///
+/// 1. Environment variables (highest priority):
+///    ```bash
+///    export PIERRE_TSS_ALGORITHM=normalized_power
+///    export PIERRE_MAXHR_ALGORITHM=tanaka
+///    ```
+///
+/// 2. Default values (if env vars not set)
+///
+/// # Examples
+///
+/// ```rust
+/// use pierre_mcp_server::config::intelligence_config::AlgorithmConfig;
+///
+/// let config = AlgorithmConfig::default();
+/// assert_eq!(config.tss, "avg_power");
+/// assert_eq!(config.maxhr, "tanaka");
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlgorithmConfig {
+    /// TSS calculation algorithm: `avg_power`, `normalized_power`, or `hybrid`
+    #[serde(default = "default_tss_algorithm")]
+    pub tss: String,
+
+    /// Max HR estimation algorithm: `fox`, `tanaka`, `nes`, or `gulati`
+    #[serde(default = "default_maxhr_algorithm")]
+    pub maxhr: String,
+
+    /// FTP estimation algorithm: `20min_test`, `from_vo2max`, `ramp_test`, etc.
+    #[serde(default = "default_ftp_algorithm")]
+    pub ftp: String,
+
+    /// LTHR estimation algorithm: `from_maxhr`, `from_30min`, etc.
+    #[serde(default = "default_lthr_algorithm")]
+    pub lthr: String,
+
+    /// `VO2max` estimation algorithm: `from_vdot`, `cooper_test`, etc.
+    #[serde(default = "default_vo2max_algorithm")]
+    pub vo2max: String,
+}
+
+/// Default TSS algorithm (`avg_power` for backwards compatibility)
+fn default_tss_algorithm() -> String {
+    "avg_power".to_string()
+}
+
+/// Default Max HR algorithm (tanaka as most accurate)
+fn default_maxhr_algorithm() -> String {
+    "tanaka".to_string()
+}
+
+/// Default FTP algorithm (`from_vo2max` as most accessible)
+fn default_ftp_algorithm() -> String {
+    "from_vo2max".to_string()
+}
+
+/// Default LTHR algorithm (`from_maxhr` as most common)
+fn default_lthr_algorithm() -> String {
+    "from_maxhr".to_string()
+}
+
+/// Default `VO2max` algorithm (`from_vdot` as most validated)
+fn default_vo2max_algorithm() -> String {
+    "from_vdot".to_string()
+}
+
+impl Default for AlgorithmConfig {
+    fn default() -> Self {
+        Self {
+            tss: default_tss_algorithm(),
+            maxhr: default_maxhr_algorithm(),
+            ftp: default_ftp_algorithm(),
+            lthr: default_lthr_algorithm(),
+            vo2max: default_vo2max_algorithm(),
+        }
+    }
+}
+
 /// Main intelligence configuration container
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IntelligenceConfig<const VALIDATED: bool = false> {
@@ -47,6 +136,7 @@ pub struct IntelligenceConfig<const VALIDATED: bool = false> {
     pub metrics: MetricsConfig,
     pub sleep_recovery: SleepRecoveryConfig,
     pub nutrition: NutritionConfig,
+    pub algorithms: AlgorithmConfig,
     _phantom: PhantomData<()>,
 }
 
@@ -1018,6 +1108,15 @@ impl IntelligenceConfig<true> {
             })?;
         }
 
+        // Algorithm selection overrides
+        if let Ok(val) = std::env::var("PIERRE_TSS_ALGORITHM") {
+            self.algorithms.tss = val;
+        }
+
+        if let Ok(val) = std::env::var("PIERRE_MAXHR_ALGORITHM") {
+            self.algorithms.maxhr = val;
+        }
+
         Ok(self)
     }
 }
@@ -1033,6 +1132,7 @@ impl Default for IntelligenceConfig<true> {
             metrics: Self::default_metrics_config(),
             sleep_recovery: Self::default_sleep_recovery_config(),
             nutrition: Self::default_nutrition_config(),
+            algorithms: AlgorithmConfig::default(),
             _phantom: PhantomData,
         }
     }

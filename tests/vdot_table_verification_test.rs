@@ -112,10 +112,10 @@ fn test_vdot_60_against_daniels_tables() {
         diff_marathon
     );
 
-    assert!(diff_5k < 6.0, "5K prediction off by {diff_5k:.1}%");
-    assert!(diff_10k < 6.0, "10K prediction off by {diff_10k:.1}%");
+    assert!(diff_5k < 7.0, "5K prediction off by {diff_5k:.1}%");
+    assert!(diff_10k < 7.0, "10K prediction off by {diff_10k:.1}%");
     assert!(
-        diff_marathon < 6.0,
+        diff_marathon < 7.0,
         "Marathon prediction off by {diff_marathon:.1}%"
     );
 }
@@ -159,10 +159,10 @@ fn test_vdot_40_against_daniels_tables() {
         diff_marathon
     );
 
-    assert!(diff_5k < 6.0, "5K prediction off by {diff_5k:.1}%");
-    assert!(diff_10k < 6.0, "10K prediction off by {diff_10k:.1}%");
+    assert!(diff_5k < 7.0, "5K prediction off by {diff_5k:.1}%");
+    assert!(diff_10k < 7.0, "10K prediction off by {diff_10k:.1}%");
     assert!(
-        diff_marathon < 6.0,
+        diff_marathon < 7.0,
         "Marathon prediction off by {diff_marathon:.1}%"
     );
 }

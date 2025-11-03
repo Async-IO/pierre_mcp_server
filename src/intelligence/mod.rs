@@ -53,6 +53,9 @@ pub mod sleep_analysis;
 // Nutrition analysis module (Phase 2)
 pub mod nutrition_calculator;
 
+// Algorithm selection and pluggable implementations
+pub mod algorithms;
+
 // Activity analysis capabilities
 pub use activity_analyzer::{ActivityAnalyzerTrait, AdvancedActivityAnalyzer};
 pub use analyzer::ActivityAnalyzer;

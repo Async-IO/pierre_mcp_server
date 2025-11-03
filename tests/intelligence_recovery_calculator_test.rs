@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use chrono::Utc;
+use pierre_mcp_server::intelligence::algorithms::RecoveryAggregationAlgorithm;
 use pierre_mcp_server::intelligence::recovery_calculator::{
     RecoveryCalculator, RecoveryCategory, RecoveryComponents, RecoveryScore, TrainingReadiness,
 };
@@ -17,6 +18,18 @@ use pierre_mcp_server::intelligence::training_load::TrainingLoad;
 /// Helper to get default test config
 fn test_config() -> pierre_mcp_server::config::intelligence_config::SleepRecoveryConfig {
     pierre_mcp_server::config::intelligence_config::IntelligenceConfig::default().sleep_recovery
+}
+
+/// Helper to get default test algorithm (matches config weights)
+fn test_algorithm() -> RecoveryAggregationAlgorithm {
+    let config = test_config();
+    RecoveryAggregationAlgorithm::WeightedAverage {
+        tsb_weight_full: config.recovery_scoring.tsb_weight_full,
+        sleep_weight_full: config.recovery_scoring.sleep_weight_full,
+        hrv_weight_full: config.recovery_scoring.hrv_weight_full,
+        tsb_weight_no_hrv: config.recovery_scoring.tsb_weight_no_hrv,
+        sleep_weight_no_hrv: config.recovery_scoring.sleep_weight_no_hrv,
+    }
 }
 
 #[test]
@@ -247,6 +260,7 @@ fn test_recovery_score_tsb_only() {
         &sleep_quality,
         None, // No HRV
         &config,
+        &test_algorithm(),
     );
     assert!(result.is_ok());
     let recovery = result.unwrap();
@@ -288,6 +302,7 @@ fn test_recovery_score_all_components() {
         &sleep_quality,
         Some(&hrv),
         &config,
+        &test_algorithm(),
     );
     assert!(result.is_ok());
     let recovery = result.unwrap();
@@ -319,8 +334,13 @@ fn test_recovery_score_conflicting_signals() {
         recommendations: vec![],
     };
 
-    let result =
-        RecoveryCalculator::calculate_recovery_score(&training_load, &sleep_quality, None, &config);
+    let result = RecoveryCalculator::calculate_recovery_score(
+        &training_load,
+        &sleep_quality,
+        None,
+        &config,
+        &test_algorithm(),
+    );
     assert!(result.is_ok());
     let recovery = result.unwrap();
     // Should average out to moderate range
@@ -363,6 +383,7 @@ fn test_recovery_score_all_poor() {
         &sleep_quality,
         Some(&hrv),
         &config,
+        &test_algorithm(),
     );
     assert!(result.is_ok());
     let recovery = result.unwrap();
@@ -766,8 +787,13 @@ fn test_recovery_score_zero_sleep() {
         recommendations: vec![],
     };
 
-    let result =
-        RecoveryCalculator::calculate_recovery_score(&training_load, &sleep_quality, None, &config);
+    let result = RecoveryCalculator::calculate_recovery_score(
+        &training_load,
+        &sleep_quality,
+        None,
+        &config,
+        &test_algorithm(),
+    );
     assert!(result.is_ok());
     let recovery = result.unwrap();
     assert!(
@@ -808,8 +834,13 @@ fn test_recovery_insights_generation() {
         recommendations: vec![],
     };
 
-    let result =
-        RecoveryCalculator::calculate_recovery_score(&training_load, &sleep_quality, None, &config);
+    let result = RecoveryCalculator::calculate_recovery_score(
+        &training_load,
+        &sleep_quality,
+        None,
+        &config,
+        &test_algorithm(),
+    );
     assert!(result.is_ok());
     let recovery = result.unwrap();
     assert!(

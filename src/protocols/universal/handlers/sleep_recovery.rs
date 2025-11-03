@@ -4,6 +4,7 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+use crate::intelligence::algorithms::RecoveryAggregationAlgorithm;
 use crate::intelligence::{RecoveryCalculator, SleepAnalyzer, SleepData, TrainingLoadCalculator};
 use crate::models::Activity;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
@@ -274,12 +275,26 @@ pub fn handle_calculate_recovery_score(
             None
         };
 
+        // Get recovery aggregation algorithm (default to WeightedAverage with config weights)
+        let algorithm = request
+            .parameters
+            .get("algorithm")
+            .and_then(|v| serde_json::from_value::<RecoveryAggregationAlgorithm>(v.clone()).ok())
+            .unwrap_or(RecoveryAggregationAlgorithm::WeightedAverage {
+                tsb_weight_full: config.recovery_scoring.tsb_weight_full,
+                sleep_weight_full: config.recovery_scoring.sleep_weight_full,
+                hrv_weight_full: config.recovery_scoring.hrv_weight_full,
+                tsb_weight_no_hrv: config.recovery_scoring.tsb_weight_no_hrv,
+                sleep_weight_no_hrv: config.recovery_scoring.sleep_weight_no_hrv,
+            });
+
         // Calculate holistic recovery score
         let recovery_score = RecoveryCalculator::calculate_recovery_score(
             &training_load,
             &sleep_quality,
             hrv_analysis.as_ref(),
             config,
+            &algorithm,
         )
         .map_err(|e| {
             ProtocolError::InternalError(format!("Recovery score calculation failed: {e}"))
@@ -417,12 +432,26 @@ pub fn handle_suggest_rest_day(
             None
         };
 
+        // Get recovery aggregation algorithm (default to WeightedAverage with config weights)
+        let algorithm = request
+            .parameters
+            .get("algorithm")
+            .and_then(|v| serde_json::from_value::<RecoveryAggregationAlgorithm>(v.clone()).ok())
+            .unwrap_or(RecoveryAggregationAlgorithm::WeightedAverage {
+                tsb_weight_full: config.recovery_scoring.tsb_weight_full,
+                sleep_weight_full: config.recovery_scoring.sleep_weight_full,
+                hrv_weight_full: config.recovery_scoring.hrv_weight_full,
+                tsb_weight_no_hrv: config.recovery_scoring.tsb_weight_no_hrv,
+                sleep_weight_no_hrv: config.recovery_scoring.sleep_weight_no_hrv,
+            });
+
         // Calculate recovery score
         let recovery_score = RecoveryCalculator::calculate_recovery_score(
             &training_load,
             &sleep_quality,
             hrv_analysis.as_ref(),
             config,
+            &algorithm,
         )
         .map_err(|e| {
             ProtocolError::InternalError(format!("Recovery score calculation failed: {e}"))
