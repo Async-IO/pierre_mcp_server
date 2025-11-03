@@ -7,13 +7,152 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
 ### Changed
-- **Rebranding**: Project renamed from "Pierre MCP Server" to "Pierre Fitness Platform"
+
+### Fixed
+
+## [0.2.0] - 2025-10-31
+
+### Added
+
+#### Intelligence and Analytics
+- **Real intelligence system** with scientific algorithms replacing placeholder logic
+  - Training Load Analysis: TSS (Training Stress Score), CTL (Chronic Training Load), ATL (Acute Training Load), TSB (Training Stress Balance)
+  - Race Predictions: VDOT-based predictions using Jack Daniels' VO2max formula, Riegel formula for distance scaling
+  - Statistical Analysis: Linear regression for performance trends, R² coefficient for fit quality
+  - Pattern Detection: Weekly training consistency, hard/easy workout alternation, volume progression
+  - Physiological Validation: Bounds checking for heart rate, power, VO2 max
+- **Sleep and recovery intelligence system** with NSF/AASM-validated scoring
+  - 5 new MCP tools for sleep analysis and recovery tracking
+  - Sleep quality scoring based on National Sleep Foundation guidelines
+  - Recovery readiness calculations
+  - 82 comprehensive tests with scientific methodology documentation
+- **Nutrition analysis module** with USDA FoodData Central integration
+  - Macro and micronutrient tracking
+  - Integration with USDA nutritional database
+  - Meal logging and analysis tools
+- **Automated intelligence testing framework** with 30 integration tests using synthetic data
+  - Tests for all intelligence tools without OAuth dependencies
+  - Comprehensive test coverage documentation
+
+#### Authentication & Security
+- **OAuth2 Authorization Server** enhancements
+  - PKCE (Proof Key for Code Exchange) enforcement for security
+  - JWKS (JSON Web Key Set) endpoint with RS256 key rotation
+  - Per-IP rate limiting with token bucket protection (RFC-compliant headers)
+  - ETag caching for JWKS endpoint optimization
+  - Server-side OAuth2 state validation
+  - HTTPS issuer validation
+- **JWT infrastructure** migration from HS256 to RS256 asymmetric signing
+  - RSA key pair generation and persistence
+  - RFC 7519 compliance (iss, jti, iat claims)
+  - Automatic OAuth token refresh via `/api/oauth/validate-and-refresh` endpoint
+  - Token expiration validation and renewal
+- **Privacy and data protection**
+  - PII-safe logging with automatic redaction middleware
+  - Sensitive data masking in logs (tokens, passwords, API keys)
+- **Structured error handling** improvements
+  - Eliminated all `anyhow!()` macro violations (29 files updated)
+  - Proper `AppError`, `DatabaseError`, `ProviderError` usage throughout
+  - Zero-tolerance enforcement in CI pipeline
+
+#### Data Access & APIs
+- **Cursor-based pagination** for efficient large dataset traversal
+  - Complete feature documentation
+  - Performance optimization for large result sets
+- **Detailed Strava activity data** with opt-in fetching
+  - Extended activity metadata support
+  - Granular data control for bandwidth optimization
+
+#### Infrastructure & Reliability
+- **Plugin lifecycle management** system
+  - Structured plugin initialization and teardown
+  - Resource cleanup and state management
+- **Resilience improvements**
+  - Automatic retries for transient failures
+  - Configurable timeouts across all external calls
+  - SSE (Server-Sent Events) buffer management for connection stability
+
+#### Performance Optimizations
+- **String to &str parameter optimization** in config and progress tracking modules
+  - Reduced allocations and improved memory efficiency
+  - Eliminated 34 runtime `env::var()` calls via centralized configuration
+- **Async bcrypt** with `spawn_blocking` for non-blocking password hashing
+- **Rate limiting** with DashMap replacing Mutex for concurrent access
+
+### Changed
+- **Project Rebranding**: "Pierre MCP Server" → "Pierre Fitness Platform"
   - Updated all documentation to reflect new branding
   - Name better represents the multi-protocol nature (MCP, A2A, OAuth2, REST)
   - "Platform" emphasizes extensibility and comprehensive fitness data infrastructure
   - All user-facing documentation, templates, and assets updated
   - Technical identifiers (binary names, environment variables) unchanged for backward compatibility
+- **OAuth callback URL corrections** throughout documentation
+  - Standardized to `/api/oauth/callback/{provider}` path
+  - Updated authentication flow documentation
+
+### Fixed
+- **Security vulnerabilities** in OAuth2 and JWT implementation
+  - Token redaction in API request/response logs
+  - Atomic token operations to prevent TOCTOU race conditions
+  - Encryption and JWT persistence issues (separate OAuth nonces, persist RSA keys across restarts)
+  - CVE-2025-62522 path traversal vulnerability (updated Vite to 6.4.1)
+- **Intelligence calculations**
+  - TSS (Training Stress Score) calculation accuracy
+  - Intelligence tool response field name corrections
+- **Cross-platform compatibility**
+  - RSA key sorting for Windows timestamp resolution
+  - Key rotation timing for Windows second-precision timestamps
+- **Build and CI issues**
+  - CI timeout issues in MCP compliance and PostgreSQL tests
+  - GitHub Actions disk space issues with clean builds
+  - Test regressions from config refactoring
+- **Code quality improvements**
+  - String validation for edge cases
+  - Clippy warnings across codebase
+  - Eliminated mock implementations from production code
+- **Developer experience**
+  - TTY support for interactive terminal features
+  - Commit guard performance optimization
+
+### Documentation
+- **Intelligence system methodology** documentation with scientific references
+  - Detailed formula explanations and implementation notes
+  - Sports science validation and bounds checking
+- **OAuth client documentation** improvements
+  - Simplified README OAuth section
+  - Technical details moved to `oauth-client.md`
+  - Remote MCP configuration updates
+- **Testing framework documentation**
+  - Comprehensive guide for intelligence testing
+  - Synthetic data generation patterns
+
+### Architecture & Code Quality
+- **Dependency injection** architecture
+  - Replaced provider global singleton with DI pattern
+  - Comprehensive ServerConfig dependency injection across codebase
+  - HTTP client, API endpoint, and SSE timeout configuration via DI
+  - Eliminated 34 runtime `env::var()` calls with centralized configuration
+- **Memory safety** improvements
+  - Replaced unsafe FFI with `sysinfo` crate for health monitoring
+  - Eliminated all unsafe code blocks in core functionality
+- **Module organization**
+  - OAuth modules renamed to role-based structure (`oauth2_server`/`oauth2_client`)
+  - OAuth callback HTML templates extracted to dedicated files with 30-second auto-close
+  - Documentation reorganized for better discoverability
+- **Type safety** enhancements
+  - Type-safe newtypes for domain modeling
+  - Dead code removal and idiomatic Rust patterns
+  - Enhanced clone usage validation (743 clones analyzed, 0 warnings)
+- **Branding and UI**
+  - Energy wave logo design replacing activity rings
+  - SVG logo for scalability, PNG fallback for compatibility
+  - Unified OAuth template design system with Pierre branding
+- **CI/CD optimizations**
+  - Faster builds with improved caching
+  - Optimized test execution times
 
 ## [0.1.0] - 2025-10-14
 
@@ -172,4 +311,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MINOR**: New functionality (backward compatible)
 - **PATCH**: Bug fixes (backward compatible)
 
+[0.2.0]: https://github.com/Async-IO/pierre_mcp_server/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Async-IO/pierre_mcp_server/releases/tag/v0.1.0
