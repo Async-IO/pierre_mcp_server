@@ -87,7 +87,7 @@ pub fn handle_get_configuration_profiles(
 /// Handle `get_user_configuration` tool - get user's current configuration
 #[must_use]
 /// Normalize stored configuration structure with defaults
-fn normalize_stored_configuration(stored_config: serde_json::Value) -> serde_json::Value {
+fn normalize_stored_configuration(stored_config: &serde_json::Value) -> serde_json::Value {
     if stored_config.is_object() {
         let profile = stored_config.get("profile").cloned().unwrap_or_else(|| {
             serde_json::json!({
@@ -126,7 +126,7 @@ fn normalize_stored_configuration(stored_config: serde_json::Value) -> serde_jso
 /// Build response with user configuration
 fn build_configuration_response(
     user_uuid: &uuid::Uuid,
-    configuration: serde_json::Value,
+    configuration: &serde_json::Value,
     has_overrides: bool,
 ) -> UniversalResponse {
     let metadata_key = if has_overrides {
@@ -156,6 +156,7 @@ fn build_configuration_response(
     }
 }
 
+#[must_use]
 pub fn handle_get_user_configuration(
     executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
@@ -180,10 +181,10 @@ pub fn handle_get_user_configuration(
                         serde_json::json!({})
                     });
 
-                let configuration = normalize_stored_configuration(stored_config);
+                let configuration = normalize_stored_configuration(&stored_config);
                 Ok(build_configuration_response(
                     &user_uuid,
-                    configuration,
+                    &configuration,
                     true,
                 ))
             }
@@ -199,7 +200,7 @@ pub fn handle_get_user_configuration(
                 });
                 Ok(build_configuration_response(
                     &user_uuid,
-                    default_configuration,
+                    &default_configuration,
                     false,
                 ))
             }
