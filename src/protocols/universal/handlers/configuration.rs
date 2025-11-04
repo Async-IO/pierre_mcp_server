@@ -100,8 +100,8 @@ pub fn handle_get_user_configuration(
             .await
         {
             Ok(Some(config_str)) => {
-                let stored_config: serde_json::Value =
-                    serde_json::from_str(&config_str).unwrap_or_else(|e| {
+                let stored_config: serde_json::Value = serde_json::from_str(&config_str)
+                    .unwrap_or_else(|e| {
                         tracing::warn!(
                             user_id = %user_id,
                             error = %e,
