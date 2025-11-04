@@ -607,7 +607,14 @@ impl OAuth2AuthorizationServer {
                     .map(std::string::ToString::to_string)
                     .collect::<Vec<_>>()
             })
-            .unwrap_or_default();
+            .unwrap_or_else(|| {
+                tracing::debug!(
+                    client_id = %client_id,
+                    user_id = ?user_id,
+                    "No scopes provided for token generation, using empty scope list"
+                );
+                Vec::new()
+            });
 
         user_id.map_or_else(
             || {
