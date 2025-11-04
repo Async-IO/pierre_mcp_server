@@ -124,7 +124,16 @@ pub fn handle_analyze_sleep_quality(
             let recent_hrv = request
                 .parameters
                 .get("recent_hrv_values")
-                .and_then(|v| serde_json::from_value::<Vec<f64>>(v.clone()).ok())
+                .and_then(|v| {
+                    serde_json::from_value::<Vec<f64>>(v.clone())
+                        .inspect_err(|e| {
+                            tracing::debug!(
+                                error = %e,
+                                "Failed to deserialize recent_hrv_values, using empty default"
+                            );
+                        })
+                        .ok()
+                })
                 .unwrap_or_default();
 
             let baseline_hrv = request
@@ -257,7 +266,16 @@ pub fn handle_calculate_recovery_score(
             let recent_hrv = request
                 .parameters
                 .get("recent_hrv_values")
-                .and_then(|v| serde_json::from_value::<Vec<f64>>(v.clone()).ok())
+                .and_then(|v| {
+                    serde_json::from_value::<Vec<f64>>(v.clone())
+                        .inspect_err(|e| {
+                            tracing::debug!(
+                                error = %e,
+                                "Failed to deserialize recent_hrv_values, using empty default"
+                            );
+                        })
+                        .ok()
+                })
                 .unwrap_or_default();
 
             let baseline_hrv = request
@@ -414,7 +432,16 @@ pub fn handle_suggest_rest_day(
             let recent_hrv = request
                 .parameters
                 .get("recent_hrv_values")
-                .and_then(|v| serde_json::from_value::<Vec<f64>>(v.clone()).ok())
+                .and_then(|v| {
+                    serde_json::from_value::<Vec<f64>>(v.clone())
+                        .inspect_err(|e| {
+                            tracing::debug!(
+                                error = %e,
+                                "Failed to deserialize recent_hrv_values, using empty default"
+                            );
+                        })
+                        .ok()
+                })
                 .unwrap_or_default();
 
             let baseline_hrv = request

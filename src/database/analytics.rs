@@ -150,21 +150,45 @@ impl Database {
         .bind(&usage.endpoint)
         .bind(&usage.method)
         .bind(i32::from(usage.status_code))
-        .bind(
-            usage
-                .response_time_ms
-                .map(|t| i32::try_from(t).unwrap_or(i32::MAX)),
-        )
-        .bind(
-            usage
-                .request_size_bytes
-                .map(|s| i32::try_from(s).unwrap_or(i32::MAX)),
-        )
-        .bind(
-            usage
-                .response_size_bytes
-                .map(|s| i32::try_from(s).unwrap_or(i32::MAX)),
-        )
+        .bind(usage.response_time_ms.map(|t| {
+            i32::try_from(t).unwrap_or_else(|e| {
+                tracing::warn!(
+                    user_id = ?usage.user_id,
+                    endpoint = %usage.endpoint,
+                    response_time_ms = t,
+                    fallback = i32::MAX,
+                    error = %e,
+                    "Response time conversion failed for usage recording, using i32::MAX"
+                );
+                i32::MAX
+            })
+        }))
+        .bind(usage.request_size_bytes.map(|s| {
+            i32::try_from(s).unwrap_or_else(|e| {
+                tracing::warn!(
+                    user_id = ?usage.user_id,
+                    endpoint = %usage.endpoint,
+                    request_size_bytes = s,
+                    fallback = i32::MAX,
+                    error = %e,
+                    "Request size conversion failed for usage recording, using i32::MAX"
+                );
+                i32::MAX
+            })
+        }))
+        .bind(usage.response_size_bytes.map(|s| {
+            i32::try_from(s).unwrap_or_else(|e| {
+                tracing::warn!(
+                    user_id = ?usage.user_id,
+                    endpoint = %usage.endpoint,
+                    response_size_bytes = s,
+                    fallback = i32::MAX,
+                    error = %e,
+                    "Response size conversion failed for usage recording, using i32::MAX"
+                );
+                i32::MAX
+            })
+        }))
         .bind(&usage.ip_address)
         .bind(&usage.user_agent)
         .execute(&self.pool)
@@ -192,7 +216,15 @@ impl Database {
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(u32::try_from(count).unwrap_or(0))
+        Ok(u32::try_from(count).unwrap_or_else(|e| {
+            tracing::error!(
+                user_id = %user_id,
+                count = count,
+                error = %e,
+                "Rate limiting: negative JWT usage count detected, using 0 (potential security issue)"
+            );
+            0
+        }))
     }
 
     /// Create a goal for a user
@@ -488,17 +520,40 @@ impl Database {
                 .map(|s| Uuid::parse_str(s))
                 .transpose()?;
 
+            let log_id: i64 = row.get("id");
+            let status_code = u16::try_from(row.get::<i32, _>("status_code")).unwrap_or_else(|e| {
+                tracing::warn!(
+                    log_id = %log_id,
+                    user_id = ?user_id,
+                    error = %e,
+                    "Failed to convert status_code for request log, using 0"
+                );
+                0
+            });
+
+            let response_time_ms = row.get::<Option<i32>, _>("response_time_ms").and_then(|t| {
+                u32::try_from(t)
+                    .inspect_err(|e| {
+                        tracing::warn!(
+                            log_id = %log_id,
+                            user_id = ?user_id,
+                            response_time_i32 = t,
+                            error = %e,
+                            "Failed to convert response_time_ms for request log"
+                        );
+                    })
+                    .ok()
+            });
+
             logs.push(RequestLog {
-                id: row.get("id"),
+                id: log_id,
                 user_id,
                 api_key_id: row.get("api_key_id"),
                 timestamp: row.get("timestamp"),
                 method: row.get("method"),
                 endpoint: row.get("endpoint"),
-                status_code: u16::try_from(row.get::<i32, _>("status_code")).unwrap_or(0),
-                response_time_ms: row
-                    .get::<Option<i32>, _>("response_time_ms")
-                    .and_then(|t| u32::try_from(t).ok()),
+                status_code,
+                response_time_ms,
                 error_message: row.get("error_message"),
             });
         }

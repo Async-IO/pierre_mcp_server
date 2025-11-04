@@ -52,15 +52,26 @@ pub struct A2AUsageStats {
 
 /// Helper functions for safe type conversions
 fn safe_u32_to_i32(value: u32) -> Result<i32> {
-    Ok(i32::try_from(value).map_err(|_| {
-        AppError::invalid_input(format!("Value {value} too large to convert to i32"))
+    Ok(i32::try_from(value).map_err(|e| {
+        tracing::warn!(
+            value = value,
+            max_i32 = i32::MAX,
+            error = %e,
+            "Type conversion failed: u32 to i32"
+        );
+        AppError::invalid_input(format!("Value {value} too large to convert to i32: {e}"))
     })?)
 }
 
 /// Safely convert i32 to u32, returning an error if negative
 fn safe_i32_to_u32(value: i32) -> Result<u32> {
-    Ok(u32::try_from(value).map_err(|_| {
-        AppError::invalid_input(format!("Cannot convert negative value {value} to u32"))
+    Ok(u32::try_from(value).map_err(|e| {
+        tracing::warn!(
+            value = value,
+            error = %e,
+            "Type conversion failed: negative i32 cannot convert to u32"
+        );
+        AppError::invalid_input(format!("Cannot convert negative value {value} to u32: {e}"))
     })?)
 }
 
@@ -140,24 +151,38 @@ impl Database {
     /// Migrate `a2a_clients` table to add new columns
     async fn migrate_a2a_clients_columns(&self) -> Result<()> {
         // Add capabilities column if it doesn't exist (migration)
-        sqlx::query(
+        if let Err(e) = sqlx::query(
             r"
             ALTER TABLE a2a_clients ADD COLUMN capabilities TEXT DEFAULT '[]'
             ",
         )
         .execute(&self.pool)
         .await
-        .ok(); // Ignore error if column already exists
+        {
+            tracing::debug!(
+                table = "a2a_clients",
+                column = "capabilities",
+                error = %e,
+                "Schema migration: capabilities column may already exist or migration failed"
+            );
+        }
 
         // Add redirect_uris column if it doesn't exist (migration)
-        sqlx::query(
+        if let Err(e) = sqlx::query(
             r"
             ALTER TABLE a2a_clients ADD COLUMN redirect_uris TEXT DEFAULT '[]'
             ",
         )
         .execute(&self.pool)
         .await
-        .ok(); // Ignore error if column already exists
+        {
+            tracing::debug!(
+                table = "a2a_clients",
+                column = "redirect_uris",
+                error = %e,
+                "Schema migration: redirect_uris column may already exist or migration failed"
+            );
+        }
 
         Ok(())
     }

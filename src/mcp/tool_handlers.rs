@@ -111,10 +111,17 @@ impl ToolHandlers {
                 );
 
                 // Update user's last active timestamp
-                let _ = resources
+                if let Err(e) = resources
                     .database
                     .update_last_active(auth_result.user_id)
-                    .await;
+                    .await
+                {
+                    tracing::warn!(
+                        user_id = %auth_result.user_id,
+                        error = %e,
+                        "Failed to update user last active timestamp (activity tracking impacted)"
+                    );
+                }
 
                 // Extract tenant context from request and auth result
                 let tenant_context = crate::mcp::tenant_isolation::extract_tenant_context_internal(
@@ -1061,11 +1068,26 @@ impl ToolHandlers {
         let user_configs = database
             .list_user_fitness_configurations(tenant_id, user_id)
             .await
-            .unwrap_or_default();
+            .unwrap_or_else(|e| {
+                tracing::warn!(
+                    tenant_id = %tenant_id,
+                    user_id = %user_id,
+                    error = %e,
+                    "Failed to fetch user fitness configurations, using empty list"
+                );
+                Vec::new()
+            });
         let tenant_configs = database
             .list_tenant_fitness_configurations(tenant_id)
             .await
-            .unwrap_or_default();
+            .unwrap_or_else(|e| {
+                tracing::warn!(
+                    tenant_id = %tenant_id,
+                    error = %e,
+                    "Failed to fetch tenant fitness configurations, using empty list"
+                );
+                Vec::new()
+            });
 
         let mut all_configs = user_configs;
         all_configs.extend(tenant_configs);

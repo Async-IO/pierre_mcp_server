@@ -337,7 +337,12 @@ pub fn handle_suggest_goals(
         {
             Ok(Some(profile_json)) => {
                 // Try to deserialize as UserFitnessProfile
-                serde_json::from_value(profile_json).unwrap_or_else(|_| {
+                serde_json::from_value(profile_json).unwrap_or_else(|e| {
+                    tracing::warn!(
+                        user_id = %request.user_id,
+                        error = %e,
+                        "Failed to deserialize user fitness profile, using fallback profile"
+                    );
                     // Fallback if profile doesn't match structure
                     create_fallback_profile(request.user_id.clone(), &activities)
                 })

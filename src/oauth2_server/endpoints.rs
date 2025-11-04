@@ -601,13 +601,21 @@ impl OAuth2AuthorizationServer {
         user_id: Option<Uuid>,
         scope: Option<&str>,
     ) -> Result<String> {
-        let scopes = scope
-            .map(|s| {
+        let scopes = scope.map_or_else(
+            || {
+                tracing::debug!(
+                    client_id = %client_id,
+                    user_id = ?user_id,
+                    "No scopes provided for token generation, using empty scope list"
+                );
+                Vec::new()
+            },
+            |s| {
                 s.split(' ')
                     .map(std::string::ToString::to_string)
                     .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+            },
+        );
 
         user_id.map_or_else(
             || {

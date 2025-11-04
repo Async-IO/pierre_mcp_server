@@ -605,7 +605,15 @@ impl MultiTenantMcpServer {
                 if bytes.is_empty() {
                     serde_json::Value::Null
                 } else {
-                    serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null)
+                    serde_json::from_slice(&bytes).unwrap_or_else(|e| {
+                        tracing::warn!(
+                            error = %e,
+                            body_size = bytes.len(),
+                            body_preview = %String::from_utf8_lossy(&bytes[..bytes.len().min(100)]),
+                            "Failed to parse MCP request body as JSON, using Null"
+                        );
+                        serde_json::Value::Null
+                    })
                 }
             }))
             .and_then({
@@ -1602,10 +1610,15 @@ impl MultiTenantMcpServer {
                                 Ok(claims) => {
                                     // Parse user_id from claims.sub
                                     let user_id =
-                                        uuid::Uuid::parse_str(&claims.sub).map_err(|_| {
+                                        uuid::Uuid::parse_str(&claims.sub).map_err(|e| {
+                                            tracing::error!(
+                                                sub = %claims.sub,
+                                                error = %e,
+                                                "Failed to parse user_id from JWT token subject claim"
+                                            );
                                             warp::reject::custom(crate::errors::AppError::new(
                                                 crate::errors::ErrorCode::AuthInvalid,
-                                                "Invalid user ID in JWT token",
+                                                format!("Invalid user ID in JWT token: {e}"),
                                             ))
                                         })?;
 
@@ -1855,7 +1868,16 @@ impl MultiTenantMcpServer {
         }
 
         // For POST requests, check the MCP method in the body to decide if auth is needed
-        let mcp_method_str = body.get("method").and_then(|m| m.as_str()).unwrap_or("");
+        let mcp_method_str = body
+            .get("method")
+            .and_then(|m| m.as_str())
+            .unwrap_or_else(|| {
+                tracing::warn!(
+                    body_keys = ?body.as_object().map(|o| o.keys().collect::<Vec<_>>()),
+                    "MCP request missing 'method' field, treating as empty method"
+                );
+                ""
+            });
         let mcp_method = mcp_method_str.to_string();
         tracing::debug!("POST request - MCP method: '{}'", mcp_method);
 
@@ -2825,7 +2847,14 @@ impl MultiTenantMcpServer {
         let unread_notifications = database
             .get_unread_oauth_notifications(tenant_context.user_id)
             .await
-            .unwrap_or_default();
+            .unwrap_or_else(|e| {
+                tracing::warn!(
+                    user_id = %tenant_context.user_id,
+                    error = %e,
+                    "Failed to fetch OAuth notifications for connection status"
+                );
+                Vec::new()
+            });
 
         serde_json::json!({
             "providers": [

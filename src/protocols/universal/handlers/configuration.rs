@@ -86,6 +86,77 @@ pub fn handle_get_configuration_profiles(
 
 /// Handle `get_user_configuration` tool - get user's current configuration
 #[must_use]
+/// Normalize stored configuration structure with defaults
+fn normalize_stored_configuration(stored_config: &serde_json::Value) -> serde_json::Value {
+    if stored_config.is_object() {
+        let profile = stored_config.get("profile").cloned().unwrap_or_else(|| {
+            serde_json::json!({
+                "name": "custom",
+                "sport_type": "general",
+                "training_focus": "custom"
+            })
+        });
+        let session_overrides = stored_config
+            .get("session_overrides")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!({}));
+        let last_modified = stored_config
+            .get("last_modified")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!(chrono::Utc::now().to_rfc3339()));
+
+        serde_json::json!({
+            "profile": profile,
+            "session_overrides": session_overrides,
+            "last_modified": last_modified
+        })
+    } else {
+        serde_json::json!({
+            "profile": {
+                "name": "custom",
+                "sport_type": "general",
+                "training_focus": "custom"
+            },
+            "session_overrides": {},
+            "last_modified": chrono::Utc::now().to_rfc3339()
+        })
+    }
+}
+
+/// Build response with user configuration
+fn build_configuration_response(
+    user_uuid: &uuid::Uuid,
+    configuration: &serde_json::Value,
+    has_overrides: bool,
+) -> UniversalResponse {
+    let metadata_key = if has_overrides {
+        "has_overrides"
+    } else {
+        "using_defaults"
+    };
+
+    UniversalResponse {
+        success: true,
+        result: Some(serde_json::json!({
+            "user_id": user_uuid.to_string(),
+            "active_profile": if has_overrides { "custom" } else { "default" },
+            "configuration": configuration,
+            "available_parameters": crate::constants::configuration_system::AVAILABLE_PARAMETERS_COUNT
+        })),
+        error: None,
+        metadata: Some({
+            let mut map = std::collections::HashMap::new();
+            map.insert(
+                "user_id".to_string(),
+                serde_json::Value::String(user_uuid.to_string()),
+            );
+            map.insert(metadata_key.to_string(), serde_json::Value::Bool(true));
+            map
+        }),
+    }
+}
+
+#[must_use]
 pub fn handle_get_user_configuration(
     executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
@@ -100,91 +171,39 @@ pub fn handle_get_user_configuration(
             .await
         {
             Ok(Some(config_str)) => {
-                let stored_config: serde_json::Value =
-                    serde_json::from_str(&config_str).unwrap_or_else(|_| serde_json::json!({}));
-
-                // Ensure configuration has the expected structure
-                let configuration = if stored_config.is_object() {
-                    let profile = stored_config.get("profile").cloned().unwrap_or_else(|| {
-                        serde_json::json!({
-                            "name": "custom",
-                            "sport_type": "general",
-                            "training_focus": "custom"
-                        })
-                    });
-                    let session_overrides = stored_config
-                        .get("session_overrides")
-                        .cloned()
-                        .unwrap_or_else(|| serde_json::json!({}));
-                    let last_modified = stored_config
-                        .get("last_modified")
-                        .cloned()
-                        .unwrap_or_else(|| serde_json::json!(chrono::Utc::now().to_rfc3339()));
-
-                    serde_json::json!({
-                        "profile": profile,
-                        "session_overrides": session_overrides,
-                        "last_modified": last_modified
-                    })
-                } else {
-                    serde_json::json!({
-                        "profile": {
-                            "name": "custom",
-                            "sport_type": "general",
-                            "training_focus": "custom"
-                        },
-                        "session_overrides": {},
-                        "last_modified": chrono::Utc::now().to_rfc3339()
-                    })
-                };
-
-                Ok(UniversalResponse {
-                    success: true,
-                    result: Some(serde_json::json!({
-                        "user_id": user_uuid.to_string(),
-                        "active_profile": "custom",
-                        "configuration": configuration,
-                        "available_parameters": crate::constants::configuration_system::AVAILABLE_PARAMETERS_COUNT
-                    })),
-                    error: None,
-                    metadata: Some({
-                        let mut map = std::collections::HashMap::new();
-                        map.insert(
-                            "user_id".to_string(),
-                            serde_json::Value::String(user_uuid.to_string()),
+                let stored_config: serde_json::Value = serde_json::from_str(&config_str)
+                    .unwrap_or_else(|e| {
+                        tracing::warn!(
+                            user_id = %user_uuid,
+                            error = %e,
+                            "Failed to parse stored fitness configuration JSON, using empty default"
                         );
-                        map.insert("has_overrides".to_string(), serde_json::Value::Bool(true));
-                        map
-                    }),
-                })
+                        serde_json::json!({})
+                    });
+
+                let configuration = normalize_stored_configuration(&stored_config);
+                Ok(build_configuration_response(
+                    &user_uuid,
+                    &configuration,
+                    true,
+                ))
             }
-            Ok(None) => Ok(UniversalResponse {
-                success: true,
-                result: Some(serde_json::json!({
-                    "user_id": user_uuid.to_string(),
-                    "active_profile": "default",
-                    "configuration": {
-                        "profile": {
-                            "name": "default",
-                            "sport_type": "general",
-                            "training_focus": "recreational"
-                        },
-                        "session_overrides": {},
-                        "last_modified": chrono::Utc::now().to_rfc3339()
+            Ok(None) => {
+                let default_configuration = serde_json::json!({
+                    "profile": {
+                        "name": "default",
+                        "sport_type": "general",
+                        "training_focus": "recreational"
                     },
-                    "available_parameters": crate::constants::configuration_system::AVAILABLE_PARAMETERS_COUNT
-                })),
-                error: None,
-                metadata: Some({
-                    let mut map = std::collections::HashMap::new();
-                    map.insert(
-                        "user_id".to_string(),
-                        serde_json::Value::String(user_uuid.to_string()),
-                    );
-                    map.insert("using_defaults".to_string(), serde_json::Value::Bool(true));
-                    map
-                }),
-            }),
+                    "session_overrides": {},
+                    "last_modified": chrono::Utc::now().to_rfc3339()
+                });
+                Ok(build_configuration_response(
+                    &user_uuid,
+                    &default_configuration,
+                    false,
+                ))
+            }
             Err(e) => Ok(UniversalResponse {
                 success: false,
                 result: None,
@@ -386,7 +405,13 @@ pub fn handle_calculate_personalized_zones(
             map.insert(
                 "vo2_max".to_string(),
                 serde_json::Value::Number(
-                    serde_json::Number::from_f64(params.vo2_max).unwrap_or_else(|| 0.into()),
+                    serde_json::Number::from_f64(params.vo2_max).unwrap_or_else(|| {
+                        tracing::debug!(
+                            vo2_max = params.vo2_max,
+                            "Failed to convert VO2 max to JSON number (likely NaN/Inf), using 0"
+                        );
+                        0.into()
+                    }),
                 ),
             );
             map.insert(

@@ -40,6 +40,154 @@ impl PostgresDatabase {
     pub async fn close(&self) {
         self.pool.close().await;
     }
+
+    /// Helper function to parse User from database row
+    fn parse_user_from_row(row: &sqlx::postgres::PgRow) -> User {
+        use sqlx::Row;
+
+        let user_status_str: String = row.get("user_status");
+        let user_status = match user_status_str.as_str() {
+            "pending" => crate::models::UserStatus::Pending,
+            "suspended" => crate::models::UserStatus::Suspended,
+            _ => crate::models::UserStatus::Active,
+        };
+
+        User {
+            id: row.get("id"),
+            email: row.get("email"),
+            display_name: row.get("display_name"),
+            password_hash: row.get("password_hash"),
+            tier: {
+                let tier_str: String = row.get("tier");
+                match tier_str.as_str() {
+                    tiers::PROFESSIONAL => UserTier::Professional,
+                    tiers::ENTERPRISE => UserTier::Enterprise,
+                    _ => UserTier::Starter,
+                }
+            },
+            tenant_id: row.get("tenant_id"),
+            strava_token: None,
+            fitbit_token: None,
+            is_active: row.get("is_active"),
+            user_status,
+            is_admin: row.try_get("is_admin").unwrap_or(false),
+            approved_by: row.get("approved_by"),
+            approved_at: row.get("approved_at"),
+            created_at: row.get("created_at"),
+            last_active: row.get("last_active"),
+        }
+    }
+
+    /// Helper function to build A2A tasks query with dynamic filters
+    fn build_a2a_tasks_query(
+        client_id: Option<&str>,
+        status_filter: Option<&TaskStatus>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<String> {
+        use std::fmt::Write;
+        let mut query = String::from(
+            r"
+            SELECT task_id, client_id, session_id, task_type, input_data,
+                   status, result_data, method, created_at, updated_at
+            FROM a2a_tasks
+            ",
+        );
+
+        let mut conditions = Vec::new();
+        let mut bind_count = 0;
+
+        if client_id.is_some() {
+            bind_count += 1;
+            conditions.push(format!("client_id = ${bind_count}"));
+        }
+
+        if status_filter.is_some() {
+            bind_count += 1;
+            conditions.push(format!("status = ${bind_count}"));
+        }
+
+        if !conditions.is_empty() {
+            query.push_str(" WHERE ");
+            query.push_str(&conditions.join(" AND "));
+        }
+
+        query.push_str(" ORDER BY created_at DESC");
+
+        if limit.is_some() {
+            bind_count += 1;
+            write!(query, " LIMIT ${bind_count}").map_err(|_| DatabaseError::QueryError {
+                context: "Failed to write LIMIT clause to query".to_string(),
+            })?;
+        }
+
+        if offset.is_some() {
+            bind_count += 1;
+            write!(query, " OFFSET ${bind_count}").map_err(|_| DatabaseError::QueryError {
+                context: "Failed to write OFFSET clause to query".to_string(),
+            })?;
+        }
+
+        Ok(query)
+    }
+
+    /// Helper function to parse A2A task from database row
+    fn parse_a2a_task_from_row(row: &sqlx::postgres::PgRow) -> Result<A2ATask> {
+        use sqlx::Row;
+
+        let task_id: String = row.try_get("task_id")?;
+        let input_str: String = row.try_get("input_data")?;
+        let input_data: Value = serde_json::from_str(&input_str).unwrap_or_else(|e| {
+            tracing::warn!(
+                task_id = %task_id,
+                error = %e,
+                "Failed to deserialize A2A task input_data, using null"
+            );
+            Value::Null
+        });
+
+        let result_data =
+            row.try_get::<Option<String>, _>("result_data")
+                .map_or(None, |result_str| {
+                    result_str.and_then(|s| {
+                        serde_json::from_str(&s)
+                            .inspect_err(|e| {
+                                tracing::warn!(
+                                    task_id = %task_id,
+                                    error = %e,
+                                    "Failed to deserialize A2A task result_data"
+                                );
+                            })
+                            .ok()
+                    })
+                });
+
+        let status_str: String = row.try_get("status")?;
+        let status = match status_str.as_str() {
+            "running" => TaskStatus::Running,
+            "completed" => TaskStatus::Completed,
+            "failed" => TaskStatus::Failed,
+            "cancelled" => TaskStatus::Cancelled,
+            _ => TaskStatus::Pending,
+        };
+
+        Ok(A2ATask {
+            id: task_id,
+            status,
+            created_at: row.try_get("created_at")?,
+            completed_at: row.try_get("updated_at")?,
+            result: result_data.clone(), // Safe: JSON value ownership for A2ATask struct
+            error: row.try_get("method")?,
+            client_id: row
+                .try_get("client_id")
+                .unwrap_or_else(|_| "unknown".into()),
+            task_type: row.try_get("task_type")?,
+            input_data,
+            output_data: result_data,
+            error_message: row.try_get("method")?,
+            updated_at: row.try_get("updated_at")?,
+        })
+    }
 }
 
 impl PostgresDatabase {
@@ -362,47 +510,50 @@ impl DatabaseProvider for PostgresDatabase {
         let fetch_limit = params.limit + 1;
 
         // Convert to i64 for SQL LIMIT clause (pagination limits are always reasonable)
-        let fetch_limit_i64 = i64::try_from(fetch_limit)
-            .map_err(|_| AppError::invalid_input("Pagination limit too large"))?;
+        let fetch_limit_i64 = i64::try_from(fetch_limit).map_err(|e| {
+            tracing::warn!(
+                fetch_limit = fetch_limit,
+                max_allowed = i64::MAX,
+                error = %e,
+                "Pagination limit conversion failed"
+            );
+            AppError::invalid_input(format!("Pagination limit too large: {fetch_limit}"))
+        })?;
 
-        let (query, cursor_timestamp, cursor_id) = if let Some(ref cursor) = params.cursor {
+        const QUERY_WITH_CURSOR: &str = r"
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
+                   COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
+            FROM users
+            WHERE COALESCE(user_status, 'active') = $1
+              AND (created_at < $2 OR (created_at = $2 AND id::text < $3))
+            ORDER BY created_at DESC, id DESC
+            LIMIT $4
+        ";
+
+        const QUERY_WITHOUT_CURSOR: &str = r"
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
+                   COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
+            FROM users
+            WHERE COALESCE(user_status, 'active') = $1
+            ORDER BY created_at DESC, id DESC
+            LIMIT $2
+        ";
+
+        // Execute query with appropriate parameters
+        let rows = if let Some(ref cursor) = params.cursor {
             let (timestamp, id) = cursor
                 .decode()
                 .ok_or_else(|| AppError::invalid_input("Invalid cursor format"))?;
 
-            let query = r"
-                SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
-                       COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
-                FROM users
-                WHERE COALESCE(user_status, 'active') = $1
-                  AND (created_at < $2 OR (created_at = $2 AND id::text < $3))
-                ORDER BY created_at DESC, id DESC
-                LIMIT $4
-            ";
-            (query, Some(timestamp), Some(id))
-        } else {
-            let query = r"
-                SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
-                       COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
-                FROM users
-                WHERE COALESCE(user_status, 'active') = $1
-                ORDER BY created_at DESC, id DESC
-                LIMIT $2
-            ";
-            (query, None, None)
-        };
-
-        // Execute query with appropriate parameters
-        let rows = if let (Some(ts), Some(id)) = (cursor_timestamp, cursor_id) {
-            sqlx::query(query)
+            sqlx::query(QUERY_WITH_CURSOR)
                 .bind(status_enum)
-                .bind(ts)
+                .bind(timestamp)
                 .bind(id)
                 .bind(fetch_limit_i64)
                 .fetch_all(&self.pool)
                 .await?
         } else {
-            sqlx::query(query)
+            sqlx::query(QUERY_WITHOUT_CURSOR)
                 .bind(status_enum)
                 .bind(fetch_limit_i64)
                 .fetch_all(&self.pool)
@@ -410,40 +561,7 @@ impl DatabaseProvider for PostgresDatabase {
         };
 
         // Parse rows into User structs
-        let mut users = Vec::new();
-        for row in rows {
-            let user_status_str: String = row.get("user_status");
-            let user_status = match user_status_str.as_str() {
-                "pending" => crate::models::UserStatus::Pending,
-                "suspended" => crate::models::UserStatus::Suspended,
-                _ => crate::models::UserStatus::Active,
-            };
-
-            users.push(User {
-                id: row.get("id"),
-                email: row.get("email"),
-                display_name: row.get("display_name"),
-                password_hash: row.get("password_hash"),
-                tier: {
-                    let tier_str: String = row.get("tier");
-                    match tier_str.as_str() {
-                        tiers::PROFESSIONAL => UserTier::Professional,
-                        tiers::ENTERPRISE => UserTier::Enterprise,
-                        _ => UserTier::Starter,
-                    }
-                },
-                tenant_id: row.get("tenant_id"),
-                strava_token: None,
-                fitbit_token: None,
-                is_active: row.get("is_active"),
-                user_status,
-                is_admin: row.try_get("is_admin").unwrap_or(false),
-                approved_by: row.get("approved_by"),
-                approved_at: row.get("approved_at"),
-                created_at: row.get("created_at"),
-                last_active: row.get("last_active"),
-            });
-        }
+        let mut users: Vec<User> = rows.iter().map(Self::parse_user_from_row).collect();
 
         // Determine if there are more items
         let has_more = users.len() > params.limit;
@@ -488,19 +606,44 @@ impl DatabaseProvider for PostgresDatabase {
         };
 
         // First ensure the user_status column exists, create if needed
-        let _ = sqlx::query(
+        if let Err(e) = sqlx::query(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS user_status TEXT DEFAULT 'active'",
         )
         .execute(&self.pool)
-        .await;
+        .await
+        {
+            tracing::error!(
+                table = "users",
+                column = "user_status",
+                error = %e,
+                "Schema migration failed: unable to add user_status column"
+            );
+        }
 
-        let _ = sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by TEXT")
+        if let Err(e) = sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by TEXT")
             .execute(&self.pool)
-            .await;
+            .await
+        {
+            tracing::error!(
+                table = "users",
+                column = "approved_by",
+                error = %e,
+                "Schema migration failed: unable to add approved_by column"
+            );
+        }
 
-        let _ = sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ")
-            .execute(&self.pool)
-            .await;
+        if let Err(e) =
+            sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ")
+                .execute(&self.pool)
+                .await
+        {
+            tracing::error!(
+                table = "users",
+                column = "approved_at",
+                error = %e,
+                "Schema migration failed: unable to add approved_at column"
+            );
+        }
 
         // Update user status
         sqlx::query(
@@ -1788,7 +1931,14 @@ impl DatabaseProvider for PostgresDatabase {
         if let Some(row) = row {
             use sqlx::Row;
             let input_str: String = row.try_get("input_data")?;
-            let input_data: Value = serde_json::from_str(&input_str).unwrap_or(Value::Null);
+            let input_data: Value = serde_json::from_str(&input_str).unwrap_or_else(|e| {
+                tracing::warn!(
+                    task_id = %task_id,
+                    error = %e,
+                    "Failed to deserialize A2A task input_data, using null"
+                );
+                Value::Null
+            });
 
             // Validate input data structure
             if !input_data.is_null() && !input_data.is_object() {
@@ -1798,11 +1948,21 @@ impl DatabaseProvider for PostgresDatabase {
                 );
             }
 
-            let result_data = row
-                .try_get::<Option<String>, _>("result_data")
-                .map_or(None, |result_str| {
-                    result_str.and_then(|s| serde_json::from_str(&s).ok())
-                });
+            let result_data =
+                row.try_get::<Option<String>, _>("result_data")
+                    .map_or(None, |result_str| {
+                        result_str.and_then(|s| {
+                            serde_json::from_str(&s)
+                                .inspect_err(|e| {
+                                    tracing::warn!(
+                                        task_id = %task_id,
+                                        error = %e,
+                                        "Failed to deserialize A2A task result_data"
+                                    );
+                                })
+                                .ok()
+                        })
+                    });
 
             let status_str: String = row.try_get("status")?;
             let status = match status_str.as_str() {
@@ -1841,54 +2001,7 @@ impl DatabaseProvider for PostgresDatabase {
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<Vec<A2ATask>> {
-        use std::fmt::Write;
-        let mut query = String::from(
-            r"
-            SELECT task_id, client_id, session_id, task_type, input_data,
-                   status, result_data, method, created_at, updated_at
-            FROM a2a_tasks
-            ",
-        );
-
-        let mut conditions = Vec::new();
-        let mut bind_count = 0;
-
-        if client_id.is_some() {
-            bind_count += 1;
-            conditions.push(format!("client_id = ${bind_count}"));
-        }
-
-        if status_filter.is_some() {
-            bind_count += 1;
-            conditions.push(format!("status = ${bind_count}"));
-        }
-
-        if !conditions.is_empty() {
-            query.push_str(" WHERE ");
-            query.push_str(&conditions.join(" AND "));
-        }
-
-        query.push_str(" ORDER BY created_at DESC");
-
-        if let Some(_limit_val) = limit {
-            bind_count += 1;
-            if write!(query, " LIMIT ${bind_count}").is_err() {
-                return Err(DatabaseError::QueryError {
-                    context: "Failed to write LIMIT clause to query".to_string(),
-                }
-                .into());
-            }
-        }
-
-        if let Some(_offset_val) = offset {
-            bind_count += 1;
-            if write!(query, " OFFSET ${bind_count}").is_err() {
-                return Err(DatabaseError::QueryError {
-                    context: "Failed to write OFFSET clause to query".to_string(),
-                }
-                .into());
-            }
-        }
+        let query = Self::build_a2a_tasks_query(client_id, status_filter, limit, offset)?;
 
         let mut sql_query = sqlx::query(&query);
 
@@ -1916,47 +2029,7 @@ impl DatabaseProvider for PostgresDatabase {
         }
 
         let rows = sql_query.fetch_all(&self.pool).await?;
-
-        let mut tasks = Vec::new();
-        for row in rows {
-            use sqlx::Row;
-            let input_str: String = row.try_get("input_data")?;
-            let input_data: Value = serde_json::from_str(&input_str).unwrap_or(Value::Null);
-
-            let result_data = row
-                .try_get::<Option<String>, _>("result_data")
-                .map_or(None, |result_str| {
-                    result_str.and_then(|s| serde_json::from_str(&s).ok())
-                });
-
-            let status_str: String = row.try_get("status")?;
-            let status = match status_str.as_str() {
-                "running" => TaskStatus::Running,
-                "completed" => TaskStatus::Completed,
-                "failed" => TaskStatus::Failed,
-                "cancelled" => TaskStatus::Cancelled,
-                _ => TaskStatus::Pending,
-            };
-
-            tasks.push(A2ATask {
-                id: row.try_get("task_id")?,
-                status,
-                created_at: row.try_get("created_at")?,
-                completed_at: row.try_get("updated_at")?,
-                result: result_data.clone(), // Safe: JSON value ownership for A2ATask struct
-                error: row.try_get("method")?,
-                client_id: row
-                    .try_get("client_id")
-                    .unwrap_or_else(|_| "unknown".into()),
-                task_type: row.try_get("task_type")?,
-                input_data,
-                output_data: result_data,
-                error_message: row.try_get("method")?,
-                updated_at: row.try_get("updated_at")?,
-            });
-        }
-
-        Ok(tasks)
+        rows.iter().map(Self::parse_a2a_task_from_row).collect()
     }
 
     async fn update_a2a_task_status(
@@ -1994,10 +2067,10 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()> {
-        let _ = sqlx::query(
+        sqlx::query(
             r"
-            INSERT INTO a2a_usage 
-            (client_id, session_token, endpoint, status_code, 
+            INSERT INTO a2a_usage
+            (client_id, session_token, endpoint, status_code,
              response_time_ms, request_size_bytes, response_size_bytes, timestamp,
              method, ip_address, user_agent, protocol_version)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::inet, $11, $12)
@@ -2028,7 +2101,16 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&usage.user_agent)
         .bind(&usage.protocol_version)
         .execute(&self.pool)
-        .await?;
+        .await
+        .inspect_err(|e| {
+            tracing::warn!(
+                client_id = %usage.client_id,
+                endpoint = %usage.tool_name,
+                status_code = usage.status_code,
+                error = %e,
+                "Failed to record A2A usage tracking (affects billing/analytics)"
+            );
+        })?;
 
         Ok(())
     }
@@ -2920,8 +3002,18 @@ impl DatabaseProvider for PostgresDatabase {
             )
             .as_ref()
             .try_into()
-            .map_err(|_| DatabaseError::EncryptionFailed {
-                context: "Failed to create encryption key".to_string(),
+            .map_err(|e| {
+                tracing::error!(
+                    tenant_id = %credentials.tenant_id,
+                    error = ?e,
+                    "Failed to create encryption key from SHA256 digest"
+                );
+                DatabaseError::EncryptionFailed {
+                    context: format!(
+                        "Failed to create encryption key for tenant {}: {:?}",
+                        credentials.tenant_id, e
+                    ),
+                }
             })?,
         );
 
@@ -3078,8 +3170,18 @@ impl DatabaseProvider for PostgresDatabase {
                     )
                     .as_ref()
                     .try_into()
-                    .map_err(|_| DatabaseError::DecryptionFailed {
-                        context: "Failed to create encryption key".to_string(),
+                    .map_err(|e| {
+                        tracing::error!(
+                            tenant_id = %tenant_id,
+                            provider = %provider,
+                            error = ?e,
+                            "Failed to create decryption key from SHA256 digest"
+                        );
+                        DatabaseError::DecryptionFailed {
+                            context: format!(
+                                "Failed to create decryption key for tenant {tenant_id}: {e:?}"
+                            ),
+                        }
                     })?,
                 );
 
