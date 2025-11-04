@@ -150,51 +150,45 @@ impl Database {
         .bind(&usage.endpoint)
         .bind(&usage.method)
         .bind(i32::from(usage.status_code))
-        .bind(
-            usage
-                .response_time_ms
-                .map(|t| i32::try_from(t).unwrap_or_else(|e| {
-                    tracing::warn!(
-                        user_id = ?usage.user_id,
-                        endpoint = %usage.endpoint,
-                        response_time_ms = t,
-                        fallback = i32::MAX,
-                        error = %e,
-                        "Response time conversion failed for usage recording, using i32::MAX"
-                    );
-                    i32::MAX
-                })),
-        )
-        .bind(
-            usage
-                .request_size_bytes
-                .map(|s| i32::try_from(s).unwrap_or_else(|e| {
-                    tracing::warn!(
-                        user_id = ?usage.user_id,
-                        endpoint = %usage.endpoint,
-                        request_size_bytes = s,
-                        fallback = i32::MAX,
-                        error = %e,
-                        "Request size conversion failed for usage recording, using i32::MAX"
-                    );
-                    i32::MAX
-                })),
-        )
-        .bind(
-            usage
-                .response_size_bytes
-                .map(|s| i32::try_from(s).unwrap_or_else(|e| {
-                    tracing::warn!(
-                        user_id = ?usage.user_id,
-                        endpoint = %usage.endpoint,
-                        response_size_bytes = s,
-                        fallback = i32::MAX,
-                        error = %e,
-                        "Response size conversion failed for usage recording, using i32::MAX"
-                    );
-                    i32::MAX
-                })),
-        )
+        .bind(usage.response_time_ms.map(|t| {
+            i32::try_from(t).unwrap_or_else(|e| {
+                tracing::warn!(
+                    user_id = ?usage.user_id,
+                    endpoint = %usage.endpoint,
+                    response_time_ms = t,
+                    fallback = i32::MAX,
+                    error = %e,
+                    "Response time conversion failed for usage recording, using i32::MAX"
+                );
+                i32::MAX
+            })
+        }))
+        .bind(usage.request_size_bytes.map(|s| {
+            i32::try_from(s).unwrap_or_else(|e| {
+                tracing::warn!(
+                    user_id = ?usage.user_id,
+                    endpoint = %usage.endpoint,
+                    request_size_bytes = s,
+                    fallback = i32::MAX,
+                    error = %e,
+                    "Request size conversion failed for usage recording, using i32::MAX"
+                );
+                i32::MAX
+            })
+        }))
+        .bind(usage.response_size_bytes.map(|s| {
+            i32::try_from(s).unwrap_or_else(|e| {
+                tracing::warn!(
+                    user_id = ?usage.user_id,
+                    endpoint = %usage.endpoint,
+                    response_size_bytes = s,
+                    fallback = i32::MAX,
+                    error = %e,
+                    "Response size conversion failed for usage recording, using i32::MAX"
+                );
+                i32::MAX
+            })
+        }))
         .bind(&usage.ip_address)
         .bind(&usage.user_agent)
         .execute(&self.pool)
@@ -537,10 +531,9 @@ impl Database {
                 0
             });
 
-            let response_time_ms = row
-                .get::<Option<i32>, _>("response_time_ms")
-                .and_then(|t| {
-                    u32::try_from(t).inspect_err(|e| {
+            let response_time_ms = row.get::<Option<i32>, _>("response_time_ms").and_then(|t| {
+                u32::try_from(t)
+                    .inspect_err(|e| {
                         tracing::warn!(
                             log_id = %log_id,
                             user_id = ?user_id,
@@ -548,8 +541,9 @@ impl Database {
                             error = %e,
                             "Failed to convert response_time_ms for request log"
                         );
-                    }).ok()
-                });
+                    })
+                    .ok()
+            });
 
             logs.push(RequestLog {
                 id: log_id,

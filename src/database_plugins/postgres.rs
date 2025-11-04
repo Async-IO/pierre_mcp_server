@@ -521,9 +521,10 @@ impl DatabaseProvider for PostgresDatabase {
             );
         }
 
-        if let Err(e) = sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ")
-            .execute(&self.pool)
-            .await
+        if let Err(e) =
+            sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ")
+                .execute(&self.pool)
+                .await
         {
             tracing::error!(
                 table = "users",
@@ -1836,19 +1837,21 @@ impl DatabaseProvider for PostgresDatabase {
                 );
             }
 
-            let result_data = row
-                .try_get::<Option<String>, _>("result_data")
-                .map_or(None, |result_str| {
-                    result_str.and_then(|s| {
-                        serde_json::from_str(&s).inspect_err(|e| {
-                            tracing::warn!(
-                                task_id = %task_id,
-                                error = %e,
-                                "Failed to deserialize A2A task result_data"
-                            );
-                        }).ok()
-                    })
-                });
+            let result_data =
+                row.try_get::<Option<String>, _>("result_data")
+                    .map_or(None, |result_str| {
+                        result_str.and_then(|s| {
+                            serde_json::from_str(&s)
+                                .inspect_err(|e| {
+                                    tracing::warn!(
+                                        task_id = %task_id,
+                                        error = %e,
+                                        "Failed to deserialize A2A task result_data"
+                                    );
+                                })
+                                .ok()
+                        })
+                    });
 
             let status_str: String = row.try_get("status")?;
             let status = match status_str.as_str() {
@@ -1977,19 +1980,21 @@ impl DatabaseProvider for PostgresDatabase {
                 Value::Null
             });
 
-            let result_data = row
-                .try_get::<Option<String>, _>("result_data")
-                .map_or(None, |result_str| {
-                    result_str.and_then(|s| {
-                        serde_json::from_str(&s).inspect_err(|e| {
-                            tracing::warn!(
-                                task_id = %task_id,
-                                error = %e,
-                                "Failed to deserialize A2A task result_data"
-                            );
-                        }).ok()
-                    })
-                });
+            let result_data =
+                row.try_get::<Option<String>, _>("result_data")
+                    .map_or(None, |result_str| {
+                        result_str.and_then(|s| {
+                            serde_json::from_str(&s)
+                                .inspect_err(|e| {
+                                    tracing::warn!(
+                                        task_id = %task_id,
+                                        error = %e,
+                                        "Failed to deserialize A2A task result_data"
+                                    );
+                                })
+                                .ok()
+                        })
+                    });
 
             let status_str: String = row.try_get("status")?;
             let status = match status_str.as_str() {
@@ -2998,7 +3003,10 @@ impl DatabaseProvider for PostgresDatabase {
                     "Failed to create encryption key from SHA256 digest"
                 );
                 DatabaseError::EncryptionFailed {
-                    context: format!("Failed to create encryption key for tenant {}: {:?}", credentials.tenant_id, e),
+                    context: format!(
+                        "Failed to create encryption key for tenant {}: {:?}",
+                        credentials.tenant_id, e
+                    ),
                 }
             })?,
         );
@@ -3164,7 +3172,9 @@ impl DatabaseProvider for PostgresDatabase {
                             "Failed to create decryption key from SHA256 digest"
                         );
                         DatabaseError::DecryptionFailed {
-                            context: format!("Failed to create decryption key for tenant {tenant_id}: {e:?}"),
+                            context: format!(
+                                "Failed to create decryption key for tenant {tenant_id}: {e:?}"
+                            ),
                         }
                     })?,
                 );

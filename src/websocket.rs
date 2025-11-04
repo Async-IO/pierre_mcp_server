@@ -128,7 +128,9 @@ impl WebSocketManager {
             match msg {
                 Ok(msg) if msg.is_text() => {
                     let text = msg.to_str().unwrap_or_else(|| {
-                        tracing::warn!("Failed to extract text from WebSocket message, using empty string");
+                        tracing::warn!(
+                            "Failed to extract text from WebSocket message, using empty string"
+                        );
                         ""
                     });
                     match serde_json::from_str::<WebSocketMessage>(text) {

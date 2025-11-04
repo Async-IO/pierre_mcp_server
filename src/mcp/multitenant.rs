@@ -1868,13 +1868,16 @@ impl MultiTenantMcpServer {
         }
 
         // For POST requests, check the MCP method in the body to decide if auth is needed
-        let mcp_method_str = body.get("method").and_then(|m| m.as_str()).unwrap_or_else(|| {
-            tracing::warn!(
-                body_keys = ?body.as_object().map(|o| o.keys().collect::<Vec<_>>()),
-                "MCP request missing 'method' field, treating as empty method"
-            );
-            ""
-        });
+        let mcp_method_str = body
+            .get("method")
+            .and_then(|m| m.as_str())
+            .unwrap_or_else(|| {
+                tracing::warn!(
+                    body_keys = ?body.as_object().map(|o| o.keys().collect::<Vec<_>>()),
+                    "MCP request missing 'method' field, treating as empty method"
+                );
+                ""
+            });
         let mcp_method = mcp_method_str.to_string();
         tracing::debug!("POST request - MCP method: '{}'", mcp_method);
 
