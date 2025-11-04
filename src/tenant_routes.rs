@@ -242,7 +242,15 @@ pub async fn list_tenants(
         let oauth_providers = database
             .get_tenant_oauth_providers(tenant.id)
             .await
-            .unwrap_or_default();
+            .unwrap_or_else(|e| {
+                tracing::warn!(
+                    tenant_id = %tenant.id,
+                    tenant_name = %tenant.name,
+                    error = %e,
+                    "Failed to fetch OAuth providers for tenant summary, using empty list"
+                );
+                Vec::new()
+            });
 
         tenant_summaries.push(TenantSummary {
             tenant_id: tenant.id.to_string(),
@@ -280,8 +288,15 @@ pub async fn configure_tenant_oauth(
         oauth_request.provider, tenant_id
     );
 
-    let tenant_uuid = Uuid::parse_str(&tenant_id)
-        .map_err(|_| AppError::invalid_input("Invalid tenant ID format".to_string()))?;
+    let tenant_uuid = Uuid::parse_str(&tenant_id).map_err(|e| {
+        tracing::warn!(
+            tenant_id = %tenant_id,
+            user_id = %auth_result.user_id,
+            error = %e,
+            "Failed to parse tenant ID for OAuth operation"
+        );
+        AppError::invalid_input(format!("Invalid tenant ID format: {e}"))
+    })?;
 
     // Verify user owns this tenant
     let tenant = database
@@ -350,8 +365,15 @@ pub async fn get_tenant_oauth(
 ) -> Result<TenantOAuthListResponse, AppError> {
     info!("Getting OAuth config for tenant: {}", tenant_id);
 
-    let tenant_uuid = Uuid::parse_str(&tenant_id)
-        .map_err(|_| AppError::invalid_input("Invalid tenant ID format".to_string()))?;
+    let tenant_uuid = Uuid::parse_str(&tenant_id).map_err(|e| {
+        tracing::warn!(
+            tenant_id = %tenant_id,
+            user_id = %auth_result.user_id,
+            error = %e,
+            "Failed to parse tenant ID for OAuth operation"
+        );
+        AppError::invalid_input(format!("Invalid tenant ID format: {e}"))
+    })?;
 
     // Verify user owns this tenant
     let tenant = database
@@ -459,7 +481,14 @@ pub async fn oauth_authorize(
     let oauth_app = database
         .get_oauth_app_by_client_id(&auth_params.client_id)
         .await
-        .map_err(|_| AppError::invalid_input("Invalid client_id".to_string()))?;
+        .map_err(|e| {
+            tracing::warn!(
+                client_id = %auth_params.client_id,
+                error = %e,
+                "OAuth app lookup failed for authorization request"
+            );
+            AppError::invalid_input(format!("Invalid client_id: {e}"))
+        })?;
 
     // Validate redirect_uri matches registered URIs
     if !oauth_app.redirect_uris.contains(&auth_params.redirect_uri) {
@@ -519,7 +548,15 @@ pub async fn oauth_token(
     let oauth_app = database
         .get_oauth_app_by_client_id(&token_request.client_id)
         .await
-        .map_err(|_| AppError::invalid_input("Invalid client_id".to_string()))?;
+        .map_err(|e| {
+            tracing::warn!(
+                client_id = %token_request.client_id,
+                grant_type = %token_request.grant_type,
+                error = %e,
+                "OAuth app lookup failed for token request"
+            );
+            AppError::invalid_input(format!("Invalid client_id: {e}"))
+        })?;
 
     if oauth_app.client_secret != token_request.client_secret {
         return Err(AppError::new(
@@ -549,7 +586,14 @@ pub async fn oauth_token(
             )?;
 
             // Clean up authorization code
-            let _ = database.delete_authorization_code(&code).await;
+            if let Err(e) = database.delete_authorization_code(&code).await {
+                tracing::warn!(
+                    code = %code,
+                    client_id = %oauth_app.client_id,
+                    error = %e,
+                    "Failed to delete authorization code after token exchange (potential security issue - code not cleaned up)"
+                );
+            }
 
             Ok(OAuthTokenResponse {
                 access_token,
