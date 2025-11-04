@@ -65,9 +65,13 @@ impl McpSseConnection {
         };
 
         // Send message through SSE stream
-        self.sender
-            .send(message)
-            .map_err(|_| AppError::internal("Failed to send SSE message"))?;
+        self.sender.send(message).map_err(|e| {
+            tracing::error!(
+                error = ?e,
+                "SSE channel closed - failed to send MCP response message"
+            );
+            AppError::internal("Failed to send SSE message")
+        })?;
 
         Ok(())
     }
@@ -82,9 +86,13 @@ impl McpSseConnection {
             data: "MCP SSE transport ready".to_string(),
         };
 
-        self.sender
-            .send(message)
-            .map_err(|_| AppError::internal("Failed to send connection event"))?;
+        self.sender.send(message).map_err(|e| {
+            tracing::error!(
+                error = ?e,
+                "SSE channel closed - failed to send connection established event"
+            );
+            AppError::internal("Failed to send connection event")
+        })?;
 
         Ok(())
     }
@@ -102,9 +110,14 @@ impl McpSseConnection {
             data: serde_json::to_string(&error_response)?,
         };
 
-        self.sender
-            .send(message)
-            .map_err(|_| AppError::internal("Failed to send error event"))?;
+        self.sender.send(message).map_err(|e| {
+            tracing::error!(
+                error = ?e,
+                error_message = %error_message,
+                "SSE channel closed - failed to send error event"
+            );
+            AppError::internal("Failed to send error event")
+        })?;
 
         Ok(())
     }

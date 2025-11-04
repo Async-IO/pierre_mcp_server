@@ -342,7 +342,15 @@ pub fn handle_connect_provider(
             .await
         {
             Ok(tenant) => tenant.name,
-            Err(_) => "Unknown Tenant".to_string(),
+            Err(e) => {
+                tracing::warn!(
+                    tenant_id = %tenant_id,
+                    user_id = %user_uuid,
+                    error = ?e,
+                    "Failed to load tenant name from database - using 'Unknown Tenant' placeholder"
+                );
+                "Unknown Tenant".to_string()
+            }
         };
 
         let tenant_context = TenantContext {

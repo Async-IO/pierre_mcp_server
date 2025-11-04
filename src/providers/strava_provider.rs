@@ -18,7 +18,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use reqwest::Client;
 use serde::Deserialize;
-use tracing::info;
+use tracing::{debug, info, warn};
 
 /// Strava API response for athlete data
 #[derive(Debug, Deserialize)]
@@ -296,13 +296,25 @@ impl StravaProvider {
             .context("Failed to parse activity start date")?
             .with_timezone(&Utc);
 
+        let duration_seconds = activity.elapsed_time.map_or_else(
+            || {
+                debug!(
+                    activity_id = %activity.id,
+                    activity_name = %activity.name,
+                    "Strava API returned None for elapsed_time - defaulting to 0 seconds"
+                );
+                0
+            },
+            u64::from,
+        );
+
         Ok(Activity {
             id: activity.id.to_string(),
             name: activity.name,
             sport_type: Self::parse_sport_type(&activity.activity_type),
             start_date,
             distance_meters: activity.distance.map(f64::from),
-            duration_seconds: u64::from(activity.elapsed_time.unwrap_or(0)),
+            duration_seconds,
             elevation_gain: activity.total_elevation_gain.map(f64::from),
             average_speed: activity.average_speed.map(f64::from),
             max_speed: activity.max_speed.map(f64::from),
@@ -666,10 +678,12 @@ impl FitnessProvider for StravaProvider {
                 use std::fmt::Write;
                 match params.direction {
                     PaginationDirection::Forward => {
-                        let _ = write!(endpoint, "&before={}", timestamp.timestamp());
+                        write!(endpoint, "&before={}", timestamp.timestamp())
+                            .expect("write! to String cannot fail except on OOM");
                     }
                     PaginationDirection::Backward => {
-                        let _ = write!(endpoint, "&after={}", timestamp.timestamp());
+                        write!(endpoint, "&after={}", timestamp.timestamp())
+                            .expect("write! to String cannot fail except on OOM");
                     }
                 }
                 tracing::info!("Cursor pagination: timestamp={}, id={}", timestamp, id);
@@ -771,13 +785,18 @@ impl FitnessProvider for StravaProvider {
         };
 
         if let (Some(access_token), Some(revoke_url)) = (access_token_opt, revoke_url_opt) {
-            let _result = self
-                .client
+            self.client
                 .post(&revoke_url)
                 .form(&[("token", access_token.as_str())])
                 .send()
-                .await;
-            // Don't fail if revoke fails, just log it
+                .await
+                .inspect_err(|e| {
+                    warn!(
+                        error = ?e,
+                        "Failed to revoke Strava access token - continuing with credential cleanup"
+                    );
+                })
+                .ok();
             info!("Attempted to revoke Strava access token");
         }
 

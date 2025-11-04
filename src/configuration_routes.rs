@@ -455,13 +455,24 @@ impl ConfigurationRoutes {
         // Apply parameter overrides
         for (key, value) in parameter_overrides {
             if let Some(float_val) = value.as_f64() {
-                let _ = config.set_override(&key, ConfigValue::Float(float_val));
+                config.set_override(&key, ConfigValue::Float(float_val))
+                    .inspect_err(|e| tracing::warn!(key = %key, error = %e, "Failed to override float config"))
+                    .ok();
             } else if let Some(int_val) = value.as_i64() {
-                let _ = config.set_override(&key, ConfigValue::Integer(int_val));
+                config
+                    .set_override(&key, ConfigValue::Integer(int_val))
+                    .inspect_err(
+                        |e| tracing::warn!(key = %key, error = %e, "Failed to override int config"),
+                    )
+                    .ok();
             } else if let Some(bool_val) = value.as_bool() {
-                let _ = config.set_override(&key, ConfigValue::Boolean(bool_val));
+                config.set_override(&key, ConfigValue::Boolean(bool_val))
+                    .inspect_err(|e| tracing::warn!(key = %key, error = %e, "Failed to override bool config"))
+                    .ok();
             } else if let Some(str_val) = value.as_str() {
-                let _ = config.set_override(&key, ConfigValue::String(str_val.to_string()));
+                config.set_override(&key, ConfigValue::String(str_val.to_string()))
+                    .inspect_err(|e| tracing::warn!(key = %key, error = %e, "Failed to override string config"))
+                    .ok();
             }
         }
 

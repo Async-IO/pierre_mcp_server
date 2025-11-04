@@ -253,8 +253,10 @@ impl Drop for InMemoryCache {
         // Note: This only works if the Sender is fully dropped (all Arc clones released)
         // The task will exit when all senders are dropped and recv() returns None
         if let Some(tx) = &self.shutdown_tx {
-            // Try to send shutdown signal, ignore if channel is already closed
-            let _ = tx.try_send(());
+            // Try to send shutdown signal, errors are expected if channel is already closed
+            if let Err(e) = tx.try_send(()) {
+                tracing::debug!(error = ?e, "Cache shutdown signal send failed (channel likely closed)");
+            }
         }
     }
 }

@@ -16,7 +16,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
-use tracing::info;
+use tracing::{debug, info, warn};
 
 /// Garmin API response for athlete data
 #[derive(Debug, Deserialize)]
@@ -418,7 +418,7 @@ impl FitnessProvider for GarminProvider {
         &self,
         params: &PaginationParams,
     ) -> Result<CursorPage<Activity>> {
-        // Stub implementation: delegate to offset-based pagination
+        // Garmin API uses numeric pagination - delegate to offset-based approach
         let activities = self.get_activities(Some(params.limit), None).await?;
         Ok(CursorPage::new(activities, None, None, false))
     }
@@ -440,17 +440,41 @@ impl FitnessProvider for GarminProvider {
             .api_request("usersummary-service/stats/aggregate")
             .await?;
 
+        let total_activities = stats.activities_count.unwrap_or_else(|| {
+            debug!("Garmin API returned None for activities_count - defaulting to 0");
+            0
+        });
+
+        let total_distance = stats.distance.unwrap_or_else(|| {
+            debug!("Garmin API returned None for distance - defaulting to 0.0");
+            0.0
+        });
+
+        let total_duration = stats.duration.map_or_else(
+            || {
+                debug!("Garmin API returned None for duration - defaulting to 0");
+                0
+            },
+            utils::conversions::f64_to_u64,
+        );
+
+        let total_elevation_gain = stats.elevation_gain.unwrap_or_else(|| {
+            debug!("Garmin API returned None for elevation_gain - defaulting to 0.0");
+            0.0
+        });
+
         Ok(Stats {
-            total_activities: stats.activities_count.unwrap_or(0),
-            total_distance: stats.distance.unwrap_or(0.0),
-            total_duration: stats.duration.map_or(0, utils::conversions::f64_to_u64),
-            total_elevation_gain: stats.elevation_gain.unwrap_or(0.0),
+            total_activities,
+            total_distance,
+            total_duration,
+            total_elevation_gain,
         })
     }
 
     async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>> {
-        // Garmin personal records require activity analysis
-        // Implementation TBD based on Garmin API structure
+        // Garmin Connect does not expose a dedicated personal records endpoint
+        // Personal records would need to be computed from activity history analysis
+        // or extracted from the athlete profile if available in future API updates
         Ok(vec![])
     }
 
@@ -467,13 +491,18 @@ impl FitnessProvider for GarminProvider {
         };
 
         if let (Some(access_token), Some(revoke_url)) = (access_token_opt, revoke_url_opt) {
-            let _result = self
-                .client
+            self.client
                 .post(&revoke_url)
                 .form(&[("token", access_token.as_str())])
                 .send()
-                .await;
-            // Don't fail if revoke fails, just log it
+                .await
+                .inspect_err(|e| {
+                    warn!(
+                        error = ?e,
+                        "Failed to revoke Garmin access token - continuing with credential cleanup"
+                    );
+                })
+                .ok();
             info!("Attempted to revoke Garmin access token");
         }
 

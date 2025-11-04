@@ -177,8 +177,8 @@ impl StdioTransport {
     }
 
     fn process_stdio_line(line: &str) -> Result<Option<String>> {
-        // Parse JSON-RPC request
-        let _request: serde_json::Value = serde_json::from_str(line)?;
+        // Parse JSON-RPC request to validate format
+        serde_json::from_str::<serde_json::Value>(line)?;
 
         // Process MCP request (processed by McpRequestProcessor in actual implementation)
         // For now, return a simple response

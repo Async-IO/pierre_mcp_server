@@ -194,7 +194,7 @@ impl ActivityAnalyzer {
 
     /// Calculate heart rate zone distribution
     fn calculate_zone_distribution(activity: &Activity) -> Option<ZoneDistribution> {
-        // This is a simplified version - real implementation would need detailed HR data
+        // Estimates zone distribution from avg/max heart rate (detailed HR timeseries not available from all providers)
         if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
         {
             let hr_reserve = max_hr - ASSUMED_RESTING_HR; // Using configured resting HR
@@ -454,7 +454,8 @@ impl ActivityAnalyzer {
         if let Some(distance) = activity.distance_meters {
             let distance_km = distance / 1000.0;
             summary.push_str(". During this ");
-            let _ = write!(summary, "{distance_km:.1}");
+            write!(summary, "{distance_km:.1}")
+                .expect("write! to String cannot fail except on OOM");
             summary.push_str(" km session");
         }
 

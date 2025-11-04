@@ -457,8 +457,8 @@ impl TenantEncryptionManager {
         // Update current version
         self.set_current_version(new_version)?;
 
-        // Re-derive key with new version
-        let _ = self.derive_tenant_key(tenant_id)?;
+        // Re-derive key with new version to populate cache
+        self.derive_tenant_key(tenant_id)?;
 
         tracing::info!(
             "Rotated encryption key for tenant {} from version {} to version {}",

@@ -393,7 +393,17 @@ pub fn handle_get_activities(
         let tenant_uuid = request
             .tenant_id
             .as_ref()
-            .and_then(|t| uuid::Uuid::parse_str(t).ok())
+            .and_then(|t| {
+                uuid::Uuid::parse_str(t)
+                    .inspect_err(|e| {
+                        tracing::debug!(
+                            tenant_id_str = %t,
+                            error = %e,
+                            "Failed to parse tenant ID for activities cache key - using nil UUID"
+                        );
+                    })
+                    .ok()
+            })
             .unwrap_or_else(uuid::Uuid::nil);
 
         // For caching activities, use page=1 and per_page=limit
@@ -491,7 +501,17 @@ pub fn handle_get_athlete(
         let tenant_uuid = request
             .tenant_id
             .as_ref()
-            .and_then(|t| uuid::Uuid::parse_str(t).ok())
+            .and_then(|t| {
+                uuid::Uuid::parse_str(t)
+                    .inspect_err(|e| {
+                        tracing::debug!(
+                            tenant_id_str = %t,
+                            error = %e,
+                            "Failed to parse tenant ID for cache key - using nil UUID"
+                        );
+                    })
+                    .ok()
+            })
             .unwrap_or_else(uuid::Uuid::nil);
 
         let cache_key = CacheKey::new(
@@ -559,7 +579,17 @@ async fn try_get_athlete_id_from_cache(
     athlete_cache_key: &CacheKey,
 ) -> Option<u64> {
     if let Ok(Some(athlete)) = cache.get::<crate::models::Athlete>(athlete_cache_key).await {
-        return athlete.id.parse::<u64>().ok();
+        return athlete
+            .id
+            .parse::<u64>()
+            .inspect_err(|e| {
+                tracing::debug!(
+                    athlete_id_str = %athlete.id,
+                    error = %e,
+                    "Failed to parse athlete ID from cache as u64"
+                );
+            })
+            .ok();
     }
     None
 }
@@ -713,7 +743,17 @@ pub fn handle_get_stats(
         let tenant_uuid = request
             .tenant_id
             .as_ref()
-            .and_then(|t| uuid::Uuid::parse_str(t).ok())
+            .and_then(|t| {
+                uuid::Uuid::parse_str(t)
+                    .inspect_err(|e| {
+                        tracing::debug!(
+                            tenant_id_str = %t,
+                            error = %e,
+                            "Failed to parse tenant ID for cache key - using nil UUID"
+                        );
+                    })
+                    .ok()
+            })
             .unwrap_or_else(uuid::Uuid::nil);
 
         let athlete_cache_key = CacheKey::new(

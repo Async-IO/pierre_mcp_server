@@ -176,8 +176,8 @@ impl AdminRoutes {
                 "Authorization header required",
             )));
         }
+        drop((context, request)); // Placeholder implementation - variables checked but not used
         tracing::debug!("Processing API key provision request");
-        let _ = (&context, &request);
         tracing::info!("API key provision request received");
 
         Ok(with_status(
@@ -203,8 +203,8 @@ impl AdminRoutes {
                 "Authorization header required",
             )));
         }
+        drop((context, request)); // Placeholder implementation - variables checked but not used
         tracing::debug!("Processing API key revocation request");
-        let _ = (&context, &request);
         tracing::info!("API key revoke request received");
 
         Ok(with_status(
@@ -230,8 +230,8 @@ impl AdminRoutes {
                 "Authorization header required",
             )));
         }
+        drop((context, params)); // Placeholder implementation - variables checked but not used
         tracing::debug!("Processing API key list request");
-        let _ = (&context, &params);
         tracing::info!("API key list request received");
 
         Ok(with_status(
@@ -256,8 +256,8 @@ impl AdminRoutes {
                 "Authorization header required",
             )));
         }
+        drop(context); // Placeholder implementation - variable checked but not used
         tracing::debug!("Processing user list request");
-        let _ = &context;
         tracing::info!("User list request received");
 
         Ok(with_status(
@@ -277,8 +277,8 @@ impl AdminRoutes {
         // Use async block to satisfy clippy
         tokio::task::yield_now().await;
         // Create admin user from setup request
+        drop((context, request)); // Placeholder implementation - variables checked but not used
         tracing::debug!("Processing admin setup request");
-        let _ = (&context, &request);
         tracing::info!("Admin setup request received");
 
         Ok(with_status(
@@ -295,8 +295,8 @@ impl AdminRoutes {
         // Use async block to satisfy clippy
         tokio::task::yield_now().await;
         // Check if admin setup is needed
+        drop(context); // Placeholder implementation - variable checked but not used
         tracing::debug!("Checking admin setup status");
-        let _ = &context;
         tracing::info!("Setup status check received");
 
         Ok(with_status(

@@ -502,11 +502,9 @@ impl AuthManager {
     ) -> Result<String> {
         // First validate the old token signature (even if expired)
         // This ensures the refresh request is legitimate
-        let _claims =
-            Self::decode_token_claims(old_token, jwks_manager).map_err(|e| -> anyhow::Error {
-                AppError::auth_invalid(format!("Failed to validate old token for refresh: {e}"))
-                    .into()
-            })?;
+        Self::decode_token_claims(old_token, jwks_manager).map_err(|e| -> anyhow::Error {
+            AppError::auth_invalid(format!("Failed to validate old token for refresh: {e}")).into()
+        })?;
 
         // Generate new token - atomic counter ensures uniqueness
         self.generate_token(user, jwks_manager)

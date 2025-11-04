@@ -116,9 +116,14 @@ impl SseConnectionManager {
                 );
 
                 for conn in user_conns {
-                    // Silently drop failed sends (client disconnected)
-                    // This is expected behavior - clients disconnect and we clean up
-                    let _ = conn.sender.send(sse_message.clone());
+                    // Log failed sends - indicates client disconnected
+                    if let Err(e) = conn.sender.send(sse_message.clone()) {
+                        tracing::debug!(
+                            user_id = %user_id,
+                            error = ?e,
+                            "SSE send failed - client likely disconnected"
+                        );
+                    }
                 }
 
                 tracing::info!("SSE notification sent successfully to user: {}", user_id);

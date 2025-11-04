@@ -374,16 +374,24 @@ impl A2AServer {
     /// Internal A2A initialize handler with proper protocol version negotiation
     fn handle_initialize_internal(&self, request: A2ARequest) -> A2AResponse {
         // Parse A2A initialize request parameters
-        let init_request = request
-            .params
-            .as_ref()
-            .and_then(|params| serde_json::from_value::<A2AInitializeRequest>(params.clone()).ok()); // Safe: JSON value ownership for deserialization
+        let init_request = request.params.as_ref().and_then(|params| {
+            serde_json::from_value::<A2AInitializeRequest>(params.clone()) // Safe: JSON value ownership for deserialization
+                .inspect_err(|e| {
+                    tracing::warn!(
+                        error = ?e,
+                        params = ?params,
+                        "Failed to parse A2A initialize request parameters - using defaults"
+                    );
+                })
+                .ok()
+        });
 
         let (protocol_version, client_name) = if let Some(req) = init_request {
             // For now, accept any protocol version - A2A is more flexible
             (req.protocol_version, req.client_info.name)
         } else {
             // Default values if parsing fails
+            tracing::debug!("A2A initialize: using default values (no valid params provided)");
             (crate::a2a::A2A_VERSION.to_string(), "unknown".to_string())
         };
 

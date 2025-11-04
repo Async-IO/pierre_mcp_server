@@ -164,10 +164,17 @@ impl OAuth2AuthorizationServer {
         // RFC 6749 §6 states: "If the client type is confidential or the client was issued
         // client credentials, the client MUST authenticate with the authorization server"
         // MCP clients are confidential clients, so authentication is REQUIRED
-        let _ = self
-            .client_manager
+        self.client_manager
             .validate_client(&request.client_id, &request.client_secret)
-            .await?;
+            .await
+            .inspect_err(|e| {
+                tracing::error!(
+                    client_id = %request.client_id,
+                    grant_type = %request.grant_type,
+                    error = ?e,
+                    "OAuth client validation failed"
+                );
+            })?;
 
         match request.grant_type.as_str() {
             "authorization_code" => self.handle_authorization_code_grant(request).await,

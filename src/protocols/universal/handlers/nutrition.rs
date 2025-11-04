@@ -235,8 +235,11 @@ pub fn handle_calculate_daily_nutrition(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        // Executor required by handler signature but config accessed via global singleton
-        let _ = executor;
+        // Executor parameter required by trait signature but unused (config accessed via global singleton)
+        #[allow(clippy::let_unit_value)]
+        let () = {
+            let _ = executor;
+        };
 
         // Parse user parameters
         let params = match parse_nutrition_params(&request) {
@@ -310,8 +313,11 @@ pub fn handle_get_nutrient_timing(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        // Executor required by handler signature but config accessed via global singleton
-        let _ = executor;
+        // Executor parameter required by trait signature but unused (config accessed via global singleton)
+        #[allow(clippy::let_unit_value)]
+        let () = {
+            let _ = executor;
+        };
 
         let weight_kg = request
             .parameters

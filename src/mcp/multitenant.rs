@@ -1792,8 +1792,8 @@ impl MultiTenantMcpServer {
                 )));
             };
 
-            // Use helper function to validate JWT token
-            let _user_id = validate_jwt_token_for_mcp(
+            // Use helper function to validate JWT token for authentication
+            validate_jwt_token_for_mcp(
                 token,
                 &ctx.resources.auth_manager,
                 &ctx.resources.jwks_manager,
@@ -2362,14 +2362,22 @@ impl MultiTenantMcpServer {
 
         // Record API key usage if authenticated with API key
         if let crate::auth::AuthMethod::ApiKey { key_id, .. } = &auth_result.auth_method {
-            let _ = Self::record_api_key_usage(
+            if let Err(e) = Self::record_api_key_usage(
                 database,
                 key_id,
                 tool_name,
                 start_time.elapsed(),
                 &response,
             )
-            .await;
+            .await
+            {
+                tracing::warn!(
+                    key_id = %key_id,
+                    tool_name = %tool_name,
+                    error = %e,
+                    "Failed to record API key usage - metrics may be incomplete"
+                );
+            }
         }
 
         response

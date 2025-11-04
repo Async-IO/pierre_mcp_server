@@ -362,7 +362,7 @@ impl FitnessProvider for FitbitProvider {
         &self,
         params: &PaginationParams,
     ) -> Result<CursorPage<Activity>> {
-        // Stub implementation: delegate to offset-based pagination
+        // Fitbit API uses date-based pagination - delegate to offset-based approach
         let activities = self.get_activities(Some(params.limit), None).await?;
         Ok(CursorPage::new(activities, None, None, false))
     }

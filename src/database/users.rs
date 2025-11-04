@@ -386,7 +386,15 @@ impl Database {
             Some(EncryptedToken {
                 access_token: access,
                 refresh_token: refresh,
-                expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_default(),
+                expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_else(|| {
+                    tracing::warn!(
+                        user_id = %id,
+                        provider = "strava",
+                        expires_at = %expires_at,
+                        "Invalid OAuth token expiry timestamp - using epoch default"
+                    );
+                    chrono::DateTime::default()
+                }),
                 scope: scope.unwrap_or_default(),
             })
         } else {
@@ -404,7 +412,15 @@ impl Database {
             Some(EncryptedToken {
                 access_token: access,
                 refresh_token: refresh,
-                expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_default(),
+                expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_else(|| {
+                    tracing::warn!(
+                        user_id = %id,
+                        provider = "fitbit",
+                        expires_at = %expires_at,
+                        "Invalid OAuth token expiry timestamp - using epoch default"
+                    );
+                    chrono::DateTime::default()
+                }),
                 scope: scope.unwrap_or_default(),
             })
         } else {
@@ -423,7 +439,18 @@ impl Database {
             is_active,
             user_status,
             is_admin,
-            approved_by: approved_by.and_then(|id_str| Uuid::parse_str(&id_str).ok()),
+            approved_by: approved_by.and_then(|id_str| {
+                Uuid::parse_str(&id_str)
+                    .inspect_err(|e| {
+                        tracing::warn!(
+                            user_id = %id,
+                            approved_by_str = %id_str,
+                            error = %e,
+                            "Invalid approved_by UUID in database - setting to None"
+                        );
+                    })
+                    .ok()
+            }),
             approved_at,
             created_at,
             last_active,

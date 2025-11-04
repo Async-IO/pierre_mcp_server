@@ -72,7 +72,11 @@ impl A2ARoutes {
             })
         })?;
 
-        let token = extract_bearer_token(auth).map_err(|_| {
+        let token = extract_bearer_token(auth).map_err(|e| {
+            tracing::warn!(
+                error = %e,
+                "Failed to extract bearer token from A2A authorization header"
+            );
             serde_json::json!({
                 "code": -32001,
                 "message": "Invalid authorization header format"
@@ -88,7 +92,11 @@ impl A2ARoutes {
             .auth_manager
             .validate_token(token, &self.resources.jwks_manager)
             .map(|claims| claims.sub)
-            .map_err(|_| {
+            .map_err(|e| {
+                tracing::warn!(
+                    error = %e,
+                    "A2A authentication token validation failed"
+                );
                 serde_json::json!({
                     "code": -32001,
                     "message": "Invalid or expired authentication token"

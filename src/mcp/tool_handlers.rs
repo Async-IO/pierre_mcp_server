@@ -131,6 +131,13 @@ impl ToolHandlers {
                     None, // MCP headers are not warp headers, pass None for now
                 )
                 .await
+                .inspect_err(|e| {
+                    tracing::warn!(
+                        user_id = %auth_result.user_id,
+                        error = %e,
+                        "Failed to extract tenant context - tool will execute without tenant isolation"
+                    );
+                })
                 .ok()
                 .flatten();
 

@@ -1342,11 +1342,31 @@ impl AuthRoutes {
             }
         };
 
-        // Get tenant_id from user or use user_id as default
-        let tenant_id = user
-            .tenant_id
-            .and_then(|tid| uuid::Uuid::parse_str(tid.as_str()).ok())
-            .unwrap_or(user_id);
+        // Get tenant_id from user - CRITICAL: must parse correctly for tenant isolation
+        let tenant_id = match &user.tenant_id {
+            Some(tid) => match uuid::Uuid::parse_str(tid.as_str()) {
+                Ok(parsed_tid) => parsed_tid,
+                Err(e) => {
+                    tracing::error!(
+                        user_id = %user_id,
+                        tenant_id_str = %tid,
+                        error = ?e,
+                        "Invalid tenant_id format in database - tenant isolation compromised"
+                    );
+                    return Self::render_oauth_html_error(
+                        &provider,
+                        "invalid_tenant",
+                        Some("User tenant configuration is invalid - please contact support"),
+                        warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    );
+                }
+            },
+            None => {
+                // User has no tenant - use user_id as single-tenant fallback
+                tracing::debug!(user_id = %user_id, "User has no tenant_id - using user_id as tenant");
+                user_id
+            }
+        };
 
         // Get OAuth authorization URL
         let server_context = crate::context::ServerContext::from(resources.as_ref());

@@ -168,11 +168,10 @@ pub async fn create_tenant(
     info!("Creating new tenant: {}", tenant_request.name);
 
     // Verify user is authenticated and has tenant creation permissions
-    let user = database
+    database
         .get_user(auth_result.user_id)
         .await
         .map_err(|e| AppError::database(e.to_string()))?;
-    let _ = user; // Used for permission validation
 
     // Generate tenant ID and validate slug uniqueness
     let tenant_id = Uuid::new_v4();
@@ -572,10 +571,14 @@ pub async fn oauth_token(
                 .code
                 .ok_or_else(|| AppError::invalid_input("Missing authorization code".to_string()))?;
 
-            let auth_code_data = database.get_authorization_code(&code).await.map_err(|_| {
+            database.get_authorization_code(&code).await.map_err(|e| {
+                tracing::warn!(
+                    code = %code,
+                    error = %e,
+                    "Failed to retrieve authorization code from database"
+                );
                 AppError::invalid_input("Invalid or expired authorization code".to_string())
             })?;
-            let _ = auth_code_data; // Used for security validation
 
             // Generate access token (JWT)
             let access_token = auth_manager.generate_oauth_access_token(

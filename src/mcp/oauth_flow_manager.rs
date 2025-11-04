@@ -115,12 +115,32 @@ impl OAuthFlowManager {
         // Look for provider-specific headers (e.g., x-strava-client-id)
         let user_client_id = headers
             .get(format!("x-{}-client-id", provider.to_lowercase()))
-            .and_then(|h| h.to_str().ok())
+            .and_then(|h| {
+                h.to_str()
+                    .inspect_err(|e| {
+                        tracing::debug!(
+                            provider = %provider,
+                            error = ?e,
+                            "Failed to parse OAuth client ID header as UTF-8"
+                        );
+                    })
+                    .ok()
+            })
             .map(std::string::ToString::to_string);
 
         let user_client_secret = headers
             .get(format!("x-{}-client-secret", provider.to_lowercase()))
-            .and_then(|h| h.to_str().ok())
+            .and_then(|h| {
+                h.to_str()
+                    .inspect_err(|e| {
+                        tracing::debug!(
+                            provider = %provider,
+                            error = ?e,
+                            "Failed to parse OAuth client secret header as UTF-8"
+                        );
+                    })
+                    .ok()
+            })
             .map(std::string::ToString::to_string);
 
         // Only store credentials if both client_id and client_secret are provided
@@ -243,10 +263,10 @@ impl OAuthFlowManager {
                 warp::reject::custom(ApiError(api_error("User does not belong to any tenant")))
             })?;
 
-        tenant_id_str.parse().map_err(|_| {
+        tenant_id_str.parse().map_err(|e| {
             error!(
-                "Invalid tenant ID format - user_id: {}, email: {}, tenant_id_str: {}. Failed to parse tenant ID as UUID.",
-                user.id, user.email, tenant_id_str
+                "Invalid tenant ID format - user_id: {}, email: {}, tenant_id_str: {}, error: {}. Failed to parse tenant ID as UUID.",
+                user.id, user.email, tenant_id_str, e
             );
             warp::reject::custom(ApiError(api_error("Invalid tenant ID format")))
         })

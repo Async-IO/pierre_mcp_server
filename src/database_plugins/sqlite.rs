@@ -529,7 +529,16 @@ impl DatabaseProvider for SqliteDatabase {
                 .try_get("tool_name")
                 .unwrap_or_else(|_| "unknown".into());
             let usage_count: i64 = row.try_get("usage_count").unwrap_or(0);
-            let avg_response_time: Option<f64> = row.try_get("avg_response_time").ok();
+            let avg_response_time: Option<f64> = row
+                .try_get("avg_response_time")
+                .inspect_err(|e| {
+                    tracing::debug!(
+                        tool_name = %tool_name,
+                        error = %e,
+                        "Analytics avg_response_time has unexpected type or is NULL"
+                    );
+                })
+                .ok();
             let success_count: i64 = row.try_get("success_count").unwrap_or(0);
             let error_count: i64 = row.try_get("error_count").unwrap_or(0);
 
@@ -3000,9 +3009,14 @@ impl SqliteDatabase {
         use sqlx::Row;
 
         let action_str: String = row.try_get("action")?;
-        let action = action_str
-            .parse::<AdminAction>()
-            .unwrap_or(AdminAction::ProvisionKey);
+        let action = action_str.parse::<AdminAction>().unwrap_or_else(|e| {
+            tracing::warn!(
+                action_str = %action_str,
+                error = %e,
+                "Unknown admin action type in database - defaulting to ProvisionKey"
+            );
+            AdminAction::ProvisionKey
+        });
 
         Ok(AdminTokenUsage {
             id: Some(row.try_get::<i64, _>("id")?),

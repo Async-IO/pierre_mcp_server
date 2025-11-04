@@ -1824,11 +1824,12 @@ async fn handle_approve_user(
 
             let tenant_created = if let Some(tenant) = tenant_info {
                 use std::fmt::Write;
-                let _ = write!(
+                write!(
                     &mut success_message,
                     " and default tenant '{}' created",
                     tenant.name
-                );
+                )
+                .expect("write! to String cannot fail except on OOM");
                 Some(TenantCreatedInfo {
                     tenant_id: tenant.id.to_string(),
                     name: tenant.name,

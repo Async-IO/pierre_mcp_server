@@ -142,9 +142,15 @@ impl ServerLifecycle {
 
         if let Ok(json) = serde_json::to_string(&notification_msg) {
             let mut stdout_lock = stdout.lock().await;
-            let _ = stdout_lock.write_all(json.as_bytes()).await;
-            let _ = stdout_lock.write_all(b"\n").await;
-            let _ = stdout_lock.flush().await;
+            if let Err(e) = stdout_lock.write_all(json.as_bytes()).await {
+                tracing::error!(error = ?e, "Failed to write OAuth notification to stdout");
+            }
+            if let Err(e) = stdout_lock.write_all(b"\n").await {
+                tracing::error!(error = ?e, "Failed to write newline to stdout");
+            }
+            if let Err(e) = stdout_lock.flush().await {
+                tracing::error!(error = ?e, "Failed to flush stdout");
+            }
             drop(stdout_lock);
         }
     }

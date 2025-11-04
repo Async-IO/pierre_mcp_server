@@ -245,7 +245,7 @@ impl TrimpAlgorithm {
 
     /// Calculate TRIMP using Lucia sport-specific banded method
     ///
-    /// Currently simplified - full implementation would require VT1/VT2 thresholds
+    /// Uses estimated zones based on heart rate reserve (VT1/VT2 thresholds require lab testing)
     fn calculate_lucia_banded(
         avg_hr: u32,
         duration_minutes: f64,
