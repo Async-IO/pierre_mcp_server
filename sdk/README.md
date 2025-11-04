@@ -53,7 +53,7 @@ No manual token management required!
 
 ## Available Tools
 
-Once connected, your AI assistant can access 25 fitness tools including:
+Once connected, your AI assistant can access 36 fitness tools including:
 - Activity retrieval and analysis
 - Goal setting and progress tracking
 - Performance trend analysis
@@ -99,16 +99,15 @@ curl http://localhost:8081/health
 
 ### Token Cache
 
-Tokens are stored in `~/.pierre-mcp-client/`. To force re-authentication:
+Tokens are stored in `~/.pierre-mcp-tokens.json`. To force re-authentication:
 ```bash
-rm -rf ~/.pierre-mcp-client/
+rm ~/.pierre-mcp-tokens.json
 ```
 
 ## Documentation
 
 - [Installation Guide](https://github.com/Async-IO/pierre_mcp_server/blob/main/docs/installation-guides/install-mcp-client.md)
 - [Server Documentation](https://github.com/Async-IO/pierre_mcp_server)
-- [API Reference](https://github.com/Async-IO/pierre_mcp_server/blob/main/docs/developer-guide/14-api-reference.md)
 
 ## Support
 

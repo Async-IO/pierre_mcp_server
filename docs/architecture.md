@@ -41,7 +41,7 @@ Pierre Fitness Platform is a multi-protocol fitness data platform that connects 
 ### protocols layer (`src/protocols/`)
 - `universal/` - protocol-agnostic business logic
 - shared by mcp and a2a protocols
-- 25 fitness tools (activities, analysis, goals)
+- 36 fitness tools (activities, analysis, goals, sleep, recovery, nutrition, configuration)
 
 ### mcp implementation (`src/mcp/`)
 - json-rpc 2.0 over http
@@ -217,8 +217,9 @@ Business logic in `protocols::universal` works for both mcp and a2a. Write once,
 ```
 src/
 ├── bin/
-│   ├── pierre-mcp-server.rs  # main binary
-│   └── admin_setup.rs         # admin cli tool (binary: admin-setup)
+│   ├── pierre-mcp-server.rs     # main binary
+│   ├── admin_setup.rs           # admin cli tool (binary: admin-setup)
+│   └── diagnose_weather_api.rs  # weather api diagnostic tool
 ├── protocols/
 │   └── universal/             # shared business logic
 ├── mcp/                       # mcp protocol

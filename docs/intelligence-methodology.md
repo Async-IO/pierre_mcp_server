@@ -22,7 +22,7 @@ This comprehensive guide explains the scientific methods, algorithms, and decisi
 - [architecture overview](#architecture-overview)
   - [foundation modules](#foundation-modules)
   - [core modules](#core-modules)
-  - [intelligence tools (30 tools)](#intelligence-tools-30-tools)
+  - [intelligence tools (36 tools)](#intelligence-tools-36-tools)
 - [data sources and permissions](#data-sources-and-permissions)
   - [primary data](#primary-data)
   - [user profile (optional)](#user-profile-optional)
@@ -190,9 +190,9 @@ Pierre's intelligence system uses a **foundation modules** approach for code reu
 **`src/intelligence/recommendation_engine.rs`** - training recommendations
 **`src/intelligence/goal_engine.rs`** - goal tracking and progress
 
-### Intelligence Tools (30 tools)
+### Intelligence Tools (36 tools)
 
-All 30 MCP tools now use real calculations from foundation modules:
+All 36 MCP tools now use real calculations from foundation modules:
 
 **group 1: analysis** (use StatisticalAnalyzer + PatternDetector)
 - analyze_performance_trends

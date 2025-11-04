@@ -24,7 +24,7 @@ The platform calculates fitness metrics using established sports science formula
 - **Physiological Validation**: Bounds checking for heart rate (100-220 bpm max), power (50-600W FTP), VO2 max (20-90 ml/kg/min)
 - **Configurable Algorithms**: All calculation algorithms support multiple variants (e.g., Daniels vs Riegel for VDOT, Bannister vs Edwards for TRIMP) selectable via environment variables for runtime customization
 
-See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md), [Sleep and Recovery Methodology](docs/sleep-recovery-methodology.md), and [Nutrition Methodology](docs/nutrition-methodology.md) for formulas, implementation details, and scientific references. See [Algorithm Configuration](docs/configuration.md#algorithm-configuration) for available algorithm variants and configuration options.
+See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md) and [Nutrition Methodology](docs/nutrition-methodology.md) for formulas, implementation details, and scientific references. Sleep and recovery analysis is documented in the Intelligence Methodology. See [Algorithm Configuration](docs/configuration.md#algorithm-configuration) for available algorithm variants and configuration options.
 
 ## Features
 
@@ -179,7 +179,7 @@ export CACHE_CLEANUP_INTERVAL_SECS=300            # Cleanup interval in seconds 
 # export REDIS_URL=redis://localhost:6379         # Redis cache (future support)
 ```
 
-See `src/constants/mod.rs:32-173` for all environment variables.
+See `src/constants/mod.rs` for all environment variables and default values.
 
 ### Starting the Server
 
@@ -307,7 +307,7 @@ Streamable http connections use oauth 2.0 authorization code flow:
 
 ## Available MCP Tools
 
-Pierre Fitness Platform provides 30 tools through the MCP protocol. Tool definitions are in `src/protocols/universal/tool_registry.rs:12-45`.
+Pierre Fitness Platform provides 36 tools through the MCP protocol. Tool definitions are in `src/protocols/universal/tool_registry.rs` (ToolId enum).
 
 ### Core Fitness Data
 
@@ -351,7 +351,7 @@ Pierre Fitness Platform provides 30 tools through the MCP protocol. Tool definit
 | `calculate_recovery_score` | Calculate recovery readiness from TSB, sleep, HRV | `tsb`, `sleep_quality`, `hrv_data` (optional) |
 | `track_sleep_trends` | Track sleep patterns and trends over time | `start_date`, `end_date` (required) |
 | `optimize_sleep_schedule` | Get personalized sleep timing recommendations | `preferences` (optional) |
-| `get_rest_day_recommendations` | Get rest day recommendations based on recovery | `tsb`, `recent_load`, `sleep_quality` (optional) |
+| `suggest_rest_day` | Get rest day recommendations based on recovery | `tsb`, `recent_load`, `sleep_quality` (optional) |
 
 ### Configuration Management
 
@@ -364,7 +364,7 @@ Pierre Fitness Platform provides 30 tools through the MCP protocol. Tool definit
 | `calculate_personalized_zones` | Calculate personalized training zones | None |
 | `validate_configuration` | Validate configuration parameters | `parameters` (required) |
 
-Tool descriptions from `src/protocols/universal/tool_registry.rs:114-162`.
+Tool descriptions from `src/protocols/universal/tool_registry.rs` (ToolId enum description method).
 
 ## A2A (Agent-to-Agent) Protocol
 

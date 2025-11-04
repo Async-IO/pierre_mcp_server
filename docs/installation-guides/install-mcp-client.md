@@ -402,8 +402,8 @@ If building from source:
 ### Token Storage
 
 The SDK stores OAuth tokens securely in your user directory:
-- **macOS/Linux**: `~/.pierre-mcp-client/`
-- **Windows**: `%USERPROFILE%\.pierre-mcp-client\`
+- **macOS/Linux**: `~/.pierre-mcp-tokens.json`
+- **Windows**: `%USERPROFILE%\.pierre-mcp-tokens.json`
 
 ### HTTPS in Production
 
