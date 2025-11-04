@@ -181,7 +181,11 @@ pub fn handle_get_user_configuration(
                     });
 
                 let configuration = normalize_stored_configuration(stored_config);
-                Ok(build_configuration_response(&user_uuid, configuration, true))
+                Ok(build_configuration_response(
+                    &user_uuid,
+                    configuration,
+                    true,
+                ))
             }
             Ok(None) => {
                 let default_configuration = serde_json::json!({

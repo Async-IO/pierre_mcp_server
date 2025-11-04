@@ -1921,19 +1921,15 @@ impl DatabaseProvider for PostgresDatabase {
 
         if limit.is_some() {
             bind_count += 1;
-            write!(query, " LIMIT ${bind_count}").map_err(|_| {
-                DatabaseError::QueryError {
-                    context: "Failed to write LIMIT clause to query".to_string(),
-                }
+            write!(query, " LIMIT ${bind_count}").map_err(|_| DatabaseError::QueryError {
+                context: "Failed to write LIMIT clause to query".to_string(),
             })?;
         }
 
         if offset.is_some() {
             bind_count += 1;
-            write!(query, " OFFSET ${bind_count}").map_err(|_| {
-                DatabaseError::QueryError {
-                    context: "Failed to write OFFSET clause to query".to_string(),
-                }
+            write!(query, " OFFSET ${bind_count}").map_err(|_| DatabaseError::QueryError {
+                context: "Failed to write OFFSET clause to query".to_string(),
             })?;
         }
 
@@ -1955,21 +1951,21 @@ impl DatabaseProvider for PostgresDatabase {
             Value::Null
         });
 
-        let result_data = row
-            .try_get::<Option<String>, _>("result_data")
-            .map_or(None, |result_str| {
-                result_str.and_then(|s| {
-                    serde_json::from_str(&s)
-                        .inspect_err(|e| {
-                            tracing::warn!(
-                                task_id = %task_id,
-                                error = %e,
-                                "Failed to deserialize A2A task result_data"
-                            );
-                        })
-                        .ok()
-                })
-            });
+        let result_data =
+            row.try_get::<Option<String>, _>("result_data")
+                .map_or(None, |result_str| {
+                    result_str.and_then(|s| {
+                        serde_json::from_str(&s)
+                            .inspect_err(|e| {
+                                tracing::warn!(
+                                    task_id = %task_id,
+                                    error = %e,
+                                    "Failed to deserialize A2A task result_data"
+                                );
+                            })
+                            .ok()
+                    })
+                });
 
         let status_str: String = row.try_get("status")?;
         let status = match status_str.as_str() {
