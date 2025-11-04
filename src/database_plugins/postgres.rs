@@ -362,8 +362,15 @@ impl DatabaseProvider for PostgresDatabase {
         let fetch_limit = params.limit + 1;
 
         // Convert to i64 for SQL LIMIT clause (pagination limits are always reasonable)
-        let fetch_limit_i64 = i64::try_from(fetch_limit)
-            .map_err(|_| AppError::invalid_input("Pagination limit too large"))?;
+        let fetch_limit_i64 = i64::try_from(fetch_limit).map_err(|e| {
+            tracing::warn!(
+                fetch_limit = fetch_limit,
+                max_allowed = i64::MAX,
+                error = %e,
+                "Pagination limit conversion failed"
+            );
+            AppError::invalid_input(format!("Pagination limit too large: {fetch_limit}"))
+        })?;
 
         let (query, cursor_timestamp, cursor_id) = if let Some(ref cursor) = params.cursor {
             let (timestamp, id) = cursor
@@ -488,19 +495,43 @@ impl DatabaseProvider for PostgresDatabase {
         };
 
         // First ensure the user_status column exists, create if needed
-        let _ = sqlx::query(
+        if let Err(e) = sqlx::query(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS user_status TEXT DEFAULT 'active'",
         )
         .execute(&self.pool)
-        .await;
+        .await
+        {
+            tracing::error!(
+                table = "users",
+                column = "user_status",
+                error = %e,
+                "Schema migration failed: unable to add user_status column"
+            );
+        }
 
-        let _ = sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by TEXT")
+        if let Err(e) = sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by TEXT")
             .execute(&self.pool)
-            .await;
+            .await
+        {
+            tracing::error!(
+                table = "users",
+                column = "approved_by",
+                error = %e,
+                "Schema migration failed: unable to add approved_by column"
+            );
+        }
 
-        let _ = sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ")
+        if let Err(e) = sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ")
             .execute(&self.pool)
-            .await;
+            .await
+        {
+            tracing::error!(
+                table = "users",
+                column = "approved_at",
+                error = %e,
+                "Schema migration failed: unable to add approved_at column"
+            );
+        }
 
         // Update user status
         sqlx::query(
@@ -1788,7 +1819,14 @@ impl DatabaseProvider for PostgresDatabase {
         if let Some(row) = row {
             use sqlx::Row;
             let input_str: String = row.try_get("input_data")?;
-            let input_data: Value = serde_json::from_str(&input_str).unwrap_or(Value::Null);
+            let input_data: Value = serde_json::from_str(&input_str).unwrap_or_else(|e| {
+                tracing::warn!(
+                    task_id = %task_id,
+                    error = %e,
+                    "Failed to deserialize A2A task input_data, using null"
+                );
+                Value::Null
+            });
 
             // Validate input data structure
             if !input_data.is_null() && !input_data.is_object() {
@@ -1801,7 +1839,15 @@ impl DatabaseProvider for PostgresDatabase {
             let result_data = row
                 .try_get::<Option<String>, _>("result_data")
                 .map_or(None, |result_str| {
-                    result_str.and_then(|s| serde_json::from_str(&s).ok())
+                    result_str.and_then(|s| {
+                        serde_json::from_str(&s).inspect_err(|e| {
+                            tracing::warn!(
+                                task_id = %task_id,
+                                error = %e,
+                                "Failed to deserialize A2A task result_data"
+                            );
+                        }).ok()
+                    })
                 });
 
             let status_str: String = row.try_get("status")?;
@@ -1920,13 +1966,29 @@ impl DatabaseProvider for PostgresDatabase {
         let mut tasks = Vec::new();
         for row in rows {
             use sqlx::Row;
+            let task_id: String = row.try_get("task_id")?;
             let input_str: String = row.try_get("input_data")?;
-            let input_data: Value = serde_json::from_str(&input_str).unwrap_or(Value::Null);
+            let input_data: Value = serde_json::from_str(&input_str).unwrap_or_else(|e| {
+                tracing::warn!(
+                    task_id = %task_id,
+                    error = %e,
+                    "Failed to deserialize A2A task input_data, using null"
+                );
+                Value::Null
+            });
 
             let result_data = row
                 .try_get::<Option<String>, _>("result_data")
                 .map_or(None, |result_str| {
-                    result_str.and_then(|s| serde_json::from_str(&s).ok())
+                    result_str.and_then(|s| {
+                        serde_json::from_str(&s).inspect_err(|e| {
+                            tracing::warn!(
+                                task_id = %task_id,
+                                error = %e,
+                                "Failed to deserialize A2A task result_data"
+                            );
+                        }).ok()
+                    })
                 });
 
             let status_str: String = row.try_get("status")?;
@@ -1939,7 +2001,7 @@ impl DatabaseProvider for PostgresDatabase {
             };
 
             tasks.push(A2ATask {
-                id: row.try_get("task_id")?,
+                id: task_id,
                 status,
                 created_at: row.try_get("created_at")?,
                 completed_at: row.try_get("updated_at")?,
@@ -1994,10 +2056,10 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()> {
-        let _ = sqlx::query(
+        sqlx::query(
             r"
-            INSERT INTO a2a_usage 
-            (client_id, session_token, endpoint, status_code, 
+            INSERT INTO a2a_usage
+            (client_id, session_token, endpoint, status_code,
              response_time_ms, request_size_bytes, response_size_bytes, timestamp,
              method, ip_address, user_agent, protocol_version)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::inet, $11, $12)
@@ -2028,7 +2090,16 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&usage.user_agent)
         .bind(&usage.protocol_version)
         .execute(&self.pool)
-        .await?;
+        .await
+        .inspect_err(|e| {
+            tracing::warn!(
+                client_id = %usage.client_id,
+                endpoint = %usage.tool_name,
+                status_code = usage.status_code,
+                error = %e,
+                "Failed to record A2A usage tracking (affects billing/analytics)"
+            );
+        })?;
 
         Ok(())
     }
@@ -2920,8 +2991,15 @@ impl DatabaseProvider for PostgresDatabase {
             )
             .as_ref()
             .try_into()
-            .map_err(|_| DatabaseError::EncryptionFailed {
-                context: "Failed to create encryption key".to_string(),
+            .map_err(|e| {
+                tracing::error!(
+                    tenant_id = %credentials.tenant_id,
+                    error = ?e,
+                    "Failed to create encryption key from SHA256 digest"
+                );
+                DatabaseError::EncryptionFailed {
+                    context: format!("Failed to create encryption key for tenant {}: {:?}", credentials.tenant_id, e),
+                }
             })?,
         );
 
@@ -3078,8 +3156,16 @@ impl DatabaseProvider for PostgresDatabase {
                     )
                     .as_ref()
                     .try_into()
-                    .map_err(|_| DatabaseError::DecryptionFailed {
-                        context: "Failed to create encryption key".to_string(),
+                    .map_err(|e| {
+                        tracing::error!(
+                            tenant_id = %tenant_id,
+                            provider = %provider,
+                            error = ?e,
+                            "Failed to create decryption key from SHA256 digest"
+                        );
+                        DatabaseError::DecryptionFailed {
+                            context: format!("Failed to create decryption key for tenant {tenant_id}: {e:?}"),
+                        }
                     })?,
                 );
 
