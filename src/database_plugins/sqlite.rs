@@ -604,6 +604,14 @@ impl DatabaseProvider for SqliteDatabase {
         // Calculate expiration
         let expires_at = request.expires_in_days.and_then(|days| {
             i64::try_from(days)
+                .inspect_err(|e| {
+                    tracing::error!(
+                        service_name = %request.service_name,
+                        expires_in_days = days,
+                        error = %e,
+                        "Failed to convert admin token expiration days - token will not expire (security risk)"
+                    );
+                })
                 .ok()
                 .map(|d| chrono::Utc::now() + chrono::Duration::days(d))
         });
@@ -1172,6 +1180,18 @@ impl DatabaseProvider for SqliteDatabase {
             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
         ";
 
+        let rate_limit_i32 = i32::try_from(credentials.rate_limit_per_day).unwrap_or_else(|e| {
+            tracing::warn!(
+                tenant_id = %credentials.tenant_id,
+                provider = %credentials.provider,
+                rate_limit_per_day = credentials.rate_limit_per_day,
+                fallback = i32::MAX,
+                error = %e,
+                "Rate limit conversion failed, using maximum i32 value"
+            );
+            i32::MAX
+        });
+
         sqlx::query(query)
             .bind(credentials.tenant_id.to_string())
             .bind(&credentials.provider)
@@ -1179,7 +1199,7 @@ impl DatabaseProvider for SqliteDatabase {
             .bind(&encrypted_secret)
             .bind(&credentials.redirect_uri)
             .bind(&scopes_json)
-            .bind(i32::try_from(credentials.rate_limit_per_day).unwrap_or(i32::MAX))
+            .bind(rate_limit_i32)
             .bind(true)
             .execute(self.inner.pool())
             .await
