@@ -147,7 +147,7 @@ In claude desktop, ask:
 
 ## available tools
 
-Pierre Fitness Platform provides 25 mcp tools:
+Pierre Fitness Platform provides 36 mcp tools:
 
 **fitness data:**
 - `get_activities` - fetch activities
