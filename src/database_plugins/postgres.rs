@@ -40,6 +40,154 @@ impl PostgresDatabase {
     pub async fn close(&self) {
         self.pool.close().await;
     }
+
+    /// Helper function to parse User from database row
+    fn parse_user_from_row(row: &sqlx::postgres::PgRow) -> User {
+        use sqlx::Row;
+
+        let user_status_str: String = row.get("user_status");
+        let user_status = match user_status_str.as_str() {
+            "pending" => crate::models::UserStatus::Pending,
+            "suspended" => crate::models::UserStatus::Suspended,
+            _ => crate::models::UserStatus::Active,
+        };
+
+        User {
+            id: row.get("id"),
+            email: row.get("email"),
+            display_name: row.get("display_name"),
+            password_hash: row.get("password_hash"),
+            tier: {
+                let tier_str: String = row.get("tier");
+                match tier_str.as_str() {
+                    tiers::PROFESSIONAL => UserTier::Professional,
+                    tiers::ENTERPRISE => UserTier::Enterprise,
+                    _ => UserTier::Starter,
+                }
+            },
+            tenant_id: row.get("tenant_id"),
+            strava_token: None,
+            fitbit_token: None,
+            is_active: row.get("is_active"),
+            user_status,
+            is_admin: row.try_get("is_admin").unwrap_or(false),
+            approved_by: row.get("approved_by"),
+            approved_at: row.get("approved_at"),
+            created_at: row.get("created_at"),
+            last_active: row.get("last_active"),
+        }
+    }
+
+    /// Helper function to build A2A tasks query with dynamic filters
+    fn build_a2a_tasks_query(
+        client_id: Option<&str>,
+        status_filter: Option<&TaskStatus>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<String> {
+        use std::fmt::Write;
+        let mut query = String::from(
+            r"
+            SELECT task_id, client_id, session_id, task_type, input_data,
+                   status, result_data, method, created_at, updated_at
+            FROM a2a_tasks
+            ",
+        );
+
+        let mut conditions = Vec::new();
+        let mut bind_count = 0;
+
+        if client_id.is_some() {
+            bind_count += 1;
+            conditions.push(format!("client_id = ${bind_count}"));
+        }
+
+        if status_filter.is_some() {
+            bind_count += 1;
+            conditions.push(format!("status = ${bind_count}"));
+        }
+
+        if !conditions.is_empty() {
+            query.push_str(" WHERE ");
+            query.push_str(&conditions.join(" AND "));
+        }
+
+        query.push_str(" ORDER BY created_at DESC");
+
+        if limit.is_some() {
+            bind_count += 1;
+            write!(query, " LIMIT ${bind_count}").map_err(|_| DatabaseError::QueryError {
+                context: "Failed to write LIMIT clause to query".to_string(),
+            })?;
+        }
+
+        if offset.is_some() {
+            bind_count += 1;
+            write!(query, " OFFSET ${bind_count}").map_err(|_| DatabaseError::QueryError {
+                context: "Failed to write OFFSET clause to query".to_string(),
+            })?;
+        }
+
+        Ok(query)
+    }
+
+    /// Helper function to parse A2A task from database row
+    fn parse_a2a_task_from_row(row: &sqlx::postgres::PgRow) -> Result<A2ATask> {
+        use sqlx::Row;
+
+        let task_id: String = row.try_get("task_id")?;
+        let input_str: String = row.try_get("input_data")?;
+        let input_data: Value = serde_json::from_str(&input_str).unwrap_or_else(|e| {
+            tracing::warn!(
+                task_id = %task_id,
+                error = %e,
+                "Failed to deserialize A2A task input_data, using null"
+            );
+            Value::Null
+        });
+
+        let result_data =
+            row.try_get::<Option<String>, _>("result_data")
+                .map_or(None, |result_str| {
+                    result_str.and_then(|s| {
+                        serde_json::from_str(&s)
+                            .inspect_err(|e| {
+                                tracing::warn!(
+                                    task_id = %task_id,
+                                    error = %e,
+                                    "Failed to deserialize A2A task result_data"
+                                );
+                            })
+                            .ok()
+                    })
+                });
+
+        let status_str: String = row.try_get("status")?;
+        let status = match status_str.as_str() {
+            "running" => TaskStatus::Running,
+            "completed" => TaskStatus::Completed,
+            "failed" => TaskStatus::Failed,
+            "cancelled" => TaskStatus::Cancelled,
+            _ => TaskStatus::Pending,
+        };
+
+        Ok(A2ATask {
+            id: task_id,
+            status,
+            created_at: row.try_get("created_at")?,
+            completed_at: row.try_get("updated_at")?,
+            result: result_data.clone(), // Safe: JSON value ownership for A2ATask struct
+            error: row.try_get("method")?,
+            client_id: row
+                .try_get("client_id")
+                .unwrap_or_else(|_| "unknown".into()),
+            task_type: row.try_get("task_type")?,
+            input_data,
+            output_data: result_data,
+            error_message: row.try_get("method")?,
+            updated_at: row.try_get("updated_at")?,
+        })
+    }
 }
 
 impl PostgresDatabase {
@@ -337,43 +485,6 @@ impl DatabaseProvider for PostgresDatabase {
         }
 
         Ok(users)
-    }
-
-    /// Parse a SQL row into a User struct
-    fn parse_user_from_row(row: &sqlx::postgres::PgRow) -> User {
-        use sqlx::Row;
-
-        let user_status_str: String = row.get("user_status");
-        let user_status = match user_status_str.as_str() {
-            "pending" => crate::models::UserStatus::Pending,
-            "suspended" => crate::models::UserStatus::Suspended,
-            _ => crate::models::UserStatus::Active,
-        };
-
-        User {
-            id: row.get("id"),
-            email: row.get("email"),
-            display_name: row.get("display_name"),
-            password_hash: row.get("password_hash"),
-            tier: {
-                let tier_str: String = row.get("tier");
-                match tier_str.as_str() {
-                    tiers::PROFESSIONAL => UserTier::Professional,
-                    tiers::ENTERPRISE => UserTier::Enterprise,
-                    _ => UserTier::Starter,
-                }
-            },
-            tenant_id: row.get("tenant_id"),
-            strava_token: None,
-            fitbit_token: None,
-            is_active: row.get("is_active"),
-            user_status,
-            is_admin: row.try_get("is_admin").unwrap_or(false),
-            approved_by: row.get("approved_by"),
-            approved_at: row.get("approved_at"),
-            created_at: row.get("created_at"),
-            last_active: row.get("last_active"),
-        }
     }
 
     async fn get_users_by_status_cursor(
@@ -1881,117 +1992,6 @@ impl DatabaseProvider for PostgresDatabase {
         } else {
             Ok(None)
         }
-    }
-
-    /// Build dynamic query for listing A2A tasks with filters
-    fn build_a2a_tasks_query(
-        client_id: Option<&str>,
-        status_filter: Option<&TaskStatus>,
-        limit: Option<u32>,
-        offset: Option<u32>,
-    ) -> Result<String> {
-        use std::fmt::Write;
-        let mut query = String::from(
-            r"
-            SELECT task_id, client_id, session_id, task_type, input_data,
-                   status, result_data, method, created_at, updated_at
-            FROM a2a_tasks
-            ",
-        );
-
-        let mut conditions = Vec::new();
-        let mut bind_count = 0;
-
-        if client_id.is_some() {
-            bind_count += 1;
-            conditions.push(format!("client_id = ${bind_count}"));
-        }
-
-        if status_filter.is_some() {
-            bind_count += 1;
-            conditions.push(format!("status = ${bind_count}"));
-        }
-
-        if !conditions.is_empty() {
-            query.push_str(" WHERE ");
-            query.push_str(&conditions.join(" AND "));
-        }
-
-        query.push_str(" ORDER BY created_at DESC");
-
-        if limit.is_some() {
-            bind_count += 1;
-            write!(query, " LIMIT ${bind_count}").map_err(|_| DatabaseError::QueryError {
-                context: "Failed to write LIMIT clause to query".to_string(),
-            })?;
-        }
-
-        if offset.is_some() {
-            bind_count += 1;
-            write!(query, " OFFSET ${bind_count}").map_err(|_| DatabaseError::QueryError {
-                context: "Failed to write OFFSET clause to query".to_string(),
-            })?;
-        }
-
-        Ok(query)
-    }
-
-    /// Parse A2A task from SQL row
-    fn parse_a2a_task_from_row(row: &sqlx::postgres::PgRow) -> Result<A2ATask> {
-        use sqlx::Row;
-
-        let task_id: String = row.try_get("task_id")?;
-        let input_str: String = row.try_get("input_data")?;
-        let input_data: Value = serde_json::from_str(&input_str).unwrap_or_else(|e| {
-            tracing::warn!(
-                task_id = %task_id,
-                error = %e,
-                "Failed to deserialize A2A task input_data, using null"
-            );
-            Value::Null
-        });
-
-        let result_data =
-            row.try_get::<Option<String>, _>("result_data")
-                .map_or(None, |result_str| {
-                    result_str.and_then(|s| {
-                        serde_json::from_str(&s)
-                            .inspect_err(|e| {
-                                tracing::warn!(
-                                    task_id = %task_id,
-                                    error = %e,
-                                    "Failed to deserialize A2A task result_data"
-                                );
-                            })
-                            .ok()
-                    })
-                });
-
-        let status_str: String = row.try_get("status")?;
-        let status = match status_str.as_str() {
-            "running" => TaskStatus::Running,
-            "completed" => TaskStatus::Completed,
-            "failed" => TaskStatus::Failed,
-            "cancelled" => TaskStatus::Cancelled,
-            _ => TaskStatus::Pending,
-        };
-
-        Ok(A2ATask {
-            id: task_id,
-            status,
-            created_at: row.try_get("created_at")?,
-            completed_at: row.try_get("updated_at")?,
-            result: result_data.clone(), // Safe: JSON value ownership for A2ATask struct
-            error: row.try_get("method")?,
-            client_id: row
-                .try_get("client_id")
-                .unwrap_or_else(|_| "unknown".into()),
-            task_type: row.try_get("task_type")?,
-            input_data,
-            output_data: result_data,
-            error_message: row.try_get("method")?,
-            updated_at: row.try_get("updated_at")?,
-        })
     }
 
     async fn list_a2a_tasks(
