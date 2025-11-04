@@ -122,6 +122,8 @@ regex = "1.11"
 bitflags = "2.6"
 # Cross-platform system information without unsafe FFI
 sysinfo = "0.31"
+# Redis client with connection pooling and async support
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager", "aio"] }
 
 num-traits = "0.2"
 rsa = { version = "0.9", features = ["pem"] }

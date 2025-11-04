@@ -6,6 +6,7 @@
 
 pub mod factory;
 pub mod memory;
+pub mod redis;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};

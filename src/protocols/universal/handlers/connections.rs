@@ -276,6 +276,16 @@ fn build_oauth_error_response(provider: &str, error: &str) -> UniversalResponse 
     }
 }
 
+/// Create error response for connection failures
+fn connection_error(error_msg: impl Into<String>) -> UniversalResponse {
+    UniversalResponse {
+        success: false,
+        result: None,
+        error: Some(error_msg.into()),
+        metadata: None,
+    }
+}
+
 /// Handle `connect_provider` tool - initiate OAuth connection flow
 #[must_use]
 pub fn handle_connect_provider(
@@ -292,34 +302,15 @@ pub fn handle_connect_provider(
             .unwrap_or(oauth_providers::STRAVA);
 
         if !is_provider_supported(provider) {
-            return Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!(
-                    "Provider '{provider}' is not supported. Supported providers: strava, fitbit"
-                )),
-                metadata: None,
-            });
+            return Ok(connection_error(format!(
+                "Provider '{provider}' is not supported. Supported providers: strava, fitbit"
+            )));
         }
 
-        let user = match executor.resources.database.get_user(user_uuid).await {
+        let user = match (*executor.resources.database).get_user(user_uuid).await {
             Ok(Some(user)) => user,
-            Ok(None) => {
-                return Ok(UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("User {user_uuid} not found")),
-                    metadata: None,
-                });
-            }
-            Err(e) => {
-                return Ok(UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Database error: {e}")),
-                    metadata: None,
-                });
-            }
+            Ok(None) => return Ok(connection_error(format!("User {user_uuid} not found"))),
+            Err(e) => return Ok(connection_error(format!("Database error: {e}"))),
         };
 
         let Some(tenant_id) = user
@@ -327,12 +318,9 @@ pub fn handle_connect_provider(
             .as_ref()
             .and_then(|t| uuid::Uuid::parse_str(t).ok())
         else {
-            return Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some("User does not belong to any tenant".to_string()),
-                metadata: None,
-            });
+            return Ok(connection_error(
+                "User does not belong to any tenant".to_string(),
+            ));
         };
 
         let tenant_name = match executor
@@ -347,7 +335,7 @@ pub fn handle_connect_provider(
                     tenant_id = %tenant_id,
                     user_id = %user_uuid,
                     error = ?e,
-                    "Failed to load tenant name from database - using 'Unknown Tenant' placeholder"
+                    "Failed to load tenant name from database - using fallback value 'Unknown Tenant'"
                 );
                 "Unknown Tenant".to_string()
             }

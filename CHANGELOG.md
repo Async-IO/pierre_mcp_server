@@ -8,6 +8,13 @@ And this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Redis cache backend** support for distributed caching in multi-instance deployments
+  - Pluggable cache architecture with in-memory and Redis implementations
+  - Automatic fallback to in-memory cache when Redis URL not configured
+  - Connection pooling with automatic reconnection handling
+  - Pattern-based cache invalidation using Redis SCAN
+  - Namespace isolation for shared Redis instances
+  - Health check support via Redis PING
 
 ### Changed
 

@@ -4,16 +4,22 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use super::{memory::InMemoryCache, CacheConfig, CacheProvider};
+use super::{memory::InMemoryCache, redis::RedisCache, CacheConfig, CacheProvider};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-/// Unified cache interface
-/// Currently only supports in-memory backend. Redis backend will be added when needed.
+/// Cache backend enum for pluggable implementations
+#[derive(Clone)]
+enum CacheBackend {
+    InMemory(InMemoryCache),
+    Redis(Box<RedisCache>),
+}
+
+/// Unified cache interface supporting both in-memory and Redis backends
 #[derive(Clone)]
 pub struct Cache {
-    inner: InMemoryCache,
+    inner: CacheBackend,
 }
 
 impl Cache {
@@ -23,23 +29,25 @@ impl Cache {
     ///
     /// Returns an error if cache initialization fails
     pub async fn new(config: CacheConfig) -> Result<Self> {
-        if config.redis_url.is_some() {
-            tracing::warn!(
-                "Redis cache configuration detected but Redis backend is currently unavailable. Falling back to in-memory cache."
+        let inner = if let Some(ref redis_url) = config.redis_url {
+            tracing::info!("Initializing Redis cache (url: {})", redis_url);
+            let redis = RedisCache::new(config).await?;
+            CacheBackend::Redis(Box::new(redis))
+        } else {
+            tracing::info!(
+                "Initializing in-memory cache (max entries: {})",
+                config.max_entries
             );
-        }
+            let memory = InMemoryCache::new(config).await?;
+            CacheBackend::InMemory(memory)
+        };
 
-        tracing::info!(
-            "Initializing in-memory cache (max entries: {})",
-            config.max_entries
-        );
-        let inner = InMemoryCache::new(config).await?;
         Ok(Self { inner })
     }
 
     /// Create cache from environment variables
     ///
-    /// Currently uses in-memory cache. Redis support will be added in future.
+    /// Supports both in-memory and Redis backends based on `REDIS_URL` environment variable.
     ///
     /// # Errors
     ///
@@ -68,7 +76,10 @@ impl Cache {
         value: &T,
         ttl: Duration,
     ) -> Result<()> {
-        self.inner.set(key, value, ttl).await
+        match &self.inner {
+            CacheBackend::InMemory(cache) => cache.set(key, value, ttl).await,
+            CacheBackend::Redis(cache) => cache.set(key, value, ttl).await,
+        }
     }
 
     /// Retrieve value from cache
@@ -80,7 +91,10 @@ impl Cache {
         &self,
         key: &super::CacheKey,
     ) -> Result<Option<T>> {
-        self.inner.get(key).await
+        match &self.inner {
+            CacheBackend::InMemory(cache) => cache.get(key).await,
+            CacheBackend::Redis(cache) => cache.get(key).await,
+        }
     }
 
     /// Remove single cache entry
@@ -89,7 +103,10 @@ impl Cache {
     ///
     /// Returns an error if invalidation fails
     pub async fn invalidate(&self, key: &super::CacheKey) -> Result<()> {
-        self.inner.invalidate(key).await
+        match &self.inner {
+            CacheBackend::InMemory(cache) => cache.invalidate(key).await,
+            CacheBackend::Redis(cache) => cache.invalidate(key).await,
+        }
     }
 
     /// Remove all cache entries matching pattern
@@ -98,7 +115,10 @@ impl Cache {
     ///
     /// Returns an error if pattern invalidation fails
     pub async fn invalidate_pattern(&self, pattern: &str) -> Result<u64> {
-        self.inner.invalidate_pattern(pattern).await
+        match &self.inner {
+            CacheBackend::InMemory(cache) => cache.invalidate_pattern(pattern).await,
+            CacheBackend::Redis(cache) => cache.invalidate_pattern(pattern).await,
+        }
     }
 
     /// Check if key exists in cache
@@ -107,7 +127,10 @@ impl Cache {
     ///
     /// Returns an error if existence check fails
     pub async fn exists(&self, key: &super::CacheKey) -> Result<bool> {
-        self.inner.exists(key).await
+        match &self.inner {
+            CacheBackend::InMemory(cache) => cache.exists(key).await,
+            CacheBackend::Redis(cache) => cache.exists(key).await,
+        }
     }
 
     /// Get remaining TTL for key
@@ -116,7 +139,10 @@ impl Cache {
     ///
     /// Returns an error if TTL check fails
     pub async fn ttl(&self, key: &super::CacheKey) -> Result<Option<Duration>> {
-        self.inner.ttl(key).await
+        match &self.inner {
+            CacheBackend::InMemory(cache) => cache.ttl(key).await,
+            CacheBackend::Redis(cache) => cache.ttl(key).await,
+        }
     }
 
     /// Verify cache backend is healthy
@@ -125,7 +151,10 @@ impl Cache {
     ///
     /// Returns an error if health check fails
     pub async fn health_check(&self) -> Result<()> {
-        self.inner.health_check().await
+        match &self.inner {
+            CacheBackend::InMemory(cache) => cache.health_check().await,
+            CacheBackend::Redis(cache) => cache.health_check().await,
+        }
     }
 
     /// Clear all cache entries
@@ -134,6 +163,9 @@ impl Cache {
     ///
     /// Returns an error if clear operation fails
     pub async fn clear_all(&self) -> Result<()> {
-        self.inner.clear_all().await
+        match &self.inner {
+            CacheBackend::InMemory(cache) => cache.clear_all().await,
+            CacheBackend::Redis(cache) => cache.clear_all().await,
+        }
     }
 }

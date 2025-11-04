@@ -209,7 +209,7 @@ Business logic in `protocols::universal` works for both mcp and a2a. Write once,
 
 ### pluggable architecture
 - database: sqlite (dev) or postgresql (prod)
-- cache: in-memory lru (current), redis (future)
+- cache: in-memory lru or redis (distributed caching)
 - tools: compile-time plugin system via `linkme`
 
 ## file structure
@@ -257,7 +257,7 @@ src/
 ## scalability
 
 ### horizontal scaling
-Stateless server design. Scale by adding instances behind load balancer. Shared postgresql + redis for state.
+Stateless server design. Scale by adding instances behind load balancer. Shared postgresql and optional redis for distributed cache.
 
 ### database sharding
 - tenant-based sharding
@@ -268,7 +268,8 @@ Stateless server design. Scale by adding instances behind load balancer. Shared 
 - health checks: 30s ttl
 - mcp sessions: lru cache (10k entries)
 - weather data: configurable ttl
-- future: redis for distributed cache
+- distributed cache: redis support for multi-instance deployments
+- in-memory fallback: lru cache with automatic eviction
 
 ## plugin lifecycle
 

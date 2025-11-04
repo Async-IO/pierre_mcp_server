@@ -176,7 +176,7 @@ export PIERRE_VO2MAX_ALGORITHM=from_vdot       # VO2max estimation: from_vdot, c
 # Cache configuration
 export CACHE_MAX_ENTRIES=10000                    # Maximum cached entries (default: 10,000)
 export CACHE_CLEANUP_INTERVAL_SECS=300            # Cleanup interval in seconds (default: 300)
-# export REDIS_URL=redis://localhost:6379         # Redis cache (future support)
+export REDIS_URL=redis://localhost:6379           # Redis cache (optional, uses in-memory if not set)
 ```
 
 See `src/constants/mod.rs` for all environment variables and default values.

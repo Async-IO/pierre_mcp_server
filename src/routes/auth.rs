@@ -1343,8 +1343,8 @@ impl AuthRoutes {
         };
 
         // Get tenant_id from user - CRITICAL: must parse correctly for tenant isolation
-        let tenant_id = match &user.tenant_id {
-            Some(tid) => match uuid::Uuid::parse_str(tid.as_str()) {
+        let tenant_id = if let Some(tid) = &user.tenant_id {
+            match uuid::Uuid::parse_str(tid.as_str()) {
                 Ok(parsed_tid) => parsed_tid,
                 Err(e) => {
                     tracing::error!(
@@ -1360,12 +1360,11 @@ impl AuthRoutes {
                         warp::http::StatusCode::INTERNAL_SERVER_ERROR,
                     );
                 }
-            },
-            None => {
-                // User has no tenant - use user_id as single-tenant fallback
-                tracing::debug!(user_id = %user_id, "User has no tenant_id - using user_id as tenant");
-                user_id
             }
+        } else {
+            // User has no tenant - use user_id as single-tenant fallback
+            tracing::debug!(user_id = %user_id, "User has no tenant_id - using user_id as tenant");
+            user_id
         };
 
         // Get OAuth authorization URL

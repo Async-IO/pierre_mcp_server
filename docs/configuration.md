@@ -269,12 +269,12 @@ POSTGRES_ACQUIRE_TIMEOUT=30       # connection timeout seconds (default: 30)
 ### cache configuration
 
 ```bash
-# in-memory lru cache
-CACHE_MAX_ENTRIES=10000           # max cached items (default: 10,000)
-CACHE_CLEANUP_INTERVAL_SECS=300   # cleanup interval (default: 300)
+# cache configuration (in-memory or redis)
+CACHE_MAX_ENTRIES=10000           # max cached items for in-memory (default: 10,000)
+CACHE_CLEANUP_INTERVAL_SECS=300   # cleanup interval in seconds (default: 300)
 
-# redis cache (future support)
-# REDIS_URL=redis://localhost:6379
+# redis cache (optional - uses in-memory if not set)
+REDIS_URL=redis://localhost:6379  # redis connection url
 ```
 
 ### rate limiting
