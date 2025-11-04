@@ -520,7 +520,7 @@ impl Database {
                 .map(|s| Uuid::parse_str(s))
                 .transpose()?;
 
-            let log_id: String = row.get("id");
+            let log_id: i64 = row.get("id");
             let status_code = u16::try_from(row.get::<i32, _>("status_code")).unwrap_or_else(|e| {
                 tracing::warn!(
                     log_id = %log_id,

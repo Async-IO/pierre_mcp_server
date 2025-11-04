@@ -127,7 +127,7 @@ impl WebSocketManager {
         while let Some(msg) = ws_rx.next().await {
             match msg {
                 Ok(msg) if msg.is_text() => {
-                    let text = msg.to_str().unwrap_or_else(|| {
+                    let text = msg.to_str().unwrap_or_else(|_| {
                         tracing::warn!(
                             "Failed to extract text from WebSocket message, using empty string"
                         );
