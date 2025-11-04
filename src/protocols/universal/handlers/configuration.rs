@@ -101,7 +101,14 @@ pub fn handle_get_user_configuration(
         {
             Ok(Some(config_str)) => {
                 let stored_config: serde_json::Value =
-                    serde_json::from_str(&config_str).unwrap_or_else(|_| serde_json::json!({}));
+                    serde_json::from_str(&config_str).unwrap_or_else(|e| {
+                        tracing::warn!(
+                            user_id = %user_id,
+                            error = %e,
+                            "Failed to parse stored fitness configuration JSON, using empty default"
+                        );
+                        serde_json::json!({})
+                    });
 
                 // Ensure configuration has the expected structure
                 let configuration = if stored_config.is_object() {
@@ -386,7 +393,13 @@ pub fn handle_calculate_personalized_zones(
             map.insert(
                 "vo2_max".to_string(),
                 serde_json::Value::Number(
-                    serde_json::Number::from_f64(params.vo2_max).unwrap_or_else(|| 0.into()),
+                    serde_json::Number::from_f64(params.vo2_max).unwrap_or_else(|| {
+                        tracing::debug!(
+                            vo2_max = params.vo2_max,
+                            "Failed to convert VO2 max to JSON number (likely NaN/Inf), using 0"
+                        );
+                        0.into()
+                    }),
                 ),
             );
             map.insert(
