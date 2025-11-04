@@ -437,16 +437,37 @@ impl Database {
             let avg_response_time: Option<f64> = row.get("avg_response_time");
             let success_count: i32 = row.get("success_count");
 
+            let avg_time = avg_response_time.unwrap_or_else(|| {
+                tracing::debug!(
+                    api_key_id = %api_key_id,
+                    tool_name = %tool_name,
+                    "No average response time available for tool usage stats"
+                );
+                0.0
+            });
+
             tool_usage.insert(
                 tool_name,
                 serde_json::json!({
                     "count": tool_count,
                     "success_count": success_count,
-                    "avg_response_time_ms": avg_response_time.unwrap_or(0.0),
+                    "avg_response_time_ms": avg_time,
                     "success_rate": if tool_count > 0 { f64::from(success_count) / f64::from(tool_count) } else { 0.0 }
                 }),
             );
         }
+
+        let total_time = total_response_time.map_or(0, |t| {
+            u64::try_from(t).unwrap_or_else(|e| {
+                tracing::warn!(
+                    api_key_id = %api_key_id,
+                    total_response_time = t,
+                    error = %e,
+                    "Failed to convert total response time for API key usage stats, using 0"
+                );
+                0
+            })
+        });
 
         Ok(ApiKeyUsageStats {
             api_key_id: api_key_id.to_string(),
@@ -455,8 +476,7 @@ impl Database {
             total_requests: u32::try_from(total_requests)?,
             successful_requests: u32::try_from(successful_requests)?,
             failed_requests: u32::try_from(failed_requests)?,
-            total_response_time_ms: total_response_time
-                .map_or(0, |t| u64::try_from(t).unwrap_or(0)),
+            total_response_time_ms: total_time,
             tool_usage: serde_json::Value::Object(tool_usage),
         })
     }
