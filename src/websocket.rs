@@ -127,7 +127,10 @@ impl WebSocketManager {
         while let Some(msg) = ws_rx.next().await {
             match msg {
                 Ok(msg) if msg.is_text() => {
-                    let text = msg.to_str().unwrap_or("");
+                    let text = msg.to_str().unwrap_or_else(|| {
+                        tracing::warn!("Failed to extract text from WebSocket message, using empty string");
+                        ""
+                    });
                     match serde_json::from_str::<WebSocketMessage>(text) {
                         Ok(WebSocketMessage::Authentication { token }) => {
                             match self.authenticate_user(&token).await {
@@ -137,7 +140,13 @@ impl WebSocketManager {
                                         message: "Authentication successful".into(),
                                     };
                                     if let Ok(json) = serde_json::to_string(&success_msg) {
-                                        let _ = tx.send(Message::text(json));
+                                        if let Err(e) = tx.send(Message::text(json)) {
+                                            tracing::warn!(
+                                                user_id = %auth_result.user_id,
+                                                error = ?e,
+                                                "Failed to send authentication success message over WebSocket"
+                                            );
+                                        }
                                     }
                                 }
                                 Err(e) => {
@@ -145,7 +154,13 @@ impl WebSocketManager {
                                         message: format!("Authentication failed: {e}"),
                                     };
                                     if let Ok(json) = serde_json::to_string(&error_msg) {
-                                        let _ = tx.send(Message::text(json));
+                                        if let Err(send_err) = tx.send(Message::text(json)) {
+                                            tracing::warn!(
+                                                auth_error = %e,
+                                                send_error = ?send_err,
+                                                "Failed to send authentication error message over WebSocket"
+                                            );
+                                        }
                                     }
                                 }
                             }
@@ -160,7 +175,14 @@ impl WebSocketManager {
                                     ),
                                 };
                                 if let Ok(json) = serde_json::to_string(&success_msg) {
-                                    let _ = tx.send(Message::text(json));
+                                    if let Err(e) = tx.send(Message::text(json)) {
+                                        tracing::warn!(
+                                            user_id = ?authenticated_user,
+                                            topic_count = subscriptions.len(),
+                                            error = ?e,
+                                            "Failed to send subscription confirmation over WebSocket"
+                                        );
+                                    }
                                 }
                             } else {
                                 let error_msg = WebSocketMessage::Error {
