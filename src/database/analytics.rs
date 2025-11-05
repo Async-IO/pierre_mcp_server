@@ -578,8 +578,24 @@ impl Database {
             .await?;
 
         Ok((
-            u64::try_from(user_count).unwrap_or(0),
-            u64::try_from(api_key_count).unwrap_or(0),
+            u64::try_from(user_count).unwrap_or_else(|e| {
+                tracing::error!(
+                    user_count = user_count,
+                    error = %e,
+                    operation = "get_system_stats",
+                    "System stats: negative user count detected (database integrity issue), using 0"
+                );
+                0
+            }),
+            u64::try_from(api_key_count).unwrap_or_else(|e| {
+                tracing::error!(
+                    api_key_count = api_key_count,
+                    error = %e,
+                    operation = "get_system_stats",
+                    "System stats: negative API key count detected (database integrity issue), using 0"
+                );
+                0
+            }),
         ))
     }
 }

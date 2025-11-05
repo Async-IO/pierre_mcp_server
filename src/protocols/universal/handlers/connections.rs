@@ -276,12 +276,13 @@ fn build_oauth_error_response(provider: &str, error: &str) -> UniversalResponse 
     }
 }
 
-/// Create error response for connection failures
-fn connection_error(error_msg: impl Into<String>) -> UniversalResponse {
+/// Create error response for connection operations
+#[inline]
+fn connection_error(message: impl Into<String>) -> UniversalResponse {
     UniversalResponse {
         success: false,
         result: None,
-        error: Some(error_msg.into()),
+        error: Some(message.into()),
         metadata: None,
     }
 }
@@ -307,7 +308,7 @@ pub fn handle_connect_provider(
             )));
         }
 
-        let user = match (*executor.resources.database).get_user(user_uuid).await {
+        let user = match executor.resources.database.get_user(user_uuid).await {
             Ok(Some(user)) => user,
             Ok(None) => return Ok(connection_error(format!("User {user_uuid} not found"))),
             Err(e) => return Ok(connection_error(format!("Database error: {e}"))),
@@ -335,7 +336,7 @@ pub fn handle_connect_provider(
                     tenant_id = %tenant_id,
                     user_id = %user_uuid,
                     error = ?e,
-                    "Failed to load tenant name from database - using fallback value 'Unknown Tenant'"
+                    "Failed to load tenant name from database - using 'Unknown Tenant' fallback"
                 );
                 "Unknown Tenant".to_string()
             }

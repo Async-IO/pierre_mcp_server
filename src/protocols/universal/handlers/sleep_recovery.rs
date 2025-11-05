@@ -518,13 +518,20 @@ pub fn handle_suggest_rest_day(
                     "recommendation_timestamp".into(),
                     serde_json::Value::String(Utc::now().to_rfc3339()),
                 );
-                map.insert(
-                    "confidence_percent".into(),
-                    serde_json::Value::Number(
-                        serde_json::Number::from_f64(recommendation.confidence)
-                            .unwrap_or_else(|| serde_json::Number::from(0)),
-                    ),
-                );
+                // Only include confidence if it's a valid f64 value
+                if let Some(confidence_number) =
+                    serde_json::Number::from_f64(recommendation.confidence)
+                {
+                    map.insert(
+                        "confidence_percent".into(),
+                        serde_json::Value::Number(confidence_number),
+                    );
+                } else {
+                    tracing::warn!(
+                        confidence = recommendation.confidence,
+                        "Invalid confidence value (NaN/Infinity), omitting from metadata"
+                    );
+                }
                 map
             }),
         })
@@ -825,16 +832,59 @@ pub fn handle_optimize_sleep_schedule(
     })
 }
 
+/// Parse hour component from wake time string
+fn parse_hour(hour_str: &str) -> i64 {
+    match hour_str.parse() {
+        Ok(h) if (0..24).contains(&h) => h,
+        Ok(h) => {
+            tracing::warn!(hour = h, "Invalid hour value, using default 6");
+            6
+        }
+        Err(e) => {
+            tracing::warn!(
+                hour_str = hour_str,
+                error = %e,
+                "Failed to parse hour, using default 6"
+            );
+            6
+        }
+    }
+}
+
+/// Parse minute component from wake time string
+fn parse_minute(minute_str: &str) -> i64 {
+    match minute_str.parse() {
+        Ok(m) if (0..60).contains(&m) => m,
+        Ok(m) => {
+            tracing::warn!(minute = m, "Invalid minute value, using default 0");
+            0
+        }
+        Err(e) => {
+            tracing::warn!(
+                minute_str = minute_str,
+                error = %e,
+                "Failed to parse minute, using default 0"
+            );
+            0
+        }
+    }
+}
+
 /// Helper function to calculate recommended bedtime
+// Cognitive complexity reduced by extracting parse_hour and parse_minute helper functions
 fn calculate_bedtime(wake_time: &str, target_hours: f64) -> String {
     // Parse wake time (format: "HH:MM")
     let parts: Vec<&str> = wake_time.split(':').collect();
     if parts.len() != 2 {
+        tracing::warn!(
+            wake_time = wake_time,
+            "Invalid wake_time format (expected HH:MM), using default 06:00"
+        );
         return "22:00".to_string(); // Default fallback
     }
 
-    let wake_hour: i64 = parts[0].parse().unwrap_or(6);
-    let wake_minute: i64 = parts[1].parse().unwrap_or(0);
+    let wake_hour = parse_hour(parts[0]);
+    let wake_minute = parse_minute(parts[1]);
 
     // Calculate bedtime (wake time - target hours - 15 min wind-down)
     #[allow(clippy::cast_precision_loss)] // Safe: target_hours is sleep duration (7-9h), well within f64→i64 range

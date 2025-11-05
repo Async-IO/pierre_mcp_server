@@ -299,7 +299,7 @@ pub fn handle_update_user_configuration(
 fn calculate_pace_zones_from_vo2max(vo2_max: f64) -> serde_json::Value {
     // Jack Daniels VDOT pace calculations
     // Formula: pace (min/km) = 1000 / (velocity_m_per_min)
-    // Velocity from VO2: velocity = (VO2 + 4.60) / 0.182258 (simplified from VDOT formula)
+    // Velocity from VO2: velocity = (VO2 + 4.60) / 0.182258 (derived from VDOT formula)
 
     let base_velocity = (vo2_max + 4.60) / 0.182_258; // meters per minute at VO2max
 
@@ -345,12 +345,28 @@ fn calculate_pace_zones_from_vo2max(vo2_max: f64) -> serde_json::Value {
 fn calculate_power_zones_from_ftp(ftp: u32) -> serde_json::Value {
     // Use integer arithmetic to avoid f64→u32 cast warnings
     // Standard FTP-based power zones using percentage multiplication with try_from
+    // Note: All these calculations should succeed since ftp is u32 and multipliers are <2
     let zone_1_min = 0_u32; // Active Recovery: 0-55%
-    let zone_1_max = u32::try_from(u64::from(ftp) * 55 / 100).unwrap_or(u32::MAX);
-    let zone_2_max = u32::try_from(u64::from(ftp) * 75 / 100).unwrap_or(u32::MAX); // Endurance: 56-75%
-    let zone_3_max = u32::try_from(u64::from(ftp) * 90 / 100).unwrap_or(u32::MAX); // Tempo: 76-90%
-    let zone_4_max = u32::try_from(u64::from(ftp) * 105 / 100).unwrap_or(u32::MAX); // Threshold: 91-105%
-    let zone_5_max = u32::try_from(u64::from(ftp) * 120 / 100).unwrap_or(u32::MAX); // VO2max: 106-120%
+    let zone_1_max = u32::try_from(u64::from(ftp) * 55 / 100).unwrap_or_else(|e| {
+        tracing::warn!(ftp = ftp, error = %e, "Zone 1 max calculation failed, using u32::MAX");
+        u32::MAX
+    });
+    let zone_2_max = u32::try_from(u64::from(ftp) * 75 / 100).unwrap_or_else(|e| {
+        tracing::warn!(ftp = ftp, error = %e, "Zone 2 max calculation failed, using u32::MAX");
+        u32::MAX
+    });
+    let zone_3_max = u32::try_from(u64::from(ftp) * 90 / 100).unwrap_or_else(|e| {
+        tracing::warn!(ftp = ftp, error = %e, "Zone 3 max calculation failed, using u32::MAX");
+        u32::MAX
+    });
+    let zone_4_max = u32::try_from(u64::from(ftp) * 105 / 100).unwrap_or_else(|e| {
+        tracing::warn!(ftp = ftp, error = %e, "Zone 4 max calculation failed, using u32::MAX");
+        u32::MAX
+    });
+    let zone_5_max = u32::try_from(u64::from(ftp) * 120 / 100).unwrap_or_else(|e| {
+        tracing::warn!(ftp = ftp, error = %e, "Zone 5 max calculation failed, using u32::MAX");
+        u32::MAX
+    });
 
     serde_json::json!({
         "zone_1": { "min_watts": zone_1_min, "max_watts": zone_1_max },
@@ -402,18 +418,15 @@ pub fn handle_calculate_personalized_zones(
         error: None,
         metadata: Some({
             let mut map = std::collections::HashMap::new();
-            map.insert(
-                "vo2_max".to_string(),
-                serde_json::Value::Number(
-                    serde_json::Number::from_f64(params.vo2_max).unwrap_or_else(|| {
-                        tracing::debug!(
-                            vo2_max = params.vo2_max,
-                            "Failed to convert VO2 max to JSON number (likely NaN/Inf), using 0"
-                        );
-                        0.into()
-                    }),
-                ),
-            );
+            // Only include vo2_max if it's a valid f64 value
+            if let Some(vo2_number) = serde_json::Number::from_f64(params.vo2_max) {
+                map.insert("vo2_max".to_string(), serde_json::Value::Number(vo2_number));
+            } else {
+                tracing::warn!(
+                    vo2_max = params.vo2_max,
+                    "Invalid VO2 max value (NaN/Infinity), omitting from metadata"
+                );
+            }
             map.insert(
                 "zone_count".to_string(),
                 serde_json::Value::Number(crate::intelligence::physiological_constants::physiological_defaults::TRAINING_ZONE_COUNT.into()),

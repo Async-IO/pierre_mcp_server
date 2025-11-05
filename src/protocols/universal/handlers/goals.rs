@@ -580,9 +580,19 @@ fn analyze_duration_goal_feasibility(
     }
 
     let total_duration: u64 = activities.iter().map(|a| a.duration_seconds).sum();
-    let current_hours =
-        f64::from(u32::try_from(total_duration.min(u64::from(u32::MAX))).unwrap_or(u32::MAX))
-            / crate::constants::time_constants::SECONDS_PER_HOUR_F64;
+    let current_hours = match u32::try_from(total_duration.min(u64::from(u32::MAX))) {
+        Ok(duration_u32) => {
+            f64::from(duration_u32) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+        }
+        Err(e) => {
+            tracing::warn!(
+                total_duration = total_duration,
+                error = %e,
+                "Duration conversion failed (should not happen after min() with u32::MAX), using u32::MAX"
+            );
+            f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+        }
+    };
 
     let training_weeks = calculate_training_history_weeks(activities);
     let weeks_in_timeframe = f64::from(timeframe_days) / 7.0;
@@ -632,11 +642,10 @@ fn calculate_training_history_months(activities: &[crate::models::Activity]) -> 
     }
 
     // Find earliest activity date
-    let earliest_date = activities
-        .iter()
-        .map(|a| a.start_date)
-        .min()
-        .unwrap_or_else(chrono::Utc::now);
+    let Some(earliest_date) = activities.iter().map(|a| a.start_date).min() else {
+        tracing::warn!("No activities found for training history calculation, returning 0 months");
+        return 0;
+    };
 
     // Calculate months since earliest activity
     let now = chrono::Utc::now();
@@ -784,7 +793,18 @@ fn calculate_days_remaining(
                 _ => crate::constants::defaults::DEFAULT_GOAL_TIMEFRAME_DAYS,
             };
             let elapsed = (chrono::Utc::now() - created.with_timezone(&chrono::Utc)).num_days();
-            timeframe_days.saturating_sub(elapsed.max(0).try_into().unwrap_or(0))
+            let elapsed_u32 = match u32::try_from(elapsed.max(0)) {
+                Ok(val) => val,
+                Err(e) => {
+                    tracing::warn!(
+                        elapsed = elapsed,
+                        error = %e,
+                        "Elapsed days conversion failed (negative or too large), using 0"
+                    );
+                    0
+                }
+            };
+            timeframe_days.saturating_sub(elapsed_u32)
         },
     )
 }
@@ -805,9 +825,19 @@ fn calculate_current_progress(
         }
         "duration" => {
             let total_duration: u64 = activities.iter().map(|a| a.duration_seconds).sum();
-            let hours = f64::from(
-                u32::try_from(total_duration.min(u64::from(u32::MAX))).unwrap_or(u32::MAX),
-            ) / crate::constants::time_constants::SECONDS_PER_HOUR_F64;
+            let hours = match u32::try_from(total_duration.min(u64::from(u32::MAX))) {
+                Ok(duration_u32) => {
+                    f64::from(duration_u32) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        total_duration = total_duration,
+                        error = %e,
+                        "Duration conversion failed in progress calculation, using u32::MAX"
+                    );
+                    f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                }
+            };
             (hours, "hours")
         }
         "frequency" => {
@@ -872,7 +902,17 @@ fn build_progress_response(params: &ProgressResponseParams) -> UniversalResponse
             "summary": {
                 "total_activities": params.relevant_activities.len(),
                 "total_distance_km": params.relevant_activities.iter().filter_map(|a| a.distance_meters).sum::<f64>() / crate::constants::limits::METERS_PER_KILOMETER,
-                "total_duration_hours": f64::from(u32::try_from(params.total_duration.min(u64::from(u32::MAX))).unwrap_or(u32::MAX)) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                "total_duration_hours": match u32::try_from(params.total_duration.min(u64::from(u32::MAX))) {
+                    Ok(duration_u32) => f64::from(duration_u32) / crate::constants::time_constants::SECONDS_PER_HOUR_F64,
+                    Err(e) => {
+                        tracing::warn!(
+                            total_duration = params.total_duration,
+                            error = %e,
+                            "Duration conversion failed in response summary, using u32::MAX"
+                        );
+                        f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                    }
+                }
             }
         })),
         error: None,

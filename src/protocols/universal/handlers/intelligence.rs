@@ -9,6 +9,7 @@ use crate::protocols::ProtocolError;
 use chrono::{Duration, Utc};
 use std::future::Future;
 use std::pin::Pin;
+use tracing;
 
 /// Handle `calculate_metrics` tool - calculate custom fitness metrics (sync)
 ///
@@ -2732,14 +2733,32 @@ fn calculate_performance_trend(activities: &[crate::models::Activity]) -> f64 {
     #[allow(clippy::cast_precision_loss)]
     let first_avg_pace: f64 = first_half
         .iter()
-        .map(|a| a.duration_seconds as f64 / a.distance_meters.unwrap_or(1.0))
+        .map(|a| {
+            let distance = a.distance_meters.unwrap_or_else(|| {
+                tracing::warn!(
+                    activity_id = a.id,
+                    "Activity missing distance_meters in pace calculation, using 1.0m fallback"
+                );
+                1.0
+            });
+            a.duration_seconds as f64 / distance
+        })
         .sum::<f64>()
         / first_half.len() as f64;
 
     #[allow(clippy::cast_precision_loss)]
     let second_avg_pace: f64 = second_half
         .iter()
-        .map(|a| a.duration_seconds as f64 / a.distance_meters.unwrap_or(1.0))
+        .map(|a| {
+            let distance = a.distance_meters.unwrap_or_else(|| {
+                tracing::warn!(
+                    activity_id = a.id,
+                    "Activity missing distance_meters in pace calculation, using 1.0m fallback"
+                );
+                1.0
+            });
+            a.duration_seconds as f64 / distance
+        })
         .sum::<f64>()
         / second_half.len() as f64;
 
@@ -2832,7 +2851,13 @@ fn predict_race_performance(
         });
     };
 
-    let best_distance = best_activity.distance_meters.unwrap_or(0.0);
+    let best_distance = best_activity.distance_meters.unwrap_or_else(|| {
+        tracing::warn!(
+            activity_id = best_activity.id,
+            "Best activity missing distance_meters despite find_best_performance validation, using 0.0m"
+        );
+        0.0
+    });
     #[allow(clippy::cast_precision_loss)]
     let best_time = best_activity.duration_seconds as f64;
 

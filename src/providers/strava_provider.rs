@@ -159,6 +159,14 @@ pub struct StravaProvider {
     client: Client,
 }
 
+/// Convert f32 metric value to u32 for Activity fields
+/// Safe for positive values within u32 range (heart rate, power, cadence, etc.)
+#[inline]
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+const fn f32_to_u32(value: f32) -> u32 {
+    value as u32
+}
+
 impl StravaProvider {
     /// Create a new Strava provider with default configuration
     #[must_use]
@@ -318,19 +326,13 @@ impl StravaProvider {
             elevation_gain: activity.total_elevation_gain.map(f64::from),
             average_speed: activity.average_speed.map(f64::from),
             max_speed: activity.max_speed.map(f64::from),
-            // Safe: metric values are always positive and within u32 range
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            average_heart_rate: activity.average_heartrate.map(|v| v as u32),
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            max_heart_rate: activity.max_heartrate.map(|v| v as u32),
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            average_cadence: activity.average_cadence.map(|v| v as u32),
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            average_power: activity.average_watts.map(|v| v as u32),
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            max_power: activity.max_watts.map(|v| v as u32),
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            calories: activity.calories.map(|v| v as u32),
+            average_heart_rate: activity.average_heartrate.map(f32_to_u32),
+            max_heart_rate: activity.max_heartrate.map(f32_to_u32),
+            average_cadence: activity.average_cadence.map(f32_to_u32),
+            average_power: activity.average_watts.map(f32_to_u32),
+            max_power: activity.max_watts.map(f32_to_u32),
+            // Calories from summary endpoint
+            calories: activity.calories.map(f32_to_u32),
             steps: None,
             heart_rate_zones: None,
             normalized_power: None,
@@ -351,8 +353,7 @@ impl StravaProvider {
             spo2: None,
             training_stress_score: None,
             intensity_factor: None,
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            suffer_score: activity.suffer_score.map(|v| v as u32),
+            suffer_score: activity.suffer_score.map(f32_to_u32),
             time_series_data: None,
             // GPS coordinates from summary endpoint
             start_latitude: activity

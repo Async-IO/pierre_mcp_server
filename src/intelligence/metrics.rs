@@ -195,19 +195,38 @@ impl MetricsCalculator {
         let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
             f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
         } else {
-            f64::from(u32::try_from(activity.duration_seconds).unwrap_or(u32::MAX))
-                / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+            match u32::try_from(activity.duration_seconds) {
+                Ok(duration_u32) => {
+                    f64::from(duration_u32) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                }
+                Err(e) => {
+                    tracing::debug!(
+                        activity_id = activity.id,
+                        duration = activity.duration_seconds,
+                        error = %e,
+                        "Duration conversion to u32 failed during TSS calculation, using u32::MAX"
+                    );
+                    f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                }
+            }
         };
 
         // 1. Try power-based TSS using configured algorithm (most accurate)
         if self.ftp.is_some() {
             // Load algorithm configuration
             let config = IntelligenceConfig::global();
-            let tss_algorithm = config
-                .algorithms
-                .tss
-                .parse::<TssAlgorithm>()
-                .unwrap_or_default();
+            let tss_algorithm = match config.algorithms.tss.parse::<TssAlgorithm>() {
+                Ok(algo) => algo,
+                Err(e) => {
+                    tracing::warn!(
+                        activity_id = activity.id,
+                        tss_config = %config.algorithms.tss,
+                        error = %e,
+                        "Failed to parse TSS algorithm from config, using default"
+                    );
+                    TssAlgorithm::default()
+                }
+            };
 
             // Use enum-dispatched TSS calculation
             if let Ok(tss) =
@@ -280,8 +299,21 @@ impl MetricsCalculator {
             let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
                 f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
             } else {
-                f64::from(u32::try_from(activity.duration_seconds).unwrap_or(u32::MAX))
-                    / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                match u32::try_from(activity.duration_seconds) {
+                    Ok(duration_u32) => {
+                        f64::from(duration_u32)
+                            / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                    }
+                    Err(e) => {
+                        tracing::debug!(
+                            activity_id = activity.id,
+                            duration = activity.duration_seconds,
+                            error = %e,
+                            "Duration conversion to u32 failed during work calculation, using u32::MAX"
+                        );
+                        f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                    }
+                }
             };
             metrics.work = Some(f64::from(avg_power) * duration_hours / 1000.0);
             // kJ
@@ -320,7 +352,18 @@ impl MetricsCalculator {
             let duration_minutes = if activity.duration_seconds > u64::from(u32::MAX) {
                 f64::from(u32::MAX) / 60.0
             } else {
-                f64::from(u32::try_from(activity.duration_seconds).unwrap_or(u32::MAX)) / 60.0
+                match u32::try_from(activity.duration_seconds) {
+                    Ok(duration_u32) => f64::from(duration_u32) / 60.0,
+                    Err(e) => {
+                        tracing::debug!(
+                            activity_id = activity.id,
+                            duration = activity.duration_seconds,
+                            error = %e,
+                            "Duration conversion to u32 failed during stride efficiency calculation, using u32::MAX"
+                        );
+                        f64::from(u32::MAX) / 60.0
+                    }
+                }
             };
             let total_steps = f64::from(avg_cadence) * duration_minutes;
             metrics.stride_efficiency = Some(distance / total_steps);
@@ -416,8 +459,18 @@ impl MetricsCalculator {
         }
 
         // Take the average of all 30-second power^4 values, then take 4th root
-        let mean_power4 = rolling_avg_power4.iter().sum::<f64>()
-            / f64::from(u32::try_from(rolling_avg_power4.len()).unwrap_or(u32::MAX));
+        let mean_power4 = match u32::try_from(rolling_avg_power4.len()) {
+            Ok(len) => rolling_avg_power4.iter().sum::<f64>() / f64::from(len),
+            Err(e) => {
+                tracing::debug!(
+                    data_points = rolling_avg_power4.len(),
+                    error = %e,
+                    metric_name = "normalized_power",
+                    "Rolling average count conversion to u32 failed, using u32::MAX"
+                );
+                rolling_avg_power4.iter().sum::<f64>() / f64::from(u32::MAX)
+            }
+        };
         Some(mean_power4.powf(0.25))
     }
 
@@ -428,8 +481,18 @@ impl MetricsCalculator {
             return None;
         }
 
-        let avg_power: f64 = power_data.iter().map(|&p| f64::from(p)).sum::<f64>()
-            / f64::from(u32::try_from(power_data.len()).unwrap_or(u32::MAX));
+        let avg_power: f64 = match u32::try_from(power_data.len()) {
+            Ok(len) => power_data.iter().map(|&p| f64::from(p)).sum::<f64>() / f64::from(len),
+            Err(e) => {
+                tracing::debug!(
+                    data_points = power_data.len(),
+                    error = %e,
+                    metric_name = "variability_index",
+                    "Power data count conversion to u32 failed, using u32::MAX"
+                );
+                power_data.iter().map(|&p| f64::from(p)).sum::<f64>() / f64::from(u32::MAX)
+            }
+        };
 
         // Use normalized power if we can calculate it
         self.calculate_normalized_power(power_data)
@@ -437,9 +500,18 @@ impl MetricsCalculator {
             .or_else(|| {
                 // Fallback to simple variability calculation
                 let sum_of_squares: f64 = power_data.iter().map(|&p| f64::from(p).powi(2)).sum();
-                let rms_power = (sum_of_squares
-                    / f64::from(u32::try_from(power_data.len()).unwrap_or(u32::MAX)))
-                .sqrt();
+                let rms_power = match u32::try_from(power_data.len()) {
+                    Ok(len) => (sum_of_squares / f64::from(len)).sqrt(),
+                    Err(e) => {
+                        tracing::debug!(
+                            data_points = power_data.len(),
+                            error = %e,
+                            metric_name = "variability_index_rms",
+                            "Power data count conversion to u32 failed in RMS calculation, using u32::MAX"
+                        );
+                        (sum_of_squares / f64::from(u32::MAX)).sqrt()
+                    }
+                };
                 Some(rms_power / avg_power)
             })
     }
@@ -452,8 +524,33 @@ impl MetricsCalculator {
         }
 
         let half_point = hr_data.len() / 2;
-        let first_half_size = f64::from(u32::try_from(half_point).ok()?);
-        let second_half_size = f64::from(u32::try_from(hr_data.len() - half_point).ok()?);
+        let first_half_size = match u32::try_from(half_point) {
+            Ok(size) => f64::from(size),
+            Err(e) => {
+                tracing::debug!(
+                    data_points = hr_data.len(),
+                    half_point,
+                    error = %e,
+                    metric_name = "decoupling",
+                    "First half size conversion to u32 failed"
+                );
+                return None;
+            }
+        };
+        let second_half_size = match u32::try_from(hr_data.len() - half_point) {
+            Ok(size) => f64::from(size),
+            Err(e) => {
+                tracing::debug!(
+                    data_points = hr_data.len(),
+                    half_point,
+                    second_half_len = hr_data.len() - half_point,
+                    error = %e,
+                    metric_name = "decoupling",
+                    "Second half size conversion to u32 failed"
+                );
+                return None;
+            }
+        };
 
         // First half averages
         let first_half_hr: f64 = hr_data[..half_point]
@@ -532,7 +629,18 @@ impl MetricsCalculator {
         let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
             f64::from(u32::MAX) / 3600.0
         } else {
-            f64::from(u32::try_from(activity.duration_seconds).unwrap_or(u32::MAX)) / 3600.0
+            match u32::try_from(activity.duration_seconds) {
+                Ok(duration_u32) => f64::from(duration_u32) / 3600.0,
+                Err(e) => {
+                    tracing::debug!(
+                        activity_id = activity.id,
+                        duration = activity.duration_seconds,
+                        error = %e,
+                        "Duration conversion to u32 failed during training load calculation, using u32::MAX"
+                    );
+                    f64::from(u32::MAX) / 3600.0
+                }
+            }
         };
 
         // Use intensity factor if available, otherwise estimate from heart rate
@@ -619,65 +727,92 @@ pub struct ZoneAnalysis {
     pub time_in_zones: HashMap<String, f64>,
 }
 
+/// Convert a count to u32 with error logging, returns f64 for further calculations
+fn safe_count_to_f64(count: usize, zone_name: &str, metric_type: &str) -> f64 {
+    match u32::try_from(count) {
+        Ok(count_u32) => f64::from(count_u32),
+        Err(e) => {
+            tracing::debug!(
+                zone_count = count,
+                error = %e,
+                zone = zone_name,
+                metric_name = metric_type,
+                "Zone count conversion to u32 failed, using 0"
+            );
+            0.0
+        }
+    }
+}
+
 impl ZoneAnalysis {
     /// Calculate time in zones based on heart rate data
     #[must_use]
     pub fn from_heart_rate_data(hr_data: &[f32], lthr: f64) -> Self {
-        let total_points = f64::from(u32::try_from(hr_data.len()).unwrap_or(u32::MAX));
+        let total_points = match u32::try_from(hr_data.len()) {
+            Ok(len) => f64::from(len),
+            Err(e) => {
+                tracing::debug!(
+                    data_points = hr_data.len(),
+                    error = %e,
+                    metric_name = "heart_rate_zone_analysis",
+                    "HR data count conversion to u32 failed, using u32::MAX"
+                );
+                f64::from(u32::MAX)
+            }
+        };
 
-        let zone1 = f64::from(
-            u32::try_from(
-                hr_data
-                    .iter()
-                    .filter(|&&hr| f64::from(hr) <= lthr * HR_ZONE1_UPPER_LIMIT)
-                    .count(),
-            )
-            .unwrap_or(0),
+        let zone1 = safe_count_to_f64(
+            hr_data
+                .iter()
+                .filter(|&&hr| f64::from(hr) <= lthr * HR_ZONE1_UPPER_LIMIT)
+                .count(),
+            "zone1",
+            "heart_rate_zone_analysis",
         );
-        let zone2 = f64::from(
-            u32::try_from(
-                hr_data
-                    .iter()
-                    .filter(|&&hr| {
-                        f64::from(hr) > lthr * HR_ZONE1_UPPER_LIMIT
-                            && f64::from(hr) <= lthr * HR_ZONE2_UPPER_LIMIT
-                    })
-                    .count(),
-            )
-            .unwrap_or(0),
+
+        let zone2 = safe_count_to_f64(
+            hr_data
+                .iter()
+                .filter(|&&hr| {
+                    f64::from(hr) > lthr * HR_ZONE1_UPPER_LIMIT
+                        && f64::from(hr) <= lthr * HR_ZONE2_UPPER_LIMIT
+                })
+                .count(),
+            "zone2",
+            "heart_rate_zone_analysis",
         );
-        let zone3 = f64::from(
-            u32::try_from(
-                hr_data
-                    .iter()
-                    .filter(|&&hr| {
-                        f64::from(hr) > lthr * HR_ZONE2_UPPER_LIMIT
-                            && f64::from(hr) <= lthr * HR_ZONE3_UPPER_LIMIT
-                    })
-                    .count(),
-            )
-            .unwrap_or(0),
+
+        let zone3 = safe_count_to_f64(
+            hr_data
+                .iter()
+                .filter(|&&hr| {
+                    f64::from(hr) > lthr * HR_ZONE2_UPPER_LIMIT
+                        && f64::from(hr) <= lthr * HR_ZONE3_UPPER_LIMIT
+                })
+                .count(),
+            "zone3",
+            "heart_rate_zone_analysis",
         );
-        let zone4 = f64::from(
-            u32::try_from(
-                hr_data
-                    .iter()
-                    .filter(|&&hr| {
-                        f64::from(hr) > lthr * HR_ZONE3_UPPER_LIMIT
-                            && f64::from(hr) <= lthr * HR_ZONE4_UPPER_LIMIT
-                    })
-                    .count(),
-            )
-            .unwrap_or(0),
+
+        let zone4 = safe_count_to_f64(
+            hr_data
+                .iter()
+                .filter(|&&hr| {
+                    f64::from(hr) > lthr * HR_ZONE3_UPPER_LIMIT
+                        && f64::from(hr) <= lthr * HR_ZONE4_UPPER_LIMIT
+                })
+                .count(),
+            "zone4",
+            "heart_rate_zone_analysis",
         );
-        let zone5 = f64::from(
-            u32::try_from(
-                hr_data
-                    .iter()
-                    .filter(|&&hr| f64::from(hr) > lthr * HR_ZONE4_UPPER_LIMIT)
-                    .count(),
-            )
-            .unwrap_or(0),
+
+        let zone5 = safe_count_to_f64(
+            hr_data
+                .iter()
+                .filter(|&&hr| f64::from(hr) > lthr * HR_ZONE4_UPPER_LIMIT)
+                .count(),
+            "zone5",
+            "heart_rate_zone_analysis",
         );
 
         let mut time_in_zones = HashMap::new();
@@ -700,61 +835,71 @@ impl ZoneAnalysis {
     /// Calculate time in zones based on power data
     #[must_use]
     pub fn from_power_data(power_data: &[f32], ftp: f64) -> Self {
-        let total_points = f64::from(u32::try_from(power_data.len()).unwrap_or(u32::MAX));
+        let total_points = match u32::try_from(power_data.len()) {
+            Ok(len) => f64::from(len),
+            Err(e) => {
+                tracing::debug!(
+                    data_points = power_data.len(),
+                    error = %e,
+                    metric_name = "power_zone_analysis",
+                    "Power data count conversion to u32 failed, using u32::MAX"
+                );
+                f64::from(u32::MAX)
+            }
+        };
 
-        let zone1 = f64::from(
-            u32::try_from(
-                power_data
-                    .iter()
-                    .filter(|&&p| f64::from(p) <= ftp * POWER_ZONE1_UPPER_LIMIT)
-                    .count(),
-            )
-            .unwrap_or(0),
+        let zone1 = safe_count_to_f64(
+            power_data
+                .iter()
+                .filter(|&&p| f64::from(p) <= ftp * POWER_ZONE1_UPPER_LIMIT)
+                .count(),
+            "zone1",
+            "power_zone_analysis",
         );
-        let zone2 = f64::from(
-            u32::try_from(
-                power_data
-                    .iter()
-                    .filter(|&&p| {
-                        f64::from(p) > ftp * POWER_ZONE1_UPPER_LIMIT
-                            && f64::from(p) <= ftp * POWER_ZONE2_UPPER_LIMIT
-                    })
-                    .count(),
-            )
-            .unwrap_or(0),
+
+        let zone2 = safe_count_to_f64(
+            power_data
+                .iter()
+                .filter(|&&p| {
+                    f64::from(p) > ftp * POWER_ZONE1_UPPER_LIMIT
+                        && f64::from(p) <= ftp * POWER_ZONE2_UPPER_LIMIT
+                })
+                .count(),
+            "zone2",
+            "power_zone_analysis",
         );
-        let zone3 = f64::from(
-            u32::try_from(
-                power_data
-                    .iter()
-                    .filter(|&&p| {
-                        f64::from(p) > ftp * POWER_ZONE2_UPPER_LIMIT
-                            && f64::from(p) <= ftp * POWER_ZONE3_UPPER_LIMIT
-                    })
-                    .count(),
-            )
-            .unwrap_or(0),
+
+        let zone3 = safe_count_to_f64(
+            power_data
+                .iter()
+                .filter(|&&p| {
+                    f64::from(p) > ftp * POWER_ZONE2_UPPER_LIMIT
+                        && f64::from(p) <= ftp * POWER_ZONE3_UPPER_LIMIT
+                })
+                .count(),
+            "zone3",
+            "power_zone_analysis",
         );
-        let zone4 = f64::from(
-            u32::try_from(
-                power_data
-                    .iter()
-                    .filter(|&&p| {
-                        f64::from(p) > ftp * POWER_ZONE3_UPPER_LIMIT
-                            && f64::from(p) <= ftp * POWER_ZONE4_UPPER_LIMIT
-                    })
-                    .count(),
-            )
-            .unwrap_or(0),
+
+        let zone4 = safe_count_to_f64(
+            power_data
+                .iter()
+                .filter(|&&p| {
+                    f64::from(p) > ftp * POWER_ZONE3_UPPER_LIMIT
+                        && f64::from(p) <= ftp * POWER_ZONE4_UPPER_LIMIT
+                })
+                .count(),
+            "zone4",
+            "power_zone_analysis",
         );
-        let zone5 = f64::from(
-            u32::try_from(
-                power_data
-                    .iter()
-                    .filter(|&&p| f64::from(p) > ftp * POWER_ZONE4_UPPER_LIMIT)
-                    .count(),
-            )
-            .unwrap_or(0),
+
+        let zone5 = safe_count_to_f64(
+            power_data
+                .iter()
+                .filter(|&&p| f64::from(p) > ftp * POWER_ZONE4_UPPER_LIMIT)
+                .count(),
+            "zone5",
+            "power_zone_analysis",
         );
 
         let mut time_in_zones = HashMap::new();

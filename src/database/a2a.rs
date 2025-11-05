@@ -397,11 +397,26 @@ impl Database {
             let permissions = serde_json::from_str(&permissions_json)?;
 
             let capabilities_json: String = row.get("capabilities");
-            let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+            let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|e| {
+                tracing::warn!(
+                    client_id = ?row.get::<String, _>("id"),
+                    error = %e,
+                    operation = "get_a2a_client",
+                    "A2A client capabilities JSON parsing failed, using empty array"
+                );
+                vec![]
+            });
 
             let redirect_uris_json: String = row.get("redirect_uris");
-            let redirect_uris =
-                serde_json::from_str(&redirect_uris_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+            let redirect_uris = serde_json::from_str(&redirect_uris_json).unwrap_or_else(|e| {
+                tracing::warn!(
+                    client_id = ?row.get::<String, _>("id"),
+                    error = %e,
+                    operation = "get_a2a_client",
+                    "A2A client redirect_uris JSON parsing failed, using empty array"
+                );
+                vec![]
+            });
 
             Ok(Some(A2AClient {
                 id: row.get("id"),
@@ -452,11 +467,28 @@ impl Database {
             let permissions = serde_json::from_str(&permissions_json)?;
 
             let capabilities_json: String = row.get("capabilities");
-            let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|_| vec![]);
+            let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|e| {
+                tracing::warn!(
+                    client_id = ?row.get::<String, _>("id"),
+                    api_key_id = api_key_id,
+                    error = %e,
+                    operation = "get_a2a_client_by_api_key_id",
+                    "A2A client capabilities JSON parsing failed, using empty array"
+                );
+                vec![]
+            });
 
             let redirect_uris_json: String = row.get("redirect_uris");
-            let redirect_uris =
-                serde_json::from_str(&redirect_uris_json).unwrap_or_else(|_| vec![]);
+            let redirect_uris = serde_json::from_str(&redirect_uris_json).unwrap_or_else(|e| {
+                tracing::warn!(
+                    client_id = ?row.get::<String, _>("id"),
+                    api_key_id = api_key_id,
+                    error = %e,
+                    operation = "get_a2a_client_by_api_key_id",
+                    "A2A client redirect_uris JSON parsing failed, using empty array"
+                );
+                vec![]
+            });
 
             Ok(Some(A2AClient {
                 id: row.get("id"),
@@ -522,11 +554,26 @@ impl Database {
             let permissions = serde_json::from_str(&permissions_json)?;
 
             let capabilities_json: String = row.get("capabilities");
-            let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+            let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|e| {
+                tracing::warn!(
+                    client_id = ?row.get::<String, _>("id"),
+                    error = %e,
+                    operation = "list_a2a_clients",
+                    "A2A client capabilities JSON parsing failed, using empty array"
+                );
+                vec![]
+            });
 
             let redirect_uris_json: String = row.get("redirect_uris");
-            let redirect_uris =
-                serde_json::from_str(&redirect_uris_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+            let redirect_uris = serde_json::from_str(&redirect_uris_json).unwrap_or_else(|e| {
+                tracing::warn!(
+                    client_id = ?row.get::<String, _>("id"),
+                    error = %e,
+                    operation = "list_a2a_clients",
+                    "A2A client redirect_uris JSON parsing failed, using empty array"
+                );
+                vec![]
+            });
 
             clients.push(A2AClient {
                 id: row.get("id"),
@@ -651,11 +698,26 @@ impl Database {
             let permissions = serde_json::from_str(&permissions_json)?;
 
             let capabilities_json: String = row.get("capabilities");
-            let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+            let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|e| {
+                tracing::warn!(
+                    client_name = name,
+                    error = %e,
+                    operation = "get_a2a_client_by_name",
+                    "A2A client capabilities JSON parsing failed, using empty array"
+                );
+                vec![]
+            });
 
             let redirect_uris_json: String = row.get("redirect_uris");
-            let redirect_uris =
-                serde_json::from_str(&redirect_uris_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+            let redirect_uris = serde_json::from_str(&redirect_uris_json).unwrap_or_else(|e| {
+                tracing::warn!(
+                    client_name = name,
+                    error = %e,
+                    operation = "get_a2a_client_by_name",
+                    "A2A client redirect_uris JSON parsing failed, using empty array"
+                );
+                vec![]
+            });
 
             Ok(Some(A2AClient {
                 id: row.get("id"),
