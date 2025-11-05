@@ -96,7 +96,13 @@ impl A2AKeyManager {
 
         match verifying_key.verify(data, &signature) {
             Ok(()) => Ok(true),
-            Err(_) => Ok(false),
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    "Failed to verify key signature"
+                );
+                Ok(false)
+            }
         }
     }
 

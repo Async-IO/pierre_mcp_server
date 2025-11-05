@@ -542,13 +542,19 @@ impl A2AServer {
         let client_id = params
             .get("client_id")
             .and_then(|v| v.as_str())
-            .unwrap_or("unknown")
+            .unwrap_or_else(|| {
+                tracing::warn!("Missing client_id in A2A task request, using 'unknown'");
+                "unknown"
+            })
             .to_string();
         let task_type = params
             .get("task_type")
             .or_else(|| params.get("type"))
             .and_then(|v| v.as_str())
-            .unwrap_or("generic")
+            .unwrap_or_else(|| {
+                tracing::warn!("Missing task_type in A2A task request, using 'generic'");
+                "generic"
+            })
             .to_string();
 
         // Persist task to database and get generated task_id
@@ -843,7 +849,10 @@ impl A2AServer {
         let tool_name = params
             .get("tool_name")
             .and_then(|v| v.as_str())
-            .unwrap_or("unknown");
+            .unwrap_or_else(|| {
+                tracing::warn!("Missing tool_name in A2A tool execution request, using 'unknown'");
+                "unknown"
+            });
 
         let tool_params = params
             .get("parameters")
@@ -905,7 +914,10 @@ impl A2AServer {
         let task_id = params
             .get("task_id")
             .and_then(|v| v.as_str())
-            .unwrap_or("unknown");
+            .unwrap_or_else(|| {
+                tracing::warn!("Missing task_id in A2A task cancel request, using 'unknown'");
+                "unknown"
+            });
 
         // In a full implementation, this would cancel an active task
         // Simulate task cancellation until full task management is implemented

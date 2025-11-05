@@ -240,7 +240,8 @@ impl ProtocolConverter {
         request_data: &str,
     ) -> Result<ProtocolType, crate::protocols::ProtocolError> {
         // Try to parse as JSON first
-        let json: Value = serde_json::from_str(request_data).map_err(|_| {
+        let json: Value = serde_json::from_str(request_data).map_err(|e| {
+            tracing::debug!(error = %e, "Failed to parse request as JSON during protocol detection");
             crate::protocols::ProtocolError::ConversionFailed("Invalid JSON".into())
         })?;
 

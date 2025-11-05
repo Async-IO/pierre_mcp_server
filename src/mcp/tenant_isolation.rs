@@ -38,7 +38,10 @@ impl TenantIsolation {
 
         // Parse user ID from claims
         let user_id = crate::utils::uuid::parse_uuid(&auth_result.sub)
-            .map_err(|_| AppError::auth_invalid("Invalid user ID in token"))?;
+            .map_err(|e| {
+                tracing::warn!(sub = %auth_result.sub, error = %e, "Invalid user ID in JWT token claims");
+                AppError::auth_invalid("Invalid user ID in token")
+            })?;
 
         let user = self.get_user_with_tenant(user_id).await?;
         let tenant_id = self.extract_tenant_id(&user)?;
@@ -77,7 +80,8 @@ impl TenantIsolation {
                 AppError::auth_invalid("User does not belong to any tenant").into()
             })?
             .parse()
-            .map_err(|_| -> anyhow::Error {
+            .map_err(|e| -> anyhow::Error {
+                tracing::warn!(user_id = %user.id, tenant_id = ?user.tenant_id, error = %e, "Invalid tenant ID format for user");
                 AppError::invalid_input("Invalid tenant ID format").into()
             })
     }
@@ -149,12 +153,16 @@ impl TenantIsolation {
     ) -> Result<Option<TenantContext>> {
         // Look for tenant ID in headers
         if let Some(tenant_id_header) = headers.get("x-tenant-id") {
-            let tenant_id_str = tenant_id_header
-                .to_str()
-                .map_err(|_| AppError::invalid_input("Invalid tenant ID header format"))?;
+            let tenant_id_str = tenant_id_header.to_str().map_err(|e| {
+                tracing::warn!(error = %e, "Invalid x-tenant-id header format (non-UTF8)");
+                AppError::invalid_input("Invalid tenant ID header format")
+            })?;
 
             let tenant_id = Uuid::parse_str(tenant_id_str)
-                .map_err(|_| AppError::invalid_input("Invalid tenant ID format"))?;
+                .map_err(|e| {
+                    tracing::warn!(tenant_id = %tenant_id_str, error = %e, "Invalid tenant ID format in x-tenant-id header");
+                    AppError::invalid_input("Invalid tenant ID format")
+                })?;
 
             let tenant_name = self.get_tenant_name(tenant_id).await;
 
@@ -370,7 +378,10 @@ pub async fn validate_jwt_token_for_mcp(
 
     // Parse user ID from claims
     let user_id = crate::utils::uuid::parse_uuid(&auth_result.sub)
-        .map_err(|_| AppError::auth_invalid("Invalid user ID in token"))?;
+        .map_err(|e| {
+            tracing::warn!(sub = %auth_result.sub, error = %e, "Invalid user ID in JWT token claims (MCP validation)");
+            AppError::auth_invalid("Invalid user ID in token")
+        })?;
 
     // Get user and tenant information
     let user = database
@@ -384,7 +395,10 @@ pub async fn validate_jwt_token_for_mcp(
         .clone() // Safe: Option<String> ownership for UUID parsing
         .ok_or_else(|| AppError::auth_invalid("User does not belong to any tenant"))?
         .parse()
-        .map_err(|_| AppError::invalid_input("Invalid tenant ID format"))?;
+        .map_err(|e| {
+            tracing::warn!(user_id = %user_id, tenant_id = ?user.tenant_id, error = %e, "Invalid tenant ID format for user (MCP validation)");
+            AppError::invalid_input("Invalid tenant ID format")
+        })?;
 
     let tenant_name = match database.get_tenant_by_id(tenant_id).await {
         Ok(tenant) => tenant.name,

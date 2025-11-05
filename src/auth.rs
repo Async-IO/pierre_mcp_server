@@ -468,12 +468,20 @@ impl AuthManager {
                     error: None,
                     available_providers: claims.providers,
                 },
-                Err(_) => AuthResponse {
-                    authenticated: false,
-                    user_id: None,
-                    error: Some("Invalid user ID in token".into()),
-                    available_providers: vec![],
-                },
+                Err(e) => {
+                    tracing::warn!(
+                        sub = %claims.sub,
+                        issuer = ?claims.iss,
+                        error = %e,
+                        "Invalid user ID in authentication token"
+                    );
+                    AuthResponse {
+                        authenticated: false,
+                        user_id: None,
+                        error: Some("Invalid user ID in token".into()),
+                        available_providers: vec![],
+                    }
+                }
             },
             Err(jwt_error) => AuthResponse {
                 authenticated: false,

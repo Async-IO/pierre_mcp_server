@@ -338,7 +338,12 @@ impl GlobalProviderManager {
     pub fn init(&self, database: Arc<Database>) -> Result<(), AppError> {
         self.inner
             .set(ProviderManager::new(database))
-            .map_err(|_| AppError::internal("Provider manager already initialized"))?;
+            .map_err(|_| {
+                tracing::error!(
+                    "Attempted to initialize provider manager multiple times (programming error)"
+                );
+                AppError::internal("Provider manager already initialized")
+            })?;
         Ok(())
     }
 

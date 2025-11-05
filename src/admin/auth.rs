@@ -247,7 +247,10 @@ pub mod middleware {
             async move {
                 // Extract Bearer token
                 let token = extract_bearer_token_owned(&auth_header)
-                    .map_err(|_| warp::reject::custom(AdminAuthError::InvalidAuthHeader))?;
+                    .map_err(|e| {
+                        tracing::warn!(error = %e, "Failed to extract bearer token from admin auth header");
+                        warp::reject::custom(AdminAuthError::InvalidAuthHeader)
+                    })?;
 
                 // Authenticate and authorize
                 auth_service

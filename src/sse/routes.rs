@@ -23,8 +23,10 @@ pub async fn handle_notification_sse(
 ) -> Result<impl Reply, Rejection> {
     tracing::info!("New notification SSE connection for user: {}", user_id);
 
-    let user_uuid =
-        Uuid::parse_str(&user_id).map_err(|_| warp::reject::custom(InvalidUserIdError))?;
+    let user_uuid = Uuid::parse_str(&user_id).map_err(|e| {
+        tracing::warn!(user_id = %user_id, error = %e, "Invalid user ID format for SSE connection");
+        warp::reject::custom(InvalidUserIdError)
+    })?;
 
     let mut receiver = manager.register_notification_stream(user_uuid).await;
     let manager_clone = manager.clone();

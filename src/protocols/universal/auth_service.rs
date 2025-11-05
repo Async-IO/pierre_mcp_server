@@ -238,11 +238,14 @@ impl AuthService {
         &self,
         tenant_id_str: &str,
     ) -> Result<(String, String), UniversalResponse> {
-        let tenant_uuid = Uuid::parse_str(tenant_id_str).map_err(|_| UniversalResponse {
-            success: false,
-            result: None,
-            error: Some("Invalid tenant ID format".to_string()),
-            metadata: None,
+        let tenant_uuid = Uuid::parse_str(tenant_id_str).map_err(|e| {
+            tracing::warn!(tenant_id = %tenant_id_str, error = %e, "Invalid tenant ID format in OAuth credentials request");
+            UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("Invalid tenant ID format".to_string()),
+                metadata: None,
+            }
         })?;
 
         // Get tenant OAuth credentials from database

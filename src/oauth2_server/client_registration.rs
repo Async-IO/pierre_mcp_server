@@ -78,7 +78,10 @@ impl ClientRegistrationManager {
         // Store in database
         self.store_client(&client)
             .await
-            .map_err(|_| OAuth2Error::invalid_request("Failed to store client registration"))?;
+            .map_err(|e| {
+                tracing::error!(error = %e, client_id = %client_id, "Failed to store OAuth2 client registration in database");
+                OAuth2Error::invalid_request("Failed to store client registration")
+            })?;
 
         // Return registration response
         Ok(ClientRegistrationResponse {
@@ -297,7 +300,8 @@ impl ClientRegistrationManager {
     fn generate_client_secret() -> Result<String, OAuth2Error> {
         let rng = SystemRandom::new();
         let mut secret = [0u8; 32];
-        rng.fill(&mut secret).map_err(|_| {
+        rng.fill(&mut secret).map_err(|e| {
+            tracing::error!(error = ?e, "System RNG failure - cannot generate secure client secret (CRITICAL SECURITY ISSUE)");
             OAuth2Error::invalid_request(
                 "System RNG failure - cannot generate secure client secret",
             )

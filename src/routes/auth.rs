@@ -181,7 +181,10 @@ impl AuthService {
             .database()
             .get_user_by_email_required(&request.email)
             .await
-            .map_err(|_| AppError::auth_invalid("Invalid email or password"))?;
+            .map_err(|e| {
+                tracing::debug!(email = %request.email, error = %e, "Login failed: user lookup error");
+                AppError::auth_invalid("Invalid email or password")
+            })?;
 
         // Verify password using spawn_blocking to avoid blocking async executor
         let password = request.password.clone();

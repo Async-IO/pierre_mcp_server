@@ -462,7 +462,10 @@ fn admin_auth_filter(
                 async move {
                     // Extract Bearer token
                     let token = extract_bearer_token_owned(&auth_header)
-                        .map_err(|_| warp::reject::custom(AdminApiError::InvalidAuthHeader))?;
+                        .map_err(|e| {
+                            tracing::warn!(error = %e, "Failed to extract bearer token from auth header");
+                            warp::reject::custom(AdminApiError::InvalidAuthHeader)
+                        })?;
 
                     // Extract client IP from headers or remote address
                     let ip_address = extract_client_ip(x_forwarded_for, x_real_ip, remote_addr);
