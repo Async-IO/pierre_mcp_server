@@ -7,6 +7,7 @@ comprehensive context about pierre mcp server for large language models.
 pierre mcp server is a high-performance rust implementation of the model context protocol (mcp) for fitness data aggregation and analysis. connects ai assistants to strava, garmin, and fitbit through a unified interface.
 
 **architecture**: single http server (port 8081), multiple protocols (mcp, oauth2, a2a, rest)
+**codebase**: 218 rust files (~99K lines), 3 typescript sdk files, 6 html/svg templates
 **compliance**: 69.8% mcp protocol compliance (30/43 tests passing) - validated via ci/cd
 **development status**: active development, apis may change
 
@@ -22,8 +23,10 @@ pierre mcp server is a high-performance rust implementation of the model context
 - **memory safety**: no null pointers, buffer overflows, or data races
 - **fearless concurrency**: safe parallel processing with tokio async runtime
 - **type safety**: compile-time verification prevents runtime errors
-- **multi-tenancy**: isolated data and configuration per organization
+- **multi-tenancy**: isolated data and configuration per organization (hkdf key derivation)
 - **protocol abstraction**: shared business logic via `protocols::universal`
+- **compile-time plugins**: zero-cost plugin system via linkme distributed slices
+- **structured errors**: `AppError`, `DatabaseError`, `ProviderError` enums (no anyhow)
 
 ## module structure
 
@@ -32,42 +35,77 @@ src/
 ├── lib.rs                          # public api and module declarations
 ├── bin/                            # executable binaries
 │   ├── pierre-mcp-server.rs        # main mcp server binary
-│   ├── admin_setup.rs              # admin cli tool
+│   ├── admin_setup.rs              # admin cli tool (token generation)
 │   ├── diagnose_weather_api.rs     # weather api diagnostics
 │   └── serve_docs.rs               # documentation server
 ├── protocols/                      # protocol implementations
+│   ├── mod.rs                      # protocol router
+│   ├── converter.rs                # protocol-agnostic converters
 │   └── universal/                  # protocol-agnostic business logic
 │       ├── handlers/               # tool implementation handlers
 │       │   ├── intelligence.rs     # activity analysis handlers
 │       │   ├── goals.rs            # goal management handlers
 │       │   ├── connections.rs      # provider connection handlers
 │       │   ├── strava_api.rs       # strava-specific handlers
-│       │   └── configuration.rs    # configuration handlers
-│       ├── tool_registry.rs        # 25 mcp tool definitions
+│       │   ├── configuration.rs    # configuration handlers
+│       │   ├── nutrition.rs        # nutrition calculation handlers
+│       │   └── sleep.rs            # sleep analysis handlers
+│       ├── tool_registry.rs        # 36 mcp tool definitions
+│       ├── types.rs                # universal request/response types
 │       └── mod.rs                  # universal protocol logic
 ├── mcp/                            # mcp protocol implementation
 │   ├── protocol.rs                 # core mcp json-rpc logic
-│   ├── multitenant.rs              # multi-tenant mcp server
-│   ├── tool_handlers.rs            # mcp tool execution
-│   └── oauth_flow_manager.rs       # oauth flow coordination
-├── oauth2/                         # oauth 2.0 authorization server
+│   ├── multitenant.rs              # multi-tenant mcp server (133KB)
+│   ├── tool_handlers.rs            # mcp tool execution (50KB)
+│   ├── oauth_flow_manager.rs       # oauth flow coordination
+│   ├── http_setup.rs               # http transport configuration
+│   ├── resources.rs                # mcp resources
+│   ├── schema.rs                   # mcp schema definitions (52KB)
+│   ├── server_lifecycle.rs         # server lifecycle management
+│   └── transport_manager.rs        # transport abstraction
+├── oauth2_server/                  # oauth 2.0 authorization server
 │   ├── client_registration.rs      # rfc 7591 dynamic registration
 │   ├── endpoints.rs                # authorization/token endpoints
 │   ├── models.rs                   # oauth 2.0 data structures
-│   └── routes.rs                   # http routes for oauth flows
+│   ├── routes.rs                   # http routes for oauth flows
+│   └── rate_limiting.rs            # oauth2-specific rate limits
 ├── a2a/                            # agent-to-agent protocol
 │   ├── protocol.rs                 # a2a protocol implementation
 │   ├── agent_card.rs               # agent capability discovery
-│   └── auth.rs                     # a2a authentication
-├── intelligence/                   # activity analysis and insights
-│   ├── mod.rs                      # intelligence module
-│   └── analysis.rs                 # performance analysis algorithms
+│   ├── auth.rs                     # a2a authentication
+│   ├── system_user.rs              # system user for a2a
+│   └── test_utils.rs               # a2a testing utilities
+├── intelligence/                   # activity analysis and insights (31 modules, 620KB)
+│   ├── mod.rs                      # intelligence module coordinator
+│   ├── activity_analyzer.rs        # deep activity analysis (25KB)
+│   ├── performance_analyzer.rs     # training load, fitness score (28KB)
+│   ├── performance_analyzer_v2.rs  # enhanced performance analysis
+│   ├── goal_engine.rs              # goal feasibility, tracking (25KB)
+│   ├── recommendation_engine.rs    # training recommendations (43KB)
+│   ├── pattern_detection.rs        # training pattern detection (21KB)
+│   ├── metrics_extractor.rs        # safe metric extraction
+│   ├── statistical_analysis.rs     # regression, trends
+│   ├── training_load.rs            # tss, ctl, atl, tsb calculation
+│   ├── recovery_calculator.rs      # recovery scores, readiness
+│   ├── sleep_analysis.rs           # sleep quality, hrv analysis
+│   ├── nutrition_calculator.rs     # bmr, tdee, macros, timing
+│   ├── physiological_constants.rs  # science-backed thresholds (47KB)
+│   ├── analysis_config.rs          # configurable analysis parameters
+│   └── algorithms/                 # pluggable algorithm implementations
+│       └── maxhr.rs                # max heart rate algorithms
 ├── providers/                      # fitness provider integrations
-│   ├── strava.rs                   # strava api integration
+│   ├── core.rs                     # provider trait definitions
 │   ├── registry.rs                 # provider registry system
-│   └── core.rs                     # common provider traits
+│   ├── strava.rs                   # strava api integration (32KB)
+│   ├── strava_provider.rs          # strava provider implementation
+│   ├── strava_tenant.rs            # tenant-aware strava (13KB)
+│   ├── fitbit.rs                   # fitbit api integration (19KB)
+│   ├── garmin_provider.rs          # garmin connect integration (23KB)
+│   ├── tenant_provider.rs          # multi-tenant provider abstraction
+│   ├── utils.rs                    # provider utilities
+│   └── errors.rs                   # provider-specific errors
 ├── database/                       # database operations
-│   ├── mod.rs                      # database trait definitions
+│   ├── mod.rs                      # database trait definitions (858 lines)
 │   ├── users.rs                    # user management
 │   ├── tokens.rs                   # token storage
 │   ├── user_oauth_tokens.rs        # provider token management
@@ -75,11 +113,14 @@ src/
 │   ├── a2a.rs                      # a2a registration storage
 │   ├── analytics.rs                # analytics data
 │   ├── fitness_configurations.rs   # fitness config storage
-│   └── oauth_notifications.rs      # oauth notification queue
-├── database_plugins/               # database backends
+│   ├── oauth_notifications.rs      # oauth notification queue
+│   ├── errors.rs                   # database-specific errors
+│   └── test_utils.rs               # database testing utilities
+├── database_plugins/               # database backends (412KB)
 │   ├── factory.rs                  # database factory pattern
 │   ├── sqlite.rs                   # sqlite implementation
-│   └── postgres.rs                 # postgresql implementation
+│   ├── postgres.rs                 # postgresql implementation
+│   └── mod.rs                      # plugin enum and routing
 ├── tenant/                         # multi-tenancy infrastructure
 │   ├── mod.rs                      # tenant context resolution
 │   ├── schema.rs                   # tenant data structures
@@ -102,7 +143,13 @@ src/
 │   └── providers.rs                # provider oauth implementations
 ├── routes/                         # rest api routes
 │   ├── mod.rs                      # route definitions
-│   └── (various route modules)
+│   ├── mcp.rs                      # mcp http routes
+│   ├── a2a.rs                      # a2a routes
+│   ├── oauth2.rs                   # oauth2 server routes
+│   ├── health.rs                   # health check routes
+│   ├── admin.rs                    # admin routes
+│   ├── sse.rs                      # sse routes
+│   └── websocket.rs                # websocket routes
 ├── admin/                          # admin functionality
 │   ├── auth.rs                     # admin authentication
 │   └── jwt.rs                      # admin jwt management
@@ -115,29 +162,47 @@ src/
 │   └── mod.rs                      # tool system
 ├── plugins/                        # compile-time plugin system
 │   ├── core.rs                     # plugin trait definitions
-│   ├── registry.rs                 # compile-time registration
+│   ├── registry.rs                 # compile-time registration (linkme)
 │   ├── executor.rs                 # plugin execution engine
+│   ├── mod.rs                      # plugin module coordinator
 │   └── community/                  # community-contributed plugins
+│       ├── mod.rs                  # community plugin registry
+│       └── basic_analysis.rs       # example plugin
 ├── middleware/                     # http middleware
 │   ├── auth.rs                     # authentication middleware
 │   ├── rate_limiting.rs            # rate limiting middleware
 │   ├── cors.rs                     # cors middleware
-│   └── tracing.rs                  # request tracing
+│   ├── tracing.rs                  # request tracing
+│   └── redaction.rs                # pii redaction middleware
 ├── cache/                          # caching layer
-│   └── factory.rs                  # cache factory (lru, redis future)
+│   ├── factory.rs                  # cache factory (lru, redis)
+│   └── memory.rs                   # in-memory lru cache
 ├── crypto/                         # cryptography
 │   ├── mod.rs                      # crypto module
 │   └── keys.rs                     # two-tier key management
 ├── security/                       # security utilities
-│   └── mod.rs                      # security helpers
+│   ├── mod.rs                      # security helpers
+│   ├── audit.rs                    # security audit logging
+│   └── key_rotation.rs             # encryption key rotation
 ├── notifications/                  # real-time notifications
+│   ├── mod.rs                      # notification module
 │   └── sse.rs                      # sse implementation
 ├── constants/                      # application constants
 │   ├── mod.rs                      # constant definitions
+│   ├── cache.rs                    # cache constants
+│   ├── protocols.rs                # protocol constants
 │   ├── errors/                     # error constants
+│   │   ├── mod.rs                  # error module
+│   │   └── codes.rs                # error code definitions
 │   ├── oauth/                      # oauth constants
+│   │   ├── mod.rs                  # oauth module
+│   │   └── providers.rs            # provider identifiers
 │   ├── protocol/                   # protocol constants
+│   │   ├── mod.rs                  # protocol module
+│   │   └── constants.rs            # protocol definitions
 │   └── tools/                      # tool constants
+│       ├── mod.rs                  # tool module
+│       └── identifiers.rs          # tool identifiers
 ├── context/                        # request context
 │   ├── mod.rs                      # context module
 │   ├── server.rs                   # server resources
@@ -146,21 +211,32 @@ src/
 │   ├── data.rs                     # data context
 │   └── notification.rs             # notification context
 ├── config/                         # environment configuration
-│   └── mod.rs                      # config loading
+│   └── mod.rs                      # config loading (environment.rs)
 ├── types.rs                        # shared type definitions
-├── models.rs                       # core data structures
+├── models.rs                       # core data structures (54KB)
 ├── auth.rs                         # authentication and sessions
 ├── rate_limiting.rs                # unified rate limiting
 ├── health.rs                       # health checks and monitoring
 ├── logging.rs                      # structured logging
+├── logging/                        # logging utilities
+│   └── tenant.rs                   # tenant-scoped logging
 ├── errors.rs                       # unified error handling
 ├── key_management.rs               # encryption key management
+├── lifecycle.rs                    # plugin lifecycle management
 ├── websocket.rs                    # websocket support
 ├── utils.rs                        # utility functions
+├── utils/                          # utility modules
+│   ├── mod.rs                      # utils module
+│   ├── errors.rs                   # error utilities
+│   ├── uuid.rs                     # uuid utilities
+│   └── auth.rs                     # auth utilities
 ├── oauth2_client.rs                # oauth2 client utilities
 ├── api_keys.rs                     # api key management
 ├── security.rs                     # security utilities
-├── admin_routes.rs                 # admin http routes
+├── pagination.rs                   # cursor pagination
+├── external/                       # external integrations
+│   └── mod.rs                      # external module
+├── admin_routes.rs                 # admin http routes (72KB)
 ├── api_key_routes.rs               # api key http routes
 ├── a2a_routes.rs                   # a2a http routes
 ├── configuration_routes.rs         # configuration http routes
@@ -175,12 +251,16 @@ src/
 ```
 sdk/
 ├── src/
-│   ├── bridge.ts                   # stdio → http+oauth bridge
+│   ├── index.ts                    # sdk entry point
 │   ├── cli.ts                      # command-line interface
-│   └── index.ts                    # entry point
+│   └── bridge.ts                   # stdio → http+oauth bridge (2097 lines)
+├── templates/                      # oauth callback templates
+│   ├── oauth_success.html          # success page with pierre design system
+│   └── oauth_error.html            # error page with diagnostics
 ├── dist/                           # compiled javascript output
-├── test/                           # sdk test files
-├── package.json                    # npm dependencies
+├── test/                           # sdk integration tests
+│   └── helpers/                    # test helper utilities
+├── package.json                    # npm dependencies (pierre-mcp-client@next)
 ├── tsconfig.json                   # typescript configuration
 ├── README.md                       # sdk documentation
 ├── MCP_COMPLIANCE.md               # mcp protocol compliance results
@@ -191,68 +271,136 @@ sdk/
 
 ```
 tests/
-├── (109 integration test files)
+├── common.rs                       # shared test utilities (40-52: shared jwks pattern)
+├── (109 integration test files covering all major subsystems)
 ├── mcp_protocol_compliance_test.rs    # mcp protocol validation
 ├── mcp_multitenant_complete_test.rs   # multi-tenant workflows
 ├── mcp_e2e_test.rs                    # end-to-end mcp tests
+├── mcp_comprehensive_client_e2e_test.rs # sdk client tests
 ├── routes_comprehensive_test.rs       # rest api coverage
 ├── oauth_e2e_test.rs                  # oauth flow testing
-├── database_plugins_test.rs           # database backend tests
+├── oauth2_pkce_flow_test.rs           # pkce validation
+├── oauth2_security_test.rs            # oauth2 security tests
+├── database_plugins_comprehensive_test.rs # database backend tests
 ├── intelligence_test.rs               # intelligence module tests
+├── intelligence_tools_basic_test.rs   # basic intelligence tools
+├── intelligence_tools_advanced_test.rs # advanced intelligence tools
+├── intelligence_algorithms_test.rs    # algorithm validation
 ├── configuration_e2e_test.rs          # configuration system tests
 ├── enterprise_security_test.rs        # security validation
+├── tenant_data_isolation.rs           # multi-tenant isolation tests
+├── tenant_rate_limiting_test.rs       # per-tenant rate limits
+├── plugins_registry_test.rs           # plugin system tests
+├── pattern_detection_test.rs          # pattern detection tests
+├── performance_prediction_test.rs     # performance prediction tests
+├── training_load_test.rs              # training load calculation tests
 └── (100+ additional test files)
+```
+
+## templates structure
+
+```
+templates/
+├── pierre-logo.svg                 # primary logo (gradient wave design)
+├── pierre-logo-small.svg           # compact logo variant
+├── pierre-logo-dark.svg            # dark theme logo
+├── pierre-logo.png                 # raster logo
+├── oauth_success.html              # oauth success page (97 lines)
+│   # features: pierre design system, responsive, accessibility
+│   # displays: provider, connection status, user_id
+│   # includes: svg logo, styled button, viewport meta tags
+└── oauth_error.html                # oauth error page (100 lines)
+    # features: pierre design system, responsive, error diagnostics
+    # displays: provider, error code, description
+    # includes: svg logo, retry guidance, close button
 ```
 
 ## key features
 
 ### 1. mcp protocol implementation
 - **json-rpc 2.0**: full mcp 1.0 specification support
-- **25 tools**: comprehensive fitness analysis toolkit
+- **36 tools**: comprehensive fitness analysis toolkit
 - **http + sse transports**: traditional and streaming communication
 - **protocol abstraction**: shared logic via `protocols::universal`
+- **streamable http**: native http transport for mcp clients
+- **stdio bridge**: typescript sdk for claude desktop/chatgpt
 
 ### 2. oauth 2.0 authorization server
 - **rfc 7591**: dynamic client registration for mcp clients
 - **rfc 7636**: pkce enforcement for security
 - **rfc 8414**: authorization server metadata
-- **jwt tokens**: stateless authentication
+- **rs256 jwt tokens**: 4096-bit rsa asymmetric signing (configurable)
+- **jwks endpoint**: public key distribution for token verification
+- **token refresh**: automatic token renewal via refresh tokens
+- **atomic operations**: consume_auth_code, consume_refresh_token (race-free)
 
 ### 3. a2a protocol
 - **agent cards**: capability discovery and advertising
 - **cryptographic auth**: secure agent-to-agent communication
-- **protocol versioning**: forward-compatible design
+- **protocol versioning**: forward-compatible design (a2a 1.0.0)
 - **async messaging**: non-blocking communication
+- **task queue**: a2a task management and result polling
 
 ### 4. pierre sdk (mcp bridge)
 - **stdio → http**: connects claude desktop to pierre server
-- **oauth 2.0 integration**: automatic authentication flow
-- **lazy connection**: efficient resource usage
+- **oauth 2.0 integration**: automatic authentication flow with browser
+- **lazy connection**: efficient resource usage (proactive + on-demand)
+- **token management**: client-side token storage in ~/.pierre-mcp-tokens.json
 - **npm package**: `pierre-mcp-client@next`
+- **auto-reconnection**: token validation and refresh
+- **batch request handling**: rejects batch requests per mcp 2025-06-18 spec
 
-### 5. intelligence system
+### 5. intelligence system (31 modules, 620KB)
 - **activity analysis**: performance metrics and insights
 - **trend detection**: pattern recognition in training data
 - **goal management**: feasibility analysis and tracking
-- **training load**: recovery recommendations
+- **training load**: tss, ctl, atl, tsb calculations
+- **recovery analysis**: recovery scores, training readiness, hrv
+- **sleep analysis**: sleep quality scoring (nsf/aasm standards)
+- **nutrition**: bmr, tdee, macros, nutrient timing, usda integration
+- **performance prediction**: vdot-based race predictions
+- **pattern detection**: volume progression, hard/easy day detection
+- **physiological validation**: bounds checking (hr, power, vo2max)
+- **configurable algorithms**: runtime algorithm selection (10 algorithm types)
 
 ### 6. multi-tenancy
 - **tenant isolation**: separate data and configuration
-- **tenant-specific encryption**: two-tier key system
+- **tenant-specific encryption**: hkdf two-tier key derivation
 - **custom rate limits**: per-tenant quotas
 - **feature flags**: tenant-level feature control
+- **tenant oauth**: per-tenant provider credentials
+- **data separation**: complete database-level isolation
 
 ### 7. real-time notifications
 - **server-sent events**: oauth completion notifications
 - **connection pooling**: efficient sse management
 - **event types**: oauth_complete, oauth_error, system_status
 - **scalable broadcasting**: multi-client notification delivery
+- **websocket support**: bidirectional real-time communication
 
 ### 8. compile-time plugins
 - **zero-cost abstraction**: compile-time registration via linkme
 - **type safety**: verified at build time
 - **community extensibility**: plugin system for custom analysis
 - **hot-swappable**: runtime discovery and execution
+- **lifecycle hooks**: deterministic startup/shutdown ordering
+- **plugin environment**: database, provider, context access
+
+### 9. two-tier key management
+- **master encryption key (mek)**: loaded from environment (base64)
+- **database encryption key (dek)**: encrypted with mek, stored in db
+- **tenant key derivation**: hkdf-sha256 per-tenant keys
+- **key rotation**: version-tracked encryption with migration
+- **aes-256-gcm**: encryption for all provider tokens
+- **kms integration ready**: external key management system support
+
+### 10. structured error system
+- **error enums**: `AppError`, `DatabaseError`, `ProviderError`
+- **error codes**: http status mapping (200, 401, 403, 404, 429, 500, etc.)
+- **client-safe messages**: sanitized error messages for clients
+- **internal logging**: full error details in logs only
+- **error contexts**: structured error propagation with context
+- **zero anyhow usage**: all errors are strongly-typed enums
 
 ## database architecture
 
@@ -261,23 +409,34 @@ tests/
 - **postgresql**: production and high-scale (`database_plugins/postgres.rs`)
 - **factory pattern**: runtime selection via `DATABASE_URL`
 - **migrations**: schema versioning and updates
+- **connection pooling**: efficient database connections
 
 ### schema
 ```sql
 -- user management
-users (id, email, password_hash, tier, tenant_id, created_at)
-tenants (id, name, plan, created_at, settings)
+users (id, email, password_hash, tier, status, tenant_id, created_at)
+tenants (id, name, slug, plan, tier, created_at, owner_id, settings)
 
 -- oauth and authentication
 user_oauth_tokens (user_id, provider, access_token_encrypted, refresh_token_encrypted, expires_at)
-api_keys (id, name, tier, rate_limit_requests, tenant_id, created_at)
-oauth_apps (client_id, client_secret_hash, redirect_uris, tenant_id)
+api_keys (id, name, tier, rate_limit_requests, rate_limit_period, tenant_id, created_at)
+oauth_apps (client_id, client_secret_hash, redirect_uris, tenant_id, metadata)
+oauth_auth_codes (code, client_id, user_id, expires_at, code_challenge)
+oauth_refresh_tokens (token, client_id, user_id, expires_at)
 
 -- a2a protocol
 a2a_registrations (agent_id, public_key, capabilities, tenant_id, created_at)
+a2a_clients (id, name, client_type, api_key_id, scopes, created_at)
+a2a_sessions (session_token, client_id, user_id, granted_scopes, expires_at)
+a2a_tasks (task_id, client_id, task_type, status, input_data, result, error)
 
 -- configuration
-fitness_configurations (tenant_id, sync_preferences, analytics_settings)
+fitness_configurations (tenant_id, user_id, sync_preferences, analytics_settings)
+tenant_oauth_credentials (tenant_id, provider, client_id_encrypted, client_secret_encrypted)
+
+-- admin
+admin_jwt_secret (id, secret_encrypted, created_at, rotated_at)
+admin_tokens (token_id, user_id, expires_at, scopes, usage_count)
 ```
 
 ### security
@@ -285,12 +444,13 @@ fitness_configurations (tenant_id, sync_preferences, analytics_settings)
 - **two-tier keys**: master key → tenant keys → user data
 - **tenant isolation**: strict data separation
 - **base64 encoding**: master key storage format
+- **key versioning**: supports key rotation without data re-encryption
 
 ## performance characteristics
 
 ### rust advantages
 - **memory**: 85x more efficient than java/spring
-- **startup**: 160x faster than spring boot
+- **startup**: 160x faster than spring boot (~250ms vs 40s)
 - **latency**: 40,000x faster config access (no reflection)
 - **concurrency**: no gc pauses under load
 - **binary size**: <50mb target for pierre-mcp-server
@@ -308,7 +468,18 @@ processing (50k activity analysis):
 tests (1000 tests):
   java:   ~45s
   pierre: ~3.2s  (14x faster)
+
+rsa key generation:
+  4096-bit: ~10s (production)
+  2048-bit: ~250ms (testing)
 ```
+
+### optimization patterns
+- **shared test jwks**: 10x faster test execution via reusable jwks manager
+- **connection pooling**: efficient database connection reuse
+- **lru caching**: in-memory cache with ttl expiration
+- **async-first**: all i/o operations are async for maximum concurrency
+- **zero-copy**: direct deserialization without intermediate allocations
 
 ## api design patterns
 
@@ -318,7 +489,7 @@ tests (1000 tests):
 pub async fn get_activities(
     tenant_id: &str,
     limit: Option<u32>
-) -> Result<Vec<Activity>, PierreError>
+) -> Result<Vec<Activity>, ProviderError>
 ```
 
 ### zero-copy processing
@@ -344,10 +515,20 @@ pub async fn process_activities_batch(
 ```rust
 // resources initialized once at startup, shared via Arc<T>
 pub struct ServerResources {
-    pub database: Arc<dyn DatabasePlugin>,
-    pub cache: Arc<dyn CachePlugin>,
+    pub database: Arc<Database>,
+    pub cache: Arc<Cache>,
     pub providers: Arc<ProviderRegistry>,
+    pub jwks_manager: Arc<JwksManager>,
+    pub plugin_executor: Arc<PluginToolExecutor>,
 }
+```
+
+### atomic operations
+```rust
+// race-free token operations with check-and-set
+pub async fn consume_auth_code(code: &str) -> Result<AuthCode>
+pub async fn consume_refresh_token(token: &str) -> Result<RefreshToken>
+pub async fn consume_oauth2_state(state: &str) -> Result<OAuth2State>
 ```
 
 ## configuration
@@ -362,19 +543,35 @@ PIERRE_MASTER_ENCRYPTION_KEY="base64_encoded_key"
 HTTP_PORT=8081
 RUST_LOG=info
 
+# jwt configuration
+JWT_EXPIRY_HOURS=24
+PIERRE_RSA_KEY_SIZE=4096  # 2048 for testing, 4096 for production
+
 # providers (optional)
 STRAVA_CLIENT_ID=your_id
 STRAVA_CLIENT_SECRET=your_secret
-STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava
+STRAVA_REDIRECT_URI=http://localhost:8081/api/oauth/callback/strava
 
 GARMIN_CLIENT_ID=your_key
 GARMIN_CLIENT_SECRET=your_secret
-GARMIN_REDIRECT_URI=http://localhost:8081/oauth/callback/garmin
+GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin
 
 # optional features
 OPENWEATHER_API_KEY=your_key
 CACHE_MAX_ENTRIES=10000
 CACHE_CLEANUP_INTERVAL_SECS=300
+REDIS_URL=redis://localhost:6379  # optional distributed cache
+
+# algorithm configuration (optional - defaults optimized)
+PIERRE_MAXHR_ALGORITHM=tanaka           # fox, tanaka, nes, gulati
+PIERRE_TRIMP_ALGORITHM=hybrid           # bannister_male, bannister_female, edwards, lucia, hybrid
+PIERRE_TSS_ALGORITHM=avg_power          # avg_power, normalized_power, hybrid
+PIERRE_VDOT_ALGORITHM=daniels           # daniels, riegel, hybrid
+PIERRE_TRAINING_LOAD_ALGORITHM=ema      # ema, sma, wma, kalman
+PIERRE_RECOVERY_ALGORITHM=weighted      # weighted, additive, multiplicative, minmax, neural
+PIERRE_FTP_ALGORITHM=from_vo2max        # 20min_test, 8min_test, ramp_test, from_vo2max, hybrid
+PIERRE_LTHR_ALGORITHM=from_maxhr        # from_maxhr, from_30min, from_race, lab_test, hybrid
+PIERRE_VO2MAX_ALGORITHM=from_vdot       # from_vdot, cooper, rockport, astrand, bruce, hybrid
 ```
 
 see `src/constants/mod.rs:32-173` for complete list.
@@ -384,15 +581,17 @@ see `src/constants/mod.rs:32-173` for complete list.
 - **profiles**: preset configurations (`configuration/profiles.rs`)
 - **validation**: type checking and range validation (`configuration/validation.rs`)
 - **vo2max**: fitness-specific calculations (`configuration/vo2_max.rs`)
+- **algorithm variants**: multiple algorithms per metric with runtime selection
 
 ## testing
 
 ### test coverage (109 test files)
 - **unit tests**: direct function testing
-- **integration tests**: real database testing
+- **integration tests**: real database testing (sqlite + postgresql)
 - **e2e tests**: full workflow validation
 - **mcp compliance**: protocol validation (`mcp_protocol_compliance_test.rs`)
 - **security tests**: vulnerability and auth testing (`enterprise_security_test.rs`)
+- **sdk tests**: typescript sdk integration tests
 
 ### test categories
 ```
@@ -400,6 +599,7 @@ mcp protocol:
   - mcp_protocol_compliance_test.rs
   - mcp_multitenant_complete_test.rs
   - mcp_e2e_test.rs
+  - mcp_comprehensive_client_e2e_test.rs
 
 routes:
   - routes_comprehensive_test.rs
@@ -412,19 +612,39 @@ oauth:
   - oauth_token_refresh_test.rs
   - oauth_http_test.rs
   - oauth_validate_refresh_test.rs
+  - oauth2_pkce_flow_test.rs
+  - oauth2_security_test.rs
+  - oauth2_state_validation_test.rs
+  - oauth2_rate_limiting_e2e_test.rs
 
 database:
-  - database_plugins_test.rs
+  - database_plugins_comprehensive_test.rs (sqlite + postgresql)
   - database_users_test.rs
   - database_tokens_test.rs
   - database_api_keys_test.rs
   - database_a2a_test.rs
+  - database_cursor_pagination_test.rs
 
 features:
   - intelligence_test.rs
+  - intelligence_tools_basic_test.rs
+  - intelligence_tools_advanced_test.rs
+  - intelligence_algorithms_test.rs
   - configuration_e2e_test.rs
   - tenant_rate_limiting_test.rs
   - api_key_integration_test.rs
+  - plugins_registry_test.rs
+  - pattern_detection_test.rs
+  - performance_prediction_test.rs
+  - training_load_test.rs
+
+security:
+  - enterprise_security_test.rs
+  - security_test.rs
+  - security_basic.rs
+  - security_headers_test.rs
+  - security_utils_comprehensive_test.rs
+  - tenant_data_isolation.rs
 ```
 
 ### ci/cd pipeline
@@ -432,6 +652,7 @@ features:
 - **frontend tests**: eslint, typescript, vitest
 - **mcp compliance**: automated validation
 - **security**: cargo-audit dependency scanning
+- **validation patterns**: scripts/validation-patterns.toml
 
 ## deployment and operations
 
@@ -444,7 +665,7 @@ response:
   "status": "healthy",
   "database": "ok",
   "cache": "ok",
-  "providers": ["strava", "garmin"],
+  "providers": ["strava", "garmin", "fitbit"],
   "uptime_seconds": 12345
 }
 ```
@@ -467,8 +688,9 @@ supports json and text formats via `LOG_FORMAT` env var.
 ### observability
 - **health endpoint**: component status checks
 - **structured logs**: json or text output
-- **error tracking**: categorized error responses
+- **error tracking**: categorized error responses with codes
 - **request tracing**: middleware-based request logging
+- **pii redaction**: automatic sensitive data masking
 
 ## integration examples
 
@@ -486,19 +708,27 @@ supports json and text formats via `LOG_FORMAT` env var.
 ```
 
 sdk automatically:
-1. registers oauth2 client
+1. registers oauth2 client via rfc 7591
 2. opens browser for authentication
-3. manages jwt tokens
-4. forwards mcp protocol messages
+3. manages jwt tokens (access + refresh)
+4. validates and refreshes tokens automatically
+5. forwards mcp protocol messages transparently
+6. stores tokens in ~/.pierre-mcp-tokens.json
 
-### mcp client integration
+### mcp client integration (streamable http)
 ```python
-# python mcp client
+# python mcp client with streamable http transport
 import mcp
 
 async def get_activities():
     async with mcp.ClientSession("http://localhost:8081/mcp") as session:
+        # authenticate via oauth2
+        await session.authenticate()
+
+        # list available tools
         tools = await session.list_tools()
+
+        # call tool
         result = await session.call_tool("get_activities", {"limit": 10})
         return result.content
 ```
@@ -510,10 +740,22 @@ use pierre_mcp_server::a2a::A2AClientManager;
 #[tokio::main]
 async fn main() -> Result<()> {
     let client = A2AClientManager::new("http://localhost:8081/a2a").await?;
+
+    // send message to agent
     let response = client.send_message(
         "fitness-analyzer",
         json!({"action": "analyze", "user_id": "123"})
     ).await?;
+
+    // create task
+    let task = client.create_task("analyze_performance", json!({
+        "user_id": "123",
+        "timeframe": "last_30_days"
+    })).await?;
+
+    // poll for results
+    let result = client.poll_task(&task.task_id).await?;
+
     Ok(())
 }
 ```
@@ -522,45 +764,65 @@ async fn main() -> Result<()> {
 ```bash
 curl -X POST http://localhost:8081/oauth2/register \
   -H "Content-Type: application/json" \
-  -d '{"redirect_uris": ["http://localhost:3000/callback"], "client_name": "My App"}'
+  -d '{
+    "redirect_uris": ["http://localhost:3000/callback"],
+    "client_name": "My App",
+    "grant_types": ["authorization_code"],
+    "response_types": ["code"]
+  }'
 ```
 
-## mcp tools (25 total)
+## mcp tools (36 total)
 
 defined in `src/protocols/universal/tool_registry.rs:12-45`
 
-### core fitness data
-- `get_activities` - fetch user activities
-- `get_athlete` - athlete profile
-- `get_stats` - athlete statistics
-- `analyze_activity` - detailed activity analysis
-- `get_activity_intelligence` - ai-powered insights
-- `get_connection_status` - provider connection check
-- `disconnect_provider` - disconnect provider
+### core fitness data (7 tools)
+- `get_activities` - fetch user activities from providers
+- `get_athlete` - athlete profile information
+- `get_stats` - athlete statistics and metrics
+- `analyze_activity` - detailed activity analysis with insights
+- `get_activity_intelligence` - ai-powered activity insights
+- `get_connection_status` - provider connection status check
+- `disconnect_provider` - disconnect from fitness provider
 
-### goals and progress
-- `set_goal` - create fitness goal
-- `suggest_goals` - ai-suggested goals
+### goals and progress (4 tools)
+- `set_goal` - create new fitness goal
+- `suggest_goals` - ai-suggested goals based on history
 - `analyze_goal_feasibility` - goal achievability analysis
-- `track_progress` - progress tracking
+- `track_progress` - progress tracking toward goals
 
-### performance analysis
-- `calculate_metrics` - custom fitness metrics
-- `analyze_performance_trends` - trend analysis
-- `compare_activities` - activity comparison
-- `detect_patterns` - pattern detection
-- `generate_recommendations` - training recommendations
+### performance analysis (11 tools)
+- `calculate_metrics` - custom fitness metrics calculation
+- `analyze_performance_trends` - trend analysis over time
+- `compare_activities` - activity comparison for insights
+- `detect_patterns` - pattern detection in activity data
+- `generate_recommendations` - personalized training recommendations
 - `calculate_fitness_score` - overall fitness scoring
-- `predict_performance` - performance prediction
-- `analyze_training_load` - training load and recovery
+- `predict_performance` - performance prediction based on training
+- `analyze_training_load` - training load and recovery analysis
+- `calculate_vo2max` - vo2max estimation from activities
+- `calculate_training_zones` - personalized training zones
+- `analyze_race_performance` - race-specific analysis
 
-### configuration
-- `get_configuration_catalog` - available config options
-- `get_configuration_profiles` - preset profiles
-- `get_user_configuration` - current config
-- `update_user_configuration` - modify config
+### sleep and recovery (5 tools)
+- `analyze_sleep_quality` - sleep quality with nsf/aasm scoring
+- `calculate_recovery_score` - recovery readiness from tsb, sleep, hrv
+- `track_sleep_trends` - sleep patterns and trends over time
+- `optimize_sleep_schedule` - personalized sleep timing recommendations
+- `suggest_rest_day` - rest day recommendations based on recovery
+
+### nutrition (3 tools)
+- `calculate_daily_nutrition` - bmr, tdee, macros calculation
+- `calculate_nutrient_timing` - pre/during/post workout nutrition
+- `analyze_meal_nutrition` - meal analysis with usda database
+
+### configuration (6 tools)
+- `get_configuration_catalog` - complete configuration catalog
+- `get_configuration_profiles` - available configuration profiles
+- `get_user_configuration` - current user configuration
+- `update_user_configuration` - modify configuration parameters
 - `calculate_personalized_zones` - training zone calculation
-- `validate_configuration` - config validation
+- `validate_configuration` - config parameter validation
 
 ## development workflow
 
@@ -575,6 +837,10 @@ cargo test
 
 # postgresql
 DATABASE_URL=postgresql://user:pass@localhost/pierre cargo run
+
+# test with different rsa key sizes
+PIERRE_RSA_KEY_SIZE=2048 cargo test  # faster for testing
+PIERRE_RSA_KEY_SIZE=4096 cargo run   # production security
 ```
 
 ### automated setup
@@ -584,35 +850,61 @@ DATABASE_URL=postgresql://user:pass@localhost/pierre cargo run
 
 # complete workflow test
 ./scripts/complete-user-workflow.sh
+
+# load saved environment
+source .workflow_test_env
+echo "JWT Token: ${JWT_TOKEN:0:50}..."
+```
+
+### admin cli tool
+```bash
+# create admin user
+cargo run --bin admin-setup -- create-admin-user \
+  --email admin@example.com \
+  --password SecurePass123!
+
+# generate jwt token
+cargo run --bin admin-setup -- generate-token \
+  --service my-service \
+  --expires-days 30
+
+# list active tokens
+cargo run --bin admin-setup -- list-tokens --detailed
 ```
 
 ## security
 
 ### authentication methods
-- **jwt tokens**: stateless auth for mcp clients (database-stored secrets)
+- **jwt tokens**: rs256 signed jwt with jwks (database-stored secrets)
 - **api keys**: long-lived b2b integration auth
 - **oauth2**: authorization server for mcp clients
 - **provider oauth**: strava/garmin/fitbit token management
 
 ### jwt architecture
+- **rs256 signing**: 4096-bit rsa asymmetric keys (configurable)
+- **jwks endpoint**: public key distribution for token verification
 - **centralized secrets**: stored in database as `admin_jwt_secret`
 - **consistent generation**: shared `AuthManager.generate_token()` method
-- **no env vars**: no JWT_SECRET required
+- **no env vars**: no JWT_SECRET required (database-managed)
 - **single source of truth**: database ensures consistency
+- **token refresh**: automatic renewal via refresh tokens
 
 implementation: `src/admin/jwt.rs`, `src/auth.rs`
 
 ### data protection
 - **aes-256-gcm**: encryption for all provider tokens
 - **two-tier keys**: master key → tenant keys → user data
+- **hkdf key derivation**: per-tenant encryption keys
 - **tls**: all network communication encrypted
 - **password hashing**: argon2id or bcrypt
+- **key rotation**: version-tracked keys with migration
 
 ### rate limiting
 - **token bucket algorithm**: smooth rate limiting with burst
 - **per-tenant limits**: isolated quotas
 - **tier-based**: free/professional/enterprise
 - **database-backed**: persistent state
+- **unified limits**: same logic for jwt, api keys, oauth2
 
 implementation: `src/rate_limiting.rs`, `src/middleware/rate_limiting.rs`
 
@@ -621,6 +913,7 @@ implementation: `src/rate_limiting.rs`, `src/middleware/rate_limiting.rs`
 - **zero npm vulnerabilities**: all frontend deps patched
 - **ci/cd**: security checks on every commit
 - **dependabot**: automated security alerts
+- **validation patterns**: banned pattern detection (unwrap, panic, anyhow)
 
 ## request flow
 
@@ -633,17 +926,18 @@ client request
     ↓
 [tenant context] → load user/tenant data
     ↓
-[rate limiting] → check quotas
+[rate limiting] → check quotas (per-tenant, per-user, per-api-key)
     ↓
 [protocol router]
     ├─ /mcp → mcp protocol → universal handlers
     ├─ /a2a → a2a protocol → universal handlers
-    ├─ /oauth2 → oauth2 server
+    ├─ /oauth2 → oauth2 server (authorize, token, register)
     └─ /api → rest routes
     ↓
 [tool execution]
     ├─ providers (strava/garmin/fitbit)
-    ├─ intelligence (analysis)
+    ├─ intelligence (analysis, goals, recommendations)
+    ├─ plugins (community extensions)
     └─ configuration
     ↓
 [database + cache]
@@ -651,29 +945,100 @@ client request
 response
 ```
 
+## architectural patterns
+
+### universal protocol abstraction
+```rust
+// protocol-agnostic converters
+ProtocolConverter::mcp_to_universal(mcp_request) → UniversalRequest
+ProtocolConverter::a2a_to_universal(a2a_request) → UniversalRequest
+ProtocolConverter::universal_to_mcp(universal_response) → McpResponse
+ProtocolConverter::universal_to_a2a(universal_response) → A2aResponse
+
+// tool handlers execute once, work for all protocols
+async fn handle_get_activities(request: UniversalRequest) → UniversalResponse
+```
+
+benefits:
+- tools written once, accessible via mcp and a2a
+- protocol changes isolated to converter layer
+- simplified testing (test universal layer once)
+- easy to add new protocols (websocket, grpc, etc.)
+
+### factory pattern
+```rust
+// database selection
+Database::new(database_url) → SQLite | PostgreSQL
+
+// cache selection
+Cache::from_env() → Memory | Redis
+
+// provider creation
+ProviderRegistry::create_provider(name) → Box<dyn FitnessProvider>
+```
+
+### plugin system
+```rust
+// compile-time plugin registration via linkme
+#[linkme::distributed_slice(PLUGIN_REGISTRY)]
+static MY_PLUGIN: PluginToolStatic = PluginToolStatic {
+    info: PluginInfo { name, description, version, category },
+    factory: || Box::new(MyPlugin),
+};
+
+// zero-cost abstractions, type-safe, no dynamic loading
+```
+
+### atomic operations
+```rust
+// race-free token consumption with check-and-set
+pub async fn consume_auth_code(code: &str) → Result<AuthCode>
+pub async fn consume_refresh_token(token: &str) → Result<RefreshToken>
+
+// prevents toctou vulnerabilities
+```
+
 ## documentation
 
 comprehensive docs in `docs/`:
 - **getting-started.md** - installation and quick start
-- **architecture.md** - system design
-- **protocols.md** - mcp, oauth2, a2a, rest
-- **authentication.md** - jwt, api keys, oauth
-- **configuration.md** - environment variables
+- **architecture.md** - system design and components
+- **protocols.md** - mcp, oauth2, a2a, rest protocols
+- **authentication.md** - jwt, api keys, oauth flows
+- **oauth-client.md** - fitness provider oauth connections
+- **oauth2-server.md** - mcp client authentication
+- **configuration.md** - environment variables and algorithm config
 - **contributing.md** - development guidelines
+- **intelligence-methodology.md** - analysis formulas and algorithms
+- **nutrition-methodology.md** - nutrition calculations and usda integration
+- **readme.md** - documentation index
 
 installation guides:
-- **install-mcp-client.md** - claude desktop, chatgpt integration
+- **install-mcp-client.md** - claude desktop, chatgpt, mcp client integration
 
 ## summary
 
 pierre mcp server is a high-performance rust implementation connecting ai assistants to fitness data. single binary, single port (8081), multiple protocols (mcp, oauth2, a2a, rest). designed for memory safety, fearless concurrency, and type safety. comprehensive test coverage (109 tests), 69.8% mcp compliance, active development.
 
+**codebase metrics**:
+- 218 rust files (~99k lines)
+- 3 typescript sdk files (2097 lines bridge.ts)
+- 6 html/svg templates
+- 109 integration test files
+- 13 documentation files
+- 36 mcp tools
+- 31 intelligence modules (620KB)
+- 10 configurable algorithm types
+
 **key files**:
 - `src/lib.rs` - public api and modules
 - `src/bin/pierre-mcp-server.rs` - main binary
 - `src/protocols/universal/` - shared business logic
-- `src/mcp/protocol.rs` - mcp implementation
-- `src/oauth2/` - oauth2 authorization server
-- `src/intelligence/` - activity analysis
+- `src/protocols/converter.rs` - protocol-agnostic converters
+- `src/mcp/multitenant.rs` - mcp implementation (133KB)
+- `src/oauth2_server/` - oauth2 authorization server
+- `src/intelligence/` - activity analysis (31 modules, 620KB)
+- `src/database_plugins/` - multi-database abstraction (412KB)
+- `src/plugins/` - compile-time plugin system
+- `sdk/src/bridge.ts` - typescript mcp bridge (2097 lines)
 - `docs/` - comprehensive documentation
-- `sdk/` - typescript bridge for mcp clients
