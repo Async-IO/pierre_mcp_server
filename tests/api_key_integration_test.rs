@@ -56,6 +56,7 @@ async fn create_test_environment() -> (
         (*auth_manager).clone(),
         database.clone(),
         jwks_manager,
+        pierre_mcp_server::config::environment::RateLimitConfig::default(),
     ));
 
     // Create test user

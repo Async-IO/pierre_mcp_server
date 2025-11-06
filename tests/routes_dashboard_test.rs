@@ -233,11 +233,6 @@ impl DashboardTestSetup {
             },
             security: pierre_mcp_server::config::environment::SecurityConfig {
                 cors_origins: vec!["*".to_string()],
-                rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
-                    enabled: false,
-                    requests_per_window: 100,
-                    window_seconds: 60,
-                },
                 tls: pierre_mcp_server::config::environment::TlsConfig {
                     enabled: false,
                     cert_path: None,
@@ -307,6 +302,11 @@ impl DashboardTestSetup {
                 cleanup_interval_secs: 300,
             },
             usda_api_key: None,
+            rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+            sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+            goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(
+            ),
+            training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
         });
 
         // Create test cache
@@ -618,11 +618,6 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: pierre_mcp_server::config::environment::TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -692,6 +687,10 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
             cleanup_interval_secs: 300,
         },
         usda_api_key: None,
+        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
+        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();

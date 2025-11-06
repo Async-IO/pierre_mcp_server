@@ -187,11 +187,6 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: pierre_mcp_server::config::environment::TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -261,6 +256,10 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
             cleanup_interval_secs: 300,
         },
         usda_api_key: None,
+        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
+        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -455,11 +454,6 @@ async fn test_user_login_success() -> Result<()> {
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: pierre_mcp_server::config::environment::TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -529,6 +523,10 @@ async fn test_user_login_success() -> Result<()> {
             cleanup_interval_secs: 300,
         },
         usda_api_key: None,
+        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
+        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -719,11 +717,6 @@ async fn test_token_refresh_success() -> Result<()> {
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: pierre_mcp_server::config::environment::TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -793,6 +786,10 @@ async fn test_token_refresh_success() -> Result<()> {
             cleanup_interval_secs: 300,
         },
         usda_api_key: None,
+        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
+        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -926,11 +923,6 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: pierre_mcp_server::config::environment::TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -1000,6 +992,10 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
             cleanup_interval_secs: 300,
         },
         usda_api_key: None,
+        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
+        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1376,11 +1372,6 @@ async fn test_complete_auth_flow() -> Result<()> {
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: pierre_mcp_server::config::environment::TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -1450,6 +1441,10 @@ async fn test_complete_auth_flow() -> Result<()> {
             cleanup_interval_secs: 300,
         },
         usda_api_key: None,
+        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
+        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1655,11 +1650,6 @@ async fn test_concurrent_logins() -> Result<()> {
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: pierre_mcp_server::config::environment::TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -1729,6 +1719,10 @@ async fn test_concurrent_logins() -> Result<()> {
             cleanup_interval_secs: 300,
         },
         usda_api_key: None,
+        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
+        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();

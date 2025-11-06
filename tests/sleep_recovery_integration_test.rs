@@ -84,11 +84,6 @@ fn create_test_external_services_config() -> ExternalServicesConfig {
 fn create_test_security_config() -> SecurityConfig {
     SecurityConfig {
         cors_origins: vec!["*".to_string()],
-        rate_limit: RateLimitConfig {
-            enabled: false,
-            requests_per_window: 100,
-            window_seconds: 60,
-        },
         tls: TlsConfig {
             enabled: false,
             cert_path: None,
@@ -156,6 +151,10 @@ fn create_test_config() -> Arc<ServerConfig> {
             cleanup_interval_secs: 300,
         },
         usda_api_key: None,
+        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
+        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
     })
 }
 

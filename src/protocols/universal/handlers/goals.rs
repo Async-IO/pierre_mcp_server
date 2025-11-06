@@ -483,8 +483,11 @@ pub fn handle_analyze_goal_feasibility(
 ///
 /// # Returns
 /// Number of weeks covered by activities, minimum 1.0 week
-fn calculate_training_history_weeks(activities: &[crate::models::Activity]) -> f64 {
-    if activities.len() < 2 {
+fn calculate_training_history_weeks(
+    activities: &[crate::models::Activity],
+    min_activities: usize,
+) -> f64 {
+    if activities.len() < min_activities {
         return crate::intelligence::physiological_constants::goal_feasibility::ASSUMED_TRAINING_HISTORY_WEEKS;
     }
 
@@ -530,7 +533,10 @@ fn analyze_distance_goal_feasibility(
     let avg_distance_per_activity = recent_total_distance / activity_count;
 
     // Calculate actual training history from activity dates
-    let training_weeks = calculate_training_history_weeks(activities);
+    let training_weeks = calculate_training_history_weeks(
+        activities,
+        crate::constants::goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY,
+    );
     let weeks_in_timeframe = f64::from(timeframe_days) / 7.0;
     let estimated_activities = (activity_count / training_weeks) * weeks_in_timeframe;
 
@@ -594,7 +600,10 @@ fn analyze_duration_goal_feasibility(
         }
     };
 
-    let training_weeks = calculate_training_history_weeks(activities);
+    let training_weeks = calculate_training_history_weeks(
+        activities,
+        crate::constants::goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY,
+    );
     let weeks_in_timeframe = f64::from(timeframe_days) / 7.0;
     let projected_hours = (current_hours / training_weeks) * weeks_in_timeframe;
 
@@ -616,7 +625,10 @@ fn analyze_frequency_goal_feasibility(
 ) -> (f64, f64, Vec<String>, Vec<String>) {
     // Convert activity count to f64 with safe conversion helper
     let current_count = safe_usize_to_f64(activities.len());
-    let training_weeks = calculate_training_history_weeks(activities);
+    let training_weeks = calculate_training_history_weeks(
+        activities,
+        crate::constants::goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY,
+    );
     let weeks_in_timeframe = f64::from(timeframe_days) / 7.0;
     let current_weekly_frequency = current_count / training_weeks;
     let projected_count = current_weekly_frequency * weeks_in_timeframe;
@@ -688,7 +700,10 @@ fn infer_fitness_level(
         return crate::intelligence::FitnessLevel::Beginner;
     }
 
-    let training_weeks = calculate_training_history_weeks(activities);
+    let training_weeks = calculate_training_history_weeks(
+        activities,
+        crate::constants::goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY,
+    );
     #[allow(clippy::cast_precision_loss)]
     let activities_per_week = activities.len() as f64 / training_weeks;
 

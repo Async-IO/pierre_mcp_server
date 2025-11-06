@@ -31,11 +31,12 @@ impl McpAuthMiddleware {
         auth_manager: AuthManager,
         database: std::sync::Arc<Database>,
         jwks_manager: std::sync::Arc<crate::admin::jwks::JwksManager>,
+        rate_limit_config: crate::config::environment::RateLimitConfig,
     ) -> Self {
         Self {
             auth_manager,
             api_key_manager: ApiKeyManager::new(),
-            rate_limit_calculator: UnifiedRateLimitCalculator::new(),
+            rate_limit_calculator: UnifiedRateLimitCalculator::new_with_config(rate_limit_config),
             database,
             jwks_manager,
         }

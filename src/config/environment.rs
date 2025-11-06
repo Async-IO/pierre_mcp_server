@@ -217,6 +217,167 @@ pub struct CacheConfig {
     pub cleanup_interval_secs: u64,
 }
 
+/// Rate limiting configuration for tier-based request throttling
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RateLimitConfig {
+    /// Free tier burst limit
+    pub free_tier_burst: u32,
+    /// Professional tier burst limit
+    pub professional_burst: u32,
+    /// Enterprise tier burst limit
+    pub enterprise_burst: u32,
+    /// OAuth authorize endpoint rate limit (requests per minute)
+    pub oauth_authorize_rpm: u32,
+    /// OAuth token endpoint rate limit (requests per minute)
+    pub oauth_token_rpm: u32,
+    /// OAuth register endpoint rate limit (requests per minute)
+    pub oauth_register_rpm: u32,
+    /// Rate limit window duration in seconds
+    pub rate_limit_window_secs: u64,
+    /// Rate limiter cleanup threshold
+    pub cleanup_threshold: usize,
+    /// Stale entry timeout in seconds
+    pub stale_entry_timeout_secs: u64,
+}
+
+impl Default for RateLimitConfig {
+    fn default() -> Self {
+        use crate::constants::{oauth_rate_limiting, rate_limiting_bursts};
+        Self {
+            free_tier_burst: rate_limiting_bursts::FREE_TIER_BURST,
+            professional_burst: rate_limiting_bursts::PROFESSIONAL_BURST,
+            enterprise_burst: rate_limiting_bursts::ENTERPRISE_BURST,
+            oauth_authorize_rpm: oauth_rate_limiting::AUTHORIZE_RPM,
+            oauth_token_rpm: oauth_rate_limiting::TOKEN_RPM,
+            oauth_register_rpm: oauth_rate_limiting::REGISTER_RPM,
+            rate_limit_window_secs: oauth_rate_limiting::WINDOW_SECS,
+            cleanup_threshold: oauth_rate_limiting::CLEANUP_THRESHOLD,
+            stale_entry_timeout_secs: oauth_rate_limiting::STALE_ENTRY_TIMEOUT_SECS,
+        }
+    }
+}
+
+/// Sleep analysis and recovery configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SleepRecoveryConfig {
+    /// Number of recent activities to fetch for analysis
+    pub activity_limit: u32,
+    /// Minimum days of sleep history required for trend analysis
+    pub trend_min_days: usize,
+    /// Sleep trend improving threshold (hours)
+    pub trend_improving_threshold: f64,
+    /// Sleep trend declining threshold (hours)
+    pub trend_declining_threshold: f64,
+    /// Additional sleep hours when fatigued
+    pub fatigue_bonus_hours: f64,
+    /// ATL threshold for high training load
+    pub high_load_atl_threshold: f64,
+    /// Additional sleep hours for high training load
+    pub high_load_bonus_hours: f64,
+    /// Wind-down buffer time before sleep (minutes)
+    pub wind_down_minutes: i64,
+    /// Minutes per day for time calculations
+    pub minutes_per_day: i64,
+}
+
+impl Default for SleepRecoveryConfig {
+    fn default() -> Self {
+        use crate::constants::sleep_recovery;
+        Self {
+            activity_limit: sleep_recovery::ACTIVITY_LIMIT,
+            trend_min_days: sleep_recovery::TREND_MIN_DAYS,
+            trend_improving_threshold: sleep_recovery::TREND_IMPROVING_THRESHOLD,
+            trend_declining_threshold: sleep_recovery::TREND_DECLINING_THRESHOLD,
+            fatigue_bonus_hours: sleep_recovery::FATIGUE_BONUS_HOURS,
+            high_load_atl_threshold: sleep_recovery::HIGH_LOAD_ATL_THRESHOLD,
+            high_load_bonus_hours: sleep_recovery::HIGH_LOAD_BONUS_HOURS,
+            wind_down_minutes: sleep_recovery::WIND_DOWN_MINUTES,
+            minutes_per_day: sleep_recovery::MINUTES_PER_DAY,
+        }
+    }
+}
+
+/// Goal management and feasibility configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GoalManagementConfig {
+    /// Minimum activities required for training history
+    pub min_activities_for_history: usize,
+    /// Activities per week for advanced fitness level
+    pub advanced_activities_per_week: f64,
+    /// Training weeks required for advanced level
+    pub advanced_min_weeks: f64,
+    /// Activities per week for intermediate fitness level
+    pub intermediate_activities_per_week: f64,
+    /// Training weeks required for intermediate level
+    pub intermediate_min_weeks: f64,
+    /// Default training time availability (hours/week)
+    pub default_time_availability_hours: f64,
+    /// Default preferred activity duration (minutes)
+    pub default_preferred_duration_minutes: u32,
+    /// Average days per month for calculations
+    pub days_per_month_average: f64,
+}
+
+impl Default for GoalManagementConfig {
+    fn default() -> Self {
+        use crate::constants::goal_management;
+        Self {
+            min_activities_for_history: goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY,
+            advanced_activities_per_week: goal_management::ADVANCED_FITNESS_ACTIVITIES_PER_WEEK,
+            advanced_min_weeks: goal_management::ADVANCED_FITNESS_MIN_WEEKS,
+            intermediate_activities_per_week:
+                goal_management::INTERMEDIATE_FITNESS_ACTIVITIES_PER_WEEK,
+            intermediate_min_weeks: goal_management::INTERMEDIATE_FITNESS_MIN_WEEKS,
+            default_time_availability_hours: goal_management::DEFAULT_TIME_AVAILABILITY_HOURS,
+            default_preferred_duration_minutes: goal_management::DEFAULT_PREFERRED_DURATION_MINUTES,
+            days_per_month_average: goal_management::DAYS_PER_MONTH_AVERAGE,
+        }
+    }
+}
+
+/// Training zone percentages configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrainingZonesConfig {
+    /// VDOT easy pace zone percentage
+    pub vdot_easy_zone_percent: f64,
+    /// VDOT tempo pace zone percentage
+    pub vdot_tempo_zone_percent: f64,
+    /// VDOT threshold pace zone percentage
+    pub vdot_threshold_zone_percent: f64,
+    /// VDOT interval pace zone percentage
+    pub vdot_interval_zone_percent: f64,
+    /// VDOT repetition pace zone percentage
+    pub vdot_repetition_zone_percent: f64,
+    /// FTP Zone 1 percentage (Active Recovery)
+    pub ftp_zone1_percent: u32,
+    /// FTP Zone 2 percentage (Endurance)
+    pub ftp_zone2_percent: u32,
+    /// FTP Zone 3 percentage (Tempo)
+    pub ftp_zone3_percent: u32,
+    /// FTP Zone 4 percentage (Lactate Threshold)
+    pub ftp_zone4_percent: u32,
+    /// FTP Zone 5 percentage (VO2 Max)
+    pub ftp_zone5_percent: u32,
+}
+
+impl Default for TrainingZonesConfig {
+    fn default() -> Self {
+        use crate::intelligence::physiological_constants::training_zone_percentages::{ftp, vdot};
+        Self {
+            vdot_easy_zone_percent: vdot::EASY_ZONE_PERCENT,
+            vdot_tempo_zone_percent: vdot::TEMPO_ZONE_PERCENT,
+            vdot_threshold_zone_percent: vdot::THRESHOLD_ZONE_PERCENT,
+            vdot_interval_zone_percent: vdot::INTERVAL_ZONE_PERCENT,
+            vdot_repetition_zone_percent: vdot::REPETITION_ZONE_PERCENT,
+            ftp_zone1_percent: ftp::ZONE1_PERCENT,
+            ftp_zone2_percent: ftp::ZONE2_PERCENT,
+            ftp_zone3_percent: ftp::ZONE3_PERCENT,
+            ftp_zone4_percent: ftp::ZONE4_PERCENT,
+            ftp_zone5_percent: ftp::ZONE5_PERCENT,
+        }
+    }
+}
+
 /// Garmin API configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GarminApiConfig {
@@ -283,6 +444,14 @@ pub struct ServerConfig {
     pub cors: CorsConfig,
     /// Cache configuration
     pub cache: CacheConfig,
+    /// Rate limiting configuration
+    pub rate_limiting: RateLimitConfig,
+    /// Sleep analysis and recovery configuration
+    pub sleep_recovery: SleepRecoveryConfig,
+    /// Goal management and feasibility configuration
+    pub goal_management: GoalManagementConfig,
+    /// Training zone percentages configuration
+    pub training_zones: TrainingZonesConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -660,8 +829,6 @@ impl<'de> Deserialize<'de> for LoggingConfig {
 pub struct SecurityConfig {
     /// CORS allowed origins
     pub cors_origins: Vec<String>,
-    /// Rate limiting configuration
-    pub rate_limit: RateLimitConfig,
     /// TLS configuration
     pub tls: TlsConfig,
     /// Security headers configuration
@@ -672,16 +839,6 @@ pub struct SecurityConfig {
 pub struct SecurityHeadersConfig {
     /// Environment type for security headers (development, production)
     pub environment: Environment,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct RateLimitConfig {
-    /// Enable rate limiting
-    pub enabled: bool,
-    /// Requests per window
-    pub requests_per_window: u32,
-    /// Window duration in seconds
-    pub window_seconds: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -913,6 +1070,10 @@ impl ServerConfig {
             mcp: Self::load_mcp_config(),
             cors: Self::load_cors_config(),
             cache: Self::load_cache_config(),
+            rate_limiting: Self::load_rate_limiting_config(),
+            sleep_recovery: Self::load_sleep_recovery_config(),
+            goal_management: Self::load_goal_management_config(),
+            training_zones: Self::load_training_zones_config(),
         };
 
         config.validate()?;
@@ -1061,11 +1222,7 @@ impl ServerConfig {
             } else {
                 "Disabled"
             },
-            if self.security.rate_limit.enabled {
-                "Enabled"
-            } else {
-                "Disabled"
-            },
+            "Configured",
             self.app_behavior.ci_mode,
             self.app_behavior.protocol.mcp_version
         )
@@ -1336,34 +1493,8 @@ impl ServerConfig {
     fn load_security_config() -> Result<SecurityConfig> {
         Ok(SecurityConfig {
             cors_origins: parse_origins(&env_var_or("CORS_ORIGINS", "*")),
-            rate_limit: Self::load_rate_limit_config()?,
             tls: Self::load_tls_config()?,
             headers: Self::load_security_headers_config(),
-        })
-    }
-
-    /// Load rate limiting configuration from environment
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if rate limit environment variables are invalid
-    fn load_rate_limit_config() -> Result<RateLimitConfig> {
-        Ok(RateLimitConfig {
-            enabled: env_var_or("RATE_LIMIT_ENABLED", "true")
-                .parse()
-                .context("Invalid RATE_LIMIT_ENABLED value")?,
-            requests_per_window: env_var_or(
-                "RATE_LIMIT_REQUESTS",
-                &limits::DEFAULT_RATE_LIMIT_REQUESTS.to_string(),
-            )
-            .parse()
-            .context("Invalid RATE_LIMIT_REQUESTS value")?,
-            window_seconds: env_var_or(
-                "RATE_LIMIT_WINDOW",
-                &limits::DEFAULT_RATE_LIMIT_WINDOW_SECS.to_string(),
-            )
-            .parse()
-            .context("Invalid RATE_LIMIT_WINDOW value")?,
         })
     }
 
@@ -1532,6 +1663,188 @@ impl ServerConfig {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(300),
+        }
+    }
+
+    /// Load rate limiting configuration from environment
+    fn load_rate_limiting_config() -> RateLimitConfig {
+        use crate::constants::{oauth_rate_limiting, rate_limiting_bursts};
+
+        RateLimitConfig {
+            free_tier_burst: env::var("RATE_LIMIT_FREE_TIER_BURST")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(rate_limiting_bursts::FREE_TIER_BURST),
+            professional_burst: env::var("RATE_LIMIT_PROFESSIONAL_BURST")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(rate_limiting_bursts::PROFESSIONAL_BURST),
+            enterprise_burst: env::var("RATE_LIMIT_ENTERPRISE_BURST")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(rate_limiting_bursts::ENTERPRISE_BURST),
+            oauth_authorize_rpm: env::var("OAUTH_AUTHORIZE_RATE_LIMIT_RPM")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(oauth_rate_limiting::AUTHORIZE_RPM),
+            oauth_token_rpm: env::var("OAUTH_TOKEN_RATE_LIMIT_RPM")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(oauth_rate_limiting::TOKEN_RPM),
+            oauth_register_rpm: env::var("OAUTH_REGISTER_RATE_LIMIT_RPM")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(oauth_rate_limiting::REGISTER_RPM),
+            rate_limit_window_secs: env::var("OAUTH2_RATE_LIMIT_WINDOW_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(oauth_rate_limiting::WINDOW_SECS),
+            cleanup_threshold: env::var("RATE_LIMITER_CLEANUP_THRESHOLD")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(oauth_rate_limiting::CLEANUP_THRESHOLD),
+            stale_entry_timeout_secs: env::var("RATE_LIMITER_STALE_ENTRY_TIMEOUT_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(oauth_rate_limiting::STALE_ENTRY_TIMEOUT_SECS),
+        }
+    }
+
+    /// Load sleep recovery configuration from environment
+    fn load_sleep_recovery_config() -> SleepRecoveryConfig {
+        use crate::constants::sleep_recovery;
+
+        SleepRecoveryConfig {
+            activity_limit: env::var("SLEEP_RECOVERY_ACTIVITY_LIMIT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(sleep_recovery::ACTIVITY_LIMIT),
+            trend_min_days: env::var("SLEEP_RECOVERY_TREND_MIN_DAYS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(sleep_recovery::TREND_MIN_DAYS),
+            trend_improving_threshold: env::var("SLEEP_RECOVERY_TREND_IMPROVING_THRESHOLD")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(sleep_recovery::TREND_IMPROVING_THRESHOLD),
+            trend_declining_threshold: env::var("SLEEP_RECOVERY_TREND_DECLINING_THRESHOLD")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(sleep_recovery::TREND_DECLINING_THRESHOLD),
+            fatigue_bonus_hours: env::var("SLEEP_RECOVERY_FATIGUE_BONUS_HOURS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(sleep_recovery::FATIGUE_BONUS_HOURS),
+            high_load_atl_threshold: env::var("SLEEP_RECOVERY_HIGH_LOAD_ATL_THRESHOLD")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(sleep_recovery::HIGH_LOAD_ATL_THRESHOLD),
+            high_load_bonus_hours: env::var("SLEEP_RECOVERY_HIGH_LOAD_BONUS_HOURS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(sleep_recovery::HIGH_LOAD_BONUS_HOURS),
+            wind_down_minutes: env::var("SLEEP_RECOVERY_WIND_DOWN_MINUTES")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(sleep_recovery::WIND_DOWN_MINUTES),
+            minutes_per_day: env::var("SLEEP_RECOVERY_MINUTES_PER_DAY")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(sleep_recovery::MINUTES_PER_DAY),
+        }
+    }
+
+    /// Load goal management configuration from environment
+    fn load_goal_management_config() -> GoalManagementConfig {
+        use crate::constants::goal_management;
+
+        GoalManagementConfig {
+            min_activities_for_history: env::var("GOAL_MANAGEMENT_MIN_ACTIVITIES")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY),
+            advanced_activities_per_week: env::var("GOAL_MANAGEMENT_ADVANCED_ACTIVITIES_PER_WEEK")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(goal_management::ADVANCED_FITNESS_ACTIVITIES_PER_WEEK),
+            advanced_min_weeks: env::var("GOAL_MANAGEMENT_ADVANCED_MIN_WEEKS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(goal_management::ADVANCED_FITNESS_MIN_WEEKS),
+            intermediate_activities_per_week: env::var(
+                "GOAL_MANAGEMENT_INTERMEDIATE_ACTIVITIES_PER_WEEK",
+            )
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(goal_management::INTERMEDIATE_FITNESS_ACTIVITIES_PER_WEEK),
+            intermediate_min_weeks: env::var("GOAL_MANAGEMENT_INTERMEDIATE_MIN_WEEKS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(goal_management::INTERMEDIATE_FITNESS_MIN_WEEKS),
+            default_time_availability_hours: env::var(
+                "GOAL_MANAGEMENT_DEFAULT_TIME_AVAILABILITY_HOURS",
+            )
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(goal_management::DEFAULT_TIME_AVAILABILITY_HOURS),
+            default_preferred_duration_minutes: env::var(
+                "GOAL_MANAGEMENT_DEFAULT_DURATION_MINUTES",
+            )
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(goal_management::DEFAULT_PREFERRED_DURATION_MINUTES),
+            days_per_month_average: env::var("GOAL_MANAGEMENT_DAYS_PER_MONTH")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(goal_management::DAYS_PER_MONTH_AVERAGE),
+        }
+    }
+
+    /// Load training zones configuration from environment
+    fn load_training_zones_config() -> TrainingZonesConfig {
+        use crate::intelligence::physiological_constants::training_zone_percentages::{ftp, vdot};
+
+        TrainingZonesConfig {
+            vdot_easy_zone_percent: env::var("TRAINING_ZONES_VDOT_EASY_PERCENT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(vdot::EASY_ZONE_PERCENT),
+            vdot_tempo_zone_percent: env::var("TRAINING_ZONES_VDOT_TEMPO_PERCENT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(vdot::TEMPO_ZONE_PERCENT),
+            vdot_threshold_zone_percent: env::var("TRAINING_ZONES_VDOT_THRESHOLD_PERCENT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(vdot::THRESHOLD_ZONE_PERCENT),
+            vdot_interval_zone_percent: env::var("TRAINING_ZONES_VDOT_INTERVAL_PERCENT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(vdot::INTERVAL_ZONE_PERCENT),
+            vdot_repetition_zone_percent: env::var("TRAINING_ZONES_VDOT_REPETITION_PERCENT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(vdot::REPETITION_ZONE_PERCENT),
+            ftp_zone1_percent: env::var("TRAINING_ZONES_FTP_ZONE1_PERCENT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(ftp::ZONE1_PERCENT),
+            ftp_zone2_percent: env::var("TRAINING_ZONES_FTP_ZONE2_PERCENT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(ftp::ZONE2_PERCENT),
+            ftp_zone3_percent: env::var("TRAINING_ZONES_FTP_ZONE3_PERCENT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(ftp::ZONE3_PERCENT),
+            ftp_zone4_percent: env::var("TRAINING_ZONES_FTP_ZONE4_PERCENT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(ftp::ZONE4_PERCENT),
+            ftp_zone5_percent: env::var("TRAINING_ZONES_FTP_ZONE5_PERCENT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(ftp::ZONE5_PERCENT),
         }
     }
 

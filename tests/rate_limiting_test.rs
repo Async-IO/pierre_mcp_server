@@ -46,6 +46,7 @@ async fn create_test_setup() -> (Arc<Database>, ApiKeyManager, Arc<McpAuthMiddle
         auth_manager,
         database.clone(),
         jwks_manager,
+        pierre_mcp_server::config::environment::RateLimitConfig::default(),
     ));
 
     // Create API key manager

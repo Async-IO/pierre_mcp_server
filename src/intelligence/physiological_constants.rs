@@ -872,6 +872,99 @@ pub mod power_zones {
     pub const ZONE_5_MAX_WATTS: u32 = 400;
 }
 
+/// Training zone percentages based on VO2 max and FTP models
+///
+/// These constants define training zone boundaries as percentages of maximum capacity.
+/// They are based on established training methodologies and can be overridden via environment variables.
+///
+/// Environment variables for customization:
+/// - `VDOT_EASY_ZONE_PERCENT` - Easy pace zone (default: 0.70)
+/// - `VDOT_TEMPO_ZONE_PERCENT` - Tempo pace zone (default: 0.82)
+/// - `VDOT_THRESHOLD_ZONE_PERCENT` - Threshold pace zone (default: 0.88)
+/// - `VDOT_INTERVAL_ZONE_PERCENT` - Interval pace zone (default: 0.98)
+/// - `VDOT_REPETITION_ZONE_PERCENT` - Repetition pace zone (default: 1.10)
+/// - `POWER_ZONE1_PERCENT` - Active recovery (default: 55)
+/// - `POWER_ZONE2_PERCENT` - Endurance (default: 75)
+/// - `POWER_ZONE3_PERCENT` - Tempo (default: 90)
+/// - `POWER_ZONE4_PERCENT` - Lactate threshold (default: 105)
+/// - `POWER_ZONE5_PERCENT` - VO2 max (default: 120)
+pub mod training_zone_percentages {
+    /// VO2 max-based pace zones (Jack Daniels VDOT training system)
+    ///
+    /// References:
+    /// - Daniels, J. (2013). Daniels' Running Formula, 3rd Edition. Human Kinetics.
+    /// - Jack Daniels' VDOT Calculator: <https://runsmartproject.com/calculator/>
+    pub mod vdot {
+        /// Easy pace zone: 70% of VDOT velocity
+        /// Used for recovery runs and base building
+        ///
+        /// Reference: Daniels' Running Formula, Chapter 3: Training Paces
+        pub const EASY_ZONE_PERCENT: f64 = 0.70;
+
+        /// Tempo pace zone: 82% of VDOT velocity
+        /// Comfortably hard pace, lactate threshold development
+        ///
+        /// Reference: Daniels' Running Formula, Chapter 5: Threshold Training
+        pub const TEMPO_ZONE_PERCENT: f64 = 0.82;
+
+        /// Threshold pace zone: 88% of VDOT velocity
+        /// Lactate threshold pace, maximum sustainable effort
+        ///
+        /// Reference: Daniels' Running Formula, Chapter 5: Threshold Training
+        pub const THRESHOLD_ZONE_PERCENT: f64 = 0.88;
+
+        /// Interval pace zone: 98% of VDOT velocity
+        /// VO2 max development, 3-5 minute intervals
+        ///
+        /// Reference: Daniels' Running Formula, Chapter 6: Interval Training
+        pub const INTERVAL_ZONE_PERCENT: f64 = 0.98;
+
+        /// Repetition pace zone: 110% of VDOT velocity
+        /// Speed and running economy development, short repeats
+        ///
+        /// Reference: Daniels' Running Formula, Chapter 7: Repetition Training
+        pub const REPETITION_ZONE_PERCENT: f64 = 1.10;
+    }
+
+    /// FTP-based power zones (Coggan training system)
+    ///
+    /// References:
+    /// - Allen, H., & Coggan, A. (2019). Training and Racing with a Power Meter, 3rd Edition. `VeloPress`.
+    /// - Coggan, A. (1997). "Training with Power" in Cycling Performance Tips
+    /// - `TrainingPeaks` Power Zone Calculator: <https://www.trainingpeaks.com/learn/articles/power-training-levels/>
+    pub mod ftp {
+        /// Zone 1: Active Recovery (< 55% FTP)
+        /// Very easy spinning, recovery between intervals
+        ///
+        /// Reference: Training and Racing with a Power Meter, Chapter 5: Power-Based Training
+        pub const ZONE1_PERCENT: u32 = 55;
+
+        /// Zone 2: Endurance (56-75% FTP)
+        /// Long, steady aerobic rides, base building
+        ///
+        /// Reference: Training and Racing with a Power Meter, Chapter 5: Power-Based Training
+        pub const ZONE2_PERCENT: u32 = 75;
+
+        /// Zone 3: Tempo (76-90% FTP)
+        /// "All day" pace, extended steady-state efforts
+        ///
+        /// Reference: Training and Racing with a Power Meter, Chapter 5: Power-Based Training
+        pub const ZONE3_PERCENT: u32 = 90;
+
+        /// Zone 4: Lactate Threshold (91-105% FTP)
+        /// Sustainable hard efforts, 10-60 minutes
+        ///
+        /// Reference: Training and Racing with a Power Meter, Chapter 5: Power-Based Training
+        pub const ZONE4_PERCENT: u32 = 105;
+
+        /// Zone 5: VO2 Max (106-120% FTP)
+        /// Hard interval efforts, 3-8 minutes
+        ///
+        /// Reference: Training and Racing with a Power Meter, Chapter 5: Power-Based Training
+        pub const ZONE5_PERCENT: u32 = 120;
+    }
+}
+
 /// Performance calculation factors for effort and intensity analysis
 pub mod performance_calculation {
     /// Hour conversion factor for duration-based effort calculation

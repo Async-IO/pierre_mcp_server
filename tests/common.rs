@@ -155,6 +155,7 @@ pub fn create_test_auth_middleware(
         (**auth_manager).clone(),
         database,
         jwks_manager,
+        pierre_mcp_server::config::environment::RateLimitConfig::default(),
     ))
 }
 

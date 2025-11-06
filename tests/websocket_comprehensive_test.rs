@@ -158,6 +158,7 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
+    config::environment::RateLimitConfig,
     database_plugins::DatabaseProvider,
     models::User,
     websocket::{WebSocketManager, WebSocketMessage},
@@ -174,8 +175,12 @@ async fn test_websocket_manager_creation() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let jwks_manager = common::get_shared_test_jwks();
 
-    let ws_manager =
-        WebSocketManager::new(Arc::new((*database).clone()), &auth_manager, &jwks_manager);
+    let ws_manager = WebSocketManager::new(
+        Arc::new((*database).clone()),
+        &auth_manager,
+        &jwks_manager,
+        RateLimitConfig::default(),
+    );
 
     // Verify manager is created (filter can be built)
     let _ = ws_manager.websocket_filter();
@@ -201,8 +206,12 @@ async fn test_websocket_authentication_flow() -> Result<()> {
     let token = auth_manager.generate_token(&user, &jwks_manager)?;
 
     let jwks_manager = common::get_shared_test_jwks();
-    let ws_manager =
-        WebSocketManager::new(Arc::new((*database).clone()), &auth_manager, &jwks_manager);
+    let ws_manager = WebSocketManager::new(
+        Arc::new((*database).clone()),
+        &auth_manager,
+        &jwks_manager,
+        RateLimitConfig::default(),
+    );
     let _filter = ws_manager.websocket_filter();
 
     // Test authentication message
@@ -363,8 +372,12 @@ async fn test_websocket_connection_with_invalid_auth() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let jwks_manager = common::get_shared_test_jwks();
 
-    let ws_manager =
-        WebSocketManager::new(Arc::new((*database).clone()), &auth_manager, &jwks_manager);
+    let ws_manager = WebSocketManager::new(
+        Arc::new((*database).clone()),
+        &auth_manager,
+        &jwks_manager,
+        RateLimitConfig::default(),
+    );
     let _filter = ws_manager.websocket_filter();
 
     // Create invalid auth message
@@ -389,6 +402,7 @@ async fn test_websocket_concurrent_client_management() -> Result<()> {
         Arc::new((*database).clone()),
         &auth_manager,
         &jwks_manager,
+        RateLimitConfig::default(),
     ));
 
     // Simulate multiple concurrent connections
@@ -541,8 +555,12 @@ async fn test_websocket_broadcast_system_stats() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let jwks_manager = common::get_shared_test_jwks();
 
-    let _ws_manager =
-        WebSocketManager::new(Arc::new((*database).clone()), &auth_manager, &jwks_manager);
+    let _ws_manager = WebSocketManager::new(
+        Arc::new((*database).clone()),
+        &auth_manager,
+        &jwks_manager,
+        RateLimitConfig::default(),
+    );
 
     // Create system stats for broadcast
     let stats = WebSocketMessage::SystemStats {

@@ -6,7 +6,7 @@
 
 use pierre_mcp_server::config::environment::{
     BackupConfig, DatabaseConfig, DatabaseUrl, Environment, LogLevel, OAuthConfig,
-    OAuthProviderConfig, RateLimitConfig, SecurityConfig, ServerConfig,
+    OAuthProviderConfig, SecurityConfig, ServerConfig,
 };
 
 // Tests for public configuration types
@@ -100,14 +100,7 @@ fn create_test_server_config() -> ServerConfig {
             },
             ..Default::default()
         },
-        security: SecurityConfig {
-            rate_limit: RateLimitConfig {
-                enabled: true,
-                requests_per_window: 60,
-                window_seconds: 60,
-            },
-            ..Default::default()
-        },
+        security: SecurityConfig::default(),
         ..Default::default()
     }
 }

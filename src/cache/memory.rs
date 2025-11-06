@@ -53,10 +53,11 @@ pub struct InMemoryCache {
 impl InMemoryCache {
     /// Default cache capacity when config specifies zero entries
     /// Note: `unwrap()` on compile-time constant is verified at compile time
-    const DEFAULT_CACHE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(1000) {
-        Some(n) => n,
-        None => unreachable!(),
-    };
+    const DEFAULT_CACHE_CAPACITY: NonZeroUsize =
+        match NonZeroUsize::new(crate::constants::cache_config::DEFAULT_CAPACITY) {
+            Some(n) => n,
+            None => unreachable!(),
+        };
 
     /// Create new in-memory cache with optional background cleanup task
     fn new_with_config(config: &CacheConfig) -> Self {

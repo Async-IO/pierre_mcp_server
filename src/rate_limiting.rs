@@ -74,9 +74,10 @@ impl TenantRateLimitTier {
     /// Create tier configuration for starter tenants
     #[must_use]
     pub const fn starter() -> Self {
+        use crate::constants::rate_limiting_bursts;
         Self {
             monthly_limit: TENANT_STARTER_LIMIT,
-            burst_limit: 100,
+            burst_limit: rate_limiting_bursts::FREE_TIER_BURST,
             multiplier: 1.0,
             unlimited: false,
             custom_reset_period: None,
@@ -86,9 +87,10 @@ impl TenantRateLimitTier {
     /// Create tier configuration for professional tenants
     #[must_use]
     pub const fn professional() -> Self {
+        use crate::constants::rate_limiting_bursts;
         Self {
             monthly_limit: TENANT_PROFESSIONAL_LIMIT,
-            burst_limit: 500,
+            burst_limit: rate_limiting_bursts::PROFESSIONAL_BURST,
             multiplier: 1.0,
             unlimited: false,
             custom_reset_period: None,
@@ -98,9 +100,50 @@ impl TenantRateLimitTier {
     /// Create tier configuration for enterprise tenants
     #[must_use]
     pub const fn enterprise() -> Self {
+        use crate::constants::rate_limiting_bursts;
         Self {
             monthly_limit: TENANT_ENTERPRISE_LIMIT,
-            burst_limit: 2000,
+            burst_limit: rate_limiting_bursts::ENTERPRISE_BURST,
+            multiplier: 1.0,
+            unlimited: true,
+            custom_reset_period: None,
+        }
+    }
+
+    /// Create tier configuration for starter tenants from config
+    #[must_use]
+    pub const fn starter_from_config(config: &crate::config::environment::RateLimitConfig) -> Self {
+        Self {
+            monthly_limit: TENANT_STARTER_LIMIT,
+            burst_limit: config.free_tier_burst,
+            multiplier: 1.0,
+            unlimited: false,
+            custom_reset_period: None,
+        }
+    }
+
+    /// Create tier configuration for professional tenants from config
+    #[must_use]
+    pub const fn professional_from_config(
+        config: &crate::config::environment::RateLimitConfig,
+    ) -> Self {
+        Self {
+            monthly_limit: TENANT_PROFESSIONAL_LIMIT,
+            burst_limit: config.professional_burst,
+            multiplier: 1.0,
+            unlimited: false,
+            custom_reset_period: None,
+        }
+    }
+
+    /// Create tier configuration for enterprise tenants from config
+    #[must_use]
+    pub const fn enterprise_from_config(
+        config: &crate::config::environment::RateLimitConfig,
+    ) -> Self {
+        Self {
+            monthly_limit: TENANT_ENTERPRISE_LIMIT,
+            burst_limit: config.enterprise_burst,
             multiplier: 1.0,
             unlimited: true,
             custom_reset_period: None,
@@ -166,6 +209,8 @@ pub struct TenantRateLimitConfig {
     tenant_configs: HashMap<Uuid, TenantRateLimitTier>,
     /// Default configuration for new tenants
     default_config: TenantRateLimitTier,
+    /// Rate limit configuration source (optional for backward compatibility)
+    rate_limit_config: Option<crate::config::environment::RateLimitConfig>,
 }
 
 impl TenantRateLimitConfig {
@@ -175,6 +220,17 @@ impl TenantRateLimitConfig {
         Self {
             tenant_configs: HashMap::new(),
             default_config: TenantRateLimitTier::starter(),
+            rate_limit_config: None,
+        }
+    }
+
+    /// Create new tenant rate limit configuration manager with config
+    #[must_use]
+    pub fn new_with_config(config: crate::config::environment::RateLimitConfig) -> Self {
+        Self {
+            tenant_configs: HashMap::new(),
+            default_config: TenantRateLimitTier::starter_from_config(&config),
+            rate_limit_config: Some(config),
         }
     }
 
@@ -193,11 +249,26 @@ impl TenantRateLimitConfig {
 
     /// Configure tenant based on their plan
     pub fn configure_tenant_by_plan(&mut self, tenant_id: Uuid, plan: &str) {
-        let config = match plan.to_lowercase().as_str() {
-            tiers::PROFESSIONAL => TenantRateLimitTier::professional(),
-            tiers::ENTERPRISE => TenantRateLimitTier::enterprise(),
-            _ => TenantRateLimitTier::starter(),
-        };
+        let config = self.rate_limit_config.as_ref().map_or_else(
+            || {
+                // Fall back to constant-based constructors
+                match plan.to_lowercase().as_str() {
+                    tiers::PROFESSIONAL => TenantRateLimitTier::professional(),
+                    tiers::ENTERPRISE => TenantRateLimitTier::enterprise(),
+                    _ => TenantRateLimitTier::starter(),
+                }
+            },
+            |rate_config| {
+                // Use config-based constructors when config is available
+                match plan.to_lowercase().as_str() {
+                    tiers::PROFESSIONAL => {
+                        TenantRateLimitTier::professional_from_config(rate_config)
+                    }
+                    tiers::ENTERPRISE => TenantRateLimitTier::enterprise_from_config(rate_config),
+                    _ => TenantRateLimitTier::starter_from_config(rate_config),
+                }
+            },
+        );
         self.set_tenant_config(tenant_id, config);
     }
 
@@ -245,6 +316,14 @@ impl UnifiedRateLimitCalculator {
     pub fn new() -> Self {
         Self {
             tenant_config: TenantRateLimitConfig::new(),
+        }
+    }
+
+    /// Create a new unified rate limit calculator with config
+    #[must_use]
+    pub fn new_with_config(config: crate::config::environment::RateLimitConfig) -> Self {
+        Self {
+            tenant_config: TenantRateLimitConfig::new_with_config(config),
         }
     }
 
@@ -557,10 +636,23 @@ impl OAuth2RateLimitConfig {
     /// Create new `OAuth2` rate limit configuration with defaults
     #[must_use]
     pub const fn new() -> Self {
+        use crate::constants::oauth_rate_limiting;
         Self {
-            authorize_rpm: 60, // 1 per second
-            token_rpm: 30,     // 1 per 2 seconds
-            register_rpm: 10,  // 1 per 6 seconds
+            authorize_rpm: oauth_rate_limiting::AUTHORIZE_RPM, // 1 per second
+            token_rpm: oauth_rate_limiting::TOKEN_RPM,         // 1 per 2 seconds
+            register_rpm: oauth_rate_limiting::REGISTER_RPM,   // 1 per 6 seconds
+        }
+    }
+
+    /// Create `OAuth2` rate limit configuration from `RateLimitConfig`
+    #[must_use]
+    pub const fn from_rate_limit_config(
+        config: &crate::config::environment::RateLimitConfig,
+    ) -> Self {
+        Self {
+            authorize_rpm: config.oauth_authorize_rpm,
+            token_rpm: config.oauth_token_rpm,
+            register_rpm: config.oauth_register_rpm,
         }
     }
 

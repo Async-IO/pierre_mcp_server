@@ -296,7 +296,10 @@ pub fn handle_update_user_configuration(
 /// Calculate pace zones from VO2 max using Jack Daniels VDOT formulas
 ///
 /// Returns pace zones in format "min:sec/km" based on training intensities
-fn calculate_pace_zones_from_vo2max(vo2_max: f64) -> serde_json::Value {
+fn calculate_pace_zones_from_vo2max(
+    vo2_max: f64,
+    config: &crate::config::environment::TrainingZonesConfig,
+) -> serde_json::Value {
     // Jack Daniels VDOT pace calculations
     // Formula: pace (min/km) = 1000 / (velocity_m_per_min)
     // Velocity from VO2: velocity = (VO2 + 4.60) / 0.182258 (derived from VDOT formula)
@@ -304,15 +307,16 @@ fn calculate_pace_zones_from_vo2max(vo2_max: f64) -> serde_json::Value {
     let base_velocity = (vo2_max + 4.60) / 0.182_258; // meters per minute at VO2max
 
     // Calculate paces for different training zones (as % of VO2max velocity)
-    let easy_velocity = base_velocity * 0.70; // 70% VO2max
-    let tempo_velocity = base_velocity * 0.82; // 82% VO2max
-    let threshold_velocity = base_velocity * 0.88; // 88% VO2max
-    let interval_velocity = base_velocity * 0.98; // 98% VO2max
-    let repetition_velocity = base_velocity * 1.10; // 110% VO2max
+    let easy_velocity = base_velocity * config.vdot_easy_zone_percent;
+    let tempo_velocity = base_velocity * config.vdot_tempo_zone_percent;
+    let threshold_velocity = base_velocity * config.vdot_threshold_zone_percent;
+    let interval_velocity = base_velocity * config.vdot_interval_zone_percent;
+    let repetition_velocity = base_velocity * config.vdot_repetition_zone_percent;
 
     // Convert to min:sec per km
     let format_pace = |velocity_m_per_min: f64| -> String {
-        let seconds_per_km = 1000.0 / velocity_m_per_min.max(1.0);
+        let seconds_per_km =
+            crate::constants::limits::METERS_PER_KILOMETER / velocity_m_per_min.max(1.0);
 
         // Saturating conversion from f64 to u32 with explicit bounds checking
         // Note: clippy::cast_possible_truncation will warn in ultra-strict mode but conversion is validated
@@ -342,31 +346,39 @@ fn calculate_pace_zones_from_vo2max(vo2_max: f64) -> serde_json::Value {
 /// Calculate power zones from FTP (Functional Threshold Power)
 ///
 /// Returns power zones in watts based on standard FTP percentages
-fn calculate_power_zones_from_ftp(ftp: u32) -> serde_json::Value {
+fn calculate_power_zones_from_ftp(
+    ftp: u32,
+    config: &crate::config::environment::TrainingZonesConfig,
+) -> serde_json::Value {
     // Use integer arithmetic to avoid f64→u32 cast warnings
     // Standard FTP-based power zones using percentage multiplication with try_from
     // Note: All these calculations should succeed since ftp is u32 and multipliers are <2
-    let zone_1_min = 0_u32; // Active Recovery: 0-55%
-    let zone_1_max = u32::try_from(u64::from(ftp) * 55 / 100).unwrap_or_else(|e| {
-        tracing::warn!(ftp = ftp, error = %e, "Zone 1 max calculation failed, using u32::MAX");
-        u32::MAX
-    });
-    let zone_2_max = u32::try_from(u64::from(ftp) * 75 / 100).unwrap_or_else(|e| {
-        tracing::warn!(ftp = ftp, error = %e, "Zone 2 max calculation failed, using u32::MAX");
-        u32::MAX
-    });
-    let zone_3_max = u32::try_from(u64::from(ftp) * 90 / 100).unwrap_or_else(|e| {
-        tracing::warn!(ftp = ftp, error = %e, "Zone 3 max calculation failed, using u32::MAX");
-        u32::MAX
-    });
-    let zone_4_max = u32::try_from(u64::from(ftp) * 105 / 100).unwrap_or_else(|e| {
-        tracing::warn!(ftp = ftp, error = %e, "Zone 4 max calculation failed, using u32::MAX");
-        u32::MAX
-    });
-    let zone_5_max = u32::try_from(u64::from(ftp) * 120 / 100).unwrap_or_else(|e| {
-        tracing::warn!(ftp = ftp, error = %e, "Zone 5 max calculation failed, using u32::MAX");
-        u32::MAX
-    });
+    let zone_1_min = 0_u32; // Active Recovery: 0-zone1%
+    let zone_1_max = u32::try_from(u64::from(ftp) * u64::from(config.ftp_zone1_percent) / 100)
+        .unwrap_or_else(|e| {
+            tracing::warn!(ftp = ftp, error = %e, "Zone 1 max calculation failed, using u32::MAX");
+            u32::MAX
+        });
+    let zone_2_max = u32::try_from(u64::from(ftp) * u64::from(config.ftp_zone2_percent) / 100)
+        .unwrap_or_else(|e| {
+            tracing::warn!(ftp = ftp, error = %e, "Zone 2 max calculation failed, using u32::MAX");
+            u32::MAX
+        });
+    let zone_3_max = u32::try_from(u64::from(ftp) * u64::from(config.ftp_zone3_percent) / 100)
+        .unwrap_or_else(|e| {
+            tracing::warn!(ftp = ftp, error = %e, "Zone 3 max calculation failed, using u32::MAX");
+            u32::MAX
+        });
+    let zone_4_max = u32::try_from(u64::from(ftp) * u64::from(config.ftp_zone4_percent) / 100)
+        .unwrap_or_else(|e| {
+            tracing::warn!(ftp = ftp, error = %e, "Zone 4 max calculation failed, using u32::MAX");
+            u32::MAX
+        });
+    let zone_5_max = u32::try_from(u64::from(ftp) * u64::from(config.ftp_zone5_percent) / 100)
+        .unwrap_or_else(|e| {
+            tracing::warn!(ftp = ftp, error = %e, "Zone 5 max calculation failed, using u32::MAX");
+            u32::MAX
+        });
 
     serde_json::json!({
         "zone_1": { "min_watts": zone_1_min, "max_watts": zone_1_max },
@@ -382,7 +394,7 @@ fn calculate_power_zones_from_ftp(ftp: u32) -> serde_json::Value {
 /// # Errors
 /// Returns `ProtocolError` if VO2 max parameter is missing or zones serialization fails
 pub fn handle_calculate_personalized_zones(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &crate::protocols::universal::UniversalToolExecutor,
     request: &UniversalRequest,
 ) -> Result<UniversalResponse, ProtocolError> {
     let params = extract_zone_parameters(request)?;
@@ -390,7 +402,8 @@ pub fn handle_calculate_personalized_zones(
     let (zones, zone_calculations) = calculate_heart_rate_zones(&params);
 
     // Calculate personalized pace zones from VO2 max
-    let pace_zones = calculate_pace_zones_from_vo2max(params.vo2_max);
+    let pace_zones =
+        calculate_pace_zones_from_vo2max(params.vo2_max, &executor.resources.config.training_zones);
 
     // Get FTP from parameters (optional) - if not provided, use default estimate
     let ftp = request
@@ -401,7 +414,8 @@ pub fn handle_calculate_personalized_zones(
         .unwrap_or(crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_ESTIMATED_FTP);
 
     // Calculate power zones using FTP (either provided or default estimate)
-    let power_zones_result = calculate_power_zones_from_ftp(ftp);
+    let power_zones_result =
+        calculate_power_zones_from_ftp(ftp, &executor.resources.config.training_zones);
 
     Ok(UniversalResponse {
         success: true,

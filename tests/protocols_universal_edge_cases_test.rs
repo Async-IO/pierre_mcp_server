@@ -79,11 +79,6 @@ fn create_test_config() -> Arc<ServerConfig> {
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,

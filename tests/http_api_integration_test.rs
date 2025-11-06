@@ -151,11 +151,6 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
             cors_origins: vec!["http://localhost:3000".to_string()],
-            rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: pierre_mcp_server::config::environment::TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -225,6 +220,10 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
             cleanup_interval_secs: 300,
         },
         usda_api_key: None,
+        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
+        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
     });
 
     let cache_config = pierre_mcp_server::cache::CacheConfig {

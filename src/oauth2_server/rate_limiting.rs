@@ -15,6 +15,8 @@ pub struct OAuth2RateLimiter {
     /// `DashMap` provides lock-free read operations and sharded write operations
     state: Arc<DashMap<IpAddr, (u32, Instant)>>,
     config: crate::rate_limiting::OAuth2RateLimitConfig,
+    /// Rate limit configuration for window and cleanup values
+    rate_limit_config: crate::config::environment::RateLimitConfig,
 }
 
 impl OAuth2RateLimiter {
@@ -24,6 +26,21 @@ impl OAuth2RateLimiter {
         Self {
             state: Arc::new(DashMap::new()),
             config: crate::rate_limiting::OAuth2RateLimitConfig::new(),
+            rate_limit_config: crate::config::environment::RateLimitConfig::default(),
+        }
+    }
+
+    /// Create `OAuth2` rate limiter from `RateLimitConfig`
+    #[must_use]
+    pub fn from_rate_limit_config(
+        rate_config: crate::config::environment::RateLimitConfig,
+    ) -> Self {
+        Self {
+            state: Arc::new(DashMap::new()),
+            config: crate::rate_limiting::OAuth2RateLimitConfig::from_rate_limit_config(
+                &rate_config,
+            ),
+            rate_limit_config: rate_config,
         }
     }
 
@@ -33,6 +50,7 @@ impl OAuth2RateLimiter {
         Self {
             state: Arc::new(DashMap::new()),
             config,
+            rate_limit_config: crate::config::environment::RateLimitConfig::default(),
         }
     }
 
@@ -46,7 +64,7 @@ impl OAuth2RateLimiter {
     ) -> crate::rate_limiting::OAuth2RateLimitStatus {
         let limit = self.config.get_limit(endpoint);
         let now = Instant::now();
-        let window = Duration::from_secs(60); // 1 minute window
+        let window = Duration::from_secs(self.rate_limit_config.rate_limit_window_secs);
 
         // Use DashMap entry API for atomic operation without full lock
         let mut entry = self.state.entry(client_ip).or_insert((0, now));
@@ -71,7 +89,7 @@ impl OAuth2RateLimiter {
 
         // Lazy cleanup: only run if map is growing
         // This avoids holding locks during cleanup on critical path
-        if self.state.len() > 1000 {
+        if self.state.len() > self.rate_limit_config.cleanup_threshold {
             self.cleanup_old_entries(now);
         }
 
@@ -96,11 +114,13 @@ impl OAuth2RateLimiter {
         .with_retry_after()
     }
 
-    /// Remove stale entries older than 2 minutes from rate limit state
-    /// Called lazily when map size exceeds 1000 entries to avoid contention
+    /// Remove stale entries older than configured timeout from rate limit state
+    /// Called lazily when map size exceeds threshold to avoid contention
     fn cleanup_old_entries(&self, now: Instant) {
-        self.state
-            .retain(|_ip, (_count, start)| now.duration_since(*start) < Duration::from_secs(120));
+        self.state.retain(|_ip, (_count, start)| {
+            now.duration_since(*start)
+                < Duration::from_secs(self.rate_limit_config.stale_entry_timeout_secs)
+        });
     }
 
     /// Create warp filter for rate limiting
@@ -169,8 +189,14 @@ pub fn with_rate_limit_headers<T: Reply>(
 #[allow(clippy::option_if_let_else)]
 // Clippy's suggested map_or_else pattern doesn't work here due to borrow checker constraints
 pub async fn handle_rate_limit_rejection(err: Rejection) -> Result<impl Reply, Rejection> {
+    use crate::constants::oauth_rate_limiting;
     if let Some(rate_limit_exceeded) = err.find::<OAuth2RateLimitExceeded>() {
-        let retry_after = rate_limit_exceeded.status.retry_after_seconds.unwrap_or(60);
+        #[allow(clippy::cast_possible_truncation)]
+        // Safe: DEFAULT_RETRY_AFTER_SECS constant is well within u32 range (60 seconds)
+        let retry_after = rate_limit_exceeded
+            .status
+            .retry_after_seconds
+            .unwrap_or(oauth_rate_limiting::DEFAULT_RETRY_AFTER_SECS as u32);
 
         let json = warp::reply::json(&serde_json::json!({
             "error": "rate_limit_exceeded",

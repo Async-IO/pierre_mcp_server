@@ -75,6 +75,7 @@ impl WebSocketManager {
         database: Arc<Database>,
         auth_manager: &Arc<AuthManager>,
         jwks_manager: &Arc<crate::admin::jwks::JwksManager>,
+        rate_limit_config: crate::config::environment::RateLimitConfig,
     ) -> Self {
         let (broadcast_tx, _) =
             broadcast::channel(crate::constants::rate_limits::WEBSOCKET_CHANNEL_CAPACITY);
@@ -82,6 +83,7 @@ impl WebSocketManager {
             (**auth_manager).clone(),
             database.clone(),
             jwks_manager.clone(),
+            rate_limit_config,
         ); // Safe: Arc clones for middleware creation
 
         Self {

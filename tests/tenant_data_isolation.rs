@@ -73,11 +73,6 @@ fn create_test_server_config(
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: pierre_mcp_server::config::environment::TlsConfig {
                 enabled: false,
                 cert_path: None,

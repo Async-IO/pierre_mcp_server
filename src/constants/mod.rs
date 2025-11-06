@@ -54,6 +54,7 @@ pub mod oauth;
 pub mod protocol;
 pub mod protocols;
 pub mod tools;
+pub mod units;
 
 // Re-export commonly used items for easier access
 pub use errors::*;
@@ -629,4 +630,188 @@ pub mod system_monitoring {
     pub const MEMORY_WARNING_THRESHOLD: f64 = 80.0;
     /// Disk warning threshold percentage
     pub const DISK_WARNING_THRESHOLD: f64 = 85.0;
+}
+
+/// Rate limiting tier burst configurations
+///
+/// Burst limits control the maximum number of requests that can be made in a short time window
+/// before rate limiting kicks in. These provide flexibility for legitimate burst traffic patterns.
+///
+/// Environment variables:
+/// - `RATE_LIMIT_FREE_TIER_BURST` - Free tier burst limit (default: 100)
+/// - `RATE_LIMIT_PROFESSIONAL_BURST` - Professional tier burst limit (default: 500)
+/// - `RATE_LIMIT_ENTERPRISE_BURST` - Enterprise tier burst limit (default: 2000)
+pub mod rate_limiting_bursts {
+    /// Free tier burst limit
+    /// Allows 100 requests in rapid succession before throttling
+    pub const FREE_TIER_BURST: u32 = 100;
+
+    /// Professional tier burst limit
+    /// Allows 500 requests in rapid succession before throttling
+    pub const PROFESSIONAL_BURST: u32 = 500;
+
+    /// Enterprise tier burst limit
+    /// Allows 2000 requests in rapid succession before throttling
+    pub const ENTERPRISE_BURST: u32 = 2000;
+}
+
+/// OAuth 2.0 rate limiting configurations
+///
+/// Rate limits for OAuth endpoints to prevent abuse and ensure service stability.
+///
+/// Environment variables:
+/// - `OAUTH_AUTHORIZE_RATE_LIMIT_RPM` - Authorization endpoint rate limit (default: 60 requests/minute)
+/// - `OAUTH_TOKEN_RATE_LIMIT_RPM` - Token endpoint rate limit (default: 30 requests/minute)
+/// - `OAUTH_REGISTER_RATE_LIMIT_RPM` - Registration endpoint rate limit (default: 10 requests/minute)
+/// - `OAUTH2_RATE_LIMIT_WINDOW_SECS` - Rate limit window duration (default: 60 seconds)
+pub mod oauth_rate_limiting {
+    /// Authorization endpoint rate limit (requests per minute)
+    /// Protects /oauth2/authorize from abuse
+    pub const AUTHORIZE_RPM: u32 = 60;
+
+    /// Token endpoint rate limit (requests per minute)
+    /// Protects /oauth2/token from brute force attacks
+    pub const TOKEN_RPM: u32 = 30;
+
+    /// Registration endpoint rate limit (requests per minute)
+    /// Protects /oauth2/register from bulk client creation
+    pub const REGISTER_RPM: u32 = 10;
+
+    /// Rate limit window duration in seconds
+    /// Time window for counting rate limit violations
+    pub const WINDOW_SECS: u64 = 60;
+
+    /// Rate limiter cleanup threshold
+    /// Number of entries before triggering cleanup of stale rate limit records
+    pub const CLEANUP_THRESHOLD: usize = 1000;
+
+    /// Stale entry timeout in seconds
+    /// Rate limit entries older than this are considered stale and can be cleaned up
+    pub const STALE_ENTRY_TIMEOUT_SECS: u64 = 120;
+
+    /// Default retry-after header value in seconds
+    /// HTTP 429 Retry-After header value when rate limit is exceeded
+    pub const DEFAULT_RETRY_AFTER_SECS: u64 = 60;
+}
+
+/// Cache configuration constants
+///
+/// Settings for in-memory and distributed caching layers.
+///
+/// Environment variables:
+/// - `CACHE_DEFAULT_CAPACITY` - Default LRU cache capacity (default: 1000 entries)
+/// - `CACHE_MAX_ENTRIES` - Maximum cache entries (default: 10000)
+/// - `CACHE_CLEANUP_INTERVAL_SECS` - Cleanup task interval (default: 300 seconds)
+pub mod cache_config {
+    /// Default cache capacity for LRU cache
+    /// Number of items to store in memory before evicting oldest entries
+    pub const DEFAULT_CAPACITY: usize = 1000;
+
+    /// Rate limiter cleanup threshold (reused for cache cleanup)
+    /// Triggers cleanup when this many entries accumulate
+    pub const CLEANUP_THRESHOLD: usize = 1000;
+}
+
+/// MCP transport configuration
+///
+/// Configuration for Model Context Protocol transport layers.
+///
+/// Environment variables:
+/// - `MCP_TRANSPORT_NOTIFICATION_CHANNEL_SIZE` - Broadcast channel size (default: 100)
+pub mod mcp_transport {
+    /// Notification broadcast channel size
+    /// Buffer size for MCP notification messages across transports
+    pub const NOTIFICATION_CHANNEL_SIZE: usize = 100;
+}
+
+/// Rate limit header constants
+///
+/// HTTP header values for rate limiting responses.
+///
+/// Environment variables:
+/// - `RATE_LIMIT_WINDOW_HEADER_SECS` - Rate limit window for headers (default: 2592000 = 30 days)
+pub mod rate_limit_headers {
+    /// Rate limit window in seconds for HTTP headers
+    /// Used in RateLimit-Window and similar headers (30 days)
+    pub const WINDOW_SECS: &str = "2592000";
+}
+
+/// Sleep analysis and recovery constants
+///
+/// Configuration for sleep quality analysis, recovery scoring, and sleep recommendations.
+///
+/// Environment variables:
+/// - `SLEEP_RECOVERY_ACTIVITY_LIMIT` - Number of recent activities to fetch (default: 42)
+/// - `SLEEP_TREND_MIN_DAYS` - Minimum days required for trend analysis (default: 7)
+/// - `SLEEP_TREND_THRESHOLD` - Hours change threshold for trend detection (default: 5.0)
+/// - `SLEEP_FATIGUE_BONUS_HOURS` - Additional sleep recommended when fatigued (default: 0.5)
+/// - `SLEEP_HIGH_LOAD_ATL_THRESHOLD` - ATL threshold for high training load (default: 100.0)
+/// - `SLEEP_HIGH_LOAD_BONUS_HOURS` - Additional sleep for high training load (default: 0.25)
+/// - `SLEEP_WIND_DOWN_MINUTES` - Buffer time before target sleep (default: 15)
+pub mod sleep_recovery {
+    /// Number of recent activities to fetch for sleep/recovery analysis
+    pub const ACTIVITY_LIMIT: u32 = 42;
+
+    /// Minimum number of days of sleep history required for trend analysis
+    pub const TREND_MIN_DAYS: usize = 7;
+
+    /// Sleep trend improving threshold (hours increase over previous period)
+    pub const TREND_IMPROVING_THRESHOLD: f64 = 5.0;
+
+    /// Sleep trend declining threshold (hours decrease below previous period)
+    pub const TREND_DECLINING_THRESHOLD: f64 = 5.0;
+
+    /// Additional sleep hours recommended when athlete is fatigued (TSB negative)
+    pub const FATIGUE_BONUS_HOURS: f64 = 0.5;
+
+    /// ATL (Acute Training Load) threshold indicating high training load
+    pub const HIGH_LOAD_ATL_THRESHOLD: f64 = 100.0;
+
+    /// Additional sleep hours recommended during high training load periods
+    pub const HIGH_LOAD_BONUS_HOURS: f64 = 0.25;
+
+    /// Buffer time in minutes before target sleep time for wind-down routine
+    pub const WIND_DOWN_MINUTES: i64 = 15;
+
+    /// Minutes per day constant for time calculations and day wrapping
+    pub const MINUTES_PER_DAY: i64 = 1440;
+}
+
+/// Goal management and feasibility constants
+///
+/// Configuration for goal setting, progress tracking, and feasibility analysis.
+///
+/// Environment variables:
+/// - `MIN_ACTIVITIES_FOR_TRAINING_HISTORY` - Minimum activities for history (default: 2)
+/// - `ADVANCED_FITNESS_ACTIVITIES_PER_WEEK` - Activities/week for advanced level (default: 5.0)
+/// - `ADVANCED_FITNESS_MIN_WEEKS` - Training weeks required for advanced (default: 26.0)
+/// - `INTERMEDIATE_FITNESS_ACTIVITIES_PER_WEEK` - Activities/week for intermediate (default: 3.0)
+/// - `INTERMEDIATE_FITNESS_MIN_WEEKS` - Training weeks for intermediate (default: 12.0)
+/// - `DEFAULT_TIME_AVAILABILITY_HOURS` - Default training time per week (default: 3.0)
+/// - `DEFAULT_PREFERRED_DURATION_MINUTES` - Default activity duration (default: 30)
+/// - `DAYS_PER_MONTH_AVERAGE` - Average days per month for calculations (default: 30.44)
+pub mod goal_management {
+    /// Minimum number of activities required to establish training history
+    pub const MIN_ACTIVITIES_FOR_TRAINING_HISTORY: usize = 2;
+
+    /// Activities per week threshold for advanced fitness level classification
+    pub const ADVANCED_FITNESS_ACTIVITIES_PER_WEEK: f64 = 5.0;
+
+    /// Minimum training weeks required for advanced fitness level
+    pub const ADVANCED_FITNESS_MIN_WEEKS: f64 = 26.0;
+
+    /// Activities per week threshold for intermediate fitness level classification
+    pub const INTERMEDIATE_FITNESS_ACTIVITIES_PER_WEEK: f64 = 3.0;
+
+    /// Minimum training weeks required for intermediate fitness level
+    pub const INTERMEDIATE_FITNESS_MIN_WEEKS: f64 = 12.0;
+
+    /// Default training time availability per week (hours)
+    pub const DEFAULT_TIME_AVAILABILITY_HOURS: f64 = 3.0;
+
+    /// Default preferred activity duration (minutes)
+    pub const DEFAULT_PREFERRED_DURATION_MINUTES: u32 = 30;
+
+    /// Average days per month for monthly calculations (365.25/12)
+    pub const DAYS_PER_MONTH_AVERAGE: f64 = 30.44;
 }

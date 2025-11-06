@@ -192,7 +192,7 @@ if [ -f "$VALIDATION_PATTERNS_FILE" ]; then
     TOML_CLIPPY_SUPPRESSIONS=$(rg "$CLIPPY_SUPPRESSIONS_PATTERNS" src/ | rg -v "cast_|too_many_lines|struct_excessive_bools" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     TOML_LONG_FUNCTIONS=$(rg "$LONG_FUNCTION_SUPPRESSIONS_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     TOML_PROBLEMATIC_NAMING=$(rg "$PROBLEMATIC_NAMING_PATTERNS" src/ | rg -v "let _[[:space:]]*=" | rg -v "let _result|let _response|let _output" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-    TOML_MAGIC_NUMBERS=$(rg "$THRESHOLD_PATTERNS" src/ -g "!src/constants.rs" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity|-32[0-9]{3}|1000\.0|60\.0|24\.0|7\.0|365\.0|METERS_PER|PER_METER|conversion|unit|\.60934|12345|0000-0000|202[0-9]-[0-9]{2}-[0-9]{2}|Some\([0-9]+\)|Trial.*1000|Standard.*10000)" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_MAGIC_NUMBERS=$(rg "$THRESHOLD_PATTERNS" src/ -g "!src/constants.rs" -g "!src/constants/*" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity|-32[0-9]{3}|1000\.0|60\.0|24\.0|7\.0|365\.0|METERS_PER|PER_METER|conversion|unit|\.60934|12345|0000-0000|202[0-9]-[0-9]{2}-[0-9]{2}|Some\([0-9]+\)|Trial.*1000|Standard.*10000)" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 
     # TOML-based architectural pattern analysis
     TOML_RESOURCE_CREATION=$(rg "$RESOURCE_CREATION_PATTERNS" src/ -g "!src/mcp/multitenant.rs" -g "!src/mcp/resources.rs" -g "!src/bin/*" -g "!src/lifecycle/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
@@ -388,7 +388,7 @@ ARC_CONVERSIONS=$(rg "Arc::(from|clone)\(" src/ --glob '!src/bin/*' | wc -l 2>/d
 LEGITIMATE_ARC_PATTERNS=$((CONCURRENT_ARCS + SERVERRESOURCES_ARCS + SINGLETON_ARCS + ROUTE_HANDLER_ARCS + BINARY_STARTUP_ARCS + SERVICE_COMPONENT_ARCS + ARC_CONVERSIONS))
 POTENTIALLY_PROBLEMATIC_ARCS=$((TOTAL_ARCS > LEGITIMATE_ARC_PATTERNS ? TOTAL_ARCS - LEGITIMATE_ARC_PATTERNS : 0))
 
-MAGIC_NUMBERS=$(rg "\b[0-9]{4,}\b" src/ -g "!src/constants.rs" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity|-32[0-9]{3}|1000\.0|60\.0|24\.0|7\.0|365\.0|METERS_PER|PER_METER|conversion|unit|\.60934|12345|0000-0000|202[0-9]-[0-9]{2}-[0-9]{2}|Some\([0-9]+\)|Trial.*1000|Standard.*10000)" | wc -l 2>/dev/null || echo 0)
+MAGIC_NUMBERS=$(rg "\b[0-9]{4,}\b" src/ -g "!src/constants.rs" -g "!src/constants/*" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity|-32[0-9]{3}|1000\.0|60\.0|24\.0|7\.0|365\.0|METERS_PER|PER_METER|conversion|unit|\.60934|12345|0000-0000|202[0-9]-[0-9]{2}-[0-9]{2}|Some\([0-9]+\)|Trial.*1000|Standard.*10000)" | wc -l 2>/dev/null || echo 0)
 
 # ============================================================================
 # UNIFIED ARCHITECTURAL VALIDATION SUMMARY
@@ -658,7 +658,7 @@ printf "│ %-35s │ %5d │ " "TOML-based magic numbers" "$TOML_MAGIC_NUMBERS"
 if [ "$TOML_MAGIC_NUMBERS" -le "${MAX_MAGIC_NUMBERS:-10}" ]; then
     printf "$(format_status "✅ PASS")│ %-39s │\n" "Within acceptable limits"
 else
-    FIRST_MAGIC=$(get_first_location 'rg "$THRESHOLD_PATTERNS" src/ -g "!src/constants.rs" -g "!src/config/*" -n')
+    FIRST_MAGIC=$(get_first_location 'rg "$THRESHOLD_PATTERNS" src/ -g "!src/constants.rs" -g "!src/constants/*" -g "!src/config/*" -n')
     printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_MAGIC"
 fi
 
@@ -713,7 +713,7 @@ printf "│ %-35s │ %5d │ " "Magic numbers" "$MAGIC_NUMBERS"
 if [ "$MAGIC_NUMBERS" -lt 10 ]; then
     printf "$(format_status "✅ PASS")│ %-39s │\n" "Good configuration practices"
 else
-    FIRST_MAGIC=$(get_first_location 'rg "\b[0-9]{4,}\b" src/ -g "!src/constants.rs" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity|-32[0-9]{3}|1000\.0|60\.0|24\.0|7\.0|365\.0|METERS_PER|PER_METER|conversion|unit|\.60934|12345|0000-0000|202[0-9]-[0-9]{2}-[0-9]{2}|Some\([0-9]+\)|Trial.*1000|Standard.*10000)" -n')
+    FIRST_MAGIC=$(get_first_location 'rg "\b[0-9]{4,}\b" src/ -g "!src/constants.rs" -g "!src/constants/*" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity|-32[0-9]{3}|1000\.0|60\.0|24\.0|7\.0|365\.0|METERS_PER|PER_METER|conversion|unit|\.60934|12345|0000-0000|202[0-9]-[0-9]{2}-[0-9]{2}|Some\([0-9]+\)|Trial.*1000|Standard.*10000)" -n')
     printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_MAGIC"
 fi
 

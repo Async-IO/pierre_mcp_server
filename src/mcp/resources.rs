@@ -143,6 +143,7 @@ impl ServerResources {
             database_arc.clone(),
             &auth_manager_arc,
             &jwks_manager_arc,
+            config.rate_limiting.clone(),
         ));
 
         // Create auth middleware after jwks_manager is initialized
@@ -150,11 +151,15 @@ impl ServerResources {
             (*auth_manager_arc).clone(),
             database_arc.clone(),
             jwks_manager_arc.clone(),
+            config.rate_limiting.clone(),
         ));
 
         // Create OAuth2 rate limiter once for shared use
-        let oauth2_rate_limiter =
-            Arc::new(crate::oauth2_server::rate_limiting::OAuth2RateLimiter::new());
+        let oauth2_rate_limiter = Arc::new(
+            crate::oauth2_server::rate_limiting::OAuth2RateLimiter::from_rate_limit_config(
+                config.rate_limiting.clone(),
+            ),
+        );
 
         Self {
             database: database_arc,

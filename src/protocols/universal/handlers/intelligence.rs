@@ -156,7 +156,7 @@ fn generate_activity_insights(
 
     // Analyze distance
     if let Some(distance) = activity.distance_meters {
-        let km = distance / 1000.0;
+        let km = distance / crate::constants::limits::METERS_PER_KILOMETER;
         insights.push(format!("Activity covered {km:.2} km"));
         if km > ACHIEVEMENT_DISTANCE_THRESHOLD_KM {
             recommendations.push("Great long-distance effort! Ensure proper recovery time");
@@ -215,7 +215,7 @@ fn create_intelligence_response(
             "insights": insights,
             "recommendations": recommendations,
             "performance_metrics": {
-                "distance_km": activity.distance_meters.map(|d| d / 1000.0),
+                "distance_km": activity.distance_meters.map(|d| d / crate::constants::limits::METERS_PER_KILOMETER),
                 "duration_minutes": Some(duration_minutes),
                 "elevation_meters": activity.elevation_gain,
                 "average_heart_rate": activity.average_heart_rate,
@@ -1687,7 +1687,8 @@ fn calculate_pace(activity: &crate::models::Activity) -> Option<f64> {
     if let Some(distance) = activity.distance_meters {
         if distance > 0.0 && activity.duration_seconds > 0 {
             #[allow(clippy::cast_precision_loss)]
-            let seconds_per_km = (activity.duration_seconds as f64 / distance) * 1000.0;
+            let seconds_per_km = (activity.duration_seconds as f64 / distance)
+                * crate::constants::units::METERS_PER_KM;
             return Some(seconds_per_km / 60.0); // convert to min/km
         }
     }
@@ -2410,8 +2411,8 @@ fn generate_goal_specific_recommendations(
             }
         })
         .max_by(|a, b| {
-            let pace_a = a.1 / (a.0 / 1000.0);
-            let pace_b = b.1 / (b.0 / 1000.0);
+            let pace_a = a.1 / (a.0 / crate::constants::limits::METERS_PER_KILOMETER);
+            let pace_b = b.1 / (b.0 / crate::constants::limits::METERS_PER_KILOMETER);
             pace_b
                 .partial_cmp(&pace_a)
                 .unwrap_or(std::cmp::Ordering::Equal)
@@ -2425,7 +2426,7 @@ fn generate_goal_specific_recommendations(
     if let Some((distance, time)) = best_performance {
         if let Ok(predictions) = PerformancePredictor::generate_race_predictions(distance, time) {
             race_predictions = Some(serde_json::json!({
-                "based_on": format!("{:.1}km in {}", distance / 1000.0, PerformancePredictor::format_time(time)),
+                "based_on": format!("{:.1}km in {}", distance / crate::constants::limits::METERS_PER_KILOMETER, PerformancePredictor::format_time(time)),
                 "vdot": predictions.vdot,
                 "race_times": predictions.predictions,
             }));

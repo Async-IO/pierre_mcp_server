@@ -62,7 +62,7 @@ async fn fetch_strava_activities(
                 metadata: None,
             })?;
 
-            provider.get_activities(Some(42), None).await
+            provider.get_activities(Some(executor.resources.config.sleep_recovery.activity_limit as usize), None).await
                 .map_err(|e| UniversalResponse {
                     success: false,
                     result: None,
@@ -548,7 +548,7 @@ pub fn handle_suggest_rest_day(
 // Long function: Protocol handler inherently long due to trend calculation, statistics aggregation, response formatting
 #[allow(clippy::too_many_lines)]
 pub fn handle_track_sleep_trends(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -562,10 +562,11 @@ pub fn handle_track_sleep_trends(
                 ProtocolError::InvalidRequest(format!("Invalid sleep_history format: {e}"))
             })?;
 
-        if sleep_history.len() < 7 {
-            return Err(ProtocolError::InvalidRequest(
-                "At least 7 days of sleep data required for trend analysis".to_string(),
-            ));
+        let trend_min_days = executor.resources.config.sleep_recovery.trend_min_days;
+        if sleep_history.len() < trend_min_days {
+            return Err(ProtocolError::InvalidRequest(format!(
+                "At least {trend_min_days} days of sleep data required for trend analysis"
+            )));
         }
 
         // Calculate average sleep metrics
@@ -598,26 +599,36 @@ pub fn handle_track_sleep_trends(
         }
 
         // Detect trends
-        let recent_7_days = &quality_scores[quality_scores.len().saturating_sub(7)..];
-        let previous_7_days = if quality_scores.len() >= 14 {
-            &quality_scores
-                [quality_scores.len().saturating_sub(14)..quality_scores.len().saturating_sub(7)]
+        let recent_n_days = &quality_scores[quality_scores.len().saturating_sub(trend_min_days)..];
+        let previous_n_days = if quality_scores.len() >= trend_min_days * 2 {
+            &quality_scores[quality_scores.len().saturating_sub(trend_min_days * 2)
+                ..quality_scores.len().saturating_sub(trend_min_days)]
         } else {
-            recent_7_days
+            recent_n_days
         };
 
         #[allow(clippy::cast_precision_loss)]
-        // Safe: len() is max 7 days, well within f64 precision
-        let recent_avg = recent_7_days.iter().map(|(_, score)| score).sum::<f64>()
-            / recent_7_days.len().max(1) as f64;
+        // Safe: len() is config trend_min_days, well within f64 precision
+        let recent_avg = recent_n_days.iter().map(|(_, score)| score).sum::<f64>()
+            / recent_n_days.len().max(1) as f64;
         #[allow(clippy::cast_precision_loss)]
-        // Safe: len() is max 7 days, well within f64 precision
-        let previous_avg = previous_7_days.iter().map(|(_, score)| score).sum::<f64>()
-            / previous_7_days.len().max(1) as f64;
+        // Safe: len() is config trend_min_days, well within f64 precision
+        let previous_avg = previous_n_days.iter().map(|(_, score)| score).sum::<f64>()
+            / previous_n_days.len().max(1) as f64;
 
-        let trend = if recent_avg > previous_avg + 5.0 {
+        let improving_threshold = executor
+            .resources
+            .config
+            .sleep_recovery
+            .trend_improving_threshold;
+        let declining_threshold = executor
+            .resources
+            .config
+            .sleep_recovery
+            .trend_declining_threshold;
+        let trend = if recent_avg > previous_avg + improving_threshold {
             "improving"
-        } else if recent_avg < previous_avg - 5.0 {
+        } else if recent_avg < previous_avg - declining_threshold {
             "declining"
         } else {
             "stable"
@@ -761,10 +772,21 @@ pub fn handle_optimize_sleep_schedule(
 
         let recommended_hours = if training_load.tsb < fatigued_tsb {
             // High fatigue: add extra sleep
-            base_recommendation + 0.5
-        } else if training_load.atl > 100.0 {
+            base_recommendation + executor.resources.config.sleep_recovery.fatigue_bonus_hours
+        } else if training_load.atl
+            > executor
+                .resources
+                .config
+                .sleep_recovery
+                .high_load_atl_threshold
+        {
             // High acute load: prioritize recovery
-            base_recommendation + 0.25
+            base_recommendation
+                + executor
+                    .resources
+                    .config
+                    .sleep_recovery
+                    .high_load_bonus_hours
         } else if upcoming_workout_intensity == "high" {
             // Hard workout tomorrow: ensure quality sleep
             base_recommendation
@@ -780,7 +802,12 @@ pub fn handle_optimize_sleep_schedule(
             .and_then(serde_json::Value::as_str)
             .unwrap_or("06:00");
 
-        let bedtime = calculate_bedtime(wake_time, recommended_hours);
+        let bedtime = calculate_bedtime(
+            wake_time,
+            recommended_hours,
+            executor.resources.config.sleep_recovery.wind_down_minutes,
+            executor.resources.config.sleep_recovery.minutes_per_day,
+        );
 
         // Generate recommendations
         let mut recommendations = Vec::new();
@@ -872,7 +899,12 @@ fn parse_minute(minute_str: &str) -> i64 {
 
 /// Helper function to calculate recommended bedtime
 // Cognitive complexity reduced by extracting parse_hour and parse_minute helper functions
-fn calculate_bedtime(wake_time: &str, target_hours: f64) -> String {
+fn calculate_bedtime(
+    wake_time: &str,
+    target_hours: f64,
+    wind_down_minutes: i64,
+    minutes_per_day: i64,
+) -> String {
     // Parse wake time (format: "HH:MM")
     let parts: Vec<&str> = wake_time.split(':').collect();
     if parts.len() != 2 {
@@ -886,13 +918,14 @@ fn calculate_bedtime(wake_time: &str, target_hours: f64) -> String {
     let wake_hour = parse_hour(parts[0]);
     let wake_minute = parse_minute(parts[1]);
 
-    // Calculate bedtime (wake time - target hours - 15 min wind-down)
+    // Calculate bedtime (wake time - target hours - wind-down minutes)
     #[allow(clippy::cast_precision_loss)] // Safe: target_hours is sleep duration (7-9h), well within f64→i64 range
     #[allow(clippy::cast_possible_truncation)]
     // Safe: target_hours * 60.0 is sleep minutes (420-540), no truncation
-    let total_minutes = (wake_hour * 60 + wake_minute) - ((target_hours * 60.0) as i64) - 15;
+    let total_minutes =
+        (wake_hour * 60 + wake_minute) - ((target_hours * 60.0) as i64) - wind_down_minutes;
     let bedtime_minutes = if total_minutes < 0 {
-        1440 + total_minutes // Wrap to previous day
+        minutes_per_day + total_minutes // Wrap to previous day
     } else {
         total_minutes
     };

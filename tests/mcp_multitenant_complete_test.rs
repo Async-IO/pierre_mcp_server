@@ -91,11 +91,6 @@ fn create_test_config(port: u16) -> Arc<pierre_mcp_server::config::environment::
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
-                enabled: true,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: pierre_mcp_server::config::environment::TlsConfig {
                 enabled: false,
                 cert_path: None,

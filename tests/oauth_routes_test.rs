@@ -13,9 +13,8 @@ use pierre_mcp_server::{
     config::environment::{
         AppBehaviorConfig, AuthConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment,
         ExternalServicesConfig, FitbitApiConfig, GeocodingServiceConfig, HttpClientConfig,
-        LogLevel, OAuthConfig, OAuthProviderConfig, ProtocolConfig, RateLimitConfig,
-        SecurityConfig, SecurityHeadersConfig, ServerConfig, StravaApiConfig, TlsConfig,
-        WeatherServiceConfig,
+        LogLevel, OAuthConfig, OAuthProviderConfig, ProtocolConfig, SecurityConfig,
+        SecurityHeadersConfig, ServerConfig, StravaApiConfig, TlsConfig, WeatherServiceConfig,
     },
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
@@ -86,11 +85,6 @@ async fn test_email_validation() {
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -154,6 +148,10 @@ async fn test_email_validation() {
             cleanup_interval_secs: 300,
         },
         usda_api_key: None,
+        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
+        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -285,11 +283,6 @@ async fn test_password_validation() {
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -353,6 +346,10 @@ async fn test_password_validation() {
             cleanup_interval_secs: 300,
         },
         usda_api_key: None,
+        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
+        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -456,11 +453,6 @@ async fn test_duplicate_user_registration() {
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -524,6 +516,10 @@ async fn test_duplicate_user_registration() {
             cleanup_interval_secs: 300,
         },
         usda_api_key: None,
+        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
+        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -618,11 +614,6 @@ async fn test_login_with_correct_credentials() {
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -686,6 +677,10 @@ async fn test_login_with_correct_credentials() {
             cleanup_interval_secs: 300,
         },
         usda_api_key: None,
+        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
+        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -824,11 +819,6 @@ async fn test_login_with_wrong_password() {
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -892,6 +882,10 @@ async fn test_login_with_wrong_password() {
             cleanup_interval_secs: 300,
         },
         usda_api_key: None,
+        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
+        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -993,11 +987,6 @@ async fn test_login_with_non_existent_user() {
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_string()],
-            rate_limit: RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -1061,6 +1050,10 @@ async fn test_login_with_non_existent_user() {
             cleanup_interval_secs: 300,
         },
         usda_api_key: None,
+        rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
+        sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
+        goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
+        training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();

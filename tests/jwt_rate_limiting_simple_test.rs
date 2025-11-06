@@ -45,6 +45,7 @@ async fn test_jwt_tokens_now_have_rate_limiting() {
         auth_manager,
         database.clone(),
         jwks_manager.clone(),
+        pierre_mcp_server::config::environment::RateLimitConfig::default(),
     ));
 
     // Create and store a test user (defaults to Starter tier with 10,000 requests/month)

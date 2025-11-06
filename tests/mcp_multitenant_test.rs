@@ -280,6 +280,7 @@ async fn test_authentication_middleware_integration() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
         jwks_manager.clone(),
+        pierre_mcp_server::config::environment::RateLimitConfig::default(),
     ));
 
     // Create test user
@@ -714,6 +715,7 @@ async fn test_concurrent_authentication_operations() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
         jwks_manager.clone(),
+        pierre_mcp_server::config::environment::RateLimitConfig::default(),
     ));
 
     // Create multiple users
