@@ -7,6 +7,9 @@
 // Integration tests for security.rs module
 // Tests for security headers configuration and validation
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::security::{audit_security_headers, headers::SecurityConfig};
 use std::collections::HashMap;
 
@@ -54,11 +57,11 @@ fn test_headers_conversion() {
 fn test_security_audit_secure_headers() {
     let mut headers = HashMap::new();
     headers.insert(
-        "Content-Security-Policy".to_string(),
-        "default-src 'self'".to_string(),
+        "Content-Security-Policy".to_owned(),
+        "default-src 'self'".to_owned(),
     );
-    headers.insert("X-Frame-Options".to_string(), "DENY".to_string());
-    headers.insert("X-Content-Type-Options".to_string(), "nosniff".to_string());
+    headers.insert("X-Frame-Options".to_owned(), "DENY".to_owned());
+    headers.insert("X-Content-Type-Options".to_owned(), "nosniff".to_owned());
 
     let audit = audit_security_headers(&headers);
     assert!(audit, "Secure headers should pass audit");
@@ -75,8 +78,8 @@ fn test_security_audit_missing_headers() {
 fn test_security_audit_partial_headers() {
     let mut headers = HashMap::new();
     headers.insert(
-        "Content-Security-Policy".to_string(),
-        "default-src 'self'".to_string(),
+        "Content-Security-Policy".to_owned(),
+        "default-src 'self'".to_owned(),
     );
     // Missing other required headers
 

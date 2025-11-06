@@ -42,14 +42,20 @@ use warp::{
 /// Admin API context shared across all endpoints
 #[derive(Clone)]
 pub struct AdminApiContext {
+    /// Database connection for persistence
     pub database: Arc<Database>,
+    /// Admin authentication service
     pub auth_service: AdminAuthService,
+    /// Authentication manager for token operations
     pub auth_manager: Arc<AuthManager>,
+    /// JWT secret for admin token validation
     pub admin_jwt_secret: String,
+    /// JWKS manager for key rotation and validation
     pub jwks_manager: Arc<crate::admin::jwks::JwksManager>,
 }
 
 impl AdminApiContext {
+    /// Creates a new admin API context with authentication and JWKS management
     pub fn new(
         database: Arc<Database>,
         jwt_secret: &str,
@@ -65,7 +71,7 @@ impl AdminApiContext {
             database,
             auth_service,
             auth_manager,
-            admin_jwt_secret: jwt_secret.to_string(),
+            admin_jwt_secret: jwt_secret.to_owned(),
             jwks_manager,
         }
     }
@@ -74,79 +80,113 @@ impl AdminApiContext {
 /// API Key provisioning request
 #[derive(Debug, Deserialize)]
 pub struct ProvisionApiKeyRequest {
+    /// Email of the user to provision the key for
     pub user_email: String,
+    /// Tier level for the API key (starter/professional/enterprise)
     pub tier: String,
+    /// Optional description of the API key's purpose
     pub description: Option<String>,
+    /// Number of days until the key expires
     pub expires_in_days: Option<u32>,
+    /// Maximum requests allowed
     pub rate_limit_requests: Option<u32>,
+    /// Rate limit period (e.g., "hour", "day", "month")
     pub rate_limit_period: Option<String>,
 }
 
 /// API Key provisioning response
 #[derive(Debug, Serialize)]
 pub struct ProvisionApiKeyResponse {
+    /// Whether the operation succeeded
     pub success: bool,
+    /// Unique identifier for the API key
     pub api_key_id: String,
+    /// The actual API key (shown only once)
     pub api_key: String,
+    /// ID of the user who owns this key
     pub user_id: String,
+    /// Tier level of the key
     pub tier: String,
+    /// When the key expires (ISO 8601 format)
     pub expires_at: Option<String>,
+    /// Rate limit configuration
     pub rate_limit: Option<RateLimitInfo>,
 }
 
 /// Rate limit information
 #[derive(Debug, Serialize)]
 pub struct RateLimitInfo {
+    /// Maximum number of requests allowed
     pub requests: u32,
+    /// Time period for the rate limit
     pub period: String,
 }
 
 /// API Key management request
 #[derive(Debug, Deserialize)]
 pub struct RevokeApiKeyRequest {
+    /// ID of the API key to revoke
     pub api_key_id: String,
+    /// Optional reason for revocation
     pub reason: Option<String>,
 }
 
 /// Admin setup request
 #[derive(Debug, Deserialize)]
 pub struct AdminSetupRequest {
+    /// Admin email address
     pub email: String,
+    /// Admin password
     pub password: String,
+    /// Optional display name
     pub display_name: Option<String>,
 }
 
 /// Admin setup response
 #[derive(Debug, Serialize)]
 pub struct AdminSetupResponse {
+    /// ID of the created admin user
     pub user_id: String,
+    /// JWT token for admin authentication
     pub admin_token: String,
+    /// Success message
     pub message: String,
 }
 
 /// Generic admin response
 #[derive(Debug, Serialize)]
 pub struct AdminResponse {
+    /// Whether the operation succeeded
     pub success: bool,
+    /// Response message
     pub message: String,
+    /// Optional additional data
     pub data: Option<serde_json::Value>,
 }
 
 /// Admin token info response
 #[derive(Debug, Serialize)]
 pub struct AdminTokenInfoResponse {
+    /// Unique token identifier
     pub token_id: String,
+    /// Service name associated with the token
     pub service_name: String,
+    /// List of permissions granted
     pub permissions: Vec<String>,
+    /// Whether this is a super admin token
     pub is_super_admin: bool,
+    /// When the token was created (ISO 8601 format)
     pub created_at: String,
+    /// When the token was last used (ISO 8601 format)
     pub last_used_at: Option<String>,
+    /// Number of times the token has been used
     pub usage_count: u64,
 }
 
 /// User management request
 #[derive(Debug, Deserialize)]
 pub struct ApproveUserRequest {
+    /// Optional reason for approval
     pub reason: Option<String>,
     /// Auto-create default tenant for single-user workflows
     pub create_default_tenant: Option<bool>,
@@ -159,40 +199,60 @@ pub struct ApproveUserRequest {
 /// User management response
 #[derive(Debug, Serialize)]
 pub struct UserManagementResponse {
+    /// Whether the operation succeeded
     pub success: bool,
+    /// Response message
     pub message: String,
+    /// Information about the user
     pub user: Option<UserInfo>,
+    /// Information about the created tenant (if any)
     pub tenant_created: Option<TenantCreatedInfo>,
 }
 
 /// Information about created tenant
 #[derive(Debug, Serialize)]
 pub struct TenantCreatedInfo {
+    /// Unique tenant identifier
     pub tenant_id: String,
+    /// Tenant name
     pub name: String,
+    /// Tenant URL slug
     pub slug: String,
+    /// Subscription plan
     pub plan: String,
 }
 
 /// User information for admin responses
 #[derive(Debug, Serialize)]
 pub struct UserInfo {
+    /// User ID
     pub id: String,
+    /// User email address
     pub email: String,
+    /// Display name if set
     pub display_name: Option<String>,
+    /// Current user status
     pub user_status: String,
+    /// Subscription tier
     pub tier: String,
+    /// When the user was created (ISO 8601 format)
     pub created_at: String,
+    /// Last activity timestamp (ISO 8601 format)
     pub last_active: String,
+    /// ID of admin who approved the user
     pub approved_by: Option<String>,
+    /// When the user was approved (ISO 8601 format)
     pub approved_at: Option<String>,
 }
 
 /// Pending users list response
 #[derive(Debug, Serialize)]
 pub struct PendingUsersResponse {
+    /// Whether the operation succeeded
     pub success: bool,
+    /// List of pending users
     pub users: Vec<UserInfo>,
+    /// Total count of pending users
     pub count: usize,
 }
 
@@ -499,12 +559,12 @@ fn extract_client_ip(
         || {
             x_real_ip.map_or_else(
                 || remote_addr.map(|addr| addr.ip().to_string()),
-                |real_ip| Some(real_ip.trim().to_string()),
+                |real_ip| Some(real_ip.trim().to_owned()),
             )
         },
         |xff| {
             // X-Forwarded-For can contain multiple IPs, take the first one
-            xff.split(',').next().map(|ip| ip.trim().to_string())
+            xff.split(',').next().map(|ip| ip.trim().to_owned())
         },
     )
 }
@@ -631,7 +691,7 @@ fn create_provision_response(
         expires_at: api_key.expires_at.map(|dt| dt.to_rfc3339()),
         rate_limit: Some(RateLimitInfo {
             requests: api_key.rate_limit_requests,
-            period: period_name.to_string(),
+            period: period_name.to_owned(),
         }),
     }
 }
@@ -840,7 +900,7 @@ async fn handle_list_api_keys(
                 .map(|key| {
                     serde_json::json!({
                         "id": key.id,
-                        "user_id": key.user_id.to_string(),
+                        "user_id": key.user_id.clone(),
                         "name": key.name,
                         "description": key.description,
                         "tier": format!("{:?}", key.tier).to_lowercase(),
@@ -912,8 +972,8 @@ async fn handle_token_info(
                 permissions: token_details
                     .permissions
                     .to_vec()
-                    .iter()
-                    .map(std::string::ToString::to_string)
+                    .into_iter()
+                    .map(|p| p.to_string())
                     .collect(),
                 is_super_admin: token_details.is_super_admin,
                 created_at: token_details.created_at.to_rfc3339(),
@@ -1019,8 +1079,8 @@ async fn handle_admin_setup(
 
             // Generate admin token immediately
             let token_request = crate::admin::models::CreateAdminTokenRequest {
-                service_name: "initial_admin_setup".to_string(),
-                service_description: Some("Initial admin setup token".to_string()),
+                service_name: "initial_admin_setup".to_owned(),
+                service_description: Some("Initial admin setup token".to_owned()),
                 permissions: Some(vec![
                     crate::admin::models::AdminPermission::ManageUsers,
                     crate::admin::models::AdminPermission::ManageAdminTokens,
@@ -1118,12 +1178,16 @@ async fn handle_setup_status(context: AdminApiContext) -> Result<impl Reply, Rej
 /// Admin API error types
 #[derive(Debug, thiserror::Error)]
 pub enum AdminApiError {
+    /// Authentication header is missing or malformed
     #[error("Invalid authentication header")]
     InvalidAuthHeader,
+    /// Authentication validation failed
     #[error("Authentication failed: {0}")]
     AuthenticationFailed(String),
+    /// Database operation failed
     #[error("Database error: {0}")]
     DatabaseError(String),
+    /// Request validation failed
     #[error("Invalid request: {0}")]
     InvalidRequest(String),
 }
@@ -1136,7 +1200,7 @@ async fn handle_admin_rejection(err: Rejection) -> Result<impl Reply, std::conve
     if matches!(err.find(), Some(AdminApiError::InvalidAuthHeader)) {
         let response = AdminResponse {
             success: false,
-            message: "Invalid Authorization header".to_string(),
+            message: "Invalid Authorization header".to_owned(),
             data: None,
         };
         return Ok(with_status(json(&response), StatusCode::BAD_REQUEST));
@@ -1191,7 +1255,7 @@ async fn handle_admin_rejection(err: Rejection) -> Result<impl Reply, std::conve
 
     let response = AdminResponse {
         success: false,
-        message: message.to_string(),
+        message: message.to_owned(),
         data: None,
     };
 
@@ -1640,7 +1704,7 @@ async fn handle_rotate_jwt_secret(
                 admin_token_id: admin_token.token_id,
                 timestamp: chrono::Utc::now(),
                 action: crate::admin::models::AdminAction::ViewAuditLogs, // Closest available action
-                target_resource: Some("jwt_secret".to_string()),
+                target_resource: Some("jwt_secret".to_owned()),
                 ip_address: None,
                 user_agent: None,
                 request_size_bytes: None,
@@ -1674,7 +1738,7 @@ async fn handle_rotate_jwt_secret(
                 admin_token_id: admin_token.token_id,
                 timestamp: chrono::Utc::now(),
                 action: crate::admin::models::AdminAction::ViewAuditLogs,
-                target_resource: Some("jwt_secret".to_string()),
+                target_resource: Some("jwt_secret".to_owned()),
                 ip_address: None,
                 user_agent: None,
                 request_size_bytes: None,
@@ -1827,12 +1891,11 @@ async fn handle_approve_user(
 
             let tenant_created = if let Some(tenant) = tenant_info {
                 use std::fmt::Write;
-                write!(
-                    &mut success_message,
+                let _ = write!(
+                    success_message,
                     " and default tenant '{}' created",
                     tenant.name
-                )
-                .expect("write! to String cannot fail except on OOM");
+                );
                 Some(TenantCreatedInfo {
                     tenant_id: tenant.id.to_string(),
                     name: tenant.name,
@@ -2009,8 +2072,9 @@ async fn approve_user_with_optional_tenant(
                 );
 
                 // Update user's tenant_id to link them to the new tenant
+                let tenant_id_str = tenant.id.to_string();
                 if let Err(e) = database
-                    .update_user_tenant_id(user_id, &tenant.id.to_string())
+                    .update_user_tenant_id(user_id, &tenant_id_str)
                     .await
                 {
                     error!(
@@ -2064,10 +2128,10 @@ async fn create_default_tenant_for_user(
 
     let tenant_data = crate::models::Tenant {
         id: tenant_id,
-        name: tenant_name.to_string(),
+        name: tenant_name.to_owned(),
         slug,
         domain: None,
-        plan: tiers::STARTER.to_string(), // Default plan for auto-created tenants
+        plan: tiers::STARTER.to_owned(), // Default plan for auto-created tenants
         owner_user_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),

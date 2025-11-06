@@ -48,19 +48,26 @@ impl Cache {
     /// Create cache from environment variables
     ///
     /// Supports both in-memory and Redis backends based on `REDIS_URL` environment variable.
+    /// Uses sensible defaults if server configuration is not yet initialized.
     ///
     /// # Errors
     ///
     /// Returns an error if cache initialization fails
     pub async fn from_env() -> Result<Self> {
-        let server_config = crate::constants::get_server_config();
-        let config = CacheConfig {
-            max_entries: server_config.cache.max_entries,
-            redis_url: server_config.cache.redis_url.clone(),
-            cleanup_interval: Duration::from_secs(server_config.cache.cleanup_interval_secs),
-            // Enable background cleanup for production use
-            enable_background_cleanup: true,
-        };
+        let config = crate::constants::get_server_config().map_or_else(
+            || CacheConfig {
+                max_entries: 1000,
+                redis_url: None,
+                cleanup_interval: Duration::from_secs(300),
+                enable_background_cleanup: true,
+            },
+            |server_config| CacheConfig {
+                max_entries: server_config.cache.max_entries,
+                redis_url: server_config.cache.redis_url.clone(),
+                cleanup_interval: Duration::from_secs(server_config.cache.cleanup_interval_secs),
+                enable_background_cleanup: true,
+            },
+        );
 
         Self::new(config).await
     }

@@ -36,35 +36,50 @@ use serde::{Deserialize, Serialize};
 /// Gender for BMR calculations
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Gender {
+    /// Male gender (higher BMR)
     Male,
+    /// Female gender (lower BMR)
     Female,
 }
 
 /// Activity level for TDEE calculation
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ActivityLevel {
+    /// Sedentary (little/no exercise)
     Sedentary,
+    /// Lightly active (1-3 days/week)
     LightlyActive,
+    /// Moderately active (3-5 days/week)
     ModeratelyActive,
+    /// Very active (6-7 days/week)
     VeryActive,
+    /// Extra active (hard training 2x/day)
     ExtraActive,
 }
 
 /// Training goal for macronutrient distribution
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TrainingGoal {
+    /// Weight loss (caloric deficit)
     WeightLoss,
+    /// Maintenance (caloric balance)
     Maintenance,
+    /// Muscle gain (caloric surplus)
     MuscleGain,
+    /// Endurance performance (high carb)
     EndurancePerformance,
+    /// Strength performance (high protein)
     StrengthPerformance,
 }
 
 /// Workout intensity for nutrient timing
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum WorkoutIntensity {
+    /// Low intensity (<50% max HR)
     Low,
+    /// Moderate intensity (50-75% max HR)
     Moderate,
+    /// High intensity (>75% max HR)
     High,
 }
 
@@ -102,19 +117,26 @@ pub struct DailyNutritionNeeds {
 /// Macronutrient percentage breakdown
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MacroPercentages {
+    /// Protein as percentage of total calories
     pub protein_percent: f64,
+    /// Carbohydrates as percentage of total calories
     pub carbs_percent: f64,
+    /// Fat as percentage of total calories
     pub fat_percent: f64,
 }
 
 /// Nutrient timing recommendations for workout nutrition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NutrientTimingPlan {
+    /// Pre-workout nutrition recommendations
     pub pre_workout: PreWorkoutNutrition,
+    /// Post-workout nutrition recommendations
     pub post_workout: PostWorkoutNutrition,
+    /// Daily protein distribution strategy
     pub daily_protein_distribution: ProteinDistribution,
 }
 
+/// Pre-workout nutrition recommendations based on workout intensity
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PreWorkoutNutrition {
     /// Carbohydrates (grams)
@@ -125,6 +147,7 @@ pub struct PreWorkoutNutrition {
     pub recommendations: Vec<String>,
 }
 
+/// Post-workout nutrition recommendations for recovery and adaptation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PostWorkoutNutrition {
     /// Protein (grams)
@@ -137,6 +160,7 @@ pub struct PostWorkoutNutrition {
     pub recommendations: Vec<String>,
 }
 
+/// Daily protein distribution strategy for optimal muscle protein synthesis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProteinDistribution {
     /// Recommended meals per day
@@ -149,7 +173,7 @@ pub struct ProteinDistribution {
 
 /// Calculate Basal Metabolic Rate using Mifflin-St Jeor equation (1990)
 ///
-/// Formula: BMR = (10 × `weight_kg`) + (6.25 × `height_cm`) - (5 × age) + `gender_offset`
+/// Formula: BMR = (10 x `weight_kg`) + (6.25 x `height_cm`) - (5 x age) + `gender_offset`
 /// - Men: +5
 /// - Women: -161
 ///
@@ -208,7 +232,7 @@ pub fn calculate_mifflin_st_jeor(
 
 /// Calculate Total Daily Energy Expenditure (TDEE)
 ///
-/// Formula: TDEE = BMR × Activity Factor
+/// Formula: TDEE = BMR x Activity Factor
 ///
 /// Activity factors based on `McArdle` et al. (2010):
 /// - Sedentary: 1.2 (little/no exercise)
@@ -250,7 +274,7 @@ pub fn calculate_tdee(
 
 /// Calculate recommended daily protein intake
 ///
-/// Formula: Protein (g) = `weight_kg` × `protein_factor`
+/// Formula: Protein (g) = `weight_kg` x `protein_factor`
 ///
 /// Protein recommendations (Phillips & Van Loon 2011):
 /// - Sedentary: 0.8 g/kg (DRI minimum)
@@ -314,7 +338,7 @@ pub fn calculate_protein_needs(
 
 /// Calculate recommended daily carbohydrate intake
 ///
-/// Formula: Carbs (g) = `weight_kg` × `carb_factor`
+/// Formula: Carbs (g) = `weight_kg` x `carb_factor`
 ///
 /// Carbohydrate recommendations (Burke et al. 2011):
 /// - Low activity: 3 g/kg
@@ -366,7 +390,7 @@ pub fn calculate_carb_needs(
 
 /// Calculate recommended daily fat intake
 ///
-/// Formula: Fat (g) = (TDEE × `fat_percentage`) / 9 kcal/g
+/// Formula: Fat (g) = (TDEE x `fat_percentage`) / 9 kcal/g
 ///
 /// Fat recommendations (DRI guidelines):
 /// - Minimum: 20% of TDEE
@@ -433,11 +457,17 @@ pub fn calculate_fat_needs(
 
 /// User parameters for daily nutrition calculation
 pub struct DailyNutritionParams {
+    /// Body weight in kilograms
     pub weight_kg: f64,
+    /// Height in centimeters
     pub height_cm: f64,
+    /// Age in years
     pub age: u32,
+    /// Biological gender for BMR calculation
     pub gender: Gender,
+    /// Activity level for TDEE multiplier
     pub activity_level: ActivityLevel,
+    /// Training goal for macro distribution
     pub training_goal: TrainingGoal,
 }
 
@@ -506,7 +536,7 @@ pub fn calculate_daily_nutrition_needs(
         carbs_g,
         fat_g,
         macro_percentages,
-        method: "Mifflin-St Jeor + Activity Factor".to_string(),
+        method: "Mifflin-St Jeor + Activity Factor".to_owned(),
         activity_level: params.activity_level,
         training_goal: params.training_goal,
     })
@@ -574,8 +604,8 @@ pub fn calculate_nutrient_timing(
                     "Consume {:.0}g carbs 1-3 hours before workout",
                     pre_workout_carbs
                 ),
-                "Focus on easily digestible carbs (banana, oatmeal, toast)".to_string(),
-                "Small amount of protein (10-20g) can be beneficial".to_string(),
+                "Focus on easily digestible carbs (banana, oatmeal, toast)".to_owned(),
+                "Small amount of protein (10-20g) can be beneficial".to_owned(),
             ],
         },
         post_workout: PostWorkoutNutrition {
@@ -587,9 +617,9 @@ pub fn calculate_nutrient_timing(
                     "Consume {:.0}g protein + {:.0}g carbs within 2 hours",
                     post_workout_protein, post_workout_carbs
                 ),
-                "Window is flexible - total daily intake matters most".to_string(),
-                "Quality protein sources: whey, chicken, fish, eggs".to_string(),
-                "Carbs restore glycogen - more important after high-intensity".to_string(),
+                "Window is flexible - total daily intake matters most".to_owned(),
+                "Quality protein sources: whey, chicken, fish, eggs".to_owned(),
+                "Carbs restore glycogen - more important after high-intensity".to_owned(),
             ],
         },
         daily_protein_distribution: ProteinDistribution {

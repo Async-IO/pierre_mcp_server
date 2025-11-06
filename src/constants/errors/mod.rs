@@ -6,7 +6,10 @@
 
 //! Error constants module
 
+/// Error codes and messages
 pub mod codes;
 
 // Re-export all error constants
+
+/// Re-export all error code constants
 pub use codes::*;

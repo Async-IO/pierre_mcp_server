@@ -18,6 +18,7 @@ pub struct NotificationStream {
 }
 
 impl NotificationStream {
+    /// Creates a new notification stream with the specified buffer size
     #[must_use]
     pub fn new(buffer_size: usize) -> Self {
         Self {

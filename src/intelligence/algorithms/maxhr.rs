@@ -10,9 +10,9 @@ use std::str::FromStr;
 /// Different formulas provide varying accuracy across populations:
 ///
 /// - `Fox`: Classic 220-age (±10-12 bpm error, tends to overestimate)
-/// - `Tanaka`: 208-0.7×age (±7-8 bpm error, current gold standard)
-/// - `Nes`: 211-0.64×age (±6-7 bpm error, validated in large cohort)
-/// - `Gulati`: 206-0.88×age (women-specific, ±7-8 bpm error)
+/// - `Tanaka`: 208-0.7xage (±7-8 bpm error, current gold standard)
+/// - `Nes`: 211-0.64xage (±6-7 bpm error, validated in large cohort)
+/// - `Gulati`: 206-0.88xage (women-specific, ±7-8 bpm error)
 ///
 /// # Scientific References
 ///
@@ -30,7 +30,7 @@ pub enum MaxHrAlgorithm {
     /// Tends to overestimate max HR, especially for older adults
     Fox,
 
-    /// Tanaka formula: 208 - 0.7 × age
+    /// Tanaka formula: 208 - 0.7 x age
     ///
     /// Current gold standard in exercise physiology
     /// Based on meta-analysis of 18,712 subjects
@@ -38,14 +38,14 @@ pub enum MaxHrAlgorithm {
     /// More accurate across all age groups
     Tanaka,
 
-    /// Nes formula: 211 - 0.64 × age
+    /// Nes formula: 211 - 0.64 x age
     ///
     /// Derived from Norwegian HUNT study
     /// Standard deviation: ±6-7 bpm
     /// Performs well in athletic populations
     Nes,
 
-    /// Gulati formula: 206 - 0.88 × age
+    /// Gulati formula: 206 - 0.88 x age
     ///
     /// Women-specific formula
     /// Standard deviation: ±7-8 bpm
@@ -125,9 +125,9 @@ impl MaxHrAlgorithm {
     pub const fn description(&self) -> &'static str {
         match self {
             Self::Fox => "Fox: 220 - age (classic, ±10-12 bpm)",
-            Self::Tanaka => "Tanaka: 208 - 0.7×age (gold standard, ±7-8 bpm)",
-            Self::Nes => "Nes: 211 - 0.64×age (athletic populations, ±6-7 bpm)",
-            Self::Gulati => "Gulati: 206 - 0.88×age (women-specific, ±7-8 bpm)",
+            Self::Tanaka => "Tanaka: 208 - 0.7xage (gold standard, ±7-8 bpm)",
+            Self::Nes => "Nes: 211 - 0.64xage (athletic populations, ±6-7 bpm)",
+            Self::Gulati => "Gulati: 206 - 0.88xage (women-specific, ±7-8 bpm)",
         }
     }
 
@@ -136,9 +136,9 @@ impl MaxHrAlgorithm {
     pub const fn formula(&self) -> &'static str {
         match self {
             Self::Fox => "220 - age",
-            Self::Tanaka => "208 - 0.7 × age",
-            Self::Nes => "211 - 0.64 × age",
-            Self::Gulati => "206 - 0.88 × age",
+            Self::Tanaka => "208 - 0.7 x age",
+            Self::Nes => "211 - 0.64 x age",
+            Self::Gulati => "206 - 0.88 x age",
         }
     }
 }

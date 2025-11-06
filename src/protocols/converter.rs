@@ -16,7 +16,9 @@ use serde_json::Value;
 /// Supported protocol types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProtocolType {
+    /// Model Context Protocol
     MCP,
+    /// Agent-to-Agent protocol
     A2A,
 }
 
@@ -47,7 +49,7 @@ impl ProtocolConverter {
                             "Tool name not found in A2A request".into(),
                         )
                     })?
-                    .to_string()
+                    .to_owned()
             }
             method => {
                 return Err(crate::protocols::ProtocolError::ConversionFailed(format!(
@@ -67,7 +69,7 @@ impl ProtocolConverter {
         Ok(UniversalRequest {
             tool_name,
             parameters,
-            user_id: user_id.to_string(),
+            user_id: user_id.to_owned(),
             protocol: "a2a".into(),
             tenant_id: None,
         })
@@ -109,7 +111,7 @@ impl ProtocolConverter {
             parameters: tool_call
                 .arguments
                 .unwrap_or_else(|| Value::Object(serde_json::Map::new())),
-            user_id: user_id.to_string(),
+            user_id: user_id.to_owned(),
             protocol: "mcp".into(),
             tenant_id,
         }
@@ -146,7 +148,7 @@ impl ProtocolConverter {
         use std::fmt::Write;
 
         let Some(data) = result else {
-            return "No data available".to_string();
+            return "No data available".to_owned();
         };
 
         // Handle activities response
@@ -166,12 +168,12 @@ impl ProtocolConverter {
                 let distance = activity
                     .get("distance_meters")
                     .and_then(Value::as_f64)
-                    .map_or_else(|| "N/A".to_string(), |d| format!("{:.2} km", d / 1000.0));
+                    .map_or_else(|| "N/A".to_owned(), |d| format!("{:.2} km", d / 1000.0));
                 let moving_time = activity
                     .get("duration_seconds")
                     .and_then(Value::as_u64)
                     .map_or_else(
-                        || "N/A".to_string(),
+                        || "N/A".to_owned(),
                         |t| {
                             let hours = t / 3600;
                             let minutes = (t % 3600) / 60;
@@ -217,7 +219,7 @@ impl ProtocolConverter {
                     .unwrap_or("")
             )
             .trim()
-            .to_string();
+            .to_owned();
             let username = athlete
                 .get("username")
                 .and_then(Value::as_str)

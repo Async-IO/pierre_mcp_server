@@ -24,7 +24,7 @@ use std::str::FromStr;
 pub enum TssAlgorithm {
     /// Average power based TSS (current default)
     ///
-    /// Formula: `duration_hours × (avg_power/FTP)² × 100`
+    /// Formula: `duration_hours x (avg_power/FTP)² x 100`
     ///
     /// Pros: O(1) computation, works without power stream
     /// Cons: Underestimates variable efforts by 15-30%
@@ -32,7 +32,7 @@ pub enum TssAlgorithm {
 
     /// Normalized Power based TSS (industry standard)
     ///
-    /// Formula: `duration_hours × (NP/FTP)² × 100`
+    /// Formula: `duration_hours x (NP/FTP)² x 100`
     ///
     /// `NP = ⁴√(mean(mean_per_30s_window(power⁴)))`
     ///
@@ -89,12 +89,12 @@ impl TssAlgorithm {
         // Validate inputs
         if ftp <= 0.0 {
             return Err(AppError::invalid_input(
-                "FTP must be greater than zero".to_string(),
+                "FTP must be greater than zero".to_owned(),
             ));
         }
         if duration_hours < 0.0 {
             return Err(AppError::invalid_input(
-                "Duration cannot be negative".to_string(),
+                "Duration cannot be negative".to_owned(),
             ));
         }
 
@@ -118,7 +118,7 @@ impl TssAlgorithm {
         let avg_power = f64::from(
             activity
                 .average_power
-                .ok_or_else(|| AppError::not_found("average power data".to_string()))?,
+                .ok_or_else(|| AppError::not_found("average power data".to_owned()))?,
         );
 
         let intensity_factor = avg_power / ftp;

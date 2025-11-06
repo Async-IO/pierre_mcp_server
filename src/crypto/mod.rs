@@ -6,6 +6,8 @@
 
 //! Cryptographic utilities for Pierre MCP Server
 
+/// Key management for A2A protocol
 pub mod keys;
 
+/// Re-export key management types
 pub use keys::{A2AKeyManager, A2AKeypair, A2APublicKey};

@@ -3,6 +3,9 @@
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use chrono::Utc;
 use pierre_mcp_server::constants::oauth_providers;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
@@ -41,9 +44,9 @@ async fn create_test_user(db: &Database) -> Uuid {
     let user_id = Uuid::new_v4();
     let user = User {
         id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: "hashed_password".to_string(),
+        email: "test@example.com".to_owned(),
+        display_name: Some("Test User".to_owned()),
+        password_hash: "hashed_password".to_owned(),
         tier: pierre_mcp_server::models::UserTier::Starter,
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
@@ -54,7 +57,7 @@ async fn create_test_user(db: &Database) -> Uuid {
         last_active: Utc::now(),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
     };
 
     db.create_user(&user).await.expect("Failed to create user");
@@ -98,7 +101,7 @@ async fn test_user_management() {
 
     let user = retrieved_user.unwrap();
     assert_eq!(user.email, "test@example.com");
-    assert_eq!(user.display_name, Some("Test User".to_string()));
+    assert_eq!(user.display_name, Some("Test User".to_owned()));
 
     // Test user by email
     let user_by_email = db
@@ -122,12 +125,12 @@ async fn test_oauth_token_management() {
     let expires_at = Utc::now() + chrono::Duration::hours(1);
     let oauth_token = UserOAuthToken::new(
         user_id,
-        "00000000-0000-0000-0000-000000000000".to_string(),
-        oauth_providers::STRAVA.to_string(),
-        "test_access_token".to_string(),
-        Some("test_refresh_token".to_string()),
+        "00000000-0000-0000-0000-000000000000".to_owned(),
+        oauth_providers::STRAVA.to_owned(),
+        "test_access_token".to_owned(),
+        Some("test_refresh_token".to_owned()),
         Some(expires_at),
-        Some("read,activity:read_all".to_string()),
+        Some("read,activity:read_all".to_owned()),
     );
     db.upsert_user_oauth_token(&oauth_token)
         .await
@@ -146,8 +149,8 @@ async fn test_oauth_token_management() {
 
     let token = token.unwrap();
     assert_eq!(token.access_token, "test_access_token");
-    assert_eq!(token.refresh_token, Some("test_refresh_token".to_string()));
-    assert_eq!(token.scope, Some("read,activity:read_all".to_string()));
+    assert_eq!(token.refresh_token, Some("test_refresh_token".to_owned()));
+    assert_eq!(token.scope, Some("read,activity:read_all".to_owned()));
 
     // Test clearing Strava token
     db.delete_user_oauth_token(
@@ -304,7 +307,7 @@ async fn test_database_trait_abstraction() {
                 id: user_id,
                 email: format!("test{i}@example.com"),
                 display_name: Some(format!("Test User {i}")),
-                password_hash: "hashed_password".to_string(),
+                password_hash: "hashed_password".to_owned(),
                 tier: pierre_mcp_server::models::UserTier::Starter,
                 created_at: Utc::now(),
                 last_active: Utc::now(),
@@ -315,7 +318,7 @@ async fn test_database_trait_abstraction() {
                 approved_at: Some(chrono::Utc::now()),
                 strava_token: None,
                 fitbit_token: None,
-                tenant_id: Some("test-tenant".to_string()),
+                tenant_id: Some("test-tenant".to_owned()),
             };
 
             db_clone.create_user(&user).await
@@ -350,7 +353,7 @@ async fn test_system_stats() {
             id: user_id,
             email: format!("user{i}@example.com"),
             display_name: Some(format!("User {i}")),
-            password_hash: "hashed_password".to_string(),
+            password_hash: "hashed_password".to_owned(),
             tier: pierre_mcp_server::models::UserTier::Starter,
             created_at: Utc::now(),
             last_active: Utc::now(),
@@ -361,7 +364,7 @@ async fn test_system_stats() {
             approved_at: Some(chrono::Utc::now()),
             strava_token: None,
             fitbit_token: None,
-            tenant_id: Some("test-tenant".to_string()),
+            tenant_id: Some("test-tenant".to_owned()),
         };
 
         db.create_user(&user).await.expect("Failed to create user");

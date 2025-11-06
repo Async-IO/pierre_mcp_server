@@ -35,6 +35,7 @@ pub struct StoreCredentialsRequest {
 
 /// Tenant-aware OAuth client with credential isolation and rate limiting
 pub struct TenantOAuthClient {
+    /// OAuth manager handling tenant-specific credentials
     pub oauth_manager: Arc<Mutex<TenantOAuthManager>>,
 }
 
@@ -286,13 +287,13 @@ impl TenantOAuthClient {
     ) -> Result<OAuth2Config> {
         let (auth_url, token_url, use_pkce) = match provider {
             "strava" => (
-                "https://www.strava.com/oauth/authorize".to_string(),
-                "https://www.strava.com/oauth/token".to_string(),
+                "https://www.strava.com/oauth/authorize".to_owned(),
+                "https://www.strava.com/oauth/token".to_owned(),
                 true,
             ),
             "fitbit" => (
-                "https://www.fitbit.com/oauth2/authorize".to_string(),
-                "https://api.fitbit.com/oauth2/token".to_string(),
+                "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                "https://api.fitbit.com/oauth2/token".to_owned(),
                 true,
             ),
             _ => {

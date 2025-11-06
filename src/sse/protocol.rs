@@ -17,13 +17,18 @@ use tokio::sync::{broadcast, RwLock};
 
 /// MCP protocol stream for a specific session
 pub struct McpProtocolStream {
+    /// Server resources including database and configuration
     resources: Arc<ServerResources>,
+    /// Broadcast sender for streaming messages to clients
     sender: Arc<RwLock<Option<broadcast::Sender<String>>>>,
+    /// Optional session identifier for this stream
     session_id: Option<String>,
+    /// Maximum number of messages to buffer
     buffer_size: usize,
 }
 
 impl McpProtocolStream {
+    /// Creates a new MCP protocol stream for SSE communication
     #[must_use]
     pub fn new(resources: Arc<ServerResources>) -> Self {
         let buffer_size = resources.config.sse.max_buffer_size;
@@ -97,7 +102,7 @@ impl McpProtocolStream {
     /// - Sending the error event fails
     pub async fn send_error(&self, error_message: &str) -> Result<()> {
         let error_response =
-            McpResponse::error(Some(Value::Null), -32603, error_message.to_string());
+            McpResponse::error(Some(Value::Null), -32603, error_message.to_owned());
 
         let sender_guard = self.sender.read().await;
 

@@ -35,7 +35,7 @@ async fn create_configured_strava_provider(
         expires_at: Some(token_data.expires_at),
         scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
             .split(',')
-            .map(str::to_string)
+            .map(str::to_owned)
             .collect(),
     };
 
@@ -52,15 +52,15 @@ fn create_no_token_response() -> UniversalResponse {
     UniversalResponse {
         success: false,
         result: None,
-        error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
+        error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
         metadata: Some({
             let mut map = std::collections::HashMap::new();
             map.insert(
-                "total_activities".to_string(),
+                "total_activities".to_owned(),
                 serde_json::Value::Number(0.into()),
             );
             map.insert(
-                "authentication_required".to_string(),
+                "authentication_required".to_owned(),
                 serde_json::Value::Bool(true),
             );
             map
@@ -81,7 +81,7 @@ fn create_auth_error_response(error: &str) -> UniversalResponse {
         metadata: Some({
             let mut map = std::collections::HashMap::new();
             map.insert(
-                "authentication_error".to_string(),
+                "authentication_error".to_owned(),
                 serde_json::Value::Bool(true),
             );
             map
@@ -97,15 +97,15 @@ fn create_activity_metadata(
 ) -> std::collections::HashMap<String, serde_json::Value> {
     let mut map = std::collections::HashMap::new();
     map.insert(
-        "activity_id".to_string(),
-        serde_json::Value::String(activity_id.to_string()),
+        "activity_id".to_owned(),
+        serde_json::Value::String(activity_id.to_owned()),
     );
     map.insert(
-        "user_id".to_string(),
+        "user_id".to_owned(),
         serde_json::Value::String(user_uuid.to_string()),
     );
     map.insert(
-        "tenant_id".to_string(),
+        "tenant_id".to_owned(),
         tenant_id.map_or(serde_json::Value::Null, |id| {
             serde_json::Value::String(id.clone()) // Safe: String ownership for JSON value
         }),
@@ -135,20 +135,20 @@ async fn try_get_cached_activities(
             metadata: Some({
                 let mut map = std::collections::HashMap::new();
                 map.insert(
-                    "total_activities".to_string(),
+                    "total_activities".to_owned(),
                     serde_json::Value::Number(cached_activities.len().into()),
                 );
                 map.insert(
-                    "user_id".to_string(),
+                    "user_id".to_owned(),
                     serde_json::Value::String(user_uuid.to_string()),
                 );
                 map.insert(
-                    "tenant_id".to_string(),
+                    "tenant_id".to_owned(),
                     tenant_id.map_or(serde_json::Value::Null, |id| {
                         serde_json::Value::String(id.clone())
                     }),
                 );
-                map.insert("cached".to_string(), serde_json::Value::Bool(true));
+                map.insert("cached".to_owned(), serde_json::Value::Bool(true));
                 map
             }),
         });
@@ -189,18 +189,18 @@ fn build_activities_success_response(
         metadata: Some({
             let mut map = std::collections::HashMap::new();
             map.insert(
-                "total_activities".to_string(),
+                "total_activities".to_owned(),
                 serde_json::Value::Number(activities.len().into()),
             );
             map.insert(
-                "user_id".to_string(),
+                "user_id".to_owned(),
                 serde_json::Value::String(user_uuid.to_string()),
             );
             map.insert(
-                "tenant_id".to_string(),
+                "tenant_id".to_owned(),
                 tenant_id.map_or(serde_json::Value::Null, serde_json::Value::String),
             );
-            map.insert("cached".to_string(), serde_json::Value::Bool(false));
+            map.insert("cached".to_owned(), serde_json::Value::Bool(false));
             map
         }),
     }
@@ -226,16 +226,16 @@ async fn try_get_cached_athlete(
             metadata: Some({
                 let mut map = std::collections::HashMap::new();
                 map.insert(
-                    "user_id".to_string(),
+                    "user_id".to_owned(),
                     serde_json::Value::String(user_uuid.to_string()),
                 );
                 map.insert(
-                    "tenant_id".to_string(),
+                    "tenant_id".to_owned(),
                     tenant_id.map_or(serde_json::Value::Null, |id| {
                         serde_json::Value::String(id.clone())
                     }),
                 );
-                map.insert("cached".to_string(), serde_json::Value::Bool(true));
+                map.insert("cached".to_owned(), serde_json::Value::Bool(true));
                 map
             }),
         }));
@@ -278,7 +278,7 @@ async fn fetch_and_cache_athlete(
                 expires_at: Some(token_data.expires_at),
                 scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                     .split(',')
-                    .map(str::to_string)
+                    .map(str::to_owned)
                     .collect(),
             };
 
@@ -303,15 +303,15 @@ async fn fetch_and_cache_athlete(
                         metadata: Some({
                             let mut map = std::collections::HashMap::new();
                             map.insert(
-                                "user_id".to_string(),
+                                "user_id".to_owned(),
                                 serde_json::Value::String(user_uuid.to_string()),
                             );
                             map.insert(
-                                "tenant_id".to_string(),
+                                "tenant_id".to_owned(),
                                 tenant_id
                                     .map_or(serde_json::Value::Null, serde_json::Value::String),
                             );
-                            map.insert("cached".to_string(), serde_json::Value::Bool(false));
+                            map.insert("cached".to_owned(), serde_json::Value::Bool(false));
                             map
                         }),
                     })
@@ -412,7 +412,7 @@ pub fn handle_get_activities(
         let cache_key = CacheKey::new(
             tenant_uuid,
             user_uuid,
-            oauth_providers::STRAVA.to_string(),
+            oauth_providers::STRAVA.to_owned(),
             CacheResource::ActivityList { page: 1, per_page },
         );
 
@@ -517,7 +517,7 @@ pub fn handle_get_athlete(
         let cache_key = CacheKey::new(
             tenant_uuid,
             user_uuid,
-            oauth_providers::STRAVA.to_string(),
+            oauth_providers::STRAVA.to_owned(),
             CacheResource::AthleteProfile,
         );
 
@@ -559,7 +559,7 @@ pub fn handle_get_athlete(
                 success: false,
                 result: None,
                 error: Some(
-                    "No valid Strava token found. Please connect your Strava account.".to_string(),
+                    "No valid Strava token found. Please connect your Strava account.".to_owned(),
                 ),
                 metadata: None,
             }),
@@ -612,16 +612,16 @@ async fn try_get_cached_stats(
             metadata: Some({
                 let mut map = std::collections::HashMap::new();
                 map.insert(
-                    "user_id".to_string(),
+                    "user_id".to_owned(),
                     serde_json::Value::String(user_uuid.to_string()),
                 );
                 map.insert(
-                    "tenant_id".to_string(),
+                    "tenant_id".to_owned(),
                     tenant_id.map_or(serde_json::Value::Null, |id| {
                         serde_json::Value::String(id.clone())
                     }),
                 );
-                map.insert("cached".to_string(), serde_json::Value::Bool(true));
+                map.insert("cached".to_owned(), serde_json::Value::Bool(true));
                 map
             }),
         }));
@@ -650,7 +650,7 @@ async fn fetch_and_cache_stats(
                 expires_at: Some(token_data.expires_at),
                 scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                     .split(',')
-                    .map(str::to_string)
+                    .map(str::to_owned)
                     .collect(),
             };
 
@@ -677,7 +677,7 @@ async fn fetch_and_cache_stats(
                             let stats_cache_key = CacheKey::new(
                                 tenant_uuid,
                                 user_uuid,
-                                oauth_providers::STRAVA.to_string(),
+                                oauth_providers::STRAVA.to_owned(),
                                 CacheResource::Stats { athlete_id },
                             );
                             let stats_ttl = CacheResource::Stats { athlete_id }.recommended_ttl();
@@ -700,14 +700,14 @@ async fn fetch_and_cache_stats(
                         metadata: Some({
                             let mut map = std::collections::HashMap::new();
                             map.insert(
-                                "user_id".to_string(),
+                                "user_id".to_owned(),
                                 serde_json::Value::String(user_uuid.to_string()),
                             );
                             map.insert(
-                                "tenant_id".to_string(),
+                                "tenant_id".to_owned(),
                                 serde_json::Value::String(tenant_uuid.to_string()),
                             );
-                            map.insert("cached".to_string(), serde_json::Value::Bool(false));
+                            map.insert("cached".to_owned(), serde_json::Value::Bool(false));
                             map
                         }),
                     })
@@ -759,7 +759,7 @@ pub fn handle_get_stats(
         let athlete_cache_key = CacheKey::new(
             tenant_uuid,
             user_uuid,
-            oauth_providers::STRAVA.to_string(),
+            oauth_providers::STRAVA.to_owned(),
             CacheResource::AthleteProfile,
         );
 
@@ -770,7 +770,7 @@ pub fn handle_get_stats(
             let stats_cache_key = CacheKey::new(
                 tenant_uuid,
                 user_uuid,
-                oauth_providers::STRAVA.to_string(),
+                oauth_providers::STRAVA.to_owned(),
                 CacheResource::Stats { athlete_id },
             );
 
@@ -812,7 +812,7 @@ pub fn handle_get_stats(
                 success: false,
                 result: None,
                 error: Some(
-                    "No valid Strava token found. Please connect your Strava account.".to_string(),
+                    "No valid Strava token found. Please connect your Strava account.".to_owned(),
                 ),
                 metadata: None,
             }),
@@ -839,9 +839,9 @@ pub fn handle_analyze_activity(
             .parameters
             .get("activity_id")
             .and_then(serde_json::Value::as_str)
-            .map(str::to_string) // Safe: String ownership needed to avoid borrowing issues
+            .map(str::to_owned) // Safe: String ownership needed to avoid borrowing issues
             .ok_or_else(|| {
-                ProtocolError::InvalidRequest("activity_id parameter required".to_string())
+                ProtocolError::InvalidRequest("activity_id parameter required".to_owned())
             })?;
 
         // Get valid Strava token (with automatic refresh if needed)
@@ -885,12 +885,12 @@ pub fn handle_analyze_activity(
                                     metadata: Some({
                                         let mut map = std::collections::HashMap::new();
                                         map.insert(
-                                            "activity_id".to_string(),
-                                            serde_json::Value::String(activity_id.to_string()),
+                                            "activity_id".to_owned(),
+                                            serde_json::Value::String(activity_id.clone()),
                                         );
                                         map.insert(
-                                            "provider".to_string(),
-                                            serde_json::Value::String("strava".to_string()),
+                                            "provider".to_owned(),
+                                            serde_json::Value::String("strava".to_owned()),
                                         );
                                         map
                                     }),
@@ -910,7 +910,7 @@ pub fn handle_analyze_activity(
                 success: false,
                 result: None,
                 error: Some(
-                    "No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string(),
+                    "No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned(),
                 ),
                 metadata: None,
             }),

@@ -92,7 +92,7 @@ impl fmt::Debug for JsonRpcRequest {
                     if token.len() > 20 {
                         format!("{}...{}", &token[..10], &token[token.len() - 8..])
                     } else {
-                        "[REDACTED]".to_string()
+                        "[REDACTED]".to_owned()
                     }
                 }),
             )
@@ -144,7 +144,7 @@ impl JsonRpcRequest {
     #[must_use]
     pub fn new(method: impl Into<String>, params: Option<Value>) -> Self {
         Self {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             method: method.into(),
             params,
             id: Some(Value::Number(1.into())),
@@ -158,7 +158,7 @@ impl JsonRpcRequest {
     #[must_use]
     pub fn with_id(method: impl Into<String>, params: Option<Value>, id: Value) -> Self {
         Self {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             method: method.into(),
             params,
             id: Some(id),
@@ -172,7 +172,7 @@ impl JsonRpcRequest {
     #[must_use]
     pub fn notification(method: impl Into<String>, params: Option<Value>) -> Self {
         Self {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             method: method.into(),
             params,
             id: None,
@@ -201,7 +201,7 @@ impl JsonRpcResponse {
     #[must_use]
     pub fn success(id: Option<Value>, result: Value) -> Self {
         Self {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             result: Some(result),
             error: None,
             id,
@@ -212,7 +212,7 @@ impl JsonRpcResponse {
     #[must_use]
     pub fn error(id: Option<Value>, code: i32, message: impl Into<String>) -> Self {
         Self {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             result: None,
             error: Some(JsonRpcError {
                 code,
@@ -232,7 +232,7 @@ impl JsonRpcResponse {
         data: Value,
     ) -> Self {
         Self {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             result: None,
             error: Some(JsonRpcError {
                 code,

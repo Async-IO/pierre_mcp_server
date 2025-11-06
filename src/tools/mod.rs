@@ -9,6 +9,9 @@
 //! by both single-tenant and multi-tenant MCP implementations, eliminating
 //! code duplication and providing a single source of truth for tool logic.
 
+/// Tool execution engine core
 pub mod engine;
+/// Provider-specific tool implementations
 pub mod providers;
+/// Tool response formatting utilities
 pub mod responses;

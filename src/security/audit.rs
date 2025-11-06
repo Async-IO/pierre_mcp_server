@@ -23,40 +23,65 @@ use uuid::Uuid;
 #[serde(rename_all = "snake_case")]
 pub enum AuditEventType {
     // Authentication Events
+    /// User successfully logged in
     UserLogin,
+    /// User logged out
     UserLogout,
+    /// Authentication attempt failed
     AuthenticationFailed,
+    /// API key was used for authentication
     ApiKeyUsed,
 
     // OAuth Events
+    /// OAuth credentials were accessed/read
     OAuthCredentialsAccessed,
+    /// OAuth credentials were modified
     OAuthCredentialsModified,
+    /// OAuth credentials were created
     OAuthCredentialsCreated,
+    /// OAuth credentials were deleted
     OAuthCredentialsDeleted,
+    /// OAuth token was refreshed
     TokenRefreshed,
 
     // Tenant Events
+    /// New tenant was created
     TenantCreated,
+    /// Tenant details were modified
     TenantModified,
+    /// Tenant was deleted
     TenantDeleted,
+    /// User was added to tenant
     TenantUserAdded,
+    /// User was removed from tenant
     TenantUserRemoved,
+    /// User's role in tenant was changed
     TenantUserRoleChanged,
 
     // Encryption Events
+    /// Data was encrypted
     DataEncrypted,
+    /// Data was decrypted
     DataDecrypted,
+    /// Encryption key was rotated
     KeyRotated,
+    /// Encryption operation failed
     EncryptionFailed,
 
     // Tool Execution Events
+    /// Tool was executed successfully
     ToolExecuted,
+    /// Tool execution failed
     ToolExecutionFailed,
+    /// External provider API was called
     ProviderApiCalled,
 
     // Administrative Events
+    /// System configuration was changed
     ConfigurationChanged,
+    /// System maintenance was performed
     SystemMaintenance,
+    /// Security policy was violated
     SecurityPolicyViolation,
 }
 
@@ -64,9 +89,13 @@ pub enum AuditEventType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AuditSeverity {
+    /// Informational event (normal operation)
     Info,
+    /// Warning event (potential issue)
     Warning,
+    /// Error event (operation failed)
     Error,
+    /// Critical event (security incident)
     Critical,
 }
 
@@ -317,8 +346,8 @@ impl SecurityAuditor {
             AuditEventType::OAuthCredentialsAccessed,
             AuditSeverity::Info,
             format!("OAuth credentials accessed for provider {provider}"),
-            "access".to_string(),
-            "success".to_string(),
+            "access".to_owned(),
+            "success".to_owned(),
         )
         .with_tenant_id(tenant_id)
         .with_resource(format!("oauth_credentials:{tenant_id}:{provider}"))
@@ -363,8 +392,8 @@ impl SecurityAuditor {
             AuditEventType::OAuthCredentialsModified,
             severity,
             format!("OAuth credentials {action} for provider {provider}"),
-            action.to_string(),
-            "success".to_string(),
+            action.to_owned(),
+            "success".to_owned(),
         )
         .with_tenant_id(tenant_id)
         .with_user_id(user_id)
@@ -407,8 +436,8 @@ impl SecurityAuditor {
             AuditEventType::ToolExecuted,
             severity,
             format!("Tool '{tool_name}' executed"),
-            "execute".to_string(),
-            result.to_string(),
+            "execute".to_owned(),
+            result.to_owned(),
         )
         .with_user_id(user_id)
         .with_resource(format!("tool:{tool_name}"))
@@ -450,10 +479,10 @@ impl SecurityAuditor {
         };
 
         let description = match (&event_type, success) {
-            (AuditEventType::UserLogin, true) => "User successfully logged in".to_string(),
-            (AuditEventType::UserLogin, false) => "User login failed".to_string(),
-            (AuditEventType::ApiKeyUsed, true) => "API key authentication successful".to_string(),
-            (AuditEventType::ApiKeyUsed, false) => "API key authentication failed".to_string(),
+            (AuditEventType::UserLogin, true) => "User successfully logged in".to_owned(),
+            (AuditEventType::UserLogin, false) => "User login failed".to_owned(),
+            (AuditEventType::ApiKeyUsed, true) => "API key authentication successful".to_owned(),
+            (AuditEventType::ApiKeyUsed, false) => "API key authentication failed".to_owned(),
             _ => format!("Authentication event: {event_type:?}"),
         };
 
@@ -461,8 +490,8 @@ impl SecurityAuditor {
             event_type,
             severity,
             description,
-            "authenticate".to_string(),
-            if success { "success" } else { "failure" }.to_string(),
+            "authenticate".to_owned(),
+            if success { "success" } else { "failure" }.to_owned(),
         );
 
         if let Some(uid) = user_id {
@@ -520,8 +549,8 @@ impl SecurityAuditor {
             event_type,
             severity,
             description,
-            operation.to_string(),
-            if success { "success" } else { "failure" }.to_string(),
+            operation.to_owned(),
+            if success { "success" } else { "failure" }.to_owned(),
         );
 
         if let Some(tid) = tenant_id {
@@ -551,6 +580,7 @@ macro_rules! audit_oauth_access {
     };
 }
 
+/// Macro to log a tool execution audit event with comprehensive details
 #[macro_export]
 macro_rules! audit_tool_execution {
     ($auditor:expr, $tool_name:expr, $user_id:expr, $tenant_id:expr, $success:expr, $duration:expr, $source_ip:expr) => {

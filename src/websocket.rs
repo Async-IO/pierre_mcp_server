@@ -28,32 +28,59 @@ use uuid::Uuid;
 use warp::ws::{Message, WebSocket, Ws};
 use warp::Filter;
 
+/// WebSocket message types for real-time communication
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum WebSocketMessage {
+    /// Client authentication message
     #[serde(rename = "auth")]
-    Authentication { token: String },
+    Authentication {
+        /// JWT authentication token
+        token: String,
+    },
+    /// Subscribe to specific topics
     #[serde(rename = "subscribe")]
-    Subscribe { topics: Vec<String> },
+    Subscribe {
+        /// List of topics to subscribe to
+        topics: Vec<String>,
+    },
+    /// API key usage update notification
     #[serde(rename = "usage_update")]
     UsageUpdate {
+        /// API key identifier
         api_key_id: String,
+        /// Number of requests made today
         requests_today: u64,
+        /// Number of requests made this month
         requests_this_month: u64,
+        /// Current rate limit status
         rate_limit_status: Value,
     },
+    /// System-wide statistics update
     #[serde(rename = "system_stats")]
     SystemStats {
+        /// Total requests across all keys today
         total_requests_today: u64,
+        /// Total requests across all keys this month
         total_requests_this_month: u64,
+        /// Number of active WebSocket connections
         active_connections: usize,
     },
+    /// Error message to client
     #[serde(rename = "error")]
-    Error { message: String },
+    Error {
+        /// Error description
+        message: String,
+    },
+    /// Success confirmation message
     #[serde(rename = "success")]
-    Success { message: String },
+    Success {
+        /// Success message
+        message: String,
+    },
 }
 
+/// Manages WebSocket connections and message broadcasting
 #[derive(Clone)]
 pub struct WebSocketManager {
     database: Arc<Database>,
@@ -70,6 +97,7 @@ struct ClientConnection {
 }
 
 impl WebSocketManager {
+    /// Creates a new WebSocket manager instance
     #[must_use]
     pub fn new(
         database: Arc<Database>,
@@ -261,7 +289,7 @@ impl WebSocketManager {
     /// Authenticate `WebSocket` user with JWT
     async fn authenticate_user(&self, token: &str) -> Result<AuthResult> {
         let auth_header = if token.starts_with("Bearer ") {
-            token.to_string()
+            token.to_owned()
         } else {
             format!("Bearer {token}")
         };
@@ -281,7 +309,7 @@ impl WebSocketManager {
         rate_limit_status: Value,
     ) {
         let message = WebSocketMessage::UsageUpdate {
-            api_key_id: api_key_id.to_string(),
+            api_key_id: api_key_id.to_owned(),
             requests_today,
             requests_this_month,
             rate_limit_status,
@@ -317,7 +345,7 @@ impl WebSocketManager {
     ) {
         let clients = self.clients.read().await;
         for (_, client) in clients.iter() {
-            if client.user_id == *user_id && client.subscriptions.contains(&topic.to_string()) {
+            if client.user_id == *user_id && client.subscriptions.contains(&topic.to_owned()) {
                 if let Ok(msg_text) = serde_json::to_string(message) {
                     if let Err(e) = client.tx.send(Message::text(msg_text)) {
                         tracing::warn!(
@@ -343,7 +371,7 @@ impl WebSocketManager {
         // Also send directly to subscribed clients for immediate delivery
         let clients = self.clients.read().await;
         for (_, client) in clients.iter() {
-            if client.subscriptions.contains(&topic.to_string()) {
+            if client.subscriptions.contains(&topic.to_owned()) {
                 if let Ok(msg_text) = serde_json::to_string(message) {
                     if let Err(e) = client.tx.send(Message::text(msg_text)) {
                         tracing::warn!(

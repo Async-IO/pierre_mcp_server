@@ -6,6 +6,9 @@
 
 //! Rate limiting integration tests
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use chrono::{Datelike, Duration, TimeZone, Timelike, Utc};
@@ -56,8 +59,8 @@ async fn create_test_setup() -> (Arc<Database>, ApiKeyManager, Arc<McpAuthMiddle
     let unique_id = Uuid::new_v4();
     let user = User::new(
         format!("ratelimit+{unique_id}@example.com"),
-        "hashed_password".to_string(),
-        Some("Rate Limit Test User".to_string()),
+        "hashed_password".to_owned(),
+        Some("Rate Limit Test User".to_owned()),
     );
 
     (database, api_key_manager, auth_middleware, user)
@@ -75,7 +78,7 @@ async fn test_starter_tier_rate_limiting() {
     let api_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id: user.id,
-        name: "Starter Rate Limit Test".to_string(),
+        name: "Starter Rate Limit Test".to_owned(),
         key_prefix: api_key_manager.extract_key_prefix(full_key),
         key_hash: api_key_manager.hash_key(full_key),
         description: None,
@@ -138,7 +141,7 @@ async fn test_professional_tier_rate_limiting() {
     let api_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id: user.id,
-        name: "Professional Rate Limit Test".to_string(),
+        name: "Professional Rate Limit Test".to_owned(),
         key_prefix: api_key_manager.extract_key_prefix(full_key),
         key_hash: api_key_manager.hash_key(full_key),
         description: None,
@@ -204,7 +207,7 @@ async fn test_enterprise_tier_unlimited() {
     let api_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id: user.id,
-        name: "Enterprise Unlimited Test".to_string(),
+        name: "Enterprise Unlimited Test".to_owned(),
         key_prefix: api_key_manager.extract_key_prefix(full_key),
         key_hash: api_key_manager.hash_key(full_key),
         description: None,
@@ -280,8 +283,8 @@ async fn test_rate_limit_reset_timing() {
     let api_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id: user.id,
-        name: "Reset Timing Test".to_string(),
-        key_prefix: "pk_live_rese".to_string(),
+        name: "Reset Timing Test".to_owned(),
+        key_prefix: "pk_live_rese".to_owned(),
         key_hash: api_key_manager.hash_key("pk_live_resettimingkey12345678901234567"),
         description: None,
         tier: ApiKeyTier::Starter,
@@ -343,7 +346,7 @@ async fn test_monthly_usage_calculation() {
     let api_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id: user.id,
-        name: "Monthly Usage Test".to_string(),
+        name: "Monthly Usage Test".to_owned(),
         key_prefix: api_key_manager.extract_key_prefix(full_key),
         key_hash: api_key_manager.hash_key(full_key),
         description: None,
@@ -420,8 +423,8 @@ async fn test_rate_limit_edge_cases() {
     let api_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id: user.id,
-        name: "Edge Case Test".to_string(),
-        key_prefix: "pk_live_edge".to_string(),
+        name: "Edge Case Test".to_owned(),
+        key_prefix: "pk_live_edge".to_owned(),
         key_hash: api_key_manager.hash_key("pk_live_edgecaselimitkey123456789012345"),
         description: None,
         tier: ApiKeyTier::Starter,
@@ -481,7 +484,7 @@ async fn test_rate_limit_with_mixed_status_codes() {
     let api_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id: user.id,
-        name: "Mixed Status Test".to_string(),
+        name: "Mixed Status Test".to_owned(),
         key_prefix: api_key_manager.extract_key_prefix(full_key),
         key_hash: api_key_manager.hash_key(full_key),
         description: None,
@@ -555,7 +558,7 @@ async fn test_trial_tier_rate_limiting() {
     let api_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id: user.id,
-        name: "Trial Rate Limit Test".to_string(),
+        name: "Trial Rate Limit Test".to_owned(),
         key_prefix: api_key_manager.extract_key_prefix(full_key),
         key_hash: api_key_manager.hash_key(full_key),
         description: None,
@@ -626,8 +629,8 @@ async fn test_tier_conversion_scenarios() {
     let trial_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id: user.id,
-        name: "Trial to Starter Conversion".to_string(),
-        key_prefix: "pk_trial_con".to_string(),
+        name: "Trial to Starter Conversion".to_owned(),
+        key_prefix: "pk_trial_con".to_owned(),
         key_hash: api_key_manager.hash_key("pk_trial_conversionkey123456789012345"),
         description: None,
         tier: ApiKeyTier::Trial,
@@ -650,8 +653,8 @@ async fn test_tier_conversion_scenarios() {
     let starter_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id: user.id,
-        name: "Upgraded Starter Key".to_string(),
-        key_prefix: "pk_live_upg".to_string(),
+        name: "Upgraded Starter Key".to_owned(),
+        key_prefix: "pk_live_upg".to_owned(),
         key_hash: api_key_manager.hash_key("pk_live_upgradedstarterkey123456789012"),
         description: None,
         tier: ApiKeyTier::Starter,
@@ -674,8 +677,8 @@ async fn test_tier_conversion_scenarios() {
     let professional_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id: user.id,
-        name: "Professional Key".to_string(),
-        key_prefix: "pk_live_pro".to_string(),
+        name: "Professional Key".to_owned(),
+        key_prefix: "pk_live_pro".to_owned(),
         key_hash: api_key_manager.hash_key("pk_live_professionalkey123456789012345"),
         description: None,
         tier: ApiKeyTier::Professional,
@@ -698,8 +701,8 @@ async fn test_tier_conversion_scenarios() {
     let enterprise_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id: user.id,
-        name: "Enterprise Key".to_string(),
-        key_prefix: "pk_live_ent".to_string(),
+        name: "Enterprise Key".to_owned(),
+        key_prefix: "pk_live_ent".to_owned(),
         key_hash: api_key_manager.hash_key("pk_live_enterprisekey123456789012345678"),
         description: None,
         tier: ApiKeyTier::Enterprise,
@@ -749,8 +752,8 @@ async fn test_legacy_conversion_functionality() {
 
     // Test legacy API key creation using the old CreateApiKeyRequest format
     let legacy_request = pierre_mcp_server::api_keys::CreateApiKeyRequest {
-        name: "Legacy API Key".to_string(),
-        description: Some("Created using legacy format".to_string()),
+        name: "Legacy API Key".to_owned(),
+        description: Some("Created using legacy format".to_owned()),
         tier: ApiKeyTier::Professional,
         rate_limit_requests: Some(50_000), // Custom limit
         expires_in_days: Some(365),        // Custom expiration
@@ -766,13 +769,13 @@ async fn test_legacy_conversion_functionality() {
     assert!(legacy_key.expires_at.is_some());
     assert_eq!(
         legacy_key.description,
-        Some("Created using legacy format".to_string())
+        Some("Created using legacy format".to_owned())
     );
 
     // Test new simplified API key creation
     let simple_request = pierre_mcp_server::api_keys::CreateApiKeyRequestSimple {
-        name: "Simple API Key".to_string(),
-        description: Some("Created using simplified format".to_string()),
+        name: "Simple API Key".to_owned(),
+        description: Some("Created using simplified format".to_owned()),
         rate_limit_requests: 25_000, // Maps to Professional tier
         expires_in_days: None,
     };
@@ -789,8 +792,8 @@ async fn test_legacy_conversion_functionality() {
     // Test trial key creation using legacy method
     let trial_key_result = api_key_manager.create_trial_key(
         user.id,
-        "Legacy Trial Key".to_string(),
-        Some("Auto-generated trial key".to_string()),
+        "Legacy Trial Key".to_owned(),
+        Some("Auto-generated trial key".to_owned()),
     );
 
     let (trial_key, trial_full_key) = trial_key_result.unwrap();
@@ -926,7 +929,7 @@ async fn test_enterprise_unlimited_comprehensive() {
     let api_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id: user.id,
-        name: "Enterprise Comprehensive Test".to_string(),
+        name: "Enterprise Comprehensive Test".to_owned(),
         key_prefix: api_key_manager.extract_key_prefix(full_key),
         key_hash: api_key_manager.hash_key(full_key),
         description: None,

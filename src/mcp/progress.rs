@@ -55,7 +55,7 @@ impl ProgressTracker {
         let progress_token = Uuid::new_v4().to_string();
 
         let state = ProgressState {
-            operation_name: operation_name.to_string(),
+            operation_name: operation_name.to_owned(),
             current: 0.0,
             total,
             message: Some(format!("Starting {operation_name}...")),
@@ -104,10 +104,10 @@ impl ProgressTracker {
 
         if let Some(state) = progress_map.get_mut(progress_token) {
             if state.completed {
-                return Err("Operation already completed".to_string());
+                return Err("Operation already completed".to_owned());
             }
             if state.cancelled {
-                return Err("Operation was cancelled".to_string());
+                return Err("Operation was cancelled".to_owned());
             }
 
             state.current = current;
@@ -128,7 +128,7 @@ impl ProgressTracker {
             // Send progress notification
             if let Some(sender) = &self.notification_sender {
                 let notification = ProgressNotification::new(
-                    progress_token.to_string(),
+                    progress_token.to_owned(),
                     current,
                     state.total,
                     message,
@@ -171,7 +171,7 @@ impl ProgressTracker {
             // Send completion notification
             if let Some(sender) = &self.notification_sender {
                 let notification = ProgressNotification::new(
-                    progress_token.to_string(),
+                    progress_token.to_owned(),
                     state.current,
                     state.total,
                     final_message.or_else(|| Some(format!("Completed {}", state.operation_name))),
@@ -201,10 +201,10 @@ impl ProgressTracker {
 
         if let Some(state) = progress_map.get_mut(progress_token) {
             if state.completed {
-                return Err("Cannot cancel completed operation".to_string());
+                return Err("Cannot cancel completed operation".to_owned());
             }
             if state.cancelled {
-                return Err("Operation already cancelled".to_string());
+                return Err("Operation already cancelled".to_owned());
             }
 
             state.cancelled = true;
@@ -220,7 +220,7 @@ impl ProgressTracker {
             // Send cancellation notification
             if let Some(sender) = &self.notification_sender {
                 let notification = ProgressNotification::new(
-                    progress_token.to_string(),
+                    progress_token.to_owned(),
                     state.current,
                     state.total,
                     Some(final_message),
@@ -336,7 +336,7 @@ macro_rules! check_cancelled {
     ($tracker:expr, $token:expr) => {
         if let Some(tracker) = $tracker {
             if tracker.is_cancelled($token).await {
-                return Err("Operation was cancelled".to_string().into());
+                return Err("Operation was cancelled".to_owned().into());
             }
         }
     };

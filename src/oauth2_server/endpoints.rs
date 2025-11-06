@@ -46,6 +46,7 @@ pub struct OAuth2AuthorizationServer {
 }
 
 impl OAuth2AuthorizationServer {
+    /// Creates a new `OAuth2` authorization server instance
     #[must_use]
     pub fn new(
         database: Arc<crate::database_plugins::factory::Database>,
@@ -255,7 +256,7 @@ impl OAuth2AuthorizationServer {
 
         Ok(TokenResponse {
             access_token,
-            token_type: "Bearer".to_string(),
+            token_type: "Bearer".to_owned(),
             expires_in: 3600, // 1 hour
             scope: auth_code.scope,
             refresh_token: Some(refresh_token_value),
@@ -285,7 +286,7 @@ impl OAuth2AuthorizationServer {
 
         Ok(TokenResponse {
             access_token,
-            token_type: "Bearer".to_string(),
+            token_type: "Bearer".to_owned(),
             expires_in: 3600, // 1 hour
             scope: request.scope,
             refresh_token: None,
@@ -363,7 +364,7 @@ impl OAuth2AuthorizationServer {
 
         Ok(TokenResponse {
             access_token,
-            token_type: "Bearer".to_string(),
+            token_type: "Bearer".to_owned(),
             expires_in: 3600, // 1 hour
             scope: old_refresh_token.scope,
             refresh_token: Some(new_refresh_token_value),
@@ -377,18 +378,16 @@ impl OAuth2AuthorizationServer {
 
         let auth_code = OAuth2AuthCode {
             code: code.clone(), // Safe: String ownership for OAuth2AuthCode struct
-            client_id: params.client_id.to_string(),
+            client_id: params.client_id.to_owned(),
             user_id: params.user_id,
-            tenant_id: params.tenant_id.to_string(),
-            redirect_uri: params.redirect_uri.to_string(),
-            scope: params.scope.map(std::string::ToString::to_string),
+            tenant_id: params.tenant_id.to_owned(),
+            redirect_uri: params.redirect_uri.to_owned(),
+            scope: params.scope.map(str::to_owned),
             expires_at,
             used: false,
-            state: params.state.map(std::string::ToString::to_string),
-            code_challenge: params.code_challenge.map(std::string::ToString::to_string),
-            code_challenge_method: params
-                .code_challenge_method
-                .map(std::string::ToString::to_string),
+            state: params.state.map(str::to_owned),
+            code_challenge: params.code_challenge.map(str::to_owned),
+            code_challenge_method: params.code_challenge_method.map(str::to_owned),
         };
 
         self.store_auth_code(&auth_code).await?;
@@ -415,16 +414,14 @@ impl OAuth2AuthorizationServer {
         // See docs/oauth2-server.md "State Parameter Validation" for integration guide
         if let Some(state_value) = params.state {
             let oauth2_state = super::models::OAuth2State {
-                state: state_value.to_string(),
-                client_id: params.client_id.to_string(),
+                state: state_value.to_owned(),
+                client_id: params.client_id.to_owned(),
                 user_id: Some(params.user_id),
-                tenant_id: Some(params.tenant_id.to_string()),
-                redirect_uri: params.redirect_uri.to_string(),
-                scope: params.scope.map(std::string::ToString::to_string),
-                code_challenge: params.code_challenge.map(std::string::ToString::to_string),
-                code_challenge_method: params
-                    .code_challenge_method
-                    .map(std::string::ToString::to_string),
+                tenant_id: Some(params.tenant_id.to_owned()),
+                redirect_uri: params.redirect_uri.to_owned(),
+                scope: params.scope.map(str::to_owned),
+                code_challenge: params.code_challenge.map(str::to_owned),
+                code_challenge_method: params.code_challenge_method.map(str::to_owned),
                 created_at: Utc::now(),
                 expires_at,
                 used: false,
@@ -617,11 +614,7 @@ impl OAuth2AuthorizationServer {
                 );
                 Vec::new()
             },
-            |s| {
-                s.split(' ')
-                    .map(std::string::ToString::to_string)
-                    .collect::<Vec<_>>()
-            },
+            |s| s.split(' ').map(str::to_owned).collect::<Vec<_>>(),
         );
 
         user_id.map_or_else(
@@ -817,7 +810,7 @@ impl OAuth2AuthorizationServer {
                                                 expires_in: Some(3600), // 1 hour
                                                 access_token: Some(new_access_token),
                                                 refresh_token: Some(refresh_token_value.clone()),
-                                                token_type: Some("Bearer".to_string()),
+                                                token_type: Some("Bearer".to_owned()),
                                                 reason: None,
                                                 requires_full_reauth: None,
                                             })
@@ -867,7 +860,7 @@ impl OAuth2AuthorizationServer {
             access_token: None,
             refresh_token: None,
             token_type: None,
-            reason: Some(reason.to_string()),
+            reason: Some(reason.to_owned()),
             requires_full_reauth: Some(true),
         }
     }

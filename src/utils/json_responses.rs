@@ -149,7 +149,7 @@ pub fn registration_failed_error(error_description: &str, details: &str) -> Valu
 /// Create a generic API error response
 #[must_use]
 pub fn api_error(message: &str) -> Value {
-    json!({ "error": message.to_string() })
+    json!({ "error": message.to_owned() })
 }
 
 /// Create a success response for A2A client registration
@@ -188,7 +188,7 @@ pub fn a2a_registration_success(
 #[must_use]
 pub fn activity_not_found_error(activity_id: &str, provider: Option<&str>) -> Value {
     let message = provider.map_or_else(
-        || "Activity not found".to_string(),
+        || "Activity not found".to_owned(),
         |p| format!("Activity not found or user not connected to {p}"),
     );
 

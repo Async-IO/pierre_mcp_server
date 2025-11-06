@@ -59,7 +59,7 @@ impl McpRequestProcessor {
                 error!("Request params: {:?}", request.params);
                 error!("Full error details: {:#}", e);
                 McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     id: request.id.clone(),
                     result: None,
                     error: Some(McpError {
@@ -135,7 +135,7 @@ impl McpRequestProcessor {
         });
 
         McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             id: request.id.clone(),
             result: Some(server_info),
             error: None,
@@ -147,7 +147,7 @@ impl McpRequestProcessor {
         debug!("Handling ping request");
 
         McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             id: request.id.clone(),
             result: Some(serde_json::json!({})),
             error: None,
@@ -160,12 +160,12 @@ impl McpRequestProcessor {
 
         // Always return authentication parameter error for authenticate method
         McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             id: request.id.clone(),
             result: None,
             error: Some(McpError {
                 code: -32602, // Invalid params
-                message: "Invalid authentication parameters".to_string(),
+                message: "Invalid authentication parameters".to_owned(),
                 data: None,
             }),
         }
@@ -179,7 +179,7 @@ impl McpRequestProcessor {
         let tools = crate::mcp::schema::get_tools();
 
         McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             id: request.id.clone(),
             result: Some(serde_json::json!({ "tools": tools })),
             error: None,
@@ -216,7 +216,7 @@ impl McpRequestProcessor {
 
         // Return empty resources list for now
         McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             id: request.id.clone(),
             result: Some(serde_json::json!({ "resources": [] })),
             error: None,
@@ -229,7 +229,7 @@ impl McpRequestProcessor {
 
         // Return empty prompts list for now
         McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             id: request.id.clone(),
             result: Some(serde_json::json!({ "prompts": [] })),
             error: None,
@@ -241,7 +241,7 @@ impl McpRequestProcessor {
         warn!("Unknown MCP method: {}", request.method);
 
         McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             id: request.id.clone(),
             result: None,
             error: Some(McpError {

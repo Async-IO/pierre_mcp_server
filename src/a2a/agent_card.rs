@@ -16,12 +16,19 @@ use std::collections::HashMap;
 /// A2A Agent Card for Pierre
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentCard {
+    /// Agent name ("Pierre Fitness AI")
     pub name: String,
+    /// Human-readable description of the agent's capabilities
     pub description: String,
+    /// Agent version number
     pub version: String,
+    /// List of high-level capabilities (e.g., "fitness-data-analysis")
     pub capabilities: Vec<String>,
+    /// Authentication methods supported
     pub authentication: AuthenticationInfo,
+    /// Available tools/endpoints with schemas
     pub tools: Vec<ToolDefinition>,
+    /// Optional additional metadata
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<HashMap<String, Value>>,
 }
@@ -29,9 +36,12 @@ pub struct AgentCard {
 /// Authentication information for the agent
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthenticationInfo {
+    /// List of supported authentication schemes (e.g., "oauth2", "`api_key`")
     pub schemes: Vec<String>,
+    /// `OAuth2` configuration if supported
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oauth2: Option<OAuth2Info>,
+    /// API key configuration if supported
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_key: Option<ApiKeyInfo>,
 }
@@ -39,26 +49,37 @@ pub struct AuthenticationInfo {
 /// `OAuth2` authentication information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuth2Info {
+    /// URL for `OAuth2` authorization endpoint
     pub authorization_url: String,
+    /// URL for `OAuth2` token exchange endpoint
     pub token_url: String,
+    /// Available `OAuth2` scopes
     pub scopes: Vec<String>,
 }
 
 /// API Key authentication information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiKeyInfo {
+    /// HTTP header name for the API key (e.g., "X-API-Key")
     pub header_name: String,
+    /// Optional prefix for the API key value (e.g., "Bearer")
     pub prefix: Option<String>,
+    /// URL where new API keys can be registered
     pub registration_url: String,
 }
 
 /// Tool definition in the agent card
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolDefinition {
+    /// Tool name/identifier
     pub name: String,
+    /// Human-readable description of what the tool does
     pub description: String,
+    /// JSON schema for the tool's input parameters
     pub input_schema: Value,
+    /// JSON schema for the tool's output format
     pub output_schema: Value,
+    /// Optional example usages of the tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub examples: Option<Vec<ToolExample>>,
 }
@@ -66,8 +87,11 @@ pub struct ToolDefinition {
 /// Example usage of a tool
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolExample {
+    /// Description of what this example demonstrates
     pub description: String,
+    /// Example input parameters
     pub input: Value,
+    /// Expected output for the given input
     pub output: Value,
 }
 
@@ -117,8 +141,7 @@ impl AgentCard {
         vec![
             ToolDefinition {
                 name: "get_activities".into(),
-                description: "Retrieve user fitness activities from connected providers"
-                    .to_string(),
+                description: "Retrieve user fitness activities from connected providers".to_owned(),
                 input_schema: serde_json::json!({
                     "type": "object",
                     "properties": {

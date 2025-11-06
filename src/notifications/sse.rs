@@ -40,6 +40,7 @@ impl Default for SseConnectionManager {
 }
 
 impl SseConnectionManager {
+    /// Creates a new SSE connection manager
     #[must_use]
     pub fn new() -> Self {
         Self::default()

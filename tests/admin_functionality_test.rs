@@ -12,6 +12,9 @@
 //! - Database operations
 //! - Security features
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use anyhow::Result;
@@ -123,8 +126,8 @@ async fn test_admin_token_database_operations() -> Result<()> {
 
     // Create admin token request
     let request = CreateAdminTokenRequest {
-        service_name: "test_service".to_string(),
-        service_description: Some("Test admin service".to_string()),
+        service_name: "test_service".to_owned(),
+        service_description: Some("Test admin service".to_owned()),
         permissions: Some(vec![
             AdminPermission::ProvisionKeys,
             AdminPermission::ListKeys,
@@ -180,8 +183,8 @@ async fn test_admin_token_usage_tracking() -> Result<()> {
 
     // Create admin token
     let request = CreateAdminTokenRequest {
-        service_name: "usage_test_service".to_string(),
-        service_description: Some("Usage tracking test".to_string()),
+        service_name: "usage_test_service".to_owned(),
+        service_description: Some("Usage tracking test".to_owned()),
         permissions: None, // Default permissions
         is_super_admin: false,
         expires_in_days: None,
@@ -204,7 +207,7 @@ async fn test_admin_token_usage_tracking() -> Result<()> {
     assert!(updated_token.is_some());
     let token = updated_token.unwrap();
     assert!(token.last_used_at.is_some());
-    assert_eq!(token.last_used_ip, Some(ip_address.to_string()));
+    assert_eq!(token.last_used_ip, Some(ip_address.to_owned()));
     assert!(token.usage_count > 0);
 
     // Record usage
@@ -213,9 +216,9 @@ async fn test_admin_token_usage_tracking() -> Result<()> {
         admin_token_id: generated_token.token_id.clone(),
         timestamp: Utc::now(),
         action: AdminAction::ProvisionKey,
-        target_resource: Some("test_api_key_123".to_string()),
-        ip_address: Some(ip_address.to_string()),
-        user_agent: Some("Test Agent".to_string()),
+        target_resource: Some("test_api_key_123".to_owned()),
+        ip_address: Some(ip_address.to_owned()),
+        user_agent: Some("Test Agent".to_owned()),
         request_size_bytes: Some(1024),
         success: true,
         error_message: None,
@@ -237,7 +240,7 @@ async fn test_admin_token_usage_tracking() -> Result<()> {
     assert_eq!(recorded_usage.action, AdminAction::ProvisionKey);
     assert_eq!(
         recorded_usage.target_resource,
-        Some("test_api_key_123".to_string())
+        Some("test_api_key_123".to_owned())
     );
     assert!(recorded_usage.success);
 
@@ -251,8 +254,8 @@ async fn test_admin_provisioned_keys_tracking() -> Result<()> {
 
     // Create admin token
     let request = CreateAdminTokenRequest {
-        service_name: "provisioning_service".to_string(),
-        service_description: Some("Key provisioning test".to_string()),
+        service_name: "provisioning_service".to_owned(),
+        service_description: Some("Key provisioning test".to_owned()),
         permissions: Some(vec![AdminPermission::ProvisionKeys]),
         is_super_admin: false,
         expires_in_days: None,
@@ -441,8 +444,8 @@ async fn test_admin_super_admin_privileges() -> Result<()> {
 
     // Create super admin token
     let request = CreateAdminTokenRequest {
-        service_name: "super_admin_service".to_string(),
-        service_description: Some("Super admin test".to_string()),
+        service_name: "super_admin_service".to_owned(),
+        service_description: Some("Super admin test".to_owned()),
         permissions: None, // Will get super admin permissions
         is_super_admin: true,
         expires_in_days: None,

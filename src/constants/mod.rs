@@ -10,6 +10,7 @@
 //! Constants are grouped into logical domains rather than being in a single large file.
 
 use crate::config::environment::ServerConfig;
+use anyhow::Result;
 use std::sync::OnceLock;
 
 /// Static server configuration loaded once at startup
@@ -17,26 +18,27 @@ static SERVER_CONFIG: OnceLock<ServerConfig> = OnceLock::new();
 
 /// Initialize server configuration (must be called once at server startup before `env_config` functions)
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if called more than once or if `ServerConfig` initialization fails
-pub fn init_server_config() {
-    let config = ServerConfig::from_env().expect("Failed to load server configuration");
+/// Returns error if `ServerConfig` initialization fails or if called more than once
+pub fn init_server_config() -> Result<()> {
+    let config = ServerConfig::from_env()?;
+
     SERVER_CONFIG
         .set(config)
-        .expect("Server configuration already initialized");
+        .map_err(|_| anyhow::Error::msg("Server configuration already initialized"))?;
+
+    Ok(())
 }
 
 /// Get reference to the static server configuration
 ///
-/// # Panics
-///
-/// Panics if called before `init_server_config()`
+/// Returns `None` if called before `init_server_config()`.
+/// In production, `init_server_config()` should be called during server startup,
+/// so this should never return `None` during normal operation.
 #[must_use]
-pub fn get_server_config() -> &'static ServerConfig {
-    SERVER_CONFIG
-        .get()
-        .expect("Server configuration not initialized - call init_server_config() first")
+pub fn get_server_config() -> Option<&'static ServerConfig> {
+    SERVER_CONFIG.get()
 }
 
 /// Try to get reference to the static server configuration without panicking
@@ -48,22 +50,34 @@ pub fn try_get_server_config() -> Option<&'static ServerConfig> {
 }
 
 // Domain-specific modules
+
+/// Cache-related constants (TTL, sizes, etc.)
 pub mod cache;
+/// Error codes and error-related constants
 pub mod errors;
+/// OAuth provider constants and configuration
 pub mod oauth;
+/// Protocol-specific constants for MCP
 pub mod protocol;
+/// Multi-protocol constants (A2A, MCP, etc.)
 pub mod protocols;
+/// Tool identifiers and tool-related constants
 pub mod tools;
+/// Unit conversion and measurement constants
 pub mod units;
 
 // Re-export commonly used items for easier access
 pub use errors::*;
 pub use oauth::*;
+/// Tool-related constants re-export
 pub use tools::*;
 // Note: protocol and protocols are kept as modules to avoid conflicts
 
 // Alias for backward compatibility during transition
+
+/// OAuth provider constants (backward compatibility alias)
 pub mod oauth_providers {
+    /// Re-export all OAuth constants
     pub use super::oauth::*;
 }
 

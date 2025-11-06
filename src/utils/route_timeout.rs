@@ -21,19 +21,20 @@ static ROUTE_TIMEOUT_CONFIG: OnceLock<RouteTimeoutConfig> = OnceLock::new();
 /// # Panics
 /// Panics if called more than once (configuration cannot be changed after initialization)
 pub fn initialize_route_timeouts(config: RouteTimeoutConfig) {
-    ROUTE_TIMEOUT_CONFIG
-        .set(config)
-        .expect("Route timeout configuration already initialized");
+    assert!(
+        ROUTE_TIMEOUT_CONFIG.set(config).is_ok(),
+        "Route timeout configuration already initialized"
+    );
 }
 
-/// Get the current route timeout configuration
+/// Get the current route timeout configuration with fallback to defaults
 ///
-/// # Panics
-/// Panics if route timeout configuration was not initialized at server startup
+/// Returns defaults if route timeout configuration was not initialized at server startup
 fn get_config() -> &'static RouteTimeoutConfig {
-    ROUTE_TIMEOUT_CONFIG.get().expect(
-        "Route timeout configuration not initialized - call initialize_route_timeouts() at startup",
-    )
+    static DEFAULT_CONFIG: OnceLock<RouteTimeoutConfig> = OnceLock::new();
+    ROUTE_TIMEOUT_CONFIG
+        .get()
+        .unwrap_or_else(|| DEFAULT_CONFIG.get_or_init(RouteTimeoutConfig::default))
 }
 
 /// Execute a database operation with configured timeout

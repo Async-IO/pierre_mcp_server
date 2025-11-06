@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use chrono::Utc;
 use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
@@ -40,10 +43,10 @@ async fn test_tenant_operations_work_through_factory() {
     let tenant_id = Uuid::new_v4();
     let tenant = Tenant {
         id: tenant_id,
-        name: "Test Tenant".to_string(),
-        slug: "test-tenant".to_string(),
+        name: "Test Tenant".to_owned(),
+        slug: "test-tenant".to_owned(),
         domain: None,
-        plan: "starter".to_string(),
+        plan: "starter".to_owned(),
         owner_user_id: owner_id,
         created_at: Utc::now(),
         updated_at: Utc::now(),

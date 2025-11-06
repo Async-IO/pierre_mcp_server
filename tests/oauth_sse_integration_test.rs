@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use pierre_mcp_server::{
     database_plugins::DatabaseProvider, notifications::sse::SseConnectionManager,
@@ -33,14 +36,14 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
         .register_connection(user_id.to_string())
         .await
         .expect("failed to register SSE connection");
-    println!("✅ SSE connection registered for user: {user_id}");
+    println!(" SSE connection registered for user: {user_id}");
 
     // Generate JWT token for user
     let jwks_manager = common::get_shared_test_jwks();
     let jwt_token = resources
         .auth_manager
         .generate_token(&user, &jwks_manager)?;
-    println!("✅ JWT token generated for user");
+    println!(" JWT token generated for user");
 
     // Simulate OAuth authorization request (user clicks "Connect to Strava")
     let client = Client::new();
@@ -58,7 +61,7 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
 
     match auth_response {
         Ok(resp) => {
-            println!("✅ OAuth authorization URL generated: {}", resp.status());
+            println!(" OAuth authorization URL generated: {}", resp.status());
             if resp.status().is_redirection() {
                 if let Some(location) = resp.headers().get("location") {
                     println!("   Redirect location: {location:?}");
@@ -75,12 +78,12 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
 
     // Create a mock OAuth notification
     let oauth_notification = pierre_mcp_server::database::oauth_notifications::OAuthNotification {
-        id: "test-oauth-notification".to_string(),
+        id: "test-oauth-notification".to_owned(),
         user_id: user_id.to_string(),
-        provider: "strava".to_string(),
+        provider: "strava".to_owned(),
         success: true,
         message: "Successfully connected to Strava! You can now access your fitness data."
-            .to_string(),
+            .to_owned(),
         expires_at: None,
         created_at: chrono::Utc::now(),
         read_at: None,
@@ -97,7 +100,7 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
             None, // expires_at
         )
         .await?;
-    println!("✅ OAuth notification saved to database");
+    println!(" OAuth notification saved to database");
 
     // Send notification via SSE
     let notification_result = sse_manager
@@ -114,7 +117,7 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
 
     match sse_timeout {
         Ok(Ok(message)) => {
-            println!("✅ SSE notification received: {message}");
+            println!(" SSE notification received: {message}");
 
             // Verify message content
             assert!(message.contains("oauth_notification"));
@@ -122,7 +125,7 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
             assert!(message.contains("Successfully connected"));
         }
         Ok(Err(e)) => {
-            println!("❌ SSE receiver error: {e:?}");
+            println!(" SSE receiver error: {e:?}");
         }
         Err(_) => {
             println!("⏰ SSE message reception timeout (expected in unit test)");
@@ -134,9 +137,9 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
         .unregister_connection(&user_id.to_string())
         .await;
     assert_eq!(sse_manager.active_connections().await, 0);
-    println!("✅ SSE connection cleanup successful");
+    println!(" SSE connection cleanup successful");
 
-    println!("🎉 OAuth+SSE integration test completed successfully!");
+    println!(" OAuth+SSE integration test completed successfully!");
     Ok(())
 }
 
@@ -156,7 +159,7 @@ async fn test_mcp_client_oauth_notification_flow() -> Result<()> {
     let initial_token = resources
         .auth_manager
         .generate_token(&user, &jwks_manager)?;
-    println!("✅ Initial JWT token generated");
+    println!(" Initial JWT token generated");
 
     let client = Client::new();
     let refresh_request = json!({
@@ -172,7 +175,7 @@ async fn test_mcp_client_oauth_notification_flow() -> Result<()> {
 
     match refresh_response {
         Ok(resp) if resp.status().is_success() => {
-            println!("✅ Token refresh successful for MCP client");
+            println!(" Token refresh successful for MCP client");
         }
         Ok(resp) => {
             println!(
@@ -190,15 +193,15 @@ async fn test_mcp_client_oauth_notification_flow() -> Result<()> {
         .register_connection(user_id.to_string())
         .await
         .expect("failed to register SSE connection");
-    println!("✅ MCP client SSE connection established");
+    println!(" MCP client SSE connection established");
 
     // Simulate OAuth completion notification
     let notification = pierre_mcp_server::database::oauth_notifications::OAuthNotification {
-        id: "mcp-client-notification".to_string(),
+        id: "mcp-client-notification".to_owned(),
         user_id: user_id.to_string(),
-        provider: "strava".to_string(),
+        provider: "strava".to_owned(),
         success: true,
-        message: "OAuth completed - data ready for MCP tools".to_string(),
+        message: "OAuth completed - data ready for MCP tools".to_owned(),
         expires_at: None,
         created_at: chrono::Utc::now(),
         read_at: None,
@@ -213,7 +216,7 @@ async fn test_mcp_client_oauth_notification_flow() -> Result<()> {
     let msg_result = timeout(Duration::from_millis(50), receiver.recv()).await;
     match msg_result {
         Ok(Ok(msg)) => {
-            println!("✅ MCP client received OAuth notification: {msg}");
+            println!(" MCP client received OAuth notification: {msg}");
             assert!(msg.contains("data ready for MCP tools"));
         }
         _ => {
@@ -224,9 +227,9 @@ async fn test_mcp_client_oauth_notification_flow() -> Result<()> {
     sse_manager
         .unregister_connection(&user_id.to_string())
         .await;
-    println!("✅ MCP client disconnected");
+    println!(" MCP client disconnected");
 
-    println!("🎉 MCP client OAuth notification flow test completed!");
+    println!(" MCP client OAuth notification flow test completed!");
     Ok(())
 }
 
@@ -242,11 +245,11 @@ async fn test_oauth_sse_error_scenarios() -> Result<()> {
 
     // Test notification to non-existent SSE connection
     let notification = pierre_mcp_server::database::oauth_notifications::OAuthNotification {
-        id: "error-test".to_string(),
+        id: "error-test".to_owned(),
         user_id: user_id.to_string(),
-        provider: "strava".to_string(),
+        provider: "strava".to_owned(),
         success: false,
-        message: "OAuth failed - invalid credentials".to_string(),
+        message: "OAuth failed - invalid credentials".to_owned(),
         expires_at: None,
         created_at: chrono::Utc::now(),
         read_at: None,
@@ -256,11 +259,11 @@ async fn test_oauth_sse_error_scenarios() -> Result<()> {
         .send_notification("non-existent-user", &notification)
         .await;
     assert!(result.is_err());
-    println!("✅ Error handling for non-existent SSE connection");
+    println!(" Error handling for non-existent SSE connection");
 
     // Test connection cleanup
     let receiver = sse_manager
-        .register_connection("test-user".to_string())
+        .register_connection("test-user".to_owned())
         .await
         .expect("failed to register SSE connection");
     assert_eq!(sse_manager.active_connections().await, 1);
@@ -270,8 +273,8 @@ async fn test_oauth_sse_error_scenarios() -> Result<()> {
     // Connection should still exist until explicitly cleaned up
     sse_manager.unregister_connection("test-user").await;
     assert_eq!(sse_manager.active_connections().await, 0);
-    println!("✅ SSE connection cleanup on client disconnect");
+    println!(" SSE connection cleanup on client disconnect");
 
-    println!("🎉 Error scenario tests completed!");
+    println!(" Error scenario tests completed!");
     Ok(())
 }

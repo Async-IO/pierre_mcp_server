@@ -131,3 +131,76 @@ rsa = { version = "0.9", features = ["pem"] }
 tempfile = "3.20"
 serial_test = "3.1"
 rand_chacha = "0.3"
+
+# ============================================================================
+# Linting Configuration (Replaces bash script clippy invocation)
+# ============================================================================
+# This configuration eliminates the need for custom clippy flags in scripts.
+# CI/CD can now simply run `cargo clippy` and these settings are applied.
+#
+# ZERO TOLERANCE ENFORCEMENT:
+#   Old: cargo clippy --all-targets --all-features -- \
+#          -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
+#   New: cargo clippy (reads this config, applies level = "deny")
+#
+# All clippy warnings are now ERRORS via level = "deny" configuration below.
+
+[lints.rust]
+# Forbid unsafe code (already enforced by codebase standards)
+# Use "deny" instead of "forbid" to allow test files to override with #![allow(unsafe_code)]
+unsafe_code = "deny"
+
+# Warn on missing documentation for public APIs
+missing_docs = "warn"
+
+[lints.clippy]
+# Base configuration: Enable all clippy lint groups at DENY level (zero tolerance)
+# Priority -1 ensures these are applied first, then specific overrides below
+# All clippy warnings are treated as ERRORS via level = "deny"
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+
+# ============================================================================
+# Critical Denials - Error Handling Anti-Patterns (CLAUDE.md enforcement)
+# ============================================================================
+# These replace the bash script's error handling pattern detection
+
+# DENY: .unwrap() in production code (except test/bin with "// Safe" comments)
+unwrap_used = "deny"
+
+# DENY: .expect() in production code (except test/bin with "// Safe" comments)
+expect_used = "deny"
+
+# DENY: panic!() in production code (only acceptable in tests/bins)
+panic = "deny"
+
+# ============================================================================
+# Allowed Exceptions (Per CLAUDE.md Policy)
+# ============================================================================
+# Type conversion casts - allowed when properly validated
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
+cast_precision_loss = "allow"
+
+# Structural patterns - validated separately
+struct_excessive_bools = "allow"
+
+# Long functions - allowed with mandatory documentation comment
+# Script validates: "// Long function:" or "// Safe:" comment required
+too_many_lines = "allow"
+
+# ============================================================================
+# Additional Code Quality Lints
+# ============================================================================
+
+# Catch common performance issues
+clone_on_copy = "warn"
+redundant_clone = "warn"
+
+# Catch async anti-patterns
+await_holding_lock = "warn"
+
+# Catch string allocation inefficiencies
+string_to_string = "warn"
+str_to_string = "warn"

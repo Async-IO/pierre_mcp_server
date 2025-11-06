@@ -6,6 +6,9 @@
 
 //! Tests to ensure in-memory databases don't create physical files
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use pierre_mcp_server::database::generate_encryption_key;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
@@ -50,9 +53,9 @@ async fn test_memory_database_no_physical_files() -> Result<()> {
 
     // Test basic database functionality to ensure it works
     let user = pierre_mcp_server::models::User::new(
-        "test@memory.test".to_string(),
-        "password_hash".to_string(),
-        Some("Memory Test User".to_string()),
+        "test@memory.test".to_owned(),
+        "password_hash".to_owned(),
+        Some("Memory Test User".to_owned()),
     );
 
     let user_id = database.create_user(&user).await?;
@@ -61,7 +64,7 @@ async fn test_memory_database_no_physical_files() -> Result<()> {
     assert_eq!(retrieved_user.email, "test@memory.test");
     assert_eq!(
         retrieved_user.display_name,
-        Some("Memory Test User".to_string())
+        Some("Memory Test User".to_owned())
     );
 
     Ok(())
@@ -97,15 +100,15 @@ async fn test_multiple_memory_databases_isolated() -> Result<()> {
 
     // Create users in each database
     let user1 = pierre_mcp_server::models::User::new(
-        "user1@test.com".to_string(),
-        "hash1".to_string(),
-        Some("User 1".to_string()),
+        "user1@test.com".to_owned(),
+        "hash1".to_owned(),
+        Some("User 1".to_owned()),
     );
 
     let user2 = pierre_mcp_server::models::User::new(
-        "user2@test.com".to_string(),
-        "hash2".to_string(),
-        Some("User 2".to_string()),
+        "user2@test.com".to_owned(),
+        "hash2".to_owned(),
+        Some("User 2".to_owned()),
     );
 
     let user1_id = database1.create_user(&user1).await?;

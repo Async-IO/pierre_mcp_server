@@ -20,32 +20,50 @@ use warp::Filter;
 /// A2A Authentication token
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2AToken {
+    /// A2A client identifier
     pub client_id: String,
+    /// User ID associated with this token
     pub user_id: String,
+    /// List of OAuth scopes granted to this token
     pub scopes: Vec<String>,
+    /// When this token expires
     pub expires_at: chrono::DateTime<chrono::Utc>,
+    /// When this token was created
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// A2A Client registration information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2AClient {
+    /// Unique client identifier
     pub id: String,
-    pub user_id: uuid::Uuid, // User ID for session tracking and consistency
+    /// User ID for session tracking and consistency
+    pub user_id: uuid::Uuid,
+    /// Human-readable client name
     pub name: String,
+    /// Description of the client application
     pub description: String,
+    /// Public key for signature verification
     pub public_key: String,
+    /// List of capabilities this client can access
     pub capabilities: Vec<String>,
+    /// Allowed OAuth redirect URIs
     pub redirect_uris: Vec<String>,
+    /// Whether this client is active
     pub is_active: bool,
+    /// When this client was created
     pub created_at: chrono::DateTime<chrono::Utc>,
     // Additional fields for database compatibility
+    /// List of permissions granted to this client
     #[serde(default = "default_permissions")]
     pub permissions: Vec<String>,
+    /// Maximum requests allowed per window
     #[serde(default = "default_rate_limit_requests")]
     pub rate_limit_requests: u32,
+    /// Rate limit window duration in seconds
     #[serde(default = "default_rate_limit_window")]
     pub rate_limit_window_seconds: u32,
+    /// When this client was last updated
     #[serde(default = "chrono::Utc::now")]
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -69,6 +87,7 @@ pub struct A2AAuthenticator {
 }
 
 impl A2AAuthenticator {
+    /// Creates a new A2A authenticator instance
     #[must_use]
     pub const fn new(resources: Arc<crate::mcp::resources::ServerResources>) -> Self {
         Self { resources }
@@ -125,7 +144,7 @@ impl A2AAuthenticator {
 
                 if rate_limit_status.is_rate_limited {
                     return Err(ProviderError::RateLimitExceeded {
-                        provider: "A2A Client Authentication".to_string(),
+                        provider: "A2A Client Authentication".to_owned(),
                         retry_after_secs: rate_limit_status.reset_at.map_or(3600, |dt| {
                             let now = chrono::Utc::now().timestamp();
                             let reset = dt.timestamp();
@@ -209,7 +228,7 @@ impl A2AAuthenticator {
                 .ok_or_else(|| {
                     AppError::auth_invalid("Failed to strip a2a_client_ prefix from token subject")
                 })?
-                .to_string()
+                .to_owned()
         } else {
             // Try to extract from custom claims if available
             return Err(AppError::auth_invalid(
@@ -295,15 +314,15 @@ impl A2AAuthenticator {
     pub fn validate_capabilities(&self, client: &A2AClient, requested_capability: &str) -> bool {
         client
             .capabilities
-            .contains(&requested_capability.to_string())
+            .contains(&requested_capability.to_owned())
     }
 
     /// Create A2A token for authenticated client
     #[must_use]
     pub fn create_token(&self, client_id: &str, user_id: &str, scopes: Vec<String>) -> A2AToken {
         A2AToken {
-            client_id: client_id.to_string(),
-            user_id: user_id.to_string(),
+            client_id: client_id.to_owned(),
+            user_id: user_id.to_owned(),
             scopes,
             expires_at: chrono::Utc::now() + chrono::Duration::hours(24),
             created_at: chrono::Utc::now(),
@@ -329,7 +348,7 @@ impl A2AAuthenticator {
     /// Check if client has required scope
     #[must_use]
     pub fn check_scope(&self, token: &A2AToken, required_scope: &str) -> bool {
-        token.scopes.contains(&required_scope.to_string()) || token.scopes.contains(&"*".into())
+        token.scopes.contains(&required_scope.to_owned()) || token.scopes.contains(&"*".into())
     }
 }
 

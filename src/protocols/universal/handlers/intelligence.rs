@@ -28,7 +28,7 @@ pub fn handle_calculate_metrics(
 
     // Extract activity data from parameters
     let activity = request.parameters.get("activity").ok_or_else(|| {
-        ProtocolError::InvalidRequest("activity parameter is required".to_string())
+        ProtocolError::InvalidRequest("activity parameter is required".to_owned())
     })?;
 
     let distance = activity
@@ -109,9 +109,9 @@ pub fn handle_calculate_metrics(
             "efficiency_score": efficiency_score,
             "max_hr_used": max_hr,
             "max_hr_source": match (max_hr_provided, user_age) {
-                (Some(_), _) => "provided".to_string(),
+                (Some(_), _) => "provided".to_owned(),
                 (None, Some(age)) => format!("calculated_from_age_{age}"),
-                (None, None) => "default_assumed".to_string(),
+                (None, None) => "default_assumed".to_owned(),
             },
             "metrics_summary": {
                 "distance_km": distance / limits::METERS_PER_KILOMETER,
@@ -227,20 +227,20 @@ fn create_intelligence_response(
 
     let mut metadata = std::collections::HashMap::new();
     metadata.insert(
-        "activity_id".to_string(),
-        serde_json::Value::String(activity_id.to_string()),
+        "activity_id".to_owned(),
+        serde_json::Value::String(activity_id.to_owned()),
     );
     metadata.insert(
-        "user_id".to_string(),
+        "user_id".to_owned(),
         serde_json::Value::String(user_uuid.to_string()),
     );
     metadata.insert(
-        "tenant_id".to_string(),
+        "tenant_id".to_owned(),
         tenant_id.map_or(serde_json::Value::Null, serde_json::Value::String),
     );
     metadata.insert(
-        "analysis_type".to_string(),
-        serde_json::Value::String("intelligence".to_string()),
+        "analysis_type".to_owned(),
+        serde_json::Value::String("intelligence".to_owned()),
     );
 
     UniversalResponse {
@@ -269,7 +269,7 @@ pub fn handle_get_activity_intelligence(
             .get("activity_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| {
-                ProtocolError::InvalidRequest("Missing required parameter: activity_id".to_string())
+                ProtocolError::InvalidRequest("Missing required parameter: activity_id".to_owned())
             })?;
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
@@ -314,7 +314,7 @@ pub fn handle_get_activity_intelligence(
                     expires_at: Some(token_data.expires_at),
                     scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                         .split(',')
-                        .map(str::to_string)
+                        .map(str::to_owned)
                         .collect(),
                 };
 
@@ -342,14 +342,14 @@ pub fn handle_get_activity_intelligence(
             Ok(None) => {
                 let mut metadata = std::collections::HashMap::new();
                 metadata.insert(
-                    "authentication_required".to_string(),
+                    "authentication_required".to_owned(),
                     serde_json::Value::Bool(true),
                 );
                 Ok(UniversalResponse {
                     success: false,
                     result: None,
                     error: Some(
-                        "No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string(),
+                        "No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned(),
                     ),
                     metadata: Some(metadata),
                 })
@@ -409,7 +409,7 @@ pub fn handle_analyze_performance_trends(
                     expires_at: Some(token_data.expires_at),
                     scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                         .split(',')
-                        .map(str::to_string)
+                        .map(str::to_owned)
                         .collect(),
                 };
 
@@ -428,7 +428,7 @@ pub fn handle_analyze_performance_trends(
                             metadata: Some({
                                 let mut map = std::collections::HashMap::new();
                                 map.insert(
-                                    "user_id".to_string(),
+                                    "user_id".to_owned(),
                                     serde_json::Value::String(user_uuid.to_string()),
                                 );
                                 map
@@ -446,7 +446,7 @@ pub fn handle_analyze_performance_trends(
             Ok(None) => Ok(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
+                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
                 metadata: None,
             }),
             Err(e) => Ok(UniversalResponse {
@@ -476,7 +476,7 @@ pub fn handle_compare_activities(
             .get("activity_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| {
-                ProtocolError::InvalidRequest("Missing required parameter: activity_id".to_string())
+                ProtocolError::InvalidRequest("Missing required parameter: activity_id".to_owned())
             })?;
         let comparison_type = request
             .parameters
@@ -510,7 +510,7 @@ pub fn handle_compare_activities(
                     expires_at: Some(token_data.expires_at),
                     scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                         .split(',')
-                        .map(str::to_string)
+                        .map(str::to_owned)
                         .collect(),
                 };
 
@@ -538,7 +538,7 @@ pub fn handle_compare_activities(
                             metadata: Some({
                                 let mut map = std::collections::HashMap::new();
                                 map.insert(
-                                    "user_id".to_string(),
+                                    "user_id".to_owned(),
                                     serde_json::Value::String(user_uuid.to_string()),
                                 );
                                 map
@@ -556,7 +556,7 @@ pub fn handle_compare_activities(
             Ok(None) => Ok(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
+                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
                 metadata: None,
             }),
             Err(e) => Ok(UniversalResponse {
@@ -586,9 +586,7 @@ pub fn handle_detect_patterns(
             .get("pattern_type")
             .and_then(|v| v.as_str())
             .ok_or_else(|| {
-                ProtocolError::InvalidRequest(
-                    "Missing required parameter: pattern_type".to_string(),
-                )
+                ProtocolError::InvalidRequest("Missing required parameter: pattern_type".to_owned())
             })?;
 
         match executor
@@ -613,7 +611,7 @@ pub fn handle_detect_patterns(
                     expires_at: Some(token_data.expires_at),
                     scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                         .split(',')
-                        .map(str::to_string)
+                        .map(str::to_owned)
                         .collect(),
                 };
 
@@ -632,7 +630,7 @@ pub fn handle_detect_patterns(
                             metadata: Some({
                                 let mut map = std::collections::HashMap::new();
                                 map.insert(
-                                    "user_id".to_string(),
+                                    "user_id".to_owned(),
                                     serde_json::Value::String(user_uuid.to_string()),
                                 );
                                 map
@@ -650,7 +648,7 @@ pub fn handle_detect_patterns(
             Ok(None) => Ok(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
+                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
                 metadata: None,
             }),
             Err(e) => Ok(UniversalResponse {
@@ -703,7 +701,7 @@ pub fn handle_generate_recommendations(
                     expires_at: Some(token_data.expires_at),
                     scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                         .split(',')
-                        .map(str::to_string)
+                        .map(str::to_owned)
                         .collect(),
                 };
 
@@ -722,7 +720,7 @@ pub fn handle_generate_recommendations(
                             metadata: Some({
                                 let mut map = std::collections::HashMap::new();
                                 map.insert(
-                                    "user_id".to_string(),
+                                    "user_id".to_owned(),
                                     serde_json::Value::String(user_uuid.to_string()),
                                 );
                                 map
@@ -740,7 +738,7 @@ pub fn handle_generate_recommendations(
             Ok(None) => Ok(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
+                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
                 metadata: None,
             }),
             Err(e) => Ok(UniversalResponse {
@@ -793,7 +791,7 @@ pub fn handle_calculate_fitness_score(
                     expires_at: Some(token_data.expires_at),
                     scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                         .split(',')
-                        .map(str::to_string)
+                        .map(str::to_owned)
                         .collect(),
                 };
 
@@ -812,7 +810,7 @@ pub fn handle_calculate_fitness_score(
                             metadata: Some({
                                 let mut map = std::collections::HashMap::new();
                                 map.insert(
-                                    "user_id".to_string(),
+                                    "user_id".to_owned(),
                                     serde_json::Value::String(user_uuid.to_string()),
                                 );
                                 map
@@ -830,7 +828,7 @@ pub fn handle_calculate_fitness_score(
             Ok(None) => Ok(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
+                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
                 metadata: None,
             }),
             Err(e) => Ok(UniversalResponse {
@@ -883,7 +881,7 @@ pub fn handle_predict_performance(
                     expires_at: Some(token_data.expires_at),
                     scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                         .split(',')
-                        .map(str::to_string)
+                        .map(str::to_owned)
                         .collect(),
                 };
 
@@ -902,7 +900,7 @@ pub fn handle_predict_performance(
                             metadata: Some({
                                 let mut map = std::collections::HashMap::new();
                                 map.insert(
-                                    "user_id".to_string(),
+                                    "user_id".to_owned(),
                                     serde_json::Value::String(user_uuid.to_string()),
                                 );
                                 map
@@ -920,7 +918,7 @@ pub fn handle_predict_performance(
             Ok(None) => Ok(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
+                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
                 metadata: None,
             }),
             Err(e) => Ok(UniversalResponse {
@@ -973,7 +971,7 @@ pub fn handle_analyze_training_load(
                     expires_at: Some(token_data.expires_at),
                     scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                         .split(',')
-                        .map(str::to_string)
+                        .map(str::to_owned)
                         .collect(),
                 };
 
@@ -992,7 +990,7 @@ pub fn handle_analyze_training_load(
                             metadata: Some({
                                 let mut map = std::collections::HashMap::new();
                                 map.insert(
-                                    "user_id".to_string(),
+                                    "user_id".to_owned(),
                                     serde_json::Value::String(user_uuid.to_string()),
                                 );
                                 map
@@ -1010,7 +1008,7 @@ pub fn handle_analyze_training_load(
             Ok(None) => Ok(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
+                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
                 metadata: None,
             }),
             Err(e) => Ok(UniversalResponse {
@@ -1255,7 +1253,7 @@ fn generate_trend_insights(
                 r_squared * 100.0
             ));
             if r_squared > 0.7 {
-                insights.push("Strong consistent improvement trend detected".to_string());
+                insights.push("Strong consistent improvement trend detected".to_owned());
             }
         }
         "declining" => {
@@ -1265,13 +1263,13 @@ fn generate_trend_insights(
                 r_squared * 100.0
             ));
             if slope < -0.05 {
-                insights.push("Consider reviewing your training plan or recovery".to_string());
+                insights.push("Consider reviewing your training plan or recovery".to_owned());
             }
         }
         "stable" => {
             if r_squared < 0.3 {
                 insights.push(
-                    "Performance is variable - maintain consistency for clearer trends".to_string(),
+                    "Performance is variable - maintain consistency for clearer trends".to_owned(),
                 );
             } else {
                 insights.push(format!("Your {metric} is maintaining steady performance"));
@@ -1381,9 +1379,9 @@ fn compare_with_similar_activities(
         }));
 
         if hr_diff_pct < -5.0 {
-            insights.push("Heart rate efficiency improved - same effort at lower HR".to_string());
+            insights.push("Heart rate efficiency improved - same effort at lower HR".to_owned());
         } else if hr_diff_pct > 5.0 {
-            insights.push("Heart rate was higher - consider recovery or pacing".to_string());
+            insights.push("Heart rate was higher - consider recovery or pacing".to_owned());
         }
     }
 
@@ -1454,7 +1452,7 @@ fn compare_with_personal_records(
             }));
 
             if is_pr && (distance - max_d).abs() > 100.0 {
-                insights.push("New distance PR! 🎉".to_string());
+                insights.push("New distance PR! 🎉".to_owned());
             }
         }
     }
@@ -1476,7 +1474,7 @@ fn compare_with_personal_records(
         }));
 
         if is_pr && (bp - tp).abs() > 0.1 {
-            insights.push("New pace PR! 🚀".to_string());
+            insights.push("New pace PR! 🚀".to_owned());
         }
     }
 
@@ -1494,7 +1492,7 @@ fn compare_with_personal_records(
             }));
 
             if is_pr && power > max_p {
-                insights.push("New power PR! 💪".to_string());
+                insights.push("New power PR! 💪".to_owned());
             }
         }
     }
@@ -1622,7 +1620,7 @@ fn compare_with_specific_activity(
     }
 
     if insights.is_empty() {
-        insights.push("Metrics are similar to the comparison activity".to_string());
+        insights.push("Metrics are similar to the comparison activity".to_owned());
     }
 
     serde_json::json!({
@@ -1648,16 +1646,16 @@ fn add_pace_insights(pace_diff_pct: f64, insights: &mut Vec<String>) {
             "Pace was {pace_diff_pct:.1}% slower than the selected activity"
         ));
     } else {
-        insights.push("Pace was similar to the selected activity".to_string());
+        insights.push("Pace was similar to the selected activity".to_owned());
     }
 }
 
 /// Helper to generate heart rate comparison insights
 fn add_heart_rate_insights(hr_diff_pct: f64, insights: &mut Vec<String>) {
     if hr_diff_pct < -5.0 {
-        insights.push("Heart rate efficiency improved - same effort at lower HR".to_string());
+        insights.push("Heart rate efficiency improved - same effort at lower HR".to_owned());
     } else if hr_diff_pct > 5.0 {
-        insights.push("Heart rate was higher - review pacing or recovery status".to_string());
+        insights.push("Heart rate was higher - review pacing or recovery status".to_owned());
     }
 }
 
@@ -1828,7 +1826,7 @@ fn format_weekly_schedule(
         "preferred_training_days": preferred_days,
         "patterns_detected": patterns,
         "insights": if patterns.is_empty() {
-            vec!["No strong weekly schedule pattern detected - training is variable".to_string()]
+            vec!["No strong weekly schedule pattern detected - training is variable".to_owned()]
         } else {
             patterns.clone()
         },
@@ -1843,7 +1841,7 @@ fn format_hard_easy_pattern(pattern: &crate::intelligence::HardEasyPattern) -> s
     let mut insights = vec![pattern.pattern_description.clone()];
 
     if !pattern.adequate_recovery {
-        insights.push("Consider adding more recovery days between hard efforts".to_string());
+        insights.push("Consider adding more recovery days between hard efforts".to_owned());
     }
 
     let confidence = if pattern.pattern_detected {
@@ -1879,15 +1877,15 @@ fn format_volume_progression(
     let mut insights = Vec::new();
     let trend_description = match pattern.trend {
         VolumeTrend::Increasing => {
-            insights.push("Volume is increasing - progressive overload detected".to_string());
+            insights.push("Volume is increasing - progressive overload detected".to_owned());
             "increasing"
         }
         VolumeTrend::Decreasing => {
-            insights.push("Volume is decreasing - taper or recovery phase".to_string());
+            insights.push("Volume is decreasing - taper or recovery phase".to_owned());
             "decreasing"
         }
         VolumeTrend::Stable => {
-            insights.push("Volume is stable - maintaining consistent training load".to_string());
+            insights.push("Volume is stable - maintaining consistent training load".to_owned());
             "stable"
         }
     };
@@ -1931,16 +1929,16 @@ fn format_overtraining_signals(
                 "Heart rate drift detected: {drift_pct:.1}% increase - possible fatigue"
             ));
         } else {
-            warning_signs.push("Heart rate drift detected - possible fatigue".to_string());
+            warning_signs.push("Heart rate drift detected - possible fatigue".to_owned());
         }
     }
 
     if signals.performance_decline {
-        warning_signs.push("Performance declining despite training - check recovery".to_string());
+        warning_signs.push("Performance declining despite training - check recovery".to_owned());
     }
 
     if signals.insufficient_recovery {
-        warning_signs.push("Insufficient recovery time between hard efforts".to_string());
+        warning_signs.push("Insufficient recovery time between hard efforts".to_owned());
     }
 
     let risk_level_str = match signals.risk_level {
@@ -1972,7 +1970,7 @@ fn format_overtraining_signals(
         "risk_level": risk_level_str,
         "warning_signs": warning_signs,
         "insights": if warning_signs.is_empty() {
-            vec!["No significant overtraining signs detected - training load appears manageable".to_string()]
+            vec!["No significant overtraining signs detected - training load appears manageable".to_owned()]
         } else {
             warning_signs.clone()
         },
@@ -2049,7 +2047,7 @@ fn generate_training_plan_recommendations(
     let reasoning = if volume_pattern.volume_spikes_detected {
         recommendations.push(
             "Volume spike detected - reduce next week's volume by 10-15% to prevent injury"
-                .to_string(),
+                .to_owned(),
         );
         priority = "high";
         format!(
@@ -2069,14 +2067,14 @@ fn generate_training_plan_recommendations(
     if let Some(load) = &training_load {
         if load.atl > 150.0 {
             recommendations
-                .push("Acute training load is very high - schedule a recovery week".to_string());
+                .push("Acute training load is very high - schedule a recovery week".to_owned());
             priority = "high";
         } else if load.ctl < 40.0 {
             recommendations
-                .push("Build fitness gradually - increase weekly volume by 5-10%".to_string());
+                .push("Build fitness gradually - increase weekly volume by 5-10%".to_owned());
         } else if load.ctl > 100.0 {
             recommendations.push(
-                "Strong fitness base - maintain current volume and add quality work".to_string(),
+                "Strong fitness base - maintain current volume and add quality work".to_owned(),
             );
         }
     }
@@ -2084,16 +2082,16 @@ fn generate_training_plan_recommendations(
     // Consistency recommendations
     if weekly_schedule.consistency_score < 20.0 {
         recommendations
-            .push("Training schedule is inconsistent - aim for same days each week".to_string());
+            .push("Training schedule is inconsistent - aim for same days each week".to_owned());
         if weekly_schedule.avg_activities_per_week < 3.0 {
-            recommendations.push("Increase frequency to 3-4 activities per week".to_string());
+            recommendations.push("Increase frequency to 3-4 activities per week".to_owned());
             if priority == "medium" {
                 priority = "high";
             }
         }
     } else if weekly_schedule.avg_activities_per_week > 6.0 {
         recommendations
-            .push("Very high training frequency - ensure at least 1 complete rest day".to_string());
+            .push("Very high training frequency - ensure at least 1 complete rest day".to_owned());
     }
 
     // Provide structured weekly plan based on consistency
@@ -2161,16 +2159,16 @@ fn process_tsb_recommendations(
         }
         TrainingStatus::Productive => {
             recommendations
-                .push("Good training zone - maintain current load with recovery days".to_string());
+                .push("Good training zone - maintain current load with recovery days".to_owned());
             *recovery_status = "productive";
         }
         TrainingStatus::Fresh => {
-            recommendations.push("Well-recovered - ready for quality training".to_string());
+            recommendations.push("Well-recovered - ready for quality training".to_owned());
             *recovery_status = "fresh";
         }
         TrainingStatus::Detraining => {
             recommendations
-                .push("TSB is high - consider increasing training load gradually".to_string());
+                .push("TSB is high - consider increasing training load gradually".to_owned());
             *recovery_status = "detraining_risk";
         }
     }
@@ -2179,7 +2177,7 @@ fn process_tsb_recommendations(
     let risk = TrainingLoadCalculator::check_overtraining_risk(load);
     if risk.risk_level == RiskLevel::High {
         *priority = "high";
-        recommendations.push("High overtraining risk detected - prioritize recovery".to_string());
+        recommendations.push("High overtraining risk detected - prioritize recovery".to_owned());
         for factor in &risk.risk_factors {
             recommendations.push(format!("⚠️ {factor}"));
         }
@@ -2229,12 +2227,12 @@ fn generate_recovery_recommendations(activities: &[crate::models::Activity]) -> 
 
     if overtraining_signals.performance_decline {
         recommendations
-            .push("Performance declining despite training - increase recovery".to_string());
+            .push("Performance declining despite training - increase recovery".to_owned());
     }
 
     if overtraining_signals.insufficient_recovery {
         recommendations
-            .push("Insufficient recovery between hard sessions - add easy days".to_string());
+            .push("Insufficient recovery between hard sessions - add easy days".to_owned());
     }
 
     // Provide recovery-specific tips based on status
@@ -2293,7 +2291,7 @@ fn generate_intensity_recommendations(activities: &[crate::models::Activity]) ->
     if !pattern.pattern_detected {
         recommendations.push(
             "Unable to detect clear intensity pattern - ensure heart rate data is available"
-                .to_string(),
+                .to_owned(),
         );
         return serde_json::json!({
             "recommendation_type": "intensity",
@@ -2309,38 +2307,36 @@ fn generate_intensity_recommendations(activities: &[crate::models::Activity]) ->
     if easy_pct < 70.0 {
         recommendations.push(
             "Too much high-intensity training - add more easy/recovery runs (aim for 80% easy)"
-                .to_string(),
+                .to_owned(),
         );
         priority = "high";
         reasoning = format!("Only {easy_pct:.0}% easy training detected - risk of overtraining");
     } else if easy_pct > 90.0 {
         recommendations.push(
             "Mostly easy training - include 1-2 quality sessions per week for fitness gains"
-                .to_string(),
+                .to_owned(),
         );
         priority = "medium";
     } else {
-        recommendations.push("Good intensity balance following 80/20 principle".to_string());
+        recommendations.push("Good intensity balance following 80/20 principle".to_owned());
     }
 
     // Check recovery adequacy
     if pattern.adequate_recovery {
-        recommendations.push("Good recovery pattern between hard sessions".to_string());
+        recommendations.push("Good recovery pattern between hard sessions".to_owned());
     } else {
-        recommendations
-            .push("Consider adding more recovery days between hard sessions".to_string());
+        recommendations.push("Consider adding more recovery days between hard sessions".to_owned());
     }
 
     // Specific workout recommendations based on hard percentage
     let hard_pct = pattern.hard_percentage;
     if hard_pct < 10.0 {
-        recommendations.push("Add quality work:".to_string());
+        recommendations.push("Add quality work:".to_owned());
         recommendations
-            .push("  • Interval training: 6x800m @ 5K pace with 2min recovery".to_string());
-        recommendations.push("  • Tempo run: 20-30min @ comfortably hard pace".to_string());
+            .push("  • Interval training: 6x800m @ 5K pace with 2min recovery".to_owned());
+        recommendations.push("  • Tempo run: 20-30min @ comfortably hard pace".to_owned());
     } else if hard_pct > 30.0 {
-        recommendations
-            .push("Reduce high-intensity frequency to 1-2 sessions per week".to_string());
+        recommendations.push("Reduce high-intensity frequency to 1-2 sessions per week".to_owned());
         if priority != "high" {
             priority = "high";
         }
@@ -2440,17 +2436,17 @@ fn generate_goal_specific_recommendations(
 
     // Sport-specific goal recommendations
     if primary_sport.contains("Run") {
-        recommendations.push("Build aerobic base with easy long runs".to_string());
-        recommendations.push("Add weekly quality: tempo run or interval session".to_string());
-        recommendations.push("Include race-pace intervals 4-6 weeks before goal race".to_string());
-        recommendations.push("Taper 10-14 days before race: reduce volume 30-50%".to_string());
+        recommendations.push("Build aerobic base with easy long runs".to_owned());
+        recommendations.push("Add weekly quality: tempo run or interval session".to_owned());
+        recommendations.push("Include race-pace intervals 4-6 weeks before goal race".to_owned());
+        recommendations.push("Taper 10-14 days before race: reduce volume 30-50%".to_owned());
     } else if primary_sport.contains("Ride") {
-        recommendations.push("Build FTP with structured threshold intervals".to_string());
-        recommendations.push("Include weekly hill repeats for strength".to_string());
-        recommendations.push("Long endurance rides on weekends (3-5 hours)".to_string());
+        recommendations.push("Build FTP with structured threshold intervals".to_owned());
+        recommendations.push("Include weekly hill repeats for strength".to_owned());
+        recommendations.push("Long endurance rides on weekends (3-5 hours)".to_owned());
     } else {
-        recommendations.push("Focus on consistent training to build aerobic base".to_string());
-        recommendations.push("Gradually increase training volume by 5-10% per week".to_string());
+        recommendations.push("Focus on consistent training to build aerobic base".to_owned());
+        recommendations.push("Gradually increase training volume by 5-10% per week".to_owned());
     }
 
     serde_json::json!({
@@ -2497,22 +2493,22 @@ fn generate_comprehensive_recommendations(
                 load.tsb
             ));
             priority = "high";
-            key_insights.push("Fatigue is accumulating faster than fitness".to_string());
+            key_insights.push("Fatigue is accumulating faster than fitness".to_owned());
         } else if load.ctl > 80.0 {
             key_insights.push(format!("Strong fitness base (CTL: {:.1})", load.ctl));
         } else if load.ctl < 40.0 {
-            key_insights.push("Building fitness - continue gradual progression".to_string());
+            key_insights.push("Building fitness - continue gradual progression".to_owned());
         }
     }
 
     // Volume management
     if volume_pattern.volume_spikes_detected {
         recommendations
-            .push("Reduce volume next week - spike detected in recent training".to_string());
+            .push("Reduce volume next week - spike detected in recent training".to_owned());
         if priority == "medium" {
             priority = "high";
         }
-        key_insights.push("Training volume increased too rapidly".to_string());
+        key_insights.push("Training volume increased too rapidly".to_owned());
     }
 
     // Intensity balance
@@ -2520,33 +2516,33 @@ fn generate_comprehensive_recommendations(
         let hard_pct = intensity_pattern.hard_percentage;
         if hard_pct > 30.0 {
             recommendations
-                .push("Too much high-intensity work - add more easy training days".to_string());
+                .push("Too much high-intensity work - add more easy training days".to_owned());
         } else if hard_pct < 10.0 {
-            recommendations.push("Include 1-2 quality sessions per week".to_string());
+            recommendations.push("Include 1-2 quality sessions per week".to_owned());
         }
 
         if intensity_pattern.adequate_recovery {
-            key_insights.push("Good recovery pattern between hard sessions".to_string());
+            key_insights.push("Good recovery pattern between hard sessions".to_owned());
         }
     }
 
     // Overtraining checks
     if overtraining.hr_drift_detected {
         recommendations
-            .push("Heart rate drift detected - prioritize recovery this week".to_string());
-        key_insights.push("Possible fatigue accumulation detected".to_string());
+            .push("Heart rate drift detected - prioritize recovery this week".to_owned());
+        key_insights.push("Possible fatigue accumulation detected".to_owned());
     }
 
     // General best practices if no specific issues
     if recommendations.is_empty() {
-        recommendations.push("Training load is balanced - maintain current approach".to_string());
-        recommendations.push("Continue following 80/20 intensity distribution".to_string());
-        recommendations.push("Monitor weekly volume changes (keep under 10% increase)".to_string());
+        recommendations.push("Training load is balanced - maintain current approach".to_owned());
+        recommendations.push("Continue following 80/20 intensity distribution".to_owned());
+        recommendations.push("Monitor weekly volume changes (keep under 10% increase)".to_owned());
     }
 
     // Add general best practices
-    recommendations.push("Include 1-2 complete rest days per week".to_string());
-    recommendations.push("Prioritize sleep quality (7-9 hours per night)".to_string());
+    recommendations.push("Include 1-2 complete rest days per week".to_owned());
+    recommendations.push("Prioritize sleep quality (7-9 hours per night)".to_owned());
 
     serde_json::json!({
         "recommendation_type": "comprehensive",
@@ -2884,7 +2880,7 @@ fn predict_race_performance(
                     let pace_per_km = if distance_meters > 0.0 {
                         PerformancePredictor::format_pace_per_km(distance_meters / time_seconds)
                     } else {
-                        "N/A".to_string()
+                        "N/A".to_owned()
                     };
 
                     serde_json::json!({
@@ -2982,11 +2978,11 @@ fn calculate_prediction_confidence(
     let total_score = recency_score + ctl_score + volume_score;
 
     if total_score >= 5 {
-        "high".to_string()
+        "high".to_owned()
     } else if total_score >= 3 {
-        "medium".to_string()
+        "medium".to_owned()
     } else {
-        "low".to_string()
+        "low".to_owned()
     }
 }
 
@@ -3061,14 +3057,14 @@ fn analyze_detailed_training_load(
     let mut periodization_suggestions = Vec::new();
     if atl > ctl * 1.5 {
         periodization_suggestions
-            .push("Recent spike in training - allow adaptation time".to_string());
+            .push("Recent spike in training - allow adaptation time".to_owned());
     }
     if ctl < 30.0 {
         periodization_suggestions
-            .push("Building base - focus on consistency and volume".to_string());
+            .push("Building base - focus on consistency and volume".to_owned());
     } else if ctl > 80.0 {
         periodization_suggestions
-            .push("High fitness level - maintain or add recovery weeks".to_string());
+            .push("High fitness level - maintain or add recovery weeks".to_owned());
     }
 
     serde_json::json!({
@@ -3135,15 +3131,15 @@ fn calculate_weekly_tss_from_history(
 /// Determine overall load status
 fn determine_load_status(_ctl: f64, _atl: f64, tsb: f64) -> String {
     if tsb < -25.0 {
-        "Overreached - high fatigue".to_string()
+        "Overreached - high fatigue".to_owned()
     } else if tsb < -10.0 {
-        "Productive - building fitness under fatigue".to_string()
+        "Productive - building fitness under fatigue".to_owned()
     } else if tsb < 5.0 {
-        "Balanced - good training stress balance".to_string()
+        "Balanced - good training stress balance".to_owned()
     } else if tsb < 15.0 {
-        "Fresh - ready for quality work".to_string()
+        "Fresh - ready for quality work".to_owned()
     } else {
-        "Very fresh - possibly detraining".to_string()
+        "Very fresh - possibly detraining".to_owned()
     }
 }
 
@@ -3179,38 +3175,38 @@ fn generate_load_recommendations(ctl: f64, atl: f64, tsb: f64) -> Vec<String> {
 
     // TSB-based recommendations
     if tsb < -25.0 {
-        recommendations.push("⚠️ Critical fatigue - take 2-3 rest days immediately".to_string());
-        recommendations.push("Reduce training volume by 50% this week".to_string());
+        recommendations.push("⚠️ Critical fatigue - take 2-3 rest days immediately".to_owned());
+        recommendations.push("Reduce training volume by 50% this week".to_owned());
     } else if tsb < -15.0 {
-        recommendations.push("High fatigue - schedule recovery week".to_string());
-        recommendations.push("Reduce intensity and add extra rest day".to_string());
+        recommendations.push("High fatigue - schedule recovery week".to_owned());
+        recommendations.push("Reduce intensity and add extra rest day".to_owned());
     } else if tsb < -5.0 {
         recommendations
-            .push("Moderate fatigue - maintain current load or slight reduction".to_string());
+            .push("Moderate fatigue - maintain current load or slight reduction".to_owned());
     } else if tsb > 15.0 {
-        recommendations.push("Very fresh - good time for breakthrough workout or race".to_string());
+        recommendations.push("Very fresh - good time for breakthrough workout or race".to_owned());
     }
 
     // CTL/ATL ratio analysis
     let ratio = if ctl > 0.0 { atl / ctl } else { 0.0 };
     if ratio > 1.5 {
         recommendations
-            .push("Recent training spike detected - allow 1-2 weeks adaptation".to_string());
+            .push("Recent training spike detected - allow 1-2 weeks adaptation".to_owned());
     } else if ratio < 0.8 && ctl > 30.0 {
-        recommendations.push("Well adapted to training - can increase load gradually".to_string());
+        recommendations.push("Well adapted to training - can increase load gradually".to_owned());
     }
 
     // Progressive load recommendations
     if ctl < 30.0 {
-        recommendations.push("Build weekly TSS by 3-5 points per week".to_string());
+        recommendations.push("Build weekly TSS by 3-5 points per week".to_owned());
     } else if ctl > 80.0 {
         recommendations
-            .push("High load - incorporate recovery weeks (reduce by 20-30%)".to_string());
+            .push("High load - incorporate recovery weeks (reduce by 20-30%)".to_owned());
     }
 
     if recommendations.is_empty() {
         recommendations
-            .push("Training load is well balanced - maintain current approach".to_string());
+            .push("Training load is well balanced - maintain current approach".to_owned());
     }
 
     recommendations

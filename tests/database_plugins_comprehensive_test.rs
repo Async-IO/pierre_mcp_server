@@ -8,6 +8,9 @@
 //! This test suite covers the database plugin implementations
 //! which currently have no test coverage
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use chrono::Utc;
 use pierre_mcp_server::{
@@ -54,9 +57,9 @@ async fn test_user_crud_operations() -> Result<()> {
 
     // Create user
     let user = User::new(
-        "test_crud@example.com".to_string(),
-        "password123".to_string(),
-        Some("Test CRUD User".to_string()),
+        "test_crud@example.com".to_owned(),
+        "password123".to_owned(),
+        Some("Test CRUD User".to_owned()),
     );
 
     let user_id = db.create_user(&user).await?;
@@ -92,8 +95,8 @@ async fn test_user_last_active_update() -> Result<()> {
     db.migrate().await?;
 
     let user = User::new(
-        "last_active_test@example.com".to_string(),
-        "password".to_string(),
+        "last_active_test@example.com".to_owned(),
+        "password".to_owned(),
         None,
     );
 
@@ -124,7 +127,7 @@ async fn test_user_count() -> Result<()> {
     for i in 0..3 {
         let user = User::new(
             format!("count_test_{i}@example.com"),
-            "password".to_string(),
+            "password".to_owned(),
             Some(format!("User {i}")),
         );
         db.create_user(&user).await?;
@@ -144,8 +147,8 @@ async fn test_strava_token_operations() -> Result<()> {
     db.migrate().await?;
 
     let user = User::new(
-        "strava_token_test@example.com".to_string(),
-        "password".to_string(),
+        "strava_token_test@example.com".to_owned(),
+        "password".to_owned(),
         None,
     );
     let user_id = db.create_user(&user).await?;
@@ -164,12 +167,12 @@ async fn test_strava_token_operations() -> Result<()> {
     let expires_at = Utc::now() + chrono::Duration::hours(6);
     let oauth_token = UserOAuthToken::new(
         user_id,
-        "00000000-0000-0000-0000-000000000000".to_string(),
-        oauth_providers::STRAVA.to_string(),
-        "test_access_token".to_string(),
-        Some("test_refresh_token".to_string()),
+        "00000000-0000-0000-0000-000000000000".to_owned(),
+        oauth_providers::STRAVA.to_owned(),
+        "test_access_token".to_owned(),
+        Some("test_refresh_token".to_owned()),
         Some(expires_at),
-        Some("read,activity:read_all".to_string()),
+        Some("read,activity:read_all".to_owned()),
     );
     db.upsert_user_oauth_token(&oauth_token).await?;
 
@@ -186,8 +189,8 @@ async fn test_strava_token_operations() -> Result<()> {
     assert_eq!(token.access_token, "test_access_token");
     assert_eq!(token.refresh_token.as_ref().unwrap(), "test_refresh_token");
     let scopes = token.scope.as_ref().unwrap();
-    assert!(scopes.contains(&"read".to_string()));
-    assert!(scopes.contains(&"activity:read_all".to_string()));
+    assert!(scopes.contains(&"read".to_owned()));
+    assert!(scopes.contains(&"activity:read_all".to_owned()));
 
     // Clear token
     db.delete_user_oauth_token(
@@ -215,8 +218,8 @@ async fn test_fitbit_token_operations() -> Result<()> {
     db.migrate().await?;
 
     let user = User::new(
-        "fitbit_token_test@example.com".to_string(),
-        "password".to_string(),
+        "fitbit_token_test@example.com".to_owned(),
+        "password".to_owned(),
         None,
     );
     let user_id = db.create_user(&user).await?;
@@ -235,12 +238,12 @@ async fn test_fitbit_token_operations() -> Result<()> {
     let expires_at = Utc::now() + chrono::Duration::hours(8);
     let oauth_token = UserOAuthToken::new(
         user_id,
-        "00000000-0000-0000-0000-000000000000".to_string(),
-        oauth_providers::FITBIT.to_string(),
-        "fitbit_access_token".to_string(),
-        Some("fitbit_refresh_token".to_string()),
+        "00000000-0000-0000-0000-000000000000".to_owned(),
+        oauth_providers::FITBIT.to_owned(),
+        "fitbit_access_token".to_owned(),
+        Some("fitbit_refresh_token".to_owned()),
         Some(expires_at),
-        Some("activity profile".to_string()),
+        Some("activity profile".to_owned()),
     );
     db.upsert_user_oauth_token(&oauth_token).await?;
 
@@ -260,8 +263,8 @@ async fn test_fitbit_token_operations() -> Result<()> {
         "fitbit_refresh_token"
     );
     let scopes = token.scope.as_ref().unwrap();
-    assert!(scopes.contains(&"activity".to_string()));
-    assert!(scopes.contains(&"profile".to_string()));
+    assert!(scopes.contains(&"activity".to_owned()));
+    assert!(scopes.contains(&"profile".to_owned()));
 
     // Clear token
     db.delete_user_oauth_token(
@@ -289,8 +292,8 @@ async fn test_api_key_operations() -> Result<()> {
     db.migrate().await?;
 
     let user = User::new(
-        "api_key_test@example.com".to_string(),
-        "password".to_string(),
+        "api_key_test@example.com".to_owned(),
+        "password".to_owned(),
         None,
     );
     let user_id = db.create_user(&user).await?;
@@ -299,10 +302,10 @@ async fn test_api_key_operations() -> Result<()> {
     let api_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id,
-        name: "Test API Key".to_string(),
-        key_prefix: "pk_test".to_string(),
-        key_hash: "hashed_key_value".to_string(),
-        description: Some("Test API key for database testing".to_string()),
+        name: "Test API Key".to_owned(),
+        key_prefix: "pk_test".to_owned(),
+        key_hash: "hashed_key_value".to_owned(),
+        description: Some("Test API key for database testing".to_owned()),
         tier: ApiKeyTier::Starter,
         rate_limit_requests: 1000,
         rate_limit_window_seconds: 30 * 24 * 3600,
@@ -344,8 +347,8 @@ async fn test_api_key_usage_tracking() -> Result<()> {
     db.migrate().await?;
 
     let user = User::new(
-        "usage_tracking_test@example.com".to_string(),
-        "password".to_string(),
+        "usage_tracking_test@example.com".to_owned(),
+        "password".to_owned(),
         None,
     );
     let user_id = db.create_user(&user).await?;
@@ -353,10 +356,10 @@ async fn test_api_key_usage_tracking() -> Result<()> {
     let api_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id,
-        name: "Usage Test Key".to_string(),
-        key_prefix: "pk_usage".to_string(),
-        key_hash: "usage_hash".to_string(),
-        description: Some("Usage tracking test key".to_string()),
+        name: "Usage Test Key".to_owned(),
+        key_prefix: "pk_usage".to_owned(),
+        key_hash: "usage_hash".to_owned(),
+        description: Some("Usage tracking test key".to_owned()),
         tier: ApiKeyTier::Professional,
         rate_limit_requests: 10000,
         rate_limit_window_seconds: 30 * 24 * 3600,
@@ -372,15 +375,15 @@ async fn test_api_key_usage_tracking() -> Result<()> {
     let usage = ApiKeyUsage {
         id: None,
         api_key_id: api_key.id.clone(),
-        tool_name: "get_activities".to_string(),
+        tool_name: "get_activities".to_owned(),
         timestamp: Utc::now(),
         status_code: 200,
         response_time_ms: Some(150),
         error_message: None,
         request_size_bytes: Some(100),
         response_size_bytes: Some(500),
-        ip_address: Some("127.0.0.1".to_string()),
-        user_agent: Some("test-client/1.0".to_string()),
+        ip_address: Some("127.0.0.1".to_owned()),
+        user_agent: Some("test-client/1.0".to_owned()),
     };
 
     db.record_api_key_usage(&usage).await?;
@@ -403,8 +406,8 @@ async fn test_jwt_usage_tracking() -> Result<()> {
     db.migrate().await?;
 
     let user = User::new(
-        "jwt_usage_test@example.com".to_string(),
-        "password".to_string(),
+        "jwt_usage_test@example.com".to_owned(),
+        "password".to_owned(),
         None,
     );
     let user_id = db.create_user(&user).await?;
@@ -413,14 +416,14 @@ async fn test_jwt_usage_tracking() -> Result<()> {
     let jwt_usage = JwtUsage {
         id: None,
         user_id,
-        endpoint: "/api/oauth/connect".to_string(),
-        method: "POST".to_string(),
+        endpoint: "/api/oauth/connect".to_owned(),
+        method: "POST".to_owned(),
         status_code: 200,
         response_time_ms: Some(100),
         request_size_bytes: Some(50),
         response_size_bytes: Some(200),
-        ip_address: Some("127.0.0.1".to_string()),
-        user_agent: Some("test-client".to_string()),
+        ip_address: Some("127.0.0.1".to_owned()),
+        user_agent: Some("test-client".to_owned()),
         timestamp: Utc::now(),
     };
 
@@ -435,14 +438,14 @@ async fn test_jwt_usage_tracking() -> Result<()> {
     let jwt_usage2 = JwtUsage {
         id: None,
         user_id,
-        endpoint: "/api/activities".to_string(),
-        method: "GET".to_string(),
+        endpoint: "/api/activities".to_owned(),
+        method: "GET".to_owned(),
         status_code: 200,
         response_time_ms: Some(75),
         request_size_bytes: Some(30),
         response_size_bytes: Some(1000),
-        ip_address: Some("127.0.0.1".to_string()),
-        user_agent: Some("test-client".to_string()),
+        ip_address: Some("127.0.0.1".to_owned()),
+        user_agent: Some("test-client".to_owned()),
         timestamp: Utc::now(),
     };
 
@@ -469,7 +472,7 @@ async fn test_concurrent_database_operations() -> Result<()> {
         handles.push(tokio::spawn(async move {
             let user = User::new(
                 format!("concurrent_{i}@example.com"),
-                "password".to_string(),
+                "password".to_owned(),
                 Some(format!("Concurrent User {i}")),
             );
             db_clone.create_user(&user).await
@@ -496,8 +499,8 @@ async fn test_token_encryption_roundtrip() -> Result<()> {
     db.migrate().await?;
 
     let user = User::new(
-        "encryption_test@example.com".to_string(),
-        "password".to_string(),
+        "encryption_test@example.com".to_owned(),
+        "password".to_owned(),
         None,
     );
     let user_id = db.create_user(&user).await?;
@@ -516,12 +519,12 @@ async fn test_token_encryption_roundtrip() -> Result<()> {
         // Store Strava token
         let oauth_token = UserOAuthToken::new(
             user_id,
-            "00000000-0000-0000-0000-000000000000".to_string(),
-            oauth_providers::STRAVA.to_string(),
-            access_token.to_string(),
-            Some(refresh_token.to_string()),
+            "00000000-0000-0000-0000-000000000000".to_owned(),
+            oauth_providers::STRAVA.to_owned(),
+            access_token.to_owned(),
+            Some(refresh_token.to_owned()),
             Some(expires_at),
-            Some("read".to_string()),
+            Some("read".to_owned()),
         );
         db.upsert_user_oauth_token(&oauth_token).await?;
 
@@ -541,12 +544,12 @@ async fn test_token_encryption_roundtrip() -> Result<()> {
         // Store Fitbit token
         let fitbit_oauth_token = UserOAuthToken::new(
             user_id,
-            "00000000-0000-0000-0000-000000000000".to_string(),
-            oauth_providers::FITBIT.to_string(),
-            access_token.to_string(),
-            Some(refresh_token.to_string()),
+            "00000000-0000-0000-0000-000000000000".to_owned(),
+            oauth_providers::FITBIT.to_owned(),
+            access_token.to_owned(),
+            Some(refresh_token.to_owned()),
             Some(expires_at),
-            Some("activity".to_string()),
+            Some("activity".to_owned()),
         );
         db.upsert_user_oauth_token(&fitbit_oauth_token).await?;
 
@@ -600,8 +603,8 @@ async fn test_api_key_usage_aggregation() -> Result<()> {
     db.migrate().await?;
 
     let user = User::new(
-        "aggregation_test@example.com".to_string(),
-        "password".to_string(),
+        "aggregation_test@example.com".to_owned(),
+        "password".to_owned(),
         None,
     );
     let user_id = db.create_user(&user).await?;
@@ -609,10 +612,10 @@ async fn test_api_key_usage_aggregation() -> Result<()> {
     let api_key = ApiKey {
         id: Uuid::new_v4().to_string(),
         user_id,
-        name: "Aggregation Test Key".to_string(),
-        key_prefix: "pk_agg".to_string(),
-        key_hash: "agg_hash".to_string(),
-        description: Some("Aggregation test key".to_string()),
+        name: "Aggregation Test Key".to_owned(),
+        key_prefix: "pk_agg".to_owned(),
+        key_hash: "agg_hash".to_owned(),
+        description: Some("Aggregation test key".to_owned()),
         tier: ApiKeyTier::Enterprise,
         rate_limit_requests: 0, // Unlimited for enterprise
         rate_limit_window_seconds: 30 * 24 * 3600,
@@ -638,8 +641,8 @@ async fn test_api_key_usage_aggregation() -> Result<()> {
             error_message: None,
             request_size_bytes: Some(100),
             response_size_bytes: Some(200),
-            user_agent: Some("test-client".to_string()),
-            ip_address: Some("127.0.0.1".to_string()),
+            user_agent: Some("test-client".to_owned()),
+            ip_address: Some("127.0.0.1".to_owned()),
         };
 
         db.record_api_key_usage(&usage).await?;
@@ -669,7 +672,7 @@ async fn test_user_tier_handling() -> Result<()> {
     for (i, tier) in tiers.iter().enumerate() {
         let mut user = User::new(
             format!("tier_test_{i}@example.com"),
-            "password".to_string(),
+            "password".to_owned(),
             Some(format!("Tier Test {i}")),
         );
         user.tier = tier.clone();
@@ -727,8 +730,8 @@ async fn test_database_connection_reuse() -> Result<()> {
 
     // Create user
     let user = User::new(
-        "connection_reuse@example.com".to_string(),
-        "password".to_string(),
+        "connection_reuse@example.com".to_owned(),
+        "password".to_owned(),
         None,
     );
     let user_id = db.create_user(&user).await?;
@@ -741,12 +744,12 @@ async fn test_database_connection_reuse() -> Result<()> {
         let token_expires = Utc::now() + chrono::Duration::hours(i);
         let oauth_token = UserOAuthToken::new(
             user_id,
-            "00000000-0000-0000-0000-000000000000".to_string(),
-            oauth_providers::STRAVA.to_string(),
+            "00000000-0000-0000-0000-000000000000".to_owned(),
+            oauth_providers::STRAVA.to_owned(),
             format!("token_{i}"),
             Some(format!("refresh_{i}")),
             Some(token_expires),
-            Some("read".to_string()),
+            Some("read".to_owned()),
         );
         db.upsert_user_oauth_token(&oauth_token).await?;
 
@@ -771,7 +774,7 @@ mod postgres_tests {
 
     fn get_postgres_test_url() -> String {
         std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server".to_string()
+            "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server".to_owned()
         })
     }
 
@@ -819,8 +822,8 @@ mod postgres_tests {
         // Verify database is operational
         let user = User::new(
             user_email.clone(),
-            "password123".to_string(),
-            Some("PostgreSQL Creation Test".to_string()),
+            "password123".to_owned(),
+            Some("PostgreSQL Creation Test".to_owned()),
         );
 
         let user_id = db.create_user(&user).await?;
@@ -861,7 +864,7 @@ mod postgres_tests {
         for (i, tier) in tiers.iter().enumerate() {
             let mut user = User::new(
                 format!("postgres_user_{}_{}@example.com", i, uuid::Uuid::new_v4()),
-                "secure_password_123".to_string(),
+                "secure_password_123".to_owned(),
                 Some(format!("PostgreSQL User {i}")),
             );
             user.tier = tier.clone();
@@ -897,7 +900,7 @@ mod postgres_tests {
 
         let user = User::new(
             format!("postgres_api_test_{}@example.com", uuid::Uuid::new_v4()),
-            "password".to_string(),
+            "password".to_owned(),
             None,
         );
         let user_id = db.create_user(&user).await?;
@@ -946,15 +949,15 @@ mod postgres_tests {
             let usage = ApiKeyUsage {
                 id: None,
                 api_key_id: api_key.id.clone(),
-                tool_name: "postgres_test_tool".to_string(),
+                tool_name: "postgres_test_tool".to_owned(),
                 status_code: 200,
                 response_time_ms: Some(150),
                 timestamp: Utc::now(),
                 error_message: None,
                 request_size_bytes: Some(512),
                 response_size_bytes: Some(1024),
-                user_agent: Some("postgres-test-client/1.0".to_string()),
-                ip_address: Some("10.0.0.1".to_string()),
+                user_agent: Some("postgres-test-client/1.0".to_owned()),
+                ip_address: Some("10.0.0.1".to_owned()),
             };
 
             db.record_api_key_usage(&usage).await?;
@@ -978,7 +981,7 @@ mod postgres_tests {
 
         let user = User::new(
             format!("postgres_token_test_{}@example.com", uuid::Uuid::new_v4()),
-            "password".to_string(),
+            "password".to_owned(),
             None,
         );
         let user_id = db.create_user(&user).await?;
@@ -988,12 +991,12 @@ mod postgres_tests {
         // Test Strava token operations
         let strava_oauth_token = UserOAuthToken::new(
             user_id,
-            "00000000-0000-0000-0000-000000000000".to_string(),
-            oauth_providers::STRAVA.to_string(),
-            "strava_access_token_postgres".to_string(),
-            Some("strava_refresh_token_postgres".to_string()),
+            "00000000-0000-0000-0000-000000000000".to_owned(),
+            oauth_providers::STRAVA.to_owned(),
+            "strava_access_token_postgres".to_owned(),
+            Some("strava_refresh_token_postgres".to_owned()),
             Some(expires_at),
-            Some("read,activity:read".to_string()),
+            Some("read,activity:read".to_owned()),
         );
         db.upsert_user_oauth_token(&strava_oauth_token).await?;
 
@@ -1015,12 +1018,12 @@ mod postgres_tests {
         // Test Fitbit token operations
         let fitbit_oauth_token = UserOAuthToken::new(
             user_id,
-            "00000000-0000-0000-0000-000000000000".to_string(),
-            oauth_providers::FITBIT.to_string(),
-            "fitbit_access_token_postgres".to_string(),
-            Some("fitbit_refresh_token_postgres".to_string()),
+            "00000000-0000-0000-0000-000000000000".to_owned(),
+            oauth_providers::FITBIT.to_owned(),
+            "fitbit_access_token_postgres".to_owned(),
+            Some("fitbit_refresh_token_postgres".to_owned()),
             Some(expires_at),
-            Some("activity,profile".to_string()),
+            Some("activity,profile".to_owned()),
         );
         db.upsert_user_oauth_token(&fitbit_oauth_token).await?;
 
@@ -1045,12 +1048,12 @@ mod postgres_tests {
 
         let special_oauth_token = UserOAuthToken::new(
             user_id,
-            "00000000-0000-0000-0000-000000000000".to_string(),
-            oauth_providers::STRAVA.to_string(),
-            special_access.to_string(),
-            Some(special_refresh.to_string()),
+            "00000000-0000-0000-0000-000000000000".to_owned(),
+            oauth_providers::STRAVA.to_owned(),
+            special_access.to_owned(),
+            Some(special_refresh.to_owned()),
             Some(expires_at),
-            Some("read_all".to_string()),
+            Some("read_all".to_owned()),
         );
         db.upsert_user_oauth_token(&special_oauth_token).await?;
 
@@ -1086,7 +1089,7 @@ mod postgres_tests {
                         "postgres_concurrent_{}_{i}@example.com",
                         uuid::Uuid::new_v4()
                     ),
-                    "password".to_string(),
+                    "password".to_owned(),
                     Some(format!("PostgreSQL Concurrent User {i}")),
                 );
                 let user_id = db_clone.create_user(&user).await?;
@@ -1141,7 +1144,7 @@ mod postgres_tests {
         // Create a test user first for foreign key reference
         let user = User::new(
             format!("postgres_jwt_test_{}@example.com", uuid::Uuid::new_v4()),
-            "password".to_string(),
+            "password".to_owned(),
             None,
         );
         let user_id = db.create_user(&user).await?;
@@ -1152,14 +1155,14 @@ mod postgres_tests {
                 id: None,
                 user_id,
                 endpoint: format!("/api/postgres/endpoint_{i}"),
-                method: "GET".to_string(),
+                method: "GET".to_owned(),
                 status_code: 200,
                 response_time_ms: Some(100 + u32::try_from(i).unwrap_or(0) * 10),
                 timestamp: Utc::now(),
                 request_size_bytes: Some(512),
                 response_size_bytes: Some(1024),
-                ip_address: Some("10.0.0.1".to_string()),
-                user_agent: Some("postgres-jwt-client/1.0".to_string()),
+                ip_address: Some("10.0.0.1".to_owned()),
+                user_agent: Some("postgres-jwt-client/1.0".to_owned()),
             };
 
             db.record_jwt_usage(&jwt_usage).await?;
@@ -1214,7 +1217,7 @@ mod postgres_tests {
                 // Simple operation that uses the database connection
                 let user = User::new(
                     format!("pool_test_{}_{i}@example.com", uuid::Uuid::new_v4()),
-                    "password".to_string(),
+                    "password".to_owned(),
                     None,
                 );
 

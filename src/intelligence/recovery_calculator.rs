@@ -96,9 +96,13 @@ pub struct RecoveryComponents {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum RecoveryCategory {
+    /// Excellent recovery (low fatigue, ready for high intensity)
     Excellent,
+    /// Good recovery (moderate fatigue, ready for moderate intensity)
     Good,
+    /// Fair recovery (elevated fatigue, easy training only)
     Fair,
+    /// Poor recovery (high fatigue, rest recommended)
     Poor,
 }
 
@@ -106,9 +110,13 @@ pub enum RecoveryCategory {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TrainingReadiness {
+    /// Ready for hard/intense training
     ReadyForHard,
+    /// Ready for moderate intensity training
     ReadyForModerate,
+    /// Only easy/recovery training recommended
     EasyOnly,
+    /// Rest day needed
     RestNeeded,
 }
 
@@ -384,26 +392,26 @@ impl RecoveryCalculator {
         match training_readiness {
             TrainingReadiness::ReadyForHard => {
                 recommendations
-                    .push("You're well-recovered - ready for high-intensity training".to_string());
-                reasoning.push("Excellent recovery score with positive TSB".to_string());
+                    .push("You're well-recovered - ready for high-intensity training".to_owned());
+                reasoning.push("Excellent recovery score with positive TSB".to_owned());
             }
             TrainingReadiness::ReadyForModerate => {
-                recommendations.push("Continue with moderate-intensity training".to_string());
-                reasoning.push("Good recovery indicators support continued training".to_string());
+                recommendations.push("Continue with moderate-intensity training".to_owned());
+                reasoning.push("Good recovery indicators support continued training".to_owned());
             }
             TrainingReadiness::EasyOnly => {
-                recommendations.push("Limit to easy/recovery workouts today".to_string());
+                recommendations.push("Limit to easy/recovery workouts today".to_owned());
                 if sleep_quality.overall_score < 70.0 {
                     reasoning.push(
-                        "Suboptimal sleep quality suggests reduced training intensity".to_string(),
+                        "Suboptimal sleep quality suggests reduced training intensity".to_owned(),
                     );
                 }
                 if training_load.tsb < 0.0 {
-                    reasoning.push("Negative TSB indicates accumulated fatigue".to_string());
+                    reasoning.push("Negative TSB indicates accumulated fatigue".to_owned());
                 }
             }
             TrainingReadiness::RestNeeded => {
-                recommendations.push("REST DAY RECOMMENDED - prioritize recovery".to_string());
+                recommendations.push("REST DAY RECOMMENDED - prioritize recovery".to_owned());
 
                 if training_load.tsb < highly_fatigued_tsb {
                     reasoning.push(format!(
@@ -420,7 +428,7 @@ impl RecoveryCalculator {
                 if let Some(hrv) = hrv_analysis {
                     if matches!(hrv.recovery_status, HrvRecoveryStatus::HighlyFatigued) {
                         reasoning
-                            .push("Significantly suppressed HRV indicates high stress".to_string());
+                            .push("Significantly suppressed HRV indicates high stress".to_owned());
                     }
                 }
             }
@@ -436,7 +444,7 @@ impl RecoveryCalculator {
         // TSB-specific recommendations
         if training_load.tsb < fatigued_tsb {
             recommendations
-                .push("Consider a recovery week to allow fitness gains to consolidate".to_string());
+                .push("Consider a recovery week to allow fitness gains to consolidate".to_owned());
         }
 
         (recommendations, reasoning)
@@ -500,13 +508,12 @@ impl RecoveryCalculator {
         // Generate alternatives if rest not taken
         let alternatives = if rest_recommended {
             vec![
-                "If you must train: very easy, short (<30min) active recovery only".to_string(),
-                "Focus on mobility, stretching, or yoga instead of traditional training"
-                    .to_string(),
-                "Monitor HRV tomorrow - if still low, take another rest day".to_string(),
+                "If you must train: very easy, short (<30min) active recovery only".to_owned(),
+                "Focus on mobility, stretching, or yoga instead of traditional training".to_owned(),
+                "Monitor HRV tomorrow - if still low, take another rest day".to_owned(),
             ]
         } else {
-            vec!["Continue with planned training but monitor fatigue levels".to_string()]
+            vec!["Continue with planned training but monitor fatigue levels".to_owned()]
         };
 
         // Estimate recovery time needed

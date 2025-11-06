@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::mcp::progress::ProgressTracker;
 use tokio::sync::mpsc;
 
@@ -24,7 +27,7 @@ async fn test_progress_tracking_lifecycle() {
 
     // Update progress
     tracker
-        .update_progress(&token, 50.0, Some("Halfway done".to_string()))
+        .update_progress(&token, 50.0, Some("Halfway done".to_owned()))
         .await
         .unwrap();
     let (current, _, completed, cancelled) = tracker.get_progress(&token).await.unwrap();
@@ -34,7 +37,7 @@ async fn test_progress_tracking_lifecycle() {
 
     // Complete operation
     tracker
-        .complete_operation(&token, Some("All done!".to_string()))
+        .complete_operation(&token, Some("All done!".to_owned()))
         .await
         .unwrap();
     let (current, total, completed, cancelled) = tracker.get_progress(&token).await.unwrap();
@@ -61,14 +64,14 @@ async fn test_progress_notifications() {
 
     // Update and check notification
     tracker
-        .update_progress(&token, 5.0, Some("Progress update".to_string()))
+        .update_progress(&token, 5.0, Some("Progress update".to_owned()))
         .await
         .unwrap();
     let notification = receiver.recv().await.unwrap();
     assert!((notification.params.progress - 5.0).abs() < f64::EPSILON);
     assert_eq!(
         notification.params.message,
-        Some("Progress update".to_string())
+        Some("Progress update".to_owned())
     );
 }
 
@@ -100,7 +103,7 @@ async fn test_operation_cancellation() {
 
     // Update progress
     tracker
-        .update_progress(&token, 25.0, Some("Half way".to_string()))
+        .update_progress(&token, 25.0, Some("Half way".to_owned()))
         .await
         .unwrap();
 
@@ -109,7 +112,7 @@ async fn test_operation_cancellation() {
 
     // Cancel operation
     tracker
-        .cancel_operation(&token, Some("User requested cancellation".to_string()))
+        .cancel_operation(&token, Some("User requested cancellation".to_owned()))
         .await
         .unwrap();
 
@@ -123,7 +126,7 @@ async fn test_operation_cancellation() {
 
     // Try to update cancelled operation (should fail)
     let result = tracker
-        .update_progress(&token, 30.0, Some("Won't work".to_string()))
+        .update_progress(&token, 30.0, Some("Won't work".to_owned()))
         .await;
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("cancelled"));
@@ -143,13 +146,13 @@ async fn test_cancellation_notifications() {
 
     // Cancel and check notification
     tracker
-        .cancel_operation(&token, Some("Test cancellation".to_string()))
+        .cancel_operation(&token, Some("Test cancellation".to_owned()))
         .await
         .unwrap();
     let notification = receiver.recv().await.unwrap();
     assert_eq!(notification.params.progress_token, token);
     assert_eq!(
         notification.params.message,
-        Some("Test cancellation".to_string())
+        Some("Test cancellation".to_owned())
     );
 }

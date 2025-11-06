@@ -13,22 +13,33 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use url::Url;
 
+/// OAuth 2.0 client configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuth2Config {
+    /// OAuth client ID from provider
     pub client_id: String,
+    /// OAuth client secret from provider
     pub client_secret: String,
+    /// Authorization endpoint URL
     pub auth_url: String,
+    /// Token endpoint URL
     pub token_url: String,
+    /// Redirect URI for OAuth callbacks
     pub redirect_uri: String,
+    /// OAuth scopes to request
     pub scopes: Vec<String>,
+    /// Whether to use PKCE for enhanced security
     pub use_pkce: bool,
 }
 
 /// `PKCE` (Proof Key for Code Exchange) parameters for enhanced `OAuth2` security
 #[derive(Debug, Clone)]
 pub struct PkceParams {
+    /// Randomly generated code verifier (43-128 characters)
     pub code_verifier: String,
+    /// SHA256 hash of code verifier, base64url encoded
     pub code_challenge: String,
+    /// Challenge method (always "S256" for SHA256)
     pub code_challenge_method: String,
 }
 
@@ -58,22 +69,30 @@ impl PkceParams {
     }
 }
 
+/// OAuth 2.0 access token with expiration and refresh capabilities
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuth2Token {
+    /// The access token string
     pub access_token: String,
+    /// Token type (usually "Bearer")
     pub token_type: String,
+    /// Expiration timestamp (UTC)
     pub expires_at: Option<DateTime<Utc>>,
+    /// Optional refresh token for getting new access tokens
     pub refresh_token: Option<String>,
+    /// Granted OAuth scopes
     pub scope: Option<String>,
 }
 
 impl OAuth2Token {
+    /// Check if the token is expired
     #[must_use]
     pub fn is_expired(&self) -> bool {
         self.expires_at
             .is_some_and(|expires_at| expires_at <= Utc::now())
     }
 
+    /// Check if the token will expire within 5 minutes
     #[must_use]
     pub fn will_expire_soon(&self) -> bool {
         self.expires_at
@@ -81,12 +100,14 @@ impl OAuth2Token {
     }
 }
 
+/// OAuth 2.0 client for fitness platform authentication
 pub struct OAuth2Client {
     config: OAuth2Config,
     client: reqwest::Client,
 }
 
 impl OAuth2Client {
+    /// Create a new `OAuth2` client with the given configuration
     #[must_use]
     pub fn new(config: OAuth2Config) -> Self {
         Self {
@@ -260,34 +281,52 @@ impl OAuth2Client {
     }
 }
 
+/// OAuth 2.0 token response from provider
 #[derive(Debug, Deserialize)]
 struct TokenResponse {
+    /// The access token issued by the authorization server
     access_token: String,
+    /// The type of token (usually "Bearer")
     token_type: String,
+    /// Token lifetime in seconds
     expires_in: Option<u64>,
+    /// Refresh token for obtaining new access tokens
     refresh_token: Option<String>,
+    /// Space-separated list of granted scopes
     scope: Option<String>,
 }
 
-// Strava-specific OAuth2 extensions
+/// Strava-specific `OAuth2` extensions and token handling
 pub mod strava {
     use super::{DateTime, Deserialize, OAuth2Token, PkceParams, Result, Utc};
 
+    /// Strava OAuth 2.0 token response with athlete information
     #[derive(Debug, Deserialize)]
     pub struct StravaTokenResponse {
+        /// Token type (usually "Bearer")
         pub token_type: String,
+        /// Unix timestamp when token expires
         pub expires_at: i64,
+        /// Token lifetime in seconds
         pub expires_in: i64,
+        /// Refresh token for obtaining new access tokens
         pub refresh_token: String,
+        /// The access token
         pub access_token: String,
+        /// Summary information about the authenticated athlete
         pub athlete: Option<StravaAthleteSummary>,
     }
 
+    /// Summary information about a Strava athlete
     #[derive(Debug, Deserialize)]
     pub struct StravaAthleteSummary {
+        /// Strava athlete ID
         pub id: i64,
+        /// Athlete's username
         pub username: Option<String>,
+        /// Athlete's first name
         pub firstname: Option<String>,
+        /// Athlete's last name
         pub lastname: Option<String>,
     }
 
@@ -409,22 +448,31 @@ pub mod strava {
     }
 }
 
-// Fitbit-specific OAuth2 extensions
+/// Fitbit-specific `OAuth2` extensions and token handling
 pub mod fitbit {
     use super::{Deserialize, Duration, OAuth2Token, PkceParams, Result, Utc};
 
+    /// Fitbit OAuth 2.0 token response with user information
     #[derive(Debug, Deserialize)]
     pub struct FitbitTokenResponse {
+        /// The access token
         pub access_token: String,
+        /// Token lifetime in seconds
         pub expires_in: i64,
+        /// Refresh token for obtaining new access tokens
         pub refresh_token: String,
+        /// Space-separated list of granted scopes
         pub scope: String,
+        /// Token type (usually "Bearer")
         pub token_type: String,
+        /// Fitbit user ID
         pub user_id: String,
     }
 
+    /// Fitbit user information from token response
     #[derive(Debug, Deserialize)]
     pub struct FitbitUserInfo {
+        /// Fitbit user ID
         pub user_id: String,
     }
 

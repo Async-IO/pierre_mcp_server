@@ -12,41 +12,64 @@ pub enum ProviderError {
     /// Provider API is unavailable or returning errors
     #[error("Provider {provider} API error: {status_code} - {message}")]
     ApiError {
+        /// Name of the fitness provider (e.g., "strava", "garmin")
         provider: String,
+        /// HTTP status code from the provider
         status_code: u16,
+        /// Error message from the provider
         message: String,
+        /// Whether this error can be retried
         retryable: bool,
     },
 
     /// Rate limit exceeded with retry information
     #[error("Rate limit exceeded for {provider}: retry after {retry_after_secs} seconds")]
     RateLimitExceeded {
+        /// Name of the fitness provider
         provider: String,
+        /// Seconds to wait before retrying
         retry_after_secs: u64,
+        /// Type of rate limit hit (e.g., "15-minute", "daily")
         limit_type: String,
     },
 
     /// Authentication failed or token expired
     #[error("Authentication failed for {provider}: {reason}")]
-    AuthenticationFailed { provider: String, reason: String },
+    AuthenticationFailed {
+        /// Name of the fitness provider
+        provider: String,
+        /// Reason for authentication failure
+        reason: String,
+    },
 
     /// Token refresh failed
     #[error("Token refresh failed for {provider}: {details}")]
-    TokenRefreshFailed { provider: String, details: String },
+    TokenRefreshFailed {
+        /// Name of the fitness provider
+        provider: String,
+        /// Details about the refresh failure
+        details: String,
+    },
 
     /// Resource not found
     #[error("{resource_type} '{resource_id}' not found in {provider}")]
     NotFound {
+        /// Name of the fitness provider
         provider: String,
+        /// Type of resource (e.g., "activity", "athlete")
         resource_type: String,
+        /// ID of the resource that wasn't found
         resource_id: String,
     },
 
     /// Invalid data format from provider
     #[error("Invalid data format from {provider}: {field} - {reason}")]
     InvalidData {
+        /// Name of the fitness provider
         provider: String,
+        /// Field name with invalid data
         field: String,
+        /// Reason why the data is invalid
         reason: String,
     },
 
@@ -56,11 +79,21 @@ pub enum ProviderError {
 
     /// Configuration error
     #[error("Provider {provider} configuration error: {details}")]
-    ConfigurationError { provider: String, details: String },
+    ConfigurationError {
+        /// Name of the fitness provider
+        provider: String,
+        /// Details about the configuration issue
+        details: String,
+    },
 
     /// Feature not supported by provider
     #[error("Provider {provider} does not support {feature}")]
-    UnsupportedFeature { provider: String, feature: String },
+    UnsupportedFeature {
+        /// Name of the fitness provider
+        provider: String,
+        /// Feature that is not supported
+        feature: String,
+    },
 
     /// Generic provider error
     #[error("Provider operation failed: {0}")]

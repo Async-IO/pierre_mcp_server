@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use chrono::Utc;
@@ -28,7 +31,7 @@ async fn test_validate_jwt_token_structure() {
 
     // Generate a valid access token
     let access_token = auth_manager
-        .generate_oauth_access_token(&jwks_manager, &user_id, &["read".to_string()], None)
+        .generate_oauth_access_token(&jwks_manager, &user_id, &["read".to_owned()], None)
         .expect("Failed to generate access token");
 
     // Validate token structure

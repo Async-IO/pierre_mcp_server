@@ -90,9 +90,13 @@ pub struct SleepQualityScore {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum SleepQualityCategory {
+    /// Excellent sleep quality (>8 hours, high efficiency)
     Excellent,
+    /// Good sleep quality (7-8 hours, good efficiency)
     Good,
+    /// Fair sleep quality (6-7 hours, moderate efficiency)
     Fair,
+    /// Poor sleep quality (<6 hours or low efficiency)
     Poor,
 }
 
@@ -159,9 +163,13 @@ pub struct HrvTrendAnalysis {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum HrvRecoveryStatus {
+    /// Fully recovered (HRV above baseline)
     Recovered,
+    /// Normal recovery state (HRV at baseline)
     Normal,
+    /// Fatigued (HRV below baseline)
     Fatigued,
+    /// Highly fatigued (HRV significantly below baseline)
     HighlyFatigued,
 }
 
@@ -169,8 +177,11 @@ pub enum HrvRecoveryStatus {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum HrvTrend {
+    /// HRV is improving over time
     Improving,
+    /// HRV is stable
     Stable,
+    /// HRV is declining over time
     Declining,
 }
 
@@ -191,7 +202,7 @@ impl SleepAnalyzer {
         // Validate input
         if sleep.duration_hours < 0.0 {
             return Err(AppError::invalid_input(
-                "Sleep duration cannot be negative".to_string(),
+                "Sleep duration cannot be negative".to_owned(),
             ));
         }
 
@@ -305,7 +316,7 @@ impl SleepAnalyzer {
 
         if total_hours <= 0.0 {
             return Err(AppError::invalid_input(
-                "Total sleep hours must be positive".to_string(),
+                "Total sleep hours must be positive".to_owned(),
             ));
         }
 
@@ -351,7 +362,7 @@ impl SleepAnalyzer {
 
     /// Score sleep efficiency
     ///
-    /// Sleep efficiency = (time asleep / time in bed) × 100
+    /// Sleep efficiency = (time asleep / time in bed) x 100
     #[doc(hidden)]
     #[must_use]
     pub fn score_efficiency(
@@ -417,7 +428,7 @@ impl SleepAnalyzer {
         }
 
         if hours < short_sleep_threshold {
-            insights.push("Sleep deprivation detected - performance may be impaired".to_string());
+            insights.push("Sleep deprivation detected - performance may be impaired".to_owned());
         }
     }
 
@@ -462,7 +473,7 @@ impl SleepAnalyzer {
             if efficiency < poor_efficiency_threshold {
                 recommendations.push(
                     "Improve sleep efficiency with consistent sleep schedule and dark room"
-                        .to_string(),
+                        .to_owned(),
                 );
             }
         }
@@ -471,13 +482,13 @@ impl SleepAnalyzer {
         if overall_score < 70.0 {
             recommendations.push(
                 "Consider sleep hygiene: limit screen time 1h before bed, cool room (65-68°F)"
-                    .to_string(),
+                    .to_owned(),
             );
         }
 
         if recommendations.is_empty() {
             recommendations
-                .push("Maintain current sleep patterns for continued recovery".to_string());
+                .push("Maintain current sleep patterns for continued recovery".to_owned());
         }
 
         recommendations
@@ -497,7 +508,7 @@ impl SleepAnalyzer {
     ) -> Result<HrvTrendAnalysis, AppError> {
         if current_rmssd <= 0.0 {
             return Err(AppError::invalid_input(
-                "HRV RMSSD must be positive".to_string(),
+                "HRV RMSSD must be positive".to_owned(),
             ));
         }
 
@@ -622,24 +633,23 @@ impl SleepAnalyzer {
             HrvRecoveryStatus::Recovered => {
                 insights.push(
                     "Elevated HRV indicates good recovery - ready for high-intensity training"
-                        .to_string(),
+                        .to_owned(),
                 );
             }
             HrvRecoveryStatus::Normal => {
-                insights.push(
-                    "HRV is within normal range - continue current training load".to_string(),
-                );
+                insights
+                    .push("HRV is within normal range - continue current training load".to_owned());
             }
             HrvRecoveryStatus::Fatigued => {
                 insights.push(
                     "Decreased HRV suggests fatigue - consider reducing training intensity"
-                        .to_string(),
+                        .to_owned(),
                 );
             }
             HrvRecoveryStatus::HighlyFatigued => {
                 insights.push(
                     "Significantly decreased HRV indicates high fatigue - prioritize recovery"
-                        .to_string(),
+                        .to_owned(),
                 );
             }
         }

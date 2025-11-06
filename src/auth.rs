@@ -222,16 +222,16 @@ impl AuthManager {
             email: user.email.clone(),
             iat: now.timestamp(),
             exp: expiry.timestamp(),
-            iss: crate::constants::service_names::PIERRE_MCP_SERVER.to_string(),
+            iss: crate::constants::service_names::PIERRE_MCP_SERVER.to_owned(),
             jti: Uuid::new_v4().to_string(),
             providers: user.available_providers(),
-            aud: crate::constants::service_names::MCP.to_string(),
+            aud: crate::constants::service_names::MCP.to_owned(),
             tenant_id: user.tenant_id.clone(),
         };
 
         // Get active RSA key from JWKS manager
         let active_key = jwks_manager.get_active_key()?;
-        let encoding_key = active_key.encoding_key();
+        let encoding_key = active_key.encoding_key()?;
 
         // Create RS256 header with kid
         let mut header = Header::new(Algorithm::RS256);
@@ -271,7 +271,12 @@ impl AuthManager {
             AppError::auth_invalid(format!("Key not found in JWKS: {kid}")).into()
         })?;
 
-        let decoding_key = key_pair.decoding_key();
+        let decoding_key =
+            key_pair
+                .decoding_key()
+                .map_err(|e| JwtValidationError::TokenInvalid {
+                    reason: format!("Failed to get decoding key: {e}"),
+                })?;
 
         let mut validation = Validation::new(Algorithm::RS256);
         validation.validate_exp = true;
@@ -387,7 +392,7 @@ impl AuthManager {
         let kid = header
             .kid
             .ok_or_else(|| JwtValidationError::TokenMalformed {
-                details: "Token header missing kid (key ID)".to_string(),
+                details: "Token header missing kid (key ID)".to_owned(),
             })?;
 
         // Get public key from JWKS manager
@@ -398,7 +403,12 @@ impl AuthManager {
                     reason: format!("Key not found in JWKS: {kid}"),
                 })?;
 
-        let decoding_key = key_pair.decoding_key();
+        let decoding_key =
+            key_pair
+                .decoding_key()
+                .map_err(|e| JwtValidationError::TokenInvalid {
+                    reason: format!("Failed to get decoding key: {e}"),
+                })?;
 
         let mut validation_no_exp = Validation::new(Algorithm::RS256);
         validation_no_exp.validate_exp = false;
@@ -557,7 +567,7 @@ impl AuthManager {
                     admin_user_exists: false,
                     message: Some(
                         "Unable to verify admin user status. Please check database connection."
-                            .to_string(),
+                            .to_owned(),
                     ),
                 })
             }
@@ -591,16 +601,16 @@ impl AuthManager {
             email: format!("oauth_{user_id}@system.local"),
             iat: now.timestamp(),
             exp: expiry.timestamp(),
-            iss: crate::constants::service_names::PIERRE_MCP_SERVER.to_string(),
+            iss: crate::constants::service_names::PIERRE_MCP_SERVER.to_owned(),
             jti: Uuid::new_v4().to_string(),
             providers: scopes.to_vec(),
-            aud: crate::constants::service_names::MCP.to_string(),
+            aud: crate::constants::service_names::MCP.to_owned(),
             tenant_id,
         };
 
         // Get active RSA key from JWKS manager
         let active_key = jwks_manager.get_active_key()?;
-        let encoding_key = active_key.encoding_key();
+        let encoding_key = active_key.encoding_key()?;
 
         // Create RS256 header with kid
         let mut header = Header::new(Algorithm::RS256);
@@ -634,19 +644,19 @@ impl AuthManager {
 
         let claims = Claims {
             sub: format!("client:{client_id}"),
-            email: "client_credentials".to_string(),
+            email: "client_credentials".to_owned(),
             iat: now.timestamp(),
             exp: expiry.timestamp(),
-            iss: crate::constants::service_names::PIERRE_MCP_SERVER.to_string(),
+            iss: crate::constants::service_names::PIERRE_MCP_SERVER.to_owned(),
             jti: Uuid::new_v4().to_string(),
             providers: scopes.to_vec(),
-            aud: crate::constants::service_names::MCP.to_string(),
+            aud: crate::constants::service_names::MCP.to_owned(),
             tenant_id,
         };
 
         // Get active RSA key from JWKS manager
         let active_key = jwks_manager.get_active_key()?;
-        let encoding_key = active_key.encoding_key();
+        let encoding_key = active_key.encoding_key()?;
 
         // Create RS256 header with kid
         let mut header = Header::new(Algorithm::RS256);

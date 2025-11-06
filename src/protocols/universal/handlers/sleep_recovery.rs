@@ -51,7 +51,7 @@ async fn fetch_strava_activities(
                 expires_at: Some(token_data.expires_at),
                 scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                     .split(',')
-                    .map(str::to_string)
+                    .map(str::to_owned)
                     .collect(),
             };
 
@@ -73,7 +73,7 @@ async fn fetch_strava_activities(
         Ok(None) => Err(UniversalResponse {
             success: false,
             result: None,
-            error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
+            error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
             metadata: None,
         }),
         Err(e) => Err(UniversalResponse {
@@ -99,7 +99,7 @@ pub fn handle_analyze_sleep_quality(
     Box::pin(async move {
         // Extract sleep data from parameters
         let sleep_data_json = request.parameters.get("sleep_data").ok_or_else(|| {
-            ProtocolError::InvalidRequest("sleep_data parameter is required".to_string())
+            ProtocolError::InvalidRequest("sleep_data parameter is required".to_owned())
         })?;
 
         // Parse sleep data
@@ -244,7 +244,7 @@ pub fn handle_calculate_recovery_score(
 
         // Get sleep quality data
         let sleep_data_json = request.parameters.get("sleep_data").ok_or_else(|| {
-            ProtocolError::InvalidRequest("sleep_data parameter is required".to_string())
+            ProtocolError::InvalidRequest("sleep_data parameter is required".to_owned())
         })?;
 
         let sleep_data: SleepData =
@@ -410,7 +410,7 @@ pub fn handle_suggest_rest_day(
 
         // Get sleep data
         let sleep_data_json = request.parameters.get("sleep_data").ok_or_else(|| {
-            ProtocolError::InvalidRequest("sleep_data parameter is required".to_string())
+            ProtocolError::InvalidRequest("sleep_data parameter is required".to_owned())
         })?;
 
         let sleep_data: SleepData =
@@ -554,7 +554,7 @@ pub fn handle_track_sleep_trends(
     Box::pin(async move {
         // Get sleep history
         let sleep_history_json = request.parameters.get("sleep_history").ok_or_else(|| {
-            ProtocolError::InvalidRequest("sleep_history parameter is required".to_string())
+            ProtocolError::InvalidRequest("sleep_history parameter is required".to_owned())
         })?;
 
         let sleep_history: Vec<SleepData> = serde_json::from_value(sleep_history_json.clone())
@@ -818,13 +818,13 @@ pub fn handle_optimize_sleep_schedule(
 
         if training_load.tsb < fatigued_tsb {
             recommendations.push(
-                "Extra sleep needed due to accumulated training fatigue (negative TSB)".to_string(),
+                "Extra sleep needed due to accumulated training fatigue (negative TSB)".to_owned(),
             );
         }
 
         if upcoming_workout_intensity == "high" {
             recommendations.push(
-                "High-intensity workout planned - prioritize sleep quality tonight".to_string(),
+                "High-intensity workout planned - prioritize sleep quality tonight".to_owned(),
             );
         }
 
@@ -912,7 +912,7 @@ fn calculate_bedtime(
             wake_time = wake_time,
             "Invalid wake_time format (expected HH:MM), using default 06:00"
         );
-        return "22:00".to_string(); // Default fallback
+        return "22:00".to_owned(); // Default fallback
     }
 
     let wake_hour = parse_hour(parts[0]);

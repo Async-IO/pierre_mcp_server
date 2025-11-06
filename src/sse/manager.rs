@@ -19,16 +19,25 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub enum ConnectionType {
     /// OAuth notification stream for a specific user
-    Notification { user_id: Uuid },
+    Notification {
+        /// User ID for the notification stream
+        user_id: Uuid,
+    },
     /// MCP protocol stream for a client session
-    Protocol { session_id: String },
+    Protocol {
+        /// Session ID for the protocol stream
+        session_id: String,
+    },
 }
 
 /// SSE connection metadata
 #[derive(Debug, Clone)]
 pub struct ConnectionMetadata {
+    /// Type of SSE connection (notification or protocol)
     pub connection_type: ConnectionType,
+    /// When the connection was established
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// Timestamp of last activity on this connection
     pub last_activity: chrono::DateTime<chrono::Utc>,
 }
 
@@ -45,6 +54,7 @@ pub struct SseManager {
 }
 
 impl SseManager {
+    /// Creates a new SSE manager with the specified buffer size
     #[must_use]
     pub fn new(buffer_size: usize) -> Self {
         Self {

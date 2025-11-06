@@ -8,6 +8,9 @@
 //! This test suite validates that configuration tools are properly integrated
 //! into the multitenant MCP server and can handle requests correctly.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use chrono::Utc;
 use pierre_mcp_server::{
@@ -36,9 +39,9 @@ async fn create_authenticated_user(
 
     // First create the user (without tenant_id initially)
     let mut user = User::new(
-        "config_test@example.com".to_string(),
-        "test_password_hash".to_string(),
-        Some("Configuration Test User".to_string()),
+        "config_test@example.com".to_owned(),
+        "test_password_hash".to_owned(),
+        Some("Configuration Test User".to_owned()),
     );
     user.id = user_id;
     database.create_user(&user).await?;
@@ -46,10 +49,10 @@ async fn create_authenticated_user(
     // Then create the tenant with the user as owner
     let tenant = Tenant {
         id: tenant_uuid,
-        name: "Configuration Test Tenant".to_string(),
-        slug: "config-test-tenant".to_string(),
+        name: "Configuration Test Tenant".to_owned(),
+        slug: "config-test-tenant".to_owned(),
         domain: None,
-        plan: "starter".to_string(),
+        plan: "starter".to_owned(),
         owner_user_id: user_id,
         created_at: Utc::now(),
         updated_at: Utc::now(),
@@ -78,9 +81,9 @@ async fn create_authenticated_user_with_different_tenant(
 
     // First create the user (without tenant_id initially)
     let mut user = User::new(
-        email.to_string(),
-        "test_password_hash".to_string(),
-        Some("Configuration Test User (Different Tenant)".to_string()),
+        email.to_owned(),
+        "test_password_hash".to_owned(),
+        Some("Configuration Test User (Different Tenant)".to_owned()),
     );
     user.id = user_id;
     database.create_user(&user).await?;
@@ -88,10 +91,10 @@ async fn create_authenticated_user_with_different_tenant(
     // Then create the tenant with the user as owner
     let tenant = Tenant {
         id: tenant_uuid,
-        name: "Different Configuration Test Tenant".to_string(),
-        slug: "different-config-test-tenant".to_string(),
+        name: "Different Configuration Test Tenant".to_owned(),
+        slug: "different-config-test-tenant".to_owned(),
         domain: None,
-        plan: "starter".to_string(),
+        plan: "starter".to_owned(),
         owner_user_id: user_id,
         created_at: Utc::now(),
         updated_at: Utc::now(),
@@ -116,8 +119,8 @@ async fn make_tool_request(
     resources: &Arc<ServerResources>,
 ) -> Result<pierre_mcp_server::mcp::multitenant::McpResponse> {
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tools/call".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tools/call".to_owned(),
         params: Some(json!({
             "name": tool_name,
             "arguments": arguments
@@ -240,8 +243,8 @@ async fn test_configuration_tools_require_authentication() -> Result<()> {
 
     // Try to call a configuration tool without authentication
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tools/call".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tools/call".to_owned(),
         params: Some(json!({
             "name": "get_configuration_catalog",
             "arguments": {}
@@ -276,8 +279,8 @@ async fn test_configuration_tools_with_invalid_parameters() -> Result<()> {
 
     // Test missing required parameters for calculate_personalized_zones
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tools/call".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tools/call".to_owned(),
         params: Some(json!({
             "name": "calculate_personalized_zones",
             "arguments": {} // Missing required vo2_max

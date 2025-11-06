@@ -15,7 +15,9 @@ use uuid::Uuid;
 /// Supported fitness providers
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ProviderType {
+    /// Strava fitness platform
     Strava,
+    /// Fitbit fitness platform
     Fitbit,
 }
 
@@ -47,18 +49,23 @@ impl std::str::FromStr for ProviderType {
 pub enum ConnectionStatus {
     /// Provider is connected and tokens are valid
     Connected {
+        /// When the access token expires
         expires_at: chrono::DateTime<chrono::Utc>,
+        /// OAuth scopes granted
         scopes: Vec<String>,
     },
     /// Provider is connected but tokens need refresh
     TokenExpired {
+        /// When the token expired
         expired_at: chrono::DateTime<chrono::Utc>,
     },
     /// Provider is not connected
     Disconnected,
     /// Provider connection failed
     Failed {
+        /// Error message describing the failure
         error: String,
+        /// When the last connection attempt was made
         last_attempt: chrono::DateTime<chrono::Utc>,
     },
 }
@@ -66,9 +73,13 @@ pub enum ConnectionStatus {
 /// Provider information for user context
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ProviderInfo {
+    /// Type of fitness provider
     pub provider_type: ProviderType,
+    /// Current connection status
     pub status: ConnectionStatus,
+    /// When data was last synchronized
     pub last_sync: Option<chrono::DateTime<chrono::Utc>>,
+    /// Whether data is available from this provider
     pub data_available: bool,
 }
 
@@ -164,7 +175,7 @@ impl ProviderManager {
                                 .scope
                                 .unwrap_or_default()
                                 .split(',')
-                                .map(|s| s.trim().to_string())
+                                .map(|s| s.trim().to_owned())
                                 .collect(),
                         }
                     } else {

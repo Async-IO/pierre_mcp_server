@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use chrono::Utc;
 use pierre_mcp_server::{
     a2a::{
@@ -30,7 +33,7 @@ async fn create_test_client(db: &Database) -> (A2AClient, Uuid) {
         tier: UserTier::Professional,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: false,
@@ -253,7 +256,7 @@ async fn test_a2a_usage_tracking() {
         response_time_ms: Some(100),
         status_code: 200,
         error_message: None,
-        ip_address: Some("127.0.0.1".to_string()),
+        ip_address: Some("127.0.0.1".to_owned()),
         user_agent: Some("test-agent".into()),
         protocol_version: "1.0".into(),
         client_capabilities: vec!["analysis".into()],

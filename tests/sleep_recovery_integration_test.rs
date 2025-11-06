@@ -8,6 +8,9 @@
 //! Comprehensive end-to-end tests for sleep analysis and recovery scoring tools
 //! that verify proper integration with the universal tool execution system.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use pierre_mcp_server::{
     config::environment::*,
@@ -24,17 +27,17 @@ mod common;
 fn create_test_oauth_config() -> OAuthConfig {
     OAuthConfig {
         strava: OAuthProviderConfig {
-            client_id: Some("test_client_id".to_string()),
-            client_secret: Some("test_client_secret".to_string()),
-            redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_string()),
-            scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+            client_id: Some("test_client_id".to_owned()),
+            client_secret: Some("test_client_secret".to_owned()),
+            redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_owned()),
+            scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
             enabled: true,
         },
         fitbit: OAuthProviderConfig {
-            client_id: Some("test_fitbit_id".to_string()),
-            client_secret: Some("test_fitbit_secret".to_string()),
-            redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_string()),
-            scopes: vec!["activity".to_string(), "profile".to_string()],
+            client_id: Some("test_fitbit_id".to_owned()),
+            client_secret: Some("test_fitbit_secret".to_owned()),
+            redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_owned()),
+            scopes: vec!["activity".to_owned(), "profile".to_owned()],
             enabled: true,
         },
         garmin: OAuthProviderConfig {
@@ -52,30 +55,30 @@ fn create_test_external_services_config() -> ExternalServicesConfig {
     ExternalServicesConfig {
         weather: WeatherServiceConfig {
             api_key: None,
-            base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+            base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
             enabled: false,
         },
         geocoding: GeocodingServiceConfig {
-            base_url: "https://nominatim.openstreetmap.org".to_string(),
+            base_url: "https://nominatim.openstreetmap.org".to_owned(),
             enabled: true,
         },
         strava_api: StravaApiConfig {
-            base_url: "https://www.strava.com/api/v3".to_string(),
-            auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-            token_url: "https://www.strava.com/oauth/token".to_string(),
-            deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+            base_url: "https://www.strava.com/api/v3".to_owned(),
+            auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+            token_url: "https://www.strava.com/oauth/token".to_owned(),
+            deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
         },
         fitbit_api: FitbitApiConfig {
-            base_url: "https://api.fitbit.com".to_string(),
-            auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-            token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-            revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+            base_url: "https://api.fitbit.com".to_owned(),
+            auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+            token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+            revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
         },
         garmin_api: GarminApiConfig {
-            base_url: "https://apis.garmin.com".to_string(),
-            auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
-            token_url: "https://connect.garmin.com/oauth-service/oauth/access_token".to_string(),
-            revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+            base_url: "https://apis.garmin.com".to_owned(),
+            auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
+            token_url: "https://connect.garmin.com/oauth-service/oauth/access_token".to_owned(),
+            revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
         },
     }
 }
@@ -126,23 +129,23 @@ fn create_test_config() -> Arc<ServerConfig> {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: ProtocolConfig {
-                mcp_version: "2024-11-05".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2024-11-05".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: SseConfig::default(),
         oauth2_server: OAuth2ServerConfig::default(),
         route_timeouts: RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: CacheConfig {
@@ -197,7 +200,7 @@ async fn test_sleep_recovery_tools_registered() -> Result<()> {
     let tool_names: Vec<String> = executor
         .list_tools()
         .iter()
-        .map(|tool| tool.name().to_string())
+        .map(|tool| tool.name().to_owned())
         .collect();
 
     let expected_tools = vec![
@@ -210,7 +213,7 @@ async fn test_sleep_recovery_tools_registered() -> Result<()> {
 
     for expected_tool in expected_tools {
         assert!(
-            tool_names.contains(&expected_tool.to_string()),
+            tool_names.contains(&expected_tool.to_owned()),
             "Missing sleep/recovery tool: {expected_tool}"
         );
     }
@@ -225,9 +228,9 @@ async fn test_analyze_sleep_quality_tool() -> Result<()> {
 
     // Create user for testing
     let user = pierre_mcp_server::models::User::new(
-        "sleep_test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Sleep Test User".to_string()),
+        "sleep_test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Sleep Test User".to_owned()),
     );
     executor.resources.database.create_user(&user).await?;
 
@@ -244,12 +247,12 @@ async fn test_analyze_sleep_quality_tool() -> Result<()> {
     });
 
     let request = UniversalRequest {
-        tool_name: "analyze_sleep_quality".to_string(),
+        tool_name: "analyze_sleep_quality".to_owned(),
         parameters: json!({
             "sleep_data": sleep_data
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -296,12 +299,12 @@ async fn test_analyze_sleep_quality_poor_sleep() -> Result<()> {
     });
 
     let request = UniversalRequest {
-        tool_name: "analyze_sleep_quality".to_string(),
+        tool_name: "analyze_sleep_quality".to_owned(),
         parameters: json!({
             "sleep_data": sleep_data
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -322,9 +325,9 @@ async fn test_calculate_recovery_score_tool() -> Result<()> {
 
     // Create user
     let user = pierre_mcp_server::models::User::new(
-        "recovery_test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Recovery Test User".to_string()),
+        "recovery_test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Recovery Test User".to_owned()),
     );
     executor.resources.database.create_user(&user).await?;
 
@@ -348,14 +351,14 @@ async fn test_calculate_recovery_score_tool() -> Result<()> {
     });
 
     let request = UniversalRequest {
-        tool_name: "calculate_recovery_score".to_string(),
+        tool_name: "calculate_recovery_score".to_owned(),
         parameters: json!({
             "sleep_data": sleep_data,
             "training_load": training_load,
             "hrv_baseline": 55.0
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -399,14 +402,14 @@ async fn test_calculate_recovery_score_fatigued() -> Result<()> {
     });
 
     let request = UniversalRequest {
-        tool_name: "calculate_recovery_score".to_string(),
+        tool_name: "calculate_recovery_score".to_owned(),
         parameters: json!({
             "sleep_data": sleep_data,
             "training_load": training_load,
             "hrv_baseline": 55.0
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -432,9 +435,9 @@ async fn test_suggest_rest_day_tool() -> Result<()> {
 
     // Create user with some activities
     let user = pierre_mcp_server::models::User::new(
-        "rest_day_test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Rest Day Test User".to_string()),
+        "rest_day_test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Rest Day Test User".to_owned()),
     );
     executor.resources.database.create_user(&user).await?;
 
@@ -468,14 +471,14 @@ async fn test_suggest_rest_day_tool() -> Result<()> {
     });
 
     let request = UniversalRequest {
-        tool_name: "suggest_rest_day".to_string(),
+        tool_name: "suggest_rest_day".to_owned(),
         parameters: json!({
             "sleep_data": sleep_data,
             "training_load": training_load,
             "recovery_score": recovery_score
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -577,22 +580,22 @@ async fn test_track_sleep_trends_tool() -> Result<()> {
 
     // Create user
     let user = pierre_mcp_server::models::User::new(
-        "trends_test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Trends Test User".to_string()),
+        "trends_test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Trends Test User".to_owned()),
     );
     executor.resources.database.create_user(&user).await?;
 
     let sleep_history = generate_test_sleep_history();
 
     let request = UniversalRequest {
-        tool_name: "track_sleep_trends".to_string(),
+        tool_name: "track_sleep_trends".to_owned(),
         parameters: json!({
             "sleep_history": sleep_history,
             "days": 7
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -621,9 +624,9 @@ async fn test_optimize_sleep_schedule_tool() -> Result<()> {
 
     // Create user
     let user = pierre_mcp_server::models::User::new(
-        "optimize_test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Optimize Test User".to_string()),
+        "optimize_test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Optimize Test User".to_owned()),
     );
     executor.resources.database.create_user(&user).await?;
 
@@ -662,14 +665,14 @@ async fn test_optimize_sleep_schedule_tool() -> Result<()> {
     });
 
     let request = UniversalRequest {
-        tool_name: "optimize_sleep_schedule".to_string(),
+        tool_name: "optimize_sleep_schedule".to_owned(),
         parameters: json!({
             "sleep_history": sleep_history,
             "training_schedule": training_schedule,
             "target_sleep_hours": 8.0
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -695,10 +698,10 @@ async fn test_missing_required_parameters() -> Result<()> {
 
     // Test analyze_sleep_quality without required sleep_data parameter
     let request = UniversalRequest {
-        tool_name: "analyze_sleep_quality".to_string(),
+        tool_name: "analyze_sleep_quality".to_owned(),
         parameters: json!({}), // Missing sleep_data
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -724,12 +727,12 @@ async fn test_invalid_sleep_data_format() -> Result<()> {
     });
 
     let request = UniversalRequest {
-        tool_name: "analyze_sleep_quality".to_string(),
+        tool_name: "analyze_sleep_quality".to_owned(),
         parameters: json!({
             "sleep_data": sleep_data
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 

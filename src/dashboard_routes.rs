@@ -18,100 +18,163 @@ use chrono::{Datelike, Duration, TimeZone, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 
+/// Dashboard overview with key metrics and recent activity
 #[derive(Debug, Serialize)]
 pub struct DashboardOverview {
+    /// Total number of API keys
     pub total_api_keys: u32,
+    /// Number of active API keys
     pub active_api_keys: u32,
+    /// Total requests made today
     pub total_requests_today: u64,
+    /// Total requests made this month
     pub total_requests_this_month: u64,
+    /// Usage breakdown by tier
     pub current_month_usage_by_tier: Vec<TierUsage>,
+    /// Recent API activity
     pub recent_activity: Vec<RecentActivity>,
 }
 
+/// Usage statistics for a specific tier
 #[derive(Debug, Serialize)]
 pub struct TierUsage {
+    /// Tier name (free, basic, pro, enterprise)
     pub tier: String,
+    /// Number of keys in this tier
     pub key_count: u32,
+    /// Total requests from this tier
     pub total_requests: u64,
+    /// Average requests per key in this tier
     pub average_requests_per_key: f64,
 }
 
+/// Recent API activity entry
 #[derive(Debug, Serialize)]
 pub struct RecentActivity {
+    /// When the request occurred
     pub timestamp: chrono::DateTime<Utc>,
+    /// Name of the API key used
     pub api_key_name: String,
+    /// Tool that was invoked
     pub tool_name: String,
+    /// HTTP status code of response
     pub status_code: i32,
+    /// Response time in milliseconds
     pub response_time_ms: Option<i32>,
 }
 
+/// Detailed usage analytics with time series data
 #[derive(Debug, Serialize)]
 pub struct UsageAnalytics {
+    /// Time series of usage data points
     pub time_series: Vec<UsageDataPoint>,
+    /// Most frequently used tools
     pub top_tools: Vec<ToolUsage>,
+    /// Percentage of requests that resulted in errors
     pub error_rate: f64,
+    /// Average response time across all requests (ms)
     pub average_response_time: f64,
 }
 
+/// Single data point in usage time series
 #[derive(Debug, Serialize)]
 pub struct UsageDataPoint {
+    /// Timestamp for this data point
     pub timestamp: chrono::DateTime<Utc>,
+    /// Number of requests in this period
     pub request_count: u64,
+    /// Number of errors in this period
     pub error_count: u64,
+    /// Average response time in this period (ms)
     pub average_response_time: f64,
 }
 
+/// Usage statistics for a specific tool
 #[derive(Debug, Serialize)]
 pub struct ToolUsage {
+    /// Name of the tool
     pub tool_name: String,
+    /// Number of times the tool was called
     pub request_count: u64,
+    /// Percentage of successful calls
     pub success_rate: f64,
+    /// Average response time (ms)
     pub average_response_time: f64,
 }
 
+/// Rate limit status for an API key
 #[derive(Debug, Serialize)]
 pub struct RateLimitOverview {
+    /// API key UUID
     pub api_key_id: String,
+    /// Friendly name of the API key
     pub api_key_name: String,
+    /// Tier of the API key
     pub tier: String,
+    /// Current usage count
     pub current_usage: u64,
+    /// Rate limit (None for unlimited)
     pub limit: Option<u64>,
+    /// Percentage of limit used
     pub usage_percentage: f64,
+    /// When the rate limit resets
     pub reset_date: Option<chrono::DateTime<Utc>>,
 }
 
+/// Individual request log entry with detailed information
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct RequestLog {
+    /// Unique identifier for this log entry
     pub id: String,
+    /// When the request was made
     pub timestamp: chrono::DateTime<Utc>,
+    /// API key UUID used for the request
     pub api_key_id: String,
+    /// Friendly name of the API key
     pub api_key_name: String,
+    /// Tool/endpoint that was invoked
     pub tool_name: String,
+    /// HTTP status code of the response
     pub status_code: i32,
+    /// Response time in milliseconds (if available)
     pub response_time_ms: Option<i32>,
+    /// Error message if the request failed
     pub error_message: Option<String>,
+    /// Request payload size in bytes
     pub request_size_bytes: Option<i32>,
+    /// Response payload size in bytes
     pub response_size_bytes: Option<i32>,
 }
 
+/// Statistics about API request performance and success rates
 #[derive(Debug, Serialize)]
 pub struct RequestStats {
+    /// Total number of requests in the time period
     pub total_requests: u64,
+    /// Number of successful requests (2xx status codes)
     pub successful_requests: u64,
+    /// Number of failed requests (4xx, 5xx status codes)
     pub failed_requests: u64,
+    /// Average response time across all requests (ms)
     pub average_response_time: f64,
+    /// Minimum response time observed (ms)
     pub min_response_time: Option<u32>,
+    /// Maximum response time observed (ms)
     pub max_response_time: Option<u32>,
+    /// Average requests per minute
     pub requests_per_minute: f64,
+    /// Percentage of requests that failed (0-100)
     pub error_rate: f64,
 }
 
+/// Route handlers for the admin dashboard and metrics
 #[derive(Clone)]
 pub struct DashboardRoutes {
     resources: std::sync::Arc<ServerResources>,
 }
 
 impl DashboardRoutes {
+    /// Creates a new dashboard routes instance with the given server resources
     #[must_use]
     pub const fn new(resources: std::sync::Arc<ServerResources>) -> Self {
         Self { resources }

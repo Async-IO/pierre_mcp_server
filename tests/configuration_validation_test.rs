@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::configuration::{
     profiles::FitnessLevel, runtime::ConfigValue, validation::ConfigValidator,
 };

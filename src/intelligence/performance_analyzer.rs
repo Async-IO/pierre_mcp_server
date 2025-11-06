@@ -446,7 +446,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
 
         let analysis = TrendAnalysis {
             timeframe,
-            metric: metric.to_string(),
+            metric: metric.to_owned(),
             trend_direction,
             trend_strength,
             statistical_significance,
@@ -773,7 +773,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 {
                     recs.push(
                         "Your strategy suggests this is a good time to increase training volume"
-                            .to_string(),
+                            .to_owned(),
                     );
                 }
 
@@ -787,51 +787,78 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
 /// Fitness score components
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FitnessScore {
+    /// Overall fitness score (0-100)
     pub overall_score: f64,
+    /// Aerobic fitness component score (0-100)
     pub aerobic_fitness: f64,
+    /// Strength and endurance component score (0-100)
     pub strength_endurance: f64,
+    /// Training consistency score (0-100)
     pub consistency: f64,
+    /// Current fitness trend direction
     pub trend: TrendDirection,
+    /// When this score was last calculated
     pub last_updated: DateTime<Utc>,
 }
 
 /// Activity goal for performance prediction
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActivityGoal {
+    /// Type of sport/activity (e.g., "running", "cycling")
     pub sport_type: String,
-    pub metric: String, // "distance", "time", "pace"
+    /// Metric being targeted ("distance", "time", "pace")
+    pub metric: String,
+    /// Target value for the metric
     pub target_value: f64,
+    /// Target date to achieve the goal
     pub target_date: DateTime<Utc>,
 }
 
 /// Performance prediction result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformancePrediction {
+    /// The goal being predicted
     pub target_goal: ActivityGoal,
+    /// Predicted performance value for the metric
     pub predicted_value: f64,
+    /// Confidence level in the prediction
     pub confidence: Confidence,
+    /// Factors influencing the prediction
     pub factors: Vec<String>,
+    /// Recommendations to achieve the goal
     pub recommendations: Vec<String>,
+    /// Estimated date when goal will be achieved
     pub estimated_achievement_date: DateTime<Utc>,
 }
 
 /// Training load analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrainingLoadAnalysis {
+    /// Weekly training load data points
     pub weekly_loads: Vec<WeeklyLoad>,
+    /// Average weekly training load
     pub average_weekly_load: f64,
+    /// Balance score between hard and easy weeks (0-100)
     pub load_balance_score: f64,
+    /// Whether recovery is currently needed
     pub recovery_needed: bool,
+    /// Training recommendations based on load analysis
     pub recommendations: Vec<String>,
+    /// Advanced insights about training patterns
     pub insights: Vec<AdvancedInsight>,
 }
 
 /// Weekly training load data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeeklyLoad {
+    /// Week number (1-52)
     pub week_number: i32,
+    /// Total training duration for the week (hours)
     pub total_duration_hours: f64,
+    /// Total distance covered in the week (km)
     pub total_distance_km: f64,
+    /// Number of activities in the week
     pub activity_count: i32,
+    /// Weighted intensity score for the week
     pub intensity_score: f64,
 }

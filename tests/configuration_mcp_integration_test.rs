@@ -8,6 +8,9 @@
 //! Verifies that configuration tools are properly exposed through the MCP schema
 //! and can be executed in both single-tenant and multi-tenant modes.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::mcp::schema::get_tools;
 
 #[test]
@@ -96,7 +99,7 @@ fn test_configuration_tool_schemas() {
         .contains("personalized training zones"));
     assert_eq!(
         zones_tool.input_schema.required,
-        Some(vec!["vo2_max".to_string()])
+        Some(vec!["vo2_max".to_owned()])
     );
 
     if let Some(properties) = &zones_tool.input_schema.properties {
@@ -120,7 +123,7 @@ fn test_configuration_tool_schemas() {
         .contains("Validate configuration parameters"));
     assert_eq!(
         validate_tool.input_schema.required,
-        Some(vec!["parameters".to_string()])
+        Some(vec!["parameters".to_owned()])
     );
 
     println!("All configuration tool schemas are properly defined");

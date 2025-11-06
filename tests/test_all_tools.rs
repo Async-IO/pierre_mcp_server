@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use base64::prelude::*;
 use rand::Rng;
@@ -68,9 +71,9 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
 
     // Use the same database and encryption key as the main server
     let database_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/users.db".to_string());
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/users.db".to_owned());
     let master_key = std::env::var("PIERRE_MASTER_ENCRYPTION_KEY")
-        .unwrap_or_else(|_| "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg==".to_string());
+        .unwrap_or_else(|_| "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg==".to_owned());
     let encryption_key = BASE64_STANDARD
         .decode(master_key)
         .expect("Invalid base64 in PIERRE_MASTER_ENCRYPTION_KEY");
@@ -89,10 +92,10 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
 
     // Create ActivityIntelligence with proper constructor
     let _intelligence = Arc::new(ActivityIntelligence::new(
-        "Test intelligence analysis".to_string(),
+        "Test intelligence analysis".to_owned(),
         vec![Insight {
             insight_type: InsightType::Achievement,
-            message: "Test insight".to_string(),
+            message: "Test insight".to_owned(),
             confidence: 90.0,
             data: None,
         }],
@@ -146,17 +149,17 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
-                client_id: Some("test_client_id".to_string()),
-                client_secret: Some("test_client_secret".to_string()),
-                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_string()),
-                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                client_id: Some("test_client_id".to_owned()),
+                client_secret: Some("test_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_owned()),
+                scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
                 enabled: true,
             },
             fitbit: OAuthProviderConfig {
-                client_id: Some("test_fitbit_id".to_string()),
-                client_secret: Some("test_fitbit_secret".to_string()),
-                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_string()),
-                scopes: vec!["activity".to_string(), "profile".to_string()],
+                client_id: Some("test_fitbit_id".to_owned()),
+                client_secret: Some("test_fitbit_secret".to_owned()),
+                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_owned()),
+                scopes: vec!["activity".to_owned(), "profile".to_owned()],
                 enabled: true,
             },
             garmin: OAuthProviderConfig {
@@ -181,31 +184,30 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         external_services: ExternalServicesConfig {
             weather: WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: true,
             },
             strava_api: StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             garmin_api: GarminApiConfig {
-                base_url: "https://apis.garmin.com".to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
-                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
-                    .to_string(),
-                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                base_url: "https://apis.garmin.com".to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token".to_owned(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -213,23 +215,23 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: ProtocolConfig {
-                mcp_version: "2024-11-05".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2024-11-05".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: pierre_mcp_server::config::environment::McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: pierre_mcp_server::config::environment::CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -278,8 +280,8 @@ async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Ten
     let user = User {
         id: user_id,
         email: format!("test-{user_id}@example.com"),
-        display_name: Some("Test User".to_string()),
-        password_hash: "fake_hash_for_ci".to_string(),
+        display_name: Some("Test User".to_owned()),
+        password_hash: "fake_hash_for_ci".to_owned(),
         tier: UserTier::Starter,
         tenant_id: Some(tenant_id.to_string()),
         strava_token: None,
@@ -299,10 +301,10 @@ async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Ten
     let tenant_slug = format!("test-tenant-{tenant_id}");
     let tenant = Tenant {
         id: tenant_id,
-        name: "test-tenant".to_string(),
+        name: "test-tenant".to_owned(),
         slug: tenant_slug,
         domain: None,
-        plan: "starter".to_string(),
+        plan: "starter".to_owned(),
         owner_user_id: user_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
@@ -315,7 +317,7 @@ async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Ten
 
     // Use the existing setup function which handles OAuth credentials properly
     match setup_tenant_oauth_credentials(executor, tenant_id).await {
-        Ok(()) => println!("✅ OAuth credentials configured successfully"),
+        Ok(()) => println!(" OAuth credentials configured successfully"),
         Err(e) => {
             println!("⚠️ Failed to configure OAuth credentials: {e}");
             // Continue anyway - tools may still work with fallback mechanisms
@@ -332,13 +334,13 @@ async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Ten
         access_token: format!("at_{token_id:016x}_{timestamp}"),
         refresh_token: format!("rt_{refresh_token_id:016x}_{timestamp}"),
         expires_at: now + chrono::Duration::hours(6),
-        scope: "read,activity:read_all,activity:write".to_string(),
+        scope: "read,activity:read_all,activity:write".to_owned(),
     };
 
     let oauth_token = UserOAuthToken::new(
         user.id,
-        "00000000-0000-0000-0000-000000000000".to_string(), // tenant_id
-        oauth_providers::STRAVA.to_string(),
+        "00000000-0000-0000-0000-000000000000".to_owned(), // tenant_id
+        oauth_providers::STRAVA.to_owned(),
         mock_token.access_token.clone(),
         Some(mock_token.refresh_token.clone()),
         Some(mock_token.expires_at),
@@ -351,7 +353,7 @@ async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Ten
         .upsert_user_oauth_token(&oauth_token)
         .await
     {
-        Ok(()) => println!("✅ Test tokens stored successfully"),
+        Ok(()) => println!(" Test tokens stored successfully"),
         Err(e) => {
             println!("⚠️ Failed to store test tokens: {e}");
             // Continue anyway - some tools might work without tokens
@@ -368,9 +370,9 @@ async fn setup_tenant_oauth_credentials(
     tenant_id: Uuid,
 ) -> Result<()> {
     // Get Strava credentials from environment
-    let client_id = std::env::var("STRAVA_CLIENT_ID").unwrap_or_else(|_| "163846".to_string());
+    let client_id = std::env::var("STRAVA_CLIENT_ID").unwrap_or_else(|_| "163846".to_owned());
     let client_secret = std::env::var("STRAVA_CLIENT_SECRET")
-        .unwrap_or_else(|_| "1dfc45ad0a1f6983b835e4495aa9473d111d03bc".to_string());
+        .unwrap_or_else(|_| "1dfc45ad0a1f6983b835e4495aa9473d111d03bc".to_owned());
 
     // Check if tenant already has Strava OAuth credentials
     match executor
@@ -395,15 +397,15 @@ async fn setup_tenant_oauth_credentials(
     // Create TenantOAuthCredentials struct
     let tenant_oauth_creds = pierre_mcp_server::tenant::TenantOAuthCredentials {
         tenant_id,
-        provider: "strava".to_string(),
+        provider: "strava".to_owned(),
         client_id: client_id.clone(),
         client_secret: client_secret.clone(),
         redirect_uri: std::env::var("STRAVA_REDIRECT_URI")
-            .unwrap_or_else(|_| "http://localhost:8080/auth/strava/callback".to_string()),
+            .unwrap_or_else(|_| "http://localhost:8080/auth/strava/callback".to_owned()),
         scopes: vec![
-            "read".to_string(),
-            "activity:read_all".to_string(),
-            "activity:write".to_string(),
+            "read".to_owned(),
+            "activity:read_all".to_owned(),
+            "activity:write".to_owned(),
         ],
         rate_limit_per_day: 1000,
     };
@@ -437,15 +439,15 @@ async fn test_all_tools(
     println!("=====================================");
 
     results.insert(
-        "get_activities".to_string(),
+        "get_activities".to_owned(),
         test_get_activities(executor, user_id, tenant_id).await,
     );
     results.insert(
-        "get_athlete".to_string(),
+        "get_athlete".to_owned(),
         test_get_athlete(executor, user_id, tenant_id).await,
     );
     results.insert(
-        "get_stats".to_string(),
+        "get_stats".to_owned(),
         test_get_stats(executor, user_id, tenant_id).await,
     );
 
@@ -454,30 +456,30 @@ async fn test_all_tools(
     println!("====================================");
 
     // Use a known mock activity ID that we're returning in our mock data
-    let activity_id = "9876543210".to_string();
+    let activity_id = "9876543210".to_owned();
 
     results.insert(
-        "get_activity_intelligence".to_string(),
+        "get_activity_intelligence".to_owned(),
         test_get_activity_intelligence(executor, user_id, tenant_id, &activity_id).await,
     );
     results.insert(
-        "analyze_activity".to_string(),
+        "analyze_activity".to_owned(),
         test_analyze_activity(executor, user_id, tenant_id, &activity_id).await,
     );
     results.insert(
-        "calculate_metrics".to_string(),
+        "calculate_metrics".to_owned(),
         test_calculate_metrics(executor, user_id, tenant_id, &activity_id).await,
     );
     results.insert(
-        "analyze_performance_trends".to_string(),
+        "analyze_performance_trends".to_owned(),
         test_analyze_performance_trends(executor, user_id, tenant_id).await,
     );
     results.insert(
-        "compare_activities".to_string(),
+        "compare_activities".to_owned(),
         test_compare_activities(executor, user_id, tenant_id, &activity_id).await,
     );
     results.insert(
-        "detect_patterns".to_string(),
+        "detect_patterns".to_owned(),
         test_detect_patterns(executor, user_id, tenant_id).await,
     );
 
@@ -486,23 +488,23 @@ async fn test_all_tools(
     println!("=========================================");
 
     results.insert(
-        "set_goal".to_string(),
+        "set_goal".to_owned(),
         test_set_goal(executor, user_id, tenant_id).await,
     );
     results.insert(
-        "suggest_goals".to_string(),
+        "suggest_goals".to_owned(),
         test_suggest_goals(executor, user_id, tenant_id).await,
     );
     results.insert(
-        "track_progress".to_string(),
+        "track_progress".to_owned(),
         test_track_progress(executor, user_id, tenant_id).await,
     );
     results.insert(
-        "predict_performance".to_string(),
+        "predict_performance".to_owned(),
         test_predict_performance(executor, user_id, tenant_id).await,
     );
     results.insert(
-        "generate_recommendations".to_string(),
+        "generate_recommendations".to_owned(),
         test_generate_recommendations(executor, user_id, tenant_id).await,
     );
 
@@ -511,11 +513,11 @@ async fn test_all_tools(
     println!("=====================================");
 
     results.insert(
-        "get_connection_status".to_string(),
+        "get_connection_status".to_owned(),
         test_get_connection_status(executor, user_id, tenant_id).await,
     );
     results.insert(
-        "disconnect_provider".to_string(),
+        "disconnect_provider".to_owned(),
         test_disconnect_provider(executor, user_id, tenant_id).await,
     );
 
@@ -537,11 +539,11 @@ fn create_request(
     tenant_id: &str,
 ) -> UniversalRequest {
     UniversalRequest {
-        tool_name: tool_name.to_string(),
+        tool_name: tool_name.to_owned(),
         parameters,
-        user_id: user_id.to_string(),
-        protocol: "test".to_string(),
-        tenant_id: Some(tenant_id.to_string()),
+        user_id: user_id.to_owned(),
+        protocol: "test".to_owned(),
+        tenant_id: Some(tenant_id.to_owned()),
     }
 }
 
@@ -553,19 +555,19 @@ fn create_request_with_client_credentials(
 ) -> UniversalRequest {
     // Add client credentials to parameters for highest priority
     if let Some(params) = parameters.as_object_mut() {
-        params.insert("client_id".to_string(), json!("163846"));
+        params.insert("client_id".to_owned(), json!("163846"));
         params.insert(
-            "client_secret".to_string(),
+            "client_secret".to_owned(),
             json!("1dfc45ad0a1f6983b835e4495aa9473d111d03bc"),
         );
     }
 
     UniversalRequest {
-        tool_name: tool_name.to_string(),
+        tool_name: tool_name.to_owned(),
         parameters,
-        user_id: user_id.to_string(),
-        protocol: "test".to_string(),
-        tenant_id: Some(tenant_id.to_string()),
+        user_id: user_id.to_owned(),
+        protocol: "test".to_owned(),
+        tenant_id: Some(tenant_id.to_owned()),
     }
 }
 
@@ -609,10 +611,10 @@ async fn test_get_athlete(
     // Try direct user token (no tenant_id) as fallback
     println!("   🔄 Retrying get_athlete with direct user tokens...");
     let request_direct = UniversalRequest {
-        tool_name: "get_athlete".to_string(),
+        tool_name: "get_athlete".to_owned(),
         parameters: json!({"provider": "strava"}),
-        user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        user_id: user_id.to_owned(),
+        protocol: "test".to_owned(),
         tenant_id: None, // Use direct user tokens
     };
     let result = execute_and_evaluate(executor, request_direct, "get_athlete").await;
@@ -645,10 +647,10 @@ async fn test_get_stats(
     // Try direct user token (no tenant_id) as fallback
     println!("   🔄 Retrying get_stats with direct user tokens...");
     let request_direct = UniversalRequest {
-        tool_name: "get_stats".to_string(),
+        tool_name: "get_stats".to_owned(),
         parameters: json!({"provider": "strava"}),
-        user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        user_id: user_id.to_owned(),
+        protocol: "test".to_owned(),
         tenant_id: None, // Use direct user tokens
     };
     let result = execute_and_evaluate(executor, request_direct, "get_stats").await;
@@ -728,10 +730,10 @@ async fn test_analyze_performance_trends(
     // Try direct user token (no tenant_id) as fallback
     println!("   🔄 Retrying analyze_performance_trends with direct user tokens...");
     let request_direct = UniversalRequest {
-        tool_name: "analyze_performance_trends".to_string(),
+        tool_name: "analyze_performance_trends".to_owned(),
         parameters: json!({"provider": "strava", "period_days": 30}),
-        user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        user_id: user_id.to_owned(),
+        protocol: "test".to_owned(),
         tenant_id: None, // Use direct user tokens
     };
     let result = execute_and_evaluate(executor, request_direct, "analyze_performance_trends").await;
@@ -763,10 +765,10 @@ async fn test_compare_activities(
     // Try direct user token (no tenant_id) as fallback
     println!("   🔄 Retrying compare_activities with direct user tokens...");
     let request_direct = UniversalRequest {
-        tool_name: "compare_activities".to_string(),
+        tool_name: "compare_activities".to_owned(),
         parameters: json!({"provider": "strava", "activity_id1": activity_id, "activity_id2": activity_id}),
-        user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        user_id: user_id.to_owned(),
+        protocol: "test".to_owned(),
         tenant_id: None, // Use direct user tokens
     };
     let result = execute_and_evaluate(executor, request_direct, "compare_activities").await;
@@ -924,7 +926,7 @@ async fn execute_and_evaluate(
                     println!("      Request: user_id={user_id}, tenant_id={tenant_id:?}");
                 }
 
-                TestResult::Failed(error_msg.to_string())
+                TestResult::Failed(error_msg.to_owned())
             }
         }
         Err(e) => {

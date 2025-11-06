@@ -38,23 +38,41 @@ use tokio::sync::broadcast;
 /// of recreating expensive objects like `AuthManager` and excessive Arc cloning.
 #[derive(Clone)]
 pub struct ServerResources {
+    /// Database connection pool for persistent storage operations
     pub database: Arc<Database>,
+    /// Authentication manager for user identity verification
     pub auth_manager: Arc<AuthManager>,
+    /// JSON Web Key Set manager for RS256 JWT signing and verification
     pub jwks_manager: Arc<JwksManager>,
+    /// Authentication middleware for MCP request validation
     pub auth_middleware: Arc<McpAuthMiddleware>,
+    /// WebSocket connection manager for real-time updates
     pub websocket_manager: Arc<WebSocketManager>,
+    /// OAuth client for multi-tenant authentication flows
     pub tenant_oauth_client: Arc<TenantOAuthClient>,
+    /// Registry of fitness data providers (Strava, Fitbit, Garmin)
     pub provider_registry: Arc<ProviderRegistry>,
+    /// Secret key for admin JWT token generation
     pub admin_jwt_secret: Arc<str>,
+    /// Server configuration loaded from environment
     pub config: Arc<crate::config::environment::ServerConfig>,
+    /// AI-powered fitness activity analysis engine
     pub activity_intelligence: Arc<ActivityIntelligence>,
+    /// A2A protocol client manager for agent-to-agent communication
     pub a2a_client_manager: Arc<A2AClientManager>,
+    /// Service for managing A2A system user accounts
     pub a2a_system_user_service: Arc<A2ASystemUserService>,
+    /// Broadcast channel for OAuth completion notifications
     pub oauth_notification_sender: Option<broadcast::Sender<OAuthCompletedNotification>>,
+    /// Server-Sent Events manager for real-time notifications
     pub sse_manager: Arc<crate::sse::SseManager>,
+    /// Cache layer for performance optimization
     pub cache: Arc<Cache>,
+    /// Optional plugin executor for custom tool implementations
     pub plugin_executor: Option<Arc<PluginToolExecutor>>,
+    /// Configuration for PII redaction in logs and responses
     pub redaction_config: Arc<RedactionConfig>,
+    /// Rate limiter for `OAuth2` endpoints
     pub oauth2_rate_limiter: Arc<crate::oauth2_server::rate_limiting::OAuth2RateLimiter>,
 }
 

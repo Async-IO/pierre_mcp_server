@@ -90,24 +90,30 @@ pub struct PaginatedResponse<T> {
 /// Parameters for pagination
 #[derive(Debug, Clone)]
 pub struct PaginationParams {
+    /// Current page number (0-based)
     pub page: usize,
+    /// Number of items per page
     pub per_page: usize,
+    /// Total number of items across all pages
     pub total_items: usize,
+    /// Optional request ID for tracking
     pub request_id: Option<String>,
+    /// Optional user ID for multi-tenant responses
     pub user_id: Option<Uuid>,
+    /// Optional processing time in milliseconds
     pub processing_time_ms: Option<u64>,
 }
 
 /// Unified response formatter
 pub struct ResponseFormatter {
-    /// Default API version
+    /// Default API version string
     version: String,
 }
 
 impl Default for ResponseFormatter {
     fn default() -> Self {
         Self {
-            version: env!("CARGO_PKG_VERSION").to_string(),
+            version: env!("CARGO_PKG_VERSION").to_owned(),
         }
     }
 }

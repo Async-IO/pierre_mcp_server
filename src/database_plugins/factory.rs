@@ -28,14 +28,18 @@ use super::sqlite::SqliteDatabase;
 /// Supported database types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatabaseType {
+    /// `SQLite` embedded database
     SQLite,
+    /// `PostgreSQL` database server
     PostgreSQL,
 }
 
 /// Database instance wrapper that delegates to the appropriate implementation
 #[derive(Clone)]
 pub enum Database {
+    /// `SQLite` database instance
     SQLite(SqliteDatabase),
+    /// `PostgreSQL` database instance (requires postgresql feature)
     #[cfg(feature = "postgresql")]
     PostgreSQL(PostgresDatabase),
 }
@@ -69,13 +73,13 @@ impl Database {
                      Type: Embedded file-based database\n\
                      Use Case: Local development and testing\n\
                      Features: Zero-configuration, serverless, lightweight"
-                .to_string(),
+                .to_owned(),
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(_) => "Database Backend: PostgreSQL\n\
                      Type: Client-server relational database\n\
                      Use Case: Production and cloud deployments\n\
                      Features: Concurrent access, advanced queries, scalability"
-                .to_string(),
+                .to_owned(),
         }
     }
 

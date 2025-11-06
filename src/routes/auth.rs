@@ -28,79 +28,108 @@ use warp::{Filter, Rejection, Reply};
 /// User registration request
 #[derive(Debug, Clone, Deserialize)]
 pub struct RegisterRequest {
+    /// User's email address
     pub email: String,
+    /// User's password (will be hashed)
     pub password: String,
+    /// Optional display name for the user
     pub display_name: Option<String>,
 }
 
 /// User registration response
 #[derive(Debug, Serialize)]
 pub struct RegisterResponse {
+    /// Unique identifier for the newly created user
     pub user_id: String,
+    /// Success message for the registration
     pub message: String,
 }
 
 /// User login request
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
+    /// User's email address
     pub email: String,
+    /// User's password
     pub password: String,
 }
 
 /// User info for login response
 #[derive(Debug, Serialize)]
 pub struct UserInfo {
+    /// Unique identifier for the user
     pub user_id: String,
+    /// User's email address
     pub email: String,
+    /// User's display name if set
     pub display_name: Option<String>,
 }
 
 /// User login response
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
+    /// JWT authentication token
     pub jwt_token: String,
+    /// When the token expires (ISO 8601 format)
     pub expires_at: String,
+    /// User information
     pub user: UserInfo,
 }
 
 /// Refresh token request
 #[derive(Debug, Deserialize)]
 pub struct RefreshTokenRequest {
+    /// Current JWT token to refresh
     pub token: String,
+    /// User ID for validation
     pub user_id: String,
 }
 
 /// OAuth provider connection status
 #[derive(Debug, Serialize)]
 pub struct OAuthStatus {
+    /// Name of the OAuth provider (e.g., "strava", "google")
     pub provider: String,
+    /// Whether the user is currently connected to this provider
     pub connected: bool,
+    /// When the last sync occurred (ISO 8601 format)
     pub last_sync: Option<String>,
 }
 
 /// Setup status response for admin setup endpoint
 #[derive(Debug, Serialize)]
 pub struct SetupStatusResponse {
+    /// Whether the system needs initial setup
     pub needs_setup: bool,
+    /// Whether an admin user already exists
     pub admin_user_exists: bool,
+    /// Optional status message
     pub message: Option<String>,
 }
 
 /// OAuth authorization response for provider auth URLs
 #[derive(Debug, Serialize)]
 pub struct OAuthAuthorizationResponse {
+    /// URL to redirect user to for OAuth authorization
     pub authorization_url: String,
+    /// CSRF state token for validating callback
     pub state: String,
+    /// Human-readable instructions for the user
     pub instructions: String,
+    /// How long the authorization URL is valid (minutes)
     pub expires_in_minutes: i64,
 }
 
 /// Connection status for fitness providers
 #[derive(Debug, Serialize)]
 pub struct ConnectionStatus {
+    /// Name of the fitness provider (e.g., "strava", "garmin")
     pub provider: String,
+    /// Whether the user is connected to this provider
     pub connected: bool,
+    /// When the connection expires (ISO 8601 format)
     pub expires_at: Option<String>,
+    /// Space-separated list of granted OAuth scopes
     pub scopes: Option<String>,
 }
 
@@ -112,6 +141,7 @@ pub struct AuthService {
 }
 
 impl AuthService {
+    /// Creates a new authentication service
     #[must_use]
     pub const fn new(auth_context: AuthContext, data_context: DataContext) -> Self {
         Self {
@@ -329,6 +359,7 @@ pub struct OAuthService {
 }
 
 impl OAuthService {
+    /// Creates a new OAuth service instance
     #[must_use]
     pub const fn new(
         data_context: DataContext,
@@ -398,9 +429,9 @@ impl OAuthService {
 
         Ok(OAuthCallbackResponse {
             user_id: user_id.to_string(),
-            provider: provider.to_string(),
+            provider: provider.to_owned(),
             expires_at: expires_at.to_rfc3339(),
-            scopes: token.scope.unwrap_or_else(|| "read".to_string()),
+            scopes: token.scope.unwrap_or_else(|| "read".to_owned()),
         })
     }
 
@@ -500,7 +531,7 @@ impl OAuthService {
                     client_id: oauth_config
                         .client_id
                         .clone()
-                        .unwrap_or_else(|| "163846".to_string()),
+                        .unwrap_or_else(|| "163846".to_owned()),
                     client_secret: oauth_config.client_secret.clone().unwrap_or_default(),
                     auth_url: api_config.auth_url.clone(),
                     token_url: api_config.token_url.clone(),
@@ -510,7 +541,7 @@ impl OAuthService {
                             server_config.http_port
                         )
                     }),
-                    scopes: vec![crate::constants::oauth::STRAVA_DEFAULT_SCOPES.to_string()],
+                    scopes: vec![crate::constants::oauth::STRAVA_DEFAULT_SCOPES.to_owned()],
                     use_pkce: true,
                 })
             }
@@ -534,7 +565,7 @@ impl OAuthService {
             id: uuid::Uuid::new_v4().to_string(),
             user_id,
             tenant_id,
-            provider: provider.to_string(),
+            provider: provider.to_owned(),
             access_token: token.access_token.clone(),
             refresh_token: token.refresh_token.clone(),
             token_type: token.token_type.clone(),
@@ -582,7 +613,7 @@ impl OAuthService {
         let oauth_notification = crate::database::oauth_notifications::OAuthNotification {
             id: notification_id,
             user_id: user_id.to_string(),
-            provider: provider.to_string(),
+            provider: provider.to_owned(),
             success: true,
             message: format!(
                 "{provider} account connected successfully! You can now use fitness tools."
@@ -803,7 +834,7 @@ impl OAuthService {
         for provider in [oauth_providers::STRAVA, oauth_providers::FITBIT] {
             if !providers_seen.contains(provider) {
                 statuses.push(ConnectionStatus {
-                    provider: provider.to_string(),
+                    provider: provider.to_owned(),
                     connected: false,
                     expires_at: None,
                     scopes: None,
@@ -821,9 +852,13 @@ pub type OAuthRoutes = OAuthService;
 /// OAuth callback response
 #[derive(Debug, Serialize)]
 pub struct OAuthCallbackResponse {
+    /// User ID for the connected account
     pub user_id: String,
+    /// Name of the OAuth provider
     pub provider: String,
+    /// When the OAuth token expires (ISO 8601 format)
     pub expires_at: String,
+    /// Space-separated list of granted OAuth scopes
     pub scopes: String,
 }
 
@@ -1142,12 +1177,12 @@ impl AuthRoutes {
                 |_| {
                     vec![
                         OAuthStatus {
-                            provider: "strava".to_string(),
+                            provider: "strava".to_owned(),
                             connected: false,
                             last_sync: None,
                         },
                         OAuthStatus {
-                            provider: "fitbit".to_string(),
+                            provider: "fitbit".to_owned(),
                             connected: false,
                             last_sync: None,
                         },
@@ -1172,7 +1207,7 @@ impl AuthRoutes {
                     for provider in ["strava", "fitbit"] {
                         if !providers_seen.contains(provider) {
                             statuses.push(OAuthStatus {
-                                provider: provider.to_string(),
+                                provider: provider.to_owned(),
                                 connected: false,
                                 last_sync: None,
                             });

@@ -128,7 +128,7 @@ where
                 let minutes = retry_config.estimated_block_duration_secs / 60;
                 let status_code = status.as_u16();
                 return Err(ProviderError::RateLimitExceeded {
-                    provider: provider_name.to_string(),
+                    provider: provider_name.to_owned(),
                     retry_after_secs: retry_config.estimated_block_duration_secs,
                     limit_type: format!(
                         "API rate limit ({status_code}) - max retries reached - wait ~{minutes} minutes"
@@ -151,7 +151,7 @@ where
             let text = response.text().await.unwrap_or_default();
             tracing::error!("{provider_name} API request failed - status: {status}, body: {text}");
             return Err(ProviderError::ApiError {
-                provider: provider_name.to_string(),
+                provider: provider_name.to_owned(),
                 status_code: status.as_u16(),
                 message: format!("{provider_name} API request failed with status {status}: {text}"),
                 retryable: false,
@@ -177,10 +177,14 @@ where
 /// Standard token refresh response structure
 #[derive(Debug, Deserialize)]
 pub struct TokenRefreshResponse {
+    /// New access token from the OAuth provider
     pub access_token: String,
+    /// Optional new refresh token (if rotated by provider)
     pub refresh_token: Option<String>,
+    /// Token expiration time in seconds from now
     #[serde(default)]
     pub expires_in: Option<i64>,
+    /// Token expiration as Unix timestamp
     #[serde(default)]
     pub expires_at: Option<i64>,
 }
@@ -220,7 +224,7 @@ pub async fn refresh_oauth_token(
     if !response.status().is_success() {
         let status = response.status();
         return Err(ProviderError::AuthenticationFailed {
-            provider: provider_name.to_string(),
+            provider: provider_name.to_owned(),
             reason: format!("token refresh failed with status: {status}"),
         }
         .into());
@@ -242,8 +246,8 @@ pub async fn refresh_oauth_token(
         });
 
     Ok(OAuth2Credentials {
-        client_id: client_id.to_string(),
-        client_secret: client_secret.to_string(),
+        client_id: client_id.to_owned(),
+        client_secret: client_secret.to_owned(),
         access_token: Some(token_response.access_token),
         refresh_token: token_response.refresh_token,
         expires_at,

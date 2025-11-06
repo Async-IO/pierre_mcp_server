@@ -730,17 +730,25 @@ impl PerformanceAnalyzerV2 {
 
 // Supporting data structures
 
+/// Overall fitness score with component breakdowns and trends
 #[derive(Debug, Clone)]
 pub struct FitnessScore {
+    /// Overall fitness score (0-100)
     pub overall_score: f64,
+    /// Aerobic fitness component score (0-100)
     pub aerobic_fitness: f64,
+    /// Strength endurance component score (0-100)
     pub strength_endurance: f64,
+    /// Training consistency score (0-100)
     pub consistency: f64,
+    /// Fitness trend direction (improving/stable/declining)
     pub trend: TrendDirection,
+    /// When this score was last calculated
     pub last_updated: DateTime<Utc>,
 }
 
 impl FitnessScore {
+    /// Creates an empty fitness score with all values at zero
     #[must_use]
     pub fn empty() -> Self {
         Self {
@@ -754,48 +762,79 @@ impl FitnessScore {
     }
 }
 
+/// Fitness goal with target metric and deadline
 #[derive(Debug, Clone)]
 pub struct ActivityGoal {
+    /// Sport type for the goal (e.g., "Run", "Ride")
     pub sport_type: String,
+    /// Metric to track (e.g., "pace", "distance", "duration")
     pub metric: String,
+    /// Target value for the metric
     pub target_value: f64,
+    /// Target date to achieve the goal
     pub target_date: DateTime<Utc>,
 }
 
+/// Performance prediction with confidence intervals and recommendations
 #[derive(Debug, Clone)]
 pub struct PerformancePrediction {
+    /// The goal being predicted
     pub target_goal: ActivityGoal,
+    /// Predicted value at target date
     pub predicted_value: f64,
+    /// 95% confidence interval (lower, upper)
     pub confidence_interval: (f64, f64),
+    /// Overall prediction confidence
     pub confidence: Confidence,
+    /// Factors considered in prediction
     pub factors: Vec<String>,
+    /// Training recommendations to achieve goal
     pub recommendations: Vec<String>,
+    /// Estimated date to achieve the goal
     pub estimated_achievement_date: DateTime<Utc>,
 }
 
+/// Training load analysis with balance scores and recommendations
 #[derive(Debug, Clone)]
 pub struct TrainingLoadAnalysis {
+    /// Weekly training loads over the analysis period
     pub weekly_loads: Vec<WeeklyLoad>,
+    /// Average weekly training load (hours)
     pub average_weekly_load: f64,
+    /// Load balance score (0-100, higher is better)
     pub load_balance_score: f64,
+    /// Whether additional recovery is needed
     pub recovery_needed: bool,
+    /// Training load recommendations
     pub recommendations: Vec<String>,
+    /// Advanced insights from load analysis
     pub insights: Vec<AdvancedInsight>,
 }
 
+/// Weekly training load metrics
 #[derive(Debug, Clone)]
 pub struct WeeklyLoad {
+    /// Week number in the analysis period
     pub week_number: i32,
+    /// Total training duration in hours
     pub total_duration_hours: f64,
+    /// Total distance covered in kilometers
     pub total_distance_km: f64,
+    /// Number of activities in the week
     pub activity_count: i32,
+    /// Average intensity score for the week
     pub intensity_score: f64,
 }
 
+/// Internal analysis of training load patterns
 #[derive(Debug, Clone)]
 struct LoadPatternAnalysis {
+    /// Average weekly load over analysis period
     average_load: f64,
+    /// Load balance score (0-100)
     balance_score: f64,
+    /// Whether recovery is needed
     recovery_needed: bool,
+    /// Overall load trend direction
     load_trend: TrendDirection,
 }

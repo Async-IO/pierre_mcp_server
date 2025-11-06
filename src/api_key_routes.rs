@@ -20,46 +20,69 @@ use crate::{
     mcp::resources::ServerResources,
 };
 
+/// Response containing list of API keys for a user
 #[derive(Debug, Serialize)]
 pub struct ApiKeyListResponse {
+    /// Array of API key information objects
     pub api_keys: Vec<ApiKeyInfo>,
 }
 
+/// API key information excluding the secret key value
 #[derive(Debug, Serialize)]
 pub struct ApiKeyInfo {
+    /// Unique API key identifier
     pub id: String,
+    /// User-provided name for the key
     pub name: String,
+    /// Optional description of the key's purpose
     pub description: Option<String>,
+    /// API key tier (trial, pro, enterprise)
     pub tier: ApiKeyTier,
+    /// First 8 characters of the key for identification
     pub key_prefix: String,
+    /// Whether the key is active
     pub is_active: bool,
+    /// When the key was last used
     pub last_used_at: Option<DateTime<Utc>>,
+    /// When the key expires (if applicable)
     pub expires_at: Option<DateTime<Utc>>,
+    /// When the key was created
     pub created_at: DateTime<Utc>,
 }
 
+/// Response after creating a new API key
 #[derive(Debug, Serialize)]
 pub struct ApiKeyCreateResponse {
+    /// The full API key (only shown once)
     pub api_key: String,
+    /// Metadata about the created key
     pub key_info: ApiKeyInfo,
+    /// Security warning to store the key safely
     pub warning: String,
 }
 
+/// Response containing API key usage statistics
 #[derive(Debug, Serialize)]
 pub struct ApiKeyUsageResponse {
+    /// Usage statistics for the API key
     pub stats: ApiKeyUsageStats,
 }
 
+/// Response after deactivating an API key
 #[derive(Debug, Serialize)]
 pub struct ApiKeyDeactivateResponse {
+    /// Success message
     pub message: String,
+    /// When the key was deactivated
     pub deactivated_at: DateTime<Utc>,
 }
 
 /// API Key management routes
 #[derive(Clone)]
 pub struct ApiKeyRoutes {
+    /// Server resources including database
     resources: std::sync::Arc<ServerResources>,
+    /// API key management logic
     api_key_manager: ApiKeyManager,
 }
 

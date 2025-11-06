@@ -18,22 +18,34 @@ use uuid::Uuid;
 /// Authentication credentials for `OAuth2` providers
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuth2Credentials {
+    /// OAuth client ID from provider
     pub client_id: String,
+    /// OAuth client secret from provider
     pub client_secret: String,
+    /// Current access token
     pub access_token: Option<String>,
+    /// Refresh token for obtaining new access tokens
     pub refresh_token: Option<String>,
+    /// When the access token expires
     pub expires_at: Option<DateTime<Utc>>,
+    /// Granted OAuth scopes
     pub scopes: Vec<String>,
 }
 
 /// Provider configuration containing all necessary endpoints and settings
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderConfig {
+    /// Provider name (e.g., "strava", "fitbit")
     pub name: String,
+    /// OAuth authorization endpoint URL
     pub auth_url: String,
+    /// OAuth token endpoint URL
     pub token_url: String,
+    /// Base URL for provider API calls
     pub api_base_url: String,
+    /// Optional token revocation endpoint URL
     pub revoke_url: Option<String>,
+    /// Default OAuth scopes to request
     pub default_scopes: Vec<String>,
 }
 
@@ -98,7 +110,7 @@ pub trait FitnessProvider: Send + Sync {
             end_date.format("%Y-%m-%d")
         );
         Err(ProviderError::UnsupportedFeature {
-            provider: self.name().to_string(),
+            provider: self.name().to_owned(),
             feature: format!("sleep_sessions (requested: {date_range})"),
         })
     }
@@ -109,8 +121,8 @@ pub trait FitnessProvider: Send + Sync {
     /// Returns `UnsupportedFeature` for providers without sleep data.
     async fn get_latest_sleep_session(&self) -> Result<SleepSession, ProviderError> {
         Err(ProviderError::UnsupportedFeature {
-            provider: self.name().to_string(),
-            feature: "latest_sleep_session".to_string(),
+            provider: self.name().to_owned(),
+            feature: "latest_sleep_session".to_owned(),
         })
     }
 
@@ -129,7 +141,7 @@ pub trait FitnessProvider: Send + Sync {
             end_date.format("%Y-%m-%d")
         );
         Err(ProviderError::UnsupportedFeature {
-            provider: self.name().to_string(),
+            provider: self.name().to_owned(),
             feature: format!("recovery_metrics (requested: {date_range})"),
         })
     }
@@ -149,7 +161,7 @@ pub trait FitnessProvider: Send + Sync {
             end_date.format("%Y-%m-%d")
         );
         Err(ProviderError::UnsupportedFeature {
-            provider: self.name().to_string(),
+            provider: self.name().to_owned(),
             feature: format!("health_metrics (requested: {date_range})"),
         })
     }

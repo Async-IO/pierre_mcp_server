@@ -165,6 +165,7 @@ impl Default for OAuth2RateLimiter {
 /// `OAuth2` rate limit exceeded rejection
 #[derive(Debug)]
 pub struct OAuth2RateLimitExceeded {
+    /// Current rate limit status including remaining attempts and reset time
     pub status: crate::rate_limiting::OAuth2RateLimitStatus,
 }
 

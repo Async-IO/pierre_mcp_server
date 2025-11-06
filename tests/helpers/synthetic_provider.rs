@@ -1,6 +1,8 @@
 // ABOUTME: Synthetic fitness provider for automated testing without OAuth
 // ABOUTME: Returns pre-configured activity data for intelligence algorithm validation
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use anyhow::Result;
 use async_trait::async_trait;
 use pierre_mcp_server::constants::oauth_providers;
@@ -62,12 +64,12 @@ impl SyntheticProvider {
             activities: Arc::new(RwLock::new(activities)),
             activity_index: Arc::new(RwLock::new(index)),
             config: ProviderConfig {
-                name: "synthetic".to_string(),
-                auth_url: "http://localhost/synthetic/auth".to_string(),
-                token_url: "http://localhost/synthetic/token".to_string(),
-                api_base_url: "http://localhost/synthetic/api".to_string(),
+                name: "synthetic".to_owned(),
+                auth_url: "http://localhost/synthetic/auth".to_owned(),
+                token_url: "http://localhost/synthetic/token".to_owned(),
+                api_base_url: "http://localhost/synthetic/api".to_owned(),
                 revoke_url: None,
-                default_scopes: vec!["activity:read_all".to_string()],
+                default_scopes: vec!["activity:read_all".to_owned()],
             },
         }
     }
@@ -314,12 +316,12 @@ impl FitnessProvider for SyntheticProvider {
     async fn get_athlete(&self) -> Result<Athlete> {
         // Return consistent test athlete
         Ok(Athlete {
-            id: "synthetic_athlete_001".to_string(),
-            username: "test_athlete".to_string(),
-            firstname: Some("Test".to_string()),
-            lastname: Some("Athlete".to_string()),
+            id: "synthetic_athlete_001".to_owned(),
+            username: "test_athlete".to_owned(),
+            firstname: Some("Test".to_owned()),
+            lastname: Some("Athlete".to_owned()),
             profile_picture: None,
-            provider: "synthetic".to_string(),
+            provider: "synthetic".to_owned(),
         })
     }
 
@@ -414,9 +416,9 @@ impl FitnessProvider for SyntheticProvider {
 
         index.get(id).cloned().ok_or_else(|| {
             ProviderError::NotFound {
-                provider: "synthetic".to_string(),
-                resource_type: "Activity".to_string(),
-                resource_id: id.to_string(),
+                provider: "synthetic".to_owned(),
+                resource_type: "Activity".to_owned(),
+                resource_id: id.to_owned(),
             }
             .into()
         })
@@ -445,7 +447,7 @@ mod tests {
     #[allow(clippy::cast_precision_loss)]
     fn create_test_activity(id: &str, distance_km: f64, duration_min: u64) -> Activity {
         Activity {
-            id: id.to_string(),
+            id: id.to_owned(),
             name: format!("Test Activity {id}"),
             sport_type: SportType::Run,
             start_date: Utc::now(),
@@ -484,11 +486,11 @@ mod tests {
             time_series_data: None,
             start_latitude: Some(45.5017),
             start_longitude: Some(-73.5673),
-            city: Some("Montreal".to_string()),
-            region: Some("Quebec".to_string()),
-            country: Some("Canada".to_string()),
+            city: Some("Montreal".to_owned()),
+            region: Some("Quebec".to_owned()),
+            country: Some("Canada".to_owned()),
             trail_name: None,
-            provider: "synthetic".to_string(),
+            provider: "synthetic".to_owned(),
         }
     }
 

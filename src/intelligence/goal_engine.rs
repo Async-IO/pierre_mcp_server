@@ -274,7 +274,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
 
             suggestions.push(GoalSuggestion {
                 goal_type: GoalType::Distance {
-                    sport: sport.to_string(),
+                    sport: sport.to_owned(),
                     timeframe: TimeFrame::Month,
                 },
                 suggested_target: target_distance,
@@ -322,7 +322,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
             let target_frequency = ((current_frequency + 1.0).min(MAX_WEEKLY_FREQUENCY)) as u32;
             suggestions.push(GoalSuggestion {
                 goal_type: GoalType::Frequency {
-                    sport: sport.to_string(),
+                    sport: sport.to_owned(),
                     sessions_per_week: target_frequency as i32,
                 },
                 suggested_target: f64::from(target_frequency),
@@ -604,7 +604,7 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
 
         for (i, &percentage) in percentages.iter().enumerate() {
             milestones.push(Milestone {
-                name: names[i].to_string(),
+                name: names[i].to_owned(),
                 target_value: goal.target_value * (percentage / 100.0),
                 achieved_date: None,
                 achieved: false,
@@ -618,39 +618,58 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
 /// Goal suggestion with rationale
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GoalSuggestion {
+    /// Type of goal being suggested (distance, time, frequency, etc.)
     pub goal_type: GoalType,
+    /// Target value for the goal
     pub suggested_target: f64,
+    /// Explanation for why this goal is suggested
     pub rationale: String,
+    /// Difficulty level of achieving this goal
     pub difficulty: GoalDifficulty,
+    /// Estimated days needed to achieve this goal
     pub estimated_timeline_days: i32,
+    /// Probability of successfully achieving this goal (0.0 - 1.0)
     pub success_probability: f64,
 }
 
 /// Goal difficulty levels
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum GoalDifficulty {
+    /// Easy goal (high success rate, minimal challenge)
     Easy,
+    /// Moderate goal (balanced difficulty and achievability)
     Moderate,
+    /// Challenging goal (requires significant effort)
     Challenging,
+    /// Ambitious goal (stretch goal with lower success probability)
     Ambitious,
+    /// Unknown difficulty level
     Unknown,
 }
 
 /// Goal adjustment suggestion
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GoalAdjustment {
+    /// Type of adjustment being suggested
     pub adjustment_type: AdjustmentType,
+    /// New target value after adjustment
     pub new_target_value: f64,
+    /// Explanation for why this adjustment is recommended
     pub rationale: String,
+    /// Confidence level in this adjustment recommendation
     pub confidence: Confidence,
 }
 
 /// Types of goal adjustments
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AdjustmentType {
+    /// Increase the target value (for ahead-of-schedule progress)
     IncreaseTarget,
+    /// Decrease the target value (for behind-schedule progress)
     DecreaseTarget,
+    /// Extend the goal deadline to allow more time
     ExtendDeadline,
+    /// Change the approach or strategy for achieving the goal
     ChangeApproach,
 }
 

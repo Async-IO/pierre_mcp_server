@@ -26,8 +26,8 @@ use std::str::FromStr;
 pub enum RecoveryAggregationAlgorithm {
     /// Weighted Average
     ///
-    /// Formula: `Recovery = w_tsb×TSB + w_sleep×Sleep + w_hrv×HRV` (if HRV available)
-    ///          `Recovery = w_tsb×TSB + w_sleep×Sleep` (if no HRV)
+    /// Formula: `Recovery = w_tsbxTSB + w_sleepxSleep + w_hrvxHRV` (if HRV available)
+    ///          `Recovery = w_tsbxTSB + w_sleepxSleep` (if no HRV)
     ///
     /// Linear combination with normalized weights (sum to 1.0).
     /// Most common approach, allows fine-tuning importance of each metric.
@@ -49,7 +49,7 @@ pub enum RecoveryAggregationAlgorithm {
 
     /// Geometric Mean
     ///
-    /// Formula: `Recovery = (TSB^w × Sleep^w × HRV^w)^(1/n)` where n = number of components
+    /// Formula: `Recovery = (TSB^w x Sleep^w x HRV^w)^(1/n)` where n = number of components
     ///
     /// Multiplicative combination - all factors must be reasonably good for high score.
     /// Single poor metric has larger impact than in weighted average.
@@ -82,7 +82,7 @@ pub enum RecoveryAggregationAlgorithm {
 
     /// Bayesian Probabilistic Combination
     ///
-    /// Formula: `P(Recovered) = P(TSB) × P(Sleep) × P(HRV) / P(Evidence)`
+    /// Formula: `P(Recovered) = P(TSB) x P(Sleep) x P(HRV) / P(Evidence)`
     ///
     /// Treats each metric as evidence for recovery state.
     /// Combines probabilistic assessments with confidence weighting.
@@ -241,7 +241,7 @@ impl RecoveryAggregationAlgorithm {
         sleep_score: f64,
         hrv_score: Option<f64>,
     ) -> Result<f64, AppError> {
-        // Geometric mean: (x₁ × x₂ × ... × xₙ)^(1/n)
+        // Geometric mean: (x₁ x x₂ x ... x xₙ)^(1/n)
         let (product, count) = hrv_score.map_or_else(
             || (tsb_score * sleep_score, 2.0),
             |hrv| (tsb_score * sleep_score * hrv, 3.0),
@@ -249,7 +249,7 @@ impl RecoveryAggregationAlgorithm {
 
         if product <= 0.0 {
             return Err(AppError::invalid_input(
-                "Geometric mean requires all scores to be positive".to_string(),
+                "Geometric mean requires all scores to be positive".to_owned(),
             ));
         }
 
@@ -269,7 +269,7 @@ impl RecoveryAggregationAlgorithm {
         // Guard against division by zero
         if tsb_score <= 0.0 || sleep_score <= 0.0 || hrv_score.is_some_and(|hrv| hrv <= 0.0) {
             return Err(AppError::invalid_input(
-                "Harmonic mean requires all scores to be positive".to_string(),
+                "Harmonic mean requires all scores to be positive".to_owned(),
             ));
         }
 
@@ -367,9 +367,9 @@ impl RecoveryAggregationAlgorithm {
                     "Weighted Average (TSB={tsb_weight_full:.2}, Sleep={sleep_weight_full:.2}, HRV={hrv_weight_full:.2})"
                 )
             }
-            Self::GeometricMean => "Geometric Mean (multiplicative combination)".to_string(),
-            Self::HarmonicMean => "Harmonic Mean (emphasizes weakest component)".to_string(),
-            Self::Minimum => "Minimum (most conservative)".to_string(),
+            Self::GeometricMean => "Geometric Mean (multiplicative combination)".to_owned(),
+            Self::HarmonicMean => "Harmonic Mean (emphasizes weakest component)".to_owned(),
+            Self::Minimum => "Minimum (most conservative)".to_owned(),
             Self::Bayesian {
                 confidence_threshold,
             } => {
@@ -383,13 +383,13 @@ impl RecoveryAggregationAlgorithm {
     pub const fn formula(&self) -> &'static str {
         match self {
             Self::WeightedAverage { .. } => {
-                "Recovery = w_tsb×TSB + w_sleep×Sleep + w_hrv×HRV (weights sum to 1.0)"
+                "Recovery = w_tsbxTSB + w_sleepxSleep + w_hrvxHRV (weights sum to 1.0)"
             }
-            Self::GeometricMean => "Recovery = (TSB × Sleep × HRV)^(1/n)",
+            Self::GeometricMean => "Recovery = (TSB x Sleep x HRV)^(1/n)",
             Self::HarmonicMean => "Recovery = n / (1/TSB + 1/Sleep + 1/HRV)",
             Self::Minimum => "Recovery = min(TSB, Sleep, HRV)",
             Self::Bayesian { .. } => {
-                "P(Recovered) = P(TSB) × P(Sleep) × P(HRV) weighted by confidence"
+                "P(Recovered) = P(TSB) x P(Sleep) x P(HRV) weighted by confidence"
             }
         }
     }

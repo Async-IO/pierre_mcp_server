@@ -126,7 +126,7 @@ impl OAuthFlowManager {
                     })
                     .ok()
             })
-            .map(std::string::ToString::to_string);
+            .map(str::to_owned);
 
         let user_client_secret = headers
             .get(format!("x-{}-client-secret", provider.to_lowercase()))
@@ -141,7 +141,7 @@ impl OAuthFlowManager {
                     })
                     .ok()
             })
-            .map(std::string::ToString::to_string);
+            .map(str::to_owned);
 
         // Only store credentials if both client_id and client_secret are provided
         if let (Some(client_id), Some(client_secret)) = (user_client_id, user_client_secret) {
@@ -281,7 +281,7 @@ impl OAuthFlowManager {
                     "Failed to get tenant {}: {}, using default name",
                     tenant_id, e
                 );
-                "Unknown Tenant".to_string()
+                "Unknown Tenant".to_owned()
             }
         }
     }
@@ -328,21 +328,21 @@ impl OAuthFlowManager {
             crate::constants::oauth_providers::STRAVA => {
                 crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                     .split(',')
-                    .map(str::to_string)
+                    .map(str::to_owned)
                     .collect()
             }
             crate::constants::oauth_providers::FITBIT => vec![
-                "activity".to_string(),
-                "heartrate".to_string(),
-                "location".to_string(),
-                "nutrition".to_string(),
-                "profile".to_string(),
-                "settings".to_string(),
-                "sleep".to_string(),
-                "social".to_string(),
-                "weight".to_string(),
+                "activity".to_owned(),
+                "heartrate".to_owned(),
+                "location".to_owned(),
+                "nutrition".to_owned(),
+                "profile".to_owned(),
+                "settings".to_owned(),
+                "sleep".to_owned(),
+                "social".to_owned(),
+                "weight".to_owned(),
             ],
-            _ => vec!["read".to_string()], // Default scope
+            _ => vec!["read".to_owned()], // Default scope
         }
     }
 
@@ -383,7 +383,7 @@ impl OAuthTemplateRenderer {
 
         let rendered = TEMPLATE
             .replace("{{PROVIDER}}", provider)
-            .replace("{{USER_ID}}", &callback_response.user_id.to_string());
+            .replace("{{USER_ID}}", &callback_response.user_id);
 
         Ok(rendered)
     }
@@ -418,6 +418,7 @@ pub struct OAuthNotificationHandler {
 }
 
 impl OAuthNotificationHandler {
+    /// Creates a new OAuth notification handler
     #[must_use]
     pub const fn new(resources: Arc<ServerResources>) -> Self {
         Self { resources }

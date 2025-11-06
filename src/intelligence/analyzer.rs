@@ -36,7 +36,6 @@ use crate::intelligence::physiological_constants::{
 };
 use crate::models::{Activity, SportType};
 use chrono::{DateTime, Local, Timelike, Utc};
-use std::fmt::Write;
 
 /// Safe cast from f64 to f32 with bounds checking
 /// Note: Direct casting is required here for numeric conversion - this is a fundamental
@@ -452,11 +451,9 @@ impl ActivityAnalyzer {
 
         // Add detailed insights
         if let Some(distance) = activity.distance_meters {
+            use std::fmt::Write;
             let distance_km = distance / 1000.0;
-            summary.push_str(". During this ");
-            write!(summary, "{distance_km:.1}")
-                .expect("write! to String cannot fail except on OOM");
-            summary.push_str(" km session");
+            let _ = write!(summary, ". During this {distance_km:.1} km session");
         }
 
         // Add primary insight from analysis
@@ -487,12 +484,15 @@ impl Default for ActivityAnalyzer {
 /// Errors that can occur during analysis
 #[derive(Debug, thiserror::Error)]
 pub enum AnalysisError {
+    /// Not enough activity data available to perform analysis
     #[error("Insufficient activity data for analysis")]
     InsufficientData,
 
+    /// Activity data is malformed or contains invalid values
     #[error("Invalid activity data: {0}")]
     InvalidData(String),
 
+    /// Analysis calculation or computation failed
     #[error("Analysis computation failed: {0}")]
     ComputationError(String),
 }

@@ -117,6 +117,7 @@ pub struct StdioTransport {
 }
 
 impl StdioTransport {
+    /// Creates a new stdio transport instance
     #[must_use]
     pub const fn new(resources: Arc<ServerResources>) -> Self {
         Self { resources }
@@ -214,6 +215,7 @@ pub struct SseNotificationForwarder {
 }
 
 impl SseNotificationForwarder {
+    /// Creates a new SSE notification forwarder instance
     #[must_use]
     pub const fn new(resources: Arc<ServerResources>) -> Self {
         Self { resources }

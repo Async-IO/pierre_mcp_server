@@ -13,6 +13,9 @@
 //! 4. Execute tools using tenant-isolated credentials
 //! 5. Verify proper isolation between tenants
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use pierre_mcp_server::{
     config::environment::ServerConfig,
@@ -68,13 +71,13 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
 
     let acme_admin = User {
         id: acme_admin_id,
-        email: "admin@acmefitness.com".to_string(),
-        display_name: Some("Acme Admin".to_string()),
-        password_hash: "hashed_password".to_string(),
+        email: "admin@acmefitness.com".to_owned(),
+        display_name: Some("Acme Admin".to_owned()),
+        password_hash: "hashed_password".to_owned(),
         tier: UserTier::Enterprise,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
@@ -86,13 +89,13 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
 
     let beta_admin = User {
         id: beta_admin_id,
-        email: "admin@betahealth.com".to_string(),
-        display_name: Some("Beta Admin".to_string()),
-        password_hash: "hashed_password".to_string(),
+        email: "admin@betahealth.com".to_owned(),
+        display_name: Some("Beta Admin".to_owned()),
+        password_hash: "hashed_password".to_owned(),
         tier: UserTier::Professional,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
@@ -108,10 +111,10 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     // Step 3: Create first tenant ("Acme Fitness Co.")
     let acme_tenant = Tenant {
         id: acme_tenant_id,
-        name: "Acme Fitness Co.".to_string(),
-        slug: "acme-fitness".to_string(),
+        name: "Acme Fitness Co.".to_owned(),
+        slug: "acme-fitness".to_owned(),
         domain: None,
-        plan: "enterprise".to_string(),
+        plan: "enterprise".to_owned(),
         owner_user_id: acme_admin_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
@@ -122,10 +125,10 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     // Step 4: Create second tenant ("Beta Health Inc.") for isolation testing
     let beta_tenant = Tenant {
         id: beta_tenant_id,
-        name: "Beta Health Inc.".to_string(),
-        slug: "beta-health".to_string(),
+        name: "Beta Health Inc.".to_owned(),
+        slug: "beta-health".to_owned(),
         domain: None,
-        plan: "professional".to_string(),
+        plan: "professional".to_owned(),
         owner_user_id: beta_admin_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
@@ -136,13 +139,13 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     // Step 5: Register OAuth applications for each tenant
     let acme_strava_app = OAuthApp {
         id: Uuid::new_v4(),
-        client_id: "acme_strava_client_123".to_string(),
-        client_secret: "encrypted_acme_secret".to_string(),
-        name: "Acme Fitness Strava Integration".to_string(),
-        description: Some("Strava integration for Acme Fitness".to_string()),
-        redirect_uris: vec!["https://acme-fitness.com/oauth/strava/callback".to_string()],
-        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
-        app_type: "confidential".to_string(),
+        client_id: "acme_strava_client_123".to_owned(),
+        client_secret: "encrypted_acme_secret".to_owned(),
+        name: "Acme Fitness Strava Integration".to_owned(),
+        description: Some("Strava integration for Acme Fitness".to_owned()),
+        redirect_uris: vec!["https://acme-fitness.com/oauth/strava/callback".to_owned()],
+        scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
+        app_type: "confidential".to_owned(),
         owner_user_id: acme_admin_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
@@ -150,13 +153,13 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
 
     let beta_strava_app = OAuthApp {
         id: Uuid::new_v4(),
-        client_id: "beta_strava_client_456".to_string(),
-        client_secret: "encrypted_beta_secret".to_string(),
-        name: "Beta Health Strava Integration".to_string(),
-        description: Some("Strava integration for Beta Health".to_string()),
-        redirect_uris: vec!["https://beta-health.com/oauth/strava/callback".to_string()],
-        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
-        app_type: "confidential".to_string(),
+        client_id: "beta_strava_client_456".to_owned(),
+        client_secret: "encrypted_beta_secret".to_owned(),
+        name: "Beta Health Strava Integration".to_owned(),
+        description: Some("Strava integration for Beta Health".to_owned()),
+        redirect_uris: vec!["https://beta-health.com/oauth/strava/callback".to_owned()],
+        scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
+        app_type: "confidential".to_owned(),
         owner_user_id: beta_admin_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
@@ -177,10 +180,10 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
 
     // Configure Acme's Strava credentials
     let acme_credentials = StoreCredentialsRequest {
-        client_id: "acme_strava_client_123".to_string(),
-        client_secret: "acme_secret_key".to_string(),
-        redirect_uri: "https://acme-fitness.com/oauth/strava/callback".to_string(),
-        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+        client_id: "acme_strava_client_123".to_owned(),
+        client_secret: "acme_secret_key".to_owned(),
+        redirect_uri: "https://acme-fitness.com/oauth/strava/callback".to_owned(),
+        scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
         configured_by: acme_admin_id,
     };
 
@@ -190,10 +193,10 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
 
     // Configure Beta's Strava credentials
     let beta_credentials = StoreCredentialsRequest {
-        client_id: "beta_strava_client_456".to_string(),
-        client_secret: "beta_secret_key".to_string(),
-        redirect_uri: "https://beta-health.com/oauth/strava/callback".to_string(),
-        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+        client_id: "beta_strava_client_456".to_owned(),
+        client_secret: "beta_secret_key".to_owned(),
+        redirect_uri: "https://beta-health.com/oauth/strava/callback".to_owned(),
+        scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
         configured_by: beta_admin_id,
     };
 
@@ -203,7 +206,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
 
     // Step 7: Create Universal Tool Executor with tenant OAuth support
     let _intelligence = Arc::new(ActivityIntelligence::new(
-        "E2E Test Intelligence".to_string(),
+        "E2E Test Intelligence".to_owned(),
         vec![], // No initial insights
         pierre_mcp_server::intelligence::PerformanceMetrics {
             relative_effort: Some(85.0),
@@ -245,17 +248,17 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     // Step 8: Test tenant-aware tool execution for Acme
     let acme_context = TenantContext::new(
         acme_tenant_id,
-        "Acme Fitness Co.".to_string(),
+        "Acme Fitness Co.".to_owned(),
         acme_admin_id,
         TenantRole::Admin,
     );
 
     let acme_request = UniversalRequest {
-        tool_name: "get_connection_status".to_string(),
+        tool_name: "get_connection_status".to_owned(),
         parameters: json!({}),
         user_id: acme_admin_id.to_string(),
-        protocol: "test".to_string(),
-        tenant_id: Some("acme".to_string()),
+        protocol: "test".to_owned(),
+        tenant_id: Some("acme".to_owned()),
     };
 
     let acme_response = executor.execute_tool(acme_request).await?;
@@ -265,17 +268,17 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     // Step 9: Test tenant-aware tool execution for Beta
     let beta_context = TenantContext::new(
         beta_tenant_id,
-        "Beta Health Inc.".to_string(),
+        "Beta Health Inc.".to_owned(),
         beta_admin_id,
         TenantRole::Admin,
     );
 
     let beta_request = UniversalRequest {
-        tool_name: "get_connection_status".to_string(),
+        tool_name: "get_connection_status".to_owned(),
         parameters: json!({}),
         user_id: beta_admin_id.to_string(),
-        protocol: "test".to_string(),
-        tenant_id: Some("beta".to_string()),
+        protocol: "test".to_owned(),
+        tenant_id: Some("beta".to_owned()),
     };
 
     let beta_response = executor.execute_tool(beta_request).await?;
@@ -374,13 +377,13 @@ async fn setup_multitenant_scenario(database: &Arc<Database>) -> Result<(Uuid, U
 
     let user = User {
         id: user_id,
-        email: "multi-tenant-user@example.com".to_string(),
-        display_name: Some("Multi Tenant User".to_string()),
-        password_hash: "hashed_password".to_string(),
+        email: "multi-tenant-user@example.com".to_owned(),
+        display_name: Some("Multi Tenant User".to_owned()),
+        password_hash: "hashed_password".to_owned(),
         tier: UserTier::Professional,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
@@ -394,10 +397,10 @@ async fn setup_multitenant_scenario(database: &Arc<Database>) -> Result<(Uuid, U
 
     let tenant1 = Tenant {
         id: tenant1_id,
-        name: "Tenant One".to_string(),
-        slug: "tenant-one".to_string(),
+        name: "Tenant One".to_owned(),
+        slug: "tenant-one".to_owned(),
         domain: None,
-        plan: "starter".to_string(),
+        plan: "starter".to_owned(),
         owner_user_id: user_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
@@ -405,10 +408,10 @@ async fn setup_multitenant_scenario(database: &Arc<Database>) -> Result<(Uuid, U
 
     let tenant2 = Tenant {
         id: tenant2_id,
-        name: "Tenant Two".to_string(),
-        slug: "tenant-two".to_string(),
+        name: "Tenant Two".to_owned(),
+        slug: "tenant-two".to_owned(),
         domain: None,
-        plan: "professional".to_string(),
+        plan: "professional".to_owned(),
         owner_user_id: user_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
@@ -438,18 +441,18 @@ async fn test_tenant_context_switching() -> Result<()> {
     )));
 
     let tenant1_creds = StoreCredentialsRequest {
-        client_id: "tenant1_client".to_string(),
-        client_secret: "tenant1_secret".to_string(),
-        redirect_uri: "https://tenant1.com/callback".to_string(),
-        scopes: vec!["read".to_string()],
+        client_id: "tenant1_client".to_owned(),
+        client_secret: "tenant1_secret".to_owned(),
+        redirect_uri: "https://tenant1.com/callback".to_owned(),
+        scopes: vec!["read".to_owned()],
         configured_by: user_id,
     };
 
     let tenant2_creds = StoreCredentialsRequest {
-        client_id: "tenant2_client".to_string(),
-        client_secret: "tenant2_secret".to_string(),
-        redirect_uri: "https://tenant2.com/callback".to_string(),
-        scopes: vec!["read".to_string(), "write".to_string()],
+        client_id: "tenant2_client".to_owned(),
+        client_secret: "tenant2_secret".to_owned(),
+        redirect_uri: "https://tenant2.com/callback".to_owned(),
+        scopes: vec!["read".to_owned(), "write".to_owned()],
         configured_by: user_id,
     };
 
@@ -463,14 +466,14 @@ async fn test_tenant_context_switching() -> Result<()> {
     // Test that the same user gets different OAuth clients for different tenants
     let tenant1_context = TenantContext::new(
         tenant1_id,
-        "Tenant One".to_string(),
+        "Tenant One".to_owned(),
         user_id,
         TenantRole::Member,
     );
 
     let tenant2_context = TenantContext::new(
         tenant2_id,
-        "Tenant Two".to_string(),
+        "Tenant Two".to_owned(),
         user_id,
         TenantRole::Member,
     );
@@ -520,10 +523,10 @@ fn create_test_server_config() -> ServerConfig {
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
-                client_id: Some("test_strava_client".to_string()),
-                client_secret: Some("test_strava_secret".to_string()),
-                redirect_uri: Some("http://localhost:3000/oauth/strava/callback".to_string()),
-                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                client_id: Some("test_strava_client".to_owned()),
+                client_secret: Some("test_strava_secret".to_owned()),
+                redirect_uri: Some("http://localhost:3000/oauth/strava/callback".to_owned()),
+                scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
                 enabled: true,
             },
             fitbit: OAuthProviderConfig {
@@ -549,24 +552,24 @@ fn create_test_server_config() -> ServerConfig {
         external_services: ExternalServicesConfig {
             weather: WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: true,
             },
             strava_api: StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             ..Default::default()
         },
@@ -575,9 +578,9 @@ fn create_test_server_config() -> ServerConfig {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: ProtocolConfig {
-                mcp_version: "2024-11-05".to_string(),
-                server_name: "pierre-mcp-server-e2e-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2024-11-05".to_owned(),
+                server_name: "pierre-mcp-server-e2e-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),

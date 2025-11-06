@@ -36,16 +36,23 @@ fn default_request_id() -> Value {
 
 /// OAuth credentials provided in MCP requests
 pub struct McpOAuthCredentials<'a> {
+    /// Strava OAuth client ID
     pub strava_client_id: Option<&'a str>,
+    /// Strava OAuth client secret
     pub strava_client_secret: Option<&'a str>,
+    /// Fitbit OAuth client ID
     pub fitbit_client_id: Option<&'a str>,
+    /// Fitbit OAuth client secret
     pub fitbit_client_secret: Option<&'a str>,
 }
 
 /// Context for routing tool calls with necessary resources and auth information
 pub struct ToolRoutingContext<'a> {
+    /// Server resources for dependency injection
     pub resources: &'a Arc<ServerResources>,
+    /// Optional tenant context for multi-tenant isolation
     pub tenant_context: &'a Option<TenantContext>,
+    /// Authentication result with user and rate limit info
     pub auth_result: &'a AuthResult,
 }
 
@@ -172,12 +179,12 @@ impl ToolHandlers {
         let Some(params) = request.params else {
             error!("Missing request parameters in tools/call");
             return McpResponse {
-                jsonrpc: "2.0".to_string(),
+                jsonrpc: "2.0".to_owned(),
                 id: request.id,
                 result: None,
                 error: Some(McpError {
                     code: ERROR_INVALID_PARAMS,
-                    message: "Invalid params: Missing request parameters".to_string(),
+                    message: "Invalid params: Missing request parameters".to_owned(),
                     data: None,
                 }),
             };
@@ -279,7 +286,7 @@ impl ToolHandlers {
         McpResponse::error_with_data(
             request.id,
             error_code,
-            error_msg.to_string(),
+            error_msg.to_owned(),
             serde_json::json!({
                 "detailed_error": error_message,
                 "authentication_failed": true
@@ -302,7 +309,7 @@ impl ToolHandlers {
                 // Return a response that triggers the OAuth flow
                 // The actual authentication is handled by the OAuth 2.0 flow configured in the server
                 McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     id: Some(request_id),
                     result: Some(json!({
                         "content": [{
@@ -330,7 +337,7 @@ impl ToolHandlers {
                     || !["strava", "fitbit"].contains(&provider_name.as_str())
                 {
                     return McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        jsonrpc: JSONRPC_VERSION.to_owned(),
                         id: Some(request_id),
                         result: Some(json!({
                             "content": [{
@@ -345,7 +352,7 @@ impl ToolHandlers {
 
                 // Return unified auth flow response
                 McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     id: Some(request_id),
                     result: Some(json!({
                         "content": [{
@@ -393,12 +400,12 @@ impl ToolHandlers {
                 }
                 // No legacy fallback - require tenant context
                 McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     result: None,
                     error: Some(McpError {
                         code: ERROR_INVALID_PARAMS,
                         message: "No tenant context found. User must be assigned to a tenant."
-                            .to_string(),
+                            .to_owned(),
                         data: None,
                     }),
                     id: Some(request_id),
@@ -501,7 +508,7 @@ impl ToolHandlers {
                     Ok(marked) => {
                         if marked {
                             McpResponse {
-                                jsonrpc: JSONRPC_VERSION.to_string(),
+                                jsonrpc: JSONRPC_VERSION.to_owned(),
                                 result: Some(serde_json::json!({
                                     "success": true,
                                     "message": "Notification marked as read",
@@ -512,11 +519,11 @@ impl ToolHandlers {
                             }
                         } else {
                             McpResponse {
-                                jsonrpc: JSONRPC_VERSION.to_string(),
+                                jsonrpc: JSONRPC_VERSION.to_owned(),
                                 result: None,
                                 error: Some(McpError {
                                     code: ERROR_INVALID_PARAMS,
-                                    message: "Notification not found or already read".to_string(),
+                                    message: "Notification not found or already read".to_owned(),
                                     data: None,
                                 }),
                                 id: Some(request_id),
@@ -526,7 +533,7 @@ impl ToolHandlers {
                     Err(e) => {
                         error!("Failed to mark notification as read: {}", e);
                         McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            jsonrpc: JSONRPC_VERSION.to_owned(),
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_TOOL_EXECUTION,
@@ -547,7 +554,7 @@ impl ToolHandlers {
                     .await
                 {
                     Ok(count) => McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        jsonrpc: JSONRPC_VERSION.to_owned(),
                         result: Some(serde_json::json!({
                             "success": true,
                             "message": format!("Marked {} notifications as read", count),
@@ -559,7 +566,7 @@ impl ToolHandlers {
                     Err(e) => {
                         error!("Failed to mark all notifications as read: {}", e);
                         McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            jsonrpc: JSONRPC_VERSION.to_owned(),
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_TOOL_EXECUTION,
@@ -637,7 +644,7 @@ impl ToolHandlers {
                 );
 
                 let mcp_response = McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     result: Some(response_data),
                     error: None,
                     id: Some(request_id),
@@ -652,7 +659,7 @@ impl ToolHandlers {
             Err(e) => {
                 error!("Failed to retrieve notifications: {}", e);
                 McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     result: None,
                     error: Some(McpError {
                         code: ERROR_TOOL_EXECUTION,
@@ -702,7 +709,7 @@ impl ToolHandlers {
         }
 
         McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             result: Some(serde_json::json!({
                 "success": true,
                 "announcement": success_message,
@@ -734,7 +741,7 @@ impl ToolHandlers {
                 if notifications.is_empty() {
                     // No new notifications
                     McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        jsonrpc: JSONRPC_VERSION.to_owned(),
                         result: Some(serde_json::json!({
                             "success": true,
                             "message": "No new OAuth notifications",
@@ -772,7 +779,7 @@ impl ToolHandlers {
                     let combined_announcement = announcements.join("\n\n---\n\n");
 
                     McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        jsonrpc: JSONRPC_VERSION.to_owned(),
                         result: Some(serde_json::json!({
                             "success": true,
                             "announcement": combined_announcement,
@@ -787,7 +794,7 @@ impl ToolHandlers {
             Err(e) => {
                 error!("Failed to check OAuth notifications: {}", e);
                 McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     result: None,
                     error: Some(McpError {
                         code: ERROR_AUTHENTICATION,
@@ -817,11 +824,11 @@ impl ToolHandlers {
                 Some(tid) => tid,
                 None => {
                     return McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        jsonrpc: JSONRPC_VERSION.to_owned(),
                         result: None,
                         error: Some(McpError {
                             code: ERROR_INVALID_PARAMS,
-                            message: "User has no tenant assigned".to_string(),
+                            message: "User has no tenant assigned".to_owned(),
                             data: None,
                         }),
                         id: Some(request_id),
@@ -830,11 +837,11 @@ impl ToolHandlers {
             },
             Ok(None) => {
                 return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     result: None,
                     error: Some(McpError {
                         code: ERROR_INVALID_PARAMS,
-                        message: "User not found".to_string(),
+                        message: "User not found".to_owned(),
                         data: None,
                     }),
                     id: Some(request_id),
@@ -843,11 +850,11 @@ impl ToolHandlers {
             Err(e) => {
                 error!("Database error getting user: {}", e);
                 return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     result: None,
                     error: Some(McpError {
                         code: ERROR_INTERNAL_ERROR,
-                        message: "Database error".to_string(),
+                        message: "Database error".to_owned(),
                         data: None,
                     }),
                     id: Some(request_id),
@@ -896,11 +903,11 @@ impl ToolHandlers {
                 .await
             }
             _ => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
+                jsonrpc: JSONRPC_VERSION.to_owned(),
                 result: None,
                 error: Some(McpError {
                     code: ERROR_METHOD_NOT_FOUND,
-                    message: "Unknown fitness config tool".to_string(),
+                    message: "Unknown fitness config tool".to_owned(),
                     data: None,
                 }),
                 id: Some(request_id),
@@ -925,7 +932,7 @@ impl ToolHandlers {
             .await
         {
             Ok(Some(config)) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
+                jsonrpc: JSONRPC_VERSION.to_owned(),
                 result: Some(json!({
                     "configuration_name": config_name,
                     "configuration": config
@@ -940,7 +947,7 @@ impl ToolHandlers {
                     .await
                 {
                     Ok(Some(config)) => McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        jsonrpc: JSONRPC_VERSION.to_owned(),
                         result: Some(json!({
                             "configuration_name": config_name,
                             "configuration": config,
@@ -950,7 +957,7 @@ impl ToolHandlers {
                         id: Some(request_id),
                     },
                     Ok(None) => McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        jsonrpc: JSONRPC_VERSION.to_owned(),
                         result: None,
                         error: Some(McpError {
                             code: ERROR_INVALID_PARAMS,
@@ -962,11 +969,11 @@ impl ToolHandlers {
                     Err(e) => {
                         error!("Error getting tenant fitness config: {}", e);
                         McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            jsonrpc: JSONRPC_VERSION.to_owned(),
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_INTERNAL_ERROR,
-                                message: "Database error".to_string(),
+                                message: "Database error".to_owned(),
                                 data: None,
                             }),
                             id: Some(request_id),
@@ -977,11 +984,11 @@ impl ToolHandlers {
             Err(e) => {
                 error!("Error getting user fitness config: {}", e);
                 McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     result: None,
                     error: Some(McpError {
                         code: ERROR_INTERNAL_ERROR,
-                        message: "Database error".to_string(),
+                        message: "Database error".to_owned(),
                         data: None,
                     }),
                     id: Some(request_id),
@@ -1010,7 +1017,7 @@ impl ToolHandlers {
                     Ok(fc) => fc,
                     Err(e) => {
                         return McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            jsonrpc: JSONRPC_VERSION.to_owned(),
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_INVALID_PARAMS,
@@ -1024,11 +1031,11 @@ impl ToolHandlers {
             }
             None => {
                 return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     result: None,
                     error: Some(McpError {
                         code: ERROR_INVALID_PARAMS,
-                        message: "Missing configuration parameter".to_string(),
+                        message: "Missing configuration parameter".to_owned(),
                         data: None,
                     }),
                     id: Some(request_id),
@@ -1041,7 +1048,7 @@ impl ToolHandlers {
             .await
         {
             Ok(config_id) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
+                jsonrpc: JSONRPC_VERSION.to_owned(),
                 result: Some(json!({
                     "configuration_id": config_id,
                     "configuration_name": config_name,
@@ -1053,11 +1060,11 @@ impl ToolHandlers {
             Err(e) => {
                 error!("Error saving fitness config: {}", e);
                 McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     result: None,
                     error: Some(McpError {
                         code: ERROR_INTERNAL_ERROR,
-                        message: "Failed to save configuration".to_string(),
+                        message: "Failed to save configuration".to_owned(),
                         data: None,
                     }),
                     id: Some(request_id),
@@ -1102,7 +1109,7 @@ impl ToolHandlers {
         all_configs.dedup();
 
         McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             result: Some(json!({
                 "configurations": all_configs,
                 "total_count": all_configs.len()
@@ -1121,11 +1128,11 @@ impl ToolHandlers {
     ) -> McpResponse {
         let Some(config_name) = args.get("configuration_name").and_then(|v| v.as_str()) else {
             return McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
+                jsonrpc: JSONRPC_VERSION.to_owned(),
                 result: None,
                 error: Some(McpError {
                     code: ERROR_INVALID_PARAMS,
-                    message: "Missing configuration_name parameter".to_string(),
+                    message: "Missing configuration_name parameter".to_owned(),
                     data: None,
                 }),
                 id: Some(request_id),
@@ -1137,7 +1144,7 @@ impl ToolHandlers {
             .await
         {
             Ok(true) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
+                jsonrpc: JSONRPC_VERSION.to_owned(),
                 result: Some(json!({
                     "configuration_name": config_name,
                     "message": "Fitness configuration deleted successfully"
@@ -1146,7 +1153,7 @@ impl ToolHandlers {
                 id: Some(request_id),
             },
             Ok(false) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
+                jsonrpc: JSONRPC_VERSION.to_owned(),
                 result: None,
                 error: Some(McpError {
                     code: ERROR_INVALID_PARAMS,
@@ -1158,11 +1165,11 @@ impl ToolHandlers {
             Err(e) => {
                 error!("Error deleting fitness config: {}", e);
                 McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     result: None,
                     error: Some(McpError {
                         code: ERROR_INTERNAL_ERROR,
-                        message: "Failed to delete configuration".to_string(),
+                        message: "Failed to delete configuration".to_owned(),
                         data: None,
                     }),
                     id: Some(request_id),
@@ -1253,7 +1260,7 @@ impl ToolHandlers {
                     } else {
                         // Add notifications as a separate field in result
                         if let Some(obj) = result.as_object_mut() {
-                            obj.insert("oauth_notifications".to_string(), json!(notification_text));
+                            obj.insert("oauth_notifications".to_owned(), json!(notification_text));
                         }
                     }
                 }

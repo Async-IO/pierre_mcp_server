@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use pierre_mcp_server::{
     database::generate_encryption_key,
@@ -42,8 +45,8 @@ async fn test_redirect_uri_https_enforcement() {
 
     // Test 1: HTTPS URI should succeed
     let https_registration = ClientRegistrationRequest {
-        redirect_uris: vec!["https://example.com/callback".to_string()],
-        client_name: Some("HTTPS Client".to_string()),
+        redirect_uris: vec!["https://example.com/callback".to_owned()],
+        client_name: Some("HTTPS Client".to_owned()),
         client_uri: None,
         grant_types: None,
         response_types: None,
@@ -57,8 +60,8 @@ async fn test_redirect_uri_https_enforcement() {
 
     // Test 2: HTTP non-localhost URI should fail
     let http_non_localhost_registration = ClientRegistrationRequest {
-        redirect_uris: vec!["http://example.com/callback".to_string()],
-        client_name: Some("HTTP Client".to_string()),
+        redirect_uris: vec!["http://example.com/callback".to_owned()],
+        client_name: Some("HTTP Client".to_owned()),
         client_uri: None,
         grant_types: None,
         response_types: None,
@@ -77,8 +80,8 @@ async fn test_redirect_uri_https_enforcement() {
 
     // Test 3: HTTP localhost should succeed
     let localhost_registration = ClientRegistrationRequest {
-        redirect_uris: vec!["http://localhost:8080/callback".to_string()],
-        client_name: Some("Localhost Client".to_string()),
+        redirect_uris: vec!["http://localhost:8080/callback".to_owned()],
+        client_name: Some("Localhost Client".to_owned()),
         client_uri: None,
         grant_types: None,
         response_types: None,
@@ -92,8 +95,8 @@ async fn test_redirect_uri_https_enforcement() {
 
     // Test 4: HTTP 127.0.0.1 should succeed
     let loopback_registration = ClientRegistrationRequest {
-        redirect_uris: vec!["http://127.0.0.1:3000/callback".to_string()],
-        client_name: Some("Loopback Client".to_string()),
+        redirect_uris: vec!["http://127.0.0.1:3000/callback".to_owned()],
+        client_name: Some("Loopback Client".to_owned()),
         client_uri: None,
         grant_types: None,
         response_types: None,
@@ -134,8 +137,8 @@ async fn test_redirect_uri_fragment_rejection() {
 
     // URI with fragment should fail (security risk per RFC 6749)
     let fragment_registration = ClientRegistrationRequest {
-        redirect_uris: vec!["https://example.com/callback#fragment".to_string()],
-        client_name: Some("Fragment Client".to_string()),
+        redirect_uris: vec!["https://example.com/callback#fragment".to_owned()],
+        client_name: Some("Fragment Client".to_owned()),
         client_uri: None,
         grant_types: None,
         response_types: None,
@@ -181,8 +184,8 @@ async fn test_redirect_uri_wildcard_rejection() {
 
     // Wildcard URI should fail (subdomain bypass attack prevention)
     let wildcard_registration = ClientRegistrationRequest {
-        redirect_uris: vec!["https://*.example.com/callback".to_string()],
-        client_name: Some("Wildcard Client".to_string()),
+        redirect_uris: vec!["https://*.example.com/callback".to_owned()],
+        client_name: Some("Wildcard Client".to_owned()),
         client_uri: None,
         grant_types: None,
         response_types: None,
@@ -228,8 +231,8 @@ async fn test_redirect_uri_oob_urn() {
 
     // Out-of-band URN should succeed (for native apps per RFC 8252)
     let oob_registration = ClientRegistrationRequest {
-        redirect_uris: vec!["urn:ietf:wg:oauth:2.0:oob".to_string()],
-        client_name: Some("OOB Client".to_string()),
+        redirect_uris: vec!["urn:ietf:wg:oauth:2.0:oob".to_owned()],
+        client_name: Some("OOB Client".to_owned()),
         client_uri: None,
         grant_types: None,
         response_types: None,
@@ -267,8 +270,8 @@ async fn test_argon2id_client_secret_hashing() {
     let registration_manager = ClientRegistrationManager::new(database.clone());
 
     let registration_request = ClientRegistrationRequest {
-        redirect_uris: vec!["https://example.com/callback".to_string()],
-        client_name: Some("Test Client".to_string()),
+        redirect_uris: vec!["https://example.com/callback".to_owned()],
+        client_name: Some("Test Client".to_owned()),
         client_uri: None,
         grant_types: None,
         response_types: None,
@@ -333,8 +336,8 @@ async fn test_client_secret_validation() {
     let registration_manager = ClientRegistrationManager::new(database.clone());
 
     let registration_request = ClientRegistrationRequest {
-        redirect_uris: vec!["https://example.com/callback".to_string()],
-        client_name: Some("Test Client".to_string()),
+        redirect_uris: vec!["https://example.com/callback".to_owned()],
+        client_name: Some("Test Client".to_owned()),
         client_uri: None,
         grant_types: None,
         response_types: None,
@@ -398,7 +401,7 @@ async fn test_empty_redirect_uri_rejection() {
 
     let empty_uri_registration = ClientRegistrationRequest {
         redirect_uris: vec![],
-        client_name: Some("Empty URI Client".to_string()),
+        client_name: Some("Empty URI Client".to_owned()),
         client_uri: None,
         grant_types: None,
         response_types: None,
@@ -443,8 +446,8 @@ async fn test_malformed_uri_rejection() {
     let registration_manager = ClientRegistrationManager::new(database.clone());
 
     let malformed_uri_registration = ClientRegistrationRequest {
-        redirect_uris: vec!["not-a-valid-uri".to_string()],
-        client_name: Some("Malformed URI Client".to_string()),
+        redirect_uris: vec!["not-a-valid-uri".to_owned()],
+        client_name: Some("Malformed URI Client".to_owned()),
         client_uri: None,
         grant_types: None,
         response_types: None,
@@ -489,10 +492,10 @@ async fn test_unsupported_grant_type_rejection() {
     let registration_manager = ClientRegistrationManager::new(database.clone());
 
     let unsupported_grant_registration = ClientRegistrationRequest {
-        redirect_uris: vec!["https://example.com/callback".to_string()],
-        client_name: Some("Unsupported Grant Client".to_string()),
+        redirect_uris: vec!["https://example.com/callback".to_owned()],
+        client_name: Some("Unsupported Grant Client".to_owned()),
         client_uri: None,
-        grant_types: Some(vec!["implicit".to_string()]),
+        grant_types: Some(vec!["implicit".to_owned()]),
         response_types: None,
         scope: None,
     };
@@ -535,11 +538,11 @@ async fn test_unsupported_response_type_rejection() {
     let registration_manager = ClientRegistrationManager::new(database.clone());
 
     let unsupported_response_registration = ClientRegistrationRequest {
-        redirect_uris: vec!["https://example.com/callback".to_string()],
-        client_name: Some("Unsupported Response Client".to_string()),
+        redirect_uris: vec!["https://example.com/callback".to_owned()],
+        client_name: Some("Unsupported Response Client".to_owned()),
         client_uri: None,
         grant_types: None,
-        response_types: Some(vec!["token".to_string()]),
+        response_types: Some(vec!["token".to_owned()]),
         scope: None,
     };
 

@@ -119,7 +119,7 @@ impl PluginToolExecutor {
         // Add core tools
         let core_tools = Self::get_core_tools();
         for &tool_name in core_tools {
-            tools.push(tool_name.to_string());
+            tools.push(tool_name.to_owned());
         }
 
         // Add plugin tools
@@ -169,8 +169,8 @@ impl PluginToolExecutor {
                 _ => "Core fitness tool",
             };
             return Some(ToolInfo::Core {
-                name: tool_name.to_string(),
-                description: description.to_string(),
+                name: tool_name.to_owned(),
+                description: description.to_owned(),
             });
         }
 
@@ -192,8 +192,15 @@ impl PluginToolExecutor {
 /// Tool information wrapper for both core and plugin tools
 #[derive(Debug, Clone)]
 pub enum ToolInfo {
+    /// Plugin-based tool with full plugin metadata
     Plugin(crate::plugins::core::PluginInfo),
-    Core { name: String, description: String },
+    /// Core built-in tool
+    Core {
+        /// Tool name
+        name: String,
+        /// Tool description
+        description: String,
+    },
 }
 
 impl ToolInfo {
@@ -225,9 +232,13 @@ impl ToolInfo {
 /// Executor statistics for monitoring
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ExecutorStatistics {
+    /// Total number of tools (core + plugins)
     pub total_tools: usize,
+    /// Number of core built-in tools
     pub core_tools: usize,
+    /// Number of plugin-provided tools
     pub plugin_tools: usize,
+    /// Detailed plugin registry statistics
     pub plugin_stats: crate::plugins::registry::PluginRegistryStatistics,
 }
 
@@ -277,7 +288,7 @@ impl PluginToolExecutorBuilder {
     pub fn build(self) -> Result<PluginToolExecutor, ProtocolError> {
         let resources = self.resources.ok_or_else(|| {
             ProtocolError::ConfigurationError(
-                "ServerResources required for plugin executor".to_string(),
+                "ServerResources required for plugin executor".to_owned(),
             )
         })?;
         let mut executor = PluginToolExecutor::new(resources);

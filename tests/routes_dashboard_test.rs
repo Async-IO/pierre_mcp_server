@@ -3,6 +3,8 @@
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(
     clippy::uninlined_format_args,
     clippy::cast_possible_truncation,
@@ -245,31 +247,31 @@ impl DashboardTestSetup {
             external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
                 weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
                     api_key: None,
-                    base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                    base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                     enabled: false,
                 },
                 geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                    base_url: "https://nominatim.openstreetmap.org".to_string(),
+                    base_url: "https://nominatim.openstreetmap.org".to_owned(),
                     enabled: false,
                 },
                 strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                    base_url: "https://www.strava.com/api/v3".to_string(),
-                    auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                    token_url: "https://www.strava.com/oauth/token".to_string(),
-                    deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                    base_url: "https://www.strava.com/api/v3".to_owned(),
+                    auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                    token_url: "https://www.strava.com/oauth/token".to_owned(),
+                    deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
                 },
                 fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                    base_url: "https://api.fitbit.com".to_string(),
-                    auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                    token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                    revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                    base_url: "https://api.fitbit.com".to_owned(),
+                    auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                    token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                    revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
                 },
                 garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
-                    base_url: "https://apis.garmin.com".to_string(),
-                    auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
+                    base_url: "https://apis.garmin.com".to_owned(),
+                    auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
                     token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
                         .to_string(),
-                    revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                    revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
                 },
             },
             app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
@@ -277,23 +279,23 @@ impl DashboardTestSetup {
                 default_activities_limit: 20,
                 ci_mode: true,
                 protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                    mcp_version: "2025-06-18".to_string(),
-                    server_name: "pierre-mcp-server-test".to_string(),
-                    server_version: env!("CARGO_PKG_VERSION").to_string(),
+                    mcp_version: "2025-06-18".to_owned(),
+                    server_name: "pierre-mcp-server-test".to_owned(),
+                    server_version: env!("CARGO_PKG_VERSION").to_owned(),
                 },
             },
             sse: pierre_mcp_server::config::environment::SseConfig::default(),
             oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
             route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-            host: "localhost".to_string(),
-            base_url: "http://localhost:8081".to_string(),
+            host: "localhost".to_owned(),
+            base_url: "http://localhost:8081".to_owned(),
             mcp: pierre_mcp_server::config::environment::McpConfig {
-                protocol_version: "2025-06-18".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
+                protocol_version: "2025-06-18".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
                 session_cache_size: 1000,
             },
             cors: pierre_mcp_server::config::environment::CorsConfig {
-                allowed_origins: "*".to_string(),
+                allowed_origins: "*".to_owned(),
                 allow_localhost_dev: true,
             },
             cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -340,8 +342,8 @@ impl DashboardTestSetup {
 
         // Create professional tier API key
         let request_pro = CreateApiKeyRequest {
-            name: "Professional Dashboard Key".to_string(),
-            description: Some("Professional tier for dashboard testing".to_string()),
+            name: "Professional Dashboard Key".to_owned(),
+            description: Some("Professional tier for dashboard testing".to_owned()),
             tier: ApiKeyTier::Professional,
             rate_limit_requests: Some(5000),
             expires_in_days: None,
@@ -354,8 +356,8 @@ impl DashboardTestSetup {
 
         // Create enterprise tier API key
         let request_enterprise = CreateApiKeyRequest {
-            name: "Enterprise Dashboard Key".to_string(),
-            description: Some("Enterprise tier for dashboard testing".to_string()),
+            name: "Enterprise Dashboard Key".to_owned(),
+            description: Some("Enterprise tier for dashboard testing".to_owned()),
             tier: ApiKeyTier::Enterprise,
             rate_limit_requests: None, // Unlimited
             expires_in_days: Some(365),
@@ -384,15 +386,15 @@ impl DashboardTestSetup {
         AuthResult {
             user_id: self.user_id,
             auth_method: AuthMethod::JwtToken {
-                tier: "premium".to_string(),
+                tier: "premium".to_owned(),
             },
             rate_limit: UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: Some(1000),
                 remaining: Some(1000),
                 reset_at: None,
-                tier: "premium".to_string(),
-                auth_method: "jwt".to_string(),
+                tier: "premium".to_owned(),
+                auth_method: "jwt".to_owned(),
             },
         }
     }
@@ -427,22 +429,22 @@ impl DashboardTestSetup {
                         api_key_id: api_key.id.clone(),
                         timestamp: timestamp + Duration::minutes(i64::from(j) * 2),
                         tool_name: match j % 4 {
-                            0 => "strava_activities".to_string(),
-                            1 => "fitbit_data".to_string(),
-                            2 => "weather_info".to_string(),
-                            _ => "analytics".to_string(),
+                            0 => "strava_activities".to_owned(),
+                            1 => "fitbit_data".to_owned(),
+                            2 => "weather_info".to_owned(),
+                            _ => "analytics".to_owned(),
                         },
                         response_time_ms: Some(100 + (j % 200)),
                         status_code: if j % 20 == 0 { 500 } else { 200 }, // 95% success rate
                         error_message: if j % 20 == 0 {
-                            Some("Test error".to_string())
+                            Some("Test error".to_owned())
                         } else {
                             None
                         },
                         request_size_bytes: Some(1024 + (j % 512)),
                         response_size_bytes: Some(2048 + (j % 1024)),
-                        ip_address: Some("127.0.0.1".to_string()),
-                        user_agent: Some("test-client".to_string()),
+                        ip_address: Some("127.0.0.1".to_owned()),
+                        user_agent: Some("test-client".to_owned()),
                     };
 
                     // Record the usage
@@ -484,9 +486,9 @@ async fn test_get_dashboard_overview_success() -> Result<()> {
         .iter()
         .map(|t| &t.tier)
         .collect();
-    assert!(tier_names.contains(&&"starter".to_string()));
-    assert!(tier_names.contains(&&"professional".to_string()));
-    assert!(tier_names.contains(&&"enterprise".to_string()));
+    assert!(tier_names.contains(&&"starter".to_owned()));
+    assert!(tier_names.contains(&&"professional".to_owned()));
+    assert!(tier_names.contains(&&"enterprise".to_owned()));
 
     // Note: Recent activity might be empty in test environment since
     // get_request_logs method may not be fully implemented for test database
@@ -506,15 +508,15 @@ async fn test_get_dashboard_overview_invalid_auth() -> Result<()> {
         .get_dashboard_overview(pierre_mcp_server::auth::AuthResult {
             user_id: uuid::Uuid::nil(),
             auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
-                tier: "premium".to_string(),
+                tier: "premium".to_owned(),
             },
             rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: Some(1000),
                 remaining: Some(1000),
                 reset_at: None,
-                tier: "premium".to_string(),
-                auth_method: "jwt".to_string(),
+                tier: "premium".to_owned(),
+                auth_method: "jwt".to_owned(),
             },
         })
         .await;
@@ -526,15 +528,15 @@ async fn test_get_dashboard_overview_invalid_auth() -> Result<()> {
         .get_dashboard_overview(pierre_mcp_server::auth::AuthResult {
             user_id: uuid::Uuid::nil(),
             auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
-                tier: "premium".to_string(),
+                tier: "premium".to_owned(),
             },
             rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: Some(1000),
                 remaining: Some(1000),
                 reset_at: None,
-                tier: "premium".to_string(),
-                auth_method: "jwt".to_string(),
+                tier: "premium".to_owned(),
+                auth_method: "jwt".to_owned(),
             },
         })
         .await;
@@ -546,15 +548,15 @@ async fn test_get_dashboard_overview_invalid_auth() -> Result<()> {
         .get_dashboard_overview(pierre_mcp_server::auth::AuthResult {
             user_id: uuid::Uuid::nil(),
             auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
-                tier: "premium".to_string(),
+                tier: "premium".to_owned(),
             },
             rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: Some(1000),
                 remaining: Some(1000),
                 reset_at: None,
-                tier: "premium".to_string(),
-                auth_method: "jwt".to_string(),
+                tier: "premium".to_owned(),
+                auth_method: "jwt".to_owned(),
             },
         })
         .await;
@@ -630,31 +632,31 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
         external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
             weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: false,
             },
             strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
-                base_url: "https://apis.garmin.com".to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
+                base_url: "https://apis.garmin.com".to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
                 token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
                     .to_string(),
-                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
@@ -662,23 +664,23 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                mcp_version: "2025-06-18".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2025-06-18".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: pierre_mcp_server::config::environment::McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: pierre_mcp_server::config::environment::CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -711,15 +713,15 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
     let auth_result = pierre_mcp_server::auth::AuthResult {
         user_id,
         auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
-            tier: "premium".to_string(),
+            tier: "premium".to_owned(),
         },
         rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
             is_rate_limited: false,
             limit: Some(1000),
             remaining: Some(1000),
             reset_at: None,
-            tier: "premium".to_string(),
-            auth_method: "jwt".to_string(),
+            tier: "premium".to_owned(),
+            auth_method: "jwt".to_owned(),
         },
     };
 
@@ -814,15 +816,15 @@ async fn test_get_usage_analytics_invalid_auth() -> Result<()> {
             pierre_mcp_server::auth::AuthResult {
                 user_id: uuid::Uuid::nil(),
                 auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
-                    tier: "premium".to_string(),
+                    tier: "premium".to_owned(),
                 },
                 rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
                     is_rate_limited: false,
                     limit: Some(1000),
                     remaining: Some(1000),
                     reset_at: None,
-                    tier: "premium".to_string(),
-                    auth_method: "jwt".to_string(),
+                    tier: "premium".to_owned(),
+                    auth_method: "jwt".to_owned(),
                 },
             },
             7,
@@ -836,15 +838,15 @@ async fn test_get_usage_analytics_invalid_auth() -> Result<()> {
             pierre_mcp_server::auth::AuthResult {
                 user_id: uuid::Uuid::nil(),
                 auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
-                    tier: "premium".to_string(),
+                    tier: "premium".to_owned(),
                 },
                 rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
                     is_rate_limited: false,
                     limit: Some(1000),
                     remaining: Some(1000),
                     reset_at: None,
-                    tier: "premium".to_string(),
-                    auth_method: "jwt".to_string(),
+                    tier: "premium".to_owned(),
+                    auth_method: "jwt".to_owned(),
                 },
             },
             7,
@@ -937,15 +939,15 @@ async fn test_get_rate_limit_overview_invalid_auth() -> Result<()> {
         .get_rate_limit_overview(pierre_mcp_server::auth::AuthResult {
             user_id: uuid::Uuid::nil(),
             auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
-                tier: "premium".to_string(),
+                tier: "premium".to_owned(),
             },
             rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: Some(1000),
                 remaining: Some(1000),
                 reset_at: None,
-                tier: "premium".to_string(),
-                auth_method: "jwt".to_string(),
+                tier: "premium".to_owned(),
+                auth_method: "jwt".to_owned(),
             },
         })
         .await;
@@ -956,15 +958,15 @@ async fn test_get_rate_limit_overview_invalid_auth() -> Result<()> {
         .get_rate_limit_overview(pierre_mcp_server::auth::AuthResult {
             user_id: uuid::Uuid::nil(),
             auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
-                tier: "premium".to_string(),
+                tier: "premium".to_owned(),
             },
             rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: Some(1000),
                 remaining: Some(1000),
                 reset_at: None,
-                tier: "premium".to_string(),
-                auth_method: "jwt".to_string(),
+                tier: "premium".to_owned(),
+                auth_method: "jwt".to_owned(),
             },
         })
         .await;
@@ -1224,15 +1226,15 @@ async fn test_get_request_stats_invalid_auth() -> Result<()> {
             pierre_mcp_server::auth::AuthResult {
                 user_id: uuid::Uuid::nil(),
                 auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
-                    tier: "premium".to_string(),
+                    tier: "premium".to_owned(),
                 },
                 rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
                     is_rate_limited: false,
                     limit: Some(1000),
                     remaining: Some(1000),
                     reset_at: None,
-                    tier: "premium".to_string(),
-                    auth_method: "jwt".to_string(),
+                    tier: "premium".to_owned(),
+                    auth_method: "jwt".to_owned(),
                 },
             },
             None,
@@ -1247,15 +1249,15 @@ async fn test_get_request_stats_invalid_auth() -> Result<()> {
             pierre_mcp_server::auth::AuthResult {
                 user_id: uuid::Uuid::nil(),
                 auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
-                    tier: "premium".to_string(),
+                    tier: "premium".to_owned(),
                 },
                 rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
                     is_rate_limited: false,
                     limit: Some(1000),
                     remaining: Some(1000),
                     reset_at: None,
-                    tier: "premium".to_string(),
-                    auth_method: "jwt".to_string(),
+                    tier: "premium".to_owned(),
+                    auth_method: "jwt".to_owned(),
                 },
             },
             None,
@@ -1341,15 +1343,15 @@ async fn test_get_tool_usage_breakdown_invalid_auth() -> Result<()> {
             pierre_mcp_server::auth::AuthResult {
                 user_id: uuid::Uuid::nil(),
                 auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
-                    tier: "premium".to_string(),
+                    tier: "premium".to_owned(),
                 },
                 rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
                     is_rate_limited: false,
                     limit: Some(1000),
                     remaining: Some(1000),
                     reset_at: None,
-                    tier: "premium".to_string(),
-                    auth_method: "jwt".to_string(),
+                    tier: "premium".to_owned(),
+                    auth_method: "jwt".to_owned(),
                 },
             },
             None,
@@ -1364,15 +1366,15 @@ async fn test_get_tool_usage_breakdown_invalid_auth() -> Result<()> {
             pierre_mcp_server::auth::AuthResult {
                 user_id: uuid::Uuid::nil(),
                 auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
-                    tier: "premium".to_string(),
+                    tier: "premium".to_owned(),
                 },
                 rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
                     is_rate_limited: false,
                     limit: Some(1000),
                     remaining: Some(1000),
                     reset_at: None,
-                    tier: "premium".to_string(),
-                    auth_method: "jwt".to_string(),
+                    tier: "premium".to_owned(),
+                    auth_method: "jwt".to_owned(),
                 },
             },
             None,
@@ -1409,15 +1411,15 @@ async fn test_dashboard_with_malformed_jwt() -> Result<()> {
             .get_dashboard_overview(pierre_mcp_server::auth::AuthResult {
                 user_id: uuid::Uuid::nil(),
                 auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
-                    tier: "premium".to_string(),
+                    tier: "premium".to_owned(),
                 },
                 rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
                     is_rate_limited: false,
                     limit: Some(1000),
                     remaining: Some(1000),
                     reset_at: None,
-                    tier: "premium".to_string(),
-                    auth_method: "jwt".to_string(),
+                    tier: "premium".to_owned(),
+                    auth_method: "jwt".to_owned(),
                 },
             })
             .await;
@@ -1442,15 +1444,15 @@ async fn test_dashboard_with_different_user() -> Result<()> {
     let other_auth_result = pierre_mcp_server::auth::AuthResult {
         user_id: other_user_id,
         auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
-            tier: "premium".to_string(),
+            tier: "premium".to_owned(),
         },
         rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
             is_rate_limited: false,
             limit: Some(1000),
             remaining: Some(1000),
             reset_at: None,
-            tier: "premium".to_string(),
-            auth_method: "jwt".to_string(),
+            tier: "premium".to_owned(),
+            auth_method: "jwt".to_owned(),
         },
     };
 

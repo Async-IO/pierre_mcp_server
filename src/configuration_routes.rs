@@ -32,6 +32,7 @@ use uuid::Uuid;
 // Request/Response Models
 // ================================================================================================
 
+/// Request to update configuration with profile and parameter overrides
 #[derive(Debug, Deserialize)]
 pub struct UpdateConfigurationRequest {
     /// Optional profile to apply
@@ -40,6 +41,7 @@ pub struct UpdateConfigurationRequest {
     pub parameters: Option<HashMap<String, serde_json::Value>>,
 }
 
+/// Request to calculate personalized training zones based on physiological parameters
 #[derive(Debug, Deserialize)]
 pub struct PersonalizedZonesRequest {
     /// VO2 max in ml/kg/min
@@ -54,12 +56,14 @@ pub struct PersonalizedZonesRequest {
     pub sport_efficiency: Option<f64>,
 }
 
+/// Request to validate configuration parameters against safety constraints
 #[derive(Debug, Deserialize)]
 pub struct ValidateConfigurationRequest {
     /// Parameters to validate
     pub parameters: HashMap<String, serde_json::Value>,
 }
 
+/// Response containing the complete configuration catalog
 #[derive(Debug, Serialize)]
 pub struct ConfigurationCatalogResponse {
     /// Complete configuration catalog
@@ -68,6 +72,7 @@ pub struct ConfigurationCatalogResponse {
     pub metadata: ResponseMetadata,
 }
 
+/// Response containing available configuration profiles
 #[derive(Debug, Serialize)]
 pub struct ConfigurationProfilesResponse {
     /// Available configuration profiles
@@ -78,6 +83,7 @@ pub struct ConfigurationProfilesResponse {
     pub metadata: ResponseMetadata,
 }
 
+/// Information about a single configuration profile
 #[derive(Debug, Serialize)]
 pub struct ProfileInfo {
     /// Profile name
@@ -90,6 +96,7 @@ pub struct ProfileInfo {
     pub profile: ConfigProfile,
 }
 
+/// Response containing user's current configuration state
 #[derive(Debug, Serialize)]
 pub struct UserConfigurationResponse {
     /// User ID
@@ -104,6 +111,7 @@ pub struct UserConfigurationResponse {
     pub metadata: ResponseMetadata,
 }
 
+/// Detailed configuration state for a user
 #[derive(Debug, Serialize)]
 pub struct ConfigurationDetails {
     /// Active profile
@@ -114,6 +122,7 @@ pub struct ConfigurationDetails {
     pub last_modified: chrono::DateTime<chrono::Utc>,
 }
 
+/// Response after updating user configuration
 #[derive(Debug, Serialize)]
 pub struct UpdateConfigurationResponse {
     /// User ID
@@ -126,6 +135,7 @@ pub struct UpdateConfigurationResponse {
     pub metadata: ResponseMetadata,
 }
 
+/// Details about the updated configuration state
 #[derive(Debug, Serialize)]
 pub struct UpdatedConfigurationDetails {
     /// Active profile name
@@ -136,6 +146,7 @@ pub struct UpdatedConfigurationDetails {
     pub last_modified: chrono::DateTime<chrono::Utc>,
 }
 
+/// Response containing personalized training zones based on user's physiology
 #[derive(Debug, Serialize)]
 pub struct PersonalizedZonesResponse {
     /// User profile parameters
@@ -148,6 +159,7 @@ pub struct PersonalizedZonesResponse {
     pub metadata: ResponseMetadata,
 }
 
+/// User's physiological profile parameters used for zone calculations
 #[derive(Debug, Serialize)]
 pub struct UserProfileParameters {
     /// VO2 max value
@@ -162,6 +174,7 @@ pub struct UserProfileParameters {
     pub sport_efficiency: f64,
 }
 
+/// All personalized training zones (HR, pace, power)
 #[derive(Debug, Serialize)]
 pub struct PersonalizedZones {
     /// Heart rate zones
@@ -174,6 +187,7 @@ pub struct PersonalizedZones {
     pub estimated_ftp: f64,
 }
 
+/// Methods and formulas used for zone calculations
 #[derive(Debug, Serialize)]
 pub struct ZoneCalculationMethods {
     /// Heart rate calculation method
@@ -184,6 +198,7 @@ pub struct ZoneCalculationMethods {
     pub power_estimation: String,
 }
 
+/// Response from configuration parameter validation
 #[derive(Debug, Serialize)]
 pub struct ValidationResponse {
     /// Whether validation passed
@@ -198,6 +213,7 @@ pub struct ValidationResponse {
     pub metadata: ResponseMetadata,
 }
 
+/// Validation result details containing either success information or errors
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 pub enum ValidationDetails {
@@ -207,6 +223,7 @@ pub enum ValidationDetails {
     Errors(Vec<String>),
 }
 
+/// Safety check results for configuration validation
 #[derive(Debug, Serialize)]
 pub struct SafetyChecks {
     /// Physiological limits check
@@ -217,6 +234,7 @@ pub struct SafetyChecks {
     pub scientific_bounds: String,
 }
 
+/// Metadata included in all API responses
 #[derive(Debug, Serialize)]
 pub struct ResponseMetadata {
     /// Response timestamp
@@ -408,10 +426,7 @@ impl ConfigurationRoutes {
                                     v.as_bool().map_or_else(
                                         || {
                                             v.as_str().map(|str_val| {
-                                                (
-                                                    k.clone(),
-                                                    ConfigValue::String(str_val.to_string()),
-                                                )
+                                                (k.clone(), ConfigValue::String(str_val.to_owned()))
                                             })
                                         },
                                         |bool_val| {
@@ -470,7 +485,7 @@ impl ConfigurationRoutes {
                     .inspect_err(|e| tracing::warn!(key = %key, error = %e, "Failed to override bool config"))
                     .ok();
             } else if let Some(str_val) = value.as_str() {
-                config.set_override(&key, ConfigValue::String(str_val.to_string()))
+                config.set_override(&key, ConfigValue::String(str_val.to_owned()))
                     .inspect_err(|e| tracing::warn!(key = %key, error = %e, "Failed to override string config"))
                     .ok();
             }
@@ -587,7 +602,7 @@ impl ConfigurationRoutes {
                                 v.as_bool().map_or_else(
                                     || {
                                         v.as_str().map(|str_val| {
-                                            (k.clone(), ConfigValue::String(str_val.to_string()))
+                                            (k.clone(), ConfigValue::String(str_val.to_owned()))
                                         })
                                     },
                                     |bool_val| Some((k.clone(), ConfigValue::Boolean(bool_val))),

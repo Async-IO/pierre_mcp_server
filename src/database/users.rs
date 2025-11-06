@@ -295,7 +295,8 @@ impl Database {
     ///
     /// Returns an error if the database query fails
     pub async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
-        self.get_user_impl("id", &user_id.to_string()).await
+        let user_id_str = user_id.to_string();
+        self.get_user_impl("id", &user_id_str).await
     }
 
     /// Get a user by ID (alias for compatibility)
@@ -773,9 +774,10 @@ impl Database {
 
         // Generate next cursor from last item
         let next_cursor = if has_more {
-            users
-                .last()
-                .map(|user| Cursor::new(user.created_at, &user.id.to_string()))
+            users.last().map(|user| {
+                let user_id_str = user.id.to_string();
+                Cursor::new(user.created_at, &user_id_str)
+            })
         } else {
             None
         };

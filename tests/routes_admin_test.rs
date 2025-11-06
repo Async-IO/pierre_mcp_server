@@ -3,6 +3,8 @@
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(
     clippy::uninlined_format_args,
     clippy::cast_possible_truncation,
@@ -237,7 +239,7 @@ impl AdminTestSetup {
 
         let admin_token = GeneratedAdminToken {
             token_id: admin_token_id.clone(),
-            service_name: "test_admin_service".to_string(),
+            service_name: "test_admin_service".to_owned(),
             jwt_token: admin_jwt.clone(),
             token_prefix: AdminJwtManager::generate_token_prefix(&admin_jwt),
             permissions: admin_permissions.clone(),
@@ -264,7 +266,7 @@ impl AdminTestSetup {
 
         let super_admin_token = GeneratedAdminToken {
             token_id: super_admin_token_id.clone(),
-            service_name: "test_super_admin_service".to_string(),
+            service_name: "test_super_admin_service".to_owned(),
             jwt_token: super_admin_jwt.clone(),
             token_prefix: AdminJwtManager::generate_token_prefix(&super_admin_jwt),
             permissions: super_admin_permissions.clone(),
@@ -277,7 +279,7 @@ impl AdminTestSetup {
         Self::insert_admin_token_to_db(&database, &super_admin_token, jwt_secret).await?;
 
         // Create invalid token
-        let invalid_token = "invalid_token_for_testing".to_string();
+        let invalid_token = "invalid_token_for_testing".to_owned();
 
         // Create expired token with the same JWT secret
         let expired_permissions = AdminPermissions::new(vec![AdminPermission::ProvisionKeys]);
@@ -370,9 +372,9 @@ async fn create_approved_user(
     email: &str,
 ) -> Result<User> {
     let user = User::new(
-        email.to_string(),
-        "test_hash".to_string(),
-        Some("Test User".to_string()),
+        email.to_owned(),
+        "test_hash".to_owned(),
+        Some("Test User".to_owned()),
     );
 
     // Create user with approved status and timestamp
@@ -1124,8 +1126,8 @@ async fn test_revoke_admin_token() -> Result<()> {
 
     // Create a token to revoke
     let revoke_request = CreateAdminTokenRequest {
-        service_name: "token_to_revoke".to_string(),
-        service_description: Some("Token that will be revoked".to_string()),
+        service_name: "token_to_revoke".to_owned(),
+        service_description: Some("Token that will be revoked".to_owned()),
         permissions: Some(vec![AdminPermission::ListKeys]),
         expires_in_days: Some(30),
         is_super_admin: false,
@@ -1173,8 +1175,8 @@ async fn test_rotate_admin_token() -> Result<()> {
 
     // Create a token to rotate
     let rotate_request = CreateAdminTokenRequest {
-        service_name: "token_to_rotate".to_string(),
-        service_description: Some("Token that will be rotated".to_string()),
+        service_name: "token_to_rotate".to_owned(),
+        service_description: Some("Token that will be rotated".to_owned()),
         permissions: Some(vec![AdminPermission::ListKeys]),
         expires_in_days: Some(30),
         is_super_admin: false,

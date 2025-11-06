@@ -586,7 +586,7 @@ impl MetricsCalculator {
 
     /// Calculate temperature stress factor
     fn calculate_temperature_stress(temperature: f32) -> f64 {
-        // Temperature stress increases outside the optimal range of 10-20°C
+        // Temperature stress increases outside the optimal range of 10-20C
         let optimal_min = 10.0;
         let optimal_max = 20.0;
 
@@ -719,11 +719,17 @@ impl MetricsCalculator {
 /// Zone-based analysis for heart rate or power
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZoneAnalysis {
+    /// Percentage of time in Zone 1 (Active Recovery)
     pub zone1_percentage: f64,
+    /// Percentage of time in Zone 2 (Aerobic Base)
     pub zone2_percentage: f64,
+    /// Percentage of time in Zone 3 (Tempo)
     pub zone3_percentage: f64,
+    /// Percentage of time in Zone 4 (Lactate Threshold)
     pub zone4_percentage: f64,
+    /// Percentage of time in Zone 5 (VO2 Max)
     pub zone5_percentage: f64,
+    /// Time spent in each zone (zone name -> minutes)
     pub time_in_zones: HashMap<String, f64>,
 }
 

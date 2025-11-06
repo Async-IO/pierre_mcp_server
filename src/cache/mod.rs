@@ -4,8 +4,11 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+/// Cache factory for creating cache providers
 pub mod factory;
+/// In-memory cache implementation
 pub mod memory;
+/// Redis cache implementation
 pub mod redis;
 
 use anyhow::Result;
@@ -175,13 +178,27 @@ pub enum CacheResource {
     /// Athlete profile (24h TTL)
     AthleteProfile,
     /// Activity list with pagination (15min TTL)
-    ActivityList { page: u32, per_page: u32 },
+    ActivityList {
+        /// Page number for pagination
+        page: u32,
+        /// Items per page
+        per_page: u32,
+    },
     /// Single activity summary (1h TTL)
-    Activity { activity_id: u64 },
+    Activity {
+        /// Activity ID
+        activity_id: u64,
+    },
     /// Athlete statistics (6h TTL)
-    Stats { athlete_id: u64 },
+    Stats {
+        /// Athlete ID
+        athlete_id: u64,
+    },
     /// Detailed activity with streams (1h TTL)
-    DetailedActivity { activity_id: u64 },
+    DetailedActivity {
+        /// Activity ID
+        activity_id: u64,
+    },
 }
 
 impl CacheResource {

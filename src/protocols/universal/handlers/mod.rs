@@ -4,12 +4,19 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+/// Configuration management tool handlers
 pub mod configuration;
+/// OAuth provider connection tool handlers
 pub mod connections;
+/// Goal setting and tracking tool handlers
 pub mod goals;
+/// Activity intelligence and analysis tool handlers
 pub mod intelligence;
+/// Nutrition analysis and USDA database tool handlers
 pub mod nutrition;
+/// Sleep quality and recovery analysis tool handlers
 pub mod sleep_recovery;
+/// Strava API integration tool handlers
 pub mod strava_api;
 
 // Configuration management handlers
@@ -20,22 +27,45 @@ pub use configuration::{
 };
 
 // OAuth provider connection handlers
-pub use connections::{
-    handle_connect_provider, handle_disconnect_provider, handle_get_connection_status,
-};
+
+/// Connect to OAuth provider
+pub use connections::handle_connect_provider;
+/// Disconnect from OAuth provider
+pub use connections::handle_disconnect_provider;
+/// Get OAuth connection status
+pub use connections::handle_get_connection_status;
 
 // Goal setting and tracking handlers
-pub use goals::{
-    handle_analyze_goal_feasibility, handle_set_goal, handle_suggest_goals, handle_track_progress,
-};
+
+/// Analyze goal feasibility based on training history
+pub use goals::handle_analyze_goal_feasibility;
+/// Set a new fitness goal
+pub use goals::handle_set_goal;
+/// Suggest personalized fitness goals
+pub use goals::handle_suggest_goals;
+/// Track progress toward goals
+pub use goals::handle_track_progress;
 
 // Activity intelligence and analysis handlers
-pub use intelligence::{
-    handle_analyze_performance_trends, handle_analyze_training_load,
-    handle_calculate_fitness_score, handle_calculate_metrics, handle_compare_activities,
-    handle_detect_patterns, handle_generate_recommendations, handle_get_activity_intelligence,
-    handle_predict_performance,
-};
+
+/// Analyze performance trends over time
+pub use intelligence::handle_analyze_performance_trends;
+/// Analyze training load and fatigue
+pub use intelligence::handle_analyze_training_load;
+/// Calculate overall fitness score
+pub use intelligence::handle_calculate_fitness_score;
+/// Calculate detailed activity metrics
+pub use intelligence::handle_calculate_metrics;
+/// Compare multiple activities
+pub use intelligence::handle_compare_activities;
+/// Detect training patterns
+pub use intelligence::handle_detect_patterns;
+/// Generate training recommendations
+pub use intelligence::handle_generate_recommendations;
+/// Get comprehensive activity intelligence
+pub use intelligence::handle_get_activity_intelligence;
+/// Predict performance for goal distance
+pub use intelligence::handle_predict_performance;
 
 // Sleep and recovery analysis handlers
 pub use sleep_recovery::{
@@ -43,13 +73,13 @@ pub use sleep_recovery::{
     handle_suggest_rest_day, handle_track_sleep_trends,
 };
 
-// Nutrition analysis and USDA food database handlers
+/// Re-export nutrition analysis and USDA food database handlers
 pub use nutrition::{
     handle_analyze_meal_nutrition, handle_calculate_daily_nutrition, handle_get_food_details,
     handle_get_nutrient_timing, handle_search_food,
 };
 
-// Strava API integration handlers
+/// Re-export Strava API integration handlers
 pub use strava_api::{
     handle_analyze_activity, handle_get_activities, handle_get_athlete, handle_get_stats,
 };

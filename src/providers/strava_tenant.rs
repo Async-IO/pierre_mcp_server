@@ -136,7 +136,7 @@ impl TenantFitnessProvider for TenantStravaProvider {
             firstname: response.firstname,
             lastname: response.lastname,
             profile_picture: response.profile_medium,
-            provider: "strava".to_string(),
+            provider: "strava".to_owned(),
         })
     }
 
@@ -229,7 +229,7 @@ impl TenantFitnessProvider for TenantStravaProvider {
                         s as u32
                     }
                 }),
-                provider: "strava".to_string(),
+                provider: "strava".to_owned(),
                 ..Default::default()
             })
             .collect();
@@ -309,7 +309,7 @@ impl TenantFitnessProvider for TenantStravaProvider {
                     s as u32
                 }
             }),
-            provider: "strava".to_string(),
+            provider: "strava".to_owned(),
             ..Default::default()
         })
     }

@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use chrono::Utc;
 use pierre_mcp_server::{
     api_keys::{ApiKey, ApiKeyTier},
@@ -18,10 +21,10 @@ use uuid::Uuid;
 fn create_test_tenant(plan: &str) -> Tenant {
     Tenant {
         id: Uuid::new_v4(),
-        name: "Test Tenant".to_string(),
-        slug: "test-tenant".to_string(),
+        name: "Test Tenant".to_owned(),
+        slug: "test-tenant".to_owned(),
         domain: None,
-        plan: plan.to_string(),
+        plan: plan.to_owned(),
         owner_user_id: Uuid::new_v4(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
@@ -31,10 +34,10 @@ fn create_test_tenant(plan: &str) -> Tenant {
 fn create_test_api_key(tier: &ApiKeyTier) -> ApiKey {
     ApiKey {
         id: Uuid::new_v4().to_string(),
-        name: "Test API Key".to_string(),
-        key_prefix: "pk_test_".to_string(),
-        key_hash: "test_hash".to_string(),
-        description: Some("Test API Key for rate limiting".to_string()),
+        name: "Test API Key".to_owned(),
+        key_prefix: "pk_test_".to_owned(),
+        key_hash: "test_hash".to_owned(),
+        description: Some("Test API Key for rate limiting".to_owned()),
         user_id: Uuid::new_v4(),
         tier: tier.clone(),
         rate_limit_requests: match *tier {
@@ -54,13 +57,13 @@ fn create_test_api_key(tier: &ApiKeyTier) -> ApiKey {
 fn create_test_user(tier: UserTier) -> User {
     User {
         id: Uuid::new_v4(),
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: "test_hash".to_string(),
+        email: "test@example.com".to_owned(),
+        display_name: Some("Test User".to_owned()),
+        password_hash: "test_hash".to_owned(),
         tier,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: false,
@@ -280,8 +283,8 @@ fn test_unified_rate_limit_info_serialization() {
         limit: Some(10_000),
         remaining: Some(5_000),
         reset_at: Some(Utc::now()),
-        tier: "professional".to_string(),
-        auth_method: "tenant_token".to_string(),
+        tier: "professional".to_owned(),
+        auth_method: "tenant_token".to_owned(),
     };
 
     // Test serialization

@@ -9,8 +9,8 @@ use std::str::FromStr;
 ///
 /// Different algorithms for calculating running performance metrics:
 ///
-/// - `Daniels`: Jack Daniels' VDOT formula (VO2 = -4.60 + 0.182258×v + 0.000104×v²)
-/// - `Riegel`: Power-law model (T2 = T1 × (D2/D1)^1.06)
+/// - `Daniels`: Jack Daniels' VDOT formula (VO2 = -4.60 + 0.182258xv + 0.000104xv²)
+/// - `Riegel`: Power-law model (T2 = T1 x (D2/D1)^1.06)
 /// - `Hybrid`: Auto-select based on race distance and conditions
 ///
 /// # Scientific References
@@ -22,7 +22,7 @@ use std::str::FromStr;
 pub enum VdotAlgorithm {
     /// Jack Daniels' VDOT formula
     ///
-    /// Formula: VO2 = -4.60 + 0.182258 × velocity + 0.000104 × velocity²
+    /// Formula: VO2 = -4.60 + 0.182258 x velocity + 0.000104 x velocity²
     ///
     /// Where velocity is in meters per minute
     ///
@@ -32,7 +32,7 @@ pub enum VdotAlgorithm {
 
     /// Riegel power-law formula
     ///
-    /// Formula: T2 = T1 × (D2/D1)^1.06
+    /// Formula: T2 = T1 x (D2/D1)^1.06
     ///
     /// Predicts time for distance D2 based on time T1 for distance D1
     ///
@@ -99,12 +99,12 @@ impl VdotAlgorithm {
     /// ```
     pub fn calculate_vdot(&self, distance_meters: f64, time_seconds: f64) -> Result<f64, AppError> {
         if time_seconds <= 0.0 {
-            return Err(AppError::invalid_input("Time must be positive".to_string()));
+            return Err(AppError::invalid_input("Time must be positive".to_owned()));
         }
 
         if distance_meters <= 0.0 {
             return Err(AppError::invalid_input(
-                "Distance must be positive".to_string(),
+                "Distance must be positive".to_owned(),
             ));
         }
 
@@ -159,7 +159,7 @@ impl VdotAlgorithm {
             )));
         }
 
-        // VO2 = -4.60 + 0.182258×v + 0.000104×v²
+        // VO2 = -4.60 + 0.182258xv + 0.000104xv²
         let vo2 = (DANIELS_A * velocity).mul_add(velocity, DANIELS_B.mul_add(velocity, DANIELS_C));
 
         // Calculate percent-max adjustment based on race duration
@@ -209,14 +209,14 @@ impl VdotAlgorithm {
     /// Predict race time using Daniels VDOT tables
     fn predict_time_daniels(vdot: f64, target_distance_meters: f64) -> Result<f64, AppError> {
         // Calculate velocity at VO2 max (reverse of VDOT formula)
-        // vo2 = -4.60 + 0.182258 × v + 0.000104 × v²
+        // vo2 = -4.60 + 0.182258 x v + 0.000104 x v²
         // Solve quadratic: 0.000104v² + 0.182258v - (vo2 + 4.60) = 0
 
         let c: f64 = -(vdot + 4.60);
 
         let discriminant = DANIELS_B.mul_add(DANIELS_B, -(4.0 * DANIELS_A * c));
         if discriminant < 0.0 {
-            return Err(AppError::internal("Invalid VDOT calculation".to_string()));
+            return Err(AppError::internal("Invalid VDOT calculation".to_owned()));
         }
 
         let velocity_max = (-DANIELS_B + discriminant.sqrt()) / (2.0 * DANIELS_A);
@@ -265,7 +265,7 @@ impl VdotAlgorithm {
         // Get 10K time from VDOT
         let time_10k = Self::predict_time_daniels(vdot, REFERENCE_DISTANCE)?;
 
-        // Apply Riegel formula: T2 = T1 × (D2/D1)^exponent
+        // Apply Riegel formula: T2 = T1 x (D2/D1)^exponent
         let predicted_time =
             time_10k * (target_distance_meters / REFERENCE_DISTANCE).powf(exponent);
 
@@ -298,12 +298,12 @@ impl VdotAlgorithm {
     pub fn description(&self) -> String {
         match self {
             Self::Daniels => {
-                "Jack Daniels VDOT (VO2 = -4.60 + 0.182258×v + 0.000104×v²)".to_string()
+                "Jack Daniels VDOT (VO2 = -4.60 + 0.182258xv + 0.000104xv²)".to_owned()
             }
             Self::Riegel { exponent } => {
-                format!("Riegel power-law (T2 = T1 × (D2/D1)^{exponent:.2})")
+                format!("Riegel power-law (T2 = T1 x (D2/D1)^{exponent:.2})")
             }
-            Self::Hybrid => "Hybrid VDOT (Daniels for 5K-Marathon, Riegel for ultra)".to_string(),
+            Self::Hybrid => "Hybrid VDOT (Daniels for 5K-Marathon, Riegel for ultra)".to_owned(),
         }
     }
 
@@ -311,8 +311,8 @@ impl VdotAlgorithm {
     #[must_use]
     pub const fn formula(&self) -> &'static str {
         match self {
-            Self::Daniels => "VO2 = -4.60 + 0.182258×v + 0.000104×v²",
-            Self::Riegel { .. } => "T2 = T1 × (D2/D1)^exponent",
+            Self::Daniels => "VO2 = -4.60 + 0.182258xv + 0.000104xv²",
+            Self::Riegel { .. } => "T2 = T1 x (D2/D1)^exponent",
             Self::Hybrid => "Auto-select: Daniels (5K-Marathon) or Riegel (ultra)",
         }
     }

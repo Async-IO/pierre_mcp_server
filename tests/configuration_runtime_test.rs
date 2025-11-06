@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::configuration::profiles::ConfigProfile;
 use pierre_mcp_server::configuration::runtime::{ConfigValue, ConfigurationManager, RuntimeConfig};
 use uuid::Uuid;
@@ -19,7 +22,7 @@ fn test_runtime_config_creation() {
 #[test]
 fn test_config_value_override() {
     let mut config = RuntimeConfig::new();
-    let key = "heart_rate.anaerobic_threshold".to_string();
+    let key = "heart_rate.anaerobic_threshold".to_owned();
 
     // Get base value
     let base_value = config.get_value(&key);

@@ -1,6 +1,9 @@
 // ABOUTME: Verification test for synthetic data helpers and test utilities
 // ABOUTME: Ensures the helpers module structure works correctly before writing full integration tests
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod helpers;
 
 use helpers::synthetic_data::{SyntheticDataBuilder, TrainingPattern};

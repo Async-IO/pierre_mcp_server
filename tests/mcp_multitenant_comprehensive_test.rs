@@ -8,6 +8,9 @@
 //! This test suite aims to improve coverage from 38.56% by testing
 //! all major functionalities of the multi-tenant MCP server
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
@@ -27,9 +30,9 @@ async fn create_test_server() -> Result<MultiTenantMcpServer> {
 
 async fn create_test_user_with_auth(database: &Database) -> Result<(User, String)> {
     let user = User::new(
-        "test@example.com".to_string(),
-        "password123".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "password123".to_owned(),
+        Some("Test User".to_owned()),
     );
     database.create_user(&user).await?;
 
@@ -67,8 +70,8 @@ async fn test_mcp_initialize_request() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "initialize".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "initialize".to_owned(),
         params: None,
         id: Some(json!(1)),
         auth_token: None,
@@ -88,8 +91,8 @@ async fn test_mcp_ping_request() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "ping".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "ping".to_owned(),
         params: None,
         id: Some(json!(2)),
         auth_token: None,
@@ -109,8 +112,8 @@ async fn test_mcp_tools_list_request() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tools/list".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tools/list".to_owned(),
         params: None,
         id: Some(json!(3)),
         auth_token: None,
@@ -131,15 +134,15 @@ async fn test_mcp_authenticate_request() -> Result<()> {
 
     // Create user with known credentials
     let user = User::new(
-        "auth_test@example.com".to_string(),
+        "auth_test@example.com".to_owned(),
         bcrypt::hash("test_password", 4)?,
-        Some("Auth Test User".to_string()),
+        Some("Auth Test User".to_owned()),
     );
     resources.database.create_user(&user).await?;
 
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "authenticate".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "authenticate".to_owned(),
         params: Some(json!({
             "email": "auth_test@example.com",
             "password": "test_password"
@@ -162,8 +165,8 @@ async fn test_unknown_method_handling() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "unknown_method".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "unknown_method".to_owned(),
         params: None,
         id: Some(json!(5)),
         auth_token: None,
@@ -191,8 +194,8 @@ async fn test_authenticate_method_with_invalid_params() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "authenticate".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "authenticate".to_owned(),
         params: Some(json!({"invalid_field": "invalid_value"})),
         id: Some(json!(6)),
         auth_token: None,
@@ -219,8 +222,8 @@ async fn test_tools_call_without_authentication() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tools/call".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tools/call".to_owned(),
         params: Some(json!({
             "name": "get_activities",
             "arguments": {
@@ -248,8 +251,8 @@ async fn test_tools_call_with_invalid_token() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tools/call".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tools/call".to_owned(),
         params: Some(json!({
             "name": "get_activities",
             "arguments": {
@@ -258,7 +261,7 @@ async fn test_tools_call_with_invalid_token() -> Result<()> {
             }
         })),
         id: Some(json!(8)),
-        auth_token: Some("Bearer invalid_token_123".to_string()),
+        auth_token: Some("Bearer invalid_token_123".to_owned()),
         headers: None,
         metadata: std::collections::HashMap::new(),
     };
@@ -280,8 +283,8 @@ async fn test_tools_call_with_valid_authentication() -> Result<()> {
     let (_user, token) = create_test_user_with_auth(&resources.database).await?;
 
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tools/call".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tools/call".to_owned(),
         params: Some(json!({
             "name": "connect_strava",
             "arguments": {}
@@ -308,8 +311,8 @@ async fn test_tools_call_with_missing_params() -> Result<()> {
 
     // Test request with missing params
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tools/call".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tools/call".to_owned(),
         params: None, // Missing params
         id: Some(json!(10)),
         auth_token: Some(format!("Bearer {token}")),
@@ -335,8 +338,8 @@ async fn test_connect_strava_tool() -> Result<()> {
     let (_user, token) = create_test_user_with_auth(&resources.database).await?;
 
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tools/call".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tools/call".to_owned(),
         params: Some(json!({
             "name": "connect_strava",
             "arguments": {}
@@ -362,8 +365,8 @@ async fn test_connect_fitbit_tool() -> Result<()> {
     let (_user, token) = create_test_user_with_auth(&resources.database).await?;
 
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tools/call".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tools/call".to_owned(),
         params: Some(json!({
             "name": "connect_fitbit",
             "arguments": {}
@@ -389,8 +392,8 @@ async fn test_get_connection_status_tool() -> Result<()> {
     let (_user, token) = create_test_user_with_auth(&resources.database).await?;
 
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tools/call".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tools/call".to_owned(),
         params: Some(json!({
             "name": "get_connection_status",
             "arguments": {}
@@ -416,8 +419,8 @@ async fn test_disconnect_provider_tool() -> Result<()> {
     let (_user, token) = create_test_user_with_auth(&resources.database).await?;
 
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tools/call".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tools/call".to_owned(),
         params: Some(json!({
             "name": "disconnect_provider",
             "arguments": {
@@ -455,8 +458,8 @@ async fn test_provider_tools_without_connection() -> Result<()> {
 
     for (i, (tool_name, provider)) in provider_tools.iter().enumerate() {
         let request = McpRequest {
-            jsonrpc: "2.0".to_string(),
-            method: "tools/call".to_string(),
+            jsonrpc: "2.0".to_owned(),
+            method: "tools/call".to_owned(),
             params: Some(json!({
                 "name": tool_name,
                 "arguments": {
@@ -496,8 +499,8 @@ async fn test_intelligence_tools() -> Result<()> {
 
     for tool_name in &tools {
         let request = McpRequest {
-            jsonrpc: "2.0".to_string(),
-            method: "tools/call".to_string(),
+            jsonrpc: "2.0".to_owned(),
+            method: "tools/call".to_owned(),
             params: Some(json!({
                 "name": tool_name,
                 "arguments": {
@@ -526,14 +529,14 @@ async fn test_tools_call_with_whitespace_token() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tools/call".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tools/call".to_owned(),
         params: Some(json!({
             "name": "get_connection_status",
             "arguments": {}
         })),
         id: Some(json!(21)),
-        auth_token: Some("   \t\n  ".to_string()), // Whitespace only
+        auth_token: Some("   \t\n  ".to_owned()), // Whitespace only
         headers: None,
         metadata: std::collections::HashMap::new(),
     };
@@ -552,14 +555,14 @@ async fn test_tools_call_malformed_token() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tools/call".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tools/call".to_owned(),
         params: Some(json!({
             "name": "get_connection_status",
             "arguments": {}
         })),
         id: Some(json!(22)),
-        auth_token: Some("Bearer malformed.token.here".to_string()),
+        auth_token: Some("Bearer malformed.token.here".to_owned()),
         headers: None,
         metadata: std::collections::HashMap::new(),
     };
@@ -582,8 +585,8 @@ async fn test_handle_authenticated_tool_call_edge_cases() -> Result<()> {
 
     // Test with invalid tool name
     let request = McpRequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tools/call".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tools/call".to_owned(),
         params: Some(json!({
             "name": "nonexistent_tool",
             "arguments": {}
@@ -616,7 +619,7 @@ async fn test_concurrent_requests() -> Result<()> {
         // Reduce to 2 to avoid pool exhaustion
         let mut user = User::new(
             format!("concurrent_user_{i}@example.com"),
-            "password".to_string(),
+            "password".to_owned(),
             Some(format!("Concurrent User {i}")),
         );
         resources.database.create_user(&user).await?;
@@ -627,7 +630,7 @@ async fn test_concurrent_requests() -> Result<()> {
             format!("Concurrent Tenant {i}"),
             tenant_slug.clone(),
             Some(format!("concurrent-{i}.example.com")),
-            "starter".to_string(),
+            "starter".to_owned(),
             user.id,
         );
         resources.database.create_tenant(&tenant).await?;
@@ -656,8 +659,8 @@ async fn test_concurrent_requests() -> Result<()> {
             tokio::time::sleep(tokio::time::Duration::from_millis(i as u64 * 10)).await;
 
             let request = McpRequest {
-                jsonrpc: "2.0".to_string(),
-                method: "tools/call".to_string(),
+                jsonrpc: "2.0".to_owned(),
+                method: "tools/call".to_owned(),
                 params: Some(json!({
                     "name": "get_connection_status",
                     "arguments": {}

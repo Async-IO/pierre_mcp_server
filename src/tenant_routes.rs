@@ -23,130 +23,209 @@ use uuid::Uuid;
 
 // Tenant Management Request/Response Types
 
+/// Request body for creating a new tenant
 #[derive(Debug, Deserialize)]
 pub struct CreateTenantRequest {
+    /// Display name for the tenant
     pub name: String,
+    /// URL-safe slug identifier for the tenant
     pub slug: String,
+    /// Optional custom domain for the tenant
     pub domain: Option<String>,
-    pub plan: Option<String>, // basic, pro, enterprise
+    /// Subscription plan (basic, pro, enterprise)
+    pub plan: Option<String>,
 }
 
+/// Response containing created tenant details
 #[derive(Debug, Serialize)]
 pub struct CreateTenantResponse {
+    /// UUID of the created tenant
     pub tenant_id: String,
+    /// Display name of the tenant
     pub name: String,
+    /// URL-safe slug identifier
     pub slug: String,
+    /// Custom domain if configured
     pub domain: Option<String>,
+    /// ISO 8601 timestamp of creation
     pub created_at: String,
+    /// API endpoint URL for this tenant
     pub api_endpoint: String,
 }
 
+/// Response containing list of tenants with pagination
 #[derive(Debug, Serialize)]
 pub struct TenantListResponse {
+    /// List of tenant summaries
     pub tenants: Vec<TenantSummary>,
+    /// Total number of tenants
     pub total_count: usize,
 }
 
+/// Summary information about a tenant
 #[derive(Debug, Serialize)]
 pub struct TenantSummary {
+    /// UUID of the tenant
     pub tenant_id: String,
+    /// Display name
     pub name: String,
+    /// URL-safe slug
     pub slug: String,
+    /// Custom domain if any
     pub domain: Option<String>,
+    /// Subscription plan
     pub plan: String,
+    /// ISO 8601 creation timestamp
     pub created_at: String,
+    /// List of configured OAuth providers
     pub oauth_providers: Vec<String>,
 }
 
 // OAuth App Management Types
 
+/// Request to configure OAuth provider credentials for a tenant
 #[derive(Debug, Deserialize)]
 pub struct ConfigureTenantOAuthRequest {
-    pub provider: String, // "strava", "fitbit"
+    /// OAuth provider name (e.g., "strava", "fitbit")
+    pub provider: String,
+    /// OAuth client ID from provider
     pub client_id: String,
+    /// OAuth client secret from provider
     pub client_secret: String,
+    /// Redirect URI for OAuth callbacks
     pub redirect_uri: String,
+    /// OAuth scopes to request
     pub scopes: Vec<String>,
+    /// Optional daily rate limit
     pub rate_limit_per_day: Option<u32>,
 }
 
+/// Response after configuring OAuth provider
 #[derive(Debug, Serialize)]
 pub struct ConfigureTenantOAuthResponse {
+    /// OAuth provider name
     pub provider: String,
-    pub client_id: String, // Don't expose client_secret
+    /// OAuth client ID (secret not exposed)
+    pub client_id: String,
+    /// Configured redirect URI
     pub redirect_uri: String,
+    /// Configured OAuth scopes
     pub scopes: Vec<String>,
+    /// ISO 8601 timestamp when configured
     pub configured_at: String,
 }
 
+/// List of OAuth providers configured for a tenant
 #[derive(Debug, Serialize)]
 pub struct TenantOAuthListResponse {
+    /// Configured OAuth providers
     pub providers: Vec<TenantOAuthProvider>,
 }
 
+/// OAuth provider configuration details
 #[derive(Debug, Serialize)]
 pub struct TenantOAuthProvider {
+    /// Provider name
     pub provider: String,
+    /// OAuth client ID
     pub client_id: String,
+    /// Redirect URI
     pub redirect_uri: String,
+    /// Configured scopes
     pub scopes: Vec<String>,
+    /// Configuration timestamp
     pub configured_at: String,
+    /// Whether provider is enabled
     pub enabled: bool,
 }
 
 // OAuth App Registration for MCP clients
 
+/// Request to register a new OAuth application
 #[derive(Debug, Deserialize)]
 pub struct RegisterOAuthAppRequest {
+    /// Application name
     pub name: String,
+    /// Optional application description
     pub description: Option<String>,
+    /// Allowed redirect URIs for OAuth callbacks
     pub redirect_uris: Vec<String>,
-    pub scopes: Vec<String>, // mcp:read, mcp:write, a2a:read, etc.
-    pub app_type: String,    // "desktop", "web", "mobile", "server"
+    /// Requested OAuth scopes (e.g., mcp:read, mcp:write, a2a:read)
+    pub scopes: Vec<String>,
+    /// Application type (desktop, web, mobile, server)
+    pub app_type: String,
 }
 
+/// Response containing registered OAuth application credentials
 #[derive(Debug, Serialize)]
 pub struct RegisterOAuthAppResponse {
+    /// OAuth client ID
     pub client_id: String,
+    /// OAuth client secret (only shown once)
     pub client_secret: String,
+    /// Application name
     pub name: String,
+    /// Application type
     pub app_type: String,
+    /// OAuth authorization endpoint URL
     pub authorization_url: String,
+    /// OAuth token endpoint URL
     pub token_url: String,
+    /// ISO 8601 timestamp when app was created
     pub created_at: String,
 }
 
 // OAuth Authorization Flow Types
 
+/// Request to initiate OAuth authorization flow
 #[derive(Debug, Deserialize)]
 pub struct OAuthAuthorizeRequest {
+    /// OAuth client ID
     pub client_id: String,
+    /// Redirect URI after authorization
     pub redirect_uri: String,
+    /// Space-separated OAuth scopes
     pub scope: String,
+    /// Optional state parameter for CSRF protection
     pub state: Option<String>,
-    pub response_type: String, // "code"
+    /// Response type (always "code" for authorization code flow)
+    pub response_type: String,
 }
 
+/// Response with authorization URL
 #[derive(Debug, Serialize)]
 pub struct OAuthAuthorizeResponse {
+    /// Authorization URL to redirect user to
     pub authorization_url: String,
+    /// How long the authorization is valid (seconds)
     pub expires_in: u64,
 }
 
+/// Request to exchange authorization code for access token
 #[derive(Debug, Deserialize)]
 pub struct OAuthTokenRequest {
-    pub grant_type: String, // "authorization_code", "client_credentials"
+    /// Grant type (`authorization_code`, `client_credentials`)
+    pub grant_type: String,
+    /// Authorization code (for `authorization_code` grant)
     pub code: Option<String>,
+    /// Redirect URI used in authorization request
     pub redirect_uri: Option<String>,
+    /// OAuth client ID
     pub client_id: String,
+    /// OAuth client secret
     pub client_secret: String,
 }
 
+/// Response containing OAuth access token
 #[derive(Debug, Serialize)]
 pub struct OAuthTokenResponse {
+    /// JWT access token for API authentication
     pub access_token: String,
+    /// Token type (always "Bearer")
     pub token_type: String,
+    /// Token expiration time in seconds
     pub expires_in: u64,
+    /// Space-separated OAuth scopes granted
     pub scope: String,
 }
 
@@ -190,7 +269,7 @@ pub async fn create_tenant(
         name: tenant_request.name.clone(), // Safe: String ownership for tenant struct
         slug: slug.clone(),                // Safe: String ownership for tenant struct
         domain: tenant_request.domain.clone(), // Safe: String ownership for tenant struct
-        plan: tenant_request.plan.unwrap_or_else(|| "basic".to_string()),
+        plan: tenant_request.plan.unwrap_or_else(|| "basic".to_owned()),
         owner_user_id: auth_result.user_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
@@ -453,8 +532,8 @@ pub async fn register_oauth_app(
         client_secret,
         name: app_request.name,
         app_type: app_request.app_type,
-        authorization_url: "https://your-server.com/oauth/authorize".to_string(),
-        token_url: "https://your-server.com/oauth/token".to_string(),
+        authorization_url: "https://your-server.com/oauth/authorize".to_owned(),
+        token_url: "https://your-server.com/oauth/token".to_owned(),
         created_at: chrono::Utc::now().to_rfc3339(),
     })
 }
@@ -491,7 +570,7 @@ pub async fn oauth_authorize(
 
     // Validate redirect_uri matches registered URIs
     if !oauth_app.redirect_uris.contains(&auth_params.redirect_uri) {
-        return Err(AppError::invalid_input("Invalid redirect_uri".to_string()));
+        return Err(AppError::invalid_input("Invalid redirect_uri".to_owned()));
     }
 
     // Generate authorization code and store it temporarily
@@ -569,7 +648,7 @@ pub async fn oauth_token(
             // Exchange authorization code for access token
             let code = token_request
                 .code
-                .ok_or_else(|| AppError::invalid_input("Missing authorization code".to_string()))?;
+                .ok_or_else(|| AppError::invalid_input("Missing authorization code".to_owned()))?;
 
             database.get_authorization_code(&code).await.map_err(|e| {
                 tracing::warn!(
@@ -577,7 +656,7 @@ pub async fn oauth_token(
                     error = %e,
                     "Failed to retrieve authorization code from database"
                 );
-                AppError::invalid_input("Invalid or expired authorization code".to_string())
+                AppError::invalid_input("Invalid or expired authorization code".to_owned())
             })?;
 
             // Generate access token (JWT)
@@ -600,7 +679,7 @@ pub async fn oauth_token(
 
             Ok(OAuthTokenResponse {
                 access_token,
-                token_type: "Bearer".to_string(),
+                token_type: "Bearer".to_owned(),
                 expires_in: crate::constants::time::DAY_SECONDS as u64, // 24 hours
                 scope: oauth_app.scopes.join(" "),
             })
@@ -616,13 +695,11 @@ pub async fn oauth_token(
 
             Ok(OAuthTokenResponse {
                 access_token,
-                token_type: "Bearer".to_string(),
+                token_type: "Bearer".to_owned(),
                 expires_in: crate::constants::time::HOUR_SECONDS as u64, // 1 hour for client credentials
                 scope: oauth_app.scopes.join(" "),
             })
         }
-        _ => Err(AppError::invalid_input(
-            "Unsupported grant_type".to_string(),
-        )),
+        _ => Err(AppError::invalid_input("Unsupported grant_type".to_owned())),
     }
 }

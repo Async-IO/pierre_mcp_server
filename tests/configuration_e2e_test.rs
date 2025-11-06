@@ -8,6 +8,9 @@
 //! Tests the entire configuration system flow from MCP protocol tools
 //! through universal tool execution to configuration management.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use pierre_mcp_server::database_plugins::factory::Database;
@@ -45,7 +48,7 @@ async fn create_test_tool_executor() -> Arc<UniversalToolExecutor> {
 
     // Create test intelligence
     let _intelligence = Arc::new(ActivityIntelligence::new(
-        "Test Intelligence".to_string(),
+        "Test Intelligence".to_owned(),
         vec![],
         PerformanceMetrics {
             relative_effort: Some(7.5),
@@ -125,9 +128,9 @@ async fn test_get_configuration_catalog_e2e() {
     let test_user_id = Uuid::new_v4().to_string();
     let request = UniversalRequest {
         user_id: test_user_id,
-        tool_name: "get_configuration_catalog".to_string(),
+        tool_name: "get_configuration_catalog".to_owned(),
         parameters: json!({}),
-        protocol: "mcp".to_string(),
+        protocol: "mcp".to_owned(),
         tenant_id: None,
     };
 
@@ -174,9 +177,9 @@ async fn test_get_configuration_profiles_e2e() {
     let test_user_id = Uuid::new_v4().to_string();
     let request = UniversalRequest {
         user_id: test_user_id,
-        tool_name: "get_configuration_profiles".to_string(),
+        tool_name: "get_configuration_profiles".to_owned(),
         parameters: json!({}),
-        protocol: "mcp".to_string(),
+        protocol: "mcp".to_owned(),
         tenant_id: None,
     };
 
@@ -220,7 +223,7 @@ async fn test_calculate_personalized_zones_e2e() {
     let test_user_id = Uuid::new_v4().to_string();
     let request = UniversalRequest {
         user_id: test_user_id,
-        tool_name: "calculate_personalized_zones".to_string(),
+        tool_name: "calculate_personalized_zones".to_owned(),
         parameters: json!({
             "vo2_max": 55.0,
             "resting_hr": 60,
@@ -228,7 +231,7 @@ async fn test_calculate_personalized_zones_e2e() {
             "lactate_threshold": 0.85,
             "sport_efficiency": 1.0
         }),
-        protocol: "mcp".to_string(),
+        protocol: "mcp".to_owned(),
         tenant_id: None,
     };
 
@@ -274,7 +277,7 @@ async fn test_validate_configuration_e2e() {
     let test_user_id = Uuid::new_v4().to_string();
     let request = UniversalRequest {
         user_id: test_user_id,
-        tool_name: "validate_configuration".to_string(),
+        tool_name: "validate_configuration".to_owned(),
         parameters: json!({
             "parameters": {
                 "fitness.vo2_max_threshold_male_recreational": 45.0,
@@ -282,7 +285,7 @@ async fn test_validate_configuration_e2e() {
                 "heart_rate.recovery_zone": 65.0
             }
         }),
-        protocol: "mcp".to_string(),
+        protocol: "mcp".to_owned(),
         tenant_id: None,
     };
 
@@ -311,7 +314,7 @@ async fn test_update_user_configuration_e2e() {
     let test_user_id = Uuid::new_v4().to_string();
     let request = UniversalRequest {
         user_id: test_user_id,
-        tool_name: "update_user_configuration".to_string(),
+        tool_name: "update_user_configuration".to_owned(),
         parameters: json!({
             "profile": "default",
             "parameters": {
@@ -319,7 +322,7 @@ async fn test_update_user_configuration_e2e() {
                 "heart_rate.anaerobic_threshold": 88.0
             }
         }),
-        protocol: "mcp".to_string(),
+        protocol: "mcp".to_owned(),
         tenant_id: None,
     };
 
@@ -354,9 +357,9 @@ async fn test_get_user_configuration_e2e() {
     let test_user_id = Uuid::new_v4().to_string();
     let request = UniversalRequest {
         user_id: test_user_id,
-        tool_name: "get_user_configuration".to_string(),
+        tool_name: "get_user_configuration".to_owned(),
         parameters: json!({}),
-        protocol: "mcp".to_string(),
+        protocol: "mcp".to_owned(),
         tenant_id: None,
     };
 
@@ -392,9 +395,9 @@ async fn test_configuration_tools_via_different_protocols() {
     let test_user_id = Uuid::new_v4().to_string();
     let mcp_request = UniversalRequest {
         user_id: test_user_id.clone(),
-        tool_name: "get_configuration_catalog".to_string(),
+        tool_name: "get_configuration_catalog".to_owned(),
         parameters: json!({}),
-        protocol: "mcp".to_string(),
+        protocol: "mcp".to_owned(),
         tenant_id: None,
     };
 
@@ -407,9 +410,9 @@ async fn test_configuration_tools_via_different_protocols() {
     // Test same tool via A2A protocol
     let a2a_request = UniversalRequest {
         user_id: test_user_id,
-        tool_name: "get_configuration_catalog".to_string(),
+        tool_name: "get_configuration_catalog".to_owned(),
         parameters: json!({}),
-        protocol: "a2a".to_string(),
+        protocol: "a2a".to_owned(),
         tenant_id: None,
     };
 
@@ -439,9 +442,9 @@ async fn test_configuration_system_error_handling() {
     let test_user_id = Uuid::new_v4().to_string();
     let request = UniversalRequest {
         user_id: test_user_id.clone(),
-        tool_name: "invalid_configuration_tool".to_string(),
+        tool_name: "invalid_configuration_tool".to_owned(),
         parameters: json!({}),
-        protocol: "mcp".to_string(),
+        protocol: "mcp".to_owned(),
         tenant_id: None,
     };
 
@@ -451,9 +454,9 @@ async fn test_configuration_system_error_handling() {
     // Test missing required parameter
     let invalid_request = UniversalRequest {
         user_id: test_user_id.clone(),
-        tool_name: "calculate_personalized_zones".to_string(),
+        tool_name: "calculate_personalized_zones".to_owned(),
         parameters: json!({}), // Missing required vo2_max
-        protocol: "mcp".to_string(),
+        protocol: "mcp".to_owned(),
         tenant_id: None,
     };
 
@@ -463,13 +466,13 @@ async fn test_configuration_system_error_handling() {
     // Test invalid validation parameters
     let validation_request = UniversalRequest {
         user_id: test_user_id,
-        tool_name: "validate_configuration".to_string(),
+        tool_name: "validate_configuration".to_owned(),
         parameters: json!({
             "parameters": {
                 "invalid.parameter.name": "invalid_value"
             }
         }),
-        protocol: "mcp".to_string(),
+        protocol: "mcp".to_owned(),
         tenant_id: None,
     };
 

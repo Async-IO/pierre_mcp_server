@@ -707,7 +707,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
                 priority: RecommendationPriority::Medium,
                 confidence: Confidence::High,
                 rationale: "Regular rest days are essential for physical and mental recovery."
-                    .to_string(),
+                    .to_owned(),
                 actionable_steps: vec![
                     "Schedule a complete rest day today".into(),
                     "Focus on nutrition and hydration".into(),

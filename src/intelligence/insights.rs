@@ -105,7 +105,9 @@ pub struct InsightGenerator {
 /// Configuration for insight generation
 #[derive(Debug, Clone)]
 pub struct InsightConfig {
+    /// Minimum confidence score (0-100) to include an insight
     pub min_confidence_threshold: f32,
+    /// Maximum number of insights to generate per activity
     pub max_insights_per_activity: usize,
 }
 
@@ -393,6 +395,8 @@ impl InsightGenerator {
 /// Context information for generating insights
 #[derive(Debug, Clone)]
 pub struct ActivityContext {
+    /// Geographic location context for weather and terrain analysis
     pub location: Option<super::LocationContext>,
+    /// Recent activity history for trend analysis
     pub recent_activities: Option<Vec<Activity>>,
 }

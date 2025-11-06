@@ -6,6 +6,8 @@
 
 // Statistical analysis module tests
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(clippy::cast_possible_wrap)] // Test helper uses small indices
 
 use chrono::Utc;

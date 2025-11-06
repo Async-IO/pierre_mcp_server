@@ -11,9 +11,13 @@ use warp::Filter;
 /// Request context that flows through the entire request lifecycle
 #[derive(Debug, Clone)]
 pub struct RequestContext {
+    /// Unique identifier for this request
     pub request_id: String,
+    /// Authenticated user ID (if available)
     pub user_id: Option<Uuid>,
+    /// Tenant ID for multi-tenancy (if available)
     pub tenant_id: Option<Uuid>,
+    /// Authentication method used (e.g., "Bearer", "`ApiKey`")
     pub auth_method: Option<String>,
 }
 

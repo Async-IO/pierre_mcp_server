@@ -35,16 +35,31 @@
 //! }
 //! ```
 
+/// Core plugin types and traits
 pub mod core;
+/// Plugin executor for running tools
 pub mod executor;
+/// Plugin registry for tool management
 pub mod registry;
 
 /// Community-contributed plugins
 pub mod community;
 
 // Re-export key types
-pub use core::{PluginInfo, PluginTool, PluginToolStatic};
-pub use executor::{PluginToolExecutor, PluginToolExecutorBuilder, ToolInfo};
+
+/// Plugin information metadata
+pub use core::PluginInfo;
+/// Plugin tool trait
+pub use core::PluginTool;
+/// Static plugin tool registry entry
+pub use core::PluginToolStatic;
+/// Plugin tool executor
+pub use executor::PluginToolExecutor;
+/// Plugin tool executor builder
+pub use executor::PluginToolExecutorBuilder;
+/// Tool information struct
+pub use executor::ToolInfo;
+/// Plugin registry
 pub use registry::PluginRegistry;
 
 use crate::protocols::universal::UniversalResponse;
@@ -53,22 +68,30 @@ use crate::protocols::ProtocolError;
 /// Plugin execution context with user information
 #[derive(Debug, Clone)]
 pub struct PluginContext {
+    /// User ID for this plugin execution
     pub user_id: uuid::Uuid,
+    /// Optional tenant ID for multi-tenant isolation
     pub tenant_id: Option<uuid::Uuid>,
 }
 
 /// Plugin execution result with usage tracking
 #[derive(Debug)]
 pub struct PluginResult {
+    /// Plugin execution response or error
     pub response: Result<UniversalResponse, ProtocolError>,
+    /// Credits consumed by this plugin execution
     pub credits_consumed: u32,
+    /// Execution time in milliseconds
     pub execution_time_ms: u64,
 }
 
 /// Plugin execution environment for safe resource access
 pub struct PluginEnvironment<'a> {
+    /// Database connection for data persistence
     pub database: &'a crate::database_plugins::factory::Database,
+    /// Provider registry for fitness data access
     pub provider_registry: &'a crate::providers::registry::ProviderRegistry,
+    /// Execution context with user information
     pub context: &'a PluginContext,
 }
 

@@ -7,6 +7,9 @@
 //!
 //! Essential security tests for authentication, authorization, and data protection.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use anyhow::Result;
@@ -75,8 +78,8 @@ async fn test_api_key_user_isolation() -> Result<()> {
 
     // User 1 creates an API key
     let create_request = CreateApiKeyRequest {
-        name: "User 1 API Key".to_string(),
-        description: Some("API key for user 1".to_string()),
+        name: "User 1 API Key".to_owned(),
+        description: Some("API key for user 1".to_owned()),
         tier: ApiKeyTier::Professional,
         expires_in_days: Some(30),
         rate_limit_requests: None,
@@ -116,7 +119,7 @@ async fn test_basic_input_validation() -> Result<()> {
     let long_name = "a".repeat(1000);
     let create_request = CreateApiKeyRequest {
         name: long_name,
-        description: Some("Test description".to_string()),
+        description: Some("Test description".to_owned()),
         tier: ApiKeyTier::Professional,
         expires_in_days: Some(30),
         rate_limit_requests: None,
@@ -248,7 +251,7 @@ async fn test_api_key_uniqueness() -> Result<()> {
     for i in 0..10 {
         let create_request = CreateApiKeyRequest {
             name: format!("Unique Test Key {i}"),
-            description: Some("Uniqueness test".to_string()),
+            description: Some("Uniqueness test".to_owned()),
             tier: ApiKeyTier::Starter,
             expires_in_days: Some(30),
             rate_limit_requests: None,

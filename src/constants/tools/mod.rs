@@ -6,7 +6,10 @@
 
 //! MCP tools constants module
 
+/// MCP tool name identifiers
 pub mod identifiers;
 
 // Re-export all tool identifiers
+
+/// Re-export all tool identifier constants
 pub use identifiers::*;

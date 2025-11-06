@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use chrono::Utc;
 use pierre_mcp_server::{
@@ -272,11 +275,11 @@ async fn test_oauth_notification_struct_creation() -> Result<()> {
 
     // Test creating OAuthNotification struct
     let notification = OAuthNotification {
-        id: "test-notification-id".to_string(),
+        id: "test-notification-id".to_owned(),
         user_id: user_id.to_string(),
-        provider: "strava".to_string(),
+        provider: "strava".to_owned(),
         success: true,
-        message: "OAuth completed successfully".to_string(),
+        message: "OAuth completed successfully".to_owned(),
         expires_at: None,
         created_at,
         read_at: None,

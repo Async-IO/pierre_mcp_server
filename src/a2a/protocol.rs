@@ -21,7 +21,10 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 // Phase 2: Type aliases pointing to unified JSON-RPC foundation
+
+/// A2A protocol request (JSON-RPC 2.0 request)
 pub type A2ARequest = crate::jsonrpc::JsonRpcRequest;
+/// A2A protocol response (JSON-RPC 2.0 response)
 pub type A2AResponse = crate::jsonrpc::JsonRpcResponse;
 
 /// A2A Protocol Error types
@@ -66,6 +69,8 @@ pub enum A2AError {
 }
 
 // Phase 2: Type alias for error response
+
+/// A2A protocol error response (JSON-RPC 2.0 error)
 pub type A2AErrorResponse = crate::jsonrpc::JsonRpcError;
 
 impl From<A2AError> for A2AErrorResponse {
@@ -120,8 +125,11 @@ pub struct A2AInitializeRequest {
 /// A2A Client Information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2AClientInfo {
+    /// Client application name
     pub name: String,
+    /// Client application version
     pub version: String,
+    /// Optional client description
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
@@ -142,13 +150,17 @@ pub struct A2AInitializeResponse {
 /// A2A Server Information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2AServerInfo {
+    /// Server application name
     pub name: String,
+    /// Server application version
     pub version: String,
+    /// Optional server description
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
 
 impl A2AInitializeResponse {
+    /// Create a new A2A initialize response with server information
     #[must_use]
     pub fn new(protocol_version: String, server_name: String, server_version: String) -> Self {
         Self {
@@ -157,18 +169,18 @@ impl A2AInitializeResponse {
                 name: server_name,
                 version: server_version,
                 description: Some(
-                    "AI-powered fitness data analysis and insights platform".to_string(),
+                    "AI-powered fitness data analysis and insights platform".to_owned(),
                 ),
             },
             capabilities: vec![
-                "message/send".to_string(),
-                "message/stream".to_string(),
-                "tasks/create".to_string(),
-                "tasks/get".to_string(),
-                "tasks/cancel".to_string(),
-                "tasks/pushNotificationConfig/set".to_string(),
-                "tools/list".to_string(),
-                "tools/call".to_string(),
+                "message/send".to_owned(),
+                "message/stream".to_owned(),
+                "tasks/create".to_owned(),
+                "tasks/get".to_owned(),
+                "tasks/cancel".to_owned(),
+                "tasks/pushNotificationConfig/set".to_owned(),
+                "tools/list".to_owned(),
+                "tools/call".to_owned(),
             ],
         }
     }
@@ -177,8 +189,11 @@ impl A2AInitializeResponse {
 /// A2A Message structure for agent communication
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2AMessage {
+    /// Unique message identifier
     pub id: String,
+    /// Message content parts (text, data, or files)
     pub parts: Vec<MessagePart>,
+    /// Optional metadata key-value pairs
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<HashMap<String, Value>>,
 }
@@ -187,38 +202,61 @@ pub struct A2AMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum MessagePart {
+    /// Plain text message content
     #[serde(rename = "text")]
-    Text { content: String },
+    Text {
+        /// Text content
+        content: String,
+    },
+    /// Structured data content (JSON)
     #[serde(rename = "data")]
-    Data { content: Value },
+    Data {
+        /// Data content as JSON value
+        content: Value,
+    },
+    /// File attachment content
     #[serde(rename = "file")]
     File {
+        /// File name
         name: String,
+        /// MIME type of the file
         mime_type: String,
-        content: String, // base64 encoded
+        /// File content (base64 encoded)
+        content: String,
     },
 }
 
 /// A2A Task structure for long-running operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2ATask {
+    /// Unique task identifier
     pub id: String,
+    /// Current status of the task
     pub status: TaskStatus,
+    /// When the task was created
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// When the task completed (if finished)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Task result data (if completed successfully)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
+    /// Error message (if failed)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-    // Additional fields for database compatibility
+    /// Client ID that created this task
     pub client_id: String,
+    /// Type of task being performed
     pub task_type: String,
+    /// Input data for the task
     pub input_data: Value,
+    /// Output data from the task (if completed)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_data: Option<Value>,
+    /// Detailed error message (if failed)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
+    /// When the task was last updated
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -226,10 +264,15 @@ pub struct A2ATask {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum TaskStatus {
+    /// Task is queued but not yet started
     Pending,
+    /// Task is currently executing
     Running,
+    /// Task finished successfully
     Completed,
+    /// Task failed with an error
     Failed,
+    /// Task was cancelled by user or system
     Cancelled,
 }
 
@@ -247,25 +290,29 @@ impl std::fmt::Display for TaskStatus {
 
 /// A2A Protocol Server implementation
 pub struct A2AServer {
+    /// A2A protocol version
     pub version: String,
+    /// Optional server resources for MCP integration
     pub resources: Option<std::sync::Arc<crate::mcp::resources::ServerResources>>,
 }
 
 impl A2AServer {
+    /// Create a new A2A server without resources
     #[must_use]
     pub fn new() -> Self {
         Self {
-            version: crate::a2a::A2A_VERSION.to_string(),
+            version: crate::a2a::A2A_VERSION.to_owned(),
             resources: None,
         }
     }
 
+    /// Create a new A2A server with server resources
     #[must_use]
     pub fn new_with_resources(
         resources: std::sync::Arc<crate::mcp::resources::ServerResources>,
     ) -> Self {
         Self {
-            version: crate::a2a::A2A_VERSION.to_string(),
+            version: crate::a2a::A2A_VERSION.to_owned(),
             resources: Some(resources),
         }
     }
@@ -331,7 +378,7 @@ impl A2AServer {
                 result: None,
                 error: Some(A2AErrorResponse {
                     code: -32603,
-                    message: "Internal error: Server resources not initialized".to_string(),
+                    message: "Internal error: Server resources not initialized".to_owned(),
                     data: None,
                 }),
                 id: request.id.clone(),
@@ -392,7 +439,7 @@ impl A2AServer {
         } else {
             // Default values if parsing fails
             tracing::debug!("A2A initialize: using default values (no valid params provided)");
-            (crate::a2a::A2A_VERSION.to_string(), "unknown".to_string())
+            (crate::a2a::A2A_VERSION.to_owned(), "unknown".to_owned())
         };
 
         info!("A2A initialization from client: {client_name} with protocol version: {protocol_version}");
@@ -400,7 +447,7 @@ impl A2AServer {
         // Create A2A initialize response
         let init_response = A2AInitializeResponse::new(
             protocol_version,
-            "pierre-a2a-server".to_string(),
+            "pierre-a2a-server".to_owned(),
             self.version.clone(), // Safe: String ownership for response
         );
 
@@ -442,7 +489,7 @@ impl A2AServer {
                 error: Some(A2AErrorResponse {
                     code: -32001,
                     message: "Authentication token required for OAuth credential storage"
-                        .to_string(),
+                        .to_owned(),
                     data: None,
                 }),
                 id: Some(request_id.clone()), // Safe: JSON value ownership for error response
@@ -461,7 +508,7 @@ impl A2AServer {
                         result: None,
                         error: Some(A2AErrorResponse {
                             code: -32001,
-                            message: "Invalid user ID in authentication token".to_string(),
+                            message: "Invalid user ID in authentication token".to_owned(),
                             data: None,
                         }),
                         id: Some(request_id.clone()), // Safe: JSON value ownership for error response
@@ -474,7 +521,7 @@ impl A2AServer {
                 result: None,
                 error: Some(A2AErrorResponse {
                     code: -32001,
-                    message: "Invalid authentication token".to_string(),
+                    message: "Invalid authentication token".to_owned(),
                     data: None,
                 }),
                 id: Some(request_id),
@@ -546,7 +593,7 @@ impl A2AServer {
                 tracing::warn!("Missing client_id in A2A task request, using 'unknown'");
                 "unknown"
             })
-            .to_string();
+            .to_owned();
         let task_type = params
             .get("task_type")
             .or_else(|| params.get("type"))
@@ -555,7 +602,7 @@ impl A2AServer {
                 tracing::warn!("Missing task_type in A2A task request, using 'generic'");
                 "generic"
             })
-            .to_string();
+            .to_owned();
 
         // Persist task to database and get generated task_id
         let task_id = if let Some(resources) = &self.resources {
@@ -618,7 +665,7 @@ impl A2AServer {
                 result: None,
                 error: Some(A2AErrorResponse {
                     code: -32603,
-                    message: "Internal error: Failed to serialize task".to_string(),
+                    message: "Internal error: Failed to serialize task".to_owned(),
                     data: Some(serde_json::json!({
                         "error": e.to_string(),
                         "context": "Task serialization failed"
@@ -862,7 +909,7 @@ impl A2AServer {
 
         // Create universal request
         let universal_request = crate::protocols::universal::UniversalRequest {
-            tool_name: tool_name.to_string(),
+            tool_name: tool_name.to_owned(),
             parameters: serde_json::Value::Object(tool_params),
             user_id: "unknown".into(), // In production, this would come from authentication
             protocol: "a2a".into(),

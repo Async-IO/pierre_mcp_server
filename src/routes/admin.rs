@@ -27,36 +27,49 @@ use warp::{
 /// API key provisioning request
 #[derive(Debug, Deserialize)]
 pub struct ApiKeyRequest {
+    /// Name of the service requesting the API key
     pub service_name: String,
+    /// Number of days until the key expires
     pub expires_days: Option<i64>,
+    /// Optional list of permission scopes for the key
     pub scopes: Option<Vec<String>>,
 }
 
 /// API key revocation request
 #[derive(Debug, Deserialize)]
 pub struct RevokeKeyRequest {
+    /// ID of the API key to revoke
     pub api_key_id: String,
+    /// Optional reason for revoking the key
     pub reason: Option<String>,
 }
 
 /// Admin setup request
 #[derive(Debug, Deserialize)]
 pub struct AdminSetupRequest {
+    /// Admin email address
     pub email: String,
+    /// Admin password
     pub password: String,
+    /// Optional display name for the admin
     pub display_name: Option<String>,
 }
 
 /// Admin API context shared across all endpoints
 #[derive(Clone)]
 pub struct AdminApiContext {
+    /// Database connection for persistence operations
     pub database: Arc<Database>,
+    /// Admin authentication service
     pub auth_service: AdminAuthService,
+    /// Authentication manager for token operations
     pub auth_manager: Arc<AuthManager>,
+    /// JWT secret for admin token validation
     pub admin_jwt_secret: String,
 }
 
 impl AdminApiContext {
+    /// Creates a new admin API context
     pub fn new(
         database: &Arc<Database>,
         jwt_secret: &str,
@@ -72,7 +85,7 @@ impl AdminApiContext {
             database: database.clone(),
             auth_service: AdminAuthService::new((**database).clone(), jwks_manager.clone()),
             auth_manager: auth_manager.clone(),
-            admin_jwt_secret: jwt_secret.to_string(),
+            admin_jwt_secret: jwt_secret.to_owned(),
         }
     }
 }

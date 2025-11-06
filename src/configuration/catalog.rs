@@ -67,9 +67,13 @@ pub struct ConfigParameter {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ParameterType {
+    /// Floating-point numeric value
     Float,
+    /// Integer numeric value
     Integer,
+    /// Boolean true/false value
     Boolean,
+    /// Text string value
     String,
 }
 
@@ -106,7 +110,7 @@ impl CatalogBuilder {
         ConfigCategory {
             name: "physiological_zones".into(),
             description: "Heart rate zones, lactate thresholds, and VO2 max calculations"
-                .to_string(),
+                .to_owned(),
             modules: vec![
                 Self::build_heart_rate_module(),
                 Self::build_lactate_module(),
@@ -166,7 +170,7 @@ impl CatalogBuilder {
                 },
                 ConfigParameter {
                     key: "heart_rate.endurance_zone".into(),
-                    description: "Aerobic endurance zone as percentage of max HR".to_string(),
+                    description: "Aerobic endurance zone as percentage of max HR".to_owned(),
                     data_type: ParameterType::Float,
                     default_value: ConfigValue::Float(70.0),
                     valid_range: Some(ConfigValue::FloatRange {
@@ -258,7 +262,7 @@ impl CatalogBuilder {
             },
             ConfigParameter {
                 key: "fitness.vo2_max_threshold_male_recreational".into(),
-                description: "VO2 max threshold for recreational level (males)".to_string(),
+                description: "VO2 max threshold for recreational level (males)".to_owned(),
                 data_type: ParameterType::Float,
                 default_value: ConfigValue::Float(42.0),
                 valid_range: Some(ConfigValue::FloatRange {
@@ -271,7 +275,7 @@ impl CatalogBuilder {
             },
             ConfigParameter {
                 key: "fitness.vo2_max_threshold_male_intermediate".into(),
-                description: "VO2 max threshold for intermediate level (males)".to_string(),
+                description: "VO2 max threshold for intermediate level (males)".to_owned(),
                 data_type: ParameterType::Float,
                 default_value: ConfigValue::Float(50.0),
                 valid_range: Some(ConfigValue::FloatRange {
@@ -316,7 +320,7 @@ impl CatalogBuilder {
         vec![
             ConfigParameter {
                 key: "fitness.vo2_max_threshold_female_beginner".into(),
-                description: "VO2 max threshold for beginner level (females)".to_string(),
+                description: "VO2 max threshold for beginner level (females)".to_owned(),
                 data_type: ParameterType::Float,
                 default_value: ConfigValue::Float(30.0),
                 valid_range: Some(ConfigValue::FloatRange {
@@ -329,7 +333,7 @@ impl CatalogBuilder {
             },
             ConfigParameter {
                 key: "fitness.vo2_max_threshold_female_recreational".into(),
-                description: "VO2 max threshold for recreational level (females)".to_string(),
+                description: "VO2 max threshold for recreational level (females)".to_owned(),
                 data_type: ParameterType::Float,
                 default_value: ConfigValue::Float(35.0),
                 valid_range: Some(ConfigValue::FloatRange {
@@ -342,7 +346,7 @@ impl CatalogBuilder {
             },
             ConfigParameter {
                 key: "fitness.vo2_max_threshold_female_intermediate".into(),
-                description: "VO2 max threshold for intermediate level (females)".to_string(),
+                description: "VO2 max threshold for intermediate level (females)".to_owned(),
                 data_type: ParameterType::Float,
                 default_value: ConfigValue::Float(42.0),
                 valid_range: Some(ConfigValue::FloatRange {
@@ -355,7 +359,7 @@ impl CatalogBuilder {
             },
             ConfigParameter {
                 key: "fitness.vo2_max_threshold_female_advanced".into(),
-                description: "VO2 max threshold for advanced level (females)".to_string(),
+                description: "VO2 max threshold for advanced level (females)".to_owned(),
                 data_type: ParameterType::Float,
                 default_value: ConfigValue::Float(50.0),
                 valid_range: Some(ConfigValue::FloatRange {
@@ -386,12 +390,12 @@ impl CatalogBuilder {
     fn build_heart_rate_zones_module() -> ConfigModule {
         ConfigModule {
             name: "heart_rate_zones".into(),
-            description: "Heart rate zone percentages for different fitness levels".to_string(),
+            description: "Heart rate zone percentages for different fitness levels".to_owned(),
             parameters: vec![
                 ConfigParameter {
                     key: "hr_zones.elite_zone6_threshold".into(),
                     description: "VO2 max threshold for zone 6 availability (elite athletes)"
-                        .to_string(),
+                        .to_owned(),
                     data_type: ParameterType::Float,
                     default_value: ConfigValue::Float(50.0),
                     valid_range: Some(ConfigValue::FloatRange {
@@ -460,7 +464,7 @@ impl CatalogBuilder {
             parameters: vec![
                 ConfigParameter {
                     key: "vo2.vdot_coefficient_a".into(),
-                    description: "VDOT formula coefficient A (velocity calculation)".to_string(),
+                    description: "VDOT formula coefficient A (velocity calculation)".to_owned(),
                     data_type: ParameterType::Float,
                     default_value: ConfigValue::Float(29.54),
                     valid_range: Some(ConfigValue::FloatRange {
@@ -496,7 +500,7 @@ impl CatalogBuilder {
                 },
                 ConfigParameter {
                     key: "vo2.threshold_velocity_base".into(),
-                    description: "Base threshold velocity as percentage of vVO2max".to_string(),
+                    description: "Base threshold velocity as percentage of vVO2max".to_owned(),
                     data_type: ParameterType::Float,
                     default_value: ConfigValue::Float(0.86),
                     valid_range: Some(ConfigValue::FloatRange {
@@ -509,7 +513,7 @@ impl CatalogBuilder {
                 },
                 ConfigParameter {
                     key: "vo2.threshold_adjustment_factor".into(),
-                    description: "Threshold adjustment factor for lactate threshold".to_string(),
+                    description: "Threshold adjustment factor for lactate threshold".to_owned(),
                     data_type: ParameterType::Float,
                     default_value: ConfigValue::Float(0.4),
                     valid_range: Some(ConfigValue::FloatRange { min: 0.2, max: 0.6 }),
@@ -519,7 +523,7 @@ impl CatalogBuilder {
                 },
                 ConfigParameter {
                     key: "vo2.power_coefficient".into(),
-                    description: "Power at VO2 max coefficient (W per ml/kg/min)".to_string(),
+                    description: "Power at VO2 max coefficient (W per ml/kg/min)".to_owned(),
                     data_type: ParameterType::Float,
                     default_value: ConfigValue::Float(13.5),
                     valid_range: Some(ConfigValue::FloatRange {
@@ -656,7 +660,7 @@ impl CatalogBuilder {
             },
             ConfigParameter {
                 key: "pace.neuromuscular_zone_percentage".into(),
-                description: "Neuromuscular pace zone percentage of vVO2max".to_string(),
+                description: "Neuromuscular pace zone percentage of vVO2max".to_owned(),
                 data_type: ParameterType::Float,
                 default_value: ConfigValue::Float(1.05),
                 valid_range: Some(ConfigValue::FloatRange {
@@ -678,7 +682,7 @@ impl CatalogBuilder {
             parameters: vec![
                 ConfigParameter {
                     key: "ftp.elite_percentage".into(),
-                    description: "FTP percentage for elite athletes (VO2 max >= 60)".to_string(),
+                    description: "FTP percentage for elite athletes (VO2 max >= 60)".to_owned(),
                     data_type: ParameterType::Float,
                     default_value: ConfigValue::Float(0.85),
                     valid_range: Some(ConfigValue::FloatRange {
@@ -691,7 +695,7 @@ impl CatalogBuilder {
                 },
                 ConfigParameter {
                     key: "ftp.advanced_percentage".into(),
-                    description: "FTP percentage for advanced athletes (VO2 max >= 50)".to_string(),
+                    description: "FTP percentage for advanced athletes (VO2 max >= 50)".to_owned(),
                     data_type: ParameterType::Float,
                     default_value: ConfigValue::Float(0.82),
                     valid_range: Some(ConfigValue::FloatRange {
@@ -705,7 +709,7 @@ impl CatalogBuilder {
                 ConfigParameter {
                     key: "ftp.intermediate_percentage".into(),
                     description: "FTP percentage for intermediate athletes (VO2 max >= 40)"
-                        .to_string(),
+                        .to_owned(),
                     data_type: ParameterType::Float,
                     default_value: ConfigValue::Float(0.78),
                     valid_range: Some(ConfigValue::FloatRange {
@@ -740,7 +744,7 @@ impl CatalogBuilder {
         ConfigCategory {
             name: "performance_calculation".into(),
             description: "Effort scoring, efficiency calculations, and performance metrics"
-                .to_string(),
+                .to_owned(),
             modules: vec![
                 ConfigModule {
                     name: "effort_scoring".into(),
@@ -750,7 +754,7 @@ impl CatalogBuilder {
                             key: "performance.run_distance_divisor".into(),
                             description:
                                 "Divisor for normalizing running distance in effort calculation"
-                                    .to_string(),
+                                    .to_owned(),
                             data_type: ParameterType::Float,
                             default_value: ConfigValue::Float(10.0),
                             valid_range: Some(ConfigValue::FloatRange {
@@ -765,7 +769,7 @@ impl CatalogBuilder {
                             key: "performance.bike_distance_divisor".into(),
                             description:
                                 "Divisor for normalizing cycling distance in effort calculation"
-                                    .to_string(),
+                                    .to_owned(),
                             data_type: ParameterType::Float,
                             default_value: ConfigValue::Float(40.0),
                             valid_range: Some(ConfigValue::FloatRange {
@@ -780,7 +784,7 @@ impl CatalogBuilder {
                             key: "performance.swim_distance_divisor".into(),
                             description:
                                 "Divisor for normalizing swimming distance in effort calculation"
-                                    .to_string(),
+                                    .to_owned(),
                             data_type: ParameterType::Float,
                             default_value: ConfigValue::Float(2.0),
                             valid_range: Some(ConfigValue::FloatRange { min: 1.0, max: 5.0 }),
@@ -791,7 +795,7 @@ impl CatalogBuilder {
                         ConfigParameter {
                             key: "performance.elevation_divisor".into(),
                             description: "Divisor for elevation gain in effort calculation"
-                                .to_string(),
+                                .to_owned(),
                             data_type: ParameterType::Float,
                             default_value: ConfigValue::Float(100.0),
                             valid_range: Some(ConfigValue::FloatRange {

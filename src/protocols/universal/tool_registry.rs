@@ -14,51 +14,87 @@ use std::pin::Pin;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ToolId {
     // Core Strava API tools
+    /// Get user's fitness activities with optional filtering
     GetActivities,
+    /// Get user's athlete profile and basic information
     GetAthlete,
+    /// Get user's performance statistics and metrics
     GetStats,
+    /// Analyze a specific activity with detailed performance insights
     AnalyzeActivity,
+    /// Get AI-powered intelligence analysis for an activity
     GetActivityIntelligence,
+    /// Check OAuth connection status for fitness providers
     GetConnectionStatus,
+    /// Connect to a fitness data provider via OAuth
     ConnectProvider,
+    /// Disconnect user from a fitness data provider
     DisconnectProvider,
 
     // Goal and planning tools
+    /// Set a new fitness goal for the user
     SetGoal,
+    /// Get AI-suggested fitness goals based on activity history
     SuggestGoals,
+    /// Analyze whether a goal is achievable given current fitness level
     AnalyzeGoalFeasibility,
+    /// Track progress towards fitness goals
     TrackProgress,
 
     // Analysis and intelligence tools
+    /// Calculate custom fitness metrics and performance indicators
     CalculateMetrics,
+    /// Analyze performance trends over time
     AnalyzePerformanceTrends,
+    /// Compare two activities for performance analysis
     CompareActivities,
+    /// Detect patterns and insights in activity data
     DetectPatterns,
+    /// Generate personalized training recommendations
     GenerateRecommendations,
+    /// Calculate overall fitness score based on recent activities
     CalculateFitnessScore,
+    /// Predict future performance based on training patterns
     PredictPerformance,
+    /// Analyze training load and recovery metrics
     AnalyzeTrainingLoad,
 
     // Configuration management tools
+    /// Get the complete configuration catalog with all available parameters
     GetConfigurationCatalog,
+    /// Get available configuration profiles (Research, Elite, Recreational, etc.)
     GetConfigurationProfiles,
+    /// Get current user's configuration settings and overrides
     GetUserConfiguration,
+    /// Update user's configuration parameters and session overrides
     UpdateUserConfiguration,
+    /// Calculate personalized training zones based on user's VO2 max
     CalculatePersonalizedZones,
+    /// Validate configuration parameters against safety rules
     ValidateConfiguration,
 
     // Sleep and recovery analysis tools
+    /// Analyze sleep quality from Fitbit/Garmin data using NSF/AASM guidelines
     AnalyzeSleepQuality,
+    /// Calculate holistic recovery score combining TSB, sleep quality, and HRV
     CalculateRecoveryScore,
+    /// AI-powered rest day recommendation based on recovery indicators
     SuggestRestDay,
+    /// Track sleep patterns and correlate with performance over time
     TrackSleepTrends,
+    /// Optimize sleep duration based on training load and recovery needs
     OptimizeSleepSchedule,
 
     // Nutrition analysis and USDA food database tools
+    /// Calculate daily calorie and macronutrient needs using Mifflin-St Jeor BMR formula
     CalculateDailyNutrition,
+    /// Get optimal pre/post-workout nutrition recommendations following ISSN guidelines
     GetNutrientTiming,
+    /// Search USDA `FoodData` Central database for foods by name/description
     SearchFood,
+    /// Get detailed nutritional information for a specific food from USDA database
     GetFoodDetails,
+    /// Analyze total calories and macronutrients for a meal of multiple foods
     AnalyzeMealNutrition,
 }
 
@@ -277,8 +313,11 @@ pub type SyncToolHandler = fn(
 
 /// Tool metadata and handler information
 pub struct ToolInfo {
+    /// Strongly-typed tool identifier
     pub id: ToolId,
+    /// Handler for async tools (makes network/DB calls)
     pub async_handler: Option<AsyncToolHandler>,
+    /// Handler for sync tools (pure computation)
     pub sync_handler: Option<SyncToolHandler>,
 }
 
@@ -305,6 +344,7 @@ impl ToolInfo {
 /// Type-safe tool registry that replaces string-based routing
 /// Provides compile-time guarantees and better performance
 pub struct ToolRegistry {
+    /// Map of tool IDs to their handler information
     tools: HashMap<ToolId, ToolInfo>,
 }
 

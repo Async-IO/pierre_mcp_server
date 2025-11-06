@@ -8,6 +8,9 @@
 //! This test suite focuses on the low-coverage areas in mcp/multitenant.rs
 //! including error scenarios, edge cases, and protocol handling
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use anyhow::Result;
@@ -152,9 +155,9 @@ async fn test_mcp_authenticate_request() -> Result<()> {
 
     // Create test user
     let user = User::new(
-        "mcp_auth@example.com".to_string(),
-        "password123".to_string(),
-        Some("MCP Auth Test".to_string()),
+        "mcp_auth@example.com".to_owned(),
+        "password123".to_owned(),
+        Some("MCP Auth Test".to_owned()),
     );
     database.create_user(&user).await?;
 
@@ -336,9 +339,9 @@ async fn test_mcp_oauth_tool_calls() -> Result<()> {
 
     // Create test user and generate valid token
     let user = User::new(
-        "oauth_test@example.com".to_string(),
-        "password".to_string(),
-        Some("OAuth Test User".to_string()),
+        "oauth_test@example.com".to_owned(),
+        "password".to_owned(),
+        Some("OAuth Test User".to_owned()),
     );
     database.create_user(&user).await?;
 
@@ -425,9 +428,9 @@ async fn test_mcp_intelligence_tool_calls() -> Result<()> {
 
     // Create test user
     let user = User::new(
-        "intel_test@example.com".to_string(),
-        "password".to_string(),
-        Some("Intelligence Test User".to_string()),
+        "intel_test@example.com".to_owned(),
+        "password".to_owned(),
+        Some("Intelligence Test User".to_owned()),
     );
     database.create_user(&user).await?;
 
@@ -489,9 +492,9 @@ async fn test_mcp_provider_required_tools() -> Result<()> {
 
     // Create test user
     let user = User::new(
-        "provider_test@example.com".to_string(),
-        "password".to_string(),
-        Some("Provider Test User".to_string()),
+        "provider_test@example.com".to_owned(),
+        "password".to_owned(),
+        Some("Provider Test User".to_owned()),
     );
     database.create_user(&user).await?;
 
@@ -562,9 +565,9 @@ async fn test_mcp_unknown_tool() -> Result<()> {
 
     // Create test user
     let user = User::new(
-        "unknown_tool@example.com".to_string(),
-        "password".to_string(),
-        Some("Unknown Tool Test".to_string()),
+        "unknown_tool@example.com".to_owned(),
+        "password".to_owned(),
+        Some("Unknown Tool Test".to_owned()),
     );
     database.create_user(&user).await?;
 
@@ -611,9 +614,9 @@ async fn test_mcp_api_key_authentication() -> Result<()> {
 
     // Create test user and API key
     let user = User::new(
-        "api_key_test@example.com".to_string(),
-        "password".to_string(),
-        Some("API Key Test".to_string()),
+        "api_key_test@example.com".to_owned(),
+        "password".to_owned(),
+        Some("API Key Test".to_owned()),
     );
     database.create_user(&user).await?;
 
@@ -743,9 +746,9 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
 
     // Create test user
     let user = User::new(
-        "concurrent_test@example.com".to_string(),
-        "password".to_string(),
-        Some("Concurrent Test".to_string()),
+        "concurrent_test@example.com".to_owned(),
+        "password".to_owned(),
+        Some("Concurrent Test".to_owned()),
     );
     database.create_user(&user).await?;
 

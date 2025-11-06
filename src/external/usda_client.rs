@@ -25,8 +25,8 @@
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let config = UsdaClientConfig {
-//!     api_key: "your_api_key".to_string(),
-//!     base_url: "https://api.nal.usda.gov/fdc/v1".to_string(),
+//!     api_key: "your_api_key".to_owned(),
+//!     base_url: "https://api.nal.usda.gov/fdc/v1".to_owned(),
 //!     cache_ttl_secs: 86400, // 24 hours
 //!     rate_limit_per_minute: 30,
 //! };
@@ -61,7 +61,7 @@ impl Default for UsdaClientConfig {
     fn default() -> Self {
         Self {
             api_key: String::new(),
-            base_url: "https://api.nal.usda.gov/fdc/v1".to_string(),
+            base_url: "https://api.nal.usda.gov/fdc/v1".to_owned(),
             cache_ttl_secs: 86400, // 24 hours
             rate_limit_per_minute: 30,
         }
@@ -112,6 +112,7 @@ pub struct FoodDetails {
     /// Portion information (serving size)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub serving_size: Option<f64>,
+    /// Unit of measurement for serving size (e.g., "g", "cup")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub serving_size_unit: Option<String>,
 }

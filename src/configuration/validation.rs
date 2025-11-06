@@ -50,8 +50,11 @@ pub struct ImpactAnalysis {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RiskLevel {
+    /// Low risk - safe to apply without concerns
     Low,
+    /// Medium risk - review recommended before applying
     Medium,
+    /// High risk - careful review required, may impact safety
     High,
 }
 
@@ -217,7 +220,7 @@ impl ConfigValidator {
                     let zone_name = key.split('.').next_back().unwrap_or(key);
                     impact
                         .zone_boundary_changes
-                        .insert(zone_name.to_string(), *new_value);
+                        .insert(zone_name.to_owned(), *new_value);
                 }
             }
         }
@@ -274,7 +277,7 @@ impl ConfigValidator {
                             if *percentage < 30.0 {
                                 return Err(
                                     "Heart rate percentage too low for meaningful training"
-                                        .to_string(),
+                                        .to_owned(),
                                 );
                             }
 
@@ -292,7 +295,7 @@ impl ConfigValidator {
                                     if age > 65 && actual_hr > 160.0 {
                                         return Err(
                                             "Heart rate target may be too high for age group"
-                                                .to_string(),
+                                                .to_owned(),
                                         );
                                     }
                                 }
@@ -405,7 +408,7 @@ impl ConfigValidator {
                         if (lactate_pct - hr_pct).abs() > 10.0 {
                             return Err(
                                 "Lactate threshold and HR anaerobic threshold should be within 10%"
-                                    .to_string(),
+                                    .to_owned(),
                             );
                         }
                     }

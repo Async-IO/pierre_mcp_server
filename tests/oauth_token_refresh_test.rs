@@ -3,6 +3,8 @@
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(
     clippy::uninlined_format_args,
     clippy::cast_possible_truncation,
@@ -201,15 +203,15 @@ fn create_test_server_config_without_oauth(
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
                 client_id: None,     // Missing credentials
                 client_secret: None, // Missing credentials
-                redirect_uri: Some("http://localhost:8081/oauth/callback/strava".to_string()),
-                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                redirect_uri: Some("http://localhost:8081/oauth/callback/strava".to_owned()),
+                scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
                 enabled: true,
             },
             fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
                 client_id: None,     // Missing credentials
                 client_secret: None, // Missing credentials
-                redirect_uri: Some("http://localhost:8081/oauth/callback/fitbit".to_string()),
-                scopes: vec!["activity".to_string(), "profile".to_string()],
+                redirect_uri: Some("http://localhost:8081/oauth/callback/fitbit".to_owned()),
+                scopes: vec!["activity".to_owned(), "profile".to_owned()],
                 enabled: true,
             },
             garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
@@ -234,23 +236,23 @@ fn create_test_server_config_without_oauth(
         external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
             weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: true,
             },
             ..Default::default()
@@ -260,9 +262,9 @@ fn create_test_server_config_without_oauth(
             default_activities_limit: 20,
             ci_mode: true,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                mcp_version: "2024-11-05".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2024-11-05".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
@@ -298,17 +300,17 @@ fn create_test_server_config(
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
-                client_id: Some("test_client_id".to_string()),
-                client_secret: Some("test_client_secret".to_string()),
-                redirect_uri: Some("http://localhost:8081/oauth/callback/strava".to_string()),
-                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                client_id: Some("test_client_id".to_owned()),
+                client_secret: Some("test_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8081/oauth/callback/strava".to_owned()),
+                scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
                 enabled: true,
             },
             fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
-                client_id: Some("test_fitbit_id".to_string()),
-                client_secret: Some("test_fitbit_secret".to_string()),
-                redirect_uri: Some("http://localhost:8081/oauth/callback/fitbit".to_string()),
-                scopes: vec!["activity".to_string(), "profile".to_string()],
+                client_id: Some("test_fitbit_id".to_owned()),
+                client_secret: Some("test_fitbit_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8081/oauth/callback/fitbit".to_owned()),
+                scopes: vec!["activity".to_owned(), "profile".to_owned()],
                 enabled: true,
             },
             garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
@@ -333,23 +335,23 @@ fn create_test_server_config(
         external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
             weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: true,
             },
             ..Default::default()
@@ -359,9 +361,9 @@ fn create_test_server_config(
             default_activities_limit: 20,
             ci_mode: true,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                mcp_version: "2024-11-05".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2024-11-05".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
@@ -392,7 +394,7 @@ async fn create_test_executor() -> (Arc<UniversalToolExecutor>, Arc<Database>) {
     );
 
     let _intelligence = Arc::new(ActivityIntelligence::new(
-        "Test Intelligence".to_string(),
+        "Test Intelligence".to_owned(),
         vec![],
         PerformanceMetrics {
             relative_effort: Some(7.5),
@@ -453,7 +455,7 @@ async fn create_test_executor_without_oauth() -> (Arc<UniversalToolExecutor>, Ar
     );
 
     let _intelligence = Arc::new(ActivityIntelligence::new(
-        "Test Intelligence".to_string(),
+        "Test Intelligence".to_owned(),
         vec![],
         PerformanceMetrics {
             relative_effort: Some(7.5),
@@ -503,8 +505,8 @@ async fn test_get_activities_with_expired_token() {
     let user_id = Uuid::new_v4();
     let user = User {
         id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
+        email: "test@example.com".to_owned(),
+        display_name: Some("Test User".to_owned()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST).unwrap(),
         tier: pierre_mcp_server::models::UserTier::Starter,
         is_active: true,
@@ -516,7 +518,7 @@ async fn test_get_activities_with_expired_token() {
         last_active: chrono::Utc::now(),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
     };
     database.create_user(&user).await.unwrap();
 
@@ -524,12 +526,12 @@ async fn test_get_activities_with_expired_token() {
     let expires_at = chrono::Utc::now() - chrono::Duration::hours(1); // Expired
     let oauth_token = UserOAuthToken::new(
         user_id,
-        "00000000-0000-0000-0000-000000000000".to_string(),
-        oauth_providers::STRAVA.to_string(),
-        "expired_access_token".to_string(),
-        Some("refresh_token_123".to_string()),
+        "00000000-0000-0000-0000-000000000000".to_owned(),
+        oauth_providers::STRAVA.to_owned(),
+        "expired_access_token".to_owned(),
+        Some("refresh_token_123".to_owned()),
         Some(expires_at),
-        Some("read,activity:read_all".to_string()),
+        Some("read,activity:read_all".to_owned()),
     );
     database
         .upsert_user_oauth_token(&oauth_token)
@@ -543,12 +545,12 @@ async fn test_get_activities_with_expired_token() {
     // Create request for get_activities
     let request = UniversalRequest {
         user_id: user_id.to_string(),
-        tool_name: "get_activities".to_string(),
+        tool_name: "get_activities".to_owned(),
         parameters: json!({
             "limit": 10,
             "provider": "strava"
         }),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -586,8 +588,8 @@ async fn test_connection_status_with_oauth_manager() {
     let user_id = Uuid::new_v4();
     let user = User {
         id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
+        email: "test@example.com".to_owned(),
+        display_name: Some("Test User".to_owned()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST).unwrap(),
         tier: pierre_mcp_server::models::UserTier::Starter,
         is_active: true,
@@ -599,7 +601,7 @@ async fn test_connection_status_with_oauth_manager() {
         last_active: chrono::Utc::now(),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
     };
     database.create_user(&user).await.unwrap();
 
@@ -612,9 +614,9 @@ async fn test_connection_status_with_oauth_manager() {
     // Create request for get_connection_status
     let request = UniversalRequest {
         user_id: user_id.to_string(),
-        tool_name: "get_connection_status".to_string(),
+        tool_name: "get_connection_status".to_owned(),
         parameters: json!({}),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -653,8 +655,8 @@ async fn test_analyze_activity_token_refresh() {
     let user_id = Uuid::new_v4();
     let user = User {
         id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
+        email: "test@example.com".to_owned(),
+        display_name: Some("Test User".to_owned()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST).unwrap(),
         tier: pierre_mcp_server::models::UserTier::Starter,
         is_active: true,
@@ -666,7 +668,7 @@ async fn test_analyze_activity_token_refresh() {
         last_active: chrono::Utc::now(),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
     };
     database.create_user(&user).await.unwrap();
 
@@ -674,12 +676,12 @@ async fn test_analyze_activity_token_refresh() {
     let expires_at = chrono::Utc::now() + chrono::Duration::minutes(3); // Expires in 3 minutes (within buffer)
     let oauth_token = UserOAuthToken::new(
         user_id,
-        "00000000-0000-0000-0000-000000000000".to_string(),
-        oauth_providers::STRAVA.to_string(),
-        "soon_to_expire_token".to_string(),
-        Some("refresh_token_456".to_string()),
+        "00000000-0000-0000-0000-000000000000".to_owned(),
+        oauth_providers::STRAVA.to_owned(),
+        "soon_to_expire_token".to_owned(),
+        Some("refresh_token_456".to_owned()),
         Some(expires_at),
-        Some("read,activity:read_all".to_string()),
+        Some("read,activity:read_all".to_owned()),
     );
     database
         .upsert_user_oauth_token(&oauth_token)
@@ -693,11 +695,11 @@ async fn test_analyze_activity_token_refresh() {
     // Create request
     let request = UniversalRequest {
         user_id: user_id.to_string(),
-        tool_name: "analyze_activity".to_string(),
+        tool_name: "analyze_activity".to_owned(),
         parameters: json!({
             "activity_id": "123456789"
         }),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -740,8 +742,8 @@ async fn test_concurrent_token_operations() {
     let user_id = Uuid::new_v4();
     let user = User {
         id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
+        email: "test@example.com".to_owned(),
+        display_name: Some("Test User".to_owned()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST).unwrap(),
         tier: pierre_mcp_server::models::UserTier::Starter,
         is_active: true,
@@ -753,7 +755,7 @@ async fn test_concurrent_token_operations() {
         last_active: chrono::Utc::now(),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
     };
     database.create_user(&user).await.unwrap();
 
@@ -761,12 +763,12 @@ async fn test_concurrent_token_operations() {
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
     let oauth_token = UserOAuthToken::new(
         user_id,
-        "00000000-0000-0000-0000-000000000000".to_string(),
-        oauth_providers::STRAVA.to_string(),
-        "valid_token".to_string(),
-        Some("refresh_token".to_string()),
+        "00000000-0000-0000-0000-000000000000".to_owned(),
+        oauth_providers::STRAVA.to_owned(),
+        "valid_token".to_owned(),
+        Some("refresh_token".to_owned()),
         Some(expires_at),
-        Some("read,activity:read_all".to_string()),
+        Some("read,activity:read_all".to_owned()),
     );
     database
         .upsert_user_oauth_token(&oauth_token)
@@ -786,9 +788,9 @@ async fn test_concurrent_token_operations() {
         let handle = tokio::spawn(async move {
             let request = UniversalRequest {
                 user_id: user_id_str,
-                tool_name: "get_connection_status".to_string(),
+                tool_name: "get_connection_status".to_owned(),
                 parameters: json!({}),
-                protocol: "test".to_string(),
+                protocol: "test".to_owned(),
                 tenant_id: None,
             };
             executor_clone.execute_tool(request).await
@@ -817,8 +819,8 @@ async fn test_oauth_provider_init_failure() {
     let user_id = Uuid::new_v4();
     let user = User {
         id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
+        email: "test@example.com".to_owned(),
+        display_name: Some("Test User".to_owned()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST).unwrap(),
         tier: pierre_mcp_server::models::UserTier::Starter,
         is_active: true,
@@ -830,16 +832,16 @@ async fn test_oauth_provider_init_failure() {
         last_active: chrono::Utc::now(),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
     };
     database.create_user(&user).await.unwrap();
 
     // Create tenant with the user as owner
     let tenant = pierre_mcp_server::models::Tenant::new(
-        "Test Tenant".to_string(),
-        "test-tenant".to_string(),
-        Some("test.example.com".to_string()),
-        "starter".to_string(),
+        "Test Tenant".to_owned(),
+        "test-tenant".to_owned(),
+        Some("test.example.com".to_owned()),
+        "starter".to_owned(),
         user_id, // User is now the owner
     );
     database.create_tenant(&tenant).await.unwrap();
@@ -847,9 +849,9 @@ async fn test_oauth_provider_init_failure() {
     // Create request
     let request = UniversalRequest {
         user_id: user_id.to_string(),
-        tool_name: "get_activities".to_string(),
+        tool_name: "get_activities".to_owned(),
         parameters: json!({}),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 

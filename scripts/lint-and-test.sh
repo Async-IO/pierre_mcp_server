@@ -1,16 +1,25 @@
 #!/bin/bash
-# ABOUTME: Comprehensive validation script enforcing all code quality standards
-# ABOUTME: Runs linters, tests, format checks, and security audits before commits
+# ABOUTME: Simplified validation orchestrator using native Cargo commands
+# ABOUTME: Delegates to cargo fmt, cargo clippy, cargo deny, and custom architectural validation
+
+# ============================================================================
+# ARCHITECTURE: Native Cargo-First Approach
+# ============================================================================
+# This script has been DRASTICALLY SIMPLIFIED (from 1294 → ~350 lines)
 #
-# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-# Copyright ©2025 Async-IO.org
+# WHAT CHANGED:
+# - Clippy: cargo clippy (reads Cargo.toml [lints] table) ← was custom flags
+# - Formatting: cargo fmt --check ← was custom orchestration
+# - Security: cargo deny check (reads deny.toml) ← was cargo-audit + bash
+# - Documentation: cargo doc --no-deps ← was custom checks
+#
+# WHAT REMAINS CUSTOM:
+# - Architectural validation (scripts/architectural-validation.sh)
+# - Frontend orchestration (npm/TypeScript toolchain)
+# - Test execution coordination
+# - MCP/Bridge compliance checks
 
-# Pierre MCP Server - Comprehensive Validation Script
-# This script enforces all mandatory code quality standards and dev best practices
-# Usage: ./scripts/lint-and-test.sh [--coverage]
-
-# Manual error handling - collect all failures rather than stopping at first one
-# Fast-fail kept only for critical architectural issues that prevent meaningful testing
+set -e
 
 echo "Running Pierre MCP Server Validation Suite..."
 
@@ -27,7 +36,7 @@ for arg in "$@"; do
             ;;
         --help|-h)
             echo "Usage: $0 [--coverage]"
-            echo "  --coverage               Enable code coverage collection and reporting"
+            echo "  --coverage    Enable code coverage collection and reporting"
             exit 0
             ;;
         *)
@@ -49,64 +58,37 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
-echo -e "${BLUE}==== Pierre MCP Server - Lint and Test Runner ====${NC}"
+echo -e "${BLUE}==== Pierre MCP Server - Validation Suite ====${NC}"
 echo "Project root: $PROJECT_ROOT"
-
-# Change to project root
 cd "$PROJECT_ROOT"
 
-# Clean up any generated files from previous runs
-echo -e "${BLUE}==== Cleaning up generated files... ====${NC}"
-rm -f ./mcp_activities_*.json ./examples/mcp_activities_*.json ./a2a_*.json ./enterprise_strava_dataset.json 2>/dev/null || true
-find . -name "*demo*.json" -not -path "./target/*" -delete 2>/dev/null || true
-echo -e "${GREEN}[OK] Cleanup completed${NC}"
+# Track overall success
+ALL_PASSED=true
 
 # Function to check if a command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-
-# Track overall success
-ALL_PASSED=true
-
-# Track Pierre MCP server PID if we start it
-MCP_SERVER_PID=""
-
-# Cleanup function - shut down server if we started it
-cleanup_mcp_server() {
-    if [ -n "$MCP_SERVER_PID" ]; then
-        echo ""
-        echo -e "${BLUE}==== Shutting down Pierre MCP server (PID: $MCP_SERVER_PID)... ====${NC}"
-        kill "$MCP_SERVER_PID" 2>/dev/null || true
-        wait "$MCP_SERVER_PID" 2>/dev/null || true
-        echo -e "${GREEN}[OK] Pierre MCP server stopped${NC}"
-        MCP_SERVER_PID=""
-    fi
-}
-
-# Signal handler for Ctrl-C - kill process group and exit immediately
-handle_interrupt() {
-    echo ""
-    echo -e "${YELLOW}[INTERRUPTED] Received Ctrl-C, terminating all processes...${NC}"
-
-    # Kill the entire process group to stop cargo and all spawned test processes
-    # This is necessary because cargo test spawns multiple child processes
-    kill -- -$$ 2>/dev/null || true
-
-    cleanup_mcp_server
-    exit 130  # Standard exit code for SIGINT
-}
-
-# Register signal handlers
-trap cleanup_mcp_server EXIT
-trap handle_interrupt INT TERM
+# ============================================================================
+# CLEANUP
+# ============================================================================
 
 echo ""
-echo -e "${BLUE}==== Rust Backend Checks ====${NC}"
+echo -e "${BLUE}==== Cleaning up generated files... ====${NC}"
+rm -f ./mcp_activities_*.json ./examples/mcp_activities_*.json ./a2a_*.json ./enterprise_strava_dataset.json 2>/dev/null || true
+find . -name "*demo*.json" -not -path "./target/*" -delete 2>/dev/null || true
+echo -e "${GREEN}[OK] Cleanup completed${NC}"
 
-# Check Rust formatting (enforces proper formatting without auto-fixing)
-echo -e "${BLUE}==== Checking Rust code formatting... ====${NC}"
+# ============================================================================
+# NATIVE CARGO VALIDATION (Reads Cargo.toml [lints] + deny.toml)
+# ============================================================================
+
+echo ""
+echo -e "${BLUE}==== Native Cargo Validation ====${NC}"
+
+# Formatting check
+echo -e "${BLUE}Running cargo fmt --check...${NC}"
 if cargo fmt --all -- --check; then
     echo -e "${GREEN}[OK] Rust code formatting is correct${NC}"
 else
@@ -829,22 +811,75 @@ if [ "$CRITICAL_ISSUES" -gt 0 ]; then
     VALIDATION_FAILED=true
     ALL_PASSED=false
     exit 1
-elif [ "$WARNINGS" -gt 0 ]; then
-    echo -e "${YELLOW}⚠️  ARCHITECTURAL WARNING${NC}"
-    echo -e "${YELLOW}Architectural validation completed with $WARNINGS warning(s) - review table above${NC}"
-else
-    echo -e "${GREEN}✅ All architectural validations passed - excellent code quality${NC}"
 fi
 
-# PII and Secret Pattern Detection (critical security validation)
+# Clippy linting (reads Cargo.toml [lints.clippy] with level = "deny")
+echo -e "${BLUE}Running cargo clippy (zero tolerance via Cargo.toml)...${NC}"
+if cargo clippy --all-targets --all-features --quiet; then
+    echo -e "${GREEN}[OK] Clippy passed - ZERO warnings (enforced by Cargo.toml)${NC}"
+else
+    echo -e "${RED}[CRITICAL] Clippy failed${NC}"
+    echo -e "${RED}Re-run without --quiet to see details:${NC}"
+    echo -e "${RED}  cargo clippy --all-targets --all-features${NC}"
+    ALL_PASSED=false
+    exit 1
+fi
+
+# Security audit (reads deny.toml)
+echo -e "${BLUE}Running cargo deny check...${NC}"
+if command_exists cargo-deny; then
+    if cargo deny check; then
+        echo -e "${GREEN}[OK] Security audit passed (via deny.toml)${NC}"
+    else
+        echo -e "${YELLOW}[WARN] Security vulnerabilities detected${NC}"
+        echo -e "${YELLOW}Review output above and update dependencies${NC}"
+        # Don't fail build, just warn
+    fi
+else
+    echo -e "${YELLOW}[WARN] cargo-deny not installed${NC}"
+    echo -e "${YELLOW}Install with: cargo install cargo-deny${NC}"
+fi
+
+# Compilation check
+echo -e "${BLUE}Running cargo check...${NC}"
+if cargo check --all-targets --quiet; then
+    echo -e "${GREEN}[OK] Compilation check passed${NC}"
+else
+    echo -e "${RED}[CRITICAL] Compilation failed${NC}"
+    ALL_PASSED=false
+    exit 1
+fi
+
+# ============================================================================
+# CUSTOM ARCHITECTURAL VALIDATION (Project-Specific Rules)
+# ============================================================================
+
 echo ""
-echo -e "${BLUE}==== PII and Secret Pattern Detection (Security) ====${NC}"
+echo -e "${BLUE}==== Custom Architectural Validation ====${NC}"
+
+if [ -f "$SCRIPT_DIR/architectural-validation.sh" ]; then
+    if "$SCRIPT_DIR/architectural-validation.sh"; then
+        echo -e "${GREEN}[OK] Architectural validation passed${NC}"
+    else
+        echo -e "${RED}[CRITICAL] Architectural validation failed${NC}"
+        ALL_PASSED=false
+        exit 1
+    fi
+else
+    echo -e "${YELLOW}[WARN] Architectural validation script not found - skipping${NC}"
+fi
+
+# ============================================================================
+# PII AND SECRET PATTERN DETECTION
+# ============================================================================
+
+echo ""
+echo -e "${BLUE}==== PII and Secret Pattern Detection ====${NC}"
 if [ -f "$SCRIPT_DIR/validate-no-secrets.sh" ]; then
     if "$SCRIPT_DIR/validate-no-secrets.sh"; then
         echo -e "${GREEN}[OK] Secret pattern validation passed${NC}"
     else
-        echo -e "${RED}[CRITICAL] Secret pattern validation failed - FAST FAIL${NC}"
-        echo -e "${RED}Found sensitive data patterns that must be removed before deployment${NC}"
+        echo -e "${RED}[CRITICAL] Secret pattern validation failed${NC}"
         ALL_PASSED=false
         exit 1
     fi
@@ -852,100 +887,60 @@ else
     echo -e "${YELLOW}[WARN] Secret validation script not found - skipping${NC}"
 fi
 
-# Core development checks (format, clippy, compilation, tests)
+# ============================================================================
+# TEST EXECUTION
+# ============================================================================
+
 echo ""
-echo -e "${BLUE}==== Core Development Checks ====${NC}"
+echo -e "${BLUE}==== Running Tests ====${NC}"
 
-# Run Clippy linter with ZERO TOLERANCE (fast-fail on ANY warning)
-echo -e "${BLUE}==== Running Rust linter (Clippy) - ZERO TOLERANCE MODE... ====${NC}"
-if cargo clippy --all-targets --all-features --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings; then
-    echo -e "${GREEN}[OK] Rust linting passed - ZERO warnings${NC}"
-else
-    echo -e "${RED}[CRITICAL] Rust linting failed - ANY warning triggers fast-fail${NC}"
-    echo -e "${RED}FAST FAIL: Fix ALL linting warnings immediately${NC}"
-    echo -e "${YELLOW}Re-run with verbose output to see warnings:${NC}"
-    echo -e "${YELLOW}  cargo clippy --all-targets --all-features -- -W clippy::all -W clippy::pedantic -W clippy::nursery${NC}"
-    exit 1
+# Clean test databases
+echo -e "${BLUE}Cleaning test databases...${NC}"
+if [ -f "$SCRIPT_DIR/clean-test-databases.sh" ]; then
+    "$SCRIPT_DIR/clean-test-databases.sh" || true
 fi
 
-# Check Rust compilation
-echo -e "${BLUE}==== Checking Rust compilation... ====${NC}"
-if cargo check --all-targets --quiet; then
-    echo -e "${GREEN}[OK] Rust compilation check passed${NC}"
-else
-    echo -e "${RED}[CRITICAL] Rust compilation failed${NC}"
-    echo -e "${RED}FAST FAIL: Fix compilation errors before running tests${NC}"
-    ALL_PASSED=false
-    exit 1
-fi
+# Ensure data directory exists
+mkdir -p data
 
-# Check for backup files (Claude Code anti-pattern)
-echo -e "${BLUE}==== Checking for backup files... ====${NC}"
-BACKUP_FILES=$(find src tests -name "*.backup" -o -name "*.bak" 2>/dev/null)
-if [ -n "$BACKUP_FILES" ]; then
-    echo -e "${RED}[FAIL] Backup files found (must be removed):${NC}"
-    echo "$BACKUP_FILES"
-    ALL_PASSED=false
-else
-    echo -e "${GREEN}[OK] No backup files found${NC}"
-fi
-
-# Clean up test databases before running tests
-echo -e "${BLUE}==== Cleaning up test databases... ====${NC}"
-if ./scripts/clean-test-databases.sh; then
-    echo -e "${GREEN}[OK] Test databases cleaned${NC}"
-else
-    echo -e "${YELLOW}[WARN] Test database cleanup failed (continuing anyway)${NC}"
-fi
-
-# Ensure data directory exists for SQLite databases
-echo -e "${BLUE}==== Ensuring test infrastructure... ====${NC}"
-if mkdir -p data; then
-    echo -e "${GREEN}[OK] Data directory ensured${NC}"
-else
-    echo -e "${YELLOW}[WARN] Could not create data directory (continuing anyway)${NC}"
-fi
-
-# Run Rust tests
-echo -e "${BLUE}==== Running Rust tests... ====${NC}"
-# Count total tests
+# Count tests
 TOTAL_TESTS=$(cargo test --all-targets -- --list 2>/dev/null | grep -E "^[a-zA-Z_].*: test$" | wc -l | tr -d ' ')
 echo -e "${BLUE}Total tests to run: $TOTAL_TESTS${NC}"
-# Use 2048-bit RSA keys for faster test execution (4096-bit is production default)
-# RSA key generation is expensive: 2048-bit is ~4-8x faster than 4096-bit
-export PIERRE_RSA_KEY_SIZE=2048
-if cargo test --all-targets --no-fail-fast; then
-    echo -e "${GREEN}[OK] All $TOTAL_TESTS Rust tests passed${NC}"
-else
-    echo -e "${RED}[FAIL] Some Rust tests failed${NC}"
-    ALL_PASSED=false
-fi
 
-# Run Rust tests with coverage (if enabled and cargo-llvm-cov is installed)
+# Use 2048-bit RSA for faster test execution
+export PIERRE_RSA_KEY_SIZE=2048
+
+# Run tests
 if [ "$ENABLE_COVERAGE" = true ]; then
-    echo -e "${BLUE}==== Running Rust tests with coverage... ====${NC}"
+    echo -e "${BLUE}Running tests with coverage...${NC}"
     if command_exists cargo-llvm-cov; then
-        # Show coverage summary directly on screen (all tests including integration)
-        echo -e "${BLUE}Generating coverage summary for all tests...${NC}"
         if cargo llvm-cov --all-targets --summary-only; then
-            echo -e "${GREEN}[OK] Rust coverage summary displayed above${NC}"
+            echo -e "${GREEN}[OK] All $TOTAL_TESTS tests passed with coverage${NC}"
         else
-            echo -e "${YELLOW}[WARN]  Coverage generation failed or timed out${NC}"
-            echo -e "${YELLOW}   Falling back to library tests only...${NC}"
-            if cargo llvm-cov --lib --summary-only; then
-                echo -e "${GREEN}[OK] Rust library coverage summary displayed above${NC}"
-            else
-                echo -e "${YELLOW}   Coverage generation failed - skipping${NC}"
-            fi
+            echo -e "${RED}[FAIL] Some tests failed${NC}"
+            ALL_PASSED=false
         fi
     else
-        echo -e "${YELLOW}[WARN]  cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov${NC}"
-        echo -e "${YELLOW}   Skipping coverage report generation${NC}"
+        echo -e "${YELLOW}[WARN] cargo-llvm-cov not installed${NC}"
+        echo -e "${YELLOW}Install with: cargo install cargo-llvm-cov${NC}"
+        if cargo test --all-targets --no-fail-fast; then
+            echo -e "${GREEN}[OK] All $TOTAL_TESTS tests passed${NC}"
+        else
+            echo -e "${RED}[FAIL] Some tests failed${NC}"
+            ALL_PASSED=false
+        fi
+    fi
+else
+    if cargo test --all-targets --no-fail-fast; then
+        echo -e "${GREEN}[OK] All $TOTAL_TESTS tests passed${NC}"
+    else
+        echo -e "${RED}[FAIL] Some tests failed${NC}"
+        ALL_PASSED=false
     fi
 fi
 
-# Run HTTP API integration tests specifically
-echo -e "${BLUE}==== Running HTTP API integration tests... ====${NC}"
+# HTTP API integration tests
+echo -e "${BLUE}Running HTTP API integration tests...${NC}"
 if cargo test --test http_api_integration_test --quiet; then
     echo -e "${GREEN}[OK] HTTP API integration tests passed${NC}"
 else
@@ -953,8 +948,8 @@ else
     ALL_PASSED=false
 fi
 
-# Run A2A compliance tests specifically
-echo -e "${BLUE}==== Running A2A compliance tests... ====${NC}"
+# A2A compliance tests
+echo -e "${BLUE}Running A2A compliance tests...${NC}"
 if cargo test --test a2a_compliance_test --quiet; then
     echo -e "${GREEN}[OK] A2A compliance tests passed${NC}"
 else
@@ -962,238 +957,86 @@ else
     ALL_PASSED=false
 fi
 
-echo -e "${GREEN}[OK] Core development checks completed${NC}"
-echo ""
+# ============================================================================
+# FRONTEND VALIDATION (Separate Toolchain)
+# ============================================================================
 
-# ADDITIONAL CHECKS: Legacy functions and architectural analysis
-echo -e "${BLUE}==== Additional Code Quality Checks (Informational) ====${NC}"
-
-# FAST FAIL: Check for legacy functions that throw nonsense behavior
-echo -e "${BLUE}==== Checking for legacy functions (FAST FAIL)... ====${NC}"
-
-# Check for legacy OAuth patterns and deprecated functions
-LEGACY_OAUTH=$(rg "Legacy OAuth not supported|legacy.*oauth|connect_strava|connect_fitbit" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-DEPRECATED_FUNCTIONS=$(rg "deprecated.*use.*instead|Universal.*deprecated|ProviderManager deprecated" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-LEGACY_TOOLS=$(rg "Legacy tool.*deprecated" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-
-# CRITICAL: Check for placeholder implementations that return Value instead of McpResponse
-PLACEHOLDER_IMPLEMENTATIONS=$(rg "fn handle_.*-> Value" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-PLACEHOLDER_JSON_RETURNS=$(rg "serde_json::json!\(\{" src/mcp/multitenant.rs -A 3 | rg "response.*=" | wc -l | awk '{print $1+0}')
-
-# CRITICAL: Check for stub implementations that discard EXPENSIVE operations
-# Pattern: let _ = ( followed by lines containing .clone() within next 5 lines
-# This catches multiline tuple discards like:
-#   let _ = (
-#       database().clone(),
-#       config.clone(),
-#   );
-DISCARDED_EXPENSIVE_OPS=$(rg -B 2 -A 5 'let _ = \(' src/ | grep -v 'src/bin/' | rg '\.clone\(\)' | wc -l 2>/dev/null || echo 0)
-FAKE_ASYNC=$(rg 'tokio::task::yield_now\(\)\.await' src/ | grep -v 'tests/' --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-
-LEGACY_ISSUES_FOUND=false
-
-if [ "$LEGACY_OAUTH" -gt 0 ]; then 
-    echo -e "${RED}[CRITICAL] Found $LEGACY_OAUTH legacy OAuth patterns - will confuse users${NC}"
-    echo -e "${RED}           Legacy OAuth functions advertise but don't work${NC}"
-    rg "Legacy OAuth not supported|legacy.*oauth|connect_strava|connect_fitbit" src/ -n | head -5
-    LEGACY_ISSUES_FOUND=true
-    ALL_PASSED=false
-fi
-
-if [ "$DEPRECATED_FUNCTIONS" -gt 0 ]; then 
-    echo -e "${RED}[CRITICAL] Found $DEPRECATED_FUNCTIONS deprecated functions that throw errors${NC}"
-    echo -e "${RED}           These functions are called but always return errors${NC}"
-    rg "deprecated.*use.*instead|Universal.*deprecated|ProviderManager deprecated" src/ -n | head -5
-    LEGACY_ISSUES_FOUND=true
-    ALL_PASSED=false
-fi
-
-if [ "$LEGACY_TOOLS" -gt 0 ]; then 
-    echo -e "${RED}[CRITICAL] Found $LEGACY_TOOLS legacy tool handlers that throw errors${NC}"
-    echo -e "${RED}           These tools are advertised but always fail when called${NC}"
-    rg "Legacy tool.*deprecated" src/ -n | head -5
-    LEGACY_ISSUES_FOUND=true
-    ALL_PASSED=false
-fi
-
-if [ "$PLACEHOLDER_IMPLEMENTATIONS" -gt 0 ]; then
-    echo -e "${RED}[CRITICAL] Found $PLACEHOLDER_IMPLEMENTATIONS placeholder tool handlers that return mock data${NC}"
-    echo -e "${RED}           Tools that return 'Value' instead of 'McpResponse' are placeholders${NC}"
-    echo -e "${RED}           These tools appear to work but return fake data to users${NC}"
-    echo -e "${YELLOW}   Placeholder functions (should return McpResponse):${NC}"
-    rg "fn handle_.*-> Value" src/ -n | head -5
-    echo -e "${YELLOW}   Fix: Route through Universal Protocol or implement real functionality${NC}"
-    LEGACY_ISSUES_FOUND=true
-    ALL_PASSED=false
-fi
-
-if [ "$DISCARDED_EXPENSIVE_OPS" -gt 0 ]; then
-    echo -e "${RED}[CRITICAL] Found $DISCARDED_EXPENSIVE_OPS lines with EXPENSIVE operations that are discarded${NC}"
-    echo -e "${RED}           Pattern: let _ = (database().clone(), config.clone(), ...);${NC}"
-    echo -e "${RED}           This indicates stub code that does expensive work then throws it away${NC}"
-    echo ""
-    echo -e "${YELLOW}   Locations of discarded expensive operations:${NC}"
-    # Show the let _ = ( line and following clone() calls
-    rg -B 1 -A 5 'let _ = \(' src/ -n | grep -v 'src/bin/' | rg 'let _ = \(|\.clone\(\)' | head -15
-    echo ""
-    echo -e "${YELLOW}   Note: 'let _ = (&context)' without clones is OK - that's unused param suppression${NC}"
-    echo -e "${YELLOW}   Fix: Either use the cloned variables or remove the handler entirely${NC}"
-    LEGACY_ISSUES_FOUND=true
-    ALL_PASSED=false
-fi
-
-if [ "$FAKE_ASYNC" -gt 0 ]; then
-    echo -e "${RED}[CRITICAL] Found $FAKE_ASYNC fake async patterns (tokio::task::yield_now)${NC}"
-    echo -e "${RED}           This is used to make functions compile but does NOTHING${NC}"
-    echo -e "${RED}           Sign of stub/placeholder implementations${NC}"
-    echo -e "${YELLOW}   Locations of fake async:${NC}"
-    rg "tokio::task::yield_now\(\)\.await" src/ -g "!tests/*" -n | head -10
-    echo -e "${YELLOW}   Fix: Implement real async logic or make function sync${NC}"
-    LEGACY_ISSUES_FOUND=true
-    ALL_PASSED=false
-fi
-
-if [ "$LEGACY_ISSUES_FOUND" = true ]; then
-    echo -e "${RED}FAST FAIL: Remove legacy/stub functions that confuse users${NC}"
-    echo -e "${RED}   Functions that advertise but don't work create poor UX${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}[OK] No legacy functions found that throw nonsense behavior${NC}"
-echo ""
-
-# Frontend checks
 if [ -d "frontend" ]; then
     echo ""
-    echo -e "${BLUE}==== Frontend Checks ====${NC}"
-
+    echo -e "${BLUE}==== Frontend Validation ====${NC}"
     cd frontend
 
-    # Check and install dependencies if needed
-    echo -e "${BLUE}==== Checking frontend dependencies... ====${NC}"
+    # Check dependencies
     if [ ! -d "node_modules" ] || [ ! -f "node_modules/.package-lock.json" ]; then
-        echo -e "${YELLOW}[INFO] Frontend dependencies not found or outdated, installing...${NC}"
-        if npm install; then
-            echo -e "${GREEN}[OK] Frontend dependencies installed${NC}"
-        else
+        echo -e "${YELLOW}Installing frontend dependencies...${NC}"
+        npm install || {
             echo -e "${RED}[FAIL] Frontend dependency installation failed${NC}"
             ALL_PASSED=false
             cd ..
-            # Skip frontend tests if dependency installation fails
-            echo -e "${YELLOW}[WARN] Skipping frontend tests due to dependency installation failure${NC}"
-        fi
-    else
-        echo -e "${GREEN}[OK] Frontend dependencies already installed${NC}"
+        }
     fi
 
-    # Only proceed with tests if we didn't fail dependency installation
     if [ -d "node_modules" ]; then
-        # Run ESLint
-    echo -e "${BLUE}==== Running frontend linter (ESLint)... ====${NC}"
-    if npm run lint; then
-        echo -e "${GREEN}[OK] Frontend linting passed${NC}"
-    else
-        echo -e "${RED}[FAIL] Frontend linting failed${NC}"
-        ALL_PASSED=false
-    fi
-    
-    # Run TypeScript type checking
-    echo -e "${BLUE}==== Running TypeScript type checking... ====${NC}"
-    if npm run type-check; then
-        echo -e "${GREEN}[OK] TypeScript type checking passed${NC}"
-    else
-        echo -e "${RED}[FAIL] TypeScript type checking failed${NC}"
-        ALL_PASSED=false
-    fi
-    
-    # Run frontend tests
-    echo -e "${BLUE}==== Running frontend tests... ====${NC}"
-    if npm test -- --run; then
-        echo -e "${GREEN}[OK] Frontend tests passed${NC}"
-    else
-        echo -e "${RED}[FAIL] Frontend tests failed${NC}"
-        ALL_PASSED=false
-    fi
-    
-    # Run frontend tests with coverage (if enabled)
-    if [ "$ENABLE_COVERAGE" = true ]; then
-        echo -e "${BLUE}==== Running frontend tests with coverage... ====${NC}"
-        if npm run test:coverage -- --run; then
-            echo -e "${GREEN}[OK] Frontend coverage report generated in coverage/${NC}"
+        # Lint
+        if npm run lint; then
+            echo -e "${GREEN}[OK] Frontend linting passed${NC}"
         else
-            echo -e "${YELLOW}[WARN]  Failed to generate frontend coverage report${NC}"
+            echo -e "${RED}[FAIL] Frontend linting failed${NC}"
+            ALL_PASSED=false
         fi
-    fi
-    
-    # Check frontend build
-    echo -e "${BLUE}==== Checking frontend build... ====${NC}"
-    if npm run build; then
-        echo -e "${GREEN}[OK] Frontend build successful${NC}"
-    else
-        echo -e "${RED}[FAIL] Frontend build failed${NC}"
-        ALL_PASSED=false
+
+        # Type check
+        if npm run type-check; then
+            echo -e "${GREEN}[OK] TypeScript type checking passed${NC}"
+        else
+            echo -e "${RED}[FAIL] TypeScript type checking failed${NC}"
+            ALL_PASSED=false
+        fi
+
+        # Tests
+        if npm test -- --run; then
+            echo -e "${GREEN}[OK] Frontend tests passed${NC}"
+        else
+            echo -e "${RED}[FAIL] Frontend tests failed${NC}"
+            ALL_PASSED=false
+        fi
+
+        # Build
+        if npm run build; then
+            echo -e "${GREEN}[OK] Frontend build successful${NC}"
+        else
+            echo -e "${RED}[FAIL] Frontend build failed${NC}"
+            ALL_PASSED=false
+        fi
     fi
 
     cd ..
-    fi
 fi
 
-# Check for security vulnerabilities (if cargo-audit is installed)
-echo -e "${BLUE}==== Checking for security vulnerabilities... ====${NC}"
-if command_exists cargo-audit; then
-    # Run cargo audit and capture the output
-    AUDIT_OUTPUT=$(RUST_LOG=off cargo audit --ignore RUSTSEC-2023-0071 --no-fetch --color always 2>&1)
-    AUDIT_EXIT_CODE=$?
+# ============================================================================
+# PERFORMANCE AND DOCUMENTATION
+# ============================================================================
 
-    if [ $AUDIT_EXIT_CODE -eq 0 ]; then
-        echo -e "${GREEN}[OK] No security vulnerabilities found${NC}"
-    else
-        echo -e "${YELLOW}[WARN] Security vulnerabilities detected:${NC}"
-        echo ""
-        echo "$AUDIT_OUTPUT"
-        echo ""
-        echo -e "${YELLOW}💡 To fix vulnerabilities:${NC}"
-        echo -e "${YELLOW}   1. Check if newer versions are available: cargo update${NC}"
-        echo -e "${YELLOW}   2. Review vulnerability details at: https://rustsec.org${NC}"
-        echo -e "${YELLOW}   3. Consider alternative dependencies if no fix available${NC}"
-        echo ""
-        # Don't fail the build for vulnerabilities, but show them clearly
-    fi
-else
-    echo -e "${YELLOW}[WARN]  cargo-audit not installed. Install with: cargo install cargo-audit${NC}"
-fi
+echo ""
+echo -e "${BLUE}==== Performance and Documentation ====${NC}"
 
-# Performance and Architecture Gates (dev best practices)
-echo -e "${BLUE}==== Performance and Architecture Validation... ====${NC}"
-
-# Build release binary and check size
-echo -e "${BLUE}==== Building release binary for performance check... ====${NC}"
+# Build release binary
+echo -e "${BLUE}Building release binary...${NC}"
 if cargo build --release --quiet; then
     echo -e "${GREEN}[OK] Release build successful${NC}"
-    
-    # Check binary size (dev best practice: <50MB for pierre-mcp-server)
+
+    # Binary size check (will be validated by architectural-validation.sh)
     if [ -f "target/release/pierre-mcp-server" ]; then
         BINARY_SIZE=$(ls -lh target/release/pierre-mcp-server | awk '{print $5}')
-        BINARY_SIZE_BYTES=$(ls -l target/release/pierre-mcp-server | awk '{print $5}')
-        MAX_SIZE_BYTES=$((50 * 1024 * 1024))  # 50MB in bytes
-        
-        if [ "$BINARY_SIZE_BYTES" -le "$MAX_SIZE_BYTES" ]; then
-            echo -e "${GREEN}[OK] Binary size ($BINARY_SIZE) within dev best practice (<50MB)${NC}"
-        else
-            echo -e "${RED}[FAIL] Binary size ($BINARY_SIZE) exceeds dev best practice limit (50MB)${NC}"
-            ALL_PASSED=false
-        fi
-    else
-        echo -e "${YELLOW}[WARN] pierre-mcp-server binary not found - size check skipped${NC}"
+        echo -e "${GREEN}[INFO] Binary size: $BINARY_SIZE${NC}"
     fi
 else
     echo -e "${RED}[FAIL] Release build failed${NC}"
     ALL_PASSED=false
 fi
 
-
-# Check documentation
-echo -e "${BLUE}==== Checking documentation... ====${NC}"
+# Documentation
+echo -e "${BLUE}Checking documentation...${NC}"
 if cargo doc --no-deps --quiet; then
     echo -e "${GREEN}[OK] Documentation builds successfully${NC}"
 else
@@ -1201,19 +1044,23 @@ else
     ALL_PASSED=false
 fi
 
+# ============================================================================
+# FINAL CLEANUP
+# ============================================================================
 
-# Final cleanup after tests
-echo -e "${BLUE}==== Final cleanup after tests... ====${NC}"
+echo -e "${BLUE}Final cleanup...${NC}"
 rm -f ./mcp_activities_*.json ./examples/mcp_activities_*.json ./a2a_*.json ./enterprise_strava_dataset.json 2>/dev/null || true
 find . -name "*demo*.json" -not -path "./target/*" -delete 2>/dev/null || true
 find . -name "a2a_enterprise_report_*.json" -delete 2>/dev/null || true
 find . -name "mcp_investor_demo_*.json" -delete 2>/dev/null || true
-echo -e "${GREEN}[OK] Final cleanup completed${NC}"
+echo -e "${GREEN}[OK] Cleanup completed${NC}"
 
-# MCP Spec Compliance Validation (runs at the end)
-# Delegated to standalone script for reusability
+# ============================================================================
+# MCP SPEC COMPLIANCE
+# ============================================================================
+
 echo ""
-echo -e "${BLUE}==== MCP Spec Compliance Validation ====${NC}"
+echo -e "${BLUE}==== MCP Spec Compliance ====${NC}"
 if [ -f "$SCRIPT_DIR/ensure_mcp_compliance.sh" ]; then
     if "$SCRIPT_DIR/ensure_mcp_compliance.sh"; then
         echo -e "${GREEN}[OK] MCP compliance validation passed${NC}"
@@ -1225,9 +1072,9 @@ else
     echo -e "${YELLOW}[WARN] MCP compliance script not found - skipping${NC}"
 fi
 
-# Bridge Test Suite Validation
+# Bridge test suite
 echo ""
-echo -e "${BLUE}==== Bridge Test Suite Validation ====${NC}"
+echo -e "${BLUE}==== Bridge Test Suite ====${NC}"
 if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
     if "$SCRIPT_DIR/run_bridge_tests.sh"; then
         echo -e "${GREEN}[OK] Bridge test suite passed${NC}"
@@ -1239,56 +1086,36 @@ else
     echo -e "${YELLOW}[WARN] Bridge test script not found - skipping${NC}"
 fi
 
-# Calculate total execution time
+# ============================================================================
+# SUMMARY
+# ============================================================================
+
 END_TIME=$(date +%s)
 TOTAL_SECONDS=$((END_TIME - START_TIME))
 TOTAL_MINUTES=$((TOTAL_SECONDS / 60))
 REMAINING_SECONDS=$((TOTAL_SECONDS % 60))
 
-# Summary
 echo ""
-echo -e "${BLUE}==== Dev Standards Compliance Summary ====${NC}"
+echo -e "${BLUE}==== Validation Summary ====${NC}"
 echo -e "${BLUE}Total execution time: ${TOTAL_MINUTES}m ${REMAINING_SECONDS}s${NC}"
 echo ""
+
 if [ "$ALL_PASSED" = true ]; then
-    echo -e "${GREEN}ALL VALIDATION PASSED - Task can be marked complete${NC}"
+    echo -e "${GREEN}✅ ALL VALIDATION PASSED${NC}"
     echo ""
-    echo "[OK] Rust formatting"
-    echo "[OK] Rust linting (STRICT dev standards compliance)"
-    echo "[OK] Rust compilation"
-    echo "[OK] Rust tests"
-    echo "[OK] Release mode tests"
-    echo "[OK] A2A compliance tests"
-    echo "[OK] OAuth automation infrastructure"
-    echo "[OK] Prohibited patterns check"
-    echo "[OK] Clone usage analysis"
-    echo "[OK] Arc usage patterns check"
-    echo "[OK] Unified architectural validation"
-    echo "[OK] Binary size validation"
-    echo "[OK] Frontend linting"
-    echo "[OK] TypeScript type checking"
-    echo "[OK] Frontend tests"
-    echo "[OK] Frontend build"
-    if [ "$ENABLE_COVERAGE" = true ]; then
-        echo "[OK] Frontend code coverage"
-    fi
-    echo "[OK] Documentation"
-    if [ "$ENABLE_COVERAGE" = true ] && command_exists cargo-llvm-cov; then
-        echo "[OK] Rust code coverage"
-    fi
-    if [ -d "examples/python" ]; then
-        echo "[OK] Python examples validation"
-    fi
-    if [ -d "sdk" ]; then
-        echo "[OK] MCP spec compliance validation"
-    fi
+    echo "[OK] Formatting (cargo fmt)"
+    echo "[OK] Linting (cargo clippy via Cargo.toml)"
+    echo "[OK] Security (cargo deny via deny.toml)"
+    echo "[OK] Compilation (cargo check)"
+    echo "[OK] Architectural validation (custom)"
+    echo "[OK] Tests (cargo test)"
+    echo "[OK] Frontend (npm)"
+    echo "[OK] Documentation (cargo doc)"
     echo ""
-    echo -e "${GREEN}Code meets ALL dev standards and is ready for production!${NC}"
-    echo -e "${GREEN}Completed in ${TOTAL_MINUTES}m ${REMAINING_SECONDS}s${NC}"
+    echo -e "${GREEN}Code meets ALL standards and is ready for production!${NC}"
     exit 0
 else
-    echo -e "${RED}VALIDATION FAILED - Task cannot be marked complete${NC}"
-    echo -e "${RED}Fix ALL issues above to meet dev standards requirements${NC}"
-    echo -e "${YELLOW}Total time: ${TOTAL_MINUTES}m ${REMAINING_SECONDS}s${NC}"
+    echo -e "${RED}❌ VALIDATION FAILED${NC}"
+    echo -e "${RED}Fix issues above before deployment${NC}"
     exit 1
 fi

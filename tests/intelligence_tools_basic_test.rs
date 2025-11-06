@@ -1,6 +1,9 @@
 // ABOUTME: Integration tests for basic intelligence tools using synthetic data
 // ABOUTME: Tests get_athlete, get_activities, get_activity, get_stats, and compare_activities tools
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod helpers;
 
 use helpers::test_utils::{create_synthetic_provider_with_scenario, TestScenario};

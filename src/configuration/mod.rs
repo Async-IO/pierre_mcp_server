@@ -10,16 +10,23 @@
 //! MCP and A2A clients to discover, read, and modify physiological
 //! constants and system parameters at runtime.
 
+/// Configuration catalog for discovering available parameters
 pub mod catalog;
+/// Configuration profiles for different fitness levels
 pub mod profiles;
+/// Runtime configuration value management
 pub mod runtime;
+/// Configuration validation and constraint checking
 pub mod validation;
+/// VO2max calculation and personalized zone generation
 pub mod vo2_max;
 
 pub use catalog::{ConfigCatalog, ConfigCategory, ConfigModule, ConfigParameter};
 pub use profiles::{ConfigProfile, FitnessLevel};
 pub use runtime::{ConfigAware, ConfigValue, RuntimeConfig};
+/// Re-export validation types
 pub use validation::{ConfigValidator, ValidationResult};
+/// Re-export VO2 max calculation types
 pub use vo2_max::{PersonalizedHRZones, PersonalizedPaceZones, VO2MaxCalculator};
 
 /// Re-export commonly used types

@@ -7,6 +7,9 @@
 // Integration tests for routes.rs module
 // Tests for authentication routes, OAuth routes, and A2A routes
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use pierre_mcp_server::{
@@ -144,24 +147,24 @@ async fn test_register_user() {
         external_services: ExternalServicesConfig {
             weather: WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: false,
             },
             strava_api: StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             ..Default::default()
         },
@@ -170,23 +173,23 @@ async fn test_register_user() {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: ProtocolConfig {
-                mcp_version: "2025-06-18".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2025-06-18".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: pierre_mcp_server::config::environment::McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: pierre_mcp_server::config::environment::CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -305,24 +308,24 @@ async fn test_register_duplicate_user() {
         external_services: ExternalServicesConfig {
             weather: WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: false,
             },
             strava_api: StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             ..Default::default()
         },
@@ -331,23 +334,23 @@ async fn test_register_duplicate_user() {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: ProtocolConfig {
-                mcp_version: "2025-06-18".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2025-06-18".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: pierre_mcp_server::config::environment::McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: pierre_mcp_server::config::environment::CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: pierre_mcp_server::config::environment::CacheConfig {

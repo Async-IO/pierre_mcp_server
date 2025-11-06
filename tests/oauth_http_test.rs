@@ -1,5 +1,7 @@
 // ABOUTME: OAuth HTTP endpoint tests for callback handling
 // ABOUTME: Tests OAuth HTTP callback endpoints in single-tenant mode
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(clippy::if_not_else, clippy::unused_async)]
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.

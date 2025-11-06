@@ -13,16 +13,26 @@ use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
 
+/// Log entry for API requests including timing and status information
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RequestLog {
+    /// Database record ID
     pub id: i64,
+    /// Optional user ID for authenticated requests
     pub user_id: Option<Uuid>,
+    /// Optional API key ID used for the request
     pub api_key_id: Option<String>,
+    /// When the request was made
     pub timestamp: DateTime<Utc>,
+    /// HTTP method (GET, POST, etc.)
     pub method: String,
+    /// API endpoint path
     pub endpoint: String,
+    /// HTTP response status code
     pub status_code: u16,
+    /// Response time in milliseconds
     pub response_time_ms: Option<u32>,
+    /// Error message if request failed
     pub error_message: Option<String>,
 }
 

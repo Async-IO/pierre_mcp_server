@@ -9,6 +9,9 @@
 //! encryption/decryption, and core functionality that currently have
 //! limited integration test coverage.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use chrono::{Duration, Utc};
 use pierre_mcp_server::{
@@ -53,7 +56,7 @@ async fn test_token_encryption_comprehensive() -> Result<()> {
             access_token,
             refresh_token,
             expires_at,
-            scope.to_string(),
+            scope.to_owned(),
             &encryption_key,
         )?;
 
@@ -66,7 +69,7 @@ async fn test_token_encryption_comprehensive() -> Result<()> {
         assert_eq!(decrypted_token.access_token, access_token);
         assert_eq!(decrypted_token.refresh_token, refresh_token);
         assert_eq!(decrypted_token.expires_at, expires_at);
-        assert_eq!(decrypted_token.scope, scope.to_string());
+        assert_eq!(decrypted_token.scope, scope.to_owned());
     }
 
     Ok(())
@@ -141,7 +144,7 @@ async fn test_encryption_with_different_keys() -> Result<()> {
     let access_token = "test_access_token";
     let refresh_token = "test_refresh_token";
     let expires_at = Utc::now() + Duration::hours(1);
-    let scope = "read,write".to_string();
+    let scope = "read,write".to_owned();
 
     // Encrypt with key1
     let encrypted1 = EncryptedToken::new(
@@ -199,7 +202,7 @@ async fn test_user_model_comprehensive() -> Result<()> {
         // Hash the password before creating user
         let password_hash = format!("hashed_{password}");
         let mut user = User::new(
-            email.to_string(),
+            email.to_owned(),
             password_hash.clone(),
             Some(format!("Test User {email}")),
         );
@@ -235,7 +238,7 @@ async fn test_user_tier_functionality() -> Result<()> {
     for tier in tiers {
         let user = User::new(
             format!("test_{}@example.com", format!("{tier:?}").to_lowercase()),
-            "password".to_string(),
+            "password".to_owned(),
             None,
         );
 
@@ -314,7 +317,7 @@ async fn test_token_expiration_scenarios() -> Result<()> {
             &format!("{token_name}_access"),
             &format!("{token_name}_refresh"),
             expires_at,
-            "test_scope".to_string(),
+            "test_scope".to_owned(),
             &encryption_key,
         )?;
 
@@ -338,9 +341,9 @@ async fn test_security_integration_scenario() -> Result<()> {
 
     // 1. Create user
     let user = User::new(
-        "security_test@example.com".to_string(),
-        "secure_password_123".to_string(),
-        Some("Security Test User".to_string()),
+        "security_test@example.com".to_owned(),
+        "secure_password_123".to_owned(),
+        Some("Security Test User".to_owned()),
     );
 
     assert_eq!(user.id, user.id);
@@ -367,7 +370,7 @@ async fn test_security_integration_scenario() -> Result<()> {
             access,
             refresh,
             Utc::now() + Duration::hours(2),
-            scope.to_string(),
+            scope.to_owned(),
             &encryption_key,
         )?;
 
@@ -380,7 +383,7 @@ async fn test_security_integration_scenario() -> Result<()> {
 
         assert_eq!(decrypted.access_token, original_access);
         assert_eq!(decrypted.refresh_token, original_refresh);
-        assert_eq!(decrypted.scope, original_scope.to_string());
+        assert_eq!(decrypted.scope, original_scope.to_owned());
     }
 
     // 5. Test key rotation scenario (simulate new key)
@@ -392,7 +395,7 @@ async fn test_security_integration_scenario() -> Result<()> {
         "old_access",
         "old_refresh",
         Utc::now() + Duration::hours(1),
-        "old_scope".to_string(),
+        "old_scope".to_owned(),
         &encryption_key,
     )?;
 
@@ -404,7 +407,7 @@ async fn test_security_integration_scenario() -> Result<()> {
         "new_access",
         "new_refresh",
         Utc::now() + Duration::hours(1),
-        "new_scope".to_string(),
+        "new_scope".to_owned(),
         &new_encryption_key,
     )?;
 

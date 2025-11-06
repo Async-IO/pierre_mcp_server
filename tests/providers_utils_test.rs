@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use chrono::Utc;
 use pierre_mcp_server::providers::core::OAuth2Credentials;
 use pierre_mcp_server::providers::utils::{
@@ -40,10 +43,10 @@ fn test_needs_token_refresh() {
 
     // Token expires in 1 minute (threshold 5 minutes)
     let expires_soon = Some(OAuth2Credentials {
-        client_id: "test".to_string(),
-        client_secret: "secret".to_string(),
-        access_token: Some("token".to_string()),
-        refresh_token: Some("refresh".to_string()),
+        client_id: "test".to_owned(),
+        client_secret: "secret".to_owned(),
+        access_token: Some("token".to_owned()),
+        refresh_token: Some("refresh".to_owned()),
         expires_at: Some(Utc::now() + chrono::Duration::minutes(1)),
         scopes: vec![],
     });
@@ -51,10 +54,10 @@ fn test_needs_token_refresh() {
 
     // Token expires in 10 minutes (threshold 5 minutes)
     let expires_later = Some(OAuth2Credentials {
-        client_id: "test".to_string(),
-        client_secret: "secret".to_string(),
-        access_token: Some("token".to_string()),
-        refresh_token: Some("refresh".to_string()),
+        client_id: "test".to_owned(),
+        client_secret: "secret".to_owned(),
+        access_token: Some("token".to_owned()),
+        refresh_token: Some("refresh".to_owned()),
         expires_at: Some(Utc::now() + chrono::Duration::minutes(10)),
         scopes: vec![],
     });
@@ -68,10 +71,10 @@ fn test_is_authenticated() {
 
     // No access token
     let no_token = Some(OAuth2Credentials {
-        client_id: "test".to_string(),
-        client_secret: "secret".to_string(),
+        client_id: "test".to_owned(),
+        client_secret: "secret".to_owned(),
         access_token: None,
-        refresh_token: Some("refresh".to_string()),
+        refresh_token: Some("refresh".to_owned()),
         expires_at: Some(Utc::now() + chrono::Duration::hours(1)),
         scopes: vec![],
     });
@@ -79,10 +82,10 @@ fn test_is_authenticated() {
 
     // Expired token
     let expired = Some(OAuth2Credentials {
-        client_id: "test".to_string(),
-        client_secret: "secret".to_string(),
-        access_token: Some("token".to_string()),
-        refresh_token: Some("refresh".to_string()),
+        client_id: "test".to_owned(),
+        client_secret: "secret".to_owned(),
+        access_token: Some("token".to_owned()),
+        refresh_token: Some("refresh".to_owned()),
         expires_at: Some(Utc::now() - chrono::Duration::hours(1)),
         scopes: vec![],
     });
@@ -90,10 +93,10 @@ fn test_is_authenticated() {
 
     // Valid token
     let valid = Some(OAuth2Credentials {
-        client_id: "test".to_string(),
-        client_secret: "secret".to_string(),
-        access_token: Some("token".to_string()),
-        refresh_token: Some("refresh".to_string()),
+        client_id: "test".to_owned(),
+        client_secret: "secret".to_owned(),
+        access_token: Some("token".to_owned()),
+        refresh_token: Some("refresh".to_owned()),
         expires_at: Some(Utc::now() + chrono::Duration::hours(1)),
         scopes: vec![],
     });
@@ -101,10 +104,10 @@ fn test_is_authenticated() {
 
     // No expiry (assume valid)
     let no_expiry = Some(OAuth2Credentials {
-        client_id: "test".to_string(),
-        client_secret: "secret".to_string(),
-        access_token: Some("token".to_string()),
-        refresh_token: Some("refresh".to_string()),
+        client_id: "test".to_owned(),
+        client_secret: "secret".to_owned(),
+        access_token: Some("token".to_owned()),
+        refresh_token: Some("refresh".to_owned()),
         expires_at: None,
         scopes: vec![],
     });

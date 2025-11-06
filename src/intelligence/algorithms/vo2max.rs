@@ -27,7 +27,7 @@ use std::str::FromStr;
 pub enum Vo2maxAlgorithm {
     /// From Jack Daniels' VDOT
     ///
-    /// Formula: `VO2max = VDOT × 3.5`
+    /// Formula: `VO2max = VDOT x 3.5`
     ///
     /// `VDOT` is Jack Daniels' running economy-adjusted `VO2max` measure.
     /// Multiply by 3.5 to convert to standard ml/kg/min units.
@@ -55,7 +55,7 @@ pub enum Vo2maxAlgorithm {
 
     /// Rockport 1-Mile Walk Test
     ///
-    /// Formula: `VO2max = 132.853 - 0.0769×weight - 0.3877×age + 6.315×gender - 3.2649×time - 0.1565×HR`
+    /// Formula: `VO2max = 132.853 - 0.0769xweight - 0.3877xage + 6.315xgender - 3.2649xtime - 0.1565xHR`
     ///
     /// Walk 1 mile as fast as possible, measure time and heart rate at finish.
     /// Gender: 0 = female, 1 = male
@@ -77,8 +77,8 @@ pub enum Vo2maxAlgorithm {
 
     /// Åstrand-Ryhming Cycle Ergometer Test
     ///
-    /// Formula: `VO2max = (VO2_submaximal × 195) / (HR_submaximal - 60)` (male)
-    ///          `VO2max = (VO2_submaximal × 198) / (HR_submaximal - 72)` (female)
+    /// Formula: `VO2max = (VO2_submaximal x 195) / (HR_submaximal - 60)` (male)
+    ///          `VO2max = (VO2_submaximal x 198) / (HR_submaximal - 72)` (female)
     ///
     /// Submaximal cycle test at steady-state heart rate (120-170 bpm).
     /// VO2 at submaximal workload estimated from power output.
@@ -98,7 +98,7 @@ pub enum Vo2maxAlgorithm {
 
     /// From Race Pace (Speed-Based)
     ///
-    /// Formula: `VO2max = 15.3 × (MaxSpeed / RecSpeed)`
+    /// Formula: `VO2max = 15.3 x (MaxSpeed / RecSpeed)`
     ///
     /// Where:
     /// - `MaxSpeed` = velocity at `VO2max` (typically 3-8 min pace)
@@ -178,7 +178,7 @@ impl Vo2maxAlgorithm {
                 recovery_speed_ms,
             } => Self::calculate_from_pace(*max_speed_ms, *recovery_speed_ms),
             Self::Hybrid => Err(AppError::invalid_input(
-                "Hybrid VO2max estimation requires specific test data. Use one of the explicit test protocols.".to_string(),
+                "Hybrid VO2max estimation requires specific test data. Use one of the explicit test protocols.".to_owned(),
             )),
         }
     }
@@ -326,13 +326,13 @@ impl Vo2maxAlgorithm {
     fn calculate_from_pace(max_speed_ms: f64, recovery_speed_ms: f64) -> Result<f64, AppError> {
         if max_speed_ms <= 0.0 || recovery_speed_ms <= 0.0 {
             return Err(AppError::invalid_input(
-                "Speeds must be positive".to_string(),
+                "Speeds must be positive".to_owned(),
             ));
         }
 
         if max_speed_ms <= recovery_speed_ms {
             return Err(AppError::invalid_input(
-                "Max speed must be greater than recovery speed".to_string(),
+                "Max speed must be greater than recovery speed".to_owned(),
             ));
         }
 
@@ -372,7 +372,7 @@ impl Vo2maxAlgorithm {
     pub fn description(&self) -> String {
         match self {
             Self::FromVdot { vdot } => {
-                format!("From VDOT (VO2max = {vdot:.1} × 3.5)")
+                format!("From VDOT (VO2max = {vdot:.1} x 3.5)")
             }
             Self::CooperTest { distance_meters } => {
                 format!("Cooper 12-Min Test ({distance_meters:.0}m)")
@@ -407,7 +407,7 @@ impl Vo2maxAlgorithm {
                     "From Pace (max: {max_speed_ms:.2} m/s, recovery: {recovery_speed_ms:.2} m/s)"
                 )
             }
-            Self::Hybrid => "Hybrid (auto-select best method)".to_string(),
+            Self::Hybrid => "Hybrid (auto-select best method)".to_owned(),
         }
     }
 
@@ -415,15 +415,15 @@ impl Vo2maxAlgorithm {
     #[must_use]
     pub const fn formula(&self) -> &'static str {
         match self {
-            Self::FromVdot { .. } => "VO2max = VDOT × 3.5",
+            Self::FromVdot { .. } => "VO2max = VDOT x 3.5",
             Self::CooperTest { .. } => "VO2max = (distance - 504.9) / 44.73",
             Self::RockportWalk { .. } => {
-                "VO2max = 132.853 - 0.0769×weight - 0.3877×age + 6.315×gender - 3.2649×time - 0.1565×HR"
+                "VO2max = 132.853 - 0.0769xweight - 0.3877xage + 6.315xgender - 3.2649xtime - 0.1565xHR"
             }
             Self::AstrandRyhming { .. } => {
-                "VO2max = (VO2_sub × HRmax) / (HR_sub - HRrest)"
+                "VO2max = (VO2_sub x HRmax) / (HR_sub - HRrest)"
             }
-            Self::FromPace { .. } => "VO2max = 15.3 × (MaxSpeed / RecSpeed)",
+            Self::FromPace { .. } => "VO2max = 15.3 x (MaxSpeed / RecSpeed)",
             Self::Hybrid => "Auto-select based on available test data",
         }
     }

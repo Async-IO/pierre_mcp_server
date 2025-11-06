@@ -8,6 +8,9 @@
 //! Comprehensive tests for the universal tool execution layer
 //! that provides protocol-agnostic interfaces for MCP and A2A.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use pierre_mcp_server::{
     config::environment::*,
@@ -32,10 +35,10 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
 
     // Create ActivityIntelligence with proper constructor
     let _intelligence = Arc::new(ActivityIntelligence::new(
-        "Test intelligence analysis".to_string(),
+        "Test intelligence analysis".to_owned(),
         vec![Insight {
             insight_type: InsightType::Achievement,
-            message: "Test insight".to_string(),
+            message: "Test insight".to_owned(),
             confidence: 90.0,
             data: None,
         }],
@@ -89,17 +92,17 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
-                client_id: Some("test_client_id".to_string()),
-                client_secret: Some("test_client_secret".to_string()),
-                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_string()),
-                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                client_id: Some("test_client_id".to_owned()),
+                client_secret: Some("test_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_owned()),
+                scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
                 enabled: true,
             },
             fitbit: OAuthProviderConfig {
-                client_id: Some("test_fitbit_id".to_string()),
-                client_secret: Some("test_fitbit_secret".to_string()),
-                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_string()),
-                scopes: vec!["activity".to_string(), "profile".to_string()],
+                client_id: Some("test_fitbit_id".to_owned()),
+                client_secret: Some("test_fitbit_secret".to_owned()),
+                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_owned()),
+                scopes: vec!["activity".to_owned(), "profile".to_owned()],
                 enabled: true,
             },
             garmin: OAuthProviderConfig {
@@ -124,31 +127,30 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         external_services: ExternalServicesConfig {
             weather: WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: true,
             },
             strava_api: StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             garmin_api: GarminApiConfig {
-                base_url: "https://apis.garmin.com".to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
-                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
-                    .to_string(),
-                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                base_url: "https://apis.garmin.com".to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token".to_owned(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -156,23 +158,23 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: ProtocolConfig {
-                mcp_version: "2024-11-05".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2024-11-05".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: pierre_mcp_server::config::environment::McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: pierre_mcp_server::config::environment::CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -240,7 +242,7 @@ async fn test_tool_registration() -> Result<()> {
     let tool_names: Vec<String> = executor
         .list_tools()
         .iter()
-        .map(|tool| tool.name().to_string())
+        .map(|tool| tool.name().to_owned())
         .collect();
 
     let expected_tools = vec![
@@ -264,7 +266,7 @@ async fn test_tool_registration() -> Result<()> {
 
     for expected_tool in expected_tools {
         assert!(
-            tool_names.contains(&expected_tool.to_string()),
+            tool_names.contains(&expected_tool.to_owned()),
             "Missing tool: {expected_tool}"
         );
     }
@@ -278,10 +280,10 @@ async fn test_tool_execution_invalid_tool() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "nonexistent_tool".to_string(),
+        tool_name: "nonexistent_tool".to_owned(),
         parameters: json!({}),
         user_id: Uuid::new_v4().to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -297,10 +299,10 @@ async fn test_connection_status_tool() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "get_connection_status".to_string(),
+        tool_name: "get_connection_status".to_owned(),
         parameters: json!({}),
         user_id: Uuid::new_v4().to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -324,29 +326,29 @@ async fn test_connect_strava_tool() -> Result<()> {
     // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
     let mut user = pierre_mcp_server::models::User::new(
-        "test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     user.id = user_id;
-    user.tenant_id = Some("test-tenant".to_string());
+    user.tenant_id = Some("test-tenant".to_owned());
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
     let tenant = pierre_mcp_server::models::Tenant::new(
-        "Test Tenant".to_string(),
-        "test-tenant".to_string(),
-        Some("test.example.com".to_string()),
-        "starter".to_string(),
+        "Test Tenant".to_owned(),
+        "test-tenant".to_owned(),
+        Some("test.example.com".to_owned()),
+        "starter".to_owned(),
         user_id, // Owner
     );
     executor.resources.database.create_tenant(&tenant).await?;
 
     let request = UniversalRequest {
-        tool_name: "get_activities".to_string(),
+        tool_name: "get_activities".to_owned(),
         parameters: json!({}),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -368,12 +370,12 @@ async fn test_connect_fitbit_tool() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "analyze_activity".to_string(),
+        tool_name: "analyze_activity".to_owned(),
         parameters: json!({
             "activity_id": "test_activity_123"
         }),
         user_id: Uuid::new_v4().to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -400,10 +402,10 @@ async fn test_set_goal_tool() -> Result<()> {
 
     // Create ActivityIntelligence with proper constructor
     let _intelligence = Arc::new(ActivityIntelligence::new(
-        "Test intelligence analysis".to_string(),
+        "Test intelligence analysis".to_owned(),
         vec![Insight {
             insight_type: InsightType::Achievement,
-            message: "Test insight".to_string(),
+            message: "Test insight".to_owned(),
             confidence: 90.0,
             data: None,
         }],
@@ -457,17 +459,17 @@ async fn test_set_goal_tool() -> Result<()> {
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
-                client_id: Some("test_client_id".to_string()),
-                client_secret: Some("test_client_secret".to_string()),
-                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_string()),
-                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                client_id: Some("test_client_id".to_owned()),
+                client_secret: Some("test_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_owned()),
+                scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
                 enabled: true,
             },
             fitbit: OAuthProviderConfig {
-                client_id: Some("test_fitbit_id".to_string()),
-                client_secret: Some("test_fitbit_secret".to_string()),
-                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_string()),
-                scopes: vec!["activity".to_string(), "profile".to_string()],
+                client_id: Some("test_fitbit_id".to_owned()),
+                client_secret: Some("test_fitbit_secret".to_owned()),
+                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_owned()),
+                scopes: vec!["activity".to_owned(), "profile".to_owned()],
                 enabled: true,
             },
             garmin: OAuthProviderConfig {
@@ -492,31 +494,30 @@ async fn test_set_goal_tool() -> Result<()> {
         external_services: ExternalServicesConfig {
             weather: WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: true,
             },
             strava_api: StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             garmin_api: GarminApiConfig {
-                base_url: "https://apis.garmin.com".to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
-                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
-                    .to_string(),
-                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                base_url: "https://apis.garmin.com".to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token".to_owned(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -524,23 +525,23 @@ async fn test_set_goal_tool() -> Result<()> {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: ProtocolConfig {
-                mcp_version: "2024-11-05".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2024-11-05".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: pierre_mcp_server::config::environment::McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: pierre_mcp_server::config::environment::CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -581,7 +582,7 @@ async fn test_set_goal_tool() -> Result<()> {
     let executor = UniversalToolExecutor::new(server_resources);
 
     let request = UniversalRequest {
-        tool_name: "set_goal".to_string(),
+        tool_name: "set_goal".to_owned(),
         parameters: json!({
             "goal_type": "distance",
             "target_value": 1000.0,
@@ -589,7 +590,7 @@ async fn test_set_goal_tool() -> Result<()> {
             "title": "Run 1000km this year"
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -610,7 +611,7 @@ async fn test_calculate_metrics_tool() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "calculate_metrics".to_string(),
+        tool_name: "calculate_metrics".to_owned(),
         parameters: json!({
             "activity": {
                 "distance": 5000.0,
@@ -621,7 +622,7 @@ async fn test_calculate_metrics_tool() -> Result<()> {
             }
         }),
         user_id: Uuid::new_v4().to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -643,7 +644,7 @@ async fn test_analyze_performance_trends_tool() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "analyze_performance_trends".to_string(),
+        tool_name: "analyze_performance_trends".to_owned(),
         parameters: json!({
             "activities": [
                 {
@@ -662,7 +663,7 @@ async fn test_analyze_performance_trends_tool() -> Result<()> {
             "metric": "pace"
         }),
         user_id: Uuid::new_v4().to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -690,32 +691,32 @@ async fn test_compare_activities_tool() -> Result<()> {
     // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
     let mut user = pierre_mcp_server::models::User::new(
-        "test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     user.id = user_id;
-    user.tenant_id = Some("test-tenant".to_string());
+    user.tenant_id = Some("test-tenant".to_owned());
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
     let tenant = pierre_mcp_server::models::Tenant::new(
-        "Test Tenant".to_string(),
-        "test-tenant".to_string(),
-        Some("test.example.com".to_string()),
-        "starter".to_string(),
+        "Test Tenant".to_owned(),
+        "test-tenant".to_owned(),
+        Some("test.example.com".to_owned()),
+        "starter".to_owned(),
         user_id, // Owner
     );
     executor.resources.database.create_tenant(&tenant).await?;
 
     let request = UniversalRequest {
-        tool_name: "compare_activities".to_string(),
+        tool_name: "compare_activities".to_owned(),
         parameters: json!({
             "activity_id": "test_activity_1",
             "comparison_type": "similar_activities"
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -747,12 +748,12 @@ async fn test_detect_patterns_tool() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "detect_patterns".to_string(),
+        tool_name: "detect_patterns".to_owned(),
         parameters: json!({
             "pattern_type": "training_consistency"
         }),
         user_id: Uuid::new_v4().to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -783,12 +784,12 @@ async fn test_track_progress_tool() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "track_progress".to_string(),
+        tool_name: "track_progress".to_owned(),
         parameters: json!({
             "goal_id": "test_goal_123"
         }),
         user_id: Uuid::new_v4().to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -814,7 +815,7 @@ async fn test_suggest_goals_tool() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "suggest_goals".to_string(),
+        tool_name: "suggest_goals".to_owned(),
         parameters: json!({
             "recent_activities": [
                 {
@@ -829,7 +830,7 @@ async fn test_suggest_goals_tool() -> Result<()> {
             }
         }),
         user_id: Uuid::new_v4().to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -849,7 +850,7 @@ async fn test_analyze_goal_feasibility_tool() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "analyze_goal_feasibility".to_string(),
+        tool_name: "analyze_goal_feasibility".to_owned(),
         parameters: json!({
             "goal_type": "distance",
             "target_value": 1000.0,
@@ -857,7 +858,7 @@ async fn test_analyze_goal_feasibility_tool() -> Result<()> {
             "title": "Run 1000km this year"
         }),
         user_id: Uuid::new_v4().to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -878,7 +879,7 @@ async fn test_generate_recommendations_tool() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "generate_recommendations".to_string(),
+        tool_name: "generate_recommendations".to_owned(),
         parameters: json!({
             "user_profile": {
                 "fitness_level": "intermediate",
@@ -893,7 +894,7 @@ async fn test_generate_recommendations_tool() -> Result<()> {
             ]
         }),
         user_id: Uuid::new_v4().to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -924,7 +925,7 @@ async fn test_calculate_fitness_score_tool() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "calculate_fitness_score".to_string(),
+        tool_name: "calculate_fitness_score".to_owned(),
         parameters: json!({
             "activities": [
                 {
@@ -937,7 +938,7 @@ async fn test_calculate_fitness_score_tool() -> Result<()> {
             "timeframe_days": 7
         }),
         user_id: Uuid::new_v4().to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -963,13 +964,13 @@ async fn test_predict_performance_tool() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "predict_performance".to_string(),
+        tool_name: "predict_performance".to_owned(),
         parameters: json!({
             "distance": 21097.5,
             "activity_type": "run"
         }),
         user_id: Uuid::new_v4().to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -1002,7 +1003,7 @@ async fn test_analyze_training_load_tool() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "analyze_training_load".to_string(),
+        tool_name: "analyze_training_load".to_owned(),
         parameters: json!({
             "activities": [
                 {
@@ -1020,7 +1021,7 @@ async fn test_analyze_training_load_tool() -> Result<()> {
             ]
         }),
         user_id: Uuid::new_v4().to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -1049,10 +1050,10 @@ async fn test_disconnect_provider_tool() -> Result<()> {
 
     // Create ActivityIntelligence with proper constructor
     let _intelligence = Arc::new(ActivityIntelligence::new(
-        "Test intelligence analysis".to_string(),
+        "Test intelligence analysis".to_owned(),
         vec![Insight {
             insight_type: InsightType::Achievement,
-            message: "Test insight".to_string(),
+            message: "Test insight".to_owned(),
             confidence: 90.0,
             data: None,
         }],
@@ -1106,17 +1107,17 @@ async fn test_disconnect_provider_tool() -> Result<()> {
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
-                client_id: Some("test_client_id".to_string()),
-                client_secret: Some("test_client_secret".to_string()),
-                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_string()),
-                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                client_id: Some("test_client_id".to_owned()),
+                client_secret: Some("test_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_owned()),
+                scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
                 enabled: true,
             },
             fitbit: OAuthProviderConfig {
-                client_id: Some("test_fitbit_id".to_string()),
-                client_secret: Some("test_fitbit_secret".to_string()),
-                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_string()),
-                scopes: vec!["activity".to_string(), "profile".to_string()],
+                client_id: Some("test_fitbit_id".to_owned()),
+                client_secret: Some("test_fitbit_secret".to_owned()),
+                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_owned()),
+                scopes: vec!["activity".to_owned(), "profile".to_owned()],
                 enabled: true,
             },
             garmin: OAuthProviderConfig {
@@ -1141,31 +1142,30 @@ async fn test_disconnect_provider_tool() -> Result<()> {
         external_services: ExternalServicesConfig {
             weather: WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: true,
             },
             strava_api: StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             garmin_api: GarminApiConfig {
-                base_url: "https://apis.garmin.com".to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
-                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
-                    .to_string(),
-                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                base_url: "https://apis.garmin.com".to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token".to_owned(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -1173,23 +1173,23 @@ async fn test_disconnect_provider_tool() -> Result<()> {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: ProtocolConfig {
-                mcp_version: "2024-11-05".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2024-11-05".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: pierre_mcp_server::config::environment::McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: pierre_mcp_server::config::environment::CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -1230,12 +1230,12 @@ async fn test_disconnect_provider_tool() -> Result<()> {
     let executor = UniversalToolExecutor::new(server_resources);
 
     let request = UniversalRequest {
-        tool_name: "disconnect_provider".to_string(),
+        tool_name: "disconnect_provider".to_owned(),
         parameters: json!({
             "provider": "strava"
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -1258,32 +1258,32 @@ async fn test_get_activities_async_no_token() -> Result<()> {
     // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
     let mut user = pierre_mcp_server::models::User::new(
-        "test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     user.id = user_id;
-    user.tenant_id = Some("test-tenant".to_string());
+    user.tenant_id = Some("test-tenant".to_owned());
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
     let tenant = pierre_mcp_server::models::Tenant::new(
-        "Test Tenant".to_string(),
-        "test-tenant".to_string(),
-        Some("test.example.com".to_string()),
-        "starter".to_string(),
+        "Test Tenant".to_owned(),
+        "test-tenant".to_owned(),
+        Some("test.example.com".to_owned()),
+        "starter".to_owned(),
         user_id, // Owner
     );
     executor.resources.database.create_tenant(&tenant).await?;
 
     let request = UniversalRequest {
-        tool_name: "get_activities".to_string(),
+        tool_name: "get_activities".to_owned(),
         parameters: json!({
             "limit": 5,
             "provider": "strava"
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -1307,31 +1307,31 @@ async fn test_get_athlete_async_no_token() -> Result<()> {
     // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
     let mut user = pierre_mcp_server::models::User::new(
-        "test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     user.id = user_id;
-    user.tenant_id = Some("test-tenant".to_string());
+    user.tenant_id = Some("test-tenant".to_owned());
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
     let tenant = pierre_mcp_server::models::Tenant::new(
-        "Test Tenant".to_string(),
-        "test-tenant".to_string(),
-        Some("test.example.com".to_string()),
-        "starter".to_string(),
+        "Test Tenant".to_owned(),
+        "test-tenant".to_owned(),
+        Some("test.example.com".to_owned()),
+        "starter".to_owned(),
         user_id, // Owner
     );
     executor.resources.database.create_tenant(&tenant).await?;
 
     let request = UniversalRequest {
-        tool_name: "get_athlete".to_string(),
+        tool_name: "get_athlete".to_owned(),
         parameters: json!({
             "provider": "strava"
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -1357,31 +1357,31 @@ async fn test_get_stats_async_no_token() -> Result<()> {
     // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
     let mut user = pierre_mcp_server::models::User::new(
-        "test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     user.id = user_id;
-    user.tenant_id = Some("test-tenant".to_string());
+    user.tenant_id = Some("test-tenant".to_owned());
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
     let tenant = pierre_mcp_server::models::Tenant::new(
-        "Test Tenant".to_string(),
-        "test-tenant".to_string(),
-        Some("test.example.com".to_string()),
-        "starter".to_string(),
+        "Test Tenant".to_owned(),
+        "test-tenant".to_owned(),
+        Some("test.example.com".to_owned()),
+        "starter".to_owned(),
         user_id, // Owner
     );
     executor.resources.database.create_tenant(&tenant).await?;
 
     let request = UniversalRequest {
-        tool_name: "get_stats".to_string(),
+        tool_name: "get_stats".to_owned(),
         parameters: json!({
             "provider": "strava"
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -1407,10 +1407,10 @@ async fn test_invalid_protocol_handling() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "get_connection_status".to_string(),
+        tool_name: "get_connection_status".to_owned(),
         parameters: json!({}),
-        user_id: "invalid-uuid".to_string(),
-        protocol: "invalid_protocol".to_string(),
+        user_id: "invalid-uuid".to_owned(),
+        protocol: "invalid_protocol".to_owned(),
         tenant_id: None,
     };
 
@@ -1443,10 +1443,10 @@ async fn test_empty_parameters() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "get_connection_status".to_string(),
+        tool_name: "get_connection_status".to_owned(),
         parameters: json!({}),
         user_id: Uuid::new_v4().to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -1462,12 +1462,12 @@ async fn test_malformed_parameters() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "set_goal".to_string(),
+        tool_name: "set_goal".to_owned(),
         parameters: json!({
             "invalid_param": "value"
         }),
         user_id: Uuid::new_v4().to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 

@@ -15,15 +15,20 @@ use serde::{Deserialize, Serialize};
 /// Ed25519 keypair for A2A client authentication
 #[derive(Debug, Clone)]
 pub struct A2AKeypair {
-    pub public_key: String,  // Base64 encoded
-    pub private_key: String, // Base64 encoded (stored securely)
+    /// Public key (Base64 encoded)
+    pub public_key: String,
+    /// Private key (Base64 encoded, stored securely)
+    pub private_key: String,
 }
 
 /// Public key information for verification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2APublicKey {
-    pub public_key: String, // Base64 encoded
-    pub key_type: String,   // "ed25519"
+    /// Public key (Base64 encoded)
+    pub public_key: String,
+    /// Key type (e.g., "ed25519")
+    pub key_type: String,
+    /// When the key was created
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 

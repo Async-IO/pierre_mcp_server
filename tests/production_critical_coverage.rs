@@ -9,6 +9,9 @@
 //! This test suite targets the specific uncovered code paths that represent
 //! genuine production risks, based on coverage analysis.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use pierre_mcp_server::{
     config::environment::RateLimitConfig,
@@ -35,8 +38,8 @@ async fn test_mcp_request_processing_flow() -> Result<()> {
     let user_id = Uuid::new_v4();
     let user = User {
         id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
+        email: "test@example.com".to_owned(),
+        display_name: Some("Test User".to_owned()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter,
         is_admin: false,
@@ -48,7 +51,7 @@ async fn test_mcp_request_processing_flow() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
     };
     server.database().create_user(&user).await?;
 
@@ -78,9 +81,9 @@ async fn test_model_serialization_coverage() -> Result<()> {
     // Test User model edge cases
     let user = User {
         id: Uuid::new_v4(),
-        email: "test@example.com".to_string(),
+        email: "test@example.com".to_owned(),
         display_name: None, // Test None case
-        password_hash: "hash".to_string(),
+        password_hash: "hash".to_owned(),
         tier: UserTier::Enterprise, // Test different tier
         is_admin: false,
         created_at: chrono::Utc::now(),
@@ -90,13 +93,13 @@ async fn test_model_serialization_coverage() -> Result<()> {
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         strava_token: Some(EncryptedToken {
-            access_token: "encrypted_access_token".to_string(),
-            refresh_token: "encrypted_refresh_token".to_string(),
+            access_token: "encrypted_access_token".to_owned(),
+            refresh_token: "encrypted_refresh_token".to_owned(),
             expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
-            scope: "read,activity:read_all".to_string(),
+            scope: "read,activity:read_all".to_owned(),
         }),
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
     };
 
     // Test serialization
@@ -125,8 +128,8 @@ async fn test_admin_auth_flow() -> Result<()> {
     // Create admin user
     let admin_user = User {
         id: Uuid::new_v4(),
-        email: admin_email.to_string(),
-        display_name: Some("Admin User".to_string()),
+        email: admin_email.to_owned(),
+        display_name: Some("Admin User".to_owned()),
         password_hash: bcrypt::hash(admin_password, bcrypt::DEFAULT_COST)?,
         tier: UserTier::Enterprise, // Admins typically have enterprise tier
         created_at: chrono::Utc::now(),
@@ -138,7 +141,7 @@ async fn test_admin_auth_flow() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
     };
 
     database.create_user(&admin_user).await?;
@@ -184,7 +187,7 @@ async fn test_mcp_multitenant_request_routing() -> Result<()> {
             approved_at: Some(chrono::Utc::now()),
             strava_token: None,
             fitbit_token: None,
-            tenant_id: Some("test-tenant".to_string()),
+            tenant_id: Some("test-tenant".to_owned()),
         };
         server.database().create_user(&user).await?;
         users.push(user);
@@ -214,8 +217,8 @@ async fn test_production_database_scenarios() -> Result<()> {
     // Test constraint violations
     let user1 = User {
         id: Uuid::new_v4(),
-        email: "duplicate@example.com".to_string(),
-        display_name: Some("User 1".to_string()),
+        email: "duplicate@example.com".to_owned(),
+        display_name: Some("User 1".to_owned()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter,
         created_at: chrono::Utc::now(),
@@ -227,7 +230,7 @@ async fn test_production_database_scenarios() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
     };
 
     // Create first user
@@ -236,8 +239,8 @@ async fn test_production_database_scenarios() -> Result<()> {
     // Try to create duplicate email (should fail)
     let user2 = User {
         id: Uuid::new_v4(),
-        email: "duplicate@example.com".to_string(), // Same email
-        display_name: Some("User 2".to_string()),
+        email: "duplicate@example.com".to_owned(), // Same email
+        display_name: Some("User 2".to_owned()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter,
         created_at: chrono::Utc::now(),
@@ -249,7 +252,7 @@ async fn test_production_database_scenarios() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
     };
 
     let result = database.create_user(&user2).await;
@@ -267,8 +270,8 @@ async fn test_production_rate_limiting() -> Result<()> {
     // Create starter tier user (has rate limits)
     let user = User {
         id: Uuid::new_v4(),
-        email: "ratelimited@example.com".to_string(),
-        display_name: Some("Rate Limited User".to_string()),
+        email: "ratelimited@example.com".to_owned(),
+        display_name: Some("Rate Limited User".to_owned()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter, // Starter tier has limits
         is_admin: false,
@@ -280,7 +283,7 @@ async fn test_production_rate_limiting() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
     };
 
     database.create_user(&user).await?;

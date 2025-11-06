@@ -77,9 +77,13 @@ pub struct SleepStage {
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum SleepStageType {
+    /// Awake stage - user is conscious and alert
     Awake,
+    /// Light sleep stage - easy to wake from, body relaxing
     Light,
+    /// Deep sleep stage - restorative, hard to wake from
     Deep,
+    /// REM (Rapid Eye Movement) sleep stage - dreaming, memory consolidation
     Rem,
 }
 
@@ -751,7 +755,7 @@ impl SportType {
             "Golf" => Self::Golf,
             "Skateboard" => Self::Skateboarding,
             "InlineSkate" => Self::InlineSkating,
-            other => Self::Other(other.to_string()),
+            other => Self::Other(other.to_owned()),
         }
     }
 
@@ -794,7 +798,7 @@ impl SportType {
             "golf" => Self::Golf,
             "skateboarding" => Self::Skateboarding,
             "inline_skating" => Self::InlineSkating,
-            other => Self::Other(other.to_string()),
+            other => Self::Other(other.to_owned()),
         }
     }
 
@@ -1036,7 +1040,7 @@ impl UserPhysiologicalProfile {
             self.age.map(|age| {
                 use crate::intelligence::algorithms::MaxHrAlgorithm;
 
-                // Use Tanaka formula via enum (gold standard: 208 - 0.7×age)
+                // Use Tanaka formula via enum (gold standard: 208 - 0.7xage)
                 MaxHrAlgorithm::Tanaka
                     .estimate(u32::from(age), None)
                     .ok()
@@ -1147,7 +1151,7 @@ impl UserOAuthToken {
             provider,
             access_token,
             refresh_token,
-            token_type: "Bearer".to_string(),
+            token_type: "Bearer".to_owned(),
             expires_at,
             scope,
             created_at: now,
@@ -1475,6 +1479,7 @@ pub struct Tenant {
 }
 
 impl Tenant {
+    /// Creates a new tenant with the given details
     #[must_use]
     pub fn new(
         name: String,
@@ -1526,13 +1531,21 @@ pub struct OAuthApp {
 
 /// OAuth app creation parameters
 pub struct OAuthAppParams {
+    /// OAuth 2.0 client identifier
     pub client_id: String,
+    /// OAuth 2.0 client secret for authentication
     pub client_secret: String,
+    /// Human-readable name of the OAuth application
     pub name: String,
+    /// Optional description of the application's purpose
     pub description: Option<String>,
+    /// List of authorized redirect URIs for OAuth flow
     pub redirect_uris: Vec<String>,
+    /// List of OAuth scopes the app can request
     pub scopes: Vec<String>,
+    /// Type of OAuth application (e.g., "web", "native", "service")
     pub app_type: String,
+    /// UUID of the user who owns this OAuth app
     pub owner_user_id: Uuid,
 }
 
@@ -1579,6 +1592,7 @@ pub struct AuthorizationCode {
 }
 
 impl AuthorizationCode {
+    /// Creates a new authorization code with 10-minute expiration
     #[must_use]
     pub fn new(
         code: String,

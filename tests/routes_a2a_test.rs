@@ -3,6 +3,8 @@
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(
     clippy::uninlined_format_args,
     clippy::cast_possible_truncation,
@@ -216,9 +218,9 @@ impl A2ATestSetup {
 
         // Create test user
         let user = User::new(
-            "test@example.com".to_string(),
-            "hashed_password".to_string(),
-            Some("Test User".to_string()),
+            "test@example.com".to_owned(),
+            "hashed_password".to_owned(),
+            Some("Test User".to_owned()),
         );
         let user_id = database
             .create_user(&user)
@@ -275,14 +277,14 @@ impl A2ATestSetup {
     /// Create a test A2A client for testing
     async fn create_test_client(&self) -> (String, String) {
         let request = ClientRegistrationRequest {
-            name: "Test A2A Client".to_string(),
-            description: "Test client for integration tests".to_string(),
+            name: "Test A2A Client".to_owned(),
+            description: "Test client for integration tests".to_owned(),
             capabilities: vec![
-                "fitness-data-analysis".to_string(),
-                "goal-management".to_string(),
+                "fitness-data-analysis".to_owned(),
+                "goal-management".to_owned(),
             ],
-            redirect_uris: vec!["https://example.com/callback".to_string()],
-            contact_email: "client@example.com".to_string(),
+            redirect_uris: vec!["https://example.com/callback".to_owned()],
+            contact_email: "client@example.com".to_owned(),
         };
 
         // Reuse the existing ServerResources to avoid creating new RSA keys
@@ -338,10 +340,10 @@ async fn test_agent_card_structure_compliance() {
     // Test capabilities structure
     assert!(agent_card
         .capabilities
-        .contains(&"fitness-data-analysis".to_string()));
+        .contains(&"fitness-data-analysis".to_owned()));
     assert!(agent_card
         .capabilities
-        .contains(&"goal-management".to_string()));
+        .contains(&"goal-management".to_owned()));
 
     // Test tools structure
     for tool in &agent_card.tools {
@@ -356,7 +358,7 @@ async fn test_agent_card_structure_compliance() {
     assert!(agent_card
         .authentication
         .schemes
-        .contains(&"api-key".to_string()));
+        .contains(&"api-key".to_owned()));
 }
 
 // =============================================================================
@@ -426,13 +428,13 @@ async fn test_register_client_success() {
     let auth_header = format!("Bearer {}", setup.jwt_token);
 
     let request = A2AClientRequest {
-        name: "Test Client".to_string(),
-        description: "A test A2A client".to_string(),
-        capabilities: vec!["fitness-data-analysis".to_string()],
-        redirect_uris: Some(vec!["https://example.com/callback".to_string()]),
-        contact_email: "test@example.com".to_string(),
-        agent_version: Some("1.0.0".to_string()),
-        documentation_url: Some("https://example.com/docs".to_string()),
+        name: "Test Client".to_owned(),
+        description: "A test A2A client".to_owned(),
+        capabilities: vec!["fitness-data-analysis".to_owned()],
+        redirect_uris: Some(vec!["https://example.com/callback".to_owned()]),
+        contact_email: "test@example.com".to_owned(),
+        agent_version: Some("1.0.0".to_owned()),
+        documentation_url: Some("https://example.com/docs".to_owned()),
     };
 
     let result = setup
@@ -454,11 +456,11 @@ async fn test_register_client_minimal_request() {
     let auth_header = format!("Bearer {}", setup.jwt_token);
 
     let request = A2AClientRequest {
-        name: "Minimal Client".to_string(),
-        description: "Minimal test client".to_string(),
-        capabilities: vec!["goal-management".to_string()],
+        name: "Minimal Client".to_owned(),
+        description: "Minimal test client".to_owned(),
+        capabilities: vec!["goal-management".to_owned()],
         redirect_uris: None, // Optional field
-        contact_email: "minimal@example.com".to_string(),
+        contact_email: "minimal@example.com".to_owned(),
         agent_version: None,     // Optional field
         documentation_url: None, // Optional field
     };
@@ -480,11 +482,11 @@ async fn test_register_client_duplicate_name() {
     let auth_header = format!("Bearer {}", setup.jwt_token);
 
     let request = A2AClientRequest {
-        name: "Duplicate Client".to_string(),
-        description: "First client".to_string(),
-        capabilities: vec!["fitness-data-analysis".to_string()],
+        name: "Duplicate Client".to_owned(),
+        description: "First client".to_owned(),
+        capabilities: vec!["fitness-data-analysis".to_owned()],
         redirect_uris: None,
-        contact_email: "first@example.com".to_string(),
+        contact_email: "first@example.com".to_owned(),
         agent_version: None,
         documentation_url: None,
     };
@@ -498,11 +500,11 @@ async fn test_register_client_duplicate_name() {
 
     // Second registration with different email should also succeed (name duplicates allowed)
     let request2 = A2AClientRequest {
-        name: "Duplicate Client".to_string(),
-        description: "Second client".to_string(),
-        capabilities: vec!["fitness-data-analysis".to_string()],
+        name: "Duplicate Client".to_owned(),
+        description: "Second client".to_owned(),
+        capabilities: vec!["fitness-data-analysis".to_owned()],
         redirect_uris: None,
-        contact_email: "second@example.com".to_string(),
+        contact_email: "second@example.com".to_owned(),
         agent_version: None,
         documentation_url: None,
     };
@@ -520,11 +522,11 @@ async fn test_register_client_invalid_email() {
     let auth_header = format!("Bearer {}", setup.jwt_token);
 
     let request = A2AClientRequest {
-        name: "Invalid Email Client".to_string(),
-        description: "Client with invalid email".to_string(),
-        capabilities: vec!["fitness-data-analysis".to_string()],
+        name: "Invalid Email Client".to_owned(),
+        description: "Client with invalid email".to_owned(),
+        capabilities: vec!["fitness-data-analysis".to_owned()],
         redirect_uris: None,
-        contact_email: "invalid-email".to_string(), // Invalid email format
+        contact_email: "invalid-email".to_owned(), // Invalid email format
         agent_version: None,
         documentation_url: None,
     };
@@ -552,11 +554,11 @@ async fn test_register_client_empty_capabilities() {
     let auth_header = format!("Bearer {}", setup.jwt_token);
 
     let request = A2AClientRequest {
-        name: "No Capabilities Client".to_string(),
-        description: "Client with no capabilities".to_string(),
+        name: "No Capabilities Client".to_owned(),
+        description: "Client with no capabilities".to_owned(),
         capabilities: vec![], // Empty capabilities
         redirect_uris: None,
-        contact_email: "nocaps@example.com".to_string(),
+        contact_email: "nocaps@example.com".to_owned(),
         agent_version: None,
         documentation_url: None,
     };
@@ -1392,8 +1394,8 @@ async fn test_dashboard_performance_with_many_clients() {
     for i in 0..50 {
         let request = A2AClientRequest {
             name: format!("Performance Test Client {i}"),
-            description: "Client for performance testing".to_string(),
-            capabilities: vec!["fitness-data-analysis".to_string()],
+            description: "Client for performance testing".to_owned(),
+            capabilities: vec!["fitness-data-analysis".to_owned()],
             redirect_uris: None,
             contact_email: format!("perf{}@example.com", i),
             agent_version: None,
@@ -1432,8 +1434,8 @@ async fn test_client_list_performance() {
     for i in 0..30 {
         let request = A2AClientRequest {
             name: format!("List Test Client {i}"),
-            description: "Client for list testing".to_string(),
-            capabilities: vec!["goal-management".to_string()],
+            description: "Client for list testing".to_owned(),
+            capabilities: vec!["goal-management".to_owned()],
             redirect_uris: None,
             contact_email: format!("list{}@example.com", i),
             agent_version: None,
@@ -1470,16 +1472,16 @@ async fn test_full_client_lifecycle() {
 
     // 1. Register a new client
     let request = A2AClientRequest {
-        name: "Lifecycle Test Client".to_string(),
-        description: "Testing full client lifecycle".to_string(),
+        name: "Lifecycle Test Client".to_owned(),
+        description: "Testing full client lifecycle".to_owned(),
         capabilities: vec![
-            "fitness-data-analysis".to_string(),
-            "goal-management".to_string(),
+            "fitness-data-analysis".to_owned(),
+            "goal-management".to_owned(),
         ],
-        redirect_uris: Some(vec!["https://example.com/callback".to_string()]),
-        contact_email: "lifecycle@example.com".to_string(),
-        agent_version: Some("2.0.0".to_string()),
-        documentation_url: Some("https://example.com/docs".to_string()),
+        redirect_uris: Some(vec!["https://example.com/callback".to_owned()]),
+        contact_email: "lifecycle@example.com".to_owned(),
+        agent_version: Some("2.0.0".to_owned()),
+        documentation_url: Some("https://example.com/docs".to_owned()),
     };
 
     let credentials = setup
@@ -1646,31 +1648,31 @@ fn create_test_server_config() -> ServerConfig {
         external_services: ExternalServicesConfig {
             weather: WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org".to_string(),
+                base_url: "https://api.openweathermap.org".to_owned(),
                 enabled: false,
             },
             strava_api: StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://www.fitbit.com/oauth/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://www.fitbit.com/oauth/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             geocoding: GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: true,
             },
             garmin_api: GarminApiConfig {
-                base_url: "https://apis.garmin.com".to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
+                base_url: "https://apis.garmin.com".to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
                 token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
                     .to_string(),
-                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -1678,23 +1680,23 @@ fn create_test_server_config() -> ServerConfig {
             default_activities_limit: 50,
             ci_mode: true,
             protocol: ProtocolConfig {
-                mcp_version: "2024-11-05".to_string(),
-                server_name: "Pierre Fitness AI".to_string(),
-                server_version: "1.0.0".to_string(),
+                mcp_version: "2024-11-05".to_owned(),
+                server_name: "Pierre Fitness AI".to_owned(),
+                server_version: "1.0.0".to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: CacheConfig {

@@ -3,6 +3,8 @@
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(
     clippy::uninlined_format_args,
     clippy::cast_possible_truncation,
@@ -195,9 +197,9 @@ async fn test_websocket_authentication_flow() -> Result<()> {
 
     // Create test user
     let user = User::new(
-        "ws_auth_test@example.com".to_string(),
-        "password123".to_string(),
-        Some("WebSocket Test User".to_string()),
+        "ws_auth_test@example.com".to_owned(),
+        "password123".to_owned(),
+        Some("WebSocket Test User".to_owned()),
     );
     database.create_user(&user).await?;
 
@@ -230,9 +232,9 @@ async fn test_websocket_authentication_flow() -> Result<()> {
 #[tokio::test]
 async fn test_websocket_subscription_message() -> Result<()> {
     let topics = vec![
-        "usage_updates".to_string(),
-        "system_stats".to_string(),
-        "rate_limits".to_string(),
+        "usage_updates".to_owned(),
+        "system_stats".to_owned(),
+        "rate_limits".to_owned(),
     ];
 
     let subscribe_msg = WebSocketMessage::Subscribe {
@@ -257,7 +259,7 @@ async fn test_websocket_subscription_message() -> Result<()> {
 #[tokio::test]
 async fn test_websocket_usage_update_message() -> Result<()> {
     let usage_update = WebSocketMessage::UsageUpdate {
-        api_key_id: "key_123".to_string(),
+        api_key_id: "key_123".to_owned(),
         requests_today: 150,
         requests_this_month: 4500,
         rate_limit_status: json!({
@@ -297,7 +299,7 @@ async fn test_websocket_system_stats_message() -> Result<()> {
 #[tokio::test]
 async fn test_websocket_error_message() -> Result<()> {
     let error_msg = WebSocketMessage::Error {
-        message: "Authentication failed: Invalid token".to_string(),
+        message: "Authentication failed: Invalid token".to_owned(),
     };
 
     // Test serialization
@@ -314,7 +316,7 @@ async fn test_websocket_error_message() -> Result<()> {
 #[tokio::test]
 async fn test_websocket_success_message() -> Result<()> {
     let success_msg = WebSocketMessage::Success {
-        message: "Successfully subscribed to topics".to_string(),
+        message: "Successfully subscribed to topics".to_owned(),
     };
 
     // Test serialization
@@ -382,7 +384,7 @@ async fn test_websocket_connection_with_invalid_auth() -> Result<()> {
 
     // Create invalid auth message
     let auth_msg = WebSocketMessage::Authentication {
-        token: "invalid_token_123".to_string(),
+        token: "invalid_token_123".to_owned(),
     };
 
     // Message should serialize but authentication would fail in actual connection
@@ -417,7 +419,7 @@ async fn test_websocket_concurrent_client_management() -> Result<()> {
             // Create unique user for each connection
             let user = User::new(
                 format!("ws_concurrent_{}@example.com", i),
-                "password".to_string(),
+                "password".to_owned(),
                 Some(format!("Concurrent User {i}")),
             );
             db_clone.create_user(&user).await.unwrap();
@@ -481,10 +483,10 @@ async fn test_websocket_rate_limit_status_updates() -> Result<()> {
 #[tokio::test]
 async fn test_websocket_subscription_topics() -> Result<()> {
     let valid_topics = vec![
-        vec!["usage_updates".to_string()],
-        vec!["system_stats".to_string()],
-        vec!["rate_limits".to_string()],
-        vec!["usage_updates".to_string(), "system_stats".to_string()],
+        vec!["usage_updates".to_owned()],
+        vec!["system_stats".to_owned()],
+        vec!["rate_limits".to_owned()],
+        vec!["usage_updates".to_owned(), "system_stats".to_owned()],
         vec![], // Empty subscription
     ];
 
@@ -524,7 +526,7 @@ async fn test_websocket_message_size_limits() -> Result<()> {
     });
 
     let usage_update = WebSocketMessage::UsageUpdate {
-        api_key_id: "enterprise_key".to_string(),
+        api_key_id: "enterprise_key".to_owned(),
         requests_today: 50000,
         requests_this_month: 1500000,
         rate_limit_status: large_status,

@@ -3,6 +3,8 @@
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(
     clippy::uninlined_format_args,
     clippy::cast_possible_truncation,
@@ -613,8 +615,8 @@ mod integration_tests {
 
     fn create_test_activity() -> Activity {
         Activity {
-            id: "test_123".to_string(),
-            name: "Test Run".to_string(),
+            id: "test_123".to_owned(),
+            name: "Test Run".to_owned(),
             sport_type: SportType::Run,
             start_date: Utc::now(),
             duration_seconds: 3600,         // 1 hour
@@ -669,9 +671,9 @@ mod integration_tests {
 
             start_latitude: Some(37.7749),
             start_longitude: Some(-122.4194),
-            city: Some("San Francisco".to_string()),
-            country: Some("United States".to_string()),
-            provider: "test".to_string(),
+            city: Some("San Francisco".to_owned()),
+            country: Some("United States".to_owned()),
+            provider: "test".to_owned(),
             region: None,
             trail_name: None,
         }
@@ -684,24 +686,24 @@ mod integration_tests {
 
         // Create test user profile
         let _user_profile = pierre_mcp_server::intelligence::UserFitnessProfile {
-            user_id: "test_user".to_string(),
+            user_id: "test_user".to_owned(),
             age: Some(30),
             gender: None,
             weight: Some(70.0),
             height: Some(175.0),
             fitness_level: pierre_mcp_server::intelligence::FitnessLevel::Intermediate,
-            primary_sports: vec!["running".to_string()],
+            primary_sports: vec!["running".to_owned()],
             training_history_months: 12,
             preferences: pierre_mcp_server::intelligence::UserPreferences {
-                preferred_units: "metric".to_string(),
-                training_focus: vec!["endurance".to_string()],
+                preferred_units: "metric".to_owned(),
+                training_focus: vec!["endurance".to_owned()],
                 injury_history: vec![],
                 time_availability: pierre_mcp_server::intelligence::TimeAvailability {
                     hours_per_week: 5.0,
                     preferred_days: vec![
-                        "Monday".to_string(),
-                        "Wednesday".to_string(),
-                        "Friday".to_string(),
+                        "Monday".to_owned(),
+                        "Wednesday".to_owned(),
+                        "Friday".to_owned(),
                     ],
                     preferred_duration_minutes: Some(60),
                 },

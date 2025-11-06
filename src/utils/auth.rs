@@ -42,7 +42,7 @@ pub fn extract_bearer_token(auth_header: &str) -> Result<&str> {
 /// - Token is empty after extraction and trimming
 /// - Header format is invalid
 pub fn extract_bearer_token_owned(auth_header: &str) -> Result<String> {
-    extract_bearer_token(auth_header).map(str::to_string)
+    extract_bearer_token(auth_header).map(str::to_owned)
 }
 
 /// Extract bearer token from optional Authorization header
@@ -67,7 +67,7 @@ pub fn extract_bearer_token_from_option(auth_header: Option<&str>) -> Result<&st
 /// - Header format is invalid  
 /// - Token is empty
 pub fn extract_bearer_token_from_option_owned(auth_header: Option<&str>) -> Result<String> {
-    extract_bearer_token_from_option(auth_header).map(str::to_string)
+    extract_bearer_token_from_option(auth_header).map(str::to_owned)
 }
 
 /// Check if authorization header is in Bearer format
@@ -85,11 +85,18 @@ pub fn is_api_key_format(auth_header: &str) -> bool {
 /// Determine the authorization type from header
 #[derive(Debug, PartialEq, Eq)]
 pub enum AuthType {
+    /// Bearer token authentication (JWT or `OAuth2`)
     Bearer,
+    /// API key authentication
     ApiKey,
+    /// Unknown or unsupported authentication type
     Unknown,
 }
 
+/// Detects the authentication type from an authorization header
+///
+/// Analyzes the header format to determine whether it contains a Bearer token,
+/// API key, or an unknown authentication scheme.
 #[must_use]
 pub fn detect_auth_type(auth_header: &str) -> AuthType {
     if is_bearer_token(auth_header) {

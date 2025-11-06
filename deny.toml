@@ -1,0 +1,69 @@
+# ABOUTME: Security and dependency validation configuration for cargo-deny
+# ABOUTME: Replaces custom cargo-audit bash scripting with native cargo-deny tool
+
+# ============================================================================
+# Advisory Database - Security Vulnerability Scanning
+# ============================================================================
+# Replaces: cargo audit --ignore RUSTSEC-2023-0071 --no-fetch --color always
+[advisories]
+version = 2
+# Ignored advisories (from original script)
+ignore = [
+    "RUSTSEC-2023-0071",  # Existing ignore from scripts/lint-and-test.sh
+]
+
+# Fail the build on any vulnerability except ignored ones
+deny = []
+# Warn on yanked crates
+yanked = "warn"
+
+# ============================================================================
+# License Validation - Ensure Only Approved Open Source Licenses
+# ============================================================================
+[licenses]
+# Only allow MIT and Apache-2.0 (matches package.license in Cargo.toml)
+allow = ["MIT", "Apache-2.0"]
+# Confidence threshold for license detection
+confidence-threshold = 0.93
+# Deny licenses that are not explicitly allowed
+deny = []
+# Warn on copyleft licenses
+copyleft = "warn"
+# Allow certain licenses for exceptions (if needed in future)
+exceptions = []
+
+# ============================================================================
+# Dependency Bans - Prevent Problematic Dependencies
+# ============================================================================
+[bans]
+# Warn on multiple versions of the same dependency (bloats binary)
+multiple-versions = "warn"
+# Deny wildcard dependencies (bad for reproducibility)
+wildcards = "deny"
+# Highlight dependencies that are not on crates.io
+highlight = "all"
+# Workspace-wide dependency management
+workspace-default-features = "allow"
+# External default features
+external-default-features = "allow"
+# Allow build dependencies
+allow = []
+# Deny specific crates (if needed)
+deny = []
+# Skip these dependencies from multiple-version checking
+skip = []
+# Skip tree checking for these dependencies
+skip-tree = []
+
+# ============================================================================
+# Source Validation - Only Allow Trusted Registries
+# ============================================================================
+[sources]
+# Deny unknown Git repositories (prevent supply chain attacks)
+unknown-git = "deny"
+# Deny unknown registries (only allow crates.io)
+unknown-registry = "deny"
+# Allow these specific Git repositories (if needed for specific deps)
+allow-git = []
+# Allow these specific registries
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

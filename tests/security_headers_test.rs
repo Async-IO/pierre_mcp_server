@@ -6,6 +6,9 @@
 
 //! Integration tests for security headers middleware
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::security::{audit_security_headers, headers::SecurityConfig};
 use std::collections::HashMap;
 
@@ -89,11 +92,11 @@ fn test_security_audit_functionality() {
     // Test secure headers
     let mut secure_headers = HashMap::new();
     secure_headers.insert(
-        "Content-Security-Policy".to_string(),
-        "default-src 'self'".to_string(),
+        "Content-Security-Policy".to_owned(),
+        "default-src 'self'".to_owned(),
     );
-    secure_headers.insert("X-Frame-Options".to_string(), "DENY".to_string());
-    secure_headers.insert("X-Content-Type-Options".to_string(), "nosniff".to_string());
+    secure_headers.insert("X-Frame-Options".to_owned(), "DENY".to_owned());
+    secure_headers.insert("X-Content-Type-Options".to_owned(), "nosniff".to_owned());
 
     let audit = audit_security_headers(&secure_headers);
     assert!(audit, "Secure headers should pass audit");
@@ -106,8 +109,8 @@ fn test_security_audit_functionality() {
     // Test partial headers - should fail because missing required headers
     let mut partial_headers = HashMap::new();
     partial_headers.insert(
-        "Content-Security-Policy".to_string(),
-        "default-src 'self'".to_string(),
+        "Content-Security-Policy".to_owned(),
+        "default-src 'self'".to_owned(),
     );
     // Missing X-Frame-Options and X-Content-Type-Options
 

@@ -16,22 +16,30 @@ use uuid::Uuid;
 /// OAuth token data structure
 #[derive(Debug, Clone)]
 pub struct TokenData {
+    /// OAuth access token
     pub access_token: String,
+    /// OAuth refresh token
     pub refresh_token: String,
+    /// When the access token expires
     pub expires_at: DateTime<Utc>,
+    /// OAuth scopes as comma-separated string
     pub scopes: String,
+    /// Provider name (e.g., "strava", "fitbit")
     pub provider: String,
 }
 
 /// OAuth error types
 #[derive(Debug, thiserror::Error)]
 pub enum OAuthError {
+    /// Failed to exchange authorization code for tokens
     #[error("Token exchange failed: {0}")]
     TokenExchangeFailed(String),
 
+    /// Failed to refresh expired access token
     #[error("Token refresh failed: {0}")]
     TokenRefreshFailed(String),
 
+    /// Database operation failed
     #[error("Database error: {0}")]
     DatabaseError(String),
 }
@@ -114,7 +122,7 @@ impl AuthService {
                     }
 
                     let token_data = TokenData {
-                        provider: provider.to_string(),
+                        provider: provider.to_owned(),
                         access_token: oauth_token.access_token,
                         refresh_token: oauth_token.refresh_token.unwrap_or_default(),
                         expires_at: oauth_token.expires_at.unwrap_or_else(chrono::Utc::now),
@@ -167,7 +175,7 @@ impl AuthService {
                 success: false,
                 result: None,
                 error: Some(
-                    "No valid Strava token found. Please connect your Strava account.".to_string(),
+                    "No valid Strava token found. Please connect your Strava account.".to_owned(),
                 ),
                 metadata: None,
             }),
@@ -209,7 +217,7 @@ impl AuthService {
                     expires_at: Some(token_data.expires_at),
                     scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                         .split(',')
-                        .map(str::to_string)
+                        .map(str::to_owned)
                         .collect(),
                 };
 
@@ -243,7 +251,7 @@ impl AuthService {
             UniversalResponse {
                 success: false,
                 result: None,
-                error: Some("Invalid tenant ID format".to_string()),
+                error: Some("Invalid tenant ID format".to_owned()),
                 metadata: None,
             }
         })?;
@@ -280,7 +288,7 @@ impl AuthService {
             .ok_or_else(|| UniversalResponse {
                 success: false,
                 result: None,
-                error: Some("STRAVA_CLIENT_ID not configured in ServerConfig".to_string()),
+                error: Some("STRAVA_CLIENT_ID not configured in ServerConfig".to_owned()),
                 metadata: None,
             })?;
 
@@ -291,7 +299,7 @@ impl AuthService {
                 .ok_or_else(|| UniversalResponse {
                     success: false,
                     result: None,
-                    error: Some("STRAVA_CLIENT_SECRET not configured in ServerConfig".to_string()),
+                    error: Some("STRAVA_CLIENT_SECRET not configured in ServerConfig".to_owned()),
                     metadata: None,
                 })?;
 

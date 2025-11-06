@@ -1,6 +1,9 @@
 // ABOUTME: Advanced integration tests for intelligence tools using synthetic data
 // ABOUTME: Tests fitness scoring, performance prediction, training load analysis, and goal management
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod helpers;
 
 use chrono::Utc;
@@ -20,24 +23,24 @@ use pierre_mcp_server::providers::core::FitnessProvider;
 /// Create a test `UserFitnessProfile` with sensible defaults
 fn create_test_user_profile(fitness_level: FitnessLevel) -> UserFitnessProfile {
     UserFitnessProfile {
-        user_id: "test_user_123".to_string(),
+        user_id: "test_user_123".to_owned(),
         age: Some(30),
-        gender: Some("male".to_string()),
+        gender: Some("male".to_owned()),
         weight: Some(70.0),
         height: Some(175.0),
         fitness_level,
-        primary_sports: vec!["Run".to_string(), "Ride".to_string()],
+        primary_sports: vec!["Run".to_owned(), "Ride".to_owned()],
         training_history_months: 12,
         preferences: UserPreferences {
-            preferred_units: "metric".to_string(),
-            training_focus: vec!["endurance".to_string()],
+            preferred_units: "metric".to_owned(),
+            training_focus: vec!["endurance".to_owned()],
             injury_history: vec![],
             time_availability: TimeAvailability {
                 hours_per_week: 8.0,
                 preferred_days: vec![
-                    "Monday".to_string(),
-                    "Wednesday".to_string(),
-                    "Friday".to_string(),
+                    "Monday".to_owned(),
+                    "Wednesday".to_owned(),
+                    "Friday".to_owned(),
                 ],
                 preferred_duration_minutes: Some(60),
             },
@@ -50,11 +53,11 @@ fn create_test_distance_goal(sport: &str, target_km: f64) -> Goal {
     let now = Utc::now();
     Goal {
         id: format!("goal_{}", uuid::Uuid::new_v4()),
-        user_id: "test_user_123".to_string(),
+        user_id: "test_user_123".to_owned(),
         title: format!("Run {target_km} km"),
         description: format!("Complete a {target_km} km {sport}"),
         goal_type: GoalType::Distance {
-            sport: sport.to_string(),
+            sport: sport.to_owned(),
             timeframe: TimeFrame::Month,
         },
         target_value: target_km * 1000.0,
@@ -263,8 +266,8 @@ async fn test_performance_prediction() {
 
     // Create a goal for 5K run
     let goal = ActivityGoal {
-        sport_type: "Run".to_string(),
-        metric: "distance".to_string(),
+        sport_type: "Run".to_owned(),
+        metric: "distance".to_owned(),
         target_value: 5000.0, // 5km
         target_date: chrono::Utc::now() + chrono::Duration::weeks(12),
     };
@@ -303,8 +306,8 @@ async fn test_performance_prediction_insufficient_data() {
 
     // Create a goal for 10K run
     let goal = ActivityGoal {
-        sport_type: "Run".to_string(),
-        metric: "distance".to_string(),
+        sport_type: "Run".to_owned(),
+        metric: "distance".to_owned(),
         target_value: 10000.0, // 10km
         target_date: chrono::Utc::now() + chrono::Duration::weeks(8),
     };

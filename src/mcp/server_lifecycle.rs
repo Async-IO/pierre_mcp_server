@@ -195,7 +195,9 @@ impl ServerLifecycle {
 /// Server error types
 #[derive(Debug)]
 pub enum ServerError {
+    /// Request is malformed or invalid
     InvalidRequest(String),
+    /// JSON serialization/deserialization failed
     SerializationError(serde_json::Error),
 }
 

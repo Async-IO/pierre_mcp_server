@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use anyhow::Result;
@@ -50,9 +53,9 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
     // Create an admin user first (needed for foreign key constraint)
     let admin_user = User {
         id: Uuid::new_v4(),
-        email: "admin@test.com".to_string(),
-        display_name: Some("Test Admin".to_string()),
-        password_hash: "admin_hash".to_string(),
+        email: "admin@test.com".to_owned(),
+        display_name: Some("Test Admin".to_owned()),
+        password_hash: "admin_hash".to_owned(),
         tier: UserTier::Starter,
         tenant_id: None,
         strava_token: None,
@@ -70,8 +73,8 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
 
     // Create a test admin token
     let admin_request = CreateAdminTokenRequest {
-        service_name: "test_admin".to_string(),
-        service_description: Some("Test admin for approval workflow".to_string()),
+        service_name: "test_admin".to_owned(),
+        service_description: Some("Test admin for approval workflow".to_owned()),
         permissions: None, // Super admin gets all permissions
         expires_in_days: Some(1),
         is_super_admin: true,
@@ -94,9 +97,9 @@ async fn test_get_pending_users() -> Result<()> {
     // Create test users with different statuses
     let pending_user = User {
         id: Uuid::new_v4(),
-        email: "pending@test.com".to_string(),
-        display_name: Some("Pending User".to_string()),
-        password_hash: "hash".to_string(),
+        email: "pending@test.com".to_owned(),
+        display_name: Some("Pending User".to_owned()),
+        password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
         tenant_id: None,
         strava_token: None,
@@ -113,9 +116,9 @@ async fn test_get_pending_users() -> Result<()> {
 
     let active_user = User {
         id: Uuid::new_v4(),
-        email: "active@test.com".to_string(),
-        display_name: Some("Active User".to_string()),
-        password_hash: "hash".to_string(),
+        email: "active@test.com".to_owned(),
+        display_name: Some("Active User".to_owned()),
+        password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
         tenant_id: None,
         strava_token: None,
@@ -145,9 +148,9 @@ async fn test_approve_user() -> Result<()> {
     // Create a pending user
     let pending_user = User {
         id: Uuid::new_v4(),
-        email: "to_approve@test.com".to_string(),
-        display_name: Some("User to Approve".to_string()),
-        password_hash: "hash".to_string(),
+        email: "to_approve@test.com".to_owned(),
+        display_name: Some("User to Approve".to_owned()),
+        password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
         tenant_id: None,
         strava_token: None,
@@ -174,9 +177,9 @@ async fn test_approve_user() -> Result<()> {
     // Now test creating a new user with approved_by set to the admin
     let new_approved_user = User {
         id: Uuid::new_v4(),
-        email: "new_approved@test.com".to_string(),
-        display_name: Some("New Approved User".to_string()),
-        password_hash: "hash".to_string(),
+        email: "new_approved@test.com".to_owned(),
+        display_name: Some("New Approved User".to_owned()),
+        password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
         tenant_id: None,
         strava_token: None,
@@ -209,9 +212,9 @@ async fn test_suspend_user() -> Result<()> {
     // Create an active user
     let user = User {
         id: Uuid::new_v4(),
-        email: "to_suspend@test.com".to_string(),
-        display_name: Some("User to Suspend".to_string()),
-        password_hash: "hash".to_string(),
+        email: "to_suspend@test.com".to_owned(),
+        display_name: Some("User to Suspend".to_owned()),
+        password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
         tenant_id: None,
         strava_token: None,
@@ -246,9 +249,9 @@ async fn test_user_status_transitions() -> Result<()> {
     // Create a pending user
     let user = User {
         id: Uuid::new_v4(),
-        email: "status_test@test.com".to_string(),
-        display_name: Some("Status Test User".to_string()),
-        password_hash: "hash".to_string(),
+        email: "status_test@test.com".to_owned(),
+        display_name: Some("Status Test User".to_owned()),
+        password_hash: "hash".to_owned(),
         tier: UserTier::Starter,
         tenant_id: None,
         strava_token: None,

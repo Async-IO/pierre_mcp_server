@@ -8,6 +8,9 @@
 //! Tests for error conditions, edge cases, and untested paths
 //! in the universal tool execution layer.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use pierre_mcp_server::{
     config::environment::*,
@@ -28,7 +31,7 @@ mod common;
 
 /// Create test user without saving to database (local helper)
 fn create_test_user(email: &str, display_name: Option<String>) -> pierre_mcp_server::models::User {
-    pierre_mcp_server::models::User::new(email.to_string(), "test_hash".to_string(), display_name)
+    pierre_mcp_server::models::User::new(email.to_owned(), "test_hash".to_owned(), display_name)
 }
 
 /// Create test configuration
@@ -56,17 +59,17 @@ fn create_test_config() -> Arc<ServerConfig> {
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
-                client_id: Some("test_client_id".to_string()),
-                client_secret: Some("test_client_secret".to_string()),
-                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_string()),
-                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                client_id: Some("test_client_id".to_owned()),
+                client_secret: Some("test_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_owned()),
+                scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
                 enabled: true,
             },
             fitbit: OAuthProviderConfig {
-                client_id: Some("test_fitbit_id".to_string()),
-                client_secret: Some("test_fitbit_secret".to_string()),
-                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_string()),
-                scopes: vec!["activity".to_string(), "profile".to_string()],
+                client_id: Some("test_fitbit_id".to_owned()),
+                client_secret: Some("test_fitbit_secret".to_owned()),
+                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_owned()),
+                scopes: vec!["activity".to_owned(), "profile".to_owned()],
                 enabled: true,
             },
             garmin: OAuthProviderConfig {
@@ -91,23 +94,23 @@ fn create_test_config() -> Arc<ServerConfig> {
         external_services: ExternalServicesConfig {
             weather: WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             strava_api: StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             geocoding: GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: true,
             },
             ..Default::default()
@@ -117,9 +120,9 @@ fn create_test_config() -> Arc<ServerConfig> {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: ProtocolConfig {
-                mcp_version: "2024-11-05".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: "0.1.0".to_string(),
+                mcp_version: "2024-11-05".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: "0.1.0".to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
@@ -145,7 +148,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
     let database = common::create_test_database().await?;
 
     let _intelligence = Arc::new(ActivityIntelligence::new(
-        "Test intelligence".to_string(),
+        "Test intelligence".to_owned(),
         vec![],
         PerformanceMetrics {
             relative_effort: Some(75.0),
@@ -190,7 +193,7 @@ async fn create_executor_no_oauth() -> Result<UniversalToolExecutor> {
     let database = common::create_test_database().await?;
 
     let _intelligence = Arc::new(ActivityIntelligence::new(
-        "Test intelligence".to_string(),
+        "Test intelligence".to_owned(),
         vec![],
         PerformanceMetrics {
             relative_effort: Some(75.0),
@@ -239,28 +242,28 @@ async fn test_oauth_configuration_errors() -> Result<()> {
     // Create tenant first
     // Create test user first so they can be tenant owner
     let user_id = Uuid::new_v4();
-    let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
+    let mut user = create_test_user("test@example.com", Some("Test User".to_owned()));
     user.id = user_id;
     user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
-    user.tenant_id = Some("test-tenant".to_string()); // Link user to tenant
+    user.tenant_id = Some("test-tenant".to_owned()); // Link user to tenant
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
     let tenant = pierre_mcp_server::models::Tenant::new(
-        "Test Tenant".to_string(),
-        "test-tenant".to_string(),
-        Some("test.example.com".to_string()),
-        "starter".to_string(),
+        "Test Tenant".to_owned(),
+        "test-tenant".to_owned(),
+        Some("test.example.com".to_owned()),
+        "starter".to_owned(),
         user_id, // User is now the owner
     );
     executor.resources.database.create_tenant(&tenant).await?;
 
     // Test get_activities with missing OAuth config
     let request = UniversalRequest {
-        tool_name: "get_activities".to_string(),
+        tool_name: "get_activities".to_owned(),
         parameters: json!({}),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -293,7 +296,7 @@ async fn test_invalid_provider_tokens() -> Result<()> {
 
     // Create test user
     let user_id = Uuid::new_v4();
-    let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
+    let mut user = create_test_user("test@example.com", Some("Test User".to_owned()));
     user.id = user_id;
     user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
     executor.resources.database.create_user(&user).await?;
@@ -302,12 +305,12 @@ async fn test_invalid_provider_tokens() -> Result<()> {
     let expires_at = chrono::Utc::now() - chrono::Duration::hours(1); // Expired
     let oauth_token = UserOAuthToken::new(
         user_id,
-        "00000000-0000-0000-0000-000000000000".to_string(), // tenant_id
-        oauth_providers::STRAVA.to_string(),
-        "invalid_access_token".to_string(),
-        Some("invalid_refresh_token".to_string()),
+        "00000000-0000-0000-0000-000000000000".to_owned(), // tenant_id
+        oauth_providers::STRAVA.to_owned(),
+        "invalid_access_token".to_owned(),
+        Some("invalid_refresh_token".to_owned()),
         Some(expires_at),
-        Some("read".to_string()), // scope as String
+        Some("read".to_owned()), // scope as String
     );
     executor
         .resources
@@ -317,13 +320,13 @@ async fn test_invalid_provider_tokens() -> Result<()> {
 
     // Test get_activities with expired token
     let request = UniversalRequest {
-        tool_name: "get_activities".to_string(),
+        tool_name: "get_activities".to_owned(),
         parameters: json!({
             "limit": 10,
             "provider": "strava"
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -350,10 +353,10 @@ async fn test_malformed_user_id() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let request = UniversalRequest {
-        tool_name: "get_connection_status".to_string(),
+        tool_name: "get_connection_status".to_owned(),
         parameters: json!({}),
-        user_id: "not-a-valid-uuid".to_string(),
-        protocol: "test".to_string(),
+        user_id: "not-a-valid-uuid".to_owned(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -378,10 +381,10 @@ async fn test_non_existent_user() -> Result<()> {
     let non_existent_user_id = Uuid::new_v4();
 
     let request = UniversalRequest {
-        tool_name: "get_connection_status".to_string(),
+        tool_name: "get_connection_status".to_owned(),
         parameters: json!({}),
         user_id: non_existent_user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -402,20 +405,20 @@ async fn test_invalid_tool_parameters() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let user_id = Uuid::new_v4();
-    let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
+    let mut user = create_test_user("test@example.com", Some("Test User".to_owned()));
     user.id = user_id;
     user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
     executor.resources.database.create_user(&user).await?;
 
     // Test get_activities with invalid limit
     let request = UniversalRequest {
-        tool_name: "get_activities".to_string(),
+        tool_name: "get_activities".to_owned(),
         parameters: json!({
             "limit": "not_a_number",
             "provider": "strava"
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -437,13 +440,13 @@ async fn test_invalid_tool_parameters() -> Result<()> {
 
     // Test set_goal with invalid goal data
     let request = UniversalRequest {
-        tool_name: "set_goal".to_string(),
+        tool_name: "set_goal".to_owned(),
         parameters: json!({
             "goal_type": "invalid_goal_type",
             "target_value": "not_a_number"
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -467,10 +470,10 @@ async fn test_database_error_handling() -> Result<()> {
 
     // Try to access a very large invalid user ID to potentially trigger DB errors
     let request = UniversalRequest {
-        tool_name: "get_connection_status".to_string(),
+        tool_name: "get_connection_status".to_owned(),
         parameters: json!({}),
-        user_id: "00000000-0000-0000-0000-000000000000".to_string(),
-        protocol: "test".to_string(),
+        user_id: "00000000-0000-0000-0000-000000000000".to_owned(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -487,7 +490,7 @@ async fn test_concurrent_tool_execution() -> Result<()> {
     let executor = Arc::new(create_test_executor().await?);
 
     let user_id = Uuid::new_v4();
-    let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
+    let mut user = create_test_user("test@example.com", Some("Test User".to_owned()));
     user.id = user_id;
     user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
     executor.resources.database.create_user(&user).await?;
@@ -501,9 +504,9 @@ async fn test_concurrent_tool_execution() -> Result<()> {
 
         let handle = tokio::spawn(async move {
             let request = UniversalRequest {
-                tool_name: "get_connection_status".to_string(),
+                tool_name: "get_connection_status".to_owned(),
                 parameters: json!({}),
-                user_id: user_id_str,
+                user_id: user_id_str.clone(),
                 protocol: format!("test_{i}"),
                 tenant_id: None,
             };
@@ -531,16 +534,16 @@ async fn test_tool_response_metadata() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let user_id = Uuid::new_v4();
-    let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
+    let mut user = create_test_user("test@example.com", Some("Test User".to_owned()));
     user.id = user_id;
     user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
     executor.resources.database.create_user(&user).await?;
 
     let request = UniversalRequest {
-        tool_name: "get_connection_status".to_string(),
+        tool_name: "get_connection_status".to_owned(),
         parameters: json!({}),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -563,20 +566,20 @@ async fn test_intelligence_integration_errors() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let user_id = Uuid::new_v4();
-    let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
+    let mut user = create_test_user("test@example.com", Some("Test User".to_owned()));
     user.id = user_id;
     user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
     executor.resources.database.create_user(&user).await?;
 
     // Test analytics tools with invalid data
     let request = UniversalRequest {
-        tool_name: "analyze_performance_trends".to_string(),
+        tool_name: "analyze_performance_trends".to_owned(),
         parameters: json!({
             "activities": [], // Empty activities array
             "metrics": ["invalid_metric"]
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 
@@ -593,20 +596,20 @@ async fn test_provider_unavailable() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let user_id = Uuid::new_v4();
-    let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
+    let mut user = create_test_user("test@example.com", Some("Test User".to_owned()));
     user.id = user_id;
     user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
     executor.resources.database.create_user(&user).await?;
 
     // Test with unsupported provider
     let request = UniversalRequest {
-        tool_name: "get_activities".to_string(),
+        tool_name: "get_activities".to_owned(),
         parameters: json!({
             "limit": 10,
             "provider": "unsupported_provider"
         }),
         user_id: user_id.to_string(),
-        protocol: "test".to_string(),
+        protocol: "test".to_owned(),
         tenant_id: None,
     };
 

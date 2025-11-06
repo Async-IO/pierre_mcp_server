@@ -7,6 +7,9 @@
 // Integration tests for health.rs module
 // Tests for health check functionality and system monitoring
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use pierre_mcp_server::{
@@ -37,7 +40,7 @@ async fn test_basic_health_check() {
         .unwrap();
     let health_checker = HealthChecker::new(
         Arc::new(database),
-        "https://www.strava.com/api/v3".to_string(),
+        "https://www.strava.com/api/v3".to_owned(),
     );
 
     let response = health_checker.basic_health();
@@ -68,7 +71,7 @@ async fn test_comprehensive_health_check() {
         .unwrap();
     let health_checker = HealthChecker::new(
         Arc::new(database),
-        "https://www.strava.com/api/v3".to_string(),
+        "https://www.strava.com/api/v3".to_owned(),
     );
 
     let response = health_checker.comprehensive_health().await;
@@ -101,7 +104,7 @@ async fn test_readiness_check() {
         .unwrap();
     let health_checker = HealthChecker::new(
         Arc::new(database),
-        "https://www.strava.com/api/v3".to_string(),
+        "https://www.strava.com/api/v3".to_owned(),
     );
 
     let response = health_checker.readiness().await;

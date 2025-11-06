@@ -43,7 +43,7 @@ impl Cursor {
         }
 
         let timestamp_millis = parts[0].parse::<i64>().ok()?;
-        let id = parts[1].to_string();
+        let id = parts[1].to_owned();
         let datetime = DateTime::from_timestamp_millis(timestamp_millis)?;
 
         Some((datetime, id))

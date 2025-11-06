@@ -18,35 +18,61 @@ use serde_json::Value;
 use sqlx::Row;
 use uuid::Uuid;
 
+/// Records of A2A protocol usage for analytics and billing
 #[derive(Debug, Serialize, Deserialize)]
 pub struct A2AUsage {
-    pub id: Option<i64>, // Allow None for new records
+    /// Database record ID (None for new records)
+    pub id: Option<i64>,
+    /// A2A client identifier
     pub client_id: String,
+    /// Optional session token for this request
     pub session_token: Option<String>,
+    /// When the request was made
     pub timestamp: DateTime<Utc>,
+    /// Name of the tool/endpoint called
     pub tool_name: String,
+    /// Response time in milliseconds
     pub response_time_ms: Option<u32>,
+    /// HTTP status code returned
     pub status_code: u16,
+    /// Error message if request failed
     pub error_message: Option<String>,
+    /// Request payload size in bytes
     pub request_size_bytes: Option<u32>,
+    /// Response payload size in bytes
     pub response_size_bytes: Option<u32>,
+    /// Client IP address
     pub ip_address: Option<String>,
+    /// Client user agent string
     pub user_agent: Option<String>,
+    /// A2A protocol version used
     pub protocol_version: String,
+    /// List of capabilities advertised by client
     pub client_capabilities: Vec<String>,
+    /// OAuth scopes granted for this request
     pub granted_scopes: Vec<String>,
 }
 
+/// Aggregated statistics for A2A usage over a time period
 #[derive(Debug, Serialize, Deserialize)]
 pub struct A2AUsageStats {
+    /// A2A client identifier
     pub client_id: String,
+    /// Start of the statistics period
     pub period_start: DateTime<Utc>,
+    /// End of the statistics period
     pub period_end: DateTime<Utc>,
+    /// Total number of requests in period
     pub total_requests: u32,
+    /// Number of successful requests (2xx status)
     pub successful_requests: u32,
+    /// Number of failed requests (4xx/5xx status)
     pub failed_requests: u32,
+    /// Average response time across all requests (ms)
     pub avg_response_time_ms: Option<u32>,
+    /// Total bytes sent in requests
     pub total_request_bytes: Option<u64>,
+    /// Total bytes sent in responses
     pub total_response_bytes: Option<u64>,
 }
 
@@ -1245,7 +1271,7 @@ impl Database {
         let total_response_bytes: Option<i64> = stats.get(5);
 
         Ok(A2AUsageStats {
-            client_id: client_id.to_string(),
+            client_id: client_id.to_owned(),
             period_start: start_date,
             period_end: end_date,
             total_requests: safe_i32_to_u32(total_requests)?,

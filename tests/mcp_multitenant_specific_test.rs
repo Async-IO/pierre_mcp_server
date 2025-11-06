@@ -7,6 +7,9 @@
 //!
 //! This test suite targets specific handler methods that may have low coverage.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use pierre_mcp_server::{
     config::environment::ServerConfig, mcp::multitenant::MultiTenantMcpServer,

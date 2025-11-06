@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use anyhow::Result;
@@ -23,7 +26,7 @@ use warp::test::request;
 async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     // Initialize test database with cleanup
     let database_url = if std::env::var("CI").is_ok() {
-        "sqlite::memory:".to_string()
+        "sqlite::memory:".to_owned()
     } else {
         let database_path = "./test_data/admin_approval_e2e_test.db";
         let _ = std::fs::remove_file(database_path); // Clean up any existing test database
@@ -80,10 +83,10 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     let admin_token = admin_body["admin_token"]
         .as_str()
         .expect("Admin token should be present")
-        .to_string();
+        .to_owned();
 
     println!(
-        "✅ Admin created successfully with token: {}...",
+        " Admin created successfully with token: {}...",
         &admin_token[0..20]
     );
 
@@ -91,11 +94,11 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     println!("2️⃣ Creating test user directly in database...");
     let test_user = pierre_mcp_server::models::User {
         id: uuid::Uuid::new_v4(),
-        email: "test_user@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: "hashed_password".to_string(),
+        email: "test_user@example.com".to_owned(),
+        display_name: Some("Test User".to_owned()),
+        password_hash: "hashed_password".to_owned(),
         tier: pierre_mcp_server::models::UserTier::Starter,
-        tenant_id: Some("test_tenant".to_string()),
+        tenant_id: Some("test_tenant".to_owned()),
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -108,7 +111,7 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     };
 
     let user_id = database.create_user(&test_user).await?;
-    println!("✅ Test user created with ID: {user_id}");
+    println!(" Test user created with ID: {user_id}");
 
     // Step 3: Verify user is in pending status
     println!("3️⃣ Verifying user is in pending status...");
@@ -123,7 +126,7 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     let pending_body: Value = serde_json::from_slice(pending_users_response.body())?;
     assert_eq!(pending_body["success"], true);
     assert!(pending_body["count"].as_u64().unwrap() > 0);
-    println!("✅ User found in pending users list");
+    println!(" User found in pending users list");
 
     // Step 4: Approve the user using admin token
     println!("4️⃣ Testing user approval...");
@@ -143,7 +146,7 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     assert_eq!(approval_body["user"]["user_status"], "active");
     assert!(approval_body["user"]["approved_at"].is_string());
 
-    println!("✅ User approved successfully");
+    println!(" User approved successfully");
 
     // Step 5: Verify user is no longer in pending list
     println!("5️⃣ Verifying user is no longer pending...");
@@ -165,7 +168,7 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
         "No users should be pending after approval"
     );
 
-    println!("✅ User successfully removed from pending list");
+    println!(" User successfully removed from pending list");
 
     // Step 6: Test that we can't create another admin (conflict handling)
     println!("6️⃣ Testing admin conflict prevention...");
@@ -188,7 +191,7 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
         .unwrap()
         .contains("Admin user already exists"));
 
-    println!("✅ Admin conflict prevention working correctly");
+    println!(" Admin conflict prevention working correctly");
 
     // Cleanup: Remove test database (only in local environment)
     if std::env::var("CI").is_err() {
@@ -199,11 +202,11 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     }
 
     println!("COMPLETE ADMIN USER APPROVAL WORKFLOW TEST PASSED!");
-    println!("✅ Server-first admin setup working");
-    println!("✅ User approval workflow working");
-    println!("✅ Database state transitions correct");
-    println!("✅ Authorization working properly");
-    println!("✅ Conflict handling working");
+    println!(" Server-first admin setup working");
+    println!(" User approval workflow working");
+    println!(" Database state transitions correct");
+    println!(" Authorization working properly");
+    println!(" Conflict handling working");
 
     Ok(())
 }
@@ -213,7 +216,7 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
 async fn test_admin_token_management_workflow() -> Result<()> {
     // Initialize test database
     let database_url = if std::env::var("CI").is_ok() {
-        "sqlite::memory:".to_string()
+        "sqlite::memory:".to_owned()
     } else {
         let database_path = "./test_data/admin_token_mgmt_test.db";
         let _ = std::fs::remove_file(database_path);
@@ -262,7 +265,7 @@ async fn test_admin_token_management_workflow() -> Result<()> {
 
     assert_eq!(admin_setup_response.status(), 201);
     let admin_body: Value = serde_json::from_slice(admin_setup_response.body())?;
-    let admin_token = admin_body["admin_token"].as_str().unwrap().to_string();
+    let admin_token = admin_body["admin_token"].as_str().unwrap().to_owned();
 
     // Step 2: Create additional admin token
     let create_token_response = request()
@@ -284,7 +287,7 @@ async fn test_admin_token_management_workflow() -> Result<()> {
     assert_eq!(create_body["success"], true);
 
     let service_token_id = create_body["data"]["token_id"].as_str().unwrap();
-    println!("✅ Service token created: {service_token_id}");
+    println!(" Service token created: {service_token_id}");
 
     // Step 3: List admin tokens
     let list_tokens_response = request()
@@ -299,7 +302,7 @@ async fn test_admin_token_management_workflow() -> Result<()> {
     assert_eq!(list_body["success"], true);
     assert!(list_body["data"]["count"].as_u64().unwrap() >= 2); // At least initial + service token
 
-    println!("✅ Token listing working");
+    println!(" Token listing working");
 
     // Step 4: Get token details
     let token_details_response = request()
@@ -314,7 +317,7 @@ async fn test_admin_token_management_workflow() -> Result<()> {
     assert_eq!(details_body["success"], true);
     assert_eq!(details_body["data"]["service_name"], "test_service_token");
 
-    println!("✅ Token details retrieval working");
+    println!(" Token details retrieval working");
 
     // Step 5: Revoke the service token
     let revoke_response = request()
@@ -328,7 +331,7 @@ async fn test_admin_token_management_workflow() -> Result<()> {
     let revoke_body: Value = serde_json::from_slice(revoke_response.body())?;
     assert_eq!(revoke_body["success"], true);
 
-    println!("✅ Token revocation working");
+    println!(" Token revocation working");
 
     // Cleanup: Remove test database (only in local environment)
     if std::env::var("CI").is_err() && database_url.starts_with("sqlite:./") {
@@ -344,7 +347,7 @@ async fn test_admin_token_management_workflow() -> Result<()> {
 #[tokio::test]
 async fn test_admin_workflow_error_handling() -> Result<()> {
     let database_url = if std::env::var("CI").is_ok() {
-        "sqlite::memory:".to_string()
+        "sqlite::memory:".to_owned()
     } else {
         let database_path = "./test_data/admin_error_handling_test.db";
         let _ = std::fs::remove_file(database_path);
@@ -393,7 +396,7 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
 
     // Should fail with unauthorized due to invalid token
     assert_eq!(approve_fake_user_response.status(), 401);
-    println!("✅ Invalid token properly rejected");
+    println!(" Invalid token properly rejected");
 
     // Test 2: Try to access admin endpoints without token
     let no_auth_response = request()
@@ -403,7 +406,7 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
         .await;
 
     assert_eq!(no_auth_response.status(), 400); // Missing auth header
-    println!("✅ Missing authorization properly rejected");
+    println!(" Missing authorization properly rejected");
 
     // Test 3: Try to approve with malformed user ID
     let admin_setup_response = request()
@@ -429,7 +432,7 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
         .await;
 
     assert_eq!(malformed_id_response.status(), 400); // Bad request for malformed UUID
-    println!("✅ Malformed UUID properly rejected");
+    println!(" Malformed UUID properly rejected");
 
     // Cleanup: Remove test database (only in local environment)
     if std::env::var("CI").is_err() && database_url.starts_with("sqlite:./") {

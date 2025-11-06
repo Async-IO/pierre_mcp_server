@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use chrono::Utc;
 use pierre_mcp_server::database::Database;
 use pierre_mcp_server::models::{EncryptedToken, User, UserStatus, UserTier};
@@ -23,7 +26,7 @@ async fn test_create_and_get_user() {
         tier: UserTier::Starter,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: false,
@@ -71,7 +74,7 @@ async fn test_last_active_update() {
         tier: UserTier::Starter,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: false,
@@ -110,11 +113,11 @@ fn create_test_user(email: &str, display_name: Option<String>) -> User {
     let now = Utc::now();
     User {
         id: Uuid::new_v4(),
-        email: email.to_string(),
+        email: email.to_owned(),
         display_name,
-        password_hash: "hashed_password".to_string(),
+        password_hash: "hashed_password".to_owned(),
         tier: UserTier::Professional,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -137,7 +140,7 @@ fn create_test_admin_user(email: &str, display_name: Option<String>) -> User {
 #[tokio::test]
 async fn test_create_user_success() {
     let db = create_test_database().await;
-    let user = create_test_user("test@example.com", Some("Test User".to_string()));
+    let user = create_test_user("test@example.com", Some("Test User".to_owned()));
 
     let result = db.create_user(&user).await;
     assert!(result.is_ok());
@@ -149,8 +152,8 @@ async fn test_create_user_success() {
 #[tokio::test]
 async fn test_create_user_duplicate_email() {
     let db = create_test_database().await;
-    let user1 = create_test_user("duplicate@example.com", Some("User 1".to_string()));
-    let user2 = create_test_user("duplicate@example.com", Some("User 2".to_string()));
+    let user1 = create_test_user("duplicate@example.com", Some("User 1".to_owned()));
+    let user2 = create_test_user("duplicate@example.com", Some("User 2".to_owned()));
 
     // First user should succeed
     let result1 = db.create_user(&user1).await;
@@ -164,7 +167,7 @@ async fn test_create_user_duplicate_email() {
 #[tokio::test]
 async fn test_get_user_by_id_existing() {
     let db = create_test_database().await;
-    let user = create_test_user("get_test@example.com", Some("Get Test User".to_string()));
+    let user = create_test_user("get_test@example.com", Some("Get Test User".to_owned()));
 
     db.create_user(&user).await.unwrap();
 
@@ -190,7 +193,7 @@ async fn test_get_user_by_id_nonexistent() {
 async fn test_get_user_by_email_existing() {
     let db = create_test_database().await;
     let email = "email_test@example.com";
-    let user = create_test_user(email, Some("Email Test User".to_string()));
+    let user = create_test_user(email, Some("Email Test User".to_owned()));
 
     db.create_user(&user).await.unwrap();
 
@@ -217,7 +220,7 @@ async fn test_get_user_by_email_nonexistent() {
 async fn test_get_user_by_email_required_existing() {
     let db = create_test_database().await;
     let email = "required_test@example.com";
-    let user = create_test_user(email, Some("Required Test User".to_string()));
+    let user = create_test_user(email, Some("Required Test User".to_owned()));
 
     db.create_user(&user).await.unwrap();
 
@@ -244,7 +247,7 @@ async fn test_update_last_active_success() {
     let db = create_test_database().await;
     let user = create_test_user(
         "active_test@example.com",
-        Some("Active Test User".to_string()),
+        Some("Active Test User".to_owned()),
     );
 
     db.create_user(&user).await.unwrap();
@@ -276,14 +279,14 @@ async fn test_get_user_count() {
     assert_eq!(count, 0);
 
     // Add a user
-    let user1 = create_test_user("count_test1@example.com", Some("Count Test 1".to_string()));
+    let user1 = create_test_user("count_test1@example.com", Some("Count Test 1".to_owned()));
     db.create_user(&user1).await.unwrap();
 
     let count = db.get_user_count().await.unwrap();
     assert_eq!(count, 1);
 
     // Add another user
-    let user2 = create_test_user("count_test2@example.com", Some("Count Test 2".to_string()));
+    let user2 = create_test_user("count_test2@example.com", Some("Count Test 2".to_owned()));
     db.create_user(&user2).await.unwrap();
 
     let count = db.get_user_count().await.unwrap();
@@ -295,9 +298,8 @@ async fn test_get_users_by_status() {
     let db = create_test_database().await;
 
     // Create users with different statuses
-    let active_user = create_test_user("active@example.com", Some("Active User".to_string()));
-    let mut pending_user =
-        create_test_user("pending@example.com", Some("Pending User".to_string()));
+    let active_user = create_test_user("active@example.com", Some("Active User".to_owned()));
+    let mut pending_user = create_test_user("pending@example.com", Some("Pending User".to_owned()));
     pending_user.user_status = UserStatus::Pending;
 
     db.create_user(&active_user).await.unwrap();
@@ -321,11 +323,11 @@ async fn test_get_users_by_status() {
 #[tokio::test]
 async fn test_update_user_status() {
     let db = create_test_database().await;
-    let mut user = create_test_user("status_test@example.com", Some("Status Test".to_string()));
+    let mut user = create_test_user("status_test@example.com", Some("Status Test".to_owned()));
     user.user_status = UserStatus::Pending;
 
     // Create admin user for approval
-    let admin_user = create_test_admin_user("admin@example.com", Some("Admin".to_string()));
+    let admin_user = create_test_admin_user("admin@example.com", Some("Admin".to_owned()));
     db.create_user(&admin_user).await.unwrap();
 
     db.create_user(&user).await.unwrap();
@@ -359,7 +361,7 @@ async fn test_update_user_status_nonexistent() {
 #[tokio::test]
 async fn test_upsert_user_profile() {
     let db = create_test_database().await;
-    let user = create_test_user("profile_test@example.com", Some("Profile Test".to_string()));
+    let user = create_test_user("profile_test@example.com", Some("Profile Test".to_owned()));
     db.create_user(&user).await.unwrap();
 
     let profile_data = serde_json::json!({
@@ -389,7 +391,7 @@ async fn test_get_user_profile_nonexistent() {
 #[tokio::test]
 async fn test_user_fitness_profile() {
     let db = create_test_database().await;
-    let user = create_test_user("fitness_test@example.com", Some("Fitness Test".to_string()));
+    let user = create_test_user("fitness_test@example.com", Some("Fitness Test".to_owned()));
     db.create_user(&user).await.unwrap();
 
     // Just test that the method exists and returns None for a user without fitness profile
@@ -400,7 +402,7 @@ async fn test_user_fitness_profile() {
 #[tokio::test]
 async fn test_provider_last_sync() {
     let db = create_test_database().await;
-    let user = create_test_user("sync_test@example.com", Some("Sync Test".to_string()));
+    let user = create_test_user("sync_test@example.com", Some("Sync Test".to_owned()));
     db.create_user(&user).await.unwrap();
 
     let provider = "strava";
@@ -441,7 +443,7 @@ async fn test_database_migrations() {
     // Test by inserting a user
     let user = create_test_user(
         "migration_test@example.com",
-        Some("Migration Test".to_string()),
+        Some("Migration Test".to_owned()),
     );
     let result = db.create_user(&user).await;
     assert!(result.is_ok());
@@ -458,7 +460,7 @@ async fn test_user_serialization_in_database() {
     // Create a user with various field types
     let mut user = create_test_user(
         "serialization@example.com",
-        Some("Serialization Test".to_string()),
+        Some("Serialization Test".to_owned()),
     );
     user.tier = UserTier::Enterprise;
     user.user_status = UserStatus::Active;
@@ -483,12 +485,12 @@ async fn test_user_with_encrypted_tokens() {
     let db = create_test_database().await;
 
     let now = Utc::now();
-    let mut user = create_test_user("tokens_test@example.com", Some("Tokens Test".to_string()));
+    let mut user = create_test_user("tokens_test@example.com", Some("Tokens Test".to_owned()));
     user.strava_token = Some(EncryptedToken {
-        access_token: "encrypted_strava_access".to_string(),
-        refresh_token: "encrypted_strava_refresh".to_string(),
+        access_token: "encrypted_strava_access".to_owned(),
+        refresh_token: "encrypted_strava_refresh".to_owned(),
         expires_at: now + chrono::Duration::hours(6),
-        scope: "read_all,activity:read".to_string(),
+        scope: "read_all,activity:read".to_owned(),
     });
 
     db.create_user(&user).await.unwrap();
@@ -508,16 +510,13 @@ async fn test_user_status_transitions() {
     let db = create_test_database().await;
 
     // Create pending user
-    let mut user = create_test_user(
-        "transition@example.com",
-        Some("Transition Test".to_string()),
-    );
+    let mut user = create_test_user("transition@example.com", Some("Transition Test".to_owned()));
     user.user_status = UserStatus::Pending;
 
     db.create_user(&user).await.unwrap();
 
     // Create admin for approvals
-    let admin = create_test_admin_user("admin@example.com", Some("Admin".to_string()));
+    let admin = create_test_admin_user("admin@example.com", Some("Admin".to_owned()));
     db.create_user(&admin).await.unwrap();
 
     // Transition: Pending -> Active

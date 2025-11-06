@@ -6,6 +6,9 @@
 
 //! Unit tests for API key routes
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use chrono::{Duration, Utc};
@@ -26,15 +29,15 @@ fn create_test_auth_result(user_id: Uuid) -> AuthResult {
     AuthResult {
         user_id,
         auth_method: AuthMethod::JwtToken {
-            tier: "free".to_string(),
+            tier: "free".to_owned(),
         },
         rate_limit: UnifiedRateLimitInfo {
             is_rate_limited: false,
             limit: Some(1000),
             remaining: Some(1000),
             reset_at: Some(Utc::now() + Duration::hours(1)),
-            tier: "free".to_string(),
-            auth_method: "jwt".to_string(),
+            tier: "free".to_owned(),
+            auth_method: "jwt".to_owned(),
         },
     }
 }
@@ -65,9 +68,9 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
 
     // Create test user
     let user = User::new(
-        "test@example.com".to_string(),
-        "hashed_password".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "hashed_password".to_owned(),
+        Some("Test User".to_owned()),
     );
     let user_id = database.create_user(&user).await.unwrap();
 
@@ -146,32 +149,32 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                 external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
                     weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
                         api_key: None,
-                        base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                        base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                         enabled: false,
                     },
                     geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                        base_url: "https://nominatim.openstreetmap.org".to_string(),
+                        base_url: "https://nominatim.openstreetmap.org".to_owned(),
                         enabled: false,
                     },
                     strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                        base_url: "https://www.strava.com/api/v3".to_string(),
-                        auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                        token_url: "https://www.strava.com/oauth/token".to_string(),
-                        deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                        base_url: "https://www.strava.com/api/v3".to_owned(),
+                        auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                        token_url: "https://www.strava.com/oauth/token".to_owned(),
+                        deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
                     },
                     fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                        base_url: "https://api.fitbit.com".to_string(),
-                        auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                        token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                        revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                        base_url: "https://api.fitbit.com".to_owned(),
+                        auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                        token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                        revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
                     },
                     garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
-                        base_url: "https://apis.garmin.com".to_string(),
-                        auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
+                        base_url: "https://apis.garmin.com".to_owned(),
+                        auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
                         token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
-                            .to_string(),
+                            .to_owned(),
                         revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke"
-                            .to_string(),
+                            .to_owned(),
                     },
                 },
                 app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
@@ -179,9 +182,9 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                     default_activities_limit: 20,
                     ci_mode: true,
                     protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                        mcp_version: "2025-06-18".to_string(),
-                        server_name: "pierre-mcp-server-test".to_string(),
-                        server_version: env!("CARGO_PKG_VERSION").to_string(),
+                        mcp_version: "2025-06-18".to_owned(),
+                        server_name: "pierre-mcp-server-test".to_owned(),
+                        server_version: env!("CARGO_PKG_VERSION").to_owned(),
                     },
                 },
                 sse: pierre_mcp_server::config::environment::SseConfig::default(),
@@ -189,15 +192,15 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                 ),
                 route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(
                 ),
-                host: "localhost".to_string(),
-                base_url: "http://localhost:8081".to_string(),
+                host: "localhost".to_owned(),
+                base_url: "http://localhost:8081".to_owned(),
                 mcp: pierre_mcp_server::config::environment::McpConfig {
-                    protocol_version: "2025-06-18".to_string(),
-                    server_name: "pierre-mcp-server-test".to_string(),
+                    protocol_version: "2025-06-18".to_owned(),
+                    server_name: "pierre-mcp-server-test".to_owned(),
                     session_cache_size: 1000,
                 },
                 cors: pierre_mcp_server::config::environment::CorsConfig {
-                    allowed_origins: "*".to_string(),
+                    allowed_origins: "*".to_owned(),
                     allow_localhost_dev: true,
                 },
                 cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -234,8 +237,8 @@ async fn test_create_api_key_success() {
     let (api_key_routes, _user_id, auth) = create_test_setup().await;
 
     let request = CreateApiKeyRequest {
-        name: "Test API Key".to_string(),
-        description: Some("Test description".to_string()),
+        name: "Test API Key".to_owned(),
+        description: Some("Test description".to_owned()),
         tier: ApiKeyTier::Starter,
         expires_in_days: Some(30),
         rate_limit_requests: None,
@@ -264,16 +267,16 @@ async fn test_list_api_keys() {
 
     // Create a couple of API keys
     let request1 = CreateApiKeyRequest {
-        name: "Key 1".to_string(),
-        description: Some("First key".to_string()),
+        name: "Key 1".to_owned(),
+        description: Some("First key".to_owned()),
         tier: ApiKeyTier::Starter,
         expires_in_days: None,
         rate_limit_requests: None,
     };
 
     let request2 = CreateApiKeyRequest {
-        name: "Key 2".to_string(),
-        description: Some("Second key".to_string()),
+        name: "Key 2".to_owned(),
+        description: Some("Second key".to_owned()),
         tier: ApiKeyTier::Professional,
         expires_in_days: Some(90),
         rate_limit_requests: None,
@@ -299,8 +302,8 @@ async fn test_list_api_keys() {
     assert_eq!(response.api_keys.len(), 2);
 
     let key_names: Vec<_> = response.api_keys.iter().map(|k| &k.name).collect();
-    assert!(key_names.contains(&&"Key 1".to_string()));
-    assert!(key_names.contains(&&"Key 2".to_string()));
+    assert!(key_names.contains(&&"Key 1".to_owned()));
+    assert!(key_names.contains(&&"Key 2".to_owned()));
 
     // Check tiers
     let starter_key = response
@@ -326,7 +329,7 @@ async fn test_deactivate_api_key() {
 
     // Create an API key
     let request = CreateApiKeyRequest {
-        name: "Key to deactivate".to_string(),
+        name: "Key to deactivate".to_owned(),
         description: None,
         tier: ApiKeyTier::Starter,
         expires_in_days: None,
@@ -378,7 +381,7 @@ async fn test_get_api_key_usage_stats() {
 
     // Create an API key
     let request = CreateApiKeyRequest {
-        name: "Usage Test Key".to_string(),
+        name: "Usage Test Key".to_owned(),
         description: None,
         tier: ApiKeyTier::Professional,
         expires_in_days: None,
@@ -463,7 +466,7 @@ async fn test_api_key_expiration() {
 
     // Test key with expiration
     let request = CreateApiKeyRequest {
-        name: "Expiring Key".to_string(),
+        name: "Expiring Key".to_owned(),
         description: None,
         tier: ApiKeyTier::Starter,
         expires_in_days: Some(7),
@@ -492,9 +495,9 @@ async fn test_authentication_with_different_users() {
 
     // Create second user in same database
     let _user2 = User::new(
-        "user2@example.com".to_string(),
-        "hashed_password2".to_string(),
-        Some("User 2".to_string()),
+        "user2@example.com".to_owned(),
+        "hashed_password2".to_owned(),
+        Some("User 2".to_owned()),
     );
 
     // We need access to the database to create the second user
@@ -506,7 +509,7 @@ async fn test_authentication_with_different_users() {
 
     // Create key for user 1
     let request = CreateApiKeyRequest {
-        name: "User 1 Key".to_string(),
+        name: "User 1 Key".to_owned(),
         description: None,
         tier: ApiKeyTier::Starter,
         expires_in_days: None,

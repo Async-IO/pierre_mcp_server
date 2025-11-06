@@ -43,9 +43,18 @@ impl Default for StravaConfig {
         Self {
             client_id: String::new(),
             client_secret: String::new(),
-            base_url: config.external_services.strava_api.base_url.clone(),
-            auth_url: config.external_services.strava_api.auth_url.clone(),
-            token_url: config.external_services.strava_api.token_url.clone(),
+            base_url: config.map_or_else(
+                || "https://www.strava.com/api/v3".to_owned(),
+                |c| c.external_services.strava_api.base_url.clone()
+            ),
+            auth_url: config.map_or_else(
+                || "https://www.strava.com/oauth/authorize".to_owned(),
+                |c| c.external_services.strava_api.auth_url.clone()
+            ),
+            token_url: config.map_or_else(
+                || "https://www.strava.com/oauth/token".to_owned(),
+                |c| c.external_services.strava_api.token_url.clone()
+            ),
         }
     }
 }
@@ -60,6 +69,7 @@ impl StravaConfig {
     }
 }
 
+/// Strava API provider implementation
 pub struct StravaProvider {
     client: Client,
     config: &'static StravaConfig,
@@ -74,6 +84,7 @@ impl Default for StravaProvider {
 }
 
 impl StravaProvider {
+    /// Creates a new Strava provider with default configuration
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -84,6 +95,7 @@ impl StravaProvider {
         }
     }
 
+    /// Creates a new Strava provider with custom configuration
     #[must_use]
     pub fn with_config(config: &'static StravaConfig) -> Self {
         Self {

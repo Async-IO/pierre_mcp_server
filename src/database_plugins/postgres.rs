@@ -117,14 +117,14 @@ impl PostgresDatabase {
         if limit.is_some() {
             bind_count += 1;
             write!(query, " LIMIT ${bind_count}").map_err(|_| DatabaseError::QueryError {
-                context: "Failed to write LIMIT clause to query".to_string(),
+                context: "Failed to write LIMIT clause to query".to_owned(),
             })?;
         }
 
         if offset.is_some() {
             bind_count += 1;
             write!(query, " OFFSET ${bind_count}").map_err(|_| DatabaseError::QueryError {
-                context: "Failed to write OFFSET clause to query".to_string(),
+                context: "Failed to write OFFSET clause to query".to_owned(),
             })?;
         }
 
@@ -570,9 +570,10 @@ impl DatabaseProvider for PostgresDatabase {
         }
 
         // Generate next cursor from the last item
-        let next_cursor = if has_more && !users.is_empty() {
-            let last_user = users.last().expect("Users should not be empty");
-            Some(Cursor::new(last_user.created_at, &last_user.id.to_string()))
+        let next_cursor = if has_more {
+            users
+                .last()
+                .map(|last_user| Cursor::new(last_user.created_at, &last_user.id.to_string()))
         } else {
             None
         };
@@ -1348,7 +1349,7 @@ impl DatabaseProvider for PostgresDatabase {
         }
 
         Ok(ApiKeyUsageStats {
-            api_key_id: api_key_id.to_string(),
+            api_key_id: api_key_id.to_owned(),
             period_start: start_date,
             period_end: end_date,
             total_requests: u32::try_from(row.0.max(0)).unwrap_or(0),
@@ -1715,7 +1716,7 @@ impl DatabaseProvider for PostgresDatabase {
         if result.rows_affected() == 0 {
             return Err(DatabaseError::NotFound {
                 entity_type: "A2A client",
-                entity_id: client_id.to_string(),
+                entity_id: client_id.to_owned(),
             }
             .into());
         }
@@ -1862,10 +1863,7 @@ impl DatabaseProvider for PostgresDatabase {
                 .transpose()?;
 
             let granted_scopes_str: String = row.get("granted_scopes");
-            let granted_scopes = granted_scopes_str
-                .split(',')
-                .map(std::string::ToString::to_string)
-                .collect();
+            let granted_scopes = granted_scopes_str.split(',').map(str::to_owned).collect();
 
             sessions.push(A2ASession {
                 id: row.get("session_token"),
@@ -2175,7 +2173,7 @@ impl DatabaseProvider for PostgresDatabase {
         }
 
         Ok(crate::database::A2AUsageStats {
-            client_id: client_id.to_string(),
+            client_id: client_id.to_owned(),
             period_start: start_date,
             period_end: end_date,
             total_requests: u32::try_from(total_requests.max(0)).unwrap_or(0),
@@ -2932,7 +2930,7 @@ impl DatabaseProvider for PostgresDatabase {
             }
             None => Err(DatabaseError::NotFound {
                 entity_type: "Tenant",
-                entity_id: slug.to_string(),
+                entity_id: slug.to_owned(),
             }
             .into()),
         }
@@ -3116,14 +3114,14 @@ impl DatabaseProvider for PostgresDatabase {
                                 nonce.as_slice().try_into().unwrap_or([1, 0, 0, 0]),
                             ),
                             tenant_id: Some(tenant_id),
-                            algorithm: "AES-256-GCM".to_string(),
+                            algorithm: "AES-256-GCM".to_owned(),
                             encrypted_at: chrono::Utc::now(),
                         },
                     };
 
                     let client_secret = encryption_manager
                         .decrypt_tenant_data(tenant_id, &encrypted_data)
-                        .unwrap_or_else(|_| "DECRYPTION_FAILED".to_string());
+                        .unwrap_or_else(|_| "DECRYPTION_FAILED".to_owned());
 
                     crate::tenant::TenantOAuthCredentials {
                         tenant_id,
@@ -3192,7 +3190,7 @@ impl DatabaseProvider for PostgresDatabase {
                             nonce.as_slice().try_into().unwrap_or([1, 0, 0, 0]),
                         ),
                         tenant_id: Some(tenant_id),
-                        algorithm: "AES-256-GCM".to_string(),
+                        algorithm: "AES-256-GCM".to_owned(),
                         encrypted_at: chrono::Utc::now(),
                     },
                 };
@@ -3205,7 +3203,7 @@ impl DatabaseProvider for PostgresDatabase {
 
                 Ok(Some(crate::tenant::TenantOAuthCredentials {
                     tenant_id,
-                    provider: provider.to_string(),
+                    provider: provider.to_owned(),
                     client_id,
                     client_secret,
                     redirect_uri,
@@ -3315,7 +3313,7 @@ impl DatabaseProvider for PostgresDatabase {
             }),
             None => Err(DatabaseError::NotFound {
                 entity_type: "OAuth app",
-                entity_id: client_id.to_string(),
+                entity_id: client_id.to_owned(),
             }
             .into()),
         }
@@ -3463,7 +3461,7 @@ impl DatabaseProvider for PostgresDatabase {
             }
             None => Err(DatabaseError::NotFound {
                 entity_type: "Authorization code",
-                entity_id: code.to_string(),
+                entity_id: code.to_owned(),
             }
             .into()),
         }
@@ -3838,14 +3836,14 @@ impl DatabaseProvider for PostgresDatabase {
             FROM audit_events
             WHERE true
         "
-        .to_string();
+        .to_owned();
 
         let mut bind_count = 0;
         if tenant_id.is_some() {
             bind_count += 1;
             if write!(query, " AND tenant_id = ${bind_count}").is_err() {
                 return Err(DatabaseError::QueryError {
-                    context: "Failed to write tenant_id clause to query".to_string(),
+                    context: "Failed to write tenant_id clause to query".to_owned(),
                 }
                 .into());
             }
@@ -3854,7 +3852,7 @@ impl DatabaseProvider for PostgresDatabase {
             bind_count += 1;
             if write!(query, " AND event_type = ${bind_count}").is_err() {
                 return Err(DatabaseError::QueryError {
-                    context: "Failed to write event_type clause to query".to_string(),
+                    context: "Failed to write event_type clause to query".to_owned(),
                 }
                 .into());
             }
@@ -3866,7 +3864,7 @@ impl DatabaseProvider for PostgresDatabase {
             bind_count += 1;
             if write!(query, " LIMIT ${bind_count}").is_err() {
                 return Err(DatabaseError::QueryError {
-                    context: "Failed to write LIMIT clause to query".to_string(),
+                    context: "Failed to write LIMIT clause to query".to_owned(),
                 }
                 .into());
             }
@@ -3980,8 +3978,8 @@ impl DatabaseProvider for PostgresDatabase {
                 session_id: None, // Not stored in current schema
                 description: row.get("message"),
                 metadata,
-                resource: None,              // Not stored in current schema
-                action: "audit".to_string(), // Default action
+                resource: None,             // Not stored in current schema
+                action: "audit".to_owned(), // Default action
                 result: row.get("result"),
             };
             events.push(event);
@@ -4340,7 +4338,7 @@ impl DatabaseProvider for PostgresDatabase {
             "admin_jwt_secret" => crate::admin::jwt::AdminJwtManager::generate_jwt_secret(),
             _ => {
                 return Err(DatabaseError::InvalidData {
-                    field: "secret_type".to_string(),
+                    field: "secret_type".to_owned(),
                     reason: format!("Unknown secret type: {secret_type}"),
                 }
                 .into())

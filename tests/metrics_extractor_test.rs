@@ -6,6 +6,8 @@
 
 // Metrics extractor tests
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(clippy::float_cmp)] // Test values are exact
 
 use chrono::Utc;
@@ -14,8 +16,8 @@ use pierre_mcp_server::models::{Activity, SportType};
 
 fn create_test_activity() -> Activity {
     Activity {
-        id: "test_activity".to_string(),
-        name: "Test Run".to_string(),
+        id: "test_activity".to_owned(),
+        name: "Test Run".to_owned(),
         sport_type: SportType::Run,
         start_date: Utc::now(),
         duration_seconds: 3600,         // 1 hour
@@ -29,7 +31,7 @@ fn create_test_activity() -> Activity {
         average_power: Some(200),
         max_power: Some(300),
         temperature: None,
-        provider: "test_provider".to_string(),
+        provider: "test_provider".to_owned(),
         steps: None,
         heart_rate_zones: None,
         normalized_power: None,

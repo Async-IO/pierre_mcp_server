@@ -3,6 +3,8 @@
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(
     clippy::uninlined_format_args,
     clippy::cast_possible_truncation,
@@ -247,31 +249,31 @@ async fn test_multitenant_auth_flow() -> Result<()> {
         external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
             weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: false,
             },
             strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
-                base_url: "https://apis.garmin.com".to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
+                base_url: "https://apis.garmin.com".to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
                 token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
                     .to_string(),
-                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
@@ -279,23 +281,23 @@ async fn test_multitenant_auth_flow() -> Result<()> {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                mcp_version: "2025-06-18".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2025-06-18".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: pierre_mcp_server::config::environment::McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: pierre_mcp_server::config::environment::CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -336,9 +338,9 @@ async fn test_multitenant_auth_flow() -> Result<()> {
 
     // Test user registration
     let register_request = RegisterRequest {
-        email: "test@multitenant.com".to_string(),
-        password: "securepassword123".to_string(),
-        display_name: Some("Multi-Tenant User".to_string()),
+        email: "test@multitenant.com".to_owned(),
+        password: "securepassword123".to_owned(),
+        display_name: Some("Multi-Tenant User".to_owned()),
     };
 
     let register_response = auth_routes.register(register_request).await?;
@@ -354,7 +356,7 @@ async fn test_multitenant_auth_flow() -> Result<()> {
     // Verify user exists in database
     let user = database.get_user(user_id).await?.unwrap();
     assert_eq!(user.email, "test@multitenant.com");
-    assert_eq!(user.display_name, Some("Multi-Tenant User".to_string()));
+    assert_eq!(user.display_name, Some("Multi-Tenant User".to_owned()));
     assert!(user.is_active);
     assert_eq!(
         user.user_status,
@@ -365,11 +367,11 @@ async fn test_multitenant_auth_flow() -> Result<()> {
     let admin_id = uuid::Uuid::new_v4();
     let admin_user = pierre_mcp_server::models::User {
         id: admin_id,
-        email: "admin@test.com".to_string(),
-        display_name: Some("Test Admin".to_string()),
-        password_hash: "$2b$10$hashedpassword".to_string(),
+        email: "admin@test.com".to_owned(),
+        display_name: Some("Test Admin".to_owned()),
+        password_hash: "$2b$10$hashedpassword".to_owned(),
         tier: pierre_mcp_server::models::UserTier::Enterprise,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -393,8 +395,8 @@ async fn test_multitenant_auth_flow() -> Result<()> {
 
     // Test user login
     let login_request = LoginRequest {
-        email: "test@multitenant.com".to_string(),
-        password: "securepassword123".to_string(),
+        email: "test@multitenant.com".to_owned(),
+        password: "securepassword123".to_owned(),
     };
 
     let login_response = auth_routes.login(login_request).await?;
@@ -410,8 +412,8 @@ async fn test_multitenant_auth_flow() -> Result<()> {
 
     // Test duplicate registration fails
     let duplicate_request = RegisterRequest {
-        email: "test@multitenant.com".to_string(),
-        password: "differentpassword".to_string(),
+        email: "test@multitenant.com".to_owned(),
+        password: "differentpassword".to_owned(),
         display_name: None,
     };
 
@@ -424,8 +426,8 @@ async fn test_multitenant_auth_flow() -> Result<()> {
 
     // Test login with wrong password fails
     let wrong_password_request = LoginRequest {
-        email: "test@multitenant.com".to_string(),
-        password: "wrongpassword".to_string(),
+        email: "test@multitenant.com".to_owned(),
+        password: "wrongpassword".to_owned(),
     };
 
     let wrong_password_result = auth_routes.login(wrong_password_request).await;
@@ -458,9 +460,9 @@ async fn test_database_encryption() -> Result<()> {
 
     // Create user
     let user = pierre_mcp_server::models::User::new(
-        "encryption@test.com".to_string(),
-        "bcrypt_hashed_password".to_string(),
-        Some("Encryption Test".to_string()),
+        "encryption@test.com".to_owned(),
+        "bcrypt_hashed_password".to_owned(),
+        Some("Encryption Test".to_owned()),
     );
     let user_id = database.create_user(&user).await?;
 
@@ -468,12 +470,12 @@ async fn test_database_encryption() -> Result<()> {
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(6);
     let oauth_token = UserOAuthToken::new(
         user_id,
-        "00000000-0000-0000-0000-000000000000".to_string(),
-        oauth_providers::STRAVA.to_string(),
-        "secret_access_token_123".to_string(),
-        Some("secret_refresh_token_456".to_string()),
+        "00000000-0000-0000-0000-000000000000".to_owned(),
+        oauth_providers::STRAVA.to_owned(),
+        "secret_access_token_123".to_owned(),
+        Some("secret_refresh_token_456".to_owned()),
         Some(expires_at),
-        Some("read,activity:read_all".to_string()),
+        Some("read,activity:read_all".to_owned()),
     );
     database.upsert_user_oauth_token(&oauth_token).await?;
 
@@ -489,11 +491,11 @@ async fn test_database_encryption() -> Result<()> {
     assert_eq!(decrypted_token.access_token, "secret_access_token_123");
     assert_eq!(
         decrypted_token.refresh_token,
-        Some("secret_refresh_token_456".to_string())
+        Some("secret_refresh_token_456".to_owned())
     );
     assert_eq!(
         decrypted_token.scope,
-        Some("read,activity:read_all".to_string())
+        Some("read,activity:read_all".to_owned())
     );
 
     Ok(())
@@ -505,9 +507,9 @@ async fn test_jwt_edge_cases() -> Result<()> {
     let auth_manager = AuthManager::new(1); // 1 hour expiry
 
     let user = pierre_mcp_server::models::User::new(
-        "jwt@test.com".to_string(),
-        "hashed_password".to_string(),
-        Some("JWT Test".to_string()),
+        "jwt@test.com".to_owned(),
+        "hashed_password".to_owned(),
+        Some("JWT Test".to_owned()),
     );
 
     // Test token generation and validation
@@ -556,16 +558,16 @@ async fn test_user_isolation() -> Result<()> {
 
     // Create two users
     let user1 = pierre_mcp_server::models::User::new(
-        "user1@isolation.test".to_string(),
-        "password1".to_string(),
-        Some("User One".to_string()),
+        "user1@isolation.test".to_owned(),
+        "password1".to_owned(),
+        Some("User One".to_owned()),
     );
     let user1_id = database.create_user(&user1).await?;
 
     let user2 = pierre_mcp_server::models::User::new(
-        "user2@isolation.test".to_string(),
-        "password2".to_string(),
-        Some("User Two".to_string()),
+        "user2@isolation.test".to_owned(),
+        "password2".to_owned(),
+        Some("User Two".to_owned()),
     );
     let user2_id = database.create_user(&user2).await?;
 
@@ -574,23 +576,23 @@ async fn test_user_isolation() -> Result<()> {
 
     let oauth_token1 = UserOAuthToken::new(
         user1_id,
-        "00000000-0000-0000-0000-000000000000".to_string(),
-        oauth_providers::STRAVA.to_string(),
-        "user1_access_token".to_string(),
-        Some("user1_refresh_token".to_string()),
+        "00000000-0000-0000-0000-000000000000".to_owned(),
+        oauth_providers::STRAVA.to_owned(),
+        "user1_access_token".to_owned(),
+        Some("user1_refresh_token".to_owned()),
         Some(expires_at),
-        Some("read,activity:read_all".to_string()),
+        Some("read,activity:read_all".to_owned()),
     );
     database.upsert_user_oauth_token(&oauth_token1).await?;
 
     let oauth_token2 = UserOAuthToken::new(
         user2_id,
-        "00000000-0000-0000-0000-000000000000".to_string(),
-        oauth_providers::STRAVA.to_string(),
-        "user2_access_token".to_string(),
-        Some("user2_refresh_token".to_string()),
+        "00000000-0000-0000-0000-000000000000".to_owned(),
+        oauth_providers::STRAVA.to_owned(),
+        "user2_access_token".to_owned(),
+        Some("user2_refresh_token".to_owned()),
         Some(expires_at),
-        Some("read,activity:read_all".to_string()),
+        Some("read,activity:read_all".to_owned()),
     );
     database.upsert_user_oauth_token(&oauth_token2).await?;
 
@@ -702,31 +704,31 @@ async fn test_input_validation() -> Result<()> {
         external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
             weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: false,
             },
             strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
-                base_url: "https://apis.garmin.com".to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
+                base_url: "https://apis.garmin.com".to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
                 token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
                     .to_string(),
-                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
@@ -734,23 +736,23 @@ async fn test_input_validation() -> Result<()> {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                mcp_version: "2025-06-18".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2025-06-18".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: pierre_mcp_server::config::environment::McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: pierre_mcp_server::config::environment::CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -794,8 +796,8 @@ async fn test_input_validation() -> Result<()> {
 
     for invalid_email in invalid_emails {
         let request = RegisterRequest {
-            email: invalid_email.to_string(),
-            password: "validpassword123".to_string(),
+            email: invalid_email.to_owned(),
+            password: "validpassword123".to_owned(),
             display_name: None,
         };
 
@@ -816,7 +818,7 @@ async fn test_input_validation() -> Result<()> {
 
     for short_password in short_passwords {
         let request = RegisterRequest {
-            email: "test@valid.com".to_string(),
+            email: "test@valid.com".to_owned(),
             password: short_password.to_string(),
             display_name: None,
         };
@@ -835,9 +837,9 @@ async fn test_input_validation() -> Result<()> {
 
     // Test valid inputs
     let valid_request = RegisterRequest {
-        email: "valid@email.com".to_string(),
-        password: "validpassword123".to_string(),
-        display_name: Some("Valid User".to_string()),
+        email: "valid@email.com".to_owned(),
+        password: "validpassword123".to_owned(),
+        display_name: Some("Valid User".to_owned()),
     };
 
     let result = auth_routes.register(valid_request).await;

@@ -13,15 +13,18 @@
 //! - Multi-tenant credential isolation
 //! - Provider-specific authentication
 
+/// Core OAuth 2.0 client implementation
 pub mod client;
+/// OAuth authorization flow management
 pub mod flow_manager;
+/// Multi-tenant OAuth client wrapper
 pub mod tenant_client;
 
 // Re-export main OAuth 2.0 client types
 pub use client::{OAuth2Client, OAuth2Config, OAuth2Token, PkceParams};
 
-// Re-export tenant-aware client
+/// Re-export tenant-aware OAuth client types
 pub use tenant_client::{StoreCredentialsRequest, TenantOAuthClient};
 
-// Re-export OAuth flow manager
+/// Re-export OAuth flow manager for handling authorization flows
 pub use flow_manager::OAuthFlowManager;

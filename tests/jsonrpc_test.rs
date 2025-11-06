@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::jsonrpc::{JsonRpcRequest, JsonRpcResponse, JSONRPC_VERSION};
 use serde_json::Value;
 
@@ -29,10 +32,10 @@ fn test_metadata() {
         .with_metadata("auth_token", "secret")
         .with_metadata("client_id", "test_client");
 
-    assert_eq!(req.get_metadata("auth_token"), Some(&"secret".to_string()));
+    assert_eq!(req.get_metadata("auth_token"), Some(&"secret".to_owned()));
     assert_eq!(
         req.get_metadata("client_id"),
-        Some(&"test_client".to_string())
+        Some(&"test_client".to_owned())
     );
 }
 
@@ -69,11 +72,11 @@ fn test_metadata_extension_pattern() {
 
     assert_eq!(
         req.get_metadata("auth_token"),
-        Some(&"bearer_token_123".to_string())
+        Some(&"bearer_token_123".to_owned())
     );
     assert_eq!(
         req.get_metadata("client_version"),
-        Some(&"1.0.0".to_string())
+        Some(&"1.0.0".to_owned())
     );
     assert_eq!(req.get_metadata("nonexistent"), None);
 }

@@ -185,7 +185,9 @@ pub mod oauth2_server;
 
 // Utility modules
 pub mod tenant;
+/// Common type definitions and shared types
 pub mod types;
+/// Utility functions and helpers
 pub mod utils;
 
 /// Test utilities for creating consistent test data

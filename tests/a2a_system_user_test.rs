@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::a2a::system_user::A2ASystemUserService;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use std::sync::{Arc, Once};
@@ -14,7 +17,7 @@ fn init_test_config() {
     INIT.call_once(|| {
         std::env::set_var("CI", "true");
         std::env::set_var("DATABASE_URL", "sqlite::memory:");
-        pierre_mcp_server::constants::init_server_config();
+        let _ = pierre_mcp_server::constants::init_server_config();
     });
 }
 
@@ -63,7 +66,7 @@ async fn test_create_system_user() {
         .get_client_id_for_system_user(user_id)
         .await
         .expect("Failed to get client ID for system user");
-    assert_eq!(extracted_client_id, Some(client_id.to_string()));
+    assert_eq!(extracted_client_id, Some(client_id.to_owned()));
 }
 
 #[tokio::test]

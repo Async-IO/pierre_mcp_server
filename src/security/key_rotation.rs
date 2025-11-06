@@ -71,19 +71,24 @@ pub enum RotationStatus {
     Current,
     /// Rotation scheduled
     Scheduled {
+        /// When the rotation is scheduled to occur
         scheduled_at: chrono::DateTime<chrono::Utc>,
     },
     /// Rotation in progress
     InProgress {
+        /// When the rotation started
         started_at: chrono::DateTime<chrono::Utc>,
     },
     /// Rotation completed
     Completed {
+        /// When the rotation completed
         completed_at: chrono::DateTime<chrono::Utc>,
     },
     /// Rotation failed
     Failed {
+        /// When the rotation failed
         failed_at: chrono::DateTime<chrono::Utc>,
+        /// Error message describing the failure
         error: String,
     },
 }
@@ -226,8 +231,8 @@ impl KeyRotationManager {
             super::audit::AuditEventType::KeyRotated,
             super::audit::AuditSeverity::Info,
             format!("Key rotation scheduled for tenant {tenant_id:?}"),
-            "schedule_rotation".to_string(),
-            "success".to_string(),
+            "schedule_rotation".to_owned(),
+            "success".to_owned(),
         );
 
         let event = if let Some(tid) = tenant_id {
@@ -337,7 +342,7 @@ impl KeyRotationManager {
                 + chrono::Duration::days(i64::from(self.config.max_key_age_days)),
             is_active: false, // Will be activated after rotation
             tenant_id,
-            algorithm: "AES-256-GCM".to_string(),
+            algorithm: "AES-256-GCM".to_owned(),
         };
 
         // Store in database
@@ -413,7 +418,7 @@ impl KeyRotationManager {
                 + chrono::Duration::days(i64::from(self.config.max_key_age_days)),
             is_active: true,
             tenant_id,
-            algorithm: "AES-256-GCM".to_string(),
+            algorithm: "AES-256-GCM".to_owned(),
         };
 
         self.store_key_version(&initial_version)?;
@@ -486,8 +491,8 @@ impl KeyRotationManager {
             super::audit::AuditEventType::KeyRotated,
             super::audit::AuditSeverity::Critical,
             format!("Emergency key rotation: {reason}"),
-            "emergency_rotation".to_string(),
-            "initiated".to_string(),
+            "emergency_rotation".to_owned(),
+            "initiated".to_owned(),
         );
 
         let event = if let Some(tid) = tenant_id {
@@ -537,9 +542,14 @@ impl KeyRotationManager {
 /// Key rotation statistics
 #[derive(Debug, Serialize)]
 pub struct KeyRotationStats {
+    /// Total number of tenants being tracked
     pub total_tenants: usize,
+    /// Number of rotations currently in progress
     pub active_rotations: usize,
+    /// Number of rotations that failed
     pub failed_rotations: usize,
+    /// Whether automatic rotation is enabled
     pub auto_rotation_enabled: bool,
+    /// Rotation interval in days
     pub rotation_interval_days: u32,
 }

@@ -32,6 +32,7 @@ pub struct IntelligenceService {
 }
 
 impl IntelligenceService {
+    /// Creates a new intelligence service instance
     #[must_use]
     pub const fn new(resources: Arc<ServerResources>) -> Self {
         Self {
@@ -98,20 +99,19 @@ impl IntelligenceService {
 
         if efficiency_score < 50.0 {
             recommendations
-                .push("Consider focusing on pacing strategy for improved efficiency".to_string());
+                .push("Consider focusing on pacing strategy for improved efficiency".to_owned());
         }
 
         if effort_score > 80.0 {
-            recommendations
-                .push("High effort detected - ensure adequate recovery time".to_string());
+            recommendations.push("High effort detected - ensure adequate recovery time".to_owned());
         }
 
         if activity.distance_meters.is_none() {
-            recommendations.push("Track distance for more comprehensive analysis".to_string());
+            recommendations.push("Track distance for more comprehensive analysis".to_owned());
         }
 
         if recommendations.is_empty() {
-            recommendations.push("Great activity! Keep up the consistent training".to_string());
+            recommendations.push("Great activity! Keep up the consistent training".to_owned());
         }
 
         recommendations
@@ -121,9 +121,13 @@ impl IntelligenceService {
 /// Clean universal executor with separated concerns
 /// No clippy suppressions needed - this is well-designed code
 pub struct UniversalExecutor {
+    /// Authentication service for handling OAuth and token validation
     pub auth_service: AuthService,
+    /// Intelligence service for activity analysis and insights
     pub intelligence_service: IntelligenceService,
+    /// Shared server resources (database, weather service, etc.)
     pub resources: Arc<ServerResources>,
+    /// Tool registry mapping tool IDs to handlers
     registry: ToolRegistry,
 }
 
@@ -371,8 +375,8 @@ impl UniversalExecutor {
     pub fn get_tool_info(&self, tool_id: ToolId) -> Option<(String, String, bool, bool)> {
         if self.registry.has_tool(tool_id) {
             Some((
-                tool_id.name().to_string(),
-                tool_id.description().to_string(),
+                tool_id.name().to_owned(),
+                tool_id.description().to_owned(),
                 tool_id.requires_auth(),
                 tool_id.is_async(),
             ))

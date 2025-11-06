@@ -14,6 +14,9 @@
 //!
 //! Written using TDD - tests define expected behavior BEFORE implementation
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::config::intelligence_config::IntelligenceConfig;
 
 // === Sleep Duration Scoring Tests ===

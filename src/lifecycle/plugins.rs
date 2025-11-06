@@ -38,7 +38,7 @@ impl DatabasePlugin {
     #[must_use]
     pub fn new(connection_string: String, encryption_key: Vec<u8>) -> Self {
         Self {
-            name: "database".to_string(),
+            name: "database".to_owned(),
             state: Arc::new(RwLock::new(PluginState::Uninitialized)),
             database: None,
             connection_string,
@@ -78,7 +78,11 @@ impl Plugin for DatabasePlugin {
     }
 
     async fn initialize(&mut self) -> Result<()> {
-        *self.state.write().expect("Lock poisoned") = PluginState::Initializing;
+        *self
+            .state
+            .write()
+            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            PluginState::Initializing;
 
         self.database = Some(
             Database::new(
@@ -89,13 +93,19 @@ impl Plugin for DatabasePlugin {
             )
             .await?,
         );
-        *self.state.write().expect("Lock poisoned") = PluginState::Ready;
+        *self
+            .state
+            .write()
+            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? = PluginState::Ready;
 
         Ok(())
     }
 
     async fn health_check(&self) -> Result<PluginHealth> {
-        let state = *self.state.read().expect("Lock poisoned");
+        let state = *self
+            .state
+            .read()
+            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))?;
 
         let healthy = if let Some(db) = &self.database {
             // Perform basic health check by querying user count
@@ -116,24 +126,34 @@ impl Plugin for DatabasePlugin {
                         .map_or("unknown", Database::backend_info)
                 ))
             } else {
-                Some("Database not responding".to_string())
+                Some("Database not responding".to_owned())
             },
             last_check: chrono::Utc::now(),
         })
     }
 
     async fn shutdown(&mut self) -> Result<()> {
-        *self.state.write().expect("Lock poisoned") = PluginState::ShuttingDown;
+        *self
+            .state
+            .write()
+            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            PluginState::ShuttingDown;
 
         // Database cleanup - just drop the connection
         self.database = None;
 
-        *self.state.write().expect("Lock poisoned") = PluginState::Shutdown;
+        *self
+            .state
+            .write()
+            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            PluginState::Shutdown;
         Ok(())
     }
 
     fn state(&self) -> PluginState {
-        *self.state.read().expect("Lock poisoned")
+        self.state
+            .read()
+            .map_or(PluginState::Failed, |guard| *guard)
     }
 
     fn is_required(&self) -> bool {
@@ -153,7 +173,7 @@ impl CachePlugin {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            name: "cache".to_string(),
+            name: "cache".to_owned(),
             state: Arc::new(RwLock::new(PluginState::Uninitialized)),
             cache: None,
         }
@@ -197,16 +217,26 @@ impl Plugin for CachePlugin {
     }
 
     async fn initialize(&mut self) -> Result<()> {
-        *self.state.write().expect("Lock poisoned") = PluginState::Initializing;
+        *self
+            .state
+            .write()
+            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            PluginState::Initializing;
 
         self.cache = Some(Cache::from_env().await?);
-        *self.state.write().expect("Lock poisoned") = PluginState::Ready;
+        *self
+            .state
+            .write()
+            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? = PluginState::Ready;
 
         Ok(())
     }
 
     async fn health_check(&self) -> Result<PluginHealth> {
-        let state = *self.state.read().expect("Lock poisoned");
+        let state = *self
+            .state
+            .read()
+            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))?;
 
         let healthy = self.cache.is_some();
 
@@ -215,25 +245,35 @@ impl Plugin for CachePlugin {
             state,
             healthy,
             message: if healthy {
-                Some("Cache operational".to_string())
+                Some("Cache operational".to_owned())
             } else {
-                Some("Cache not initialized".to_string())
+                Some("Cache not initialized".to_owned())
             },
             last_check: chrono::Utc::now(),
         })
     }
 
     async fn shutdown(&mut self) -> Result<()> {
-        *self.state.write().expect("Lock poisoned") = PluginState::ShuttingDown;
+        *self
+            .state
+            .write()
+            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            PluginState::ShuttingDown;
 
         self.cache = None;
 
-        *self.state.write().expect("Lock poisoned") = PluginState::Shutdown;
+        *self
+            .state
+            .write()
+            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            PluginState::Shutdown;
         Ok(())
     }
 
     fn state(&self) -> PluginState {
-        *self.state.read().expect("Lock poisoned")
+        self.state
+            .read()
+            .map_or(PluginState::Failed, |guard| *guard)
     }
 
     fn is_required(&self) -> bool {
@@ -254,7 +294,7 @@ impl AuthPlugin {
     #[must_use]
     pub fn new(jwt_expiry_hours: i64) -> Self {
         Self {
-            name: "auth".to_string(),
+            name: "auth".to_owned(),
             state: Arc::new(RwLock::new(PluginState::Uninitialized)),
             auth_manager: None,
             jwt_expiry_hours,
@@ -293,16 +333,26 @@ impl Plugin for AuthPlugin {
     }
 
     async fn initialize(&mut self) -> Result<()> {
-        *self.state.write().expect("Lock poisoned") = PluginState::Initializing;
+        *self
+            .state
+            .write()
+            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            PluginState::Initializing;
 
         self.auth_manager = Some(AuthManager::new(self.jwt_expiry_hours));
-        *self.state.write().expect("Lock poisoned") = PluginState::Ready;
+        *self
+            .state
+            .write()
+            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? = PluginState::Ready;
 
         Ok(())
     }
 
     async fn health_check(&self) -> Result<PluginHealth> {
-        let state = *self.state.read().expect("Lock poisoned");
+        let state = *self
+            .state
+            .read()
+            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))?;
 
         let healthy = self.auth_manager.is_some();
 
@@ -311,25 +361,35 @@ impl Plugin for AuthPlugin {
             state,
             healthy,
             message: if healthy {
-                Some("Auth manager operational".to_string())
+                Some("Auth manager operational".to_owned())
             } else {
-                Some("Auth manager not initialized".to_string())
+                Some("Auth manager not initialized".to_owned())
             },
             last_check: chrono::Utc::now(),
         })
     }
 
     async fn shutdown(&mut self) -> Result<()> {
-        *self.state.write().expect("Lock poisoned") = PluginState::ShuttingDown;
+        *self
+            .state
+            .write()
+            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            PluginState::ShuttingDown;
 
         self.auth_manager = None;
 
-        *self.state.write().expect("Lock poisoned") = PluginState::Shutdown;
+        *self
+            .state
+            .write()
+            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            PluginState::Shutdown;
         Ok(())
     }
 
     fn state(&self) -> PluginState {
-        *self.state.read().expect("Lock poisoned")
+        self.state
+            .read()
+            .map_or(PluginState::Failed, |guard| *guard)
     }
 
     fn is_required(&self) -> bool {

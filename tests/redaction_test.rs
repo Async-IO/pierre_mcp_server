@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::middleware::redaction::{
     mask_email, redact_headers, redact_json_fields, redact_token_patterns, BoundedTenantLabel,
     BoundedUserLabel, RedactionConfig,
@@ -133,7 +136,7 @@ fn test_redaction_disabled() {
 #[test]
 fn test_custom_placeholder() {
     let config = RedactionConfig {
-        redaction_placeholder: "***".to_string(),
+        redaction_placeholder: "***".to_owned(),
         ..Default::default()
     };
 

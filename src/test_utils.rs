@@ -13,11 +13,11 @@ use uuid::Uuid;
 pub fn create_test_admin_user(email: &str, display_name: Option<String>) -> User {
     User {
         id: Uuid::new_v4(),
-        email: email.to_string(),
+        email: email.to_owned(),
         display_name,
-        password_hash: "test_password_hash".to_string(),
+        password_hash: "test_password_hash".to_owned(),
         tier: UserTier::Enterprise,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -35,11 +35,11 @@ pub fn create_test_admin_user(email: &str, display_name: Option<String>) -> User
 pub fn create_test_user(email: &str, display_name: Option<String>) -> User {
     User {
         id: Uuid::new_v4(),
-        email: email.to_string(),
+        email: email.to_owned(),
         display_name,
-        password_hash: "test_password_hash".to_string(),
+        password_hash: "test_password_hash".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -57,11 +57,11 @@ pub fn create_test_user(email: &str, display_name: Option<String>) -> User {
 pub fn create_test_pending_user(email: &str, display_name: Option<String>) -> User {
     User {
         id: Uuid::new_v4(),
-        email: email.to_string(),
+        email: email.to_owned(),
         display_name,
-        password_hash: "test_password_hash".to_string(),
+        password_hash: "test_password_hash".to_owned(),
         tier: UserTier::Starter,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -85,11 +85,11 @@ pub fn create_test_user_with_fields(
 ) -> User {
     User {
         id: Uuid::new_v4(),
-        email: email.to_string(),
+        email: email.to_owned(),
         display_name,
-        password_hash: "test_password_hash".to_string(),
+        password_hash: "test_password_hash".to_owned(),
         tier,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         strava_token: None,
         fitbit_token: None,
         is_active: true,

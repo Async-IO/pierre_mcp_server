@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use chrono::Utc;
 use pierre_mcp_server::pagination::{Cursor, CursorPage, PaginationDirection, PaginationParams};
 
@@ -21,7 +24,7 @@ fn test_cursor_encoding_decoding() {
 
 #[test]
 fn test_cursor_invalid_decode() {
-    let invalid_cursor = Cursor::from_string("invalid_base64!@#$".to_string());
+    let invalid_cursor = Cursor::from_string("invalid_base64!@#$".to_owned());
     assert!(invalid_cursor.decode().is_none());
 }
 

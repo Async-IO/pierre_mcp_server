@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::constants::oauth_providers;
 use pierre_mcp_server::database::{user_oauth_tokens::OAuthTokenData, Database};
 use pierre_mcp_server::models::{DecryptedToken, User, UserTier};
@@ -24,7 +27,7 @@ async fn test_strava_token_storage() {
         tier: UserTier::Starter,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: false,
@@ -124,7 +127,7 @@ async fn test_fitbit_token_storage() {
         tier: UserTier::Professional,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: false,

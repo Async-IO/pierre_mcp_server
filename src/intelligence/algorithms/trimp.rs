@@ -25,7 +25,7 @@ use std::str::FromStr;
 pub enum TrimpAlgorithm {
     /// Bannister formula for males
     ///
-    /// Formula: `duration_minutes × HR_reserve_fraction × 0.64 × exp(1.92 × HR_reserve_fraction)`
+    /// Formula: `duration_minutes x HR_reserve_fraction x 0.64 x exp(1.92 x HR_reserve_fraction)`
     ///
     /// Where `HR_reserve_fraction = (avg_hr - resting_hr) / (max_hr - resting_hr)`
     ///
@@ -35,7 +35,7 @@ pub enum TrimpAlgorithm {
 
     /// Bannister formula for females
     ///
-    /// Formula: `duration_minutes × HR_reserve_fraction × 0.64 × exp(1.67 × HR_reserve_fraction)`
+    /// Formula: `duration_minutes x HR_reserve_fraction x 0.64 x exp(1.67 x HR_reserve_fraction)`
     ///
     /// Uses lower exponential factor (1.67 vs 1.92) reflecting gender-specific physiology
     ///
@@ -45,7 +45,7 @@ pub enum TrimpAlgorithm {
 
     /// Edwards simplified zone-based TRIMP
     ///
-    /// Formula: Sum of (`zone_minutes` × `zone_number`) for zones 1-5
+    /// Formula: Sum of (`zone_minutes` x `zone_number`) for zones 1-5
     ///
     /// HR Zones:
     /// - Zone 1: 50-60% `max_hr` (weight: 1)
@@ -141,7 +141,7 @@ impl TrimpAlgorithm {
         }
         if duration_minutes <= 0.0 {
             return Err(AppError::invalid_input(
-                "Duration must be greater than zero".to_string(),
+                "Duration must be greater than zero".to_owned(),
             ));
         }
 
@@ -151,7 +151,7 @@ impl TrimpAlgorithm {
                 duration_minutes,
                 max_hr,
                 resting_hr.ok_or_else(|| {
-                    AppError::invalid_input("Resting HR required for Bannister formula".to_string())
+                    AppError::invalid_input("Resting HR required for Bannister formula".to_owned())
                 })?,
             )),
             Self::BannisterFemale => Ok(Self::calculate_bannister_female(
@@ -159,7 +159,7 @@ impl TrimpAlgorithm {
                 duration_minutes,
                 max_hr,
                 resting_hr.ok_or_else(|| {
-                    AppError::invalid_input("Resting HR required for Bannister formula".to_string())
+                    AppError::invalid_input("Resting HR required for Bannister formula".to_owned())
                 })?,
             )),
             Self::EdwardsSimplified => Ok(Self::calculate_edwards_simplified(
@@ -185,7 +185,7 @@ impl TrimpAlgorithm {
 
     /// Calculate TRIMP using Bannister formula for males
     ///
-    /// Formula: `duration × HR_reserve_fraction × 0.64 × exp(1.92 × HR_reserve_fraction)`
+    /// Formula: `duration x HR_reserve_fraction x 0.64 x exp(1.92 x HR_reserve_fraction)`
     fn calculate_bannister_male(
         avg_hr: u32,
         duration_minutes: f64,
@@ -204,7 +204,7 @@ impl TrimpAlgorithm {
 
     /// Calculate TRIMP using Bannister formula for females
     ///
-    /// Formula: `duration × HR_reserve_fraction × 0.64 × exp(1.67 × HR_reserve_fraction)`
+    /// Formula: `duration x HR_reserve_fraction x 0.64 x exp(1.67 x HR_reserve_fraction)`
     fn calculate_bannister_female(
         avg_hr: u32,
         duration_minutes: f64,
@@ -311,17 +311,17 @@ impl TrimpAlgorithm {
     pub fn description(&self) -> String {
         match self {
             Self::BannisterMale => {
-                "Bannister male TRIMP (exp(1.92), requires resting HR)".to_string()
+                "Bannister male TRIMP (exp(1.92), requires resting HR)".to_owned()
             }
             Self::BannisterFemale => {
-                "Bannister female TRIMP (exp(1.67), requires resting HR)".to_string()
+                "Bannister female TRIMP (exp(1.67), requires resting HR)".to_owned()
             }
-            Self::EdwardsSimplified => "Edwards zone-based TRIMP (5 zones, simple)".to_string(),
+            Self::EdwardsSimplified => "Edwards zone-based TRIMP (5 zones, simple)".to_owned(),
             Self::LuciaBanded { sport } => {
                 format!("Lucia sport-specific TRIMP (sport: {sport})")
             }
             Self::Hybrid => {
-                "Hybrid TRIMP (auto-select Bannister or Edwards based on data)".to_string()
+                "Hybrid TRIMP (auto-select Bannister or Edwards based on data)".to_owned()
             }
         }
     }
@@ -331,13 +331,13 @@ impl TrimpAlgorithm {
     pub const fn formula(&self) -> &'static str {
         match self {
             Self::BannisterMale => {
-                "duration × HR_reserve_fraction × 0.64 × exp(1.92 × HR_reserve_fraction)"
+                "duration x HR_reserve_fraction x 0.64 x exp(1.92 x HR_reserve_fraction)"
             }
             Self::BannisterFemale => {
-                "duration × HR_reserve_fraction × 0.64 × exp(1.67 × HR_reserve_fraction)"
+                "duration x HR_reserve_fraction x 0.64 x exp(1.67 x HR_reserve_fraction)"
             }
-            Self::EdwardsSimplified => "Σ(zone_minutes × zone_weight) for zones 1-5",
-            Self::LuciaBanded { .. } => "Σ(band_minutes × band_weight) for intensity bands",
+            Self::EdwardsSimplified => "Σ(zone_minutes x zone_weight) for zones 1-5",
+            Self::LuciaBanded { .. } => "Σ(band_minutes x band_weight) for intensity bands",
             Self::Hybrid => "Auto-select best method based on available data",
         }
     }
@@ -352,7 +352,7 @@ impl FromStr for TrimpAlgorithm {
             "bannister_female" | "female" => Ok(Self::BannisterFemale),
             "edwards_simplified" | "edwards" | "zones" => Ok(Self::EdwardsSimplified),
             "lucia_banded" | "lucia" => Ok(Self::LuciaBanded {
-                sport: "cycling".to_string(),
+                sport: "cycling".to_owned(),
             }),
             "hybrid" => Ok(Self::Hybrid),
             other => Err(AppError::invalid_input(format!(

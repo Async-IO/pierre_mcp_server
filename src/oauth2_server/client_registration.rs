@@ -26,6 +26,7 @@ pub struct ClientRegistrationManager {
 }
 
 impl ClientRegistrationManager {
+    /// Creates a new client registration manager
     #[must_use]
     pub const fn new(database: Arc<crate::database_plugins::factory::Database>) -> Self {
         Self { database }
@@ -51,11 +52,11 @@ impl ClientRegistrationManager {
         // Clients must explicitly request client_credentials if needed
         let grant_types = request
             .grant_types
-            .unwrap_or_else(|| vec!["authorization_code".to_string()]);
+            .unwrap_or_else(|| vec!["authorization_code".to_owned()]);
 
         let response_types = request
             .response_types
-            .unwrap_or_else(|| vec!["code".to_string()]);
+            .unwrap_or_else(|| vec!["code".to_owned()]);
 
         let created_at = Utc::now();
         let expires_at = Some(created_at + Duration::days(365)); // 1 year expiry
@@ -102,7 +103,7 @@ impl ClientRegistrationManager {
             client_uri: request.client_uri.or(Some(default_client_uri)),
             scope: request
                 .scope
-                .or_else(|| Some("fitness:read activities:read profile:read".to_string())),
+                .or_else(|| Some("fitness:read activities:read profile:read".to_owned())),
         })
     }
 
@@ -304,7 +305,7 @@ impl ClientRegistrationManager {
     /// Uses server config if initialized (production), falls back to localhost:8081 (tests)
     fn get_default_client_uri() -> String {
         crate::constants::try_get_server_config().map_or_else(
-            || "http://localhost:8081".to_string(),
+            || "http://localhost:8081".to_owned(),
             |config| format!("http://{}:{}", config.host, config.http_port),
         )
     }

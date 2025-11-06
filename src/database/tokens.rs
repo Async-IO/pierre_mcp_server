@@ -62,7 +62,7 @@ impl Database {
         );
 
         sqlx::query(&query)
-            .bind(user_id.to_string())
+            .bind(user_id.to_owned())
             .bind(&encrypted.access_token)
             .bind(&encrypted.refresh_token)
             .bind(encrypted.expires_at.timestamp())
@@ -92,7 +92,7 @@ impl Database {
         );
 
         let row = sqlx::query(&query)
-            .bind(user_id.to_string())
+            .bind(user_id.to_owned())
             .fetch_optional(&self.pool)
             .await?;
 
@@ -146,7 +146,7 @@ impl Database {
         );
 
         sqlx::query(&query)
-            .bind(user_id.to_string())
+            .bind(user_id.to_owned())
             .execute(&self.pool)
             .await?;
 

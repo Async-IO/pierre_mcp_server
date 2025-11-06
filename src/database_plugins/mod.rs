@@ -17,11 +17,18 @@ use serde_json::Value;
 use uuid::Uuid;
 
 // Re-export the A2A types from the main database module
-pub use crate::database::{A2AUsage, A2AUsageStats};
 
+/// A2A usage tracking record
+pub use crate::database::A2AUsage;
+/// A2A usage statistics
+pub use crate::database::A2AUsageStats;
+
+/// Database provider factory
 pub mod factory;
+/// SQLite database implementation
 pub mod sqlite;
 
+/// PostgreSQL database implementation
 #[cfg(feature = "postgresql")]
 pub mod postgres;
 

@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use anyhow::Result;
@@ -23,7 +26,7 @@ fn test_cache_key(resource: CacheResource) -> CacheKey {
     CacheKey::new(
         Uuid::new_v4(),
         Uuid::new_v4(),
-        "strava".to_string(),
+        "strava".to_owned(),
         resource,
     )
 }
@@ -44,7 +47,7 @@ async fn test_cache_set_and_get() -> Result<()> {
     let cache = create_test_cache(100, 300).await?;
     let key = test_cache_key(CacheResource::AthleteProfile);
     let data = TestData {
-        value: "test".to_string(),
+        value: "test".to_owned(),
         count: 42,
     };
 
@@ -63,7 +66,7 @@ async fn test_cache_expiration() -> Result<()> {
     let cache = create_test_cache(100, 300).await?;
     let key = test_cache_key(CacheResource::AthleteProfile);
     let data = TestData {
-        value: "expires".to_string(),
+        value: "expires".to_owned(),
         count: 1,
     };
 
@@ -89,7 +92,7 @@ async fn test_cache_ttl() -> Result<()> {
     let cache = create_test_cache(100, 300).await?;
     let key = test_cache_key(CacheResource::AthleteProfile);
     let data = TestData {
-        value: "ttl_test".to_string(),
+        value: "ttl_test".to_owned(),
         count: 5,
     };
 
@@ -110,7 +113,7 @@ async fn test_cache_invalidate() -> Result<()> {
     let cache = create_test_cache(100, 300).await?;
     let key = test_cache_key(CacheResource::AthleteProfile);
     let data = TestData {
-        value: "delete_me".to_string(),
+        value: "delete_me".to_owned(),
         count: 99,
     };
 
@@ -136,7 +139,7 @@ async fn test_cache_invalidate_pattern() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     let data = TestData {
-        value: "pattern_test".to_string(),
+        value: "pattern_test".to_owned(),
         count: 1,
     };
 
@@ -144,19 +147,19 @@ async fn test_cache_invalidate_pattern() -> Result<()> {
     let key1 = CacheKey::new(
         tenant_id,
         user_id,
-        "strava".to_string(),
+        "strava".to_owned(),
         CacheResource::AthleteProfile,
     );
     let key2 = CacheKey::new(
         tenant_id,
         user_id,
-        "strava".to_string(),
+        "strava".to_owned(),
         CacheResource::Activity { activity_id: 123 },
     );
     let key3 = CacheKey::new(
         tenant_id,
         user_id,
-        "strava".to_string(),
+        "strava".to_owned(),
         CacheResource::Stats { athlete_id: 456 },
     );
 
@@ -191,11 +194,11 @@ async fn test_cache_tenant_isolation() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     let data1 = TestData {
-        value: "tenant1".to_string(),
+        value: "tenant1".to_owned(),
         count: 1,
     };
     let data2 = TestData {
-        value: "tenant2".to_string(),
+        value: "tenant2".to_owned(),
         count: 2,
     };
 
@@ -203,13 +206,13 @@ async fn test_cache_tenant_isolation() -> Result<()> {
     let key1 = CacheKey::new(
         tenant1,
         user_id,
-        "strava".to_string(),
+        "strava".to_owned(),
         CacheResource::AthleteProfile,
     );
     let key2 = CacheKey::new(
         tenant2,
         user_id,
-        "strava".to_string(),
+        "strava".to_owned(),
         CacheResource::AthleteProfile,
     );
 
@@ -237,7 +240,7 @@ async fn test_cache_capacity_eviction() -> Result<()> {
     let cache = create_test_cache(10, 300).await?;
 
     let data = TestData {
-        value: "capacity_test".to_string(),
+        value: "capacity_test".to_owned(),
         count: 1,
     };
 
@@ -274,7 +277,7 @@ async fn test_cache_background_cleanup() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     let data = TestData {
-        value: "cleanup_test".to_string(),
+        value: "cleanup_test".to_owned(),
         count: 1,
     };
 
@@ -284,7 +287,7 @@ async fn test_cache_background_cleanup() -> Result<()> {
             CacheKey::new(
                 tenant_id,
                 user_id,
-                "strava".to_string(),
+                "strava".to_owned(),
                 CacheResource::Activity { activity_id: i },
             )
         })
@@ -318,7 +321,7 @@ async fn test_cache_clear_all() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     let data = TestData {
-        value: "clear_test".to_string(),
+        value: "clear_test".to_owned(),
         count: 1,
     };
 
@@ -328,7 +331,7 @@ async fn test_cache_clear_all() -> Result<()> {
             CacheKey::new(
                 tenant_id,
                 user_id,
-                "strava".to_string(),
+                "strava".to_owned(),
                 CacheResource::Activity { activity_id: i },
             )
         })
@@ -372,7 +375,7 @@ async fn test_cache_different_resource_types() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     let data = TestData {
-        value: "resource_type_test".to_string(),
+        value: "resource_type_test".to_owned(),
         count: 1,
     };
 
@@ -389,13 +392,13 @@ async fn test_cache_different_resource_types() -> Result<()> {
     ];
 
     for resource in &resources {
-        let key = CacheKey::new(tenant_id, user_id, "strava".to_string(), resource.clone());
+        let key = CacheKey::new(tenant_id, user_id, "strava".to_owned(), resource.clone());
         cache.set(&key, &data, Duration::from_secs(60)).await?;
     }
 
     // All should be retrievable
     for resource in resources {
-        let key = CacheKey::new(tenant_id, user_id, "strava".to_string(), resource);
+        let key = CacheKey::new(tenant_id, user_id, "strava".to_owned(), resource);
         let retrieved: Option<TestData> = cache.get(&key).await?;
         assert_eq!(retrieved, Some(data.clone()));
     }
@@ -414,7 +417,7 @@ async fn test_cache_from_env_defaults() -> Result<()> {
     // Should be able to use it
     let key = test_cache_key(CacheResource::AthleteProfile);
     let data = TestData {
-        value: "env_test".to_string(),
+        value: "env_test".to_owned(),
         count: 1,
     };
 

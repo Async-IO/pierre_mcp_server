@@ -918,7 +918,7 @@ impl DatabaseProvider for SqliteDatabase {
                 ORDER BY provisioned_at DESC
                 ",
                     vec![
-                        token_id.to_string(),
+                        token_id.to_owned(),
                         start_date.to_rfc3339(),
                         end_date.to_rfc3339(),
                     ],
@@ -1128,7 +1128,7 @@ impl DatabaseProvider for SqliteDatabase {
             }
             None => Err(DatabaseError::NotFound {
                 entity_type: "Tenant",
-                entity_id: slug.to_string(),
+                entity_id: slug.to_owned(),
             }
             .into()),
         }
@@ -1405,7 +1405,7 @@ impl DatabaseProvider for SqliteDatabase {
             }
             None => Err(DatabaseError::NotFound {
                 entity_type: "OAuth app",
-                entity_id: client_id.to_string(),
+                entity_id: client_id.to_owned(),
             }
             .into()),
         }
@@ -1442,7 +1442,7 @@ impl DatabaseProvider for SqliteDatabase {
             let app = crate::models::OAuthApp {
                 id: crate::utils::uuid::parse_uuid(&row.get::<String, _>("id"))?,
                 client_id: row.get("client_id"),
-                client_secret: "[REDACTED]".to_string(), // Never return actual secret
+                client_secret: "[REDACTED]".to_owned(), // Never return actual secret
                 name: row.get("name"),
                 description: row.get("description"),
                 redirect_uris,
@@ -2009,7 +2009,7 @@ impl DatabaseProvider for SqliteDatabase {
             }
             None => Err(DatabaseError::NotFound {
                 entity_type: "Authorization code",
-                entity_id: code.to_string(),
+                entity_id: code.to_owned(),
             }
             .into()),
         }
@@ -2333,14 +2333,14 @@ impl DatabaseProvider for SqliteDatabase {
             FROM audit_events
             WHERE 1=1
         "
-        .to_string();
+        .to_owned();
 
         let mut bind_count = 0;
         if tenant_id.is_some() {
             bind_count += 1;
             if write!(query, " AND tenant_id = ?{bind_count}").is_err() {
                 return Err(DatabaseError::QueryError {
-                    context: "Failed to write tenant_id clause to query".to_string(),
+                    context: "Failed to write tenant_id clause to query".to_owned(),
                 }
                 .into());
             }
@@ -2349,7 +2349,7 @@ impl DatabaseProvider for SqliteDatabase {
             bind_count += 1;
             if write!(query, " AND event_type = ?{bind_count}").is_err() {
                 return Err(DatabaseError::QueryError {
-                    context: "Failed to write event_type clause to query".to_string(),
+                    context: "Failed to write event_type clause to query".to_owned(),
                 }
                 .into());
             }
@@ -2361,7 +2361,7 @@ impl DatabaseProvider for SqliteDatabase {
             bind_count += 1;
             if write!(query, " LIMIT ?{bind_count}").is_err() {
                 return Err(DatabaseError::QueryError {
-                    context: "Failed to write LIMIT clause to query".to_string(),
+                    context: "Failed to write LIMIT clause to query".to_owned(),
                 }
                 .into());
             }
@@ -2482,7 +2482,7 @@ impl DatabaseProvider for SqliteDatabase {
                     description: row.try_get("message")?,
                     metadata,
                     resource: None, // Can be extracted from metadata if needed
-                    action: "security".to_string(), // Default action
+                    action: "security".to_owned(), // Default action
                     result: row.try_get("result")?,
                 })
             })

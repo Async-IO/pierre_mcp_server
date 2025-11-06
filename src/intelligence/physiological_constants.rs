@@ -110,6 +110,7 @@ pub mod training_load {
     /// Training Stress Score thresholds
     /// Reference: Coggan, A. (2003). Training Stress Score (TSS) explained
     pub const HIGH_TSS_THRESHOLD: f64 = 150.0;
+    /// Minimum TSS value considered a low-intensity workout
     pub const LOW_TSS_THRESHOLD: f64 = 50.0;
 }
 
@@ -414,16 +415,16 @@ pub mod frequency_targets {
 ///
 /// Reference: Environmental physiology and human performance research
 pub mod weather_thresholds {
-    /// Extreme cold temperature threshold (°C)
+    /// Extreme cold temperature threshold (C)
     pub const EXTREME_COLD_CELSIUS: f32 = -5.0;
 
-    /// Cold temperature threshold (°C)
+    /// Cold temperature threshold (C)
     pub const COLD_THRESHOLD_CELSIUS: f32 = 0.0;
 
-    /// Hot temperature threshold (°C)
+    /// Hot temperature threshold (C)
     pub const HOT_THRESHOLD_CELSIUS: f32 = 25.0;
 
-    /// Extreme hot temperature threshold (°C)
+    /// Extreme hot temperature threshold (C)
     pub const EXTREME_HOT_THRESHOLD_CELSIUS: f32 = 30.0;
 
     /// Strong wind speed threshold (km/h)
@@ -435,7 +436,7 @@ pub mod weather_thresholds {
     /// High humidity threshold (percentage)
     pub const HIGH_HUMIDITY_THRESHOLD: f32 = 80.0;
 
-    /// Temperature threshold for humidity impact (°C)
+    /// Temperature threshold for humidity impact (C)
     pub const HUMIDITY_IMPACT_TEMP_THRESHOLD: f32 = 20.0;
 }
 

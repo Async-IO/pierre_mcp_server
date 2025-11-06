@@ -13,23 +13,35 @@ use serde::{Deserialize, Serialize};
 /// Complete linear regression analysis results
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegressionResult {
+    /// Slope of the regression line (rate of change)
     pub slope: f64,
+    /// Y-intercept of the regression line
     pub intercept: f64,
+    /// Coefficient of determination (goodness of fit, 0-1)
     pub r_squared: f64,
+    /// Pearson correlation coefficient (-1 to 1)
     pub correlation: f64,
+    /// Standard error of the estimate
     pub standard_error: f64,
+    /// Degrees of freedom (n - 2)
     pub degrees_of_freedom: usize,
+    /// P-value for statistical significance testing
     pub p_value: Option<f64>,
 }
 
 /// Statistical significance levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SignificanceLevel {
+    /// No statistical significance (p >= 0.1)
     NotSignificant,
-    Weak,       // p < 0.1
-    Moderate,   // p < 0.05
-    Strong,     // p < 0.01
-    VeryStrong, // p < 0.001
+    /// Weak significance (p < 0.1)
+    Weak,
+    /// Moderate significance (p < 0.05)
+    Moderate,
+    /// Strong significance (p < 0.01)
+    Strong,
+    /// Very strong significance (p < 0.001)
+    VeryStrong,
 }
 
 impl SignificanceLevel {

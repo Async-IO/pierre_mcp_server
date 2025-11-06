@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use chrono::Utc;
 use pierre_mcp_server::constants::{api_provider_limits, oauth, oauth_providers};
 use pierre_mcp_server::providers::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
@@ -18,7 +21,7 @@ static INIT_SERVER_CONFIG: Once = Once::new();
 fn ensure_http_clients_initialized() {
     // Initialize server config first (required for provider defaults)
     INIT_SERVER_CONFIG.call_once(|| {
-        pierre_mcp_server::constants::init_server_config();
+        let _ = pierre_mcp_server::constants::init_server_config();
     });
 
     INIT_HTTP_CLIENTS.call_once(|| {
@@ -49,12 +52,12 @@ fn test_garmin_provider_creation() {
 fn test_garmin_provider_with_custom_config() {
     ensure_http_clients_initialized();
     let custom_config = ProviderConfig {
-        name: oauth_providers::GARMIN.to_string(),
-        auth_url: "https://custom.garmin.com/auth".to_string(),
-        token_url: "https://custom.garmin.com/token".to_string(),
-        api_base_url: "https://custom.garmin.com/api".to_string(),
-        revoke_url: Some("https://custom.garmin.com/revoke".to_string()),
-        default_scopes: vec!["custom:scope".to_string()],
+        name: oauth_providers::GARMIN.to_owned(),
+        auth_url: "https://custom.garmin.com/auth".to_owned(),
+        token_url: "https://custom.garmin.com/token".to_owned(),
+        api_base_url: "https://custom.garmin.com/api".to_owned(),
+        revoke_url: Some("https://custom.garmin.com/revoke".to_owned()),
+        default_scopes: vec!["custom:scope".to_owned()],
     };
 
     let provider = GarminProvider::with_config(custom_config.clone());
@@ -75,12 +78,12 @@ async fn test_garmin_provider_authentication_lifecycle() {
 
     // Set valid credentials
     let credentials = OAuth2Credentials {
-        client_id: "test_client_id".to_string(),
-        client_secret: "test_client_secret".to_string(),
-        access_token: Some("test_access_token".to_string()),
-        refresh_token: Some("test_refresh_token".to_string()),
+        client_id: "test_client_id".to_owned(),
+        client_secret: "test_client_secret".to_owned(),
+        access_token: Some("test_access_token".to_owned()),
+        refresh_token: Some("test_refresh_token".to_owned()),
         expires_at: Some(Utc::now() + chrono::Duration::hours(1)),
-        scopes: vec!["wellness:read".to_string(), "activities:read".to_string()],
+        scopes: vec!["wellness:read".to_owned(), "activities:read".to_owned()],
     };
 
     provider
@@ -99,12 +102,12 @@ async fn test_garmin_provider_expired_token() {
 
     // Set expired credentials
     let credentials = OAuth2Credentials {
-        client_id: "test_client_id".to_string(),
-        client_secret: "test_client_secret".to_string(),
-        access_token: Some("expired_token".to_string()),
-        refresh_token: Some("test_refresh_token".to_string()),
+        client_id: "test_client_id".to_owned(),
+        client_secret: "test_client_secret".to_owned(),
+        access_token: Some("expired_token".to_owned()),
+        refresh_token: Some("test_refresh_token".to_owned()),
         expires_at: Some(Utc::now() - chrono::Duration::hours(1)), // Already expired
-        scopes: vec!["wellness:read".to_string()],
+        scopes: vec!["wellness:read".to_owned()],
     };
 
     provider
@@ -123,12 +126,12 @@ async fn test_garmin_provider_no_expiry() {
 
     // Credentials with no expiry time
     let credentials = OAuth2Credentials {
-        client_id: "test_client_id".to_string(),
-        client_secret: "test_client_secret".to_string(),
-        access_token: Some("test_access_token".to_string()),
-        refresh_token: Some("test_refresh_token".to_string()),
+        client_id: "test_client_id".to_owned(),
+        client_secret: "test_client_secret".to_owned(),
+        access_token: Some("test_access_token".to_owned()),
+        refresh_token: Some("test_refresh_token".to_owned()),
         expires_at: None, // No expiry
-        scopes: vec!["wellness:read".to_string()],
+        scopes: vec!["wellness:read".to_owned()],
     };
 
     provider
@@ -157,12 +160,12 @@ async fn test_garmin_provider_disconnect() {
 
     // Set credentials
     let credentials = OAuth2Credentials {
-        client_id: "test_client_id".to_string(),
-        client_secret: "test_client_secret".to_string(),
-        access_token: Some("test_access_token".to_string()),
-        refresh_token: Some("test_refresh_token".to_string()),
+        client_id: "test_client_id".to_owned(),
+        client_secret: "test_client_secret".to_owned(),
+        access_token: Some("test_access_token".to_owned()),
+        refresh_token: Some("test_refresh_token".to_owned()),
         expires_at: Some(Utc::now() + chrono::Duration::hours(1)),
-        scopes: vec!["wellness:read".to_string()],
+        scopes: vec!["wellness:read".to_owned()],
     };
 
     provider
@@ -184,8 +187,8 @@ fn test_garmin_provider_scopes() {
     let provider = GarminProvider::new();
     let scopes = &provider.config().default_scopes;
 
-    assert!(scopes.contains(&"wellness:read".to_string()));
-    assert!(scopes.contains(&"activities:read".to_string()));
+    assert!(scopes.contains(&"wellness:read".to_owned()));
+    assert!(scopes.contains(&"activities:read".to_owned()));
 }
 
 #[test]
@@ -265,12 +268,12 @@ async fn test_garmin_provider_get_personal_records() {
 
     // Set credentials
     let credentials = OAuth2Credentials {
-        client_id: "test_client_id".to_string(),
-        client_secret: "test_client_secret".to_string(),
-        access_token: Some("test_access_token".to_string()),
+        client_id: "test_client_id".to_owned(),
+        client_secret: "test_client_secret".to_owned(),
+        access_token: Some("test_access_token".to_owned()),
         refresh_token: None,
         expires_at: Some(Utc::now() + chrono::Duration::hours(1)),
-        scopes: vec!["wellness:read".to_string()],
+        scopes: vec!["wellness:read".to_owned()],
     };
 
     provider
@@ -313,12 +316,12 @@ async fn test_garmin_provider_refresh_token_not_needed() {
 
     // Set credentials that don't need refresh (expires in 2 hours)
     let credentials = OAuth2Credentials {
-        client_id: "test_client_id".to_string(),
-        client_secret: "test_client_secret".to_string(),
-        access_token: Some("test_access_token".to_string()),
-        refresh_token: Some("test_refresh_token".to_string()),
+        client_id: "test_client_id".to_owned(),
+        client_secret: "test_client_secret".to_owned(),
+        access_token: Some("test_access_token".to_owned()),
+        refresh_token: Some("test_refresh_token".to_owned()),
         expires_at: Some(Utc::now() + chrono::Duration::hours(2)),
-        scopes: vec!["wellness:read".to_string()],
+        scopes: vec!["wellness:read".to_owned()],
     };
 
     provider
@@ -385,12 +388,12 @@ async fn test_garmin_credentials_without_access_token() {
 
     // Credentials without access token
     let credentials = OAuth2Credentials {
-        client_id: "test_client_id".to_string(),
-        client_secret: "test_client_secret".to_string(),
+        client_id: "test_client_id".to_owned(),
+        client_secret: "test_client_secret".to_owned(),
         access_token: None, // No access token
-        refresh_token: Some("test_refresh_token".to_string()),
+        refresh_token: Some("test_refresh_token".to_owned()),
         expires_at: Some(Utc::now() + chrono::Duration::hours(1)),
-        scopes: vec!["wellness:read".to_string()],
+        scopes: vec!["wellness:read".to_owned()],
     };
 
     provider

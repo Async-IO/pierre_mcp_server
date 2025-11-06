@@ -9,6 +9,9 @@
 //! This is a focused test to verify that the critical security vulnerability
 //! where JWT tokens had unlimited API access has been fixed.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use pierre_mcp_server::auth::AuthManager;
@@ -50,9 +53,9 @@ async fn test_jwt_tokens_now_have_rate_limiting() {
 
     // Create and store a test user (defaults to Starter tier with 10,000 requests/month)
     let user = User::new(
-        "jwt_test@example.com".to_string(),
-        "hashed_password".to_string(),
-        Some("JWT Test User".to_string()),
+        "jwt_test@example.com".to_owned(),
+        "hashed_password".to_owned(),
+        Some("JWT Test User".to_owned()),
     );
     database.create_user(&user).await.unwrap();
 

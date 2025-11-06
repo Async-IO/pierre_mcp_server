@@ -118,17 +118,17 @@ fn perform_weather_analysis(
     // Weather analysis requires external API integration (OpenWeatherMap, etc.)
     // Return error indicating the service needs proper configuration
     Err(ProtocolError::ConfigurationError(
-        "Weather analysis requires external weather API configuration. Please configure OPENWEATHER_API_KEY or similar weather service.".to_string()
+        "Weather analysis requires external weather API configuration. Please configure OPENWEATHER_API_KEY or similar weather service.".to_owned()
     ))
 }
 
 fn generate_weather_insights(_weather_analysis: &Value) -> Vec<String> {
     vec![
-        "Temperature was in the optimal range for endurance activities".to_string(),
-        "Moderate humidity may have increased perceived effort by 5-8%".to_string(),
-        "Light headwind likely reduced overall speed by 1-2%".to_string(),
-        "UV index suggests sunscreen was important for skin protection".to_string(),
-        "Overall weather conditions were favorable for performance".to_string(),
+        "Temperature was in the optimal range for endurance activities".to_owned(),
+        "Moderate humidity may have increased perceived effort by 5-8%".to_owned(),
+        "Light headwind likely reduced overall speed by 1-2%".to_owned(),
+        "UV index suggests sunscreen was important for skin protection".to_owned(),
+        "Overall weather conditions were favorable for performance".to_owned(),
     ]
 }
 

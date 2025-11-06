@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use chrono::{Duration, Utc};
@@ -277,7 +280,7 @@ async fn test_provider_access_check() {
         .auth_manager()
         .validate_token(&token, &jwks_manager)
         .unwrap();
-    let has_strava = claims.providers.contains(&"strava".to_string());
+    let has_strava = claims.providers.contains(&"strava".to_owned());
     assert!(!has_strava);
 }
 
@@ -477,7 +480,7 @@ fn test_validate_token_detailed_malformed() {
 fn test_generate_oauth_access_token() {
     let auth_manager = create_auth_manager();
     let user_id = Uuid::new_v4();
-    let scopes = vec!["read".to_string(), "write".to_string()];
+    let scopes = vec!["read".to_owned(), "write".to_owned()];
 
     // Setup JWKS manager for RS256 token generation
     let jwks_manager = common::get_shared_test_jwks();
@@ -498,7 +501,7 @@ fn test_generate_oauth_access_token() {
 fn test_generate_client_credentials_token() {
     let auth_manager = create_auth_manager();
     let client_id = "test_client_id";
-    let scopes = vec!["client_read".to_string(), "client_write".to_string()];
+    let scopes = vec!["client_read".to_owned(), "client_write".to_owned()];
 
     // Setup JWKS manager for RS256 token generation
     let jwks_manager = common::get_shared_test_jwks();
@@ -529,7 +532,7 @@ fn test_jwt_validation_error_display() {
     assert!(error_string.contains("minutes ago"));
 
     let invalid_error = JwtValidationError::TokenInvalid {
-        reason: "Test reason".to_string(),
+        reason: "Test reason".to_owned(),
     };
 
     let invalid_string = invalid_error.to_string();
@@ -537,7 +540,7 @@ fn test_jwt_validation_error_display() {
     assert!(invalid_string.contains("Test reason"));
 
     let malformed_error = JwtValidationError::TokenMalformed {
-        details: "Test details".to_string(),
+        details: "Test details".to_owned(),
     };
 
     let malformed_string = malformed_error.to_string();
@@ -548,7 +551,7 @@ fn test_jwt_validation_error_display() {
 #[test]
 fn test_auth_method_details() {
     let jwt_method = AuthMethod::JwtToken {
-        tier: "professional".to_string(),
+        tier: "professional".to_owned(),
     };
 
     let jwt_details = jwt_method.details();
@@ -556,8 +559,8 @@ fn test_auth_method_details() {
     assert!(jwt_details.contains("professional"));
 
     let api_key_method = AuthMethod::ApiKey {
-        key_id: "key123".to_string(),
-        tier: "enterprise".to_string(),
+        key_id: "key123".to_owned(),
+        tier: "enterprise".to_owned(),
     };
 
     let api_key_details = api_key_method.details();
@@ -572,13 +575,13 @@ fn test_auth_method_details() {
 fn test_claims_serialization() {
     let claims = Claims {
         sub: Uuid::new_v4().to_string(),
-        email: "test@example.com".to_string(),
+        email: "test@example.com".to_owned(),
         iat: Utc::now().timestamp(),
         exp: (Utc::now() + Duration::hours(1)).timestamp(),
-        iss: "pierre-mcp-server".to_string(),
+        iss: "pierre-mcp-server".to_owned(),
         jti: Uuid::new_v4().to_string(),
-        providers: vec!["strava".to_string(), "fitbit".to_string()],
-        aud: "mcp".to_string(),
+        providers: vec!["strava".to_owned(), "fitbit".to_owned()],
+        aud: "mcp".to_owned(),
         tenant_id: None,
     };
 

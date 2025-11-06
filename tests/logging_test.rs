@@ -7,6 +7,9 @@
 // Integration tests for logging.rs module
 // Tests for logging configuration and environment variable handling
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::logging::{LogFormat, LoggingConfig};
 use std::env;
 

@@ -8,7 +8,8 @@
 //!
 //! This module contains clients for external APIs used by the pierre MCP server.
 
+/// USDA FoodData Central API client for nutritional data
 pub mod usda_client;
 
-// Re-export commonly used types
+/// Re-export commonly used types from USDA client
 pub use usda_client::{FoodDetails, FoodNutrient, FoodSearchResult, UsdaClient, UsdaClientConfig};

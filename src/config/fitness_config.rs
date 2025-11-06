@@ -13,25 +13,35 @@ use std::collections::HashMap;
 /// Main fitness configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FitnessConfig {
+    /// Map of sport type IDs to display names
     pub sport_types: HashMap<String, String>,
+    /// Intelligence analysis configuration
     pub intelligence: IntelligenceConfig,
+    /// Optional weather API configuration
     pub weather_api: Option<WeatherApiConfig>,
 }
 
 /// Intelligence analysis configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct IntelligenceConfig {
+    /// Effort level threshold values
     pub effort_thresholds: EffortThresholds,
+    /// Heart rate zone threshold percentages
     pub zone_thresholds: ZoneThresholds,
+    /// Weather detection keyword mappings
     pub weather_mapping: WeatherMapping,
+    /// Personal record detection settings
     pub personal_records: PersonalRecordConfig,
 }
 
 /// Effort level thresholds for categorizing workout intensity
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EffortThresholds {
+    /// Maximum heart rate percentage for light effort (0-1.0)
     pub light_max: f32,
+    /// Maximum heart rate percentage for moderate effort (0-1.0)
     pub moderate_max: f32,
+    /// Maximum heart rate percentage for hard effort (0-1.0, above this is very high)
     pub hard_max: f32,
     // > hard_max = very_high
 }
@@ -39,9 +49,13 @@ pub struct EffortThresholds {
 /// Heart rate zone thresholds (as percentage of max HR)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZoneThresholds {
+    /// Maximum percentage for recovery zone (Zone 1)
     pub recovery_max: f32,
+    /// Maximum percentage for endurance zone (Zone 2)
     pub endurance_max: f32,
+    /// Maximum percentage for tempo zone (Zone 3)
     pub tempo_max: f32,
+    /// Maximum percentage for threshold zone (Zone 4, above this is VO2 max)
     pub threshold_max: f32,
     // > threshold_max = vo2max
 }
@@ -49,27 +63,39 @@ pub struct ZoneThresholds {
 /// Weather detection and mapping configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeatherMapping {
+    /// Keywords for detecting rain in weather descriptions
     pub rain_keywords: Vec<String>,
+    /// Keywords for detecting snow in weather descriptions
     pub snow_keywords: Vec<String>,
+    /// Wind speed threshold for flagging windy conditions (m/s)
     pub wind_threshold: f32,
 }
 
 /// Personal record detection configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PersonalRecordConfig {
+    /// Minimum pace improvement percentage to count as PR (0-1.0)
     pub pace_improvement_threshold: f32,
+    /// Distance-based PR types to track (e.g., "5k", "10k", "`half_marathon`")
     pub distance_pr_types: Vec<String>,
+    /// Time-based PR types to track (e.g., "1h", "2h")
     pub time_pr_types: Vec<String>,
 }
 
 /// Weather API configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeatherApiConfig {
+    /// Weather provider name (e.g., "openweathermap")
     pub provider: String,
+    /// Base URL for the weather API
     pub base_url: String,
+    /// Whether weather API integration is enabled
     pub enabled: bool,
+    /// How long to cache weather data (hours)
     pub cache_duration_hours: u64,
+    /// Request timeout (seconds)
     pub request_timeout_seconds: u64,
+    /// Rate limit for API requests (requests per minute)
     pub rate_limit_requests_per_minute: u64,
 }
 
@@ -127,26 +153,26 @@ impl FitnessConfig {
             sport_types.insert(proper_key, value);
         } else {
             // Use default mapping if env var not set
-            sport_types.insert(proper_key, default_value.to_string());
+            sport_types.insert(proper_key, default_value.to_owned());
         }
     }
 
     /// Convert uppercase sport key to proper case (e.g., "RUN" -> "Run")
     fn sport_key_to_proper_case(key: &str) -> String {
         match key {
-            "RUN" => "Run".to_string(),
-            "RIDE" => "Ride".to_string(),
-            "SWIM" => "Swim".to_string(),
-            "WALK" => "Walk".to_string(),
-            "HIKE" => "Hike".to_string(),
-            "VIRTUALRIDE" => "VirtualRide".to_string(),
-            "VIRTUALRUN" => "VirtualRun".to_string(),
-            "WORKOUT" => "Workout".to_string(),
-            "YOGA" => "Yoga".to_string(),
-            "EBIKERIDE" => "EBikeRide".to_string(),
-            "MOUNTAINBIKERIDE" => "MountainBikeRide".to_string(),
-            "GRAVELRIDE" => "GravelRide".to_string(),
-            _ => key.to_string(), // fallback to original
+            "RUN" => "Run".to_owned(),
+            "RIDE" => "Ride".to_owned(),
+            "SWIM" => "Swim".to_owned(),
+            "WALK" => "Walk".to_owned(),
+            "HIKE" => "Hike".to_owned(),
+            "VIRTUALRIDE" => "VirtualRide".to_owned(),
+            "VIRTUALRUN" => "VirtualRun".to_owned(),
+            "WORKOUT" => "Workout".to_owned(),
+            "YOGA" => "Yoga".to_owned(),
+            "EBIKERIDE" => "EBikeRide".to_owned(),
+            "MOUNTAINBIKERIDE" => "MountainBikeRide".to_owned(),
+            "GRAVELRIDE" => "GravelRide".to_owned(),
+            _ => key.to_owned(), // fallback to original
         }
     }
 

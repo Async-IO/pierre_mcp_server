@@ -6,7 +6,10 @@
 
 //! OAuth constants module
 
+/// OAuth provider constants
 pub mod providers;
 
 // Re-export for easier access
+
+/// Re-export all OAuth provider constants
 pub use providers::*;

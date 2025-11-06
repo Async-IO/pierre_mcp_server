@@ -4,6 +4,8 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(clippy::too_many_lines)]
 #![recursion_limit = "256"]
 
@@ -68,17 +70,17 @@ fn create_test_config(port: u16) -> Arc<pierre_mcp_server::config::environment::
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
-                client_id: Some("test_client_id".to_string()),
-                client_secret: Some("test_client_secret".to_string()),
-                redirect_uri: Some("http://localhost:8081/oauth/callback/strava".to_string()),
-                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                client_id: Some("test_client_id".to_owned()),
+                client_secret: Some("test_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8081/oauth/callback/strava".to_owned()),
+                scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
                 enabled: true,
             },
             fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
                 client_id: None,
                 client_secret: None,
-                redirect_uri: Some("http://localhost:8081/oauth/callback/fitbit".to_string()),
-                scopes: vec!["activity".to_string()],
+                redirect_uri: Some("http://localhost:8081/oauth/callback/fitbit".to_owned()),
+                scopes: vec!["activity".to_owned()],
                 enabled: false,
             },
             garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
@@ -103,31 +105,30 @@ fn create_test_config(port: u16) -> Arc<pierre_mcp_server::config::environment::
         external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
             weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: true,
             },
             strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
-                base_url: "https://apis.garmin.com".to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
-                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
-                    .to_string(),
-                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                base_url: "https://apis.garmin.com".to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token".to_owned(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
@@ -135,9 +136,9 @@ fn create_test_config(port: u16) -> Arc<pierre_mcp_server::config::environment::
             default_activities_limit: 20,
             ci_mode: true,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                mcp_version: "2025-06-18".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2025-06-18".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
@@ -182,8 +183,8 @@ impl MultiTenantMcpClient {
         let password_hash = bcrypt::hash(password, bcrypt::DEFAULT_COST)?;
         let test_user = pierre_mcp_server::models::User {
             id: user_id,
-            email: email.to_string(),
-            display_name: Some(display_name.to_string()),
+            email: email.to_owned(),
+            display_name: Some(display_name.to_owned()),
             password_hash,
             tier: pierre_mcp_server::models::UserTier::Starter,
             tenant_id: Some(tenant_uuid.to_string()), // Associate with the tenant that has OAuth credentials
@@ -202,10 +203,10 @@ impl MultiTenantMcpClient {
         // Create a test tenant for OAuth credentials with test user as owner
         let test_tenant = pierre_mcp_server::models::Tenant {
             id: tenant_uuid,
-            name: "Test Tenant".to_string(),
-            slug: "test-tenant".to_string(),
+            name: "Test Tenant".to_owned(),
+            slug: "test-tenant".to_owned(),
             domain: None,
-            plan: "starter".to_string(),
+            plan: "starter".to_owned(),
             owner_user_id: user_id, // Test user is the owner
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
@@ -214,11 +215,11 @@ impl MultiTenantMcpClient {
 
         let strava_credentials = pierre_mcp_server::tenant::TenantOAuthCredentials {
             tenant_id: tenant_uuid,
-            provider: "strava".to_string(),
-            client_id: "test_client_id".to_string(),
-            client_secret: "test_client_secret".to_string(),
-            redirect_uri: "http://localhost:3000/auth/callback".to_string(),
-            scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+            provider: "strava".to_owned(),
+            client_id: "test_client_id".to_owned(),
+            client_secret: "test_client_secret".to_owned(),
+            redirect_uri: "http://localhost:3000/auth/callback".to_owned(),
+            scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
             rate_limit_per_day: 1000,
         };
         database
@@ -227,11 +228,11 @@ impl MultiTenantMcpClient {
 
         let fitbit_credentials = pierre_mcp_server::tenant::TenantOAuthCredentials {
             tenant_id: tenant_uuid,
-            provider: "fitbit".to_string(),
-            client_id: "test_fitbit_client_id".to_string(),
-            client_secret: "test_fitbit_client_secret".to_string(),
-            redirect_uri: "http://localhost:3000/auth/callback".to_string(),
-            scopes: vec!["activity".to_string(), "profile".to_string()],
+            provider: "fitbit".to_owned(),
+            client_id: "test_fitbit_client_id".to_owned(),
+            client_secret: "test_fitbit_client_secret".to_owned(),
+            redirect_uri: "http://localhost:3000/auth/callback".to_owned(),
+            scopes: vec!["activity".to_owned(), "profile".to_owned()],
             rate_limit_per_day: 1000,
         };
         database
@@ -259,7 +260,7 @@ impl MultiTenantMcpClient {
 
         if response.status().is_success() {
             let data: Value = response.json().await?;
-            let token = data["jwt_token"].as_str().unwrap().to_string();
+            let token = data["jwt_token"].as_str().unwrap().to_owned();
             eprintln!(
                 "DEBUG: Received JWT token from login: {} (first 100 chars)",
                 &token[..std::cmp::min(100, token.len())]
@@ -280,7 +281,7 @@ impl MultiTenantMcpClient {
         if response.status() == 302 {
             // Extract URL from Location header for redirect response
             if let Some(location) = response.headers().get("location") {
-                let auth_url = location.to_str()?.to_string();
+                let auth_url = location.to_str()?.to_owned();
                 Ok(auth_url)
             } else {
                 Err(anyhow::anyhow!("OAuth redirect missing Location header"))
@@ -288,7 +289,7 @@ impl MultiTenantMcpClient {
         } else if response.status().is_success() {
             // Handle JSON response (if server returns JSON instead of redirect)
             let data: Value = response.json().await?;
-            Ok(data["authorization_url"].as_str().unwrap().to_string())
+            Ok(data["authorization_url"].as_str().unwrap().to_owned())
         } else {
             Err(anyhow::anyhow!(
                 "OAuth URL generation failed: {}",

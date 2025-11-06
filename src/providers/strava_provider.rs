@@ -33,6 +33,7 @@ struct StravaAthleteResponse {
 /// Strava map data in API responses
 #[derive(Debug, Clone, Deserialize)]
 pub struct StravaMap {
+    /// Encoded polyline summary of the route
     pub summary_polyline: Option<String>,
 }
 
@@ -69,42 +70,69 @@ pub struct StravaActivityResponse {
 /// Strava split data from detailed activity endpoint
 #[derive(Debug, Clone, Deserialize)]
 pub struct StravaSplit {
+    /// Distance covered in this split (meters)
     pub distance: Option<f32>,
+    /// Total elapsed time for the split (seconds)
     pub elapsed_time: Option<u32>,
+    /// Elevation gain/loss in the split (meters)
     pub elevation_difference: Option<f32>,
+    /// Time spent moving during the split (seconds)
     pub moving_time: Option<u32>,
+    /// Split number (1-based index)
     pub split: Option<u32>,
+    /// Average speed during the split (meters/second)
     pub average_speed: Option<f32>,
+    /// Pace zone classification (0-5)
     pub pace_zone: Option<u32>,
 }
 
 /// Strava lap data from detailed activity endpoint
 #[derive(Debug, Clone, Deserialize)]
 pub struct StravaLap {
+    /// Unique identifier for this lap
     pub id: Option<u64>,
+    /// Total elapsed time for the lap (seconds)
     pub elapsed_time: Option<u32>,
+    /// Time spent moving during the lap (seconds)
     pub moving_time: Option<u32>,
+    /// Distance covered in the lap (meters)
     pub distance: Option<f32>,
+    /// Total elevation gain during the lap (meters)
     pub total_elevation_gain: Option<f32>,
+    /// Average speed during the lap (meters/second)
     pub average_speed: Option<f32>,
+    /// Maximum speed reached during the lap (meters/second)
     pub max_speed: Option<f32>,
+    /// Average heart rate during the lap (bpm)
     pub average_heartrate: Option<f32>,
+    /// Maximum heart rate during the lap (bpm)
     pub max_heartrate: Option<f32>,
+    /// Average cadence during the lap (rpm/spm)
     pub average_cadence: Option<f32>,
+    /// Average power output during the lap (watts)
     pub average_watts: Option<f32>,
 }
 
 /// Strava segment effort data from detailed activity endpoint
 #[derive(Debug, Clone, Deserialize)]
 pub struct StravaSegmentEffort {
+    /// Unique identifier for this segment effort
     pub id: Option<u64>,
+    /// Name of the segment
     pub name: Option<String>,
+    /// Total elapsed time for the segment (seconds)
     pub elapsed_time: Option<u32>,
+    /// Time spent moving during the segment (seconds)
     pub moving_time: Option<u32>,
+    /// Distance of the segment (meters)
     pub distance: Option<f32>,
+    /// Average heart rate during the segment (bpm)
     pub average_heartrate: Option<f32>,
+    /// Maximum heart rate during the segment (bpm)
     pub max_heartrate: Option<f32>,
+    /// Average cadence during the segment (rpm/spm)
     pub average_cadence: Option<f32>,
+    /// Average power output during the segment (watts)
     pub average_watts: Option<f32>,
 }
 
@@ -112,28 +140,40 @@ pub struct StravaSegmentEffort {
 /// Includes all summary fields plus additional detail-only fields like splits, laps, and segment efforts
 #[derive(Debug, Clone, Deserialize)]
 pub struct DetailedActivityResponse {
-    // Include all summary fields via flattening
+    /// All summary-level activity fields (flattened)
     #[serde(flatten)]
     pub summary: StravaActivityResponse,
 
     // Social and engagement data
+    /// Number of kudos received
     pub kudos_count: Option<u32>,
+    /// Number of comments
     pub comment_count: Option<u32>,
+    /// Number of athletes who participated
     pub athlete_count: Option<u32>,
+    /// Number of photos attached
     pub photo_count: Option<u32>,
+    /// Number of achievements earned
     pub achievement_count: Option<u32>,
 
     // Additional elevation data
+    /// Highest elevation point (meters)
     pub elev_high: Option<f32>,
+    /// Lowest elevation point (meters)
     pub elev_low: Option<f32>,
 
     // Performance metrics
+    /// Number of personal records achieved
     pub pr_count: Option<u32>,
+    /// Name of the recording device
     pub device_name: Option<String>,
 
     // Complex nested data
+    /// Metric splits (1km or 1mi intervals)
     pub splits_metric: Option<Vec<StravaSplit>>,
+    /// Lap data from the activity
     pub laps: Option<Vec<StravaLap>>,
+    /// Segment efforts completed during the activity
     pub segment_efforts: Option<Vec<StravaSegmentEffort>>,
 }
 
@@ -172,14 +212,14 @@ impl StravaProvider {
     #[must_use]
     pub fn new() -> Self {
         let config = ProviderConfig {
-            name: oauth_providers::STRAVA.to_string(),
-            auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-            token_url: "https://www.strava.com/oauth/token".to_string(),
-            api_base_url: "https://www.strava.com/api/v3".to_string(),
-            revoke_url: Some("https://www.strava.com/oauth/deauthorize".to_string()),
+            name: oauth_providers::STRAVA.to_owned(),
+            auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+            token_url: "https://www.strava.com/oauth/token".to_owned(),
+            api_base_url: "https://www.strava.com/api/v3".to_owned(),
+            revoke_url: Some("https://www.strava.com/oauth/deauthorize".to_owned()),
             default_scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                 .split(',')
-                .map(str::to_string)
+                .map(str::to_owned)
                 .collect(),
         };
 
@@ -261,7 +301,7 @@ impl StravaProvider {
                 text
             );
             return Err(ProviderError::ApiError {
-                provider: oauth_providers::STRAVA.to_string(),
+                provider: oauth_providers::STRAVA.to_owned(),
                 status_code: status.as_u16(),
                 message: format!("Strava API request failed with status {status}: {text}"),
                 retryable: false,
@@ -294,7 +334,7 @@ impl StravaProvider {
             "workout" => SportType::Workout,
             "yoga" => SportType::Yoga,
             "weighttraining" => SportType::StrengthTraining,
-            _ => SportType::Other(strava_type.to_string()),
+            _ => SportType::Other(strava_type.to_owned()),
         }
     }
 
@@ -369,7 +409,7 @@ impl StravaProvider {
             region: activity.location_state,
             country: activity.location_country,
             trail_name: None,
-            provider: oauth_providers::STRAVA.to_string(),
+            provider: oauth_providers::STRAVA.to_owned(),
         })
     }
 
@@ -518,8 +558,8 @@ impl FitnessProvider for StravaProvider {
                 })
             } else {
                 return Err(ProviderError::ConfigurationError {
-                    provider: oauth_providers::STRAVA.to_string(),
-                    details: "No credentials available".to_string(),
+                    provider: oauth_providers::STRAVA.to_owned(),
+                    details: "No credentials available".to_owned(),
                 }
                 .into());
             };
@@ -562,7 +602,7 @@ impl FitnessProvider for StravaProvider {
         if !response.status().is_success() {
             let status = response.status();
             return Err(ProviderError::AuthenticationFailed {
-                provider: oauth_providers::STRAVA.to_string(),
+                provider: oauth_providers::STRAVA.to_owned(),
                 reason: format!("token refresh failed with status: {status}"),
             }
             .into());
@@ -595,7 +635,7 @@ impl FitnessProvider for StravaProvider {
             firstname: strava_athlete.firstname,
             lastname: strava_athlete.lastname,
             profile_picture: strava_athlete.profile_medium,
-            provider: oauth_providers::STRAVA.to_string(),
+            provider: oauth_providers::STRAVA.to_owned(),
         })
     }
 
@@ -640,16 +680,14 @@ impl FitnessProvider for StravaProvider {
         // If cursor provided, decode and use for filtering
         if let Some(cursor) = &params.cursor {
             if let Some((timestamp, id)) = cursor.decode() {
-                // Strava filters by before/after timestamp
                 use std::fmt::Write;
+                // Strava filters by before/after timestamp
                 match params.direction {
                     PaginationDirection::Forward => {
-                        write!(endpoint, "&before={}", timestamp.timestamp())
-                            .expect("write! to String cannot fail except on OOM");
+                        let _ = write!(endpoint, "&before={}", timestamp.timestamp());
                     }
                     PaginationDirection::Backward => {
-                        write!(endpoint, "&after={}", timestamp.timestamp())
-                            .expect("write! to String cannot fail except on OOM");
+                        let _ = write!(endpoint, "&after={}", timestamp.timestamp());
                     }
                 }
                 tracing::info!("Cursor pagination: timestamp={}, id={}", timestamp, id);
@@ -674,17 +712,19 @@ impl FitnessProvider for StravaProvider {
         let has_more = activities.len() == limit;
 
         // Create next cursor from last activity
-        let next_cursor = if has_more && !activities.is_empty() {
-            let last = activities.last().unwrap();
-            Some(Cursor::new(last.start_date, &last.id))
+        let next_cursor = if has_more {
+            activities
+                .last()
+                .map(|last| Cursor::new(last.start_date, &last.id))
         } else {
             None
         };
 
         // Create previous cursor from first activity
-        let prev_cursor = if !activities.is_empty() && params.cursor.is_some() {
-            let first = activities.first().unwrap();
-            Some(Cursor::new(first.start_date, &first.id))
+        let prev_cursor = if params.cursor.is_some() {
+            activities
+                .first()
+                .map(|first| Cursor::new(first.start_date, &first.id))
         } else {
             None
         };

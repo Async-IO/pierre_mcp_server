@@ -14,12 +14,19 @@ use serde::{Deserialize, Serialize};
 /// Type-safe metric enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MetricType {
+    /// Pace metric (min/km, lower is better)
     Pace,
+    /// Speed metric (m/s)
     Speed,
+    /// Heart rate metric (bpm)
     HeartRate,
+    /// Distance metric (meters)
     Distance,
+    /// Duration metric (seconds)
     Duration,
+    /// Elevation gain metric (meters)
     Elevation,
+    /// Power output metric (watts)
     Power,
 }
 
@@ -190,12 +197,19 @@ impl SafeMetricExtractor {
 /// Summary statistics for a metric
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricSummary {
+    /// Type of metric being summarized
     pub metric_type: MetricType,
+    /// Number of data points
     pub count: usize,
+    /// Mean (average) value
     pub mean: f64,
+    /// Median value
     pub median: f64,
+    /// Standard deviation
     pub std_dev: f64,
+    /// Minimum value
     pub min: f64,
+    /// Maximum value
     pub max: f64,
 }
 

@@ -29,46 +29,70 @@ use uuid::Uuid;
 /// A2A Client registration request
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientRegistrationRequest {
+    /// Name of the client application
     pub name: String,
+    /// Description of the client's purpose
     pub description: String,
+    /// List of agent capabilities this client provides
     pub capabilities: Vec<String>,
+    /// `OAuth2` redirect URIs for authorization flows
     pub redirect_uris: Vec<String>,
+    /// Contact email for the client administrator
     pub contact_email: String,
 }
 
 /// A2A Client credentials response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientCredentials {
+    /// Unique client identifier
     pub client_id: String,
+    /// Client secret for authentication
     pub client_secret: String,
+    /// API key for direct API access
     pub api_key: String,
-    pub public_key: String,  // Ed25519 public key for verification
-    pub private_key: String, // Ed25519 private key for signing (client-side only)
-    pub key_type: String,    // "ed25519"
+    /// Ed25519 public key for signature verification
+    pub public_key: String,
+    /// Ed25519 private key for signing (client-side only, never stored)
+    pub private_key: String,
+    /// Key type identifier ("ed25519")
+    pub key_type: String,
 }
 
 /// A2A Client usage statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientUsageStats {
+    /// Client identifier
     pub client_id: String,
+    /// Number of requests made today
     pub requests_today: u64,
+    /// Number of requests made this month
     pub requests_this_month: u64,
+    /// Total number of requests ever made
     pub total_requests: u64,
+    /// Timestamp of the most recent request
     pub last_request_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Current rate limit tier
     pub rate_limit_tier: String,
 }
 
 /// A2A Client rate limit tiers
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum A2AClientTier {
+    /// Trial tier - 1,000 requests/month, auto-expires in 30 days
     #[default]
-    Trial, // 1,000 requests/month, auto-expires in 30 days
-    Standard,     // 10,000 requests/month
-    Professional, // 100,000 requests/month
-    Enterprise,   // Unlimited
+    Trial,
+    /// Standard tier - 10,000 requests/month
+    Standard,
+    /// Professional tier - 100,000 requests/month
+    Professional,
+    /// Enterprise tier - Unlimited requests
+    Enterprise,
 }
 
 impl A2AClientTier {
+    /// Returns the monthly API call limit for this tier
+    ///
+    /// Returns `None` for Enterprise tier (unlimited)
     #[must_use]
     pub const fn monthly_limit(&self) -> Option<u32> {
         match self {
@@ -79,6 +103,7 @@ impl A2AClientTier {
         }
     }
 
+    /// Returns the human-readable display name for this tier
     #[must_use]
     pub const fn display_name(&self) -> &'static str {
         match self {
@@ -93,40 +118,65 @@ impl A2AClientTier {
 /// A2A Rate limit status
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2ARateLimitStatus {
+    /// Whether the client is currently rate limited
     pub is_rate_limited: bool,
+    /// Maximum requests allowed in the current period
     pub limit: Option<u32>,
+    /// Remaining requests in the current period
     pub remaining: Option<u32>,
+    /// When the rate limit period resets
     pub reset_at: Option<DateTime<Utc>>,
+    /// Current rate limit tier
     pub tier: A2AClientTier,
 }
 
 /// A2A Active session information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2ASession {
+    /// Unique session identifier
     pub id: String,
+    /// Client ID that owns this session
     pub client_id: String,
+    /// User ID if the session is user-scoped
     pub user_id: Option<uuid::Uuid>,
+    /// `OAuth2` scopes granted to this session
     pub granted_scopes: Vec<String>,
+    /// When the session was created
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// When the session expires
     pub expires_at: chrono::DateTime<chrono::Utc>,
+    /// Timestamp of the last API activity
     pub last_activity: chrono::DateTime<chrono::Utc>,
+    /// Total number of requests made in this session
     pub requests_count: u64,
 }
 
 /// Parameters for detailed A2A usage recording
 #[derive(Debug, Clone)]
 pub struct A2AUsageParams {
+    /// Client identifier
     pub client_id: String,
+    /// Session token if available
     pub session_token: Option<String>,
+    /// Name of the tool/endpoint called
     pub tool_name: String,
+    /// Response time in milliseconds
     pub response_time_ms: Option<u32>,
+    /// HTTP status code returned
     pub status_code: u16,
+    /// Error message if the request failed
     pub error_message: Option<String>,
+    /// Size of the request in bytes
     pub request_size_bytes: Option<u32>,
+    /// Size of the response in bytes
     pub response_size_bytes: Option<u32>,
+    /// Client IP address
     pub ip_address: Option<String>,
+    /// Client user agent string
     pub user_agent: Option<String>,
+    /// Capabilities advertised by the client
     pub client_capabilities: Vec<String>,
+    /// `OAuth2` scopes granted for this request
     pub granted_scopes: Vec<String>,
 }
 
@@ -138,6 +188,7 @@ pub struct A2AClientManager {
 }
 
 impl A2AClientManager {
+    /// Creates a new A2A client manager instance
     #[must_use]
     pub fn new(
         database: Arc<crate::database_plugins::factory::Database>,
@@ -377,7 +428,7 @@ impl A2AClientManager {
         // First verify the client exists
         self.get_client(client_id)
             .await?
-            .ok_or_else(|| crate::a2a::A2AError::ClientNotRegistered(client_id.to_string()))?;
+            .ok_or_else(|| crate::a2a::A2AError::ClientNotRegistered(client_id.to_owned()))?;
 
         // Deactivate the client in the database
         self.database
@@ -437,15 +488,15 @@ impl A2AClientManager {
         let start_of_day = chrono::Utc::now()
             .with_hour(0)
             .ok_or_else(|| {
-                crate::a2a::A2AError::InternalError("Failed to set hour to 0".to_string())
+                crate::a2a::A2AError::InternalError("Failed to set hour to 0".to_owned())
             })?
             .with_minute(0)
             .ok_or_else(|| {
-                crate::a2a::A2AError::InternalError("Failed to set minute to 0".to_string())
+                crate::a2a::A2AError::InternalError("Failed to set minute to 0".to_owned())
             })?
             .with_second(0)
             .ok_or_else(|| {
-                crate::a2a::A2AError::InternalError("Failed to set second to 0".to_string())
+                crate::a2a::A2AError::InternalError("Failed to set second to 0".to_owned())
             })?;
         let end_of_day = chrono::Utc::now();
 
@@ -479,7 +530,7 @@ impl A2AClientManager {
             })?;
 
         Ok(ClientUsageStats {
-            client_id: client_id.to_string(),
+            client_id: client_id.to_owned(),
             requests_today: u64::from(today_stats.total_requests),
             requests_this_month,
             total_requests: u64::from(total_stats.total_requests),
@@ -512,7 +563,7 @@ impl A2AClientManager {
         // Cache the session for quick access
         let session = A2ASession {
             id: session_token.clone(),
-            client_id: client_id.to_string(),
+            client_id: client_id.to_owned(),
             user_id: user_uuid,
             granted_scopes,
             created_at: chrono::Utc::now(),
@@ -603,9 +654,9 @@ impl A2AClientManager {
         success: bool,
     ) -> Result<(), crate::a2a::A2AError> {
         let params = A2AUsageParams {
-            client_id: client_id.to_string(),
+            client_id: client_id.to_owned(),
             session_token: None,
-            tool_name: method.to_string(),
+            tool_name: method.to_owned(),
             response_time_ms: None,
             status_code: if success { 200 } else { 500 },
             error_message: None,
@@ -777,7 +828,7 @@ impl A2AClientManager {
             );
 
             let credentials = ClientCredentials {
-                client_id: id.to_string(),
+                client_id: id.clone(),
                 client_secret: secret,
                 api_key: format!("a2a_{client_id}"),
                 public_key,

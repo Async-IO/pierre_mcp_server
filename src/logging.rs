@@ -6,9 +6,10 @@
 
 //! Production-ready logging configuration with structured output
 
+/// Tenant-aware logging utilities and context management
 pub mod tenant;
 
-// Tenant-aware logging utilities and context management
+/// Re-export tenant logging utilities
 pub use tenant::{
     record_performance_metrics, record_request_context, record_tenant_context, ProviderApiContext,
     TenantLogger,
@@ -59,6 +60,7 @@ pub struct LoggingConfig {
     pub truncate_mcp_logs: bool,
 }
 
+/// Log output format options
 #[derive(Debug, Clone)]
 pub enum LogFormat {
     /// `JSON` format for production logging
@@ -78,7 +80,7 @@ impl Default for LoggingConfig {
             include_thread: false,
             include_spans: false,
             service_name: service_names::PIERRE_MCP_SERVER.into(),
-            service_version: env!("CARGO_PKG_VERSION").to_string(),
+            service_version: env!("CARGO_PKG_VERSION").to_owned(),
             environment: "development".into(),
             enable_telemetry: false,
             request_id_header: "x-request-id".into(),
@@ -116,7 +118,7 @@ impl LoggingConfig {
             service_name: env::var("SERVICE_NAME")
                 .unwrap_or_else(|_| service_names::PIERRE_MCP_SERVER.into()),
             service_version: env::var("SERVICE_VERSION")
-                .unwrap_or_else(|_| env!("CARGO_PKG_VERSION").to_string()),
+                .unwrap_or_else(|_| env!("CARGO_PKG_VERSION").to_owned()),
             environment: environment.clone(), // Safe: String ownership for logging config
             enable_telemetry: is_production || env::var("ENABLE_TELEMETRY").is_ok(),
             request_id_header: env::var("REQUEST_ID_HEADER")
@@ -303,7 +305,7 @@ impl LoggingConfig {
             include_thread: false,
             include_spans: true,
             service_name: service_names::PIERRE_MCP_SERVER.into(),
-            service_version: env!("CARGO_PKG_VERSION").to_string(),
+            service_version: env!("CARGO_PKG_VERSION").to_owned(),
             environment: "production".into(),
             enable_telemetry: true,
             request_id_header: "x-request-id".into(),

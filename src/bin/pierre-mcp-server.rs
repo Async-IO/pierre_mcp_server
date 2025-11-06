@@ -25,6 +25,7 @@ use pierre_mcp_server::{
 use std::sync::Arc;
 use tracing::{error, info};
 
+/// Command-line arguments for the Pierre MCP server
 #[derive(Parser)]
 #[command(name = "pierre-mcp-server")]
 #[command(about = "Pierre Fitness API - Multi-protocol fitness data API for LLMs")]
@@ -115,7 +116,7 @@ async fn bootstrap_server(config: ServerConfig) -> Result<()> {
     info!("Route timeout configuration initialized");
 
     // Initialize static server configuration (must be done before any code accesses get_server_config())
-    pierre_mcp_server::constants::init_server_config();
+    pierre_mcp_server::constants::init_server_config()?;
     info!("Static server configuration initialized");
 
     let (database, auth_manager, jwt_secret) = initialize_core_systems(&config).await?;

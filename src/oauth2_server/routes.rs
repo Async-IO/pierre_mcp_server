@@ -76,7 +76,7 @@ pub fn oauth2_routes(
 fn oauth2_discovery_route(
     issuer_url: &str,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    let issuer_url = issuer_url.to_string(); // Safe: captured for warp filter closure lifetime
+    let issuer_url = issuer_url.to_owned(); // Safe: captured for warp filter closure lifetime
     warp::path!(".well-known" / "oauth-authorization-server")
         .and(warp::get())
         .map(move || {
@@ -532,7 +532,7 @@ async fn handle_validate_and_refresh(
     // Extract Bearer token from Authorization header
     let access_token = if let Some(header) = auth_header {
         if let Some(token) = header.strip_prefix("Bearer ") {
-            token.to_string()
+            token.to_owned()
         } else {
             tracing::warn!("Invalid Authorization header format - missing Bearer prefix");
             return Ok(warp::reply::with_status(
@@ -698,7 +698,7 @@ fn render_oauth_error_html(error: &OAuth2Error) -> String {
     };
 
     let default_description =
-        "An error occurred during the OAuth authorization process.".to_string();
+        "An error occurred during the OAuth authorization process.".to_owned();
     let error_description = error
         .error_description
         .as_ref()
@@ -837,8 +837,8 @@ async fn authenticate_user_with_auth_manager(
 /// Uses `tokio::task::spawn_blocking` to avoid blocking the async executor
 /// with CPU-intensive bcrypt operations.
 async fn verify_password(password: &str, hash: &str) -> bool {
-    let password = password.to_string();
-    let hash = hash.to_string();
+    let password = password.to_owned();
+    let hash = hash.to_owned();
 
     tokio::task::spawn_blocking(move || bcrypt::verify(&password, &hash).unwrap_or(false))
         .await
@@ -1065,7 +1065,7 @@ fn extract_session_token(cookie_header: &str) -> Option<String> {
     for cookie in cookie_header.split(';') {
         let cookie = cookie.trim();
         if let Some(session_token) = cookie.strip_prefix("pierre_session=") {
-            return Some(session_token.to_string());
+            return Some(session_token.to_owned());
         }
     }
     None

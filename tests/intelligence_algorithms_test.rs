@@ -1,6 +1,9 @@
 // ABOUTME: Unit tests for intelligence module algorithms (linear regression, TSS, VDOT, etc.)
 // ABOUTME: Tests pure computational functions without database or network dependencies
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use chrono::Utc;
 
 #[test]

@@ -168,7 +168,7 @@ impl McpAuthMiddleware {
         // Check rate limit
         if rate_limit.is_rate_limited {
             return Err(ProviderError::RateLimitExceeded {
-                provider: "API Key Authentication".to_string(),
+                provider: "API Key Authentication".to_owned(),
                 retry_after_secs: rate_limit.reset_at.map_or(3600, |dt| {
                     let now = chrono::Utc::now().timestamp();
                     let reset = dt.timestamp();
@@ -245,7 +245,7 @@ impl McpAuthMiddleware {
         let claims = self
             .auth_manager
             .validate_token(token, &self.jwks_manager)?;
-        Ok(claims.providers.contains(&provider.to_string()))
+        Ok(claims.providers.contains(&provider.to_owned()))
     }
 
     /// Get reference to the auth manager for testing purposes

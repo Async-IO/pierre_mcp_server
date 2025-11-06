@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use chrono::{DateTime, Duration, Utc};
 use pierre_mcp_server::intelligence::{
     RiskLevel, TrainingLoad, TrainingLoadCalculator, TrainingStatus,
@@ -18,7 +21,7 @@ fn create_test_activity(
 ) -> Activity {
     Activity {
         id: format!("test_{}", date.timestamp()),
-        name: "Test Activity".to_string(),
+        name: "Test Activity".to_owned(),
         sport_type: pierre_mcp_server::models::SportType::Run,
         start_date: date,
         duration_seconds: u64::from(duration_seconds),
@@ -60,7 +63,7 @@ fn create_test_activity(
         region: None,
         country: None,
         trail_name: None,
-        provider: "test".to_string(),
+        provider: "test".to_owned(),
     }
 }
 

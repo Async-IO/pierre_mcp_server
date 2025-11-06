@@ -13,14 +13,23 @@ use uuid::Uuid;
 
 /// OAuth token data for database operations
 pub struct OAuthTokenData<'a> {
+    /// Unique token identifier
     pub id: &'a str,
+    /// User ID this token belongs to
     pub user_id: Uuid,
+    /// Tenant ID for multi-tenant isolation
     pub tenant_id: &'a str,
+    /// OAuth provider (e.g., "strava", "fitbit")
     pub provider: &'a str,
+    /// OAuth access token
     pub access_token: &'a str,
+    /// Optional OAuth refresh token
     pub refresh_token: Option<&'a str>,
+    /// Token type (usually "Bearer")
     pub token_type: &'a str,
+    /// When the access token expires
     pub expires_at: Option<DateTime<Utc>>,
+    /// OAuth scope string
     pub scope: &'a str,
 }
 

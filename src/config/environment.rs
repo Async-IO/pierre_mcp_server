@@ -19,11 +19,16 @@ use tracing::{info, warn};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
+    /// Error level - only critical errors
     Error,
+    /// Warning level - potential issues
     Warn,
+    /// Info level - normal operational messages (default)
     #[default]
     Info,
+    /// Debug level - detailed debugging information
     Debug,
+    /// Trace level - very verbose tracing
     Trace,
 }
 
@@ -69,9 +74,12 @@ impl std::fmt::Display for LogLevel {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Environment {
+    /// Development environment (default)
     #[default]
     Development,
+    /// Production environment with stricter security
     Production,
+    /// Testing environment for automated tests
     Testing,
 }
 
@@ -119,9 +127,15 @@ impl std::fmt::Display for Environment {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DatabaseUrl {
     /// `SQLite` database with file path
-    SQLite { path: PathBuf },
+    SQLite {
+        /// Path to `SQLite` database file
+        path: PathBuf,
+    },
     /// `PostgreSQL` connection
-    PostgreSQL { connection_string: String },
+    PostgreSQL {
+        /// `PostgreSQL` connection string
+        connection_string: String,
+    },
     /// In-memory `SQLite` (for testing)
     Memory,
 }
@@ -144,7 +158,7 @@ impl DatabaseUrl {
             }
         } else if s.starts_with("postgresql://") || s.starts_with("postgres://") {
             Ok(Self::PostgreSQL {
-                connection_string: s.to_string(),
+                connection_string: s.to_owned(),
             })
         } else {
             // Fallback: treat as SQLite file path
@@ -402,6 +416,7 @@ pub struct McpConfig {
     pub session_cache_size: usize,
 }
 
+/// Server configuration for HTTP and MCP protocols
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ServerConfig {
     /// Server port (handles both MCP and HTTP)
@@ -454,6 +469,7 @@ pub struct ServerConfig {
     pub training_zones: TrainingZonesConfig,
 }
 
+/// Database connection and management configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DatabaseConfig {
     /// Database URL (`SQLite` path or `PostgreSQL` connection string)
@@ -489,6 +505,7 @@ impl Default for PostgresPoolConfig {
     }
 }
 
+/// Configuration for automatic database backups
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BackupConfig {
     /// Enable automatic backups
@@ -501,6 +518,7 @@ pub struct BackupConfig {
     pub directory: PathBuf,
 }
 
+/// Authentication configuration for JWT tokens
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AuthConfig {
     /// JWT expiry time in hours
@@ -509,6 +527,7 @@ pub struct AuthConfig {
     pub enable_refresh_tokens: bool,
 }
 
+/// OAuth provider configuration for fitness platforms
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct OAuthConfig {
     /// Strava OAuth configuration
@@ -519,6 +538,7 @@ pub struct OAuthConfig {
     pub garmin: OAuthProviderConfig,
 }
 
+/// OAuth provider-specific configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct OAuthProviderConfig {
     /// OAuth client ID
@@ -598,7 +618,7 @@ impl OAuthProviderConfig {
     ) {
         let fingerprint = self
             .secret_fingerprint()
-            .unwrap_or_else(|| "none".to_string());
+            .unwrap_or_else(|| "none".to_owned());
         info!(
             "OAuth provider {provider_name}: enabled=true, client_id={client_id}, \
              secret_length={}, secret_fingerprint={fingerprint}",
@@ -635,7 +655,7 @@ pub struct OAuth2ServerConfig {
 impl Default for OAuth2ServerConfig {
     fn default() -> Self {
         Self {
-            issuer_url: "http://localhost:8081".to_string(),
+            issuer_url: "http://localhost:8081".to_owned(),
             default_login_email: None,
             default_login_password: None,
         }
@@ -686,7 +706,7 @@ impl Default for LoggingConfig {
         Self {
             redact_pii: true, // Enabled by default for safety
             redaction_features: RedactionFeatures::ALL,
-            redaction_placeholder: "[REDACTED]".to_string(),
+            redaction_placeholder: "[REDACTED]".to_owned(),
             debug_sampling_enabled: false,
             debug_sampling_rate: 1.0,
         }
@@ -787,7 +807,7 @@ impl<'de> Deserialize<'de> for LoggingConfig {
                 let redact_body_fields = redact_body_fields.unwrap_or(true);
                 let mask_emails = mask_emails.unwrap_or(true);
                 let redaction_placeholder =
-                    redaction_placeholder.unwrap_or_else(|| "[REDACTED]".to_string());
+                    redaction_placeholder.unwrap_or_else(|| "[REDACTED]".to_owned());
                 let debug_sampling_enabled = debug_sampling_enabled.unwrap_or(false);
                 let debug_sampling_rate = debug_sampling_rate.unwrap_or(1.0);
 
@@ -825,6 +845,7 @@ impl<'de> Deserialize<'de> for LoggingConfig {
     }
 }
 
+/// Security configuration including CORS, rate limiting, and TLS
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SecurityConfig {
     /// CORS allowed origins
@@ -835,12 +856,14 @@ pub struct SecurityConfig {
     pub headers: SecurityHeadersConfig,
 }
 
+/// Security headers configuration based on environment
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SecurityHeadersConfig {
     /// Environment type for security headers (development, production)
     pub environment: Environment,
 }
 
+/// Rate limiting configuration for API endpoints
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TlsConfig {
     /// Enable TLS
@@ -851,6 +874,7 @@ pub struct TlsConfig {
     pub key_path: Option<PathBuf>,
 }
 
+/// External API services configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ExternalServicesConfig {
     /// Weather service configuration
@@ -865,6 +889,7 @@ pub struct ExternalServicesConfig {
     pub garmin_api: GarminApiConfig,
 }
 
+/// Weather API service configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WeatherServiceConfig {
     /// `OpenWeather` API key
@@ -875,6 +900,7 @@ pub struct WeatherServiceConfig {
     pub enabled: bool,
 }
 
+/// Geocoding API service configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GeocodingServiceConfig {
     /// Geocoding service base URL
@@ -883,6 +909,7 @@ pub struct GeocodingServiceConfig {
     pub enabled: bool,
 }
 
+/// Strava API configuration for OAuth and data fetching
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StravaApiConfig {
     /// Strava API base URL
@@ -895,6 +922,7 @@ pub struct StravaApiConfig {
     pub deauthorize_url: String,
 }
 
+/// Fitbit API configuration for OAuth and data fetching
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FitbitApiConfig {
     /// Fitbit API base URL
@@ -907,6 +935,7 @@ pub struct FitbitApiConfig {
     pub revoke_url: String,
 }
 
+/// Application behavior and feature flags configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppBehaviorConfig {
     /// Maximum activities to fetch in one request
@@ -919,6 +948,7 @@ pub struct AppBehaviorConfig {
     pub protocol: ProtocolConfig,
 }
 
+/// Protocol configuration for MCP server
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProtocolConfig {
     /// MCP protocol version
@@ -929,6 +959,7 @@ pub struct ProtocolConfig {
     pub server_version: String,
 }
 
+/// HTTP client timeout configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HttpClientConfig {
     /// Shared HTTP client request timeout in seconds
@@ -1051,7 +1082,7 @@ impl ServerConfig {
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(35535),
             log_level: LogLevel::from_str_or_default(
-                &env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string()),
+                &env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_owned()),
             ),
             logging: Self::load_logging_config(),
             database: Self::load_database_config()?,
@@ -1065,8 +1096,8 @@ impl ServerConfig {
             http_client: Self::load_http_client_config(),
             sse: Self::load_sse_config()?,
             route_timeouts: Self::load_route_timeouts_config(),
-            host: env::var("HOST").unwrap_or_else(|_| "localhost".to_string()),
-            base_url: env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_string()),
+            host: env::var("HOST").unwrap_or_else(|_| "localhost".to_owned()),
+            base_url: env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_owned()),
             mcp: Self::load_mcp_config(),
             cors: Self::load_cors_config(),
             cache: Self::load_cache_config(),
@@ -1292,7 +1323,7 @@ impl ServerConfig {
     fn load_database_config() -> Result<DatabaseConfig> {
         Ok(DatabaseConfig {
             url: DatabaseUrl::parse_url(
-                &env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string()),
+                &env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_owned()),
             )
             .unwrap_or_else(|_| DatabaseUrl::default()),
             auto_migrate: env_var_or("AUTO_MIGRATE", "true")
@@ -1380,7 +1411,7 @@ impl ServerConfig {
 
     /// Load Strava OAuth configuration from environment (disabled for tenant-based OAuth)
     fn load_strava_oauth_config() -> OAuthProviderConfig {
-        let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
+        let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_owned());
         // Use environment variables for global provider registration
         OAuthProviderConfig {
             client_id: env::var("STRAVA_CLIENT_ID").ok(),
@@ -1397,7 +1428,7 @@ impl ServerConfig {
 
     /// Load Fitbit OAuth configuration from environment (disabled for tenant-based OAuth)
     fn load_fitbit_oauth_config() -> OAuthProviderConfig {
-        let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
+        let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_owned());
         // Use environment variables for global provider registration
         OAuthProviderConfig {
             client_id: env::var("FITBIT_CLIENT_ID").ok(),
@@ -1595,7 +1626,7 @@ impl ServerConfig {
 
     /// Load Garmin OAuth configuration from environment
     fn load_garmin_oauth_config() -> OAuthProviderConfig {
-        let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
+        let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_owned());
         OAuthProviderConfig {
             client_id: env::var("GARMIN_CLIENT_ID").ok(),
             client_secret: env::var("GARMIN_CLIENT_SECRET").ok(),
@@ -1873,7 +1904,7 @@ impl ServerConfig {
         ProtocolConfig {
             mcp_version: env_var_or("MCP_PROTOCOL_VERSION", "2025-06-18"),
             server_name: env_var_or("SERVER_NAME", "pierre-mcp-server"),
-            server_version: env!("CARGO_PKG_VERSION").to_string(),
+            server_version: env!("CARGO_PKG_VERSION").to_owned(),
         }
     }
 
@@ -1977,7 +2008,7 @@ impl ServerConfig {
 
 /// Get environment variable or default value
 fn env_var_or(key: &str, default: &str) -> String {
-    env::var(key).unwrap_or_else(|_| default.to_string())
+    env::var(key).unwrap_or_else(|_| default.to_owned())
 }
 
 /// Parse comma-separated scopes
@@ -1985,7 +2016,7 @@ fn env_var_or(key: &str, default: &str) -> String {
 fn parse_scopes(scopes_str: &str) -> Vec<String> {
     scopes_str
         .split(',')
-        .map(|s| s.trim().to_string())
+        .map(|s| s.trim().to_owned())
         .filter(|s| !s.is_empty())
         .collect()
 }
@@ -1998,7 +2029,7 @@ fn parse_origins(origins_str: &str) -> Vec<String> {
     } else {
         origins_str
             .split(',')
-            .map(|s| s.trim().to_string())
+            .map(|s| s.trim().to_owned())
             .filter(|s| !s.is_empty())
             .collect()
     }

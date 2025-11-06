@@ -17,6 +17,9 @@
 //!
 //! Provides 46 tests covering the entire nutrition calculation API without OAuth dependencies.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::{
     config::intelligence_config::IntelligenceConfig,
     intelligence::nutrition_calculator::{

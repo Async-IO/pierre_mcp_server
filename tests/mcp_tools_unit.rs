@@ -6,6 +6,9 @@
 
 //! Unit tests for individual MCP analytics tools
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use pierre_mcp_server::mcp::schema::*;
@@ -72,8 +75,8 @@ fn test_analytics_tool_schemas() {
     // Check required parameters
     let schema = &analyze_activity.input_schema;
     if let Some(required) = &schema.required {
-        assert!(required.contains(&"provider".to_string()));
-        assert!(required.contains(&"activity_id".to_string()));
+        assert!(required.contains(&"provider".to_owned()));
+        assert!(required.contains(&"activity_id".to_owned()));
     } else {
         panic!("analyze_activity should have required parameters");
     }
@@ -95,10 +98,10 @@ fn test_analytics_tool_schemas() {
         .expect("set_goal tool should exist");
 
     if let Some(required) = &set_goal.input_schema.required {
-        assert!(required.contains(&"title".to_string()));
-        assert!(required.contains(&"goal_type".to_string()));
-        assert!(required.contains(&"target_value".to_string()));
-        assert!(required.contains(&"target_date".to_string()));
+        assert!(required.contains(&"title".to_owned()));
+        assert!(required.contains(&"goal_type".to_owned()));
+        assert!(required.contains(&"target_value".to_owned()));
+        assert!(required.contains(&"target_date".to_owned()));
     } else {
         panic!("set_goal should have required parameters");
     }
@@ -137,9 +140,9 @@ fn test_tool_parameter_validation() {
 fn test_initialize_response() {
     common::init_server_config();
     let response = InitializeResponse::new(
-        "2025-06-18".to_string(),
-        "pierre-mcp-server-multitenant".to_string(),
-        "0.1.0".to_string(),
+        "2025-06-18".to_owned(),
+        "pierre-mcp-server-multitenant".to_owned(),
+        "0.1.0".to_owned(),
     );
 
     assert_eq!(response.protocol_version, "2025-06-18");
@@ -211,7 +214,7 @@ fn test_provider_parameter_consistency() {
 
         if let Some(required) = &tool.input_schema.required {
             assert!(
-                required.contains(&"provider".to_string()),
+                required.contains(&"provider".to_owned()),
                 "Tool {tool_name} should require provider parameter"
             );
         } else {
@@ -255,10 +258,10 @@ fn test_goal_tools_consistency() {
     // set_goal should have comprehensive parameters
     let set_goal = tools.iter().find(|t| t.name == "set_goal").unwrap();
     if let Some(required) = &set_goal.input_schema.required {
-        assert!(required.contains(&"title".to_string()));
-        assert!(required.contains(&"goal_type".to_string()));
-        assert!(required.contains(&"target_value".to_string()));
-        assert!(required.contains(&"target_date".to_string()));
+        assert!(required.contains(&"title".to_owned()));
+        assert!(required.contains(&"goal_type".to_owned()));
+        assert!(required.contains(&"target_value".to_owned()));
+        assert!(required.contains(&"target_date".to_owned()));
     } else {
         panic!("set_goal should have required parameters");
     }

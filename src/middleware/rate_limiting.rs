@@ -16,12 +16,19 @@ use warp::Reply;
 
 /// HTTP header names for rate limiting
 pub mod headers {
+    /// HTTP header name for maximum requests allowed in the current window
     pub const X_RATE_LIMIT_LIMIT: &str = "X-RateLimit-Limit";
+    /// HTTP header name for remaining requests in the current window
     pub const X_RATE_LIMIT_REMAINING: &str = "X-RateLimit-Remaining";
+    /// HTTP header name for Unix timestamp when rate limit resets
     pub const X_RATE_LIMIT_RESET: &str = "X-RateLimit-Reset";
+    /// HTTP header name for rate limit window duration in seconds
     pub const X_RATE_LIMIT_WINDOW: &str = "X-RateLimit-Window";
+    /// HTTP header name for rate limit tier information
     pub const X_RATE_LIMIT_TIER: &str = "X-RateLimit-Tier";
+    /// HTTP header name for authentication method used
     pub const X_RATE_LIMIT_AUTH_METHOD: &str = "X-RateLimit-AuthMethod";
+    /// HTTP header name for retry-after duration in seconds
     pub const RETRY_AFTER: &str = "Retry-After";
 }
 

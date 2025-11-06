@@ -4,25 +4,51 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+/// RFC 7591 dynamic client registration implementation
 pub mod client_registration;
+/// OAuth 2.0 authorization server endpoints
 pub mod endpoints;
+/// OAuth 2.0 data models and types
 pub mod models;
+/// Rate limiting for OAuth 2.0 endpoints
 pub mod rate_limiting;
+/// HTTP route handlers for OAuth 2.0
 pub mod routes;
 
 // RFC 7591 client registration management
 pub use client_registration::ClientRegistrationManager;
 
 // OAuth 2.0 authorization server implementation
+
+/// OAuth 2.0 authorization server
 pub use endpoints::OAuth2AuthorizationServer;
 
 // OAuth 2.0 data models and request/response types
-pub use models::{
-    AuthorizeRequest, AuthorizeResponse, ClientRegistrationRequest, ClientRegistrationResponse,
-    OAuth2AccessToken, OAuth2AuthCode, OAuth2Client, OAuth2Error, TokenRequest, TokenResponse,
-};
+
+/// Authorization request
+pub use models::AuthorizeRequest;
+/// Authorization response
+pub use models::AuthorizeResponse;
+/// Client registration request
+pub use models::ClientRegistrationRequest;
+/// Client registration response
+pub use models::ClientRegistrationResponse;
+/// OAuth 2.0 access token
+pub use models::OAuth2AccessToken;
+/// OAuth 2.0 authorization code
+pub use models::OAuth2AuthCode;
+/// OAuth 2.0 client
+pub use models::OAuth2Client;
+/// OAuth 2.0 error response
+pub use models::OAuth2Error;
+/// Token exchange request
+pub use models::TokenRequest;
+/// Token exchange response
+pub use models::TokenResponse;
 
 // OAuth 2.0 HTTP route handlers
+
+/// OAuth 2.0 route configuration function
 pub use routes::oauth2_routes;
 
 // OAuth 2.0 rate limiting

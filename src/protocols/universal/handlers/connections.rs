@@ -55,15 +55,15 @@ pub fn handle_get_connection_status(
                 metadata: Some({
                     let mut map = std::collections::HashMap::new();
                     map.insert(
-                        "user_id".to_string(),
+                        "user_id".to_owned(),
                         serde_json::Value::String(user_uuid.to_string()),
                     );
                     map.insert(
-                        "provider".to_string(),
-                        serde_json::Value::String(specific_provider.to_string()),
+                        "provider".to_owned(),
+                        serde_json::Value::String(specific_provider.to_owned()),
                     );
                     map.insert(
-                        "tenant_id".to_string(),
+                        "tenant_id".to_owned(),
                         request
                             .tenant_id
                             .map_or(serde_json::Value::Null, serde_json::Value::String),
@@ -92,7 +92,7 @@ pub fn handle_get_connection_status(
                 };
 
                 providers_status.insert(
-                    provider.to_string(),
+                    provider.to_owned(),
                     serde_json::json!({
                         "connected": is_connected,
                         "status": status
@@ -109,11 +109,11 @@ pub fn handle_get_connection_status(
                 metadata: Some({
                     let mut map = std::collections::HashMap::new();
                     map.insert(
-                        "user_id".to_string(),
+                        "user_id".to_owned(),
                         serde_json::Value::String(user_uuid.to_string()),
                     );
                     map.insert(
-                        "tenant_id".to_string(),
+                        "tenant_id".to_owned(),
                         request
                             .tenant_id
                             .map_or(serde_json::Value::Null, serde_json::Value::String),
@@ -159,15 +159,15 @@ pub fn handle_disconnect_provider(
                 metadata: Some({
                     let mut map = std::collections::HashMap::new();
                     map.insert(
-                        "user_id".to_string(),
+                        "user_id".to_owned(),
                         serde_json::Value::String(user_uuid.to_string()),
                     );
                     map.insert(
-                        "provider".to_string(),
-                        serde_json::Value::String(provider.to_string()),
+                        "provider".to_owned(),
+                        serde_json::Value::String(provider.to_owned()),
                     );
                     map.insert(
-                        "tenant_id".to_string(),
+                        "tenant_id".to_owned(),
                         request
                             .tenant_id
                             .map_or(serde_json::Value::Null, serde_json::Value::String),
@@ -182,15 +182,15 @@ pub fn handle_disconnect_provider(
                 metadata: Some({
                     let mut map = std::collections::HashMap::new();
                     map.insert(
-                        "user_id".to_string(),
+                        "user_id".to_owned(),
                         serde_json::Value::String(user_uuid.to_string()),
                     );
                     map.insert(
-                        "provider".to_string(),
-                        serde_json::Value::String(provider.to_string()),
+                        "provider".to_owned(),
+                        serde_json::Value::String(provider.to_owned()),
                     );
                     map.insert(
-                        "tenant_id".to_string(),
+                        "tenant_id".to_owned(),
                         request
                             .tenant_id
                             .map_or(serde_json::Value::Null, serde_json::Value::String),
@@ -236,16 +236,16 @@ fn build_oauth_success_response(
         metadata: Some({
             let mut map = std::collections::HashMap::new();
             map.insert(
-                "user_id".to_string(),
+                "user_id".to_owned(),
                 serde_json::Value::String(user_uuid.to_string()),
             );
             map.insert(
-                "tenant_id".to_string(),
+                "tenant_id".to_owned(),
                 serde_json::Value::String(tenant_id.to_string()),
             );
             map.insert(
-                "provider".to_string(),
-                serde_json::Value::String(provider.to_string()),
+                "provider".to_owned(),
+                serde_json::Value::String(provider.to_owned()),
             );
             map
         }),
@@ -264,12 +264,12 @@ fn build_oauth_error_response(provider: &str, error: &str) -> UniversalResponse 
         metadata: Some({
             let mut map = std::collections::HashMap::new();
             map.insert(
-                "error_type".to_string(),
-                serde_json::Value::String("oauth_configuration_error".to_string()),
+                "error_type".to_owned(),
+                serde_json::Value::String("oauth_configuration_error".to_owned()),
             );
             map.insert(
-                "provider".to_string(),
-                serde_json::Value::String(provider.to_string()),
+                "provider".to_owned(),
+                serde_json::Value::String(provider.to_owned()),
             );
             map
         }),
@@ -320,7 +320,7 @@ pub fn handle_connect_provider(
             .and_then(|t| uuid::Uuid::parse_str(t).ok())
         else {
             return Ok(connection_error(
-                "User does not belong to any tenant".to_string(),
+                "User does not belong to any tenant".to_owned(),
             ));
         };
 
@@ -338,7 +338,7 @@ pub fn handle_connect_provider(
                     error = ?e,
                     "Failed to load tenant name from database - using 'Unknown Tenant' fallback"
                 );
-                "Unknown Tenant".to_string()
+                "Unknown Tenant".to_owned()
             }
         };
 

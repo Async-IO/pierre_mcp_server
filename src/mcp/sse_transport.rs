@@ -17,7 +17,9 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 /// SSE message format for MCP protocol
 #[derive(Debug)]
 pub struct SseMessage {
+    /// Type of SSE event (e.g., "message", "notification")
     pub event_type: String,
+    /// JSON-encoded message payload
     pub data: String,
 }
 
@@ -60,7 +62,7 @@ impl McpSseConnection {
         };
 
         let message = SseMessage {
-            event_type: event_type.to_string(),
+            event_type: event_type.to_owned(),
             data: serde_json::to_string(&response)?,
         };
 
@@ -82,8 +84,8 @@ impl McpSseConnection {
     /// Returns error if SSE channel is disconnected or message sending fails
     pub fn send_connection_established(&self) -> Result<()> {
         let message = SseMessage {
-            event_type: "connected".to_string(),
-            data: "MCP SSE transport ready".to_string(),
+            event_type: "connected".to_owned(),
+            data: "MCP SSE transport ready".to_owned(),
         };
 
         self.sender.send(message).map_err(|e| {
@@ -103,10 +105,10 @@ impl McpSseConnection {
     /// Returns error if JSON serialization fails or SSE channel is disconnected
     pub fn send_error(&self, error_message: &str) -> Result<()> {
         let error_response =
-            McpResponse::error(Some(Value::Null), -32603, error_message.to_string());
+            McpResponse::error(Some(Value::Null), -32603, error_message.to_owned());
 
         let message = SseMessage {
-            event_type: "error".to_string(),
+            event_type: "error".to_owned(),
             data: serde_json::to_string(&error_response)?,
         };
 

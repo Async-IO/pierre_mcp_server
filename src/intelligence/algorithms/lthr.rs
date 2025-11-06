@@ -25,7 +25,7 @@ use std::str::FromStr;
 pub enum LthrAlgorithm {
     /// Percentage of Maximum Heart Rate
     ///
-    /// Formula: `LTHR = MaxHR × percentage`
+    /// Formula: `LTHR = MaxHR x percentage`
     ///
     /// Typical percentages:
     /// - 0.85 (85%): Untrained individuals
@@ -45,7 +45,7 @@ pub enum LthrAlgorithm {
 
     /// 30-Minute Time Trial Test
     ///
-    /// Formula: `LTHR = avg_hr_30min × 1.03`
+    /// Formula: `LTHR = avg_hr_30min x 1.03`
     ///
     /// Perform a 30-minute all-out time trial after proper warmup.
     /// Average HR for the entire 30 minutes, then apply 1.03 multiplier.
@@ -132,7 +132,7 @@ impl LthrAlgorithm {
     /// ```rust,no_run
     /// let algorithm = LthrAlgorithm::From30MinTest { avg_hr_30min: 165.0 };
     /// let lthr = algorithm.estimate_lthr()?;
-    /// // lthr = 169.95 bpm (165 × 1.03)
+    /// // lthr = 169.95 bpm (165 x 1.03)
     /// ```
     pub fn estimate_lthr(&self) -> Result<f64, AppError> {
         match self {
@@ -156,7 +156,7 @@ impl LthrAlgorithm {
                 *half_duration_seconds,
             ),
             Self::Hybrid => Err(AppError::invalid_input(
-                "Hybrid LTHR estimation requires specific test data. Use one of the explicit test protocols.".to_string(),
+                "Hybrid LTHR estimation requires specific test data. Use one of the explicit test protocols.".to_owned(),
             )),
         }
     }
@@ -185,7 +185,7 @@ impl LthrAlgorithm {
     fn calculate_ramp_test_lthr(hr_samples: &[f64]) -> Result<f64, AppError> {
         if hr_samples.is_empty() {
             return Err(AppError::invalid_input(
-                "Ramp test requires HR samples".to_string(),
+                "Ramp test requires HR samples".to_owned(),
             ));
         }
 
@@ -219,7 +219,7 @@ impl LthrAlgorithm {
 
         if half_duration_seconds < 600.0 {
             return Err(AppError::invalid_input(
-                "Friel method requires at least 10-minute halves (600 seconds)".to_string(),
+                "Friel method requires at least 10-minute halves (600 seconds)".to_owned(),
             ));
         }
 
@@ -283,10 +283,10 @@ impl LthrAlgorithm {
     pub fn description(&self) -> String {
         match self {
             Self::FromMaxHR { max_hr, percentage } => {
-                format!("From MaxHR (LTHR = {max_hr:.0} bpm × {percentage:.2})")
+                format!("From MaxHR (LTHR = {max_hr:.0} bpm x {percentage:.2})")
             }
             Self::From30MinTest { avg_hr_30min } => {
-                format!("30-Minute Test (LTHR = {avg_hr_30min:.0} bpm × 1.03)")
+                format!("30-Minute Test (LTHR = {avg_hr_30min:.0} bpm x 1.03)")
             }
             Self::FromRampTest { hr_samples } => {
                 format!("Ramp Test ({} HR samples)", hr_samples.len())
@@ -302,7 +302,7 @@ impl LthrAlgorithm {
                     (first_half_avg_hr + second_half_avg_hr) / 2.0
                 )
             }
-            Self::Hybrid => "Hybrid (auto-select best method)".to_string(),
+            Self::Hybrid => "Hybrid (auto-select best method)".to_owned(),
         }
     }
 
@@ -310,8 +310,8 @@ impl LthrAlgorithm {
     #[must_use]
     pub const fn formula(&self) -> &'static str {
         match self {
-            Self::FromMaxHR { .. } => "LTHR = MaxHR × percentage (0.85-0.91)",
-            Self::From30MinTest { .. } => "LTHR = avg_hr_30min × 1.03",
+            Self::FromMaxHR { .. } => "LTHR = MaxHR x percentage (0.85-0.91)",
+            Self::From30MinTest { .. } => "LTHR = avg_hr_30min x 1.03",
             Self::FromRampTest { .. } => "LTHR = avg(HR_last_20min)",
             Self::FrielMethod { .. } => "LTHR = avg(HR) where drift ≤ 5%",
             Self::Hybrid => "Auto-select based on available test data",

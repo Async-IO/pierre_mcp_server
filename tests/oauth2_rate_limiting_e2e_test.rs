@@ -1,6 +1,9 @@
 // ABOUTME: End-to-end tests for OAuth2 endpoint rate limiting with RFC-compliant headers
 // ABOUTME: Validates per-IP rate limiting, 429 responses, and rate limit header correctness
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::{
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},

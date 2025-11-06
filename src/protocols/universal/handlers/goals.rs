@@ -48,7 +48,7 @@ fn extract_feasibility_params(
         .get("goal_type")
         .and_then(|v| v.as_str())
         .ok_or_else(|| ProtocolError::InvalidParameters("goal_type is required".into()))?
-        .to_string();
+        .to_owned();
 
     let target_value = request
         .parameters
@@ -150,7 +150,7 @@ fn generate_feasibility_recommendations(
     }
 
     if activities_count < crate::intelligence::physiological_constants::goal_feasibility::GOOD_DATA_QUALITY_THRESHOLD {
-        recommendations.push("Build consistent training history for better goal planning".to_string());
+        recommendations.push("Build consistent training history for better goal planning".to_owned());
     }
 
     recommendations
@@ -212,12 +212,12 @@ fn build_feasibility_response(params: &FeasibilityResponseParams) -> UniversalRe
         metadata: Some({
             let mut map = std::collections::HashMap::new();
             map.insert(
-                "analysis_method".to_string(),
-                serde_json::Value::String("historical_performance_based".to_string()),
+                "analysis_method".to_owned(),
+                serde_json::Value::String("historical_performance_based".to_owned()),
             );
             map.insert(
-                "safe_improvement_rate".to_string(),
-                serde_json::Value::String("10_percent_per_month".to_string()),
+                "safe_improvement_rate".to_owned(),
+                serde_json::Value::String("10_percent_per_month".to_owned()),
             );
             map
         }),
@@ -237,19 +237,19 @@ pub fn handle_set_goal(
             .parameters
             .get("goal_type")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ProtocolError::InvalidRequest("goal_type is required".to_string()))?;
+            .ok_or_else(|| ProtocolError::InvalidRequest("goal_type is required".to_owned()))?;
 
         let target_value = request
             .parameters
             .get("target_value")
             .and_then(serde_json::Value::as_f64)
-            .ok_or_else(|| ProtocolError::InvalidRequest("target_value is required".to_string()))?;
+            .ok_or_else(|| ProtocolError::InvalidRequest("target_value is required".to_owned()))?;
 
         let timeframe = request
             .parameters
             .get("timeframe")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ProtocolError::InvalidRequest("timeframe is required".to_string()))?;
+            .ok_or_else(|| ProtocolError::InvalidRequest("timeframe is required".to_owned()))?;
 
         let title = request
             .parameters
@@ -437,8 +437,8 @@ pub fn handle_analyze_goal_feasibility(
             _ => (
                 0.0,
                 crate::intelligence::physiological_constants::goal_feasibility::VERY_LOW_CONFIDENCE_LEVEL,
-                vec!["Unknown goal type".to_string()],
-                vec!["Specify a valid goal type: distance, duration, or frequency".to_string()],
+                vec!["Unknown goal type".to_owned()],
+                vec!["Specify a valid goal type: distance, duration, or frequency".to_owned()],
             ),
         };
 
@@ -516,8 +516,8 @@ fn analyze_distance_goal_feasibility(
         return (
             0.0,
             crate::intelligence::physiological_constants::goal_feasibility::MINIMUM_CONFIDENCE_LEVEL,
-            vec!["No historical data available".to_string()],
-            vec!["Start with smaller distance goals to build baseline".to_string()],
+            vec!["No historical data available".to_owned()],
+            vec!["Start with smaller distance goals to build baseline".to_owned()],
         );
     }
 
@@ -546,12 +546,12 @@ fn analyze_distance_goal_feasibility(
     let mut recommendations = Vec::new();
 
     if projected_distance < target_km * crate::intelligence::physiological_constants::goal_feasibility::VOLUME_DOUBLING_THRESHOLD {
-        risk_factors.push("Target requires more than doubling current volume".to_string());
-        recommendations.push("Increase training frequency gradually".to_string());
+        risk_factors.push("Target requires more than doubling current volume".to_owned());
+        recommendations.push("Increase training frequency gradually".to_owned());
     }
 
     if activity_count < crate::intelligence::physiological_constants::goal_feasibility::MIN_ACTIVITIES_FOR_GOOD_CONFIDENCE {
-        risk_factors.push("Limited training history".to_string());
+        risk_factors.push("Limited training history".to_owned());
     }
 
     let confidence = if activity_count >= crate::intelligence::physiological_constants::goal_feasibility::MIN_ACTIVITIES_FOR_EXCELLENT_CONFIDENCE {
@@ -580,8 +580,8 @@ fn analyze_duration_goal_feasibility(
         return (
             0.0,
             crate::intelligence::physiological_constants::goal_feasibility::MINIMUM_CONFIDENCE_LEVEL,
-            vec!["No historical data available".to_string()],
-            vec!["Start tracking activity duration".to_string()],
+            vec!["No historical data available".to_owned()],
+            vec!["Start tracking activity duration".to_owned()],
         );
     }
 
@@ -613,7 +613,7 @@ fn analyze_duration_goal_feasibility(
         projected_hours,
         confidence,
         Vec::new(),
-        vec!["Maintain consistent training schedule".to_string()],
+        vec!["Maintain consistent training schedule".to_owned()],
     )
 }
 
@@ -643,7 +643,7 @@ fn analyze_frequency_goal_feasibility(
         projected_count,
         confidence,
         Vec::new(),
-        vec!["Schedule training days in advance".to_string()],
+        vec!["Schedule training days in advance".to_owned()],
     )
 }
 
@@ -767,7 +767,7 @@ fn extract_goal_details(goal: &serde_json::Map<String, serde_json::Value>) -> Op
         .get("goal_type")
         .and_then(|v| v.as_str())
         .unwrap_or("distance")
-        .to_string();
+        .to_owned();
 
     let goal_target = goal
         .get("target_value")
@@ -777,7 +777,7 @@ fn extract_goal_details(goal: &serde_json::Map<String, serde_json::Value>) -> Op
         .get("timeframe")
         .and_then(|v| v.as_str())
         .unwrap_or("month")
-        .to_string();
+        .to_owned();
 
     let created_at = goal
         .get("created_at")
@@ -934,11 +934,11 @@ fn build_progress_response(params: &ProgressResponseParams) -> UniversalResponse
         metadata: Some({
             let mut map = std::collections::HashMap::new();
             map.insert(
-                "goal_loaded_from_db".to_string(),
+                "goal_loaded_from_db".to_owned(),
                 serde_json::Value::Bool(true),
             );
             map.insert(
-                "activities_since_goal_created".to_string(),
+                "activities_since_goal_created".to_owned(),
                 serde_json::Value::Number(params.relevant_activities.len().into()),
             );
             map
@@ -989,7 +989,7 @@ async fn fetch_progress_activities(
             Err(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some("Authentication required for progress tracking".to_string()),
+                error: Some("Authentication required for progress tracking".to_owned()),
                 metadata: None,
             })
         }
@@ -1008,7 +1008,7 @@ pub fn handle_track_progress(
             .get("goal_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| ProtocolError::InvalidParameters("goal_id is required".into()))?
-            .to_string();
+            .to_owned();
 
         let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
@@ -1043,7 +1043,7 @@ pub fn handle_track_progress(
             return Ok(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some("Goal data is not a valid object".to_string()),
+                error: Some("Goal data is not a valid object".to_owned()),
                 metadata: None,
             });
         };
@@ -1052,7 +1052,7 @@ pub fn handle_track_progress(
             return Ok(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some("Goal is missing required target_value field".to_string()),
+                error: Some("Goal is missing required target_value field".to_owned()),
                 metadata: None,
             });
         };

@@ -15,23 +15,30 @@ use std::sync::OnceLock;
 use thiserror::Error;
 
 /// Configuration error types
+/// Configuration-related errors
 #[derive(Debug, Error)]
 pub enum ConfigError {
+    /// Value outside acceptable range (e.g., percentage not between 0-100)
     #[error("Invalid range: {0}")]
     InvalidRange(&'static str),
 
+    /// Required configuration field is missing
     #[error("Missing required field: {0}")]
     MissingField(&'static str),
 
+    /// Environment variable access or parse error
     #[error("Environment variable error: {0}")]
     EnvVar(#[from] std::env::VarError),
 
+    /// Failed to parse configuration value
     #[error("Parse error: {0}")]
     Parse(String),
 
+    /// Weights don't sum to required total (e.g., not 100%)
     #[error("Invalid weights: {0}")]
     InvalidWeights(&'static str),
 
+    /// Numeric value outside valid range for parameter
     #[error("Value out of range: {0}")]
     ValueOutOfRange(&'static str),
 }
@@ -90,27 +97,27 @@ pub struct AlgorithmConfig {
 
 /// Default TSS algorithm (`avg_power` for backwards compatibility)
 fn default_tss_algorithm() -> String {
-    "avg_power".to_string()
+    "avg_power".to_owned()
 }
 
 /// Default Max HR algorithm (tanaka as most accurate)
 fn default_maxhr_algorithm() -> String {
-    "tanaka".to_string()
+    "tanaka".to_owned()
 }
 
 /// Default FTP algorithm (`from_vo2max` as most accessible)
 fn default_ftp_algorithm() -> String {
-    "from_vo2max".to_string()
+    "from_vo2max".to_owned()
 }
 
 /// Default LTHR algorithm (`from_maxhr` as most common)
 fn default_lthr_algorithm() -> String {
-    "from_maxhr".to_string()
+    "from_maxhr".to_owned()
 }
 
 /// Default `VO2max` algorithm (`from_vdot` as most validated)
 fn default_vo2max_algorithm() -> String {
-    "from_vdot".to_string()
+    "from_vdot".to_owned()
 }
 
 impl Default for AlgorithmConfig {
@@ -128,14 +135,23 @@ impl Default for AlgorithmConfig {
 /// Main intelligence configuration container
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IntelligenceConfig<const VALIDATED: bool = false> {
+    /// Configuration for workout recommendation engine
     pub recommendation_engine: RecommendationEngineConfig,
+    /// Configuration for performance analysis algorithms
     pub performance_analyzer: PerformanceAnalyzerConfig,
+    /// Configuration for goal tracking and achievement engine
     pub goal_engine: GoalEngineConfig,
+    /// Configuration for weather impact analysis
     pub weather_analysis: WeatherAnalysisConfig,
+    /// Configuration for activity classification and analysis
     pub activity_analyzer: ActivityAnalyzerConfig,
+    /// Configuration for metrics calculation and thresholds
     pub metrics: MetricsConfig,
+    /// Configuration for sleep tracking and recovery calculation
     pub sleep_recovery: SleepRecoveryConfig,
+    /// Configuration for nutrition analysis and recommendations
     pub nutrition: NutritionConfig,
+    /// Configuration for algorithm selection (TSS, FTP, `VO2max`, etc.)
     pub algorithms: AlgorithmConfig,
     _phantom: PhantomData<()>,
 }
@@ -143,258 +159,407 @@ pub struct IntelligenceConfig<const VALIDATED: bool = false> {
 /// Recommendation Engine Configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecommendationEngineConfig {
+    /// Threshold values for triggering recommendations
     pub thresholds: RecommendationThresholds,
+    /// Weights for scoring different recommendation factors
     pub weights: RecommendationWeights,
+    /// Limits on recommendation generation
     pub limits: RecommendationLimits,
+    /// Template messages for recommendations
     pub messages: RecommendationMessages,
 }
 
+/// Thresholds for triggering training recommendations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecommendationThresholds {
+    /// Minimum weekly distance (km) to trigger low distance warning
     pub low_weekly_distance_km: f64,
+    /// Maximum weekly distance (km) to trigger high distance warning
     pub high_weekly_distance_km: f64,
+    /// Minimum weekly training frequency to trigger warning
     pub low_weekly_frequency: i32,
+    /// Maximum weekly training frequency to trigger overtraining warning
     pub high_weekly_frequency: i32,
+    /// Pace improvement percentage required for pace recommendation
     pub pace_improvement_threshold: f64,
+    /// Consistency score threshold for consistency recommendations
     pub consistency_threshold: f64,
+    /// Days without activity to trigger rest day recommendation
     pub rest_day_threshold: i32,
+    /// Volume increase percentage to trigger warning
     pub volume_increase_threshold: f64,
+    /// Intensity threshold for high intensity warnings
     pub intensity_threshold: f64,
 }
 
+/// Weights for different factors in recommendation scoring
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecommendationWeights {
+    /// Weight for distance-based recommendations
     pub distance_weight: f64,
+    /// Weight for frequency-based recommendations
     pub frequency_weight: f64,
+    /// Weight for pace-based recommendations
     pub pace_weight: f64,
+    /// Weight for consistency-based recommendations
     pub consistency_weight: f64,
+    /// Weight for recovery-based recommendations
     pub recovery_weight: f64,
 }
 
+/// Limits on recommendation generation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecommendationLimits {
+    /// Maximum recommendations per category to prevent overwhelming users
     pub max_recommendations_per_category: usize,
+    /// Maximum total recommendations across all categories
     pub max_total_recommendations: usize,
+    /// Minimum confidence score to include a recommendation
     pub min_confidence_threshold: f64,
 }
 
+/// Template messages for different recommendation types
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecommendationMessages {
+    /// Message template for low distance warnings
     pub low_distance: String,
+    /// Message template for high distance warnings
     pub high_distance: String,
+    /// Message template for low frequency warnings
     pub low_frequency: String,
+    /// Message template for high frequency warnings
     pub high_frequency: String,
+    /// Message template for pace improvement recommendations
     pub pace_improvement: String,
+    /// Message template for consistency improvement recommendations
     pub consistency_improvement: String,
+    /// Message template for recovery recommendations
     pub recovery_needed: String,
 }
 
 /// Performance Analyzer Configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceAnalyzerConfig {
+    /// Trend analysis algorithm configuration
     pub trend_analysis: TrendAnalysisConfig,
+    /// Statistical analysis configuration
     pub statistical: StatisticalConfig,
+    /// Performance threshold values
     pub thresholds: PerformanceThresholds,
 }
 
+/// Configuration for trend analysis algorithms
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrendAnalysisConfig {
+    /// Minimum number of data points required for trend analysis
     pub min_data_points: usize,
+    /// Threshold for determining trend strength
     pub trend_strength_threshold: f64,
+    /// Statistical significance threshold
     pub significance_threshold: f64,
+    /// Threshold for detecting performance improvement
     pub improvement_threshold: f64,
+    /// Threshold for detecting performance decline
     pub decline_threshold: f64,
 }
 
+/// Configuration for statistical analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatisticalConfig {
+    /// Confidence level for statistical tests (e.g., 0.95 for 95%)
     pub confidence_level: f64,
+    /// Threshold for identifying outliers
     pub outlier_threshold: f64,
+    /// Smoothing factor for moving averages
     pub smoothing_factor: f64,
 }
 
+/// Performance thresholds for analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceThresholds {
+    /// Percentage change considered significant improvement
     pub significant_improvement: f64,
+    /// Percentage change considered significant decline
     pub significant_decline: f64,
+    /// Acceptable variance in pace
     pub pace_variance_threshold: f64,
+    /// Threshold for endurance assessment
     pub endurance_threshold: f64,
 }
 
 /// Goal Engine Configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GoalEngineConfig {
+    /// Configuration for goal feasibility assessment
     pub feasibility: FeasibilityConfig,
+    /// Configuration for goal suggestion generation
     pub suggestion: SuggestionConfig,
+    /// Configuration for goal progression tracking
     pub progression: ProgressionConfig,
 }
 
+/// Configuration for goal feasibility assessment
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeasibilityConfig {
+    /// Minimum success probability for accepting a goal
     pub min_success_probability: f64,
+    /// Multiplier for conservative goal calculations
     pub conservative_multiplier: f64,
+    /// Multiplier for aggressive goal calculations
     pub aggressive_multiplier: f64,
+    /// Threshold for injury risk warnings
     pub injury_risk_threshold: f64,
 }
 
+/// Configuration for goal suggestion generation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SuggestionConfig {
+    /// Maximum number of goals to suggest per goal type
     pub max_goals_per_type: usize,
+    /// Distribution of easy/moderate/hard goals
     pub difficulty_distribution: DifficultyDistribution,
+    /// Preferred timeframes for goal suggestions
     pub timeframe_preferences: TimeframePreferences,
 }
 
+/// Distribution of goal difficulties
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DifficultyDistribution {
+    /// Percentage of easy goals (0-1)
     pub easy_percentage: f64,
+    /// Percentage of moderate goals (0-1)
     pub moderate_percentage: f64,
+    /// Percentage of hard goals (0-1)
     pub hard_percentage: f64,
 }
 
+/// Timeframe preferences for goal suggestions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimeframePreferences {
+    /// Duration for short-term goals (in weeks)
     pub short_term_weeks: u32,
+    /// Duration for medium-term goals (in weeks)
     pub medium_term_weeks: u32,
+    /// Duration for long-term goals (in weeks)
     pub long_term_weeks: u32,
 }
 
+/// Configuration for training progression limits
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProgressionConfig {
+    /// Maximum weekly training volume increase (as percentage)
     pub weekly_increase_limit: f64,
+    /// Maximum monthly training volume increase (as percentage)
     pub monthly_increase_limit: f64,
+    /// Recommended frequency of deload weeks
     pub deload_frequency_weeks: u32,
 }
 
 /// Weather Analysis Configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeatherAnalysisConfig {
+    /// Temperature thresholds and ranges
     pub temperature: TemperatureConfig,
+    /// Weather condition thresholds (humidity, wind, precipitation)
     pub conditions: WeatherConditionsConfig,
+    /// Weights for combining different weather factors
     pub impact: WeatherImpactConfig,
 }
 
+/// Temperature thresholds for weather analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemperatureConfig {
+    /// Minimum ideal temperature in Celsius
     pub ideal_min_celsius: f32,
+    /// Maximum ideal temperature in Celsius
     pub ideal_max_celsius: f32,
+    /// Cold threshold temperature in Celsius
     pub cold_threshold_celsius: f32,
+    /// Hot threshold temperature in Celsius
     pub hot_threshold_celsius: f32,
+    /// Extreme cold threshold in Celsius
     pub extreme_cold_celsius: f32,
+    /// Extreme hot threshold in Celsius
     pub extreme_hot_celsius: f32,
 }
 
+/// Weather condition thresholds for activity analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeatherConditionsConfig {
+    /// High humidity threshold (0.0-1.0)
     pub high_humidity_threshold: f64,
+    /// Strong wind speed threshold in m/s
     pub strong_wind_threshold: f64,
+    /// Impact factor for precipitation on performance
     pub precipitation_impact_factor: f64,
 }
 
+/// Weights for combining weather impacts on performance
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeatherImpactConfig {
+    /// Weight for temperature impact (0.0-1.0)
     pub temperature_impact_weight: f64,
+    /// Weight for humidity impact (0.0-1.0)
     pub humidity_impact_weight: f64,
+    /// Weight for wind impact (0.0-1.0)
     pub wind_impact_weight: f64,
+    /// Weight for precipitation impact (0.0-1.0)
     pub precipitation_impact_weight: f64,
 }
 
 /// Activity Analyzer Configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActivityAnalyzerConfig {
+    /// Activity analysis settings
     pub analysis: ActivityAnalysisConfig,
+    /// Activity scoring settings
     pub scoring: ActivityScoringConfig,
+    /// Activity insights generation settings
     pub insights: ActivityInsightsConfig,
 }
 
+/// Configuration for activity analysis algorithms
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActivityAnalysisConfig {
+    /// Minimum activity duration to analyze (seconds)
     pub min_duration_seconds: u64,
+    /// Maximum reasonable pace in min/km
     pub max_reasonable_pace: f64,
+    /// Heart rate zone definitions
     pub heart_rate_zones: HeartRateZonesConfig,
+    /// Power zone definitions
     pub power_zones: PowerZonesConfig,
 }
 
+/// Heart rate zone percentage thresholds
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HeartRateZonesConfig {
+    /// Maximum percentage of max HR for zone 1
     pub zone1_max_percentage: f32,
+    /// Maximum percentage of max HR for zone 2
     pub zone2_max_percentage: f32,
+    /// Maximum percentage of max HR for zone 3
     pub zone3_max_percentage: f32,
+    /// Maximum percentage of max HR for zone 4
     pub zone4_max_percentage: f32,
+    /// Maximum percentage of max HR for zone 5
     pub zone5_max_percentage: f32,
 }
 
+/// Power zone percentage thresholds for cyclists
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PowerZonesConfig {
+    /// Maximum percentage of FTP for zone 1
     pub zone1_max_percentage: f32,
+    /// Maximum percentage of FTP for zone 2
     pub zone2_max_percentage: f32,
+    /// Maximum percentage of FTP for zone 3
     pub zone3_max_percentage: f32,
+    /// Maximum percentage of FTP for zone 4
     pub zone4_max_percentage: f32,
+    /// Maximum percentage of FTP for zone 5
     pub zone5_max_percentage: f32,
 }
 
+/// Weights for activity quality scoring components
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActivityScoringConfig {
+    /// Weight for efficiency score (0.0-1.0)
     pub efficiency_weight: f64,
+    /// Weight for intensity score (0.0-1.0)
     pub intensity_weight: f64,
+    /// Weight for duration score (0.0-1.0)
     pub duration_weight: f64,
+    /// Weight for consistency score (0.0-1.0)
     pub consistency_weight: f64,
 }
 
+/// Configuration for generating activity insights
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActivityInsightsConfig {
+    /// Minimum confidence to include an insight (0-100)
     pub min_confidence_threshold: f64,
+    /// Maximum number of insights per activity
     pub max_insights_per_activity: usize,
+    /// Severity threshold configuration
     pub severity_thresholds: SeverityThresholds,
 }
 
+/// Thresholds for insight severity classification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SeverityThresholds {
+    /// Threshold for info-level insights (0-100)
     pub info_threshold: f64,
+    /// Threshold for warning-level insights (0-100)
     pub warning_threshold: f64,
+    /// Threshold for critical-level insights (0-100)
     pub critical_threshold: f64,
 }
 
 /// Metrics Configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsConfig {
+    /// Metrics calculation settings
     pub calculation: MetricsCalculationConfig,
+    /// Metrics validation settings
     pub validation: MetricsValidationConfig,
+    /// Metrics aggregation settings
     pub aggregation: MetricsAggregationConfig,
 }
 
+/// Configuration for metrics calculation algorithms
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsCalculationConfig {
+    /// Window size for data smoothing
     pub smoothing_window_size: usize,
+    /// Z-score threshold for outlier detection
     pub outlier_detection_threshold: f64,
+    /// Whether to interpolate missing data points
     pub missing_data_interpolation: bool,
 }
 
+/// Validation rules for metrics data quality
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsValidationConfig {
+    /// Maximum valid heart rate (BPM)
     pub max_heart_rate: u32,
+    /// Minimum valid heart rate (BPM)
     pub min_heart_rate: u32,
+    /// Maximum valid pace (min/km)
     pub max_pace_min_per_km: f64,
+    /// Minimum valid pace (min/km)
     pub min_pace_min_per_km: f64,
 }
 
+/// Configuration for aggregating metrics over time periods
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsAggregationConfig {
+    /// Method for weekly aggregation (mean, median, sum)
     pub weekly_aggregation_method: String,
+    /// Method for monthly aggregation (mean, median, sum)
     pub monthly_aggregation_method: String,
+    /// Method for trend calculation (linear, exponential)
     pub trend_calculation_method: String,
 }
 
 /// Sleep and Recovery Configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SleepRecoveryConfig {
+    /// Sleep duration thresholds and recommendations
     pub sleep_duration: SleepDurationConfig,
+    /// Sleep stage distribution percentages
     pub sleep_stages: SleepStagesConfig,
+    /// Sleep efficiency thresholds
     pub sleep_efficiency: SleepEfficiencyConfig,
+    /// Heart rate variability (HRV) analysis settings
     pub hrv: HrvConfig,
+    /// Training Stress Balance (TSB) thresholds
     pub training_stress_balance: TsbConfig,
+    /// Recovery score calculation weights
     pub recovery_scoring: RecoveryScoringConfig,
 }
 
+/// Configuration for sleep duration thresholds and recommendations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SleepDurationConfig {
     /// Minimum optimal sleep duration for adults (hours)
@@ -411,6 +576,7 @@ pub struct SleepDurationConfig {
     pub very_short_sleep_threshold: f64,
 }
 
+/// Sleep stage distribution thresholds for optimal recovery
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SleepStagesConfig {
     /// Minimum healthy deep sleep percentage
@@ -435,6 +601,7 @@ pub struct SleepStagesConfig {
     pub awake_time_acceptable_percent: f64,
 }
 
+/// Sleep efficiency quality thresholds
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SleepEfficiencyConfig {
     /// Excellent sleep efficiency threshold (percentage)
@@ -445,6 +612,7 @@ pub struct SleepEfficiencyConfig {
     pub poor_threshold: f64,
 }
 
+/// Heart Rate Variability (HRV) analysis configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HrvConfig {
     /// RMSSD decrease threshold indicating concern (ms, negative value)
@@ -455,6 +623,7 @@ pub struct HrvConfig {
     pub baseline_deviation_concern_percent: f64,
 }
 
+/// Training Stress Balance (TSB) thresholds for fatigue management
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TsbConfig {
     /// Highly fatigued TSB threshold
@@ -469,6 +638,7 @@ pub struct TsbConfig {
     pub detraining_tsb: f64,
 }
 
+/// Recovery score calculation configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecoveryScoringConfig {
     /// Excellent recovery threshold (score 0-100)
@@ -498,10 +668,15 @@ pub struct RecoveryScoringConfig {
 /// - Timing: Kerksick et al. (2017) DOI: 10.1186/s12970-017-0189-4
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NutritionConfig {
+    /// Basal Metabolic Rate (BMR) calculation settings
     pub bmr: BmrConfig,
+    /// Activity factor multipliers for TDEE calculation
     pub activity_factors: ActivityFactorsConfig,
+    /// Macronutrient distribution targets
     pub macronutrients: MacronutrientConfig,
+    /// Nutrient timing recommendations
     pub nutrient_timing: NutrientTimingConfig,
+    /// USDA `FoodData` Central API configuration
     pub usda_api: UsdaApiConfig,
 }
 
@@ -1190,11 +1365,11 @@ impl IntelligenceConfig<true> {
             low_distance: "Consider gradually increasing your weekly distance".into(),
             high_distance: "You're covering good distance - focus on quality".into(),
             low_frequency: "Try to add one more training session per week".into(),
-            high_frequency: "You're training frequently - ensure adequate recovery".to_string(),
+            high_frequency: "You're training frequently - ensure adequate recovery".to_owned(),
             pace_improvement: "Focus on tempo runs to improve your pace".into(),
             consistency_improvement: "Try to maintain a more consistent training schedule"
-                .to_string(),
-            recovery_needed: "Consider adding more recovery time between sessions".to_string(),
+                .to_owned(),
+            recovery_needed: "Consider adding more recovery time between sessions".to_owned(),
         }
     }
 
@@ -1601,7 +1776,7 @@ impl IntelligenceConfig<true> {
     /// Create default USDA API configuration
     fn default_usda_api_config() -> UsdaApiConfig {
         UsdaApiConfig {
-            base_url: "https://api.nal.usda.gov/fdc/v1".to_string(),
+            base_url: "https://api.nal.usda.gov/fdc/v1".to_owned(),
             timeout_secs: 10,
             cache_ttl_hours: 24,
             max_cache_items: 1000,
@@ -1612,14 +1787,19 @@ impl IntelligenceConfig<true> {
 
 /// Trait for strategy-based configuration
 pub trait IntelligenceStrategy: Send + Sync + 'static {
+    /// Get recommendation thresholds for this strategy
     fn recommendation_thresholds(&self) -> &RecommendationThresholds;
+    /// Get performance analysis thresholds for this strategy
     fn performance_thresholds(&self) -> &PerformanceThresholds;
+    /// Get weather analysis configuration for this strategy
     fn weather_config(&self) -> &WeatherAnalysisConfig;
 
+    /// Check if volume increase recommendation should be triggered based on current weekly distance
     fn should_recommend_volume_increase(&self, current_km: f64) -> bool {
         current_km < self.recommendation_thresholds().low_weekly_distance_km
     }
 
+    /// Check if recovery recommendation should be triggered based on weekly frequency
     fn should_recommend_recovery(&self, frequency: i32) -> bool {
         frequency > self.recommendation_thresholds().high_weekly_frequency
     }
@@ -1638,6 +1818,7 @@ impl Default for ConservativeStrategy {
 }
 
 impl ConservativeStrategy {
+    /// Creates a new conservative training strategy configuration
     #[must_use]
     pub fn new() -> Self {
         let mut config = IntelligenceConfig::default();
@@ -1688,6 +1869,7 @@ impl Default for AggressiveStrategy {
 }
 
 impl AggressiveStrategy {
+    /// Creates a new aggressive training strategy configuration
     #[must_use]
     pub fn new() -> Self {
         let mut config = IntelligenceConfig::default();

@@ -71,24 +71,36 @@ impl GarminProvider {
     /// Create a new Garmin provider with default configuration
     #[must_use]
     pub fn new() -> Self {
-        let server_config = crate::constants::get_server_config();
-        let config = ProviderConfig {
-            name: oauth_providers::GARMIN.to_string(),
-            auth_url: server_config.external_services.garmin_api.auth_url.clone(),
-            token_url: server_config.external_services.garmin_api.token_url.clone(),
-            api_base_url: server_config.external_services.garmin_api.base_url.clone(),
-            revoke_url: Some(
-                server_config
-                    .external_services
-                    .garmin_api
-                    .revoke_url
-                    .clone(),
-            ),
-            default_scopes: crate::constants::oauth::GARMIN_DEFAULT_SCOPES
-                .split(',')
-                .map(str::to_string)
-                .collect(),
-        };
+        let config = crate::constants::get_server_config().map_or_else(
+            || ProviderConfig {
+                name: oauth_providers::GARMIN.to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
+                token_url: "https://connectapi.garmin.com/oauth-service/oauth/access_token"
+                    .to_owned(),
+                api_base_url: "https://connectapi.garmin.com".to_owned(),
+                revoke_url: Some(
+                    "https://connectapi.garmin.com/oauth-service/oauth/revoke".to_owned(),
+                ),
+                default_scopes: vec!["activity".to_owned()],
+            },
+            |server_config| ProviderConfig {
+                name: oauth_providers::GARMIN.to_owned(),
+                auth_url: server_config.external_services.garmin_api.auth_url.clone(),
+                token_url: server_config.external_services.garmin_api.token_url.clone(),
+                api_base_url: server_config.external_services.garmin_api.base_url.clone(),
+                revoke_url: Some(
+                    server_config
+                        .external_services
+                        .garmin_api
+                        .revoke_url
+                        .clone(),
+                ),
+                default_scopes: crate::constants::oauth::GARMIN_DEFAULT_SCOPES
+                    .split(',')
+                    .map(str::to_owned)
+                    .collect(),
+            },
+        );
 
         Self {
             config,
@@ -223,7 +235,7 @@ impl GarminProvider {
             }
 
             // Unmapped types fall through to Other variant
-            _ => SportType::Other(garmin_type.to_string()),
+            _ => SportType::Other(garmin_type.to_owned()),
         }
     }
 
@@ -279,7 +291,7 @@ impl GarminProvider {
             region: None,
             country: None,
             trail_name: None,
-            provider: oauth_providers::GARMIN.to_string(),
+            provider: oauth_providers::GARMIN.to_owned(),
         })
     }
 }
@@ -381,11 +393,11 @@ impl FitnessProvider for GarminProvider {
                 .display_name
                 .as_deref()
                 .unwrap_or_default()
-                .to_string(),
+                .to_owned(),
             firstname: garmin_athlete.full_name,
             lastname: None,
             profile_picture: garmin_athlete.profile_image_url,
-            provider: oauth_providers::GARMIN.to_string(),
+            provider: oauth_providers::GARMIN.to_owned(),
         })
     }
 

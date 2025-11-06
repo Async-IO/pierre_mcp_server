@@ -125,7 +125,7 @@ impl PluginManager {
         self.plugins.sort_by_key(|p| p.priority());
 
         for plugin in &mut self.plugins {
-            let plugin_name = plugin.name().to_string();
+            let plugin_name = plugin.name().to_owned();
             let is_required = plugin.is_required();
             let priority = plugin.priority();
 
@@ -182,7 +182,7 @@ impl PluginManager {
                 Err(e) => {
                     error!("Health check failed for plugin '{}': {}", plugin.name(), e);
                     results.push(PluginHealth {
-                        name: plugin.name().to_string(),
+                        name: plugin.name().to_owned(),
                         state: plugin.state(),
                         healthy: false,
                         message: Some(format!("Health check error: {e}")),
@@ -206,7 +206,7 @@ impl PluginManager {
         self.plugins.reverse();
 
         for plugin in &mut self.plugins {
-            let plugin_name = plugin.name().to_string();
+            let plugin_name = plugin.name().to_owned();
             info!("Shutting down plugin '{}'", plugin_name);
 
             if let Err(e) = plugin.shutdown().await {

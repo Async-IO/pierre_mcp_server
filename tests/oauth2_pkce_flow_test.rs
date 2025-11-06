@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use base64::{engine::general_purpose, Engine as _};
@@ -61,8 +64,8 @@ async fn setup_test_env() -> (
     // Register a test client
     let registration_manager = ClientRegistrationManager::new(database.clone());
     let registration_request = ClientRegistrationRequest {
-        redirect_uris: vec!["https://example.com/callback".to_string()],
-        client_name: Some("Test Client".to_string()),
+        redirect_uris: vec!["https://example.com/callback".to_owned()],
+        client_name: Some("Test Client".to_owned()),
         client_uri: None,
         grant_types: None,
         response_types: None,
@@ -107,19 +110,19 @@ async fn test_pkce_enforcement_no_code_challenge() {
 
     // Create test user
     let user = User::new(
-        "test@example.com".to_string(),
-        "hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     database.create_user(&user).await.unwrap();
 
     // Attempt authorization WITHOUT code_challenge (PKCE required)
     let auth_request = AuthorizeRequest {
-        response_type: "code".to_string(),
+        response_type: "code".to_owned(),
         client_id,
-        redirect_uri: "https://example.com/callback".to_string(),
-        scope: Some("fitness:read".to_string()),
-        state: Some("test_state".to_string()),
+        redirect_uri: "https://example.com/callback".to_owned(),
+        scope: Some("fitness:read".to_owned()),
+        state: Some("test_state".to_owned()),
         code_challenge: None, // No PKCE
         code_challenge_method: None,
     };
@@ -143,9 +146,9 @@ async fn test_pkce_valid_s256_flow() {
 
     // Create test user
     let user = User::new(
-        "test@example.com".to_string(),
-        "hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     database.create_user(&user).await.unwrap();
 
@@ -155,13 +158,13 @@ async fn test_pkce_valid_s256_flow() {
 
     // Authorization with PKCE
     let auth_request = AuthorizeRequest {
-        response_type: "code".to_string(),
+        response_type: "code".to_owned(),
         client_id: client_id.clone(),
-        redirect_uri: "https://example.com/callback".to_string(),
-        scope: Some("fitness:read".to_string()),
-        state: Some("test_state".to_string()),
+        redirect_uri: "https://example.com/callback".to_owned(),
+        scope: Some("fitness:read".to_owned()),
+        state: Some("test_state".to_owned()),
         code_challenge: Some(code_challenge),
-        code_challenge_method: Some("S256".to_string()),
+        code_challenge_method: Some("S256".to_owned()),
     };
 
     let auth_response = oauth_server
@@ -172,9 +175,9 @@ async fn test_pkce_valid_s256_flow() {
 
     // Token exchange with valid code_verifier
     let token_request = TokenRequest {
-        grant_type: "authorization_code".to_string(),
+        grant_type: "authorization_code".to_owned(),
         code: Some(auth_response.code),
-        redirect_uri: Some("https://example.com/callback".to_string()),
+        redirect_uri: Some("https://example.com/callback".to_owned()),
         client_id,
         client_secret,
         scope: None,
@@ -193,9 +196,9 @@ async fn test_pkce_invalid_code_verifier() {
 
     // Create test user
     let user = User::new(
-        "test@example.com".to_string(),
-        "hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     database.create_user(&user).await.unwrap();
 
@@ -205,13 +208,13 @@ async fn test_pkce_invalid_code_verifier() {
 
     // Authorization with PKCE
     let auth_request = AuthorizeRequest {
-        response_type: "code".to_string(),
+        response_type: "code".to_owned(),
         client_id: client_id.clone(),
-        redirect_uri: "https://example.com/callback".to_string(),
-        scope: Some("fitness:read".to_string()),
-        state: Some("test_state".to_string()),
+        redirect_uri: "https://example.com/callback".to_owned(),
+        scope: Some("fitness:read".to_owned()),
+        state: Some("test_state".to_owned()),
         code_challenge: Some(code_challenge),
-        code_challenge_method: Some("S256".to_string()),
+        code_challenge_method: Some("S256".to_owned()),
     };
 
     let auth_response = oauth_server
@@ -222,9 +225,9 @@ async fn test_pkce_invalid_code_verifier() {
     // Token exchange with WRONG code_verifier
     let wrong_verifier = generate_code_verifier(); // Different verifier
     let token_request = TokenRequest {
-        grant_type: "authorization_code".to_string(),
+        grant_type: "authorization_code".to_owned(),
         code: Some(auth_response.code),
-        redirect_uri: Some("https://example.com/callback".to_string()),
+        redirect_uri: Some("https://example.com/callback".to_owned()),
         client_id,
         client_secret,
         scope: None,
@@ -246,9 +249,9 @@ async fn test_pkce_missing_code_verifier() {
 
     // Create test user
     let user = User::new(
-        "test@example.com".to_string(),
-        "hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     database.create_user(&user).await.unwrap();
 
@@ -258,13 +261,13 @@ async fn test_pkce_missing_code_verifier() {
 
     // Authorization with PKCE
     let auth_request = AuthorizeRequest {
-        response_type: "code".to_string(),
+        response_type: "code".to_owned(),
         client_id: client_id.clone(),
-        redirect_uri: "https://example.com/callback".to_string(),
-        scope: Some("fitness:read".to_string()),
-        state: Some("test_state".to_string()),
+        redirect_uri: "https://example.com/callback".to_owned(),
+        scope: Some("fitness:read".to_owned()),
+        state: Some("test_state".to_owned()),
         code_challenge: Some(code_challenge),
-        code_challenge_method: Some("S256".to_string()),
+        code_challenge_method: Some("S256".to_owned()),
     };
 
     let auth_response = oauth_server
@@ -274,9 +277,9 @@ async fn test_pkce_missing_code_verifier() {
 
     // Token exchange WITHOUT code_verifier (should fail)
     let token_request = TokenRequest {
-        grant_type: "authorization_code".to_string(),
+        grant_type: "authorization_code".to_owned(),
         code: Some(auth_response.code),
-        redirect_uri: Some("https://example.com/callback".to_string()),
+        redirect_uri: Some("https://example.com/callback".to_owned()),
         client_id,
         client_secret,
         scope: None,
@@ -298,9 +301,9 @@ async fn test_auth_code_replay_prevention() {
 
     // Create test user
     let user = User::new(
-        "test@example.com".to_string(),
-        "hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     database.create_user(&user).await.unwrap();
 
@@ -310,13 +313,13 @@ async fn test_auth_code_replay_prevention() {
 
     // Authorization with PKCE
     let auth_request = AuthorizeRequest {
-        response_type: "code".to_string(),
+        response_type: "code".to_owned(),
         client_id: client_id.clone(),
-        redirect_uri: "https://example.com/callback".to_string(),
-        scope: Some("fitness:read".to_string()),
-        state: Some("test_state".to_string()),
+        redirect_uri: "https://example.com/callback".to_owned(),
+        scope: Some("fitness:read".to_owned()),
+        state: Some("test_state".to_owned()),
         code_challenge: Some(code_challenge),
-        code_challenge_method: Some("S256".to_string()),
+        code_challenge_method: Some("S256".to_owned()),
     };
 
     let auth_response = oauth_server
@@ -326,9 +329,9 @@ async fn test_auth_code_replay_prevention() {
 
     // First token exchange - should succeed
     let token_request = TokenRequest {
-        grant_type: "authorization_code".to_string(),
+        grant_type: "authorization_code".to_owned(),
         code: Some(auth_response.code.clone()),
-        redirect_uri: Some("https://example.com/callback".to_string()),
+        redirect_uri: Some("https://example.com/callback".to_owned()),
         client_id: client_id.clone(),
         client_secret: client_secret.clone(),
         scope: None,
@@ -341,9 +344,9 @@ async fn test_auth_code_replay_prevention() {
 
     // Second token exchange with SAME code - should fail (replay attack)
     let replay_request = TokenRequest {
-        grant_type: "authorization_code".to_string(),
+        grant_type: "authorization_code".to_owned(),
         code: Some(auth_response.code),
-        redirect_uri: Some("https://example.com/callback".to_string()),
+        redirect_uri: Some("https://example.com/callback".to_owned()),
         client_id,
         client_secret,
         scope: None,
@@ -369,8 +372,8 @@ async fn test_auth_code_client_binding() {
     // Register a SECOND client
     let registration_manager = ClientRegistrationManager::new(database.clone());
     let second_client_request = ClientRegistrationRequest {
-        redirect_uris: vec!["https://example2.com/callback".to_string()],
-        client_name: Some("Second Client".to_string()),
+        redirect_uris: vec!["https://example2.com/callback".to_owned()],
+        client_name: Some("Second Client".to_owned()),
         client_uri: None,
         grant_types: None,
         response_types: None,
@@ -383,9 +386,9 @@ async fn test_auth_code_client_binding() {
 
     // Create test user
     let user = User::new(
-        "test@example.com".to_string(),
-        "hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     database.create_user(&user).await.unwrap();
 
@@ -395,13 +398,13 @@ async fn test_auth_code_client_binding() {
 
     // Authorization for FIRST client
     let auth_request = AuthorizeRequest {
-        response_type: "code".to_string(),
+        response_type: "code".to_owned(),
         client_id: client_id.clone(),
-        redirect_uri: "https://example.com/callback".to_string(),
-        scope: Some("fitness:read".to_string()),
-        state: Some("test_state".to_string()),
+        redirect_uri: "https://example.com/callback".to_owned(),
+        scope: Some("fitness:read".to_owned()),
+        state: Some("test_state".to_owned()),
         code_challenge: Some(code_challenge),
-        code_challenge_method: Some("S256".to_string()),
+        code_challenge_method: Some("S256".to_owned()),
     };
 
     let auth_response = oauth_server
@@ -411,9 +414,9 @@ async fn test_auth_code_client_binding() {
 
     // Attempt token exchange with SECOND client (should fail - cross-client attack)
     let token_request = TokenRequest {
-        grant_type: "authorization_code".to_string(),
+        grant_type: "authorization_code".to_owned(),
         code: Some(auth_response.code),
-        redirect_uri: Some("https://example2.com/callback".to_string()),
+        redirect_uri: Some("https://example2.com/callback".to_owned()),
         client_id: second_client_response.client_id,
         client_secret: second_client_response.client_secret,
         scope: None,
@@ -438,9 +441,9 @@ async fn test_redirect_uri_exact_match() {
 
     // Create test user
     let user = User::new(
-        "test@example.com".to_string(),
-        "hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     database.create_user(&user).await.unwrap();
 
@@ -450,13 +453,13 @@ async fn test_redirect_uri_exact_match() {
 
     // Authorization with exact redirect_uri
     let auth_request = AuthorizeRequest {
-        response_type: "code".to_string(),
+        response_type: "code".to_owned(),
         client_id: client_id.clone(),
-        redirect_uri: "https://example.com/callback".to_string(),
-        scope: Some("fitness:read".to_string()),
-        state: Some("test_state".to_string()),
+        redirect_uri: "https://example.com/callback".to_owned(),
+        scope: Some("fitness:read".to_owned()),
+        state: Some("test_state".to_owned()),
         code_challenge: Some(code_challenge),
-        code_challenge_method: Some("S256".to_string()),
+        code_challenge_method: Some("S256".to_owned()),
     };
 
     let auth_response = oauth_server
@@ -466,9 +469,9 @@ async fn test_redirect_uri_exact_match() {
 
     // Token exchange with DIFFERENT redirect_uri (should fail - must match exactly)
     let token_request = TokenRequest {
-        grant_type: "authorization_code".to_string(),
+        grant_type: "authorization_code".to_owned(),
         code: Some(auth_response.code),
-        redirect_uri: Some("https://example.com/callback2".to_string()), // Different path
+        redirect_uri: Some("https://example.com/callback2".to_owned()), // Different path
         client_id,
         client_secret,
         scope: None,
@@ -493,9 +496,9 @@ async fn test_refresh_token_rotation() {
 
     // Create test user
     let user = User::new(
-        "test@example.com".to_string(),
-        "hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     database.create_user(&user).await.unwrap();
 
@@ -505,13 +508,13 @@ async fn test_refresh_token_rotation() {
 
     // Get authorization code
     let auth_request = AuthorizeRequest {
-        response_type: "code".to_string(),
+        response_type: "code".to_owned(),
         client_id: client_id.clone(),
-        redirect_uri: "https://example.com/callback".to_string(),
-        scope: Some("fitness:read".to_string()),
-        state: Some("test_state".to_string()),
+        redirect_uri: "https://example.com/callback".to_owned(),
+        scope: Some("fitness:read".to_owned()),
+        state: Some("test_state".to_owned()),
         code_challenge: Some(code_challenge),
-        code_challenge_method: Some("S256".to_string()),
+        code_challenge_method: Some("S256".to_owned()),
     };
 
     let auth_response = oauth_server
@@ -521,9 +524,9 @@ async fn test_refresh_token_rotation() {
 
     // Exchange for initial token
     let token_request = TokenRequest {
-        grant_type: "authorization_code".to_string(),
+        grant_type: "authorization_code".to_owned(),
         code: Some(auth_response.code),
-        redirect_uri: Some("https://example.com/callback".to_string()),
+        redirect_uri: Some("https://example.com/callback".to_owned()),
         client_id: client_id.clone(),
         client_secret: client_secret.clone(),
         scope: None,
@@ -536,7 +539,7 @@ async fn test_refresh_token_rotation() {
 
     // Use refresh token to get new tokens (first refresh - should succeed)
     let refresh_request = TokenRequest {
-        grant_type: "refresh_token".to_string(),
+        grant_type: "refresh_token".to_owned(),
         code: None,
         redirect_uri: None,
         client_id: client_id.clone(),
@@ -551,7 +554,7 @@ async fn test_refresh_token_rotation() {
 
     // Attempt to reuse OLD refresh token (should fail - token rotation)
     let replay_refresh_request = TokenRequest {
-        grant_type: "refresh_token".to_string(),
+        grant_type: "refresh_token".to_owned(),
         code: None,
         redirect_uri: None,
         client_id,

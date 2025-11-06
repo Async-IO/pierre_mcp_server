@@ -112,7 +112,7 @@ impl TenantOAuthManager {
     ) -> Result<()> {
         let credentials = TenantOAuthCredentials {
             tenant_id,
-            provider: provider.to_string(),
+            provider: provider.to_owned(),
             client_id: config.client_id,
             client_secret: config.client_secret,
             redirect_uri: config.redirect_uri,
@@ -121,7 +121,7 @@ impl TenantOAuthManager {
         };
 
         self.credentials
-            .insert((tenant_id, provider.to_string()), credentials);
+            .insert((tenant_id, provider.to_owned()), credentials);
         Ok(())
     }
 
@@ -134,14 +134,14 @@ impl TenantOAuthManager {
         let today = Utc::now().date_naive();
         let usage = self
             .usage_tracking
-            .get(&(tenant_id, provider.to_string(), today))
+            .get(&(tenant_id, provider.to_owned(), today))
             .copied()
             .unwrap_or(0);
 
         // Get tenant's rate limit
         let daily_limit = self
             .credentials
-            .get(&(tenant_id, provider.to_string()))
+            .get(&(tenant_id, provider.to_owned()))
             .map_or(
                 crate::constants::rate_limits::STRAVA_DEFAULT_DAILY_RATE_LIMIT,
                 |c| c.rate_limit_per_day,
@@ -163,7 +163,7 @@ impl TenantOAuthManager {
         _failed_requests: u32,
     ) -> Result<()> {
         let today = Utc::now().date_naive();
-        let key = (tenant_id, provider.to_string(), today);
+        let key = (tenant_id, provider.to_owned(), today);
         let current = self.usage_tracking.get(&key).copied().unwrap_or(0);
         self.usage_tracking
             .insert(key, current + successful_requests);
@@ -196,21 +196,21 @@ impl TenantOAuthManager {
             let redirect_uri = strava_config
                 .redirect_uri
                 .clone()
-                .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/strava".to_string());
+                .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/strava".to_owned());
             tracing::info!(
                 "Using server-level Strava OAuth credentials for tenant {}",
                 tenant_id
             );
             return Some(TenantOAuthCredentials {
                 tenant_id,
-                provider: "strava".to_string(),
+                provider: "strava".to_owned(),
                 client_id: client_id.clone(),
                 client_secret: client_secret.clone(),
                 redirect_uri,
                 scopes: if strava_config.scopes.is_empty() {
                     crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                         .split(',')
-                        .map(str::to_string)
+                        .map(str::to_owned)
                         .collect()
                 } else {
                     strava_config.scopes.clone()
@@ -235,28 +235,28 @@ impl TenantOAuthManager {
             let redirect_uri = fitbit_config
                 .redirect_uri
                 .clone()
-                .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/fitbit".to_string());
+                .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/fitbit".to_owned());
             tracing::info!(
                 "Using server-level Fitbit OAuth credentials for tenant {}",
                 tenant_id
             );
             return Some(TenantOAuthCredentials {
                 tenant_id,
-                provider: "fitbit".to_string(),
+                provider: "fitbit".to_owned(),
                 client_id: client_id.clone(),
                 client_secret: client_secret.clone(),
                 redirect_uri,
                 scopes: if fitbit_config.scopes.is_empty() {
                     vec![
-                        "activity".to_string(),
-                        "heartrate".to_string(),
-                        "location".to_string(),
-                        "nutrition".to_string(),
-                        "profile".to_string(),
-                        "settings".to_string(),
-                        "sleep".to_string(),
-                        "social".to_string(),
-                        "weight".to_string(),
+                        "activity".to_owned(),
+                        "heartrate".to_owned(),
+                        "location".to_owned(),
+                        "nutrition".to_owned(),
+                        "profile".to_owned(),
+                        "settings".to_owned(),
+                        "sleep".to_owned(),
+                        "social".to_owned(),
+                        "weight".to_owned(),
                     ]
                 } else {
                     fitbit_config.scopes.clone()
@@ -281,7 +281,7 @@ impl TenantOAuthManager {
         // First check in-memory cache
         if let Some(credentials) = self
             .credentials
-            .get(&(tenant_id, provider.to_string()))
+            .get(&(tenant_id, provider.to_owned()))
             .cloned()
         {
             tracing::info!(

@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use anyhow::Result;
@@ -94,9 +97,9 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
         validation_result.err()
     );
 
-    println!("✅ JWT secret persistence test PASSED");
-    println!("✅ Admin tokens survive server restarts");
-    println!("✅ No more 12-hour InvalidSignature issue");
+    println!(" JWT secret persistence test PASSED");
+    println!(" Admin tokens survive server restarts");
+    println!(" No more 12-hour InvalidSignature issue");
 
     Ok(())
 }
@@ -158,7 +161,7 @@ async fn test_mek_ensures_consistent_jwt_storage() -> Result<()> {
     // Clean up test environment variable
     std::env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
 
-    println!("✅ MEK-based JWT secret storage test PASSED");
+    println!(" MEK-based JWT secret storage test PASSED");
 
     Ok(())
 }

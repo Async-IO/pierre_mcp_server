@@ -7,6 +7,9 @@
 // Integration tests for admin_routes.rs module
 // Tests for admin API endpoints and authentication
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::{
     admin_routes::ProvisionApiKeyRequest, utils::auth::extract_bearer_token_owned,
 };

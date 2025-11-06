@@ -26,7 +26,7 @@ use std::str::FromStr;
 pub enum FtpAlgorithm {
     /// 20-Minute Test Protocol (Coggan Standard)
     ///
-    /// Formula: `FTP = avg_power_20min × 0.95`
+    /// Formula: `FTP = avg_power_20min x 0.95`
     ///
     /// Most common FTP test. Ride all-out for 20 minutes after proper warmup.
     /// The 0.95 multiplier accounts for the fact that 20-minute power is slightly
@@ -41,7 +41,7 @@ pub enum FtpAlgorithm {
 
     /// 8-Minute Test Protocol
     ///
-    /// Formula: `FTP = avg_power_8min × 0.90`
+    /// Formula: `FTP = avg_power_8min x 0.90`
     ///
     /// Shorter alternative for time-constrained athletes or indoor training.
     /// Two 8-minute intervals with 10-minute recovery, use best effort.
@@ -55,7 +55,7 @@ pub enum FtpAlgorithm {
 
     /// Ramp Test Protocol
     ///
-    /// Formula: `FTP = max_1min_power × 0.75`
+    /// Formula: `FTP = max_1min_power x 0.75`
     ///
     /// Progressive ramp to failure, typically 1-minute steps at increasing power.
     /// FTP estimated from peak 1-minute power achieved.
@@ -69,7 +69,7 @@ pub enum FtpAlgorithm {
 
     /// 60-Minute Power (True FTP)
     ///
-    /// Formula: `FTP = avg_power_60min × 1.0`
+    /// Formula: `FTP = avg_power_60min x 1.0`
     ///
     /// Gold standard: best average power for 1 hour all-out effort.
     /// No multiplier needed as this IS the definition of FTP.
@@ -83,7 +83,7 @@ pub enum FtpAlgorithm {
 
     /// Critical Power Model (2-parameter)
     ///
-    /// Formula: `W' = (P - CP) × t` where CP = Critical Power (≈ FTP)
+    /// Formula: `W' = (P - CP) x t` where CP = Critical Power (≈ FTP)
     ///
     /// Uses multiple time trials at different durations to model the power-duration
     /// relationship. Critical Power (CP) represents sustainable aerobic power,
@@ -104,7 +104,7 @@ pub enum FtpAlgorithm {
 
     /// `VO2max`-based FTP Estimation
     ///
-    /// Formula: `FTP = VO2max × 13.5 × fitness_factor`
+    /// Formula: `FTP = VO2max x 13.5 x fitness_factor`
     ///
     /// Estimates FTP from `VO2max` using physiological relationships.
     /// The 13.5 coefficient converts ml/kg/min to watts, and the fitness
@@ -161,7 +161,7 @@ impl FtpAlgorithm {
     /// ```rust,no_run
     /// let algorithm = FtpAlgorithm::From20MinTest { avg_power_20min: 250.0 };
     /// let ftp = algorithm.estimate_ftp()?;
-    /// // ftp = 237.5 watts (250 × 0.95)
+    /// // ftp = 237.5 watts (250 x 0.95)
     /// ```
     pub fn estimate_ftp(&self) -> Result<f64, AppError> {
         match self {
@@ -215,7 +215,7 @@ impl FtpAlgorithm {
                 Ok(power_at_vo2max * ftp_percentage)
             }
             Self::Hybrid => Err(AppError::invalid_input(
-                "Hybrid FTP estimation requires specific test data. Use one of the explicit test protocols.".to_string(),
+                "Hybrid FTP estimation requires specific test data. Use one of the explicit test protocols.".to_owned(),
             )),
         }
     }
@@ -238,12 +238,12 @@ impl FtpAlgorithm {
     /// Calculate Critical Power from two time trials
     ///
     /// Uses linear regression on power-duration data:
-    /// `W = CP × t + W'`
+    /// `W = CP x t + W'`
     ///
     /// Where:
     /// - CP = Critical Power (slope, ≈ FTP)
     /// - W' = Anaerobic work capacity (y-intercept)
-    /// - W = Total work done (power × time)
+    /// - W = Total work done (power x time)
     /// - t = Duration
     fn calculate_critical_power(
         tt1_duration: f64,
@@ -254,7 +254,7 @@ impl FtpAlgorithm {
         // Validate inputs
         if tt1_duration <= 0.0 || tt2_duration <= 0.0 {
             return Err(AppError::invalid_input(
-                "Time trial durations must be positive".to_string(),
+                "Time trial durations must be positive".to_owned(),
             ));
         }
 
@@ -266,7 +266,7 @@ impl FtpAlgorithm {
         if duration_ratio < 1.5 {
             return Err(AppError::invalid_input(
                 "Time trials should differ by at least 50% in duration for accurate CP estimation"
-                    .to_string(),
+                    .to_owned(),
             ));
         }
 
@@ -280,13 +280,13 @@ impl FtpAlgorithm {
         // Validate result
         if critical_power <= 0.0 {
             return Err(AppError::invalid_input(
-                "Critical Power calculation resulted in non-positive value. Check that longer duration has higher total work.".to_string(),
+                "Critical Power calculation resulted in non-positive value. Check that longer duration has higher total work.".to_owned(),
             ));
         }
 
         if critical_power > tt1_power.min(tt2_power) {
             return Err(AppError::invalid_input(
-                "Critical Power cannot exceed average power of time trials".to_string(),
+                "Critical Power cannot exceed average power of time trials".to_owned(),
             ));
         }
 
@@ -295,7 +295,7 @@ impl FtpAlgorithm {
 
     /// Calculate W' (anaerobic work capacity) from FTP and time trial data
     ///
-    /// Formula: `W' = (P - FTP) × t`
+    /// Formula: `W' = (P - FTP) x t`
     ///
     /// # Arguments
     ///
@@ -320,14 +320,14 @@ impl FtpAlgorithm {
 
         if duration_seconds <= 0.0 {
             return Err(AppError::invalid_input(
-                "Duration must be positive".to_string(),
+                "Duration must be positive".to_owned(),
             ));
         }
 
         if avg_power <= ftp {
             return Err(AppError::invalid_input(
                 "Average power must exceed FTP to calculate W' from supra-threshold effort"
-                    .to_string(),
+                    .to_owned(),
             ));
         }
 
@@ -354,13 +354,13 @@ impl FtpAlgorithm {
     pub fn description(&self) -> String {
         match self {
             Self::From20MinTest { avg_power_20min } => {
-                format!("20-Minute Test (FTP = {avg_power_20min:.1}W × 0.95)")
+                format!("20-Minute Test (FTP = {avg_power_20min:.1}W x 0.95)")
             }
             Self::From8MinTest { avg_power_8min } => {
-                format!("8-Minute Test (FTP = {avg_power_8min:.1}W × 0.90)")
+                format!("8-Minute Test (FTP = {avg_power_8min:.1}W x 0.90)")
             }
             Self::FromRampTest { max_1min_power } => {
-                format!("Ramp Test (FTP = {max_1min_power:.1}W × 0.75)")
+                format!("Ramp Test (FTP = {max_1min_power:.1}W x 0.75)")
             }
             Self::From60MinPower { avg_power_60min } => {
                 format!("60-Minute Power (FTP = {avg_power_60min:.1}W)")
@@ -372,7 +372,7 @@ impl FtpAlgorithm {
                 tt2_avg_power,
             } => {
                 format!(
-                    "Critical Power (TT1: {tt1_avg_power:.0}W × {tt1_duration_seconds:.0}s, TT2: {tt2_avg_power:.0}W × {tt2_duration_seconds:.0}s)"
+                    "Critical Power (TT1: {tt1_avg_power:.0}W x {tt1_duration_seconds:.0}s, TT2: {tt2_avg_power:.0}W x {tt2_duration_seconds:.0}s)"
                 )
             }
             Self::FromVo2Max {
@@ -381,7 +381,7 @@ impl FtpAlgorithm {
             } => {
                 format!("VO2max-based FTP (VO2max={vo2_max:.1} ml/kg/min, coeff={power_coefficient:.1})")
             }
-            Self::Hybrid => "Hybrid (auto-select best method)".to_string(),
+            Self::Hybrid => "Hybrid (auto-select best method)".to_owned(),
         }
     }
 
@@ -389,12 +389,12 @@ impl FtpAlgorithm {
     #[must_use]
     pub const fn formula(&self) -> &'static str {
         match self {
-            Self::From20MinTest { .. } => "FTP = avg_power_20min × 0.95",
-            Self::From8MinTest { .. } => "FTP = avg_power_8min × 0.90",
-            Self::FromRampTest { .. } => "FTP = max_1min_power × 0.75",
+            Self::From20MinTest { .. } => "FTP = avg_power_20min x 0.95",
+            Self::From8MinTest { .. } => "FTP = avg_power_8min x 0.90",
+            Self::FromRampTest { .. } => "FTP = max_1min_power x 0.75",
             Self::From60MinPower { .. } => "FTP = avg_power_60min",
             Self::CriticalPower { .. } => "CP = (W2 - W1) / (t2 - t1)",
-            Self::FromVo2Max { .. } => "FTP = VO2max × power_coefficient × fitness_factor",
+            Self::FromVo2Max { .. } => "FTP = VO2max x power_coefficient x fitness_factor",
             Self::Hybrid => "Auto-select based on available test data",
         }
     }

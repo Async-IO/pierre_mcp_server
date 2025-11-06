@@ -29,6 +29,7 @@ pub struct RacePredictions {
     pub predictions: HashMap<String, f64>,
     /// Source activity used for calculation
     pub based_on_distance_meters: f64,
+    /// Duration of source activity in seconds
     pub based_on_time_seconds: f64,
 }
 
@@ -74,7 +75,7 @@ impl PerformancePredictor {
 
     /// Predict race time using Riegel formula
     ///
-    /// Riegel's formula: Time2 = Time1 × (Distance2 / Distance1)^1.06
+    /// Riegel's formula: Time2 = Time1 x (Distance2 / Distance1)^1.06
     ///
     /// This is a simpler alternative to VDOT that works reasonably well
     /// for predicting times at different distances
@@ -93,7 +94,7 @@ impl PerformancePredictor {
     ) -> Result<f64, AppError> {
         if known_distance <= 0.0 || known_time <= 0.0 || target_distance <= 0.0 {
             return Err(AppError::invalid_input(
-                "All distances and times must be positive".to_string(),
+                "All distances and times must be positive".to_owned(),
             ));
         }
 
@@ -128,7 +129,7 @@ impl PerformancePredictor {
 
         for (name, distance) in distances {
             if let Ok(predicted_time) = Self::predict_time_vdot(vdot, distance) {
-                predictions.insert(name.to_string(), predicted_time);
+                predictions.insert(name.to_owned(), predicted_time);
             }
         }
 
@@ -149,7 +150,7 @@ impl PerformancePredictor {
     ) -> Result<RacePredictions, AppError> {
         let distance = activity
             .distance_meters
-            .ok_or_else(|| AppError::invalid_input("Activity must have distance".to_string()))?;
+            .ok_or_else(|| AppError::invalid_input("Activity must have distance".to_owned()))?;
 
         let duration = activity.duration_seconds;
 
@@ -215,7 +216,7 @@ impl PerformancePredictor {
     #[must_use]
     pub fn format_pace_per_km(meters_per_second: f64) -> String {
         if meters_per_second <= 0.0 {
-            return "N/A".to_string();
+            return "N/A".to_owned();
         }
 
         let seconds_per_km = 1000.0 / meters_per_second;

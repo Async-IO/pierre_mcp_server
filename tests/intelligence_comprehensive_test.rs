@@ -8,6 +8,9 @@
 //! This test suite focuses on intelligence modules (activity analyzer, performance analyzer)
 //! which have 44-57% coverage
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use chrono::Utc;
 use pierre_mcp_server::intelligence::*;
 use std::collections::HashMap;
@@ -28,9 +31,9 @@ fn test_activity_intelligence_creation() {
             zone5_vo2max: 2.0,
         }),
         personal_records: vec![PersonalRecord {
-            record_type: "fastest_5k".to_string(),
+            record_type: "fastest_5k".to_owned(),
             value: 20.5,
-            unit: "minutes".to_string(),
+            unit: "minutes".to_owned(),
             previous_best: Some(21.2),
             improvement_percentage: Some(3.3),
         }],
@@ -48,15 +51,15 @@ fn test_activity_intelligence_creation() {
             temperature_celsius: 15.0,
             humidity_percentage: Some(65.0),
             wind_speed_kmh: Some(8.0),
-            conditions: "partly cloudy".to_string(),
+            conditions: "partly cloudy".to_owned(),
         }),
         location: Some(LocationContext {
-            city: Some("Boston".to_string()),
-            region: Some("MA".to_string()),
-            country: Some("USA".to_string()),
-            trail_name: Some("Charles River Trail".to_string()),
-            terrain_type: Some("paved".to_string()),
-            display_name: "Charles River Trail, Boston, MA".to_string(),
+            city: Some("Boston".to_owned()),
+            region: Some("MA".to_owned()),
+            country: Some("USA".to_owned()),
+            trail_name: Some("Charles River Trail".to_owned()),
+            terrain_type: Some("paved".to_owned()),
+            display_name: "Charles River Trail, Boston, MA".to_owned(),
         }),
         time_of_day: TimeOfDay::Morning,
         days_since_last_activity: Some(2),
@@ -69,7 +72,7 @@ fn test_activity_intelligence_creation() {
     };
 
     let intelligence = ActivityIntelligence::new(
-        "Excellent morning run with strong pace and good recovery.".to_string(),
+        "Excellent morning run with strong pace and good recovery.".to_owned(),
         vec![],
         performance,
         context,
@@ -139,9 +142,9 @@ fn test_trend_indicators() {
 #[test]
 fn test_personal_record() {
     let pr = PersonalRecord {
-        record_type: "longest_run".to_string(),
+        record_type: "longest_run".to_owned(),
         value: 25.0,
-        unit: "km".to_string(),
+        unit: "km".to_owned(),
         previous_best: Some(22.0),
         improvement_percentage: Some(13.6),
     };
@@ -232,12 +235,12 @@ fn test_confidence_scores() {
 #[test]
 fn test_goal_creation() {
     let goal = Goal {
-        id: "goal_123".to_string(),
-        user_id: "user_456".to_string(),
-        title: "Run 5K in under 25 minutes".to_string(),
-        description: "Improve 5K time for upcoming race".to_string(),
+        id: "goal_123".to_owned(),
+        user_id: "user_456".to_owned(),
+        title: "Run 5K in under 25 minutes".to_owned(),
+        description: "Improve 5K time for upcoming race".to_owned(),
         goal_type: GoalType::Time {
-            sport: "running".to_string(),
+            sport: "running".to_owned(),
             distance: 5000.0,
         },
         target_value: 25.0,
@@ -265,23 +268,23 @@ fn test_goal_creation() {
 #[test]
 fn test_goal_types() {
     let distance_goal = GoalType::Distance {
-        sport: "cycling".to_string(),
+        sport: "cycling".to_owned(),
         timeframe: TimeFrame::Month,
     };
 
     let frequency_goal = GoalType::Frequency {
-        sport: "swimming".to_string(),
+        sport: "swimming".to_owned(),
         sessions_per_week: 3,
     };
 
     let performance_goal = GoalType::Performance {
-        metric: "VO2_max".to_string(),
+        metric: "VO2_max".to_owned(),
         improvement_percent: 10.0,
     };
 
     let custom_goal = GoalType::Custom {
-        metric: "weekly_distance".to_string(),
-        unit: "km".to_string(),
+        metric: "weekly_distance".to_owned(),
+        unit: "km".to_owned(),
     };
 
     // Test that all variants are created successfully
@@ -314,26 +317,26 @@ fn test_goal_types() {
 #[test]
 fn test_progress_report() {
     let milestone1 = Milestone {
-        name: "25% Complete".to_string(),
+        name: "25% Complete".to_owned(),
         target_value: 25.0,
         achieved_date: Some(Utc::now() - chrono::Duration::days(14)),
         achieved: true,
     };
 
     let milestone2 = Milestone {
-        name: "50% Complete".to_string(),
+        name: "50% Complete".to_owned(),
         target_value: 50.0,
         achieved_date: None,
         achieved: false,
     };
 
     let progress = ProgressReport {
-        goal_id: "goal_123".to_string(),
+        goal_id: "goal_123".to_owned(),
         progress_percentage: 35.0,
         completion_date_estimate: Some(Utc::now() + chrono::Duration::days(45)),
         milestones_achieved: vec![milestone1, milestone2],
         insights: vec![],
-        recommendations: vec!["Increase training frequency".to_string()],
+        recommendations: vec!["Increase training frequency".to_owned()],
         on_track: true,
     };
 
@@ -351,14 +354,14 @@ fn test_progress_report() {
 fn test_training_recommendation() {
     let recommendation = TrainingRecommendation {
         recommendation_type: RecommendationType::Intensity,
-        title: "Increase Threshold Training".to_string(),
-        description: "Add more tempo runs to improve lactate threshold".to_string(),
+        title: "Increase Threshold Training".to_owned(),
+        description: "Add more tempo runs to improve lactate threshold".to_owned(),
         priority: RecommendationPriority::High,
         confidence: Confidence::High,
-        rationale: "Recent data shows room for improvement in sustained pace".to_string(),
+        rationale: "Recent data shows room for improvement in sustained pace".to_owned(),
         actionable_steps: vec![
-            "Add 2x20min tempo intervals weekly".to_string(),
-            "Monitor heart rate zones 3-4".to_string(),
+            "Add 2x20min tempo intervals weekly".to_owned(),
+            "Monitor heart rate zones 3-4".to_owned(),
         ],
     };
 
@@ -398,28 +401,28 @@ fn test_recommendation_types() {
 #[test]
 fn test_user_fitness_profile() {
     let preferences = UserPreferences {
-        preferred_units: "metric".to_string(),
-        training_focus: vec!["endurance".to_string(), "speed".to_string()],
-        injury_history: vec!["knee".to_string()],
+        preferred_units: "metric".to_owned(),
+        training_focus: vec!["endurance".to_owned(), "speed".to_owned()],
+        injury_history: vec!["knee".to_owned()],
         time_availability: TimeAvailability {
             hours_per_week: 8.0,
             preferred_days: vec![
-                "Tuesday".to_string(),
-                "Thursday".to_string(),
-                "Sunday".to_string(),
+                "Tuesday".to_owned(),
+                "Thursday".to_owned(),
+                "Sunday".to_owned(),
             ],
             preferred_duration_minutes: Some(60),
         },
     };
 
     let profile = UserFitnessProfile {
-        user_id: "user_789".to_string(),
+        user_id: "user_789".to_owned(),
         age: Some(35),
-        gender: Some("M".to_string()),
+        gender: Some("M".to_owned()),
         weight: Some(75.0),
         height: Some(180.0),
         fitness_level: FitnessLevel::Intermediate,
-        primary_sports: vec!["running".to_string(), "cycling".to_string()],
+        primary_sports: vec!["running".to_owned(), "cycling".to_owned()],
         training_history_months: 24,
         preferences,
     };
@@ -471,17 +474,17 @@ fn test_fitness_levels() {
 fn test_advanced_insight() {
     let mut metadata = HashMap::new();
     metadata.insert(
-        "metric".to_string(),
-        serde_json::Value::String("pace".to_string()),
+        "metric".to_owned(),
+        serde_json::Value::String("pace".to_owned()),
     );
     metadata.insert(
-        "value".to_string(),
+        "value".to_owned(),
         serde_json::Value::Number(serde_json::Number::from_f64(5.5).unwrap()),
     );
 
     let insight = AdvancedInsight {
-        insight_type: "pace_improvement".to_string(),
-        message: "Your pace has improved by 5% over the last month".to_string(),
+        insight_type: "pace_improvement".to_owned(),
+        message: "Your pace has improved by 5% over the last month".to_owned(),
         confidence: Confidence::High,
         severity: InsightSeverity::Info,
         metadata,
@@ -504,11 +507,11 @@ fn test_advanced_insight() {
 #[test]
 fn test_anomaly() {
     let anomaly = Anomaly {
-        anomaly_type: "heart_rate_spike".to_string(),
-        description: "Unusual heart rate spike detected during easy run".to_string(),
+        anomaly_type: "heart_rate_spike".to_owned(),
+        description: "Unusual heart rate spike detected during easy run".to_owned(),
         severity: InsightSeverity::Warning,
         confidence: Confidence::Medium,
-        affected_metric: "average_heart_rate".to_string(),
+        affected_metric: "average_heart_rate".to_owned(),
         expected_value: Some(140.0),
         actual_value: Some(170.0),
     };
@@ -545,7 +548,7 @@ fn test_trend_analysis() {
 
     let trend = TrendAnalysis {
         timeframe: TimeFrame::Month,
-        metric: "average_pace".to_string(),
+        metric: "average_pace".to_owned(),
         trend_direction: TrendDirection::Improving,
         trend_strength: 0.8,
         statistical_significance: 0.95,
@@ -568,7 +571,7 @@ fn test_weather_conditions() {
         temperature_celsius: 22.0,
         humidity_percentage: Some(70.0),
         wind_speed_kmh: Some(12.0),
-        conditions: "light rain".to_string(),
+        conditions: "light rain".to_owned(),
     };
 
     assert!((weather.temperature_celsius - 22.0).abs() < f32::EPSILON);
@@ -579,20 +582,20 @@ fn test_weather_conditions() {
 #[test]
 fn test_location_context() {
     let location = LocationContext {
-        city: Some("San Francisco".to_string()),
-        region: Some("CA".to_string()),
-        country: Some("USA".to_string()),
-        trail_name: Some("Golden Gate Park Loop".to_string()),
-        terrain_type: Some("mixed".to_string()),
-        display_name: "Golden Gate Park Loop, San Francisco, CA".to_string(),
+        city: Some("San Francisco".to_owned()),
+        region: Some("CA".to_owned()),
+        country: Some("USA".to_owned()),
+        trail_name: Some("Golden Gate Park Loop".to_owned()),
+        terrain_type: Some("mixed".to_owned()),
+        display_name: "Golden Gate Park Loop, San Francisco, CA".to_owned(),
     };
 
-    assert_eq!(location.city, Some("San Francisco".to_string()));
+    assert_eq!(location.city, Some("San Francisco".to_owned()));
     assert_eq!(
         location.trail_name,
-        Some("Golden Gate Park Loop".to_string())
+        Some("Golden Gate Park Loop".to_owned())
     );
-    assert_eq!(location.terrain_type, Some("mixed".to_string()));
+    assert_eq!(location.terrain_type, Some("mixed".to_owned()));
     assert!(location.display_name.contains("Golden Gate Park"));
 }
 
@@ -663,7 +666,7 @@ async fn test_advanced_performance_analyzer_creation() {
 #[test]
 fn test_activity_insights_serialization() {
     let insights = ActivityInsights {
-        activity_id: "activity_123".to_string(),
+        activity_id: "activity_123".to_owned(),
         overall_score: 8.5,
         insights: vec![],
         metrics: AdvancedMetrics {
@@ -697,7 +700,7 @@ fn test_activity_insights_serialization() {
 
             custom_metrics: HashMap::new(),
         },
-        recommendations: vec!["Focus on consistent pacing".to_string()],
+        recommendations: vec!["Focus on consistent pacing".to_owned()],
         anomalies: vec![],
     };
 
@@ -720,15 +723,15 @@ fn test_complete_contextual_factors() {
             temperature_celsius: 18.0,
             humidity_percentage: Some(80.0),
             wind_speed_kmh: Some(5.0),
-            conditions: "overcast".to_string(),
+            conditions: "overcast".to_owned(),
         }),
         location: Some(LocationContext {
-            city: Some("Portland".to_string()),
-            region: Some("OR".to_string()),
-            country: Some("USA".to_string()),
-            trail_name: Some("Forest Park Trail".to_string()),
-            terrain_type: Some("trail".to_string()),
-            display_name: "Forest Park Trail, Portland, OR".to_string(),
+            city: Some("Portland".to_owned()),
+            region: Some("OR".to_owned()),
+            country: Some("USA".to_owned()),
+            trail_name: Some("Forest Park Trail".to_owned()),
+            terrain_type: Some("trail".to_owned()),
+            display_name: "Forest Park Trail, Portland, OR".to_owned(),
         }),
         time_of_day: TimeOfDay::Afternoon,
         days_since_last_activity: Some(3),
@@ -750,7 +753,7 @@ fn test_complete_contextual_factors() {
     assert!((weather.temperature_celsius - 18.0).abs() < f32::EPSILON);
 
     let location = complete_context.location.unwrap();
-    assert_eq!(location.city, Some("Portland".to_string()));
+    assert_eq!(location.city, Some("Portland".to_owned()));
 
     let load = complete_context.weekly_load.unwrap();
     assert_eq!(load.activity_count, 4);

@@ -20,6 +20,16 @@ static SHARED_CLIENT: OnceLock<Client> = OnceLock::new();
 /// Global shared HTTP client with retry middleware
 static SHARED_CLIENT_WITH_RETRY: OnceLock<ClientWithMiddleware> = OnceLock::new();
 
+/// Get client configuration with fallback to defaults
+///
+/// Returns defaults if HTTP client configuration was not initialized at server startup
+fn get_config() -> &'static HttpClientConfig {
+    static DEFAULT_CONFIG: OnceLock<HttpClientConfig> = OnceLock::new();
+    CLIENT_CONFIG
+        .get()
+        .unwrap_or_else(|| DEFAULT_CONFIG.get_or_init(HttpClientConfig::default))
+}
+
 /// Initialize HTTP client configuration
 ///
 /// Must be called once at server startup before any HTTP clients are created.
@@ -28,9 +38,10 @@ static SHARED_CLIENT_WITH_RETRY: OnceLock<ClientWithMiddleware> = OnceLock::new(
 /// # Panics
 /// Panics if called more than once (configuration cannot be changed after initialization)
 pub fn initialize_http_clients(config: HttpClientConfig) {
-    CLIENT_CONFIG
-        .set(config)
-        .expect("HTTP client configuration already initialized");
+    assert!(
+        CLIENT_CONFIG.set(config).is_ok(),
+        "HTTP client configuration already initialized"
+    );
 }
 
 /// Create an exponential backoff retry policy from configuration
@@ -63,9 +74,7 @@ fn create_retry_policy(config: &HttpClientConfig) -> ExponentialBackoff {
 /// Panics if HTTP client configuration was not initialized at server startup
 pub fn shared_client() -> &'static Client {
     SHARED_CLIENT.get_or_init(|| {
-        let config = CLIENT_CONFIG.get().expect(
-            "HTTP client configuration not initialized - call initialize_http_clients() at startup",
-        );
+        let config = get_config();
 
         ClientBuilder::new()
             .timeout(Duration::from_secs(config.shared_client_timeout_secs))
@@ -91,9 +100,7 @@ pub fn shared_client() -> &'static Client {
 /// Panics if HTTP client configuration was not initialized at server startup
 pub fn shared_client_with_retry() -> &'static ClientWithMiddleware {
     SHARED_CLIENT_WITH_RETRY.get_or_init(|| {
-        let config = CLIENT_CONFIG.get().expect(
-            "HTTP client configuration not initialized - call initialize_http_clients() at startup",
-        );
+        let config = get_config();
 
         let base_client = ClientBuilder::new()
             .timeout(Duration::from_secs(config.shared_client_timeout_secs))
@@ -170,9 +177,7 @@ where
 /// Panics if HTTP client configuration was not initialized at server startup
 #[must_use]
 pub fn oauth_client() -> Client {
-    let config = CLIENT_CONFIG.get().expect(
-        "HTTP client configuration not initialized - call initialize_http_clients() at startup",
-    );
+    let config = get_config();
 
     create_client_with_timeout(
         config.oauth_client_timeout_secs,
@@ -192,9 +197,7 @@ pub fn oauth_client() -> Client {
 /// Panics if HTTP client configuration was not initialized at server startup
 #[must_use]
 pub fn oauth_client_with_retry() -> ClientWithMiddleware {
-    let config = CLIENT_CONFIG.get().expect(
-        "HTTP client configuration not initialized - call initialize_http_clients() at startup",
-    );
+    let config = get_config();
 
     let base_client = create_client_with_timeout(
         config.oauth_client_timeout_secs,
@@ -223,9 +226,7 @@ pub fn oauth_client_with_retry() -> ClientWithMiddleware {
 /// Panics if HTTP client configuration was not initialized at server startup
 #[must_use]
 pub fn api_client() -> Client {
-    let config = CLIENT_CONFIG.get().expect(
-        "HTTP client configuration not initialized - call initialize_http_clients() at startup",
-    );
+    let config = get_config();
 
     create_client_with_timeout(
         config.api_client_timeout_secs,
@@ -246,9 +247,7 @@ pub fn api_client() -> Client {
 /// Panics if HTTP client configuration was not initialized at server startup
 #[must_use]
 pub fn api_client_with_retry() -> ClientWithMiddleware {
-    let config = CLIENT_CONFIG.get().expect(
-        "HTTP client configuration not initialized - call initialize_http_clients() at startup",
-    );
+    let config = get_config();
 
     let base_client = create_client_with_timeout(
         config.api_client_timeout_secs,
@@ -274,12 +273,7 @@ pub fn api_client_with_retry() -> ClientWithMiddleware {
 /// Panics if HTTP client configuration was not initialized at server startup
 #[must_use]
 pub fn get_health_check_timeout_secs() -> u64 {
-    CLIENT_CONFIG
-        .get()
-        .expect(
-            "HTTP client configuration not initialized - call initialize_http_clients() at startup",
-        )
-        .health_check_timeout_secs
+    get_config().health_check_timeout_secs
 }
 
 /// Get OAuth callback notification timeout configuration
@@ -291,10 +285,5 @@ pub fn get_health_check_timeout_secs() -> u64 {
 /// Panics if HTTP client configuration was not initialized at server startup
 #[must_use]
 pub fn get_oauth_callback_notification_timeout_secs() -> u64 {
-    CLIENT_CONFIG
-        .get()
-        .expect(
-            "HTTP client configuration not initialized - call initialize_http_clients() at startup",
-        )
-        .oauth_callback_notification_timeout_secs
+    get_config().oauth_callback_notification_timeout_secs
 }

@@ -23,23 +23,42 @@
 //! let tss = algorithm.calculate(&activity, ftp, duration_hours)?;
 //! ```
 
+/// Functional Threshold Power (FTP) calculation algorithms
 pub mod ftp;
+/// Lactate Threshold Heart Rate (LTHR) estimation algorithms
 pub mod lthr;
+/// Maximum Heart Rate (`MaxHR`) calculation methods
 pub mod maxhr;
+/// Recovery score aggregation algorithms
 pub mod recovery_aggregation;
+/// Training load calculation methods (TSS, TRIMP, etc.)
 pub mod training_load;
+/// Training Impulse (TRIMP) calculation algorithms
 pub mod trimp;
+/// Training Stress Score (TSS) calculation algorithms
 pub mod tss;
+/// VDOT running performance calculation
 pub mod vdot;
+/// `VO2max` estimation algorithms
 pub mod vo2max;
 
 // Re-export algorithm types
+
+/// FTP (Functional Threshold Power) calculation algorithm
 pub use ftp::FtpAlgorithm;
+/// LTHR (Lactate Threshold Heart Rate) estimation algorithm
 pub use lthr::LthrAlgorithm;
+/// Maximum heart rate calculation algorithm
 pub use maxhr::MaxHrAlgorithm;
+/// Recovery score aggregation algorithm
 pub use recovery_aggregation::RecoveryAggregationAlgorithm;
+/// Training load calculation algorithm
 pub use training_load::TrainingLoadAlgorithm;
+/// TRIMP (Training Impulse) calculation algorithm
 pub use trimp::TrimpAlgorithm;
+/// TSS (Training Stress Score) calculation algorithm
 pub use tss::TssAlgorithm;
+/// VDOT running performance algorithm
 pub use vdot::VdotAlgorithm;
+/// `VO2max` estimation algorithm
 pub use vo2max::Vo2maxAlgorithm;

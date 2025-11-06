@@ -19,43 +19,69 @@ use warp::reject::Reject;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
     // Authentication & Authorization
+    /// Authentication is required but not provided
     AuthRequired,
+    /// Authentication credentials are invalid
     AuthInvalid,
+    /// Authentication token has expired
     AuthExpired,
+    /// Authentication format is malformed
     AuthMalformed,
+    /// User lacks permission for the requested operation
     PermissionDenied,
 
     // Rate Limiting
+    /// Rate limit has been exceeded
     RateLimitExceeded,
+    /// Usage quota has been exceeded
     QuotaExceeded,
 
     // Validation
+    /// Input validation failed
     InvalidInput,
+    /// Required field is missing from request
     MissingRequiredField,
+    /// Data format is invalid
     InvalidFormat,
+    /// Value is outside acceptable range
     ValueOutOfRange,
 
     // Resource Management
+    /// Requested resource was not found
     ResourceNotFound,
+    /// Resource already exists (conflict)
     ResourceAlreadyExists,
+    /// Resource is locked and cannot be modified
     ResourceLocked,
+    /// Resource is temporarily unavailable
     ResourceUnavailable,
 
     // External Services
+    /// External service returned an error
     ExternalServiceError,
+    /// External service is unavailable
     ExternalServiceUnavailable,
+    /// Authentication with external service failed
     ExternalAuthFailed,
+    /// External service rate limited our request
     ExternalRateLimited,
 
     // Configuration
+    /// Configuration error occurred
     ConfigError,
+    /// Required configuration is missing
     ConfigMissing,
+    /// Configuration value is invalid
     ConfigInvalid,
 
     // Internal Errors
+    /// Internal server error
     InternalError,
+    /// Database operation failed
     DatabaseError,
+    /// Storage operation failed
     StorageError,
+    /// Serialization/deserialization failed
     SerializationError,
 }
 
@@ -243,7 +269,7 @@ impl AppError {
             // (key mismatches, expiry, etc. don't contain sensitive data)
             ErrorCode::AuthInvalid if self.message.contains("JWT") => self.message.clone(),
             // All other errors: use generic description (auth, database, internal)
-            _ => self.code.description().to_string(),
+            _ => self.code.description().to_owned(),
         }
     }
 
@@ -283,10 +309,14 @@ pub type AppResult<T> = Result<T, AppError>;
 /// Simplified `HTTP` error response format
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
+    /// Error code identifying the type of error
     pub code: ErrorCode,
+    /// Human-readable error message (sanitized for client)
     pub message: String,
+    /// Optional request ID for error tracking
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
+    /// RFC3339 timestamp when the error occurred
     pub timestamp: String,
 }
 

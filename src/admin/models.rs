@@ -15,25 +15,40 @@ use uuid::Uuid;
 /// Admin token with full details
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdminToken {
+    /// Unique token identifier (UUID)
     pub id: String,
+    /// Service or system name using this token
     pub service_name: String,
+    /// Optional description of the service
     pub service_description: Option<String>,
+    /// SHA-256 hash of the token for verification
     pub token_hash: String,
+    /// First 8 characters of token for identification
     pub token_prefix: String,
+    /// SHA-256 hash of JWT secret for this token
     pub jwt_secret_hash: String,
+    /// Granted admin permissions
     pub permissions: AdminPermissions,
+    /// Whether this is a super admin token
     pub is_super_admin: bool,
+    /// Whether the token is active
     pub is_active: bool,
+    /// When the token was created
     pub created_at: DateTime<Utc>,
+    /// Optional token expiration time
     pub expires_at: Option<DateTime<Utc>>,
+    /// When the token was last used
     pub last_used_at: Option<DateTime<Utc>>,
+    /// IP address from last use
     pub last_used_ip: Option<String>,
+    /// Total number of times token has been used
     pub usage_count: u64,
 }
 
 /// Admin permissions with strong typing
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AdminPermissions {
+    /// Set of granted permissions
     permissions: HashSet<AdminPermission>,
 }
 
@@ -99,11 +114,8 @@ impl AdminPermissions {
     ///
     /// Returns `serde_json::Error` if serialization fails
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        let permission_strings: Vec<String> = self
-            .permissions
-            .iter()
-            .map(std::string::ToString::to_string)
-            .collect();
+        let permission_strings: Vec<String> =
+            self.permissions.iter().map(ToString::to_string).collect();
         serde_json::to_string(&permission_strings)
     }
 
@@ -176,10 +188,15 @@ impl std::str::FromStr for AdminPermission {
 /// Admin token creation request
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateAdminTokenRequest {
+    /// Name of the service requesting the token
     pub service_name: String,
+    /// Optional description of the service
     pub service_description: Option<String>,
+    /// List of permissions to grant (None = default permissions)
     pub permissions: Option<Vec<AdminPermission>>,
+    /// Number of days until token expires (None = never expires)
     pub expires_in_days: Option<u64>,
+    /// Whether this is a super admin token with all permissions
     pub is_super_admin: bool,
 }
 
@@ -212,29 +229,48 @@ impl CreateAdminTokenRequest {
 /// Generated admin token response
 #[derive(Debug, Clone, Serialize)]
 pub struct GeneratedAdminToken {
+    /// Unique identifier for the token
     pub token_id: String,
+    /// Name of the service
     pub service_name: String,
-    pub jwt_token: String, // Only shown once!
+    /// The actual JWT token (shown only once!)
+    pub jwt_token: String,
+    /// Visible prefix for identification
     pub token_prefix: String,
+    /// Permissions granted to this token
     pub permissions: AdminPermissions,
+    /// Whether this is a super admin token
     pub is_super_admin: bool,
+    /// When the token expires (if set)
     pub expires_at: Option<DateTime<Utc>>,
+    /// When the token was created
     pub created_at: DateTime<Utc>,
 }
 
 /// Admin token usage audit entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdminTokenUsage {
+    /// Unique identifier for this usage record
     pub id: Option<i64>,
+    /// ID of the admin token that was used
     pub admin_token_id: String,
+    /// When the action was performed
     pub timestamp: DateTime<Utc>,
+    /// Type of admin action performed
     pub action: AdminAction,
+    /// Resource that was targeted (if applicable)
     pub target_resource: Option<String>,
+    /// Client IP address
     pub ip_address: Option<String>,
+    /// Client user agent
     pub user_agent: Option<String>,
+    /// Size of the request in bytes
     pub request_size_bytes: Option<u32>,
+    /// Whether the action succeeded
     pub success: bool,
+    /// Error message if the action failed
     pub error_message: Option<String>,
+    /// Response time in milliseconds
     pub response_time_ms: Option<u32>,
 }
 
@@ -242,13 +278,21 @@ pub struct AdminTokenUsage {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum AdminAction {
+    /// Provision a new API key
     ProvisionKey,
+    /// Revoke an existing API key
     RevokeKey,
+    /// List all API keys
     ListKeys,
+    /// Update rate limits for an API key
     UpdateKeyLimits,
+    /// List all admin tokens
     ListAdminTokens,
+    /// Revoke an admin token
     RevokeAdminToken,
+    /// View audit logs
     ViewAuditLogs,
+    /// Manage user accounts
     ManageUser,
 }
 
@@ -288,21 +332,31 @@ impl std::str::FromStr for AdminAction {
 /// API key provisioning request from admin service
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiKeyProvisionRequest {
+    /// Email of the user to provision the key for
     pub user_email: String,
+    /// Optional user ID (will be looked up if not provided)
     pub user_id: Option<Uuid>,
-    pub tier: String, // "starter", "professional", "enterprise"
+    /// Tier level ("starter", "professional", "enterprise")
+    pub tier: String,
+    /// Maximum requests allowed
     pub rate_limit_requests: u32,
+    /// Rate limit period
     pub rate_limit_period: RateLimitPeriod,
+    /// Number of days until the key expires
     pub expires_in_days: Option<u64>,
-    pub metadata: Option<serde_json::Value>, // Company name, use case, etc.
+    /// Additional metadata (company name, use case, etc.)
+    pub metadata: Option<serde_json::Value>,
 }
 
 /// Rate limit periods for API keys
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RateLimitPeriod {
+    /// Rate limit per hour
     Hour,
+    /// Rate limit per day
     Day,
+    /// Rate limit per month
     Month,
 }
 
@@ -331,23 +385,37 @@ impl RateLimitPeriod {
 /// API key provisioning response
 #[derive(Debug, Clone, Serialize)]
 pub struct ProvisionedApiKey {
+    /// Unique identifier for the API key
     pub api_key_id: String,
-    pub api_key: String, // Only shown once!
+    /// The actual API key (shown only once!)
+    pub api_key: String,
+    /// ID of the user who owns the key
     pub user_id: Uuid,
+    /// Email of the user who owns the key
     pub user_email: String,
+    /// Tier level of the key
     pub tier: String,
+    /// Maximum requests allowed
     pub rate_limit_requests: u32,
+    /// Rate limit period
     pub rate_limit_period: RateLimitPeriod,
+    /// When the key expires (if set)
     pub expires_at: Option<DateTime<Utc>>,
+    /// When the key was created
     pub created_at: DateTime<Utc>,
 }
 
 /// Admin token validation result
 #[derive(Debug, Clone)]
 pub struct ValidatedAdminToken {
+    /// Unique identifier for the token
     pub token_id: String,
+    /// Name of the service
     pub service_name: String,
+    /// Permissions granted to this token
     pub permissions: AdminPermissions,
+    /// Whether this is a super admin token
     pub is_super_admin: bool,
-    pub user_info: Option<serde_json::Value>, // JWT claims
+    /// Additional user info from JWT claims
+    pub user_info: Option<serde_json::Value>,
 }

@@ -9,10 +9,15 @@
 //! This module implements the A2A protocol for Pierre, enabling agent-to-agent
 //! communication and collaboration with other AI systems.
 
+/// Agent card metadata and capabilities
 pub mod agent_card;
+/// A2A authentication and authorization
 pub mod auth;
+/// A2A client management
 pub mod client;
+/// A2A protocol types and server implementation
 pub mod protocol;
+/// System user management for A2A agents
 pub mod system_user;
 
 pub use agent_card::AgentCard;

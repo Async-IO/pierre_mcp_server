@@ -184,17 +184,17 @@ impl AdminAuthService {
     ) -> Result<()> {
         let usage = AdminTokenUsage {
             id: None,
-            admin_token_id: admin_token_id.to_string(),
+            admin_token_id: admin_token_id.to_owned(),
             timestamp: chrono::Utc::now(),
             action: action
                 .parse()
                 .unwrap_or(crate::admin::models::AdminAction::ProvisionKey),
-            target_resource: target_resource.map(std::string::ToString::to_string),
-            ip_address: ip_address.map(std::string::ToString::to_string),
+            target_resource: target_resource.map(str::to_owned),
+            ip_address: ip_address.map(str::to_owned),
             user_agent: None, // Optional user agent information
             request_size_bytes: None,
             success,
-            error_message: error_message.map(std::string::ToString::to_string),
+            error_message: error_message.map(str::to_owned),
             response_time_ms: None,
         };
 
@@ -267,8 +267,10 @@ pub mod middleware {
     /// Admin authentication errors
     #[derive(Debug, thiserror::Error)]
     pub enum AdminAuthError {
+        /// Authentication header is missing or malformed
         #[error("Invalid authentication header")]
         InvalidAuthHeader,
+        /// Authentication credentials are invalid
         #[error("Authentication failed: {0}")]
         AuthenticationFailed(String),
     }

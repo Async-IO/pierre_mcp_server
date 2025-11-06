@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use chrono::{Duration, Utc};
 use pierre_mcp_server::{
     database::generate_encryption_key,
@@ -25,12 +28,12 @@ async fn create_test_client(
 
     // Register a test client
     let registration = ClientRegistrationRequest {
-        redirect_uris: vec!["https://example.com/callback".to_string()],
+        redirect_uris: vec!["https://example.com/callback".to_owned()],
         client_name: Some(format!("Test Client {client_id}")),
         client_uri: None,
-        grant_types: Some(vec!["authorization_code".to_string()]),
-        response_types: Some(vec!["code".to_string()]),
-        scope: Some("read write".to_string()),
+        grant_types: Some(vec!["authorization_code".to_owned()]),
+        response_types: Some(vec!["code".to_owned()]),
+        scope: Some("read write".to_owned()),
     };
 
     let response = registration_manager
@@ -95,14 +98,14 @@ async fn test_state_storage_and_consumption() {
 
     // Create OAuth2State
     let oauth2_state = OAuth2State {
-        state: state_value.to_string(),
-        client_id: client_id.to_string(),
+        state: state_value.to_owned(),
+        client_id: client_id.to_owned(),
         user_id: Some(user_id),
-        tenant_id: Some(tenant_id.to_string()),
-        redirect_uri: "https://example.com/callback".to_string(),
-        scope: Some("read write".to_string()),
-        code_challenge: Some("test_challenge".to_string()),
-        code_challenge_method: Some("S256".to_string()),
+        tenant_id: Some(tenant_id.to_owned()),
+        redirect_uri: "https://example.com/callback".to_owned(),
+        scope: Some("read write".to_owned()),
+        code_challenge: Some("test_challenge".to_owned()),
+        code_challenge_method: Some("S256".to_owned()),
         created_at: Utc::now(),
         expires_at: Utc::now() + Duration::minutes(10),
         used: false,
@@ -130,9 +133,9 @@ async fn test_state_storage_and_consumption() {
     assert_eq!(consumed.state, state_value);
     assert_eq!(consumed.client_id, client_id);
     assert_eq!(consumed.user_id, Some(user_id));
-    assert_eq!(consumed.tenant_id, Some(tenant_id.to_string()));
+    assert_eq!(consumed.tenant_id, Some(tenant_id.to_owned()));
     assert_eq!(consumed.redirect_uri, "https://example.com/callback");
-    assert_eq!(consumed.scope, Some("read write".to_string()));
+    assert_eq!(consumed.scope, Some("read write".to_owned()));
 }
 
 /// Test state replay attack prevention (state already used)
@@ -166,11 +169,11 @@ async fn test_state_replay_attack_prevention() {
     create_test_client(&database, client_id).await.unwrap();
 
     let oauth2_state = OAuth2State {
-        state: state_value.to_string(),
-        client_id: client_id.to_string(),
+        state: state_value.to_owned(),
+        client_id: client_id.to_owned(),
         user_id: Some(Uuid::new_v4()),
-        tenant_id: Some("tenant_replay".to_string()),
-        redirect_uri: "https://example.com/callback".to_string(),
+        tenant_id: Some("tenant_replay".to_owned()),
+        redirect_uri: "https://example.com/callback".to_owned(),
         scope: None,
         code_challenge: None,
         code_challenge_method: None,
@@ -234,11 +237,11 @@ async fn test_expired_state_rejection() {
 
     // Create state that expired 1 minute ago
     let oauth2_state = OAuth2State {
-        state: state_value.to_string(),
-        client_id: client_id.to_string(),
+        state: state_value.to_owned(),
+        client_id: client_id.to_owned(),
         user_id: Some(Uuid::new_v4()),
-        tenant_id: Some("tenant_expired".to_string()),
-        redirect_uri: "https://example.com/callback".to_string(),
+        tenant_id: Some("tenant_expired".to_owned()),
+        redirect_uri: "https://example.com/callback".to_owned(),
         scope: None,
         code_challenge: None,
         code_challenge_method: None,
@@ -338,11 +341,11 @@ async fn test_state_client_id_mismatch() {
 
     // Legitimate client stores state
     let oauth2_state = OAuth2State {
-        state: state_value.to_string(),
-        client_id: correct_client_id.to_string(),
+        state: state_value.to_owned(),
+        client_id: correct_client_id.to_owned(),
         user_id: Some(Uuid::new_v4()),
-        tenant_id: Some("tenant_csrf".to_string()),
-        redirect_uri: "https://legitimate.com/callback".to_string(),
+        tenant_id: Some("tenant_csrf".to_owned()),
+        redirect_uri: "https://legitimate.com/callback".to_owned(),
         scope: None,
         code_challenge: None,
         code_challenge_method: None,
@@ -409,14 +412,14 @@ async fn test_state_with_pkce_parameters() {
     create_test_client(&database, client_id).await.unwrap();
 
     let oauth2_state = OAuth2State {
-        state: state_value.to_string(),
-        client_id: client_id.to_string(),
+        state: state_value.to_owned(),
+        client_id: client_id.to_owned(),
         user_id: Some(Uuid::new_v4()),
-        tenant_id: Some("tenant_pkce".to_string()),
-        redirect_uri: "https://example.com/callback".to_string(),
-        scope: Some("openid profile".to_string()),
-        code_challenge: Some(code_challenge.to_string()),
-        code_challenge_method: Some(code_challenge_method.to_string()),
+        tenant_id: Some("tenant_pkce".to_owned()),
+        redirect_uri: "https://example.com/callback".to_owned(),
+        scope: Some("openid profile".to_owned()),
+        code_challenge: Some(code_challenge.to_owned()),
+        code_challenge_method: Some(code_challenge_method.to_owned()),
         created_at: Utc::now(),
         expires_at: Utc::now() + Duration::minutes(10),
         used: false,
@@ -433,13 +436,13 @@ async fn test_state_with_pkce_parameters() {
     // Verify PKCE parameters are preserved
     assert_eq!(
         consumed_state.code_challenge,
-        Some(code_challenge.to_string())
+        Some(code_challenge.to_owned())
     );
     assert_eq!(
         consumed_state.code_challenge_method,
-        Some(code_challenge_method.to_string())
+        Some(code_challenge_method.to_owned())
     );
-    assert_eq!(consumed_state.scope, Some("openid profile".to_string()));
+    assert_eq!(consumed_state.scope, Some("openid profile".to_owned()));
 }
 
 /// Test state expiration boundary (exactly at expiry time)
@@ -474,11 +477,11 @@ async fn test_state_expiration_boundary() {
     create_test_client(&database, client_id).await.unwrap();
 
     let oauth2_state = OAuth2State {
-        state: state_value.to_string(),
-        client_id: client_id.to_string(),
+        state: state_value.to_owned(),
+        client_id: client_id.to_owned(),
         user_id: Some(Uuid::new_v4()),
-        tenant_id: Some("tenant_boundary".to_string()),
-        redirect_uri: "https://example.com/callback".to_string(),
+        tenant_id: Some("tenant_boundary".to_owned()),
+        redirect_uri: "https://example.com/callback".to_owned(),
         scope: None,
         code_challenge: None,
         code_challenge_method: None,

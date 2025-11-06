@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
@@ -36,7 +39,7 @@ async fn test_get_users_by_status_cursor() -> Result<()> {
             id: Uuid::new_v4(),
             email: format!("user{i}@test.com"),
             display_name: Some(format!("User {i}")),
-            password_hash: "hashed_password".to_string(),
+            password_hash: "hashed_password".to_owned(),
             tier: UserTier::Starter,
             tenant_id: None,
             strava_token: None,
@@ -157,7 +160,7 @@ async fn test_cursor_pagination_consistency() -> Result<()> {
             id: Uuid::new_v4(),
             email: format!("initial{i}@test.com"),
             display_name: Some(format!("Initial User {i}")),
-            password_hash: "hashed".to_string(),
+            password_hash: "hashed".to_owned(),
             tier: UserTier::Starter,
             tenant_id: None,
             strava_token: None,
@@ -186,9 +189,9 @@ async fn test_cursor_pagination_consistency() -> Result<()> {
     // Add new user AFTER getting first page
     let new_user = User {
         id: Uuid::new_v4(),
-        email: "newer@test.com".to_string(),
-        display_name: Some("Newer User".to_string()),
-        password_hash: "hashed".to_string(),
+        email: "newer@test.com".to_owned(),
+        display_name: Some("Newer User".to_owned()),
+        password_hash: "hashed".to_owned(),
         tier: UserTier::Starter,
         tenant_id: None,
         strava_token: None,

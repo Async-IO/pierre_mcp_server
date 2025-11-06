@@ -3,6 +3,8 @@
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(
     clippy::uninlined_format_args,
     clippy::cast_possible_truncation,
@@ -231,17 +233,17 @@ async fn test_multitenant_user_creation_and_isolation() -> Result<()> {
 
     // Test that we can create users and they're properly isolated
     let user1 = User::new(
-        "user1@test.com".to_string(),
-        "hashed_password1".to_string(),
-        Some("User 1".to_string()),
+        "user1@test.com".to_owned(),
+        "hashed_password1".to_owned(),
+        Some("User 1".to_owned()),
     );
     let user1_id = user1.id;
     database.create_user(&user1).await?;
 
     let user2 = User::new(
-        "user2@test.com".to_string(),
-        "hashed_password2".to_string(),
-        Some("User 2".to_string()),
+        "user2@test.com".to_owned(),
+        "hashed_password2".to_owned(),
+        Some("User 2".to_owned()),
     );
     let user2_id = user2.id;
     database.create_user(&user2).await?;
@@ -285,9 +287,9 @@ async fn test_authentication_middleware_integration() -> Result<()> {
 
     // Create test user
     let user = User::new(
-        "auth@test.com".to_string(),
-        "hashed_password".to_string(),
-        Some("Auth Test User".to_string()),
+        "auth@test.com".to_owned(),
+        "hashed_password".to_owned(),
+        Some("Auth Test User".to_owned()),
     );
     let user_id = user.id;
     database.create_user(&user).await?;
@@ -336,24 +338,24 @@ async fn test_tenant_data_isolation() -> Result<()> {
         // Store Strava tokens
         let strava_token = UserOAuthToken::new(
             *user_id,
-            "00000000-0000-0000-0000-000000000000".to_string(),
-            oauth_providers::STRAVA.to_string(),
+            "00000000-0000-0000-0000-000000000000".to_owned(),
+            oauth_providers::STRAVA.to_owned(),
             format!("strava_access_{i}"),
             Some(format!("strava_refresh_{i}")),
             Some(expires_at),
-            Some("read,activity:read_all".to_string()),
+            Some("read,activity:read_all".to_owned()),
         );
         database.upsert_user_oauth_token(&strava_token).await?;
 
         // Store Fitbit tokens
         let fitbit_token = UserOAuthToken::new(
             *user_id,
-            "00000000-0000-0000-0000-000000000000".to_string(),
+            "00000000-0000-0000-0000-000000000000".to_owned(),
             oauth_providers::FITBIT.to_string(),
             format!("fitbit_access_{i}"),
             Some(format!("fitbit_refresh_{i}")),
             Some(expires_at),
-            Some("activity heartrate profile".to_string()),
+            Some("activity heartrate profile".to_owned()),
         );
         database.upsert_user_oauth_token(&fitbit_token).await?;
     }
@@ -439,12 +441,12 @@ async fn test_concurrent_user_operations() -> Result<()> {
             let expires_at = chrono::Utc::now() + chrono::Duration::hours(6);
             let oauth_token = UserOAuthToken::new(
                 user_id,
-                "00000000-0000-0000-0000-000000000000".to_string(),
-                oauth_providers::STRAVA.to_string(),
+                "00000000-0000-0000-0000-000000000000".to_owned(),
+                oauth_providers::STRAVA.to_owned(),
                 format!("access_token_{i}"),
                 Some(format!("refresh_token_{i}")),
                 Some(expires_at),
-                Some("read,activity:read_all".to_string()),
+                Some("read,activity:read_all".to_owned()),
             );
             db.upsert_user_oauth_token(&oauth_token).await?;
 
@@ -483,9 +485,9 @@ async fn test_token_expiration_handling() -> Result<()> {
 
     // Create user first
     let user = User::new(
-        "expired@token.test".to_string(),
-        "hashed_password".to_string(),
-        Some("Expired Token User".to_string()),
+        "expired@token.test".to_owned(),
+        "hashed_password".to_owned(),
+        Some("Expired Token User".to_owned()),
     );
     database.create_user(&user).await?;
 
@@ -559,25 +561,25 @@ async fn test_user_tier_management() -> Result<()> {
 
     // Create users with different tiers
     let mut starter_user = User::new(
-        "starter@test.com".to_string(),
-        "hashed_password".to_string(),
-        Some("Starter User".to_string()),
+        "starter@test.com".to_owned(),
+        "hashed_password".to_owned(),
+        Some("Starter User".to_owned()),
     );
     starter_user.tier = UserTier::Starter;
     database.create_user(&starter_user).await?;
 
     let mut pro_user = User::new(
-        "pro@test.com".to_string(),
-        "hashed_password".to_string(),
-        Some("Pro User".to_string()),
+        "pro@test.com".to_owned(),
+        "hashed_password".to_owned(),
+        Some("Pro User".to_owned()),
     );
     pro_user.tier = UserTier::Professional;
     database.create_user(&pro_user).await?;
 
     let mut enterprise_user = User::new(
-        "enterprise@test.com".to_string(),
-        "hashed_password".to_string(),
-        Some("Enterprise User".to_string()),
+        "enterprise@test.com".to_owned(),
+        "hashed_password".to_owned(),
+        Some("Enterprise User".to_owned()),
     );
     enterprise_user.tier = UserTier::Enterprise;
     database.create_user(&enterprise_user).await?;
@@ -624,23 +626,23 @@ async fn test_database_encryption_isolation() -> Result<()> {
 
     let user1_oauth_token = UserOAuthToken::new(
         *user1_id,
-        "00000000-0000-0000-0000-000000000000".to_string(),
-        oauth_providers::STRAVA.to_string(),
-        "secret_access_token_user1".to_string(),
-        Some("secret_refresh_token_user1".to_string()),
+        "00000000-0000-0000-0000-000000000000".to_owned(),
+        oauth_providers::STRAVA.to_owned(),
+        "secret_access_token_user1".to_owned(),
+        Some("secret_refresh_token_user1".to_owned()),
         Some(expires_at),
-        Some("read,activity:read_all".to_string()),
+        Some("read,activity:read_all".to_owned()),
     );
     database.upsert_user_oauth_token(&user1_oauth_token).await?;
 
     let user2_oauth_token = UserOAuthToken::new(
         *user2_id,
-        "00000000-0000-0000-0000-000000000000".to_string(),
-        oauth_providers::STRAVA.to_string(),
-        "secret_access_token_user2".to_string(),
-        Some("secret_refresh_token_user2".to_string()),
+        "00000000-0000-0000-0000-000000000000".to_owned(),
+        oauth_providers::STRAVA.to_owned(),
+        "secret_access_token_user2".to_owned(),
+        Some("secret_refresh_token_user2".to_owned()),
         Some(expires_at),
-        Some("read,activity:read_all".to_string()),
+        Some("read,activity:read_all".to_owned()),
     );
     database.upsert_user_oauth_token(&user2_oauth_token).await?;
 
@@ -681,9 +683,9 @@ async fn test_session_state_management() -> Result<()> {
 
     // Create test user
     let user = User::new(
-        "session@test.com".to_string(),
-        "hashed_password".to_string(),
-        Some("Session Test User".to_string()),
+        "session@test.com".to_owned(),
+        "hashed_password".to_owned(),
+        Some("Session Test User".to_owned()),
     );
     let user_id = user.id;
     database.create_user(&user).await?;
@@ -802,12 +804,12 @@ async fn test_memory_safety_concurrent_access() -> Result<()> {
             let expires_at = chrono::Utc::now() + chrono::Duration::hours(6);
             let oauth_token = UserOAuthToken::new(
                 user_id,
-                "00000000-0000-0000-0000-000000000000".to_string(),
-                oauth_providers::STRAVA.to_string(),
+                "00000000-0000-0000-0000-000000000000".to_owned(),
+                oauth_providers::STRAVA.to_owned(),
                 format!("access_{i}"),
                 Some(format!("refresh_{i}")),
                 Some(expires_at),
-                Some("read,activity:read_all".to_string()),
+                Some("read,activity:read_all".to_owned()),
             );
             db.upsert_user_oauth_token(&oauth_token).await?;
 
@@ -858,8 +860,8 @@ async fn test_user_provider_storage_concept() -> Result<()> {
         let mut providers = user_providers.write().await;
         for (user_id, _email, _token) in &users {
             let mut user_map = HashMap::new();
-            user_map.insert("strava".to_string(), format!("strava_provider_{user_id}"));
-            user_map.insert("fitbit".to_string(), format!("fitbit_provider_{user_id}"));
+            user_map.insert("strava".to_owned(), format!("strava_provider_{user_id}"));
+            user_map.insert("fitbit".to_owned(), format!("fitbit_provider_{user_id}"));
             providers.insert(user_id.to_string(), user_map);
         }
     }
@@ -910,8 +912,8 @@ async fn test_error_recovery_and_resilience() -> Result<()> {
 
     // 3. Test database operations with invalid data
     let invalid_user = User::new(
-        "".to_string(), // Empty email
-        "password".to_string(),
+        "".to_owned(), // Empty email
+        "password".to_owned(),
         None,
     );
 
@@ -954,12 +956,12 @@ async fn test_large_scale_multitenant_operations() -> Result<()> {
             let expires_at = chrono::Utc::now() + chrono::Duration::hours(6);
             let oauth_token = UserOAuthToken::new(
                 user_id,
-                "00000000-0000-0000-0000-000000000000".to_string(),
-                oauth_providers::STRAVA.to_string(),
+                "00000000-0000-0000-0000-000000000000".to_owned(),
+                oauth_providers::STRAVA.to_owned(),
                 format!("access_{user_id}"),
                 Some(format!("refresh_{user_id}")),
                 Some(expires_at),
-                Some("read,activity:read_all".to_string()),
+                Some("read,activity:read_all".to_owned()),
             );
             db.upsert_user_oauth_token(&oauth_token).await?;
 

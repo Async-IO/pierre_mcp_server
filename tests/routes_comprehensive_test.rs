@@ -8,6 +8,9 @@
 //! This test suite aims to improve coverage from 55.09% to 80%+ by testing
 //! all critical authentication, registration, and OAuth functionality.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
@@ -81,9 +84,9 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
     // Create admin user first
     let admin_user = User {
         id: Uuid::new_v4(),
-        email: "admin@example.com".to_string(),
-        display_name: Some("Admin".to_string()),
-        password_hash: "hash".to_string(),
+        email: "admin@example.com".to_owned(),
+        display_name: Some("Admin".to_owned()),
+        password_hash: "hash".to_owned(),
         tier: pierre_mcp_server::models::UserTier::Starter,
         tenant_id: None,
         strava_token: None,
@@ -102,10 +105,10 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
     let tenant_id = Uuid::new_v4();
     let tenant = Tenant {
         id: tenant_id,
-        name: "Test Tenant".to_string(),
-        slug: "test-tenant".to_string(),
+        name: "Test Tenant".to_owned(),
+        slug: "test-tenant".to_owned(),
         domain: None,
-        plan: "starter".to_string(),
+        plan: "starter".to_owned(),
         owner_user_id: admin_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
@@ -115,11 +118,11 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
     // Store tenant OAuth credentials
     let strava_credentials = TenantOAuthCredentials {
         tenant_id,
-        provider: "strava".to_string(),
-        client_id: "test_client_id".to_string(),
-        client_secret: "test_client_secret".to_string(),
-        redirect_uri: "http://localhost:8080/oauth/callback/strava".to_string(),
-        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+        provider: "strava".to_owned(),
+        client_id: "test_client_id".to_owned(),
+        client_secret: "test_client_secret".to_owned(),
+        redirect_uri: "http://localhost:8080/oauth/callback/strava".to_owned(),
+        scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
         rate_limit_per_day: 15000,
     };
     database
@@ -128,11 +131,11 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
 
     let fitbit_credentials = TenantOAuthCredentials {
         tenant_id,
-        provider: "fitbit".to_string(),
-        client_id: "test_fitbit_client_id".to_string(),
-        client_secret: "test_fitbit_client_secret".to_string(),
-        redirect_uri: "http://localhost:8080/oauth/callback/fitbit".to_string(),
-        scopes: vec!["activity".to_string(), "profile".to_string()],
+        provider: "fitbit".to_owned(),
+        client_id: "test_fitbit_client_id".to_owned(),
+        client_secret: "test_fitbit_client_secret".to_owned(),
+        redirect_uri: "http://localhost:8080/oauth/callback/fitbit".to_owned(),
+        scopes: vec!["activity".to_owned(), "profile".to_owned()],
         rate_limit_per_day: 15000,
     };
     database
@@ -164,17 +167,17 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
-                client_id: Some("test_strava_client_id".to_string()),
-                client_secret: Some("test_strava_client_secret".to_string()),
-                redirect_uri: Some("http://localhost:8080/oauth/callback/strava".to_string()),
-                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                client_id: Some("test_strava_client_id".to_owned()),
+                client_secret: Some("test_strava_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/oauth/callback/strava".to_owned()),
+                scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
                 enabled: true,
             },
             fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
-                client_id: Some("test_fitbit_client_id".to_string()),
-                client_secret: Some("test_fitbit_client_secret".to_string()),
-                redirect_uri: Some("http://localhost:8080/oauth/callback/fitbit".to_string()),
-                scopes: vec!["activity".to_string(), "profile".to_string()],
+                client_id: Some("test_fitbit_client_id".to_owned()),
+                client_secret: Some("test_fitbit_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/oauth/callback/fitbit".to_owned()),
+                scopes: vec!["activity".to_owned(), "profile".to_owned()],
                 enabled: true,
             },
             garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
@@ -199,31 +202,30 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
         external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
             weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: false,
             },
             strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
-                base_url: "https://apis.garmin.com".to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
-                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
-                    .to_string(),
-                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                base_url: "https://apis.garmin.com".to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token".to_owned(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
@@ -231,23 +233,23 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
             default_activities_limit: 20,
             ci_mode: true,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                mcp_version: "2025-06-18".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2025-06-18".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: pierre_mcp_server::config::environment::McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: pierre_mcp_server::config::environment::CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -294,9 +296,9 @@ async fn test_user_registration_success() -> Result<()> {
     let auth_routes = create_test_auth_routes().await?;
 
     let request = RegisterRequest {
-        email: "test@example.com".to_string(),
-        password: "securepassword123".to_string(),
-        display_name: Some("Test User".to_string()),
+        email: "test@example.com".to_owned(),
+        password: "securepassword123".to_owned(),
+        display_name: Some("Test User".to_owned()),
     };
 
     let response = auth_routes.register(request).await?;
@@ -313,9 +315,9 @@ async fn test_user_registration_invalid_email() -> Result<()> {
     let auth_routes = create_test_auth_routes().await?;
 
     let request = RegisterRequest {
-        email: "invalid-email".to_string(),
-        password: "securepassword123".to_string(),
-        display_name: Some("Test User".to_string()),
+        email: "invalid-email".to_owned(),
+        password: "securepassword123".to_owned(),
+        display_name: Some("Test User".to_owned()),
     };
 
     let result = auth_routes.register(request).await;
@@ -335,9 +337,9 @@ async fn test_user_registration_weak_password() -> Result<()> {
     let auth_routes = create_test_auth_routes().await?;
 
     let request = RegisterRequest {
-        email: "test@example.com".to_string(),
-        password: "weak".to_string(), // Too short
-        display_name: Some("Test User".to_string()),
+        email: "test@example.com".to_owned(),
+        password: "weak".to_owned(), // Too short
+        display_name: Some("Test User".to_owned()),
     };
 
     let result = auth_routes.register(request).await;
@@ -354,9 +356,9 @@ async fn test_user_registration_duplicate_email() -> Result<()> {
     let auth_routes = create_test_auth_routes().await?;
 
     let request = RegisterRequest {
-        email: "duplicate@example.com".to_string(),
-        password: "securepassword123".to_string(),
-        display_name: Some("Test User".to_string()),
+        email: "duplicate@example.com".to_owned(),
+        password: "securepassword123".to_owned(),
+        display_name: Some("Test User".to_owned()),
     };
 
     // First registration should succeed
@@ -378,8 +380,8 @@ async fn test_user_registration_edge_cases() -> Result<()> {
 
     // Test with minimal valid input
     let minimal_request = RegisterRequest {
-        email: "minimal@example.com".to_string(),
-        password: "12345678".to_string(), // Exactly 8 characters
+        email: "minimal@example.com".to_owned(),
+        password: "12345678".to_owned(), // Exactly 8 characters
         display_name: None,
     };
 
@@ -388,9 +390,9 @@ async fn test_user_registration_edge_cases() -> Result<()> {
 
     // Test with very long valid email
     let long_email_request = RegisterRequest {
-        email: "very.long.email.address.for.testing@example.com".to_string(),
-        password: "securepassword123".to_string(),
-        display_name: Some("Very Long Display Name For Testing Purposes".to_string()),
+        email: "very.long.email.address.for.testing@example.com".to_owned(),
+        password: "securepassword123".to_owned(),
+        display_name: Some("Very Long Display Name For Testing Purposes".to_owned()),
     };
 
     let response = auth_routes.register(long_email_request).await?;
@@ -466,31 +468,30 @@ async fn test_user_login_success() -> Result<()> {
         external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
             weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: false,
             },
             strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
-                base_url: "https://apis.garmin.com".to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
-                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
-                    .to_string(),
-                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                base_url: "https://apis.garmin.com".to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token".to_owned(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
@@ -498,23 +499,23 @@ async fn test_user_login_success() -> Result<()> {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                mcp_version: "2025-06-18".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2025-06-18".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: pierre_mcp_server::config::environment::McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: pierre_mcp_server::config::environment::CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -549,9 +550,9 @@ async fn test_user_login_success() -> Result<()> {
 
     // First register a user
     let register_request = RegisterRequest {
-        email: "login@example.com".to_string(),
-        password: "loginpassword123".to_string(),
-        display_name: Some("Login User".to_string()),
+        email: "login@example.com".to_owned(),
+        password: "loginpassword123".to_owned(),
+        display_name: Some("Login User".to_owned()),
     };
 
     let register_response = auth_routes.register(register_request).await?;
@@ -568,8 +569,8 @@ async fn test_user_login_success() -> Result<()> {
 
     // Now test login
     let login_request = LoginRequest {
-        email: "login@example.com".to_string(),
-        password: "loginpassword123".to_string(),
+        email: "login@example.com".to_owned(),
+        password: "loginpassword123".to_owned(),
     };
 
     let response = auth_routes.login(login_request).await?;
@@ -577,7 +578,7 @@ async fn test_user_login_success() -> Result<()> {
     assert!(!response.jwt_token.is_empty());
     assert!(!response.expires_at.is_empty());
     assert_eq!(response.user.email, "login@example.com");
-    assert_eq!(response.user.display_name, Some("Login User".to_string()));
+    assert_eq!(response.user.display_name, Some("Login User".to_owned()));
 
     Ok(())
 }
@@ -588,8 +589,8 @@ async fn test_user_login_invalid_email() -> Result<()> {
     let auth_routes = create_test_auth_routes().await?;
 
     let login_request = LoginRequest {
-        email: "nonexistent@example.com".to_string(),
-        password: "anypassword".to_string(),
+        email: "nonexistent@example.com".to_owned(),
+        password: "anypassword".to_owned(),
     };
 
     let result = auth_routes.login(login_request).await;
@@ -610,17 +611,17 @@ async fn test_user_login_invalid_password() -> Result<()> {
 
     // Register a user first
     let register_request = RegisterRequest {
-        email: "password_test@example.com".to_string(),
-        password: "correctpassword123".to_string(),
-        display_name: Some("Password User".to_string()),
+        email: "password_test@example.com".to_owned(),
+        password: "correctpassword123".to_owned(),
+        display_name: Some("Password User".to_owned()),
     };
 
     auth_routes.register(register_request).await?;
 
     // Try to login with wrong password
     let login_request = LoginRequest {
-        email: "password_test@example.com".to_string(),
-        password: "wrongpassword".to_string(),
+        email: "password_test@example.com".to_owned(),
+        password: "wrongpassword".to_owned(),
     };
 
     let result = auth_routes.login(login_request).await;
@@ -641,17 +642,17 @@ async fn test_user_login_case_sensitivity() -> Result<()> {
 
     // Register with lowercase email
     let register_request = RegisterRequest {
-        email: "case@example.com".to_string(),
-        password: "casepassword123".to_string(),
-        display_name: Some("Case User".to_string()),
+        email: "case@example.com".to_owned(),
+        password: "casepassword123".to_owned(),
+        display_name: Some("Case User".to_owned()),
     };
 
     auth_routes.register(register_request).await?;
 
     // Try to login with uppercase email (should fail for security)
     let login_request = LoginRequest {
-        email: "CASE@EXAMPLE.COM".to_string(),
-        password: "casepassword123".to_string(),
+        email: "CASE@EXAMPLE.COM".to_owned(),
+        password: "casepassword123".to_owned(),
     };
 
     let result = auth_routes.login(login_request).await;
@@ -729,31 +730,30 @@ async fn test_token_refresh_success() -> Result<()> {
         external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
             weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: false,
             },
             strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
-                base_url: "https://apis.garmin.com".to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
-                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
-                    .to_string(),
-                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                base_url: "https://apis.garmin.com".to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token".to_owned(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
@@ -761,23 +761,23 @@ async fn test_token_refresh_success() -> Result<()> {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                mcp_version: "2025-06-18".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2025-06-18".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: pierre_mcp_server::config::environment::McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: pierre_mcp_server::config::environment::CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -812,9 +812,9 @@ async fn test_token_refresh_success() -> Result<()> {
 
     // Register and login to get initial token
     let register_request = RegisterRequest {
-        email: "refresh@example.com".to_string(),
-        password: "refreshpassword123".to_string(),
-        display_name: Some("Refresh User".to_string()),
+        email: "refresh@example.com".to_owned(),
+        password: "refreshpassword123".to_owned(),
+        display_name: Some("Refresh User".to_owned()),
     };
 
     let register_response = auth_routes.register(register_request).await?;
@@ -831,8 +831,8 @@ async fn test_token_refresh_success() -> Result<()> {
         .await?;
 
     let login_request = LoginRequest {
-        email: "refresh@example.com".to_string(),
-        password: "refreshpassword123".to_string(),
+        email: "refresh@example.com".to_owned(),
+        password: "refreshpassword123".to_owned(),
     };
 
     let login_response = auth_routes.login(login_request).await?;
@@ -859,7 +859,7 @@ async fn test_token_refresh_invalid_token() -> Result<()> {
     let auth_routes = create_test_auth_routes().await?;
 
     let refresh_request = RefreshTokenRequest {
-        token: "invalid.jwt.token".to_string(),
+        token: "invalid.jwt.token".to_owned(),
         user_id: Uuid::new_v4().to_string(),
     };
 
@@ -935,31 +935,30 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
         external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
             weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: false,
             },
             strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
-                base_url: "https://apis.garmin.com".to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
-                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
-                    .to_string(),
-                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                base_url: "https://apis.garmin.com".to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token".to_owned(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
@@ -967,23 +966,23 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                mcp_version: "2025-06-18".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2025-06-18".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: pierre_mcp_server::config::environment::McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: pierre_mcp_server::config::environment::CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -1018,9 +1017,9 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
 
     // Register and login to get a valid token
     let register_request = RegisterRequest {
-        email: "mismatch@example.com".to_string(),
-        password: "mismatchpassword123".to_string(),
-        display_name: Some("Mismatch User".to_string()),
+        email: "mismatch@example.com".to_owned(),
+        password: "mismatchpassword123".to_owned(),
+        display_name: Some("Mismatch User".to_owned()),
     };
 
     let register_response = auth_routes.register(register_request).await?;
@@ -1036,8 +1035,8 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
         .await?;
 
     let login_request = LoginRequest {
-        email: "mismatch@example.com".to_string(),
-        password: "mismatchpassword123".to_string(),
+        email: "mismatch@example.com".to_owned(),
+        password: "mismatchpassword123".to_owned(),
     };
 
     let login_response = auth_routes.login(login_request).await?;
@@ -1118,8 +1117,8 @@ async fn test_oauth_connection_status_no_connections() -> Result<()> {
     let user = pierre_mcp_server::models::User {
         id: user_id,
         email: format!("test_{user_id}@example.com"),
-        display_name: Some("Test User".to_string()),
-        password_hash: "test_hash".to_string(),
+        display_name: Some("Test User".to_owned()),
+        password_hash: "test_hash".to_owned(),
         tier: pierre_mcp_server::models::UserTier::Starter,
         tenant_id: None,
         strava_token: None,
@@ -1159,11 +1158,11 @@ async fn test_oauth_disconnect_provider_success() -> Result<()> {
         id: user_id,
         email: format!("test_{user_id}@example.com"),
         display_name: None,
-        password_hash: "test_hash".to_string(),
+        password_hash: "test_hash".to_owned(),
         tier: pierre_mcp_server::models::UserTier::Starter,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("00000000-0000-0000-0000-000000000000".to_string()),
+        tenant_id: Some("00000000-0000-0000-0000-000000000000".to_owned()),
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
@@ -1193,11 +1192,11 @@ async fn test_oauth_disconnect_invalid_provider() -> Result<()> {
         id: user_id,
         email: format!("test_{user_id}@example.com"),
         display_name: None,
-        password_hash: "test_hash".to_string(),
+        password_hash: "test_hash".to_owned(),
         tier: pierre_mcp_server::models::UserTier::Starter,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("00000000-0000-0000-0000-000000000000".to_string()),
+        tenant_id: Some("00000000-0000-0000-0000-000000000000".to_owned()),
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
@@ -1233,9 +1232,9 @@ async fn test_email_validation_comprehensive() -> Result<()> {
 
     for email in invalid_emails {
         let request = RegisterRequest {
-            email: email.to_string(),
-            password: "validpassword123".to_string(),
-            display_name: Some("Test User".to_string()),
+            email: email.to_owned(),
+            password: "validpassword123".to_owned(),
+            display_name: Some("Test User".to_owned()),
         };
 
         let result = auth_routes.register(request).await;
@@ -1253,8 +1252,8 @@ async fn test_email_validation_comprehensive() -> Result<()> {
 
     for (i, email) in valid_emails.iter().enumerate() {
         let request = RegisterRequest {
-            email: (*email).to_string(),
-            password: "validpassword123".to_string(),
+            email: (*email).to_owned(),
+            password: "validpassword123".to_owned(),
             display_name: Some(format!("Test User {i}")),
         };
 
@@ -1279,8 +1278,8 @@ async fn test_password_validation_comprehensive() -> Result<()> {
     for (i, password) in invalid_passwords.iter().enumerate() {
         let request = RegisterRequest {
             email: format!("test{i}@example.com"),
-            password: (*password).to_string(),
-            display_name: Some("Test User".to_string()),
+            password: (*password).to_owned(),
+            display_name: Some("Test User".to_owned()),
         };
 
         let result = auth_routes.register(request).await;
@@ -1300,8 +1299,8 @@ async fn test_password_validation_comprehensive() -> Result<()> {
     for (i, password) in valid_passwords.iter().enumerate() {
         let request = RegisterRequest {
             email: format!("valid{i}@example.com"),
-            password: (*password).to_string(),
-            display_name: Some("Test User".to_string()),
+            password: (*password).to_owned(),
+            display_name: Some("Test User".to_owned()),
         };
 
         let result = auth_routes.register(request).await;
@@ -1384,31 +1383,30 @@ async fn test_complete_auth_flow() -> Result<()> {
         external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
             weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: false,
             },
             strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
-                base_url: "https://apis.garmin.com".to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
-                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
-                    .to_string(),
-                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                base_url: "https://apis.garmin.com".to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token".to_owned(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
@@ -1416,23 +1414,23 @@ async fn test_complete_auth_flow() -> Result<()> {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                mcp_version: "2025-06-18".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2025-06-18".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: pierre_mcp_server::config::environment::McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: pierre_mcp_server::config::environment::CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -1472,9 +1470,9 @@ async fn test_complete_auth_flow() -> Result<()> {
 
     // 1. Register user
     let register_request = RegisterRequest {
-        email: "integration@example.com".to_string(),
-        password: "integrationpass123".to_string(),
-        display_name: Some("Integration User".to_string()),
+        email: "integration@example.com".to_owned(),
+        password: "integrationpass123".to_owned(),
+        display_name: Some("Integration User".to_owned()),
     };
 
     let register_response = auth_routes.register(register_request).await?;
@@ -1491,8 +1489,8 @@ async fn test_complete_auth_flow() -> Result<()> {
 
     // 2. Login
     let login_request = LoginRequest {
-        email: "integration@example.com".to_string(),
-        password: "integrationpass123".to_string(),
+        email: "integration@example.com".to_owned(),
+        password: "integrationpass123".to_owned(),
     };
 
     let login_response = auth_routes.login(login_request).await?;
@@ -1512,9 +1510,9 @@ async fn test_complete_auth_flow() -> Result<()> {
     // Create admin user and tenant for OAuth
     let admin_user = User {
         id: Uuid::new_v4(),
-        email: "admin_integration@example.com".to_string(),
-        display_name: Some("Admin".to_string()),
-        password_hash: "hash".to_string(),
+        email: "admin_integration@example.com".to_owned(),
+        display_name: Some("Admin".to_owned()),
+        password_hash: "hash".to_owned(),
         tier: pierre_mcp_server::models::UserTier::Starter,
         tenant_id: None,
         strava_token: None,
@@ -1532,10 +1530,10 @@ async fn test_complete_auth_flow() -> Result<()> {
     let tenant_id = Uuid::new_v4();
     let tenant = pierre_mcp_server::models::Tenant {
         id: tenant_id,
-        name: "Integration Test Tenant".to_string(),
-        slug: "integration-tenant".to_string(),
+        name: "Integration Test Tenant".to_owned(),
+        slug: "integration-tenant".to_owned(),
         domain: None,
-        plan: "starter".to_string(),
+        plan: "starter".to_owned(),
         owner_user_id: admin_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
@@ -1544,11 +1542,11 @@ async fn test_complete_auth_flow() -> Result<()> {
 
     let strava_credentials = pierre_mcp_server::tenant::TenantOAuthCredentials {
         tenant_id,
-        provider: "strava".to_string(),
-        client_id: "test_client_id".to_string(),
-        client_secret: "test_client_secret".to_string(),
-        redirect_uri: "http://localhost:8080/oauth/callback/strava".to_string(),
-        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+        provider: "strava".to_owned(),
+        client_id: "test_client_id".to_owned(),
+        client_secret: "test_client_secret".to_owned(),
+        redirect_uri: "http://localhost:8080/oauth/callback/strava".to_owned(),
+        scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
         rate_limit_per_day: 15000,
     };
     database
@@ -1580,7 +1578,7 @@ async fn test_concurrent_registrations() -> Result<()> {
         handles.push(tokio::spawn(async move {
             let request = RegisterRequest {
                 email: format!("concurrent{i}@example.com"),
-                password: "concurrentpass123".to_string(),
+                password: "concurrentpass123".to_owned(),
                 display_name: Some(format!("Concurrent User {i}")),
             };
 
@@ -1662,31 +1660,30 @@ async fn test_concurrent_logins() -> Result<()> {
         external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
             weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: false,
             },
             strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             garmin_api: pierre_mcp_server::config::environment::GarminApiConfig {
-                base_url: "https://apis.garmin.com".to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
-                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token"
-                    .to_string(),
-                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_string(),
+                base_url: "https://apis.garmin.com".to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
+                token_url: "https://connect.garmin.com/oauth-service/oauth/access_token".to_owned(),
+                revoke_url: "https://connect.garmin.com/oauth-service/oauth/revoke".to_owned(),
             },
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
@@ -1694,23 +1691,23 @@ async fn test_concurrent_logins() -> Result<()> {
             default_activities_limit: 20,
             ci_mode: true,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                mcp_version: "2025-06-18".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2025-06-18".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
         oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
         route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
-        host: "localhost".to_string(),
-        base_url: "http://localhost:8081".to_string(),
+        host: "localhost".to_owned(),
+        base_url: "http://localhost:8081".to_owned(),
         mcp: pierre_mcp_server::config::environment::McpConfig {
-            protocol_version: "2025-06-18".to_string(),
-            server_name: "pierre-mcp-server-test".to_string(),
+            protocol_version: "2025-06-18".to_owned(),
+            server_name: "pierre-mcp-server-test".to_owned(),
             session_cache_size: 1000,
         },
         cors: pierre_mcp_server::config::environment::CorsConfig {
-            allowed_origins: "*".to_string(),
+            allowed_origins: "*".to_owned(),
             allow_localhost_dev: true,
         },
         cache: pierre_mcp_server::config::environment::CacheConfig {
@@ -1747,7 +1744,7 @@ async fn test_concurrent_logins() -> Result<()> {
     for i in 0..3 {
         let request = RegisterRequest {
             email: format!("login_concurrent{i}@example.com"),
-            password: "loginpass123".to_string(),
+            password: "loginpass123".to_owned(),
             display_name: Some(format!("Login User {i}")),
         };
         let register_response = auth_routes.register(request).await?;
@@ -1770,7 +1767,7 @@ async fn test_concurrent_logins() -> Result<()> {
         handles.push(tokio::spawn(async move {
             let request = LoginRequest {
                 email: format!("login_concurrent{i}@example.com"),
-                password: "loginpass123".to_string(),
+                password: "loginpass123".to_owned(),
             };
 
             routes.login(request).await

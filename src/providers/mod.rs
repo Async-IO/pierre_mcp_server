@@ -39,20 +39,30 @@
 //! ```
 
 // Core provider system
+
+/// Core provider traits and interfaces
 pub mod core;
+/// Provider error types and result aliases
 pub mod errors;
+/// Global provider registry and factory
 pub mod registry;
+/// Provider utility functions
 pub mod utils;
 
 // Provider implementations
+
+/// Garmin Connect provider implementation
 pub mod garmin_provider;
+/// Strava API provider implementation
 pub mod strava_provider;
 
 // Re-export key types for convenience
 pub use core::{
     FitnessProvider as CoreFitnessProvider, OAuth2Credentials, ProviderConfig, TenantProvider,
 };
+/// Re-export provider error types
 pub use errors::{ProviderError, ProviderResult};
+/// Re-export provider registry functions
 pub use registry::{
     create_provider, create_tenant_provider, get_supported_providers, is_provider_supported,
     ProviderRegistry,

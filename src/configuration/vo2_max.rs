@@ -40,28 +40,34 @@ pub struct VO2MaxCalculator {
 /// Personalized heart rate zones based on VO2 max
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PersonalizedHRZones {
-    /// Zone 1: Active Recovery
+    /// Zone 1: Active Recovery - lower bound (bpm)
     pub zone1_lower: u16,
+    /// Zone 1: Active Recovery - upper bound (bpm)
     pub zone1_upper: u16,
 
-    /// Zone 2: Aerobic Base
+    /// Zone 2: Aerobic Base - lower bound (bpm)
     pub zone2_lower: u16,
+    /// Zone 2: Aerobic Base - upper bound (bpm)
     pub zone2_upper: u16,
 
-    /// Zone 3: Tempo
+    /// Zone 3: Tempo - lower bound (bpm)
     pub zone3_lower: u16,
+    /// Zone 3: Tempo - upper bound (bpm)
     pub zone3_upper: u16,
 
-    /// Zone 4: Lactate Threshold
+    /// Zone 4: Lactate Threshold - lower bound (bpm)
     pub zone4_lower: u16,
+    /// Zone 4: Lactate Threshold - upper bound (bpm)
     pub zone4_upper: u16,
 
-    /// Zone 5: VO2 Max
+    /// Zone 5: VO2 Max - lower bound (bpm)
     pub zone5_lower: u16,
+    /// Zone 5: VO2 Max - upper bound (bpm)
     pub zone5_upper: u16,
 
-    /// Zone 6: Neuromuscular Power (optional)
+    /// Zone 6: Neuromuscular Power - lower bound (bpm, optional)
     pub zone6_lower: Option<u16>,
+    /// Zone 6: Neuromuscular Power - upper bound (bpm, optional)
     pub zone6_upper: Option<u16>,
 }
 
@@ -329,6 +335,7 @@ impl VO2MaxCalculator {
 
 /// Sport-specific efficiency factors
 pub trait SportEfficiency {
+    /// Get the efficiency factor for this sport type
     fn sport_efficiency_factor(&self) -> f64;
 }
 

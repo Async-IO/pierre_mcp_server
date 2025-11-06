@@ -9,13 +9,21 @@ use uuid::Uuid;
 
 /// Context for provider API call logging
 pub struct ProviderApiContext<'a> {
+    /// User ID making the API call
     pub user_id: Uuid,
+    /// Tenant ID for multi-tenant isolation
     pub tenant_id: Uuid,
+    /// Provider name (e.g., "strava", "fitbit")
     pub provider: &'a str,
+    /// API endpoint being called
     pub endpoint: &'a str,
+    /// HTTP method (GET, POST, etc.)
     pub method: &'a str,
+    /// Whether the call succeeded
     pub success: bool,
+    /// Call duration in milliseconds
     pub duration_ms: u64,
+    /// HTTP status code if available
     pub status_code: Option<u16>,
 }
 

@@ -1,6 +1,8 @@
 // ABOUTME: Synthetic fitness data generator for automated intelligence testing
 // ABOUTME: Creates realistic running, cycling, and swimming activities with configurable patterns
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use chrono::{DateTime, Duration, Utc};
 use pierre_mcp_server::models::{Activity, SportType};
 use rand::prelude::*;
@@ -575,11 +577,11 @@ impl<'a> ActivityBuilder<'a> {
             time_series_data: None,
             start_latitude: Some(45.5017), // Montreal
             start_longitude: Some(-73.5673),
-            city: Some("Montreal".to_string()),
-            region: Some("Quebec".to_string()),
-            country: Some("Canada".to_string()),
-            trail_name: Some("Synthetic Training Route".to_string()),
-            provider: "synthetic".to_string(),
+            city: Some("Montreal".to_owned()),
+            region: Some("Quebec".to_owned()),
+            country: Some("Canada".to_owned()),
+            trail_name: Some("Synthetic Training Route".to_owned()),
+            provider: "synthetic".to_owned(),
         }
     }
 }

@@ -59,14 +59,14 @@ impl ProviderRegistry {
         registry.set_default_config(
             oauth_providers::STRAVA,
             ProviderConfig {
-                name: oauth_providers::STRAVA.to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                api_base_url: "https://www.strava.com/api/v3".to_string(),
-                revoke_url: Some("https://www.strava.com/oauth/deauthorize".to_string()),
+                name: oauth_providers::STRAVA.to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                api_base_url: "https://www.strava.com/api/v3".to_owned(),
+                revoke_url: Some("https://www.strava.com/oauth/deauthorize".to_owned()),
                 default_scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                     .split(',')
-                    .map(str::to_string)
+                    .map(str::to_owned)
                     .collect(),
             },
         );
@@ -76,17 +76,17 @@ impl ProviderRegistry {
         registry.set_default_config(
             oauth_providers::GARMIN,
             ProviderConfig {
-                name: oauth_providers::GARMIN.to_string(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
+                name: oauth_providers::GARMIN.to_owned(),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
                 token_url: "https://connectapi.garmin.com/oauth-service/oauth/access_token"
-                    .to_string(),
-                api_base_url: "https://apis.garmin.com/wellness-api/rest".to_string(),
+                    .to_owned(),
+                api_base_url: "https://apis.garmin.com/wellness-api/rest".to_owned(),
                 revoke_url: Some(
-                    "https://connectapi.garmin.com/oauth-service/oauth/revoke".to_string(),
+                    "https://connectapi.garmin.com/oauth-service/oauth/revoke".to_owned(),
                 ),
                 default_scopes: crate::constants::oauth::GARMIN_DEFAULT_SCOPES
                     .split(',')
-                    .map(str::to_string)
+                    .map(str::to_owned)
                     .collect(),
             },
         );

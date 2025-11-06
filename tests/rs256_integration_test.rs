@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, unsafe_code)]
+#![allow(missing_docs)]
+
 mod common;
 
 use anyhow::Result;
@@ -76,9 +79,9 @@ async fn test_rs256_user_session_tokens() -> Result<()> {
     let auth_manager = AuthManager::new(24);
 
     let user = User::new(
-        "test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Test User".to_owned()),
     );
 
     // Generate RS256 user session token
@@ -183,9 +186,9 @@ async fn test_key_rotation_with_active_tokens() -> Result<()> {
     let auth_manager = AuthManager::new(24);
 
     let user = User::new(
-        "rotation_test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Rotation Test User".to_string()),
+        "rotation_test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Rotation Test User".to_owned()),
     );
 
     // Generate token with initial key
@@ -227,9 +230,9 @@ async fn test_rs256_tampered_token_rejection() -> Result<()> {
     let auth_manager = AuthManager::new(24);
 
     let user = User::new(
-        "tamper_test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Tamper Test User".to_string()),
+        "tamper_test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Tamper Test User".to_owned()),
     );
 
     // Generate valid token
@@ -264,9 +267,9 @@ async fn test_rs256_wrong_jwks_rejection() -> Result<()> {
     let auth_manager = AuthManager::new(24);
 
     let user = User::new(
-        "wrong_jwks_test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Wrong JWKS Test User".to_string()),
+        "wrong_jwks_test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Wrong JWKS Test User".to_owned()),
     );
 
     // Generate token with jwks_manager1
@@ -374,9 +377,9 @@ async fn test_rs256_unknown_kid_rejection() -> Result<()> {
     let unknown_manager_arc = Arc::new(unknown_manager);
 
     let user = User::new(
-        "unknown_kid_test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Unknown Kid Test User".to_string()),
+        "unknown_kid_test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Unknown Kid Test User".to_owned()),
     );
 
     // Generate token with unknown_manager (different kid)
@@ -404,9 +407,9 @@ async fn test_key_rotation_grace_period() -> Result<()> {
     let auth_manager = AuthManager::new(24);
 
     let user = User::new(
-        "grace_period_test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Grace Period Test User".to_string()),
+        "grace_period_test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Grace Period Test User".to_owned()),
     );
 
     // Generate token with initial key (before rotation)

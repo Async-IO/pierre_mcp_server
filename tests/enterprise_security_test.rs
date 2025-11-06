@@ -8,6 +8,9 @@
 //! Tests to verify that self-service API key creation endpoints
 //! are properly disabled and only admin endpoints work.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 mod common;
 
 use anyhow::Result;

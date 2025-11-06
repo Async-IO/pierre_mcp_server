@@ -9,6 +9,9 @@
 //! Tests to ensure our A2A implementation complies with the official
 //! Google A2A specification at <https://github.com/google-a2a/A2A>
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::a2a::protocol::{A2ARequest, A2AServer};
 use serde_json::json;
 
@@ -18,8 +21,8 @@ async fn test_jsonrpc_2_0_compliance() {
 
     // Test that all responses have jsonrpc: "2.0"
     let request = A2ARequest {
-        jsonrpc: "2.0".to_string(),
-        method: "a2a/initialize".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "a2a/initialize".to_owned(),
         params: None,
         id: Some(json!(1)),
         auth_token: None,
@@ -49,8 +52,8 @@ async fn test_required_methods_implemented() {
 
     for method in required_methods {
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: method.to_string(),
+            jsonrpc: "2.0".to_owned(),
+            method: method.to_owned(),
             params: None,
             id: Some(json!(1)),
             auth_token: None,
@@ -73,8 +76,8 @@ async fn test_error_code_compliance() {
 
     // Test unknown method returns correct error code
     let request = A2ARequest {
-        jsonrpc: "2.0".to_string(),
-        method: "unknown/method".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "unknown/method".to_owned(),
         params: None,
         id: Some(json!(1)),
         auth_token: None,
@@ -119,10 +122,10 @@ async fn test_message_structure_compliance() {
 
     // Test message structure matches spec
     let message = A2AMessage {
-        id: "test-message".to_string(),
+        id: "test-message".to_owned(),
         parts: vec![
             MessagePart::Text {
-                content: "Hello".to_string(),
+                content: "Hello".to_owned(),
             },
             MessagePart::Data {
                 content: json!({"key": "value"}),
@@ -144,8 +147,8 @@ async fn test_task_management_compliance() {
 
     // Test task creation
     let request = A2ARequest {
-        jsonrpc: "2.0".to_string(),
-        method: "a2a/tasks/create".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "a2a/tasks/create".to_owned(),
         params: Some(json!({"task_type": "example"})),
         id: Some(json!(1)),
         auth_token: None,
@@ -170,8 +173,8 @@ async fn test_tools_schema_compliance() {
 
     // Test tools list returns proper schema
     let request = A2ARequest {
-        jsonrpc: "2.0".to_string(),
-        method: "a2a/tools/list".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "a2a/tools/list".to_owned(),
         params: None,
         id: Some(json!(1)),
         auth_token: None,
@@ -199,8 +202,8 @@ async fn test_streaming_requirements() {
 
     // Test streaming endpoint exists and responds appropriately
     let request = A2ARequest {
-        jsonrpc: "2.0".to_string(),
-        method: "a2a/message/stream".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "a2a/message/stream".to_owned(),
         params: Some(json!({"stream_id": "test"})),
         id: Some(json!(1)),
         auth_token: None,
@@ -226,8 +229,8 @@ async fn test_authentication_scheme_support() {
     let auth_schemes = &agent_card.authentication.schemes;
 
     // Should support at least api-key and oauth2
-    assert!(auth_schemes.contains(&"api-key".to_string()));
-    assert!(auth_schemes.contains(&"oauth2".to_string()));
+    assert!(auth_schemes.contains(&"api-key".to_owned()));
+    assert!(auth_schemes.contains(&"oauth2".to_owned()));
 
     // Verify OAuth2 configuration is present
     assert!(agent_card.authentication.oauth2.is_some());
@@ -252,8 +255,8 @@ async fn test_id_preservation() {
 
     for test_id in test_ids {
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "a2a/initialize".to_string(),
+            jsonrpc: "2.0".to_owned(),
+            method: "a2a/initialize".to_owned(),
             params: None,
             id: Some(test_id.clone()),
             auth_token: None,
@@ -272,8 +275,8 @@ async fn test_parameter_validation() {
 
     // Test tool call with proper parameters
     let request = A2ARequest {
-        jsonrpc: "2.0".to_string(),
-        method: "a2a/tools/call".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "a2a/tools/call".to_owned(),
         params: Some(json!({
             "tool_name": "get_activities",
             "parameters": {
@@ -301,8 +304,8 @@ async fn test_task_cancellation() {
 
     // Test task cancellation
     let request = A2ARequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tasks/cancel".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tasks/cancel".to_owned(),
         params: Some(json!({"task_id": "test-task-123"})),
         id: Some(json!(1)),
         auth_token: None,
@@ -331,8 +334,8 @@ async fn test_push_notification_config() {
     });
 
     let request = A2ARequest {
-        jsonrpc: "2.0".to_string(),
-        method: "tasks/pushNotificationConfig/set".to_string(),
+        jsonrpc: "2.0".to_owned(),
+        method: "tasks/pushNotificationConfig/set".to_owned(),
         params: Some(json!({"config": config})),
         id: Some(json!(1)),
         auth_token: None,

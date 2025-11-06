@@ -54,9 +54,8 @@ impl A2ASystemUserService {
 
         // Use lower bcrypt cost in test/CI environments for performance (cost 4 is ~60x faster than default 12)
         // Check for test environment via CI variable or debug profile
-        let bcrypt_cost = if crate::constants::get_server_config().app_behavior.ci_mode
-            || cfg!(debug_assertions)
-        {
+        let ci_mode = crate::constants::get_server_config().is_some_and(|c| c.app_behavior.ci_mode);
+        let bcrypt_cost = if ci_mode || cfg!(debug_assertions) {
             4 // Fast hashing for tests and development
         } else {
             bcrypt::DEFAULT_COST // Secure hashing for production (12)
@@ -138,7 +137,7 @@ impl A2ASystemUserService {
                     .email
                     .strip_prefix("a2a-system-")
                     .and_then(|s| s.strip_suffix("@pierre.ai"));
-                return Ok(email_part.map(std::string::ToString::to_string));
+                return Ok(email_part.map(str::to_owned));
             }
         }
         Ok(None)

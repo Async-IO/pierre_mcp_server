@@ -8,6 +8,9 @@
 //! Critical security tests to verify that users cannot access data from other tenants.
 //! These tests are essential for preventing data breaches in the multi-tenant architecture.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use chrono::Utc;
 use pierre_mcp_server::{
@@ -50,17 +53,17 @@ fn create_test_server_config(
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
-                client_id: Some("test_client_id".to_string()),
-                client_secret: Some("test_client_secret".to_string()),
-                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_string()),
-                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                client_id: Some("test_client_id".to_owned()),
+                client_secret: Some("test_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_owned()),
+                scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
                 enabled: true,
             },
             fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
-                client_id: Some("test_fitbit_id".to_string()),
-                client_secret: Some("test_fitbit_secret".to_string()),
-                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_string()),
-                scopes: vec!["activity".to_string(), "profile".to_string()],
+                client_id: Some("test_fitbit_id".to_owned()),
+                client_secret: Some("test_fitbit_secret".to_owned()),
+                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_owned()),
+                scopes: vec!["activity".to_owned(), "profile".to_owned()],
                 enabled: true,
             },
             garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
@@ -85,23 +88,23 @@ fn create_test_server_config(
         external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
             weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
                 api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                base_url: "https://api.openweathermap.org/data/2.5".to_owned(),
                 enabled: false,
             },
             strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+                base_url: "https://www.strava.com/api/v3".to_owned(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+                token_url: "https://www.strava.com/oauth/token".to_owned(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_owned(),
             },
             fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+                base_url: "https://api.fitbit.com".to_owned(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_owned(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_owned(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_owned(),
             },
             geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                base_url: "https://nominatim.openstreetmap.org".to_owned(),
                 enabled: true,
             },
             ..Default::default()
@@ -111,9 +114,9 @@ fn create_test_server_config(
             default_activities_limit: 20,
             ci_mode: true,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                mcp_version: "2024-11-05".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: env!("CARGO_PKG_VERSION").to_string(),
+                mcp_version: "2024-11-05".to_owned(),
+                server_name: "pierre-mcp-server-test".to_owned(),
+                server_version: env!("CARGO_PKG_VERSION").to_owned(),
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
@@ -149,13 +152,13 @@ async fn create_test_tenant_user(
 ) -> Result<Uuid> {
     let user = User {
         id: Uuid::new_v4(),
-        email: email.to_string(),
+        email: email.to_owned(),
         display_name: Some(format!("Test User ({email})")),
-        password_hash: "test_hash".to_string(),
+        password_hash: "test_hash".to_owned(),
         tier,
         strava_token: None,
         fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: false,
@@ -190,8 +193,8 @@ async fn test_cross_tenant_api_key_access_blocked() -> Result<()> {
 
     // User 1 creates an API key
     let create_request = CreateApiKeyRequest {
-        name: "User 1 API Key".to_string(),
-        description: Some("Secret API key for user 1".to_string()),
+        name: "User 1 API Key".to_owned(),
+        description: Some("Secret API key for user 1".to_owned()),
         tier: ApiKeyTier::Professional,
         expires_in_days: Some(30),
         rate_limit_requests: None,
@@ -297,16 +300,16 @@ async fn test_admin_cross_tenant_access_prevention() -> Result<()> {
 
     // Create API keys for both users
     let create_request1 = CreateApiKeyRequest {
-        name: "Tenant 1 Key".to_string(),
-        description: Some("Key for tenant 1".to_string()),
+        name: "Tenant 1 Key".to_owned(),
+        description: Some("Key for tenant 1".to_owned()),
         tier: ApiKeyTier::Enterprise,
         expires_in_days: Some(365),
         rate_limit_requests: None,
     };
 
     let create_request2 = CreateApiKeyRequest {
-        name: "Tenant 2 Key".to_string(),
-        description: Some("Key for tenant 2".to_string()),
+        name: "Tenant 2 Key".to_owned(),
+        description: Some("Key for tenant 2".to_owned()),
         tier: ApiKeyTier::Enterprise,
         expires_in_days: Some(365),
         rate_limit_requests: None,

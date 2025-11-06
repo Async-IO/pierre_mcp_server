@@ -126,47 +126,45 @@ pub struct OAuth2Error {
 }
 
 impl OAuth2Error {
+    /// Create an `invalid_request` error
     #[must_use]
     pub fn invalid_request(description: &str) -> Self {
         Self {
-            error: "invalid_request".to_string(),
-            error_description: Some(description.to_string()),
+            error: "invalid_request".to_owned(),
+            error_description: Some(description.to_owned()),
             error_uri: Some(
-                "https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.1".to_string(),
+                "https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.1".to_owned(),
             ),
         }
     }
 
+    /// Create an `invalid_client` error
     #[must_use]
     pub fn invalid_client() -> Self {
         Self {
-            error: "invalid_client".to_string(),
-            error_description: Some("Client authentication failed".to_string()),
-            error_uri: Some(
-                "https://datatracker.ietf.org/doc/html/rfc6749#section-5.2".to_string(),
-            ),
+            error: "invalid_client".to_owned(),
+            error_description: Some("Client authentication failed".to_owned()),
+            error_uri: Some("https://datatracker.ietf.org/doc/html/rfc6749#section-5.2".to_owned()),
         }
     }
 
+    /// Create an `invalid_grant` error
     #[must_use]
     pub fn invalid_grant(description: &str) -> Self {
         Self {
-            error: "invalid_grant".to_string(),
-            error_description: Some(description.to_string()),
-            error_uri: Some(
-                "https://datatracker.ietf.org/doc/html/rfc6749#section-5.2".to_string(),
-            ),
+            error: "invalid_grant".to_owned(),
+            error_description: Some(description.to_owned()),
+            error_uri: Some("https://datatracker.ietf.org/doc/html/rfc6749#section-5.2".to_owned()),
         }
     }
 
+    /// Create an `unsupported_grant_type` error
     #[must_use]
     pub fn unsupported_grant_type() -> Self {
         Self {
-            error: "unsupported_grant_type".to_string(),
-            error_description: Some("Grant type not supported".to_string()),
-            error_uri: Some(
-                "https://datatracker.ietf.org/doc/html/rfc6749#section-5.2".to_string(),
-            ),
+            error: "unsupported_grant_type".to_owned(),
+            error_description: Some("Grant type not supported".to_owned()),
+            error_uri: Some("https://datatracker.ietf.org/doc/html/rfc6749#section-5.2".to_owned()),
         }
     }
 }
@@ -174,29 +172,48 @@ impl OAuth2Error {
 /// Stored OAuth 2.0 Client
 #[derive(Debug, Clone)]
 pub struct OAuth2Client {
+    /// Internal database ID
     pub id: String,
+    /// OAuth 2.0 client identifier
     pub client_id: String,
+    /// Hashed client secret for authentication
     pub client_secret_hash: String,
+    /// Registered redirect URIs for authorization code flow
     pub redirect_uris: Vec<String>,
+    /// Allowed OAuth 2.0 grant types (`authorization_code`, `client_credentials`, etc.)
     pub grant_types: Vec<String>,
+    /// Allowed OAuth 2.0 response types (code, token, etc.)
     pub response_types: Vec<String>,
+    /// Human-readable client name
     pub client_name: Option<String>,
+    /// Client's home page URL
     pub client_uri: Option<String>,
+    /// Space-separated list of allowed scopes
     pub scope: Option<String>,
+    /// When this client was created
     pub created_at: DateTime<Utc>,
+    /// Optional expiration time for the client registration
     pub expires_at: Option<DateTime<Utc>>,
 }
 
 /// OAuth 2.0 Authorization Code
 #[derive(Debug, Clone)]
 pub struct OAuth2AuthCode {
+    /// The authorization code value
     pub code: String,
+    /// Client ID that requested this code
     pub client_id: String,
+    /// User who authorized the code
     pub user_id: Uuid,
+    /// Tenant ID for multi-tenancy
     pub tenant_id: String,
+    /// Redirect URI that must match during token exchange
     pub redirect_uri: String,
+    /// Space-separated list of granted scopes
     pub scope: Option<String>,
+    /// When this authorization code expires
     pub expires_at: DateTime<Utc>,
+    /// Whether this code has been exchanged for a token
     pub used: bool,
     /// Client-generated state for CSRF protection (RFC 6749 Section 10.12)
     pub state: Option<String>,
@@ -209,40 +226,65 @@ pub struct OAuth2AuthCode {
 /// OAuth 2.0 Access Token
 #[derive(Debug, Clone)]
 pub struct OAuth2AccessToken {
+    /// The access token value
     pub token: String,
+    /// Client ID that owns this token
     pub client_id: String,
-    pub user_id: Option<Uuid>, // None for client_credentials
+    /// User ID if user-authorized (None for `client_credentials` grant)
+    pub user_id: Option<Uuid>,
+    /// Space-separated list of granted scopes
     pub scope: Option<String>,
+    /// When this token expires
     pub expires_at: DateTime<Utc>,
+    /// When this token was created
     pub created_at: DateTime<Utc>,
 }
 
 /// OAuth 2.0 Refresh Token
 #[derive(Debug, Clone)]
 pub struct OAuth2RefreshToken {
+    /// The refresh token value
     pub token: String,
+    /// Client application identifier
     pub client_id: String,
+    /// User identifier who owns this token
     pub user_id: Uuid,
+    /// Tenant identifier for multi-tenant support
     pub tenant_id: String,
+    /// Optional space-separated list of granted scopes
     pub scope: Option<String>,
+    /// Timestamp when this refresh token expires
     pub expires_at: DateTime<Utc>,
+    /// Timestamp when this refresh token was created
     pub created_at: DateTime<Utc>,
+    /// Whether this refresh token has been revoked
     pub revoked: bool,
 }
 
 /// OAuth 2.0 State for CSRF Protection
 #[derive(Debug, Clone)]
 pub struct OAuth2State {
+    /// Unique state value for CSRF protection
     pub state: String,
+    /// Client application identifier
     pub client_id: String,
+    /// Optional user identifier if authenticated
     pub user_id: Option<uuid::Uuid>,
+    /// Optional tenant identifier for multi-tenant support
     pub tenant_id: Option<String>,
+    /// URI to redirect to after authorization
     pub redirect_uri: String,
+    /// Optional space-separated list of requested scopes
     pub scope: Option<String>,
+    /// Optional PKCE code challenge for enhanced security
     pub code_challenge: Option<String>,
+    /// Method used for PKCE code challenge (S256 or plain)
     pub code_challenge_method: Option<String>,
+    /// Timestamp when this state was created
     pub created_at: DateTime<Utc>,
+    /// Timestamp when this state expires
     pub expires_at: DateTime<Utc>,
+    /// Whether this state has been consumed
     pub used: bool,
 }
 

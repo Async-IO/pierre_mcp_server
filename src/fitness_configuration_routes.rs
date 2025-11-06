@@ -17,6 +17,7 @@ use uuid::Uuid;
 // Request/Response Models
 // ================================================================================================
 
+/// Request to save fitness configuration
 #[derive(Debug, Deserialize)]
 pub struct SaveFitnessConfigRequest {
     /// Configuration name (defaults to "default")
@@ -25,12 +26,14 @@ pub struct SaveFitnessConfigRequest {
     pub configuration: FitnessConfig,
 }
 
+/// Request to retrieve a specific fitness configuration
 #[derive(Debug, Deserialize)]
 pub struct GetFitnessConfigRequest {
     /// Configuration name (defaults to "default")
     pub configuration_name: Option<String>,
 }
 
+/// Response containing fitness configuration details
 #[derive(Debug, Serialize)]
 pub struct FitnessConfigurationResponse {
     /// Configuration ID
@@ -51,6 +54,7 @@ pub struct FitnessConfigurationResponse {
     pub metadata: ResponseMetadata,
 }
 
+/// Response containing list of available fitness configurations
 #[derive(Debug, Serialize)]
 pub struct FitnessConfigurationListResponse {
     /// List of configuration names
@@ -61,6 +65,7 @@ pub struct FitnessConfigurationListResponse {
     pub metadata: ResponseMetadata,
 }
 
+/// Response confirming successful configuration save or delete operation
 #[derive(Debug, Serialize)]
 pub struct FitnessConfigurationSaveResponse {
     /// Configuration ID
@@ -71,6 +76,7 @@ pub struct FitnessConfigurationSaveResponse {
     pub metadata: ResponseMetadata,
 }
 
+/// Standard metadata included in all API responses
 #[derive(Debug, Serialize)]
 pub struct ResponseMetadata {
     /// Response timestamp
@@ -154,17 +160,21 @@ impl FitnessConfigurationRoutes {
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
+        // Convert UUIDs to strings for database queries
+        let tenant_id_str = tenant_id.to_string();
+        let user_id_str = user_id.to_string();
+
         // Get both user-specific and tenant-level configurations
         let mut configurations = self
             .resources
             .database
-            .list_user_fitness_configurations(&tenant_id.to_string(), &user_id.to_string())
+            .list_user_fitness_configurations(&tenant_id_str, &user_id_str)
             .await?;
 
         let tenant_configs = self
             .resources
             .database
-            .list_tenant_fitness_configurations(&tenant_id.to_string())
+            .list_tenant_fitness_configurations(&tenant_id_str)
             .await?;
 
         // Combine and deduplicate
@@ -196,15 +206,15 @@ impl FitnessConfigurationRoutes {
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
+        // Convert UUIDs to strings for database queries
+        let tenant_id_str = tenant_id.to_string();
+        let user_id_str = user_id.to_string();
+
         // Try user-specific first, then tenant-level
         let config = match self
             .resources
             .database
-            .get_user_fitness_config(
-                &tenant_id.to_string(),
-                &user_id.to_string(),
-                configuration_name,
-            )
+            .get_user_fitness_config(&tenant_id_str, &user_id_str, configuration_name)
             .await?
         {
             Some(config) => config,
@@ -212,7 +222,7 @@ impl FitnessConfigurationRoutes {
                 // If user-specific config not found, try tenant-level
                 self.resources
                     .database
-                    .get_tenant_fitness_config(&tenant_id.to_string(), configuration_name)
+                    .get_tenant_fitness_config(&tenant_id_str, configuration_name)
                     .await?
                     .ok_or_else(|| {
                         AppError::not_found(format!("Configuration {configuration_name}"))
@@ -225,7 +235,7 @@ impl FitnessConfigurationRoutes {
             id: format!("{tenant_id}:{configuration_name}"),
             tenant_id: tenant_id.to_string(),
             user_id: Some(user_id.to_string()),
-            configuration_name: configuration_name.to_string(),
+            configuration_name: configuration_name.to_owned(),
             configuration: config,
             created_at: chrono::Utc::now().to_rfc3339(),
             updated_at: chrono::Utc::now().to_rfc3339(),
@@ -252,14 +262,18 @@ impl FitnessConfigurationRoutes {
 
         let configuration_name = request
             .configuration_name
-            .unwrap_or_else(|| "default".to_string());
+            .unwrap_or_else(|| "default".to_owned());
+
+        // Convert UUIDs to strings for database queries
+        let tenant_id_str = tenant_id.to_string();
+        let user_id_str = user_id.to_string();
 
         let config_id = self
             .resources
             .database
             .save_user_fitness_config(
-                &tenant_id.to_string(),
-                &user_id.to_string(),
+                &tenant_id_str,
+                &user_id_str,
                 &configuration_name,
                 &request.configuration,
             )
@@ -267,7 +281,7 @@ impl FitnessConfigurationRoutes {
 
         Ok(FitnessConfigurationSaveResponse {
             id: config_id,
-            message: "User-specific fitness configuration saved successfully".to_string(),
+            message: "User-specific fitness configuration saved successfully".to_owned(),
             metadata: Self::create_metadata(processing_start),
         })
     }
@@ -304,21 +318,20 @@ impl FitnessConfigurationRoutes {
 
         let configuration_name = request
             .configuration_name
-            .unwrap_or_else(|| "default".to_string());
+            .unwrap_or_else(|| "default".to_owned());
+
+        // Convert UUID to string for database query
+        let tenant_id_str = tenant_id.to_string();
 
         let config_id = self
             .resources
             .database
-            .save_tenant_fitness_config(
-                &tenant_id.to_string(),
-                &configuration_name,
-                &request.configuration,
-            )
+            .save_tenant_fitness_config(&tenant_id_str, &configuration_name, &request.configuration)
             .await?;
 
         Ok(FitnessConfigurationSaveResponse {
             id: config_id,
-            message: "Tenant-level fitness configuration saved successfully".to_string(),
+            message: "Tenant-level fitness configuration saved successfully".to_owned(),
             metadata: Self::create_metadata(processing_start),
         })
     }
@@ -339,14 +352,14 @@ impl FitnessConfigurationRoutes {
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
+        // Convert UUIDs to strings for database query
+        let tenant_id_str = tenant_id.to_string();
+        let user_id_str = user_id.to_string();
+
         let deleted = self
             .resources
             .database
-            .delete_fitness_config(
-                &tenant_id.to_string(),
-                Some(&user_id.to_string()),
-                configuration_name,
-            )
+            .delete_fitness_config(&tenant_id_str, Some(&user_id_str), configuration_name)
             .await?;
 
         if !deleted {
@@ -355,7 +368,7 @@ impl FitnessConfigurationRoutes {
 
         Ok(FitnessConfigurationSaveResponse {
             id: format!("{tenant_id}:{user_id}:{configuration_name}"),
-            message: "User-specific fitness configuration deleted successfully".to_string(),
+            message: "User-specific fitness configuration deleted successfully".to_owned(),
             metadata: Self::create_metadata(processing_start),
         })
     }
@@ -389,10 +402,13 @@ impl FitnessConfigurationRoutes {
             return Err(AppError::auth_invalid("Admin access required").into());
         }
 
+        // Convert UUID to string for database query
+        let tenant_id_str = tenant_id.to_string();
+
         let deleted = self
             .resources
             .database
-            .delete_fitness_config(&tenant_id.to_string(), None, configuration_name)
+            .delete_fitness_config(&tenant_id_str, None, configuration_name)
             .await?;
 
         if !deleted {
@@ -401,7 +417,7 @@ impl FitnessConfigurationRoutes {
 
         Ok(FitnessConfigurationSaveResponse {
             id: format!("{tenant_id}:{configuration_name}"),
-            message: "Tenant-level fitness configuration deleted successfully".to_string(),
+            message: "Tenant-level fitness configuration deleted successfully".to_owned(),
             metadata: Self::create_metadata(processing_start),
         })
     }

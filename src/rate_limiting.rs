@@ -21,16 +21,27 @@ use uuid::Uuid;
 /// JWT token usage record for tracking
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JwtUsage {
+    /// Unique identifier for this usage record
     pub id: Option<i64>,
+    /// ID of the user who made the request
     pub user_id: Uuid,
+    /// When the request was made
     pub timestamp: DateTime<Utc>,
+    /// API endpoint that was accessed
     pub endpoint: String,
+    /// HTTP method used (GET, POST, etc.)
     pub method: String,
+    /// HTTP status code returned
     pub status_code: u16,
+    /// Response time in milliseconds
     pub response_time_ms: Option<u32>,
+    /// Request payload size in bytes
     pub request_size_bytes: Option<u32>,
+    /// Response payload size in bytes
     pub response_size_bytes: Option<u32>,
+    /// Client IP address
     pub ip_address: Option<String>,
+    /// Client user agent string
     pub user_agent: Option<String>,
 }
 
@@ -66,8 +77,11 @@ pub struct TenantRateLimitTier {
     pub custom_reset_period: Option<u64>,
 }
 
+/// Monthly request limit for starter tier tenants
 pub const TENANT_STARTER_LIMIT: u32 = 10_000;
+/// Monthly request limit for professional tier tenants
 pub const TENANT_PROFESSIONAL_LIMIT: u32 = 100_000;
+/// Monthly request limit for enterprise tier tenants
 pub const TENANT_ENTERPRISE_LIMIT: u32 = 1_000_000;
 
 impl TenantRateLimitTier {
@@ -174,6 +188,7 @@ impl TenantRateLimitTier {
         clippy::cast_sign_loss,
         clippy::cast_precision_loss
     )]
+    /// Returns the effective monthly limit after applying the tier multiplier
     // Safe: multiplier values are controlled and positive, result fits in u32 range
     pub fn effective_monthly_limit(&self) -> u32 {
         if self.unlimited {
@@ -190,6 +205,7 @@ impl TenantRateLimitTier {
         clippy::cast_sign_loss,
         clippy::cast_precision_loss
     )]
+    /// Returns the effective burst limit after applying the tier multiplier
     // Safe: multiplier values are controlled and positive, result fits in u32 range
     pub fn effective_burst_limit(&self) -> u32 {
         (self.burst_limit as f32 * self.multiplier) as u32

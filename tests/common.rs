@@ -3,6 +3,8 @@
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(
     dead_code,
     clippy::wildcard_in_or_patterns,
@@ -43,7 +45,7 @@ pub fn init_server_config() {
     INIT_SERVER_CONFIG.call_once(|| {
         std::env::set_var("CI", "true");
         std::env::set_var("DATABASE_URL", "sqlite::memory:");
-        pierre_mcp_server::constants::init_server_config();
+        let _ = pierre_mcp_server::constants::init_server_config();
     });
 }
 
@@ -173,9 +175,9 @@ pub async fn create_test_cache() -> Result<pierre_mcp_server::cache::factory::Ca
 /// Create a standard test user
 pub async fn create_test_user(database: &Database) -> Result<(Uuid, User)> {
     let user = User::new(
-        "test@example.com".to_string(),
-        "test_hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "test_hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     let user_id = user.id;
 
@@ -186,9 +188,9 @@ pub async fn create_test_user(database: &Database) -> Result<(Uuid, User)> {
 /// Create a test user with custom email
 pub async fn create_test_user_with_email(database: &Database, email: &str) -> Result<(Uuid, User)> {
     let user = User::new(
-        email.to_string(),
-        "test_hash".to_string(),
-        Some("Test User".to_string()),
+        email.to_owned(),
+        "test_hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     let user_id = user.id;
 
@@ -199,8 +201,8 @@ pub async fn create_test_user_with_email(database: &Database, email: &str) -> Re
 /// Create a test API key for a user (returns API key string)
 pub fn create_test_api_key(_database: &Database, user_id: Uuid, name: &str) -> Result<String> {
     let request = CreateApiKeyRequest {
-        name: name.to_string(),
-        description: Some("Test API key".to_string()),
+        name: name.to_owned(),
+        description: Some("Test API key".to_owned()),
         tier: ApiKeyTier::Starter,
         rate_limit_requests: Some(1000),
         expires_in_days: None,
@@ -218,8 +220,8 @@ pub async fn create_and_store_test_api_key(
     name: &str,
 ) -> Result<ApiKey> {
     let request = CreateApiKeyRequest {
-        name: name.to_string(),
-        description: Some("Test API key".to_string()),
+        name: name.to_owned(),
+        description: Some("Test API key".to_owned()),
         tier: ApiKeyTier::Starter,
         rate_limit_requests: Some(1000),
         expires_in_days: None,
@@ -262,9 +264,9 @@ pub async fn setup_simple_test_environment() -> Result<(Arc<Database>, Uuid)> {
 pub async fn setup_test_environment_with_tier(tier: UserTier) -> Result<(Arc<Database>, Uuid)> {
     let database = create_test_database().await?;
     let mut user = User::new(
-        "test@example.com".to_string(),
-        "test_hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "test_hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     user.tier = tier;
     let user_id = user.id;
@@ -344,7 +346,7 @@ pub async fn setup_server_resources_test_environment(
 // Example of GOOD test database pattern:
 // ```rust
 // let database_url = if std::env::var("CI").is_ok() {
-//     "sqlite::memory:".to_string()  // ✅ No files in CI
+//     "sqlite::memory:".to_owned()  // ✅ No files in CI
 // } else {
 //     let test_id = Uuid::new_v4();
 //     let db_path = format!("./test_data/my_test_{}.db", test_id);
@@ -379,36 +381,36 @@ impl MockUsdaClient {
             171_477,
             FoodDetails {
                 fdc_id: 171_477,
-                description: "Chicken, breast, meat only, cooked, roasted".to_string(),
-                data_type: "SR Legacy".to_string(),
+                description: "Chicken, breast, meat only, cooked, roasted".to_owned(),
+                data_type: "SR Legacy".to_owned(),
                 food_nutrients: vec![
                     FoodNutrient {
                         nutrient_id: 1003,
-                        nutrient_name: "Protein".to_string(),
-                        unit_name: "g".to_string(),
+                        nutrient_name: "Protein".to_owned(),
+                        unit_name: "g".to_owned(),
                         amount: 31.02,
                     },
                     FoodNutrient {
                         nutrient_id: 1004,
-                        nutrient_name: "Total lipid (fat)".to_string(),
-                        unit_name: "g".to_string(),
+                        nutrient_name: "Total lipid (fat)".to_owned(),
+                        unit_name: "g".to_owned(),
                         amount: 3.57,
                     },
                     FoodNutrient {
                         nutrient_id: 1005,
-                        nutrient_name: "Carbohydrate, by difference".to_string(),
-                        unit_name: "g".to_string(),
+                        nutrient_name: "Carbohydrate, by difference".to_owned(),
+                        unit_name: "g".to_owned(),
                         amount: 0.0,
                     },
                     FoodNutrient {
                         nutrient_id: 1008,
-                        nutrient_name: "Energy".to_string(),
-                        unit_name: "kcal".to_string(),
+                        nutrient_name: "Energy".to_owned(),
+                        unit_name: "kcal".to_owned(),
                         amount: 165.0,
                     },
                 ],
                 serving_size: Some(100.0),
-                serving_size_unit: Some("g".to_string()),
+                serving_size_unit: Some("g".to_owned()),
             },
         );
 
@@ -417,36 +419,36 @@ impl MockUsdaClient {
             171_688,
             FoodDetails {
                 fdc_id: 171_688,
-                description: "Apples, raw, with skin".to_string(),
-                data_type: "SR Legacy".to_string(),
+                description: "Apples, raw, with skin".to_owned(),
+                data_type: "SR Legacy".to_owned(),
                 food_nutrients: vec![
                     FoodNutrient {
                         nutrient_id: 1003,
-                        nutrient_name: "Protein".to_string(),
-                        unit_name: "g".to_string(),
+                        nutrient_name: "Protein".to_owned(),
+                        unit_name: "g".to_owned(),
                         amount: 0.26,
                     },
                     FoodNutrient {
                         nutrient_id: 1004,
-                        nutrient_name: "Total lipid (fat)".to_string(),
-                        unit_name: "g".to_string(),
+                        nutrient_name: "Total lipid (fat)".to_owned(),
+                        unit_name: "g".to_owned(),
                         amount: 0.17,
                     },
                     FoodNutrient {
                         nutrient_id: 1005,
-                        nutrient_name: "Carbohydrate, by difference".to_string(),
-                        unit_name: "g".to_string(),
+                        nutrient_name: "Carbohydrate, by difference".to_owned(),
+                        unit_name: "g".to_owned(),
                         amount: 13.81,
                     },
                     FoodNutrient {
                         nutrient_id: 1008,
-                        nutrient_name: "Energy".to_string(),
-                        unit_name: "kcal".to_string(),
+                        nutrient_name: "Energy".to_owned(),
+                        unit_name: "kcal".to_owned(),
                         amount: 52.0,
                     },
                 ],
                 serving_size: Some(182.0),
-                serving_size_unit: Some("g".to_string()),
+                serving_size_unit: Some("g".to_owned()),
             },
         );
 

@@ -3,6 +3,8 @@
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(
     clippy::uninlined_format_args,
     clippy::cast_possible_truncation,
@@ -170,9 +172,9 @@ fn test_initialize_response_format() {
     common::init_server_config();
 
     let response = InitializeResponse::new(
-        "2025-06-18".to_string(),
-        "pierre-mcp-server".to_string(),
-        "1.0.0".to_string(),
+        "2025-06-18".to_owned(),
+        "pierre-mcp-server".to_owned(),
+        "1.0.0".to_owned(),
     );
 
     // Serialize to JSON and verify structure
@@ -283,7 +285,7 @@ fn test_tools_list_response_format() {
 fn test_tool_response_format() {
     let tool_response = ToolResponse {
         content: vec![Content::Text {
-            text: "Test response".to_string(),
+            text: "Test response".to_owned(),
         }],
         is_error: false,
         structured_content: Some(json!({"result": "success"})),
@@ -308,7 +310,7 @@ fn test_tool_response_format() {
 fn test_content_types() {
     // Test text content
     let text_content = Content::Text {
-        text: "Hello world".to_string(),
+        text: "Hello world".to_owned(),
     };
     let json_value = serde_json::to_value(&text_content).expect("Should serialize");
     assert_eq!(json_value["type"], "text");
@@ -316,8 +318,8 @@ fn test_content_types() {
 
     // Test image content
     let image_content = Content::Image {
-        data: "base64data".to_string(),
-        mime_type: "image/png".to_string(),
+        data: "base64data".to_owned(),
+        mime_type: "image/png".to_owned(),
     };
     let json_value = serde_json::to_value(&image_content).expect("Should serialize");
     assert_eq!(json_value["type"], "image");
@@ -326,9 +328,9 @@ fn test_content_types() {
 
     // Test resource content
     let resource_content = Content::Resource {
-        uri: "file://test.txt".to_string(),
-        text: Some("Resource text".to_string()),
-        mime_type: Some("text/plain".to_string()),
+        uri: "file://test.txt".to_owned(),
+        text: Some("Resource text".to_owned()),
+        mime_type: Some("text/plain".to_owned()),
     };
     let json_value = serde_json::to_value(&resource_content).expect("Should serialize");
     assert_eq!(json_value["type"], "resource");
@@ -400,9 +402,9 @@ fn test_round_trip_serialization() {
     common::init_server_config();
 
     let original_response = InitializeResponse::new(
-        "2025-06-18".to_string(),
-        "pierre-mcp-server".to_string(),
-        "1.0.0".to_string(),
+        "2025-06-18".to_owned(),
+        "pierre-mcp-server".to_owned(),
+        "1.0.0".to_owned(),
     );
 
     // Serialize

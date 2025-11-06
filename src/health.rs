@@ -19,8 +19,11 @@ use tracing::{error, info};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum HealthStatus {
+    /// All systems operational
     Healthy,
+    /// Some systems experiencing issues but service is available
     Degraded,
+    /// Critical systems failing, service may be unavailable
     Unhealthy,
 }
 
@@ -135,15 +138,14 @@ impl HealthChecker {
         // Basic service info
         let service = ServiceInfo {
             name: service_names::PIERRE_MCP_SERVER.into(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-            environment: crate::constants::get_server_config()
-                .security
-                .headers
-                .environment
-                .to_string(),
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+            environment: crate::constants::get_server_config().map_or_else(
+                || "unknown".to_owned(),
+                |c| c.security.headers.environment.to_string(),
+            ),
             uptime_seconds: self.start_time.elapsed().as_secs(),
-            build_time: option_env!("BUILD_TIME").map(std::string::ToString::to_string),
-            git_commit: option_env!("GIT_COMMIT").map(std::string::ToString::to_string),
+            build_time: option_env!("BUILD_TIME").map(str::to_owned),
+            git_commit: option_env!("GIT_COMMIT").map(str::to_owned),
         };
 
         // Basic checks
@@ -186,15 +188,14 @@ impl HealthChecker {
         // Service info
         let service = ServiceInfo {
             name: service_names::PIERRE_MCP_SERVER.into(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-            environment: crate::constants::get_server_config()
-                .security
-                .headers
-                .environment
-                .to_string(),
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+            environment: crate::constants::get_server_config().map_or_else(
+                || "unknown".to_owned(),
+                |c| c.security.headers.environment.to_string(),
+            ),
             uptime_seconds: self.start_time.elapsed().as_secs(),
-            build_time: option_env!("BUILD_TIME").map(std::string::ToString::to_string),
-            git_commit: option_env!("GIT_COMMIT").map(std::string::ToString::to_string),
+            build_time: option_env!("BUILD_TIME").map(str::to_owned),
+            git_commit: option_env!("GIT_COMMIT").map(str::to_owned),
         };
 
         // Perform all checks

@@ -32,11 +32,11 @@ pub fn handle_get_configuration_catalog(
         metadata: Some({
             let mut map = std::collections::HashMap::new();
             map.insert(
-                "catalog_type".to_string(),
-                serde_json::Value::String("complete".to_string()),
+                "catalog_type".to_owned(),
+                serde_json::Value::String("complete".to_owned()),
             );
             map.insert(
-                "parameter_count".to_string(),
+                "parameter_count".to_owned(),
                 serde_json::Value::Number(catalog.total_parameters.into()),
             );
             map
@@ -76,7 +76,7 @@ pub fn handle_get_configuration_profiles(
         metadata: Some({
             let mut map = std::collections::HashMap::new();
             map.insert(
-                "profile_count".to_string(),
+                "profile_count".to_owned(),
                 serde_json::Value::Number(profiles.len().into()),
             );
             map
@@ -147,15 +147,16 @@ fn build_configuration_response(
         metadata: Some({
             let mut map = std::collections::HashMap::new();
             map.insert(
-                "user_id".to_string(),
+                "user_id".to_owned(),
                 serde_json::Value::String(user_uuid.to_string()),
             );
-            map.insert(metadata_key.to_string(), serde_json::Value::Bool(true));
+            map.insert(metadata_key.to_owned(), serde_json::Value::Bool(true));
             map
         }),
     }
 }
 
+/// Handles retrieving user configuration from the database
 #[must_use]
 pub fn handle_get_user_configuration(
     executor: &crate::protocols::universal::UniversalToolExecutor,
@@ -272,11 +273,11 @@ pub fn handle_update_user_configuration(
                     metadata: Some({
                         let mut map = std::collections::HashMap::new();
                         map.insert(
-                            "user_id".to_string(),
+                            "user_id".to_owned(),
                             serde_json::Value::String(user_uuid.to_string()),
                         );
                         map.insert(
-                            "updated_parameters".to_string(),
+                            "updated_parameters".to_owned(),
                             serde_json::Value::Number(param_count.into()),
                         );
                         map
@@ -434,7 +435,7 @@ pub fn handle_calculate_personalized_zones(
             let mut map = std::collections::HashMap::new();
             // Only include vo2_max if it's a valid f64 value
             if let Some(vo2_number) = serde_json::Number::from_f64(params.vo2_max) {
-                map.insert("vo2_max".to_string(), serde_json::Value::Number(vo2_number));
+                map.insert("vo2_max".to_owned(), serde_json::Value::Number(vo2_number));
             } else {
                 tracing::warn!(
                     vo2_max = params.vo2_max,
@@ -442,19 +443,16 @@ pub fn handle_calculate_personalized_zones(
                 );
             }
             map.insert(
-                "zone_count".to_string(),
+                "zone_count".to_owned(),
                 serde_json::Value::Number(crate::intelligence::physiological_constants::physiological_defaults::TRAINING_ZONE_COUNT.into()),
             );
+            map.insert("ftp_used".to_owned(), serde_json::Value::Number(ftp.into()));
             map.insert(
-                "ftp_used".to_string(),
-                serde_json::Value::Number(ftp.into()),
-            );
-            map.insert(
-                "ftp_source".to_string(),
+                "ftp_source".to_owned(),
                 serde_json::Value::String(if request.parameters.get("ftp").is_some() {
-                    "provided".to_string()
+                    "provided".to_owned()
                 } else {
-                    "default_estimate".to_string()
+                    "default_estimate".to_owned()
                 }),
             );
             map
@@ -477,7 +475,7 @@ fn extract_zone_parameters(request: &UniversalRequest) -> Result<ZoneParams, Pro
         .parameters
         .get("vo2_max")
         .and_then(serde_json::Value::as_f64)
-        .ok_or_else(|| ProtocolError::InvalidRequest("vo2_max parameter required".to_string()))?;
+        .ok_or_else(|| ProtocolError::InvalidRequest("vo2_max parameter required".to_owned()))?;
 
     let resting_hr = request
         .parameters
@@ -778,7 +776,7 @@ pub fn handle_validate_configuration(
     let parameters = request
         .parameters
         .get("parameters")
-        .ok_or_else(|| ProtocolError::InvalidRequest("parameters field required".to_string()))?;
+        .ok_or_else(|| ProtocolError::InvalidRequest("parameters field required".to_owned()))?;
 
     // Validate parameters structure and content
     if parameters.is_object() {
@@ -846,11 +844,11 @@ pub fn handle_validate_configuration(
                 "parameters_validated": 0,
                 "errors": ["Parameters must be a JSON object"]
             })),
-            error: Some("Validation failed: Parameters must be a JSON object".to_string()),
+            error: Some("Validation failed: Parameters must be a JSON object".to_owned()),
             metadata: Some({
                 let mut map = std::collections::HashMap::new();
                 map.insert(
-                    "error_count".to_string(),
+                    "error_count".to_owned(),
                     serde_json::Value::Number(1.into()),
                 );
                 map

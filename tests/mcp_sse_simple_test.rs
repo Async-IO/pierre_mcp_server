@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use futures_util::future;
 use serde_json::{json, Value};
 
@@ -245,6 +248,6 @@ async fn test_sse_stream_format_compliance() {
         let parsed: Value = serde_json::from_str(extracted_data).unwrap();
         assert_eq!(parsed, data);
 
-        println!("✓ SSE format test passed: {description}");
+        println!(" SSE format test passed: {description}");
     }
 }

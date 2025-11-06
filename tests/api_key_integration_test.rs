@@ -1,5 +1,7 @@
 // ABOUTME: Integration tests for API key authentication and MCP workflows
 // ABOUTME: Tests API key creation, validation, rate limiting, and MCP protocol integration
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(
     clippy::uninlined_format_args,
     clippy::cast_possible_truncation,
@@ -61,9 +63,9 @@ async fn create_test_environment() -> (
 
     // Create test user
     let user = User::new(
-        "integration@example.com".to_string(),
-        "hashed_password".to_string(),
-        Some("Integration Test User".to_string()),
+        "integration@example.com".to_owned(),
+        "hashed_password".to_owned(),
+        Some("Integration Test User".to_owned()),
     );
     database.create_user(&user).await.unwrap();
 
@@ -82,8 +84,8 @@ async fn test_end_to_end_api_key_workflow() {
 
     // Step 1: Create an API key
     let request = CreateApiKeyRequest {
-        name: "E2E Test Key".to_string(),
-        description: Some("End-to-end test API key".to_string()),
+        name: "E2E Test Key".to_owned(),
+        description: Some("End-to-end test API key".to_owned()),
         tier: ApiKeyTier::Professional,
         expires_in_days: Some(30),
         rate_limit_requests: None,
@@ -116,14 +118,14 @@ async fn test_end_to_end_api_key_workflow() {
         id: None,
         api_key_id: api_key.id.clone(),
         timestamp: Utc::now(),
-        tool_name: "get_activities".to_string(),
+        tool_name: "get_activities".to_owned(),
         response_time_ms: Some(150),
         status_code: 200,
         error_message: None,
         request_size_bytes: Some(256),
         response_size_bytes: Some(1024),
-        ip_address: Some("127.0.0.1".to_string()),
-        user_agent: Some("test-client".to_string()),
+        ip_address: Some("127.0.0.1".to_owned()),
+        user_agent: Some("test-client".to_owned()),
     };
 
     database.record_api_key_usage(&usage).await.unwrap();
@@ -162,7 +164,7 @@ async fn test_api_key_rate_limiting() {
 
     // Create a Starter tier key with low limit for testing
     let request = CreateApiKeyRequest {
-        name: "Rate Limit Test Key".to_string(),
+        name: "Rate Limit Test Key".to_owned(),
         description: None,
         tier: ApiKeyTier::Starter,
         expires_in_days: None,
@@ -226,7 +228,7 @@ async fn test_enterprise_tier_unlimited_usage() {
 
     // Create an Enterprise tier key
     let request = CreateApiKeyRequest {
-        name: "Enterprise Test Key".to_string(),
+        name: "Enterprise Test Key".to_owned(),
         description: None,
         tier: ApiKeyTier::Enterprise,
         expires_in_days: None,
@@ -283,7 +285,7 @@ async fn test_api_key_expiration() {
 
     // Create an expired API key
     let request = CreateApiKeyRequest {
-        name: "Expired Test Key".to_string(),
+        name: "Expired Test Key".to_owned(),
         description: None,
         tier: ApiKeyTier::Starter,
         expires_in_days: Some(1),
@@ -310,7 +312,7 @@ async fn test_deactivated_api_key() {
 
     // Create an API key
     let request = CreateApiKeyRequest {
-        name: "Deactivated Test Key".to_string(),
+        name: "Deactivated Test Key".to_owned(),
         description: None,
         tier: ApiKeyTier::Professional,
         expires_in_days: None,
@@ -376,7 +378,7 @@ async fn test_concurrent_api_key_usage() {
 
     // Create an API key
     let request = CreateApiKeyRequest {
-        name: "Concurrent Test Key".to_string(),
+        name: "Concurrent Test Key".to_owned(),
         description: None,
         tier: ApiKeyTier::Professional,
         expires_in_days: None,
@@ -451,7 +453,7 @@ async fn test_usage_analytics() {
 
     // Create an API key
     let request = CreateApiKeyRequest {
-        name: "Analytics Test Key".to_string(),
+        name: "Analytics Test Key".to_owned(),
         description: None,
         tier: ApiKeyTier::Professional,
         expires_in_days: None,
@@ -470,7 +472,7 @@ async fn test_usage_analytics() {
             id: None,
             api_key_id: api_key.id.clone(),
             timestamp: Utc::now() - Duration::hours(i as i64),
-            tool_name: tools[i % tools.len()].to_string(),
+            tool_name: tools[i % tools.len()].to_owned(),
             response_time_ms: Some((100 + i * 50) as u32),
             status_code,
             error_message: if status_code >= 400 {
@@ -480,8 +482,8 @@ async fn test_usage_analytics() {
             },
             request_size_bytes: Some(256),
             response_size_bytes: Some(1024),
-            ip_address: Some("127.0.0.1".to_string()),
-            user_agent: Some("test-client".to_string()),
+            ip_address: Some("127.0.0.1".to_owned()),
+            user_agent: Some("test-client".to_owned()),
         };
         database.record_api_key_usage(&usage).await.unwrap();
     }

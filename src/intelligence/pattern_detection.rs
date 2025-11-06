@@ -86,8 +86,11 @@ pub struct VolumeProgressionPattern {
 /// Volume trend direction
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VolumeTrend {
+    /// Training volume is increasing over time
     Increasing,
+    /// Training volume is remaining steady
     Stable,
+    /// Training volume is decreasing over time
     Decreasing,
 }
 
@@ -192,13 +195,13 @@ impl PatternDetector {
         let adequate_recovery = Self::check_adequate_recovery(activities);
 
         let pattern_description = if pattern_detected {
-            "Regular hard/easy alternation detected".to_string()
+            "Regular hard/easy alternation detected".to_owned()
         } else if hard_percentage > 70.0 {
-            "Too many high-intensity sessions - add recovery days".to_string()
+            "Too many high-intensity sessions - add recovery days".to_owned()
         } else if easy_percentage > 90.0 {
-            "Mostly easy sessions - consider adding intensity".to_string()
+            "Mostly easy sessions - consider adding intensity".to_owned()
         } else {
-            "No clear pattern - mixed intensity distribution".to_string()
+            "No clear pattern - mixed intensity distribution".to_owned()
         };
 
         HardEasyPattern {
@@ -233,14 +236,14 @@ impl PatternDetector {
         let performance_decline = Self::detect_performance_decline(activities);
         if performance_decline {
             warnings
-                .push("Performance decline detected: pace slowing for similar efforts".to_string());
+                .push("Performance decline detected: pace slowing for similar efforts".to_owned());
         }
 
         // Check for insufficient recovery
         let insufficient_recovery = Self::detect_insufficient_recovery(activities);
         if insufficient_recovery {
             warnings.push(
-                "Insufficient recovery: multiple high-intensity days without rest".to_string(),
+                "Insufficient recovery: multiple high-intensity days without rest".to_owned(),
             );
         }
 
@@ -304,9 +307,9 @@ impl PatternDetector {
         let recommendation = if volume_spikes_detected {
             format!("Reduce volume spikes - detected {VOLUME_SPIKE_THRESHOLD_PERCENT:.0}%+ increases in weeks: {spike_weeks:?}")
         } else if matches!(trend, VolumeTrend::Increasing) {
-            "Volume increasing steadily - maintain 10% rule to prevent injury".to_string()
+            "Volume increasing steadily - maintain 10% rule to prevent injury".to_owned()
         } else {
-            "Volume progression looks safe - no dangerous spikes detected".to_string()
+            "Volume progression looks safe - no dangerous spikes detected".to_owned()
         };
 
         VolumeProgressionPattern {
@@ -522,7 +525,10 @@ impl PatternDetector {
             return Vec::new();
         }
 
-        let first_date = activities.iter().map(|a| a.start_date).min().unwrap();
+        // Safe: we just checked activities is not empty
+        let Some(first_date) = activities.iter().map(|a| a.start_date).min() else {
+            return Vec::new();
+        };
 
         for activity in activities {
             let days_since_start = (activity.start_date - first_date).num_days();
@@ -577,7 +583,7 @@ impl PatternDetector {
     fn empty_hard_easy_pattern() -> HardEasyPattern {
         HardEasyPattern {
             pattern_detected: false,
-            pattern_description: "Insufficient data for pattern detection".to_string(),
+            pattern_description: "Insufficient data for pattern detection".to_owned(),
             hard_percentage: 0.0,
             easy_percentage: 0.0,
             adequate_recovery: true,
@@ -591,7 +597,7 @@ impl PatternDetector {
             performance_decline: false,
             insufficient_recovery: false,
             risk_level: RiskLevel::Low,
-            warnings: vec!["Insufficient data for overtraining detection".to_string()],
+            warnings: vec!["Insufficient data for overtraining detection".to_owned()],
         }
     }
 
@@ -602,7 +608,7 @@ impl PatternDetector {
             trend: VolumeTrend::Stable,
             volume_spikes_detected: false,
             spike_weeks: Vec::new(),
-            recommendation: "Insufficient data for volume analysis".to_string(),
+            recommendation: "Insufficient data for volume analysis".to_owned(),
         }
     }
 }

@@ -8,6 +8,9 @@
 //! Tests the interaction between fitness intelligence engines and the universal
 //! tool execution system to ensure proper data flow and analysis integration.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use chrono::Utc;
 use pierre_mcp_server::{
@@ -30,9 +33,9 @@ async fn test_activity_analysis_through_universal_tools() -> Result<()> {
 
     // Create user first
     let user = pierre_mcp_server::models::User::new(
-        "test@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Test User".to_string()),
+        "test@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Test User".to_owned()),
     );
     database.create_user(&user).await?;
 
@@ -40,22 +43,22 @@ async fn test_activity_analysis_through_universal_tools() -> Result<()> {
     let fitness_profile = UserFitnessProfile {
         user_id: user.id.to_string(),
         age: Some(30),
-        gender: Some("male".to_string()),
+        gender: Some("male".to_owned()),
         weight: Some(75.0),
         height: Some(180.0),
         fitness_level: FitnessLevel::Intermediate,
-        primary_sports: vec!["running".to_string(), "cycling".to_string()],
+        primary_sports: vec!["running".to_owned(), "cycling".to_owned()],
         training_history_months: 24,
         preferences: UserPreferences {
-            preferred_units: "metric".to_string(),
-            training_focus: vec!["endurance".to_string(), "speed".to_string()],
+            preferred_units: "metric".to_owned(),
+            training_focus: vec!["endurance".to_owned(), "speed".to_owned()],
             injury_history: vec![],
             time_availability: TimeAvailability {
                 hours_per_week: 6.0,
                 preferred_days: vec![
-                    "monday".to_string(),
-                    "wednesday".to_string(),
-                    "friday".to_string(),
+                    "monday".to_owned(),
+                    "wednesday".to_owned(),
+                    "friday".to_owned(),
                 ],
                 preferred_duration_minutes: Some(60),
             },
@@ -68,8 +71,8 @@ async fn test_activity_analysis_through_universal_tools() -> Result<()> {
 
     // Create test activity with advanced metrics
     let activity = Activity {
-        id: "test_activity_001".to_string(),
-        name: "Morning Tempo Run".to_string(),
+        id: "test_activity_001".to_owned(),
+        name: "Morning Tempo Run".to_owned(),
         sport_type: SportType::Run,
         start_date: Utc::now() - chrono::Duration::hours(2),
         duration_seconds: 3600,         // 60 minutes
@@ -110,11 +113,11 @@ async fn test_activity_analysis_through_universal_tools() -> Result<()> {
 
         start_latitude: Some(45.5017),
         start_longitude: Some(-73.5673),
-        city: Some("Montreal".to_string()),
-        region: Some("Quebec".to_string()),
-        country: Some("Canada".to_string()),
-        trail_name: Some("Lachine Canal".to_string()),
-        provider: "strava".to_string(),
+        city: Some("Montreal".to_owned()),
+        region: Some("Quebec".to_owned()),
+        country: Some("Canada".to_owned()),
+        trail_name: Some("Lachine Canal".to_owned()),
+        provider: "strava".to_owned(),
     };
 
     // Test intelligence engine integration
@@ -201,9 +204,9 @@ async fn test_recommendation_engine_integration() -> Result<()> {
 
     // Create user first
     let user = pierre_mcp_server::models::User::new(
-        "test2@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Test User 2".to_string()),
+        "test2@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Test User 2".to_owned()),
     );
     database.create_user(&user).await?;
 
@@ -211,23 +214,23 @@ async fn test_recommendation_engine_integration() -> Result<()> {
     let fitness_profile = UserFitnessProfile {
         user_id: user.id.to_string(),
         age: Some(25),
-        gender: Some("female".to_string()),
+        gender: Some("female".to_owned()),
         weight: Some(60.0),
         height: Some(165.0),
         fitness_level: FitnessLevel::Advanced,
-        primary_sports: vec!["cycling".to_string()],
+        primary_sports: vec!["cycling".to_owned()],
         training_history_months: 36,
         preferences: UserPreferences {
-            preferred_units: "metric".to_string(),
-            training_focus: vec!["power".to_string(), "endurance".to_string()],
+            preferred_units: "metric".to_owned(),
+            training_focus: vec!["power".to_owned(), "endurance".to_owned()],
             injury_history: vec![],
             time_availability: TimeAvailability {
                 hours_per_week: 10.0,
                 preferred_days: vec![
-                    "tuesday".to_string(),
-                    "thursday".to_string(),
-                    "saturday".to_string(),
-                    "sunday".to_string(),
+                    "tuesday".to_owned(),
+                    "thursday".to_owned(),
+                    "saturday".to_owned(),
+                    "sunday".to_owned(),
                 ],
                 preferred_duration_minutes: Some(90),
             },
@@ -240,8 +243,8 @@ async fn test_recommendation_engine_integration() -> Result<()> {
 
     // Create cycling activity with power data
     let activity = Activity {
-        id: "cycling_test_001".to_string(),
-        name: "Threshold Intervals".to_string(),
+        id: "cycling_test_001".to_owned(),
+        name: "Threshold Intervals".to_owned(),
         sport_type: SportType::Ride,
         start_date: Utc::now() - chrono::Duration::hours(1),
         duration_seconds: 4500,         // 75 minutes
@@ -282,11 +285,11 @@ async fn test_recommendation_engine_integration() -> Result<()> {
 
         start_latitude: Some(45.5017),
         start_longitude: Some(-73.5673),
-        city: Some("Montreal".to_string()),
-        region: Some("Quebec".to_string()),
-        country: Some("Canada".to_string()),
+        city: Some("Montreal".to_owned()),
+        region: Some("Quebec".to_owned()),
+        country: Some("Canada".to_owned()),
         trail_name: None,
-        provider: "strava".to_string(),
+        provider: "strava".to_owned(),
     };
 
     // Test recommendation engine
@@ -329,9 +332,9 @@ async fn test_goal_tracking_integration() -> Result<()> {
 
     // Create user first
     let user = pierre_mcp_server::models::User::new(
-        "test3@example.com".to_string(),
-        "password_hash".to_string(),
-        Some("Test User 3".to_string()),
+        "test3@example.com".to_owned(),
+        "password_hash".to_owned(),
+        Some("Test User 3".to_owned()),
     );
     database.create_user(&user).await?;
 
@@ -377,22 +380,22 @@ async fn test_goal_tracking_integration() -> Result<()> {
     let _fitness_profile = UserFitnessProfile {
         user_id: user.id.to_string(),
         age: Some(35),
-        gender: Some("male".to_string()),
+        gender: Some("male".to_owned()),
         weight: Some(70.0),
         height: Some(175.0),
         fitness_level: FitnessLevel::Intermediate,
-        primary_sports: vec!["running".to_string()],
+        primary_sports: vec!["running".to_owned()],
         training_history_months: 18,
         preferences: UserPreferences {
-            preferred_units: "metric".to_string(),
-            training_focus: vec!["distance".to_string()],
+            preferred_units: "metric".to_owned(),
+            training_focus: vec!["distance".to_owned()],
             injury_history: vec![],
             time_availability: TimeAvailability {
                 hours_per_week: 5.0,
                 preferred_days: vec![
-                    "monday".to_string(),
-                    "wednesday".to_string(),
-                    "friday".to_string(),
+                    "monday".to_owned(),
+                    "wednesday".to_owned(),
+                    "friday".to_owned(),
                 ],
                 preferred_duration_minutes: Some(45),
             },
@@ -426,7 +429,7 @@ async fn test_goal_tracking_integration() -> Result<()> {
 /// Helper function to create test activities
 fn create_test_activity(id: &str, sport_type: &SportType, distance: f64) -> Activity {
     Activity {
-        id: id.to_string(),
+        id: id.to_owned(),
         name: format!("Test {sport_type:?}"),
         sport_type: sport_type.clone(),
         start_date: Utc::now() - chrono::Duration::hours(1),
@@ -472,10 +475,10 @@ fn create_test_activity(id: &str, sport_type: &SportType, distance: f64) -> Acti
 
         start_latitude: Some(45.5017),
         start_longitude: Some(-73.5673),
-        city: Some("Montreal".to_string()),
-        region: Some("Quebec".to_string()),
-        country: Some("Canada".to_string()),
+        city: Some("Montreal".to_owned()),
+        region: Some("Quebec".to_owned()),
+        country: Some("Canada".to_owned()),
         trail_name: None,
-        provider: "test".to_string(),
+        provider: "test".to_owned(),
     }
 }

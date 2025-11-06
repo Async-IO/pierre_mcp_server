@@ -6,7 +6,10 @@
 
 //! Protocol constants module
 
+/// Protocol version and identification constants
 pub mod constants;
 
 // Re-export all protocol constants
+
+/// Re-export all protocol constants
 pub use constants::*;

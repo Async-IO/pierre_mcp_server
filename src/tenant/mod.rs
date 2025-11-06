@@ -12,8 +12,11 @@
 //! - Enterprise-ready `SaaS` deployment
 //! - Secure tenant data isolation
 
+/// Tenant-aware OAuth client implementation
 pub mod oauth_client;
+/// OAuth credential management for tenants
 pub mod oauth_manager;
+/// Tenant database schema and models
 pub mod schema;
 
 pub use oauth_client::{StoreCredentialsRequest, TenantOAuthClient};

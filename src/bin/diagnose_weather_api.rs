@@ -3,6 +3,9 @@
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
+
+#![allow(missing_docs)]
+
 use chrono::{Duration, Utc};
 use reqwest::Client;
 use serde_json::Value;
@@ -67,7 +70,7 @@ async fn test_current_weather(
                         println!("Success Current Weather Success!");
                         if let Some(main) = data.get("main") {
                             if let Some(temp) = main.get("temp") {
-                                println!("   Temperature  Temperature: {temp}°C");
+                                println!("   Temperature  Temperature: {temp}C");
                             }
                         }
                         if let Some(weather) = data.get("weather").and_then(|w| w.get(0)) {
@@ -120,7 +123,7 @@ async fn test_historical_weather(
                         if let Some(data_array) = data.get("data").and_then(|d| d.as_array()) {
                             if let Some(first_entry) = data_array.first() {
                                 if let Some(temp) = first_entry.get("temp") {
-                                    println!("   Temperature  Historical Temperature: {temp}°C");
+                                    println!("   Temperature  Historical Temperature: {temp}C");
                                 }
                             }
                         }
@@ -164,7 +167,7 @@ async fn test_error_conditions(
     }
 
     // Test with invalid API key
-    let bad_key_url = "https://api.openweathermap.org/data/2.5/weather?lat=45.5017&lon=-73.5673&appid=invalid_key&units=metric".to_string();
+    let bad_key_url = "https://api.openweathermap.org/data/2.5/weather?lat=45.5017&lon=-73.5673&appid=invalid_key&units=metric".to_owned();
 
     println!("Test Testing invalid API key...");
     match client.get(&bad_key_url).send().await {

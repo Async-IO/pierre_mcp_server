@@ -49,22 +49,44 @@ pub struct RuntimeConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", content = "value")]
 pub enum ConfigValue {
+    /// Floating point number value
     Float(f64),
+    /// Integer number value
     Integer(i64),
+    /// Boolean flag value
     Boolean(bool),
+    /// String value
     String(String),
-    FloatRange { min: f64, max: f64 },
-    IntegerRange { min: i64, max: i64 },
+    /// Floating point range with min and max bounds
+    FloatRange {
+        /// Minimum value
+        min: f64,
+        /// Maximum value
+        max: f64,
+    },
+    /// Integer range with min and max bounds
+    IntegerRange {
+        /// Minimum value
+        min: i64,
+        /// Maximum value
+        max: i64,
+    },
 }
 
 /// Configuration change audit entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigChange {
+    /// When the configuration change occurred
     pub timestamp: DateTime<Utc>,
+    /// Which module/component was changed
     pub module: String,
+    /// Which parameter was changed
     pub parameter: String,
+    /// Previous value before the change
     pub old_value: Option<ConfigValue>,
+    /// New value after the change
     pub new_value: ConfigValue,
+    /// Optional explanation for why the change was made
     pub reason: Option<String>,
 }
 
@@ -222,13 +244,13 @@ impl RuntimeConfig {
 
         self.log_change(
             "session".into(),
-            key.to_string(),
+            key.to_owned(),
             old_value,
             value.clone(),
             None,
         );
 
-        self.session_overrides.insert(key.to_string(), value);
+        self.session_overrides.insert(key.to_owned(), value);
         self.last_modified = Utc::now();
 
         Ok(())
@@ -335,19 +357,28 @@ impl Default for RuntimeConfig {
 /// Configuration export format
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigExport {
+    /// Active configuration profile
     pub profile: ConfigProfile,
+    /// Session-specific configuration overrides
     pub session_overrides: HashMap<String, ConfigValue>,
+    /// User's physiological profile if set
     pub user_profile: Option<UserPhysiologicalProfile>,
+    /// VO2 calculator state snapshot if available
     pub vo2_calculator_state: Option<VO2CalculatorState>,
+    /// When this configuration was last modified
     pub last_modified: DateTime<Utc>,
 }
 
 /// VO2 calculator state for export
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VO2CalculatorState {
+    /// Calculated VO2 max value (ml/kg/min)
     pub vo2_max: f64,
+    /// Resting heart rate (bpm)
     pub resting_hr: u16,
+    /// Maximum heart rate (bpm)
     pub max_hr: u16,
+    /// Lactate threshold as percentage of VO2 max (0-1.0)
     pub lactate_threshold: f64,
 }
 

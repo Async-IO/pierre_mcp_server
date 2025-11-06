@@ -76,15 +76,15 @@ impl AdminJwtManager {
         let claims = AdminTokenClaims {
             // Standard JWT claims
             iss: service_names::PIERRE_MCP_SERVER.into(),
-            sub: token_id.to_string(),
+            sub: token_id.to_owned(),
             aud: service_names::ADMIN_API.into(),
             exp: u64::try_from(exp.timestamp().max(0)).unwrap_or(0),
             iat: u64::try_from(now.timestamp().max(0)).unwrap_or(0),
             nbf: u64::try_from(now.timestamp().max(0)).unwrap_or(0),
-            jti: token_id.to_string(),
+            jti: token_id.to_owned(),
 
             // Custom claims
-            service_name: service_name.to_string(),
+            service_name: service_name.to_owned(),
             permissions: permissions.to_vec(),
             is_super_admin,
             token_type: "admin".into(),
@@ -190,10 +190,15 @@ struct AdminTokenClaims {
 /// Token generation configuration
 #[derive(Debug, Clone)]
 pub struct TokenGenerationConfig {
+    /// Service name for the token
     pub service_name: String,
+    /// Optional human-readable description
     pub service_description: Option<String>,
+    /// Permissions granted to this token
     pub permissions: Option<AdminPermissions>,
+    /// Token expiration in days (None for no expiration)
     pub expires_in_days: Option<u64>,
+    /// Whether this is a super admin token with full privileges
     pub is_super_admin: bool,
 }
 

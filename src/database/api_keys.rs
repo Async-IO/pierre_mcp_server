@@ -254,12 +254,12 @@ impl Database {
 
         if let Some(t) = tier {
             query.push_str(" AND tier = ?");
-            bind_values.push(t.as_str().to_string());
+            bind_values.push(t.as_str().to_owned());
         }
 
         if let Some(active) = is_active {
             query.push_str(" AND is_active = ?");
-            bind_values.push(if active { "1" } else { "0" }.to_string());
+            bind_values.push(if active { "1" } else { "0" }.to_owned());
         }
 
         query.push_str(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
@@ -470,7 +470,7 @@ impl Database {
         });
 
         Ok(ApiKeyUsageStats {
-            api_key_id: api_key_id.to_string(),
+            api_key_id: api_key_id.to_owned(),
             period_start: start_date,
             period_end: end_date,
             total_requests: u32::try_from(total_requests)?,

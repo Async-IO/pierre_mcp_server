@@ -3,6 +3,8 @@
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
 #![allow(
     clippy::uninlined_format_args,
     clippy::cast_possible_truncation,
@@ -166,7 +168,7 @@ async fn test_intelligence_analysis_integration() -> Result<()> {
     // Create a test activity using the correct structure
     let activity = Activity {
         id: format!("test_{}", Uuid::new_v4().simple()),
-        name: "Integration Test Run".to_string(),
+        name: "Integration Test Run".to_owned(),
         sport_type: SportType::Run,
         start_date: Utc::now() - Duration::hours(1),
         duration_seconds: 3600,         // 1 hour
@@ -207,11 +209,11 @@ async fn test_intelligence_analysis_integration() -> Result<()> {
 
         start_latitude: Some(45.5017), // Montreal
         start_longitude: Some(-73.5673),
-        city: Some("Montreal".to_string()),
-        region: Some("Quebec".to_string()),
-        country: Some("Canada".to_string()),
-        trail_name: Some("Test Trail".to_string()),
-        provider: "test".to_string(),
+        city: Some("Montreal".to_owned()),
+        region: Some("Quebec".to_owned()),
+        country: Some("Canada".to_owned()),
+        trail_name: Some("Test Trail".to_owned()),
+        provider: "test".to_owned(),
     };
 
     // Analyze the activity
@@ -302,7 +304,7 @@ async fn test_activity_model_creation() -> Result<()> {
             region: None,
             country: None,
             trail_name: None,
-            provider: "test".to_string(),
+            provider: "test".to_owned(),
         };
 
         assert_eq!(activity.sport_type, sport);
@@ -368,7 +370,7 @@ async fn test_concurrent_analysis() -> Result<()> {
                 region: None,
                 country: None,
                 trail_name: None,
-                provider: "test".to_string(),
+                provider: "test".to_owned(),
             };
 
             let analyzer_local = ActivityAnalyzer::new();

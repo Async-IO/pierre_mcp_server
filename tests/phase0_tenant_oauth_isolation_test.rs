@@ -11,6 +11,9 @@
 //! - Rate limits are tracked separately per tenant
 //! - OAuth tokens are properly isolated by (`user_id`, `tenant_id`, `provider`)
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use chrono::Utc;
 use pierre_mcp_server::{
@@ -48,7 +51,7 @@ async fn create_test_user(database: &Database, email: &str, tenant_id: Uuid) -> 
     let user_id = Uuid::new_v4();
     let user = User {
         id: user_id,
-        email: email.to_string(),
+        email: email.to_owned(),
         display_name: Some(format!("Test User {email}")),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Professional,
@@ -78,10 +81,10 @@ async fn test_tenant_credential_isolation() -> Result<()> {
     // Set up server-level OAuth config (fallback credentials for tenant A)
     let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {
         strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
-            client_id: Some("163846".to_string()),
-            client_secret: Some("env_secret_a".to_string()),
-            redirect_uri: Some("http://localhost:8080/api/oauth/callback/strava".to_string()),
-            scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+            client_id: Some("163846".to_owned()),
+            client_secret: Some("env_secret_a".to_owned()),
+            redirect_uri: Some("http://localhost:8080/api/oauth/callback/strava".to_owned()),
+            scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
             enabled: true,
         },
         fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
@@ -97,10 +100,10 @@ async fn test_tenant_credential_isolation() -> Result<()> {
     let env_tenant_owner =
         create_test_user(&database, "owner_a@example.com", env_tenant_id).await?;
     let env_tenant = Tenant::new(
-        "Tenant A".to_string(),
+        "Tenant A".to_owned(),
         env_tenant_id.to_string(),
-        Some("tenant-a.example.com".to_string()),
-        "professional".to_string(),
+        Some("tenant-a.example.com".to_owned()),
+        "professional".to_owned(),
         env_tenant_owner,
     );
     database.create_tenant(&env_tenant).await?;
@@ -108,10 +111,10 @@ async fn test_tenant_credential_isolation() -> Result<()> {
     // Create tenant B (will use tenant-specific credentials)
     let db_tenant_owner = create_test_user(&database, "owner_b@example.com", db_tenant_id).await?;
     let db_tenant = Tenant::new(
-        "Tenant B".to_string(),
+        "Tenant B".to_owned(),
         db_tenant_id.to_string(),
-        Some("tenant-b.example.com".to_string()),
-        "professional".to_string(),
+        Some("tenant-b.example.com".to_owned()),
+        "professional".to_owned(),
         db_tenant_owner,
     );
     database.create_tenant(&db_tenant).await?;
@@ -121,10 +124,10 @@ async fn test_tenant_credential_isolation() -> Result<()> {
         db_tenant_id,
         oauth_providers::STRAVA,
         CredentialConfig {
-            client_id: "999888".to_string(),
-            client_secret: "db_secret_b".to_string(),
-            redirect_uri: "http://localhost:8080/api/oauth/callback/strava".to_string(),
-            scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+            client_id: "999888".to_owned(),
+            client_secret: "db_secret_b".to_owned(),
+            redirect_uri: "http://localhost:8080/api/oauth/callback/strava".to_owned(),
+            scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
             configured_by: db_tenant_owner,
         },
     )?;
@@ -177,7 +180,7 @@ async fn test_tenant_credential_isolation() -> Result<()> {
         "Tenants should have different CLIENT_SECRETs"
     );
 
-    tracing::info!("✅ Test 1: Tenant credential isolation verified");
+    tracing::info!(" Test 1: Tenant credential isolation verified");
     Ok(())
 }
 
@@ -203,19 +206,19 @@ async fn test_rate_limit_tracking_per_tenant() -> Result<()> {
     let second_owner = create_test_user(&database, "owner_b@example.com", second_tenant_id).await?;
 
     let first_tenant = Tenant::new(
-        "Tenant A".to_string(),
+        "Tenant A".to_owned(),
         first_tenant_id.to_string(),
-        Some("tenant-a.example.com".to_string()),
-        "professional".to_string(),
+        Some("tenant-a.example.com".to_owned()),
+        "professional".to_owned(),
         first_owner,
     );
     database.create_tenant(&first_tenant).await?;
 
     let second_tenant = Tenant::new(
-        "Tenant B".to_string(),
+        "Tenant B".to_owned(),
         second_tenant_id.to_string(),
-        Some("tenant-b.example.com".to_string()),
-        "professional".to_string(),
+        Some("tenant-b.example.com".to_owned()),
+        "professional".to_owned(),
         second_owner,
     );
     database.create_tenant(&second_tenant).await?;
@@ -281,7 +284,7 @@ async fn test_rate_limit_tracking_per_tenant() -> Result<()> {
         "Tenant B usage should remain unchanged"
     );
 
-    tracing::info!("✅ Test 2: Rate limit tracking per tenant verified");
+    tracing::info!(" Test 2: Rate limit tracking per tenant verified");
     Ok(())
 }
 
@@ -297,10 +300,10 @@ async fn create_tenant_with_token(
     let user_id = create_test_user(database, user_email, tenant_id).await?;
 
     let tenant = Tenant::new(
-        tenant_name.to_string(),
+        tenant_name.to_owned(),
         tenant_id.to_string(),
-        Some(tenant_domain.to_string()),
-        "professional".to_string(),
+        Some(tenant_domain.to_owned()),
+        "professional".to_owned(),
         user_id,
     );
     database.create_tenant(&tenant).await?;
@@ -308,11 +311,11 @@ async fn create_tenant_with_token(
     let token = UserOAuthToken::new(
         user_id,
         tenant_id.to_string(),
-        oauth_providers::STRAVA.to_string(),
-        access_token.to_string(),
+        oauth_providers::STRAVA.to_owned(),
+        access_token.to_owned(),
         Some(format!("refresh_{access_token}")),
         Some(Utc::now() + chrono::Duration::hours(6)),
-        Some("read,activity:read_all".to_string()),
+        Some("read,activity:read_all".to_owned()),
     );
     database.upsert_user_oauth_token(&token).await?;
 
@@ -431,7 +434,7 @@ async fn test_cross_tenant_oauth_token_isolation() -> Result<()> {
         "User 2's token should NOT be accessible from user 1's ID with tenant A"
     );
 
-    tracing::info!("✅ Test 3: Cross-tenant OAuth token isolation verified");
+    tracing::info!(" Test 3: Cross-tenant OAuth token isolation verified");
     Ok(())
 }
 
@@ -447,10 +450,10 @@ async fn test_oauth_callback_tenant_preservation() -> Result<()> {
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     let tenant = Tenant::new(
-        "Test Tenant".to_string(),
+        "Test Tenant".to_owned(),
         tenant_id.to_string(),
-        Some("test.example.com".to_string()),
-        "professional".to_string(),
+        Some("test.example.com".to_owned()),
+        "professional".to_owned(),
         user_id,
     );
     database.create_tenant(&tenant).await?;
@@ -479,7 +482,7 @@ async fn test_oauth_callback_tenant_preservation() -> Result<()> {
         "Tenant ID should be preserved in OAuth state parameter"
     );
 
-    tracing::info!("✅ Test 4: OAuth callback tenant ID preservation verified");
+    tracing::info!(" Test 4: OAuth callback tenant ID preservation verified");
     Ok(())
 }
 
@@ -501,10 +504,10 @@ async fn test_token_refresh_uses_tenant_credentials() -> Result<()> {
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     let tenant = Tenant::new(
-        "Test Tenant".to_string(),
+        "Test Tenant".to_owned(),
         tenant_id.to_string(),
-        Some("test.example.com".to_string()),
-        "professional".to_string(),
+        Some("test.example.com".to_owned()),
+        "professional".to_owned(),
         user_id,
     );
     database.create_tenant(&tenant).await?;
@@ -514,10 +517,10 @@ async fn test_token_refresh_uses_tenant_credentials() -> Result<()> {
         tenant_id,
         oauth_providers::STRAVA,
         CredentialConfig {
-            client_id: "tenant_specific_client_id".to_string(),
-            client_secret: "tenant_specific_secret".to_string(),
-            redirect_uri: "http://localhost:8080/api/oauth/callback/strava".to_string(),
-            scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+            client_id: "tenant_specific_client_id".to_owned(),
+            client_secret: "tenant_specific_secret".to_owned(),
+            redirect_uri: "http://localhost:8080/api/oauth/callback/strava".to_owned(),
+            scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
             configured_by: user_id,
         },
     )?;
@@ -537,7 +540,7 @@ async fn test_token_refresh_uses_tenant_credentials() -> Result<()> {
         "Token refresh should use tenant-specific CLIENT_SECRET"
     );
 
-    tracing::info!("✅ Test 5: Token refresh with tenant credentials verified");
+    tracing::info!(" Test 5: Token refresh with tenant credentials verified");
     Ok(())
 }
 
@@ -562,10 +565,10 @@ async fn test_tenant_specific_rate_limits() -> Result<()> {
     let owner_standard =
         create_test_user(&database, "standard@example.com", tenant_standard_id).await?;
     let standard_tenant = Tenant::new(
-        "Standard Tenant".to_string(),
+        "Standard Tenant".to_owned(),
         tenant_standard_id.to_string(),
-        Some("standard.example.com".to_string()),
-        "professional".to_string(),
+        Some("standard.example.com".to_owned()),
+        "professional".to_owned(),
         owner_standard,
     );
     database.create_tenant(&standard_tenant).await?;
@@ -574,10 +577,10 @@ async fn test_tenant_specific_rate_limits() -> Result<()> {
     let owner_enterprise =
         create_test_user(&database, "enterprise@example.com", tenant_enterprise_id).await?;
     let enterprise_tenant = Tenant::new(
-        "Enterprise Tenant".to_string(),
+        "Enterprise Tenant".to_owned(),
         tenant_enterprise_id.to_string(),
-        Some("enterprise.example.com".to_string()),
-        "enterprise".to_string(),
+        Some("enterprise.example.com".to_owned()),
+        "enterprise".to_owned(),
         owner_enterprise,
     );
     database.create_tenant(&enterprise_tenant).await?;
@@ -591,10 +594,10 @@ async fn test_tenant_specific_rate_limits() -> Result<()> {
         tenant_enterprise_id,
         oauth_providers::STRAVA,
         CredentialConfig {
-            client_id: "enterprise_client_id".to_string(),
-            client_secret: "enterprise_secret".to_string(),
-            redirect_uri: "http://localhost:8080/api/oauth/callback/strava".to_string(),
-            scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+            client_id: "enterprise_client_id".to_owned(),
+            client_secret: "enterprise_secret".to_owned(),
+            redirect_uri: "http://localhost:8080/api/oauth/callback/strava".to_owned(),
+            scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
             configured_by: owner_enterprise,
         },
     )?;
@@ -619,7 +622,7 @@ async fn test_tenant_specific_rate_limits() -> Result<()> {
         "Currently all tenants share the same rate limit constant"
     );
 
-    tracing::info!("✅ Test 6: Tenant-specific rate limit configuration verified");
+    tracing::info!(" Test 6: Tenant-specific rate limit configuration verified");
     Ok(())
 }
 
@@ -653,7 +656,7 @@ async fn test_concurrent_multitenant_oauth_operations() -> Result<()> {
                 format!("Tenant {i}"),
                 tenant_id.to_string(),
                 Some(format!("tenant{i}.example.com")),
-                "professional".to_string(),
+                "professional".to_owned(),
                 user_id,
             );
             db.create_tenant(&tenant).await?;
@@ -665,8 +668,8 @@ async fn test_concurrent_multitenant_oauth_operations() -> Result<()> {
                 CredentialConfig {
                     client_id: format!("client_id_{i}"),
                     client_secret: format!("secret_{i}"),
-                    redirect_uri: "http://localhost:8080/api/oauth/callback/strava".to_string(),
-                    scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                    redirect_uri: "http://localhost:8080/api/oauth/callback/strava".to_owned(),
+                    scopes: vec!["read".to_owned(), "activity:read_all".to_owned()],
                     configured_by: user_id,
                 },
             )?;
@@ -675,11 +678,11 @@ async fn test_concurrent_multitenant_oauth_operations() -> Result<()> {
             let token = UserOAuthToken::new(
                 user_id,
                 tenant_id.to_string(),
-                oauth_providers::STRAVA.to_string(),
+                oauth_providers::STRAVA.to_owned(),
                 format!("access_token_{i}"),
                 Some(format!("refresh_token_{i}")),
                 Some(Utc::now() + chrono::Duration::hours(6)),
-                Some("read,activity:read_all".to_string()),
+                Some("read,activity:read_all".to_owned()),
             );
             db.upsert_user_oauth_token(&token).await?;
 
@@ -735,6 +738,6 @@ async fn test_concurrent_multitenant_oauth_operations() -> Result<()> {
         );
     }
 
-    tracing::info!("✅ Test 7: Concurrent multi-tenant OAuth operations verified");
+    tracing::info!(" Test 7: Concurrent multi-tenant OAuth operations verified");
     Ok(())
 }

@@ -5,14 +5,17 @@
 // Copyright ©2025 Async-IO.org
 //! Tests for enhanced data models supporting advanced intelligence engines
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use chrono::Utc;
 use pierre_mcp_server::models::*;
 
 #[test]
 fn test_enhanced_activity_with_power_metrics() {
     let activity = Activity {
-        id: "power_test".to_string(),
-        name: "Cycling Workout".to_string(),
+        id: "power_test".to_owned(),
+        name: "Cycling Workout".to_owned(),
         sport_type: SportType::Ride,
         start_date: Utc::now(),
         duration_seconds: 3600,         // 1 hour
@@ -33,13 +36,13 @@ fn test_enhanced_activity_with_power_metrics() {
         ftp: Some(280),
         power_zones: Some(vec![
             PowerZone {
-                name: "Zone 1".to_string(),
+                name: "Zone 1".to_owned(),
                 min_power: 0,
                 max_power: 140,    // 50% FTP
                 time_in_zone: 600, // 10 minutes
             },
             PowerZone {
-                name: "Zone 2".to_string(),
+                name: "Zone 2".to_owned(),
                 min_power: 140,
                 max_power: 196,     // 70% FTP
                 time_in_zone: 2400, // 40 minutes
@@ -74,11 +77,11 @@ fn test_enhanced_activity_with_power_metrics() {
 
         start_latitude: Some(45.5017),
         start_longitude: Some(-73.5673),
-        city: Some("Montreal".to_string()),
-        region: Some("Quebec".to_string()),
-        country: Some("Canada".to_string()),
-        trail_name: Some("Lachine Canal".to_string()),
-        provider: "strava".to_string(),
+        city: Some("Montreal".to_owned()),
+        region: Some("Quebec".to_owned()),
+        country: Some("Canada".to_owned()),
+        trail_name: Some("Lachine Canal".to_owned()),
+        provider: "strava".to_owned(),
     };
 
     // Test serialization
@@ -98,8 +101,8 @@ fn test_enhanced_activity_with_power_metrics() {
 #[test]
 fn test_running_activity_with_biomechanical_data() {
     let activity = Activity {
-        id: "run_test".to_string(),
-        name: "Tempo Run".to_string(),
+        id: "run_test".to_owned(),
+        name: "Tempo Run".to_owned(),
         sport_type: SportType::Run,
         start_date: Utc::now(),
         duration_seconds: 2700,         // 45 minutes
@@ -150,11 +153,11 @@ fn test_running_activity_with_biomechanical_data() {
         time_series_data: None,
         start_latitude: Some(45.5017),
         start_longitude: Some(-73.5673),
-        city: Some("Montreal".to_string()),
-        region: Some("Quebec".to_string()),
-        country: Some("Canada".to_string()),
-        trail_name: Some("Mount Royal".to_string()),
-        provider: "garmin".to_string(),
+        city: Some("Montreal".to_owned()),
+        region: Some("Quebec".to_owned()),
+        country: Some("Canada".to_owned()),
+        trail_name: Some("Mount Royal".to_owned()),
+        provider: "garmin".to_owned(),
     };
 
     // Verify running-specific metrics
@@ -169,7 +172,7 @@ fn test_running_activity_with_biomechanical_data() {
 #[test]
 fn test_sleep_session_model() {
     let sleep_session = SleepSession {
-        id: "sleep_123".to_string(),
+        id: "sleep_123".to_owned(),
         start_time: Utc::now() - chrono::Duration::hours(8),
         end_time: Utc::now(),
         time_in_bed: 480,      // 8 hours
@@ -203,7 +206,7 @@ fn test_sleep_session_model() {
         temperature_variation: Some(0.8),
         wake_count: Some(2),
         sleep_onset_latency: Some(12),
-        provider: "oura".to_string(),
+        provider: "oura".to_owned(),
     };
 
     // Test stage summary
@@ -235,14 +238,14 @@ fn test_recovery_metrics_model() {
             .and_utc(),
         recovery_score: Some(78.0),
         readiness_score: Some(82.0),
-        hrv_status: Some("Balanced".to_string()),
+        hrv_status: Some("Balanced".to_owned()),
         sleep_score: Some(85.0),
         stress_level: Some(25.0), // Low stress
         training_load: Some(65.0),
         resting_heart_rate: Some(52),
         body_temperature: Some(36.7),
         resting_respiratory_rate: Some(14.0),
-        provider: "whoop".to_string(),
+        provider: "whoop".to_owned(),
     };
 
     // Test readiness for training
@@ -324,7 +327,7 @@ fn test_health_metrics_model() {
         blood_pressure: Some((120, 80)),
         blood_glucose: Some(95.0),
         vo2_max: Some(52.8),
-        provider: "garmin".to_string(),
+        provider: "garmin".to_owned(),
     };
 
     // Test serialization
@@ -345,19 +348,19 @@ fn test_health_metrics_model() {
 fn test_power_zone_model() {
     let power_zones = vec![
         PowerZone {
-            name: "Active Recovery".to_string(),
+            name: "Active Recovery".to_owned(),
             min_power: 0,
             max_power: 140,    // <50% FTP
             time_in_zone: 300, // 5 minutes
         },
         PowerZone {
-            name: "Endurance".to_string(),
+            name: "Endurance".to_owned(),
             min_power: 140,
             max_power: 196,     // 50-70% FTP
             time_in_zone: 1800, // 30 minutes
         },
         PowerZone {
-            name: "Tempo".to_string(),
+            name: "Tempo".to_owned(),
             min_power: 196,
             max_power: 238,    // 70-85% FTP
             time_in_zone: 600, // 10 minutes
@@ -381,8 +384,8 @@ fn test_power_zone_model() {
 fn test_backward_compatibility() {
     // Test that existing Activity model still works without advanced metrics
     let basic_activity = Activity {
-        id: "basic_test".to_string(),
-        name: "Simple Run".to_string(),
+        id: "basic_test".to_owned(),
+        name: "Simple Run".to_owned(),
         sport_type: SportType::Run,
         start_date: Utc::now(),
         duration_seconds: 1800,
@@ -423,11 +426,11 @@ fn test_backward_compatibility() {
 
         start_latitude: Some(45.5017),
         start_longitude: Some(-73.5673),
-        city: Some("Montreal".to_string()),
-        region: Some("Quebec".to_string()),
-        country: Some("Canada".to_string()),
-        trail_name: Some("Mount Royal Trail".to_string()),
-        provider: "strava".to_string(),
+        city: Some("Montreal".to_owned()),
+        region: Some("Quebec".to_owned()),
+        country: Some("Canada".to_owned()),
+        trail_name: Some("Mount Royal Trail".to_owned()),
+        provider: "strava".to_owned(),
     };
 
     // Should serialize and deserialize correctly

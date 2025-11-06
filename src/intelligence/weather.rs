@@ -61,38 +61,55 @@ fn safe_f64_to_f32(value: f64) -> f32 {
 
 /// Weather service for fetching historical weather data
 pub struct WeatherService {
+    /// HTTP client for weather API requests
     client: Client,
+    /// Weather API configuration
     api_config: WeatherApiConfig,
+    /// Weather analysis configuration
     weather_config: WeatherAnalysisConfig,
+    /// In-memory cache of weather data
     cache: HashMap<String, CachedWeatherData>,
+    /// Optional API key for weather service
     api_key: Option<String>,
 }
 
 /// Cached weather data with timestamp
 #[derive(Debug, Clone)]
 struct CachedWeatherData {
+    /// Weather conditions data
     weather: WeatherConditions,
+    /// When this data was cached
     cached_at: SystemTime,
 }
 
 /// `OpenWeatherMap` historical API response structure
 #[derive(Debug, Deserialize)]
 struct OpenWeatherResponse {
+    /// Array of hourly weather data points
     data: Vec<OpenWeatherHourlyData>,
 }
 
+/// Hourly weather data from `OpenWeatherMap` API
 #[derive(Debug, Deserialize)]
 struct OpenWeatherHourlyData {
-    dt: i64, // Unix timestamp
+    /// Unix timestamp for this data point
+    dt: i64,
+    /// Temperature in Celsius
     temp: f64,
+    /// Humidity percentage (0-100)
     humidity: Option<f64>,
+    /// Wind speed in meters per second
     wind_speed: Option<f64>,
+    /// Weather condition descriptions
     weather: Vec<OpenWeatherCondition>,
 }
 
+/// Weather condition description from `OpenWeatherMap`
 #[derive(Debug, Deserialize)]
 struct OpenWeatherCondition {
+    /// Main weather category (e.g., "Rain", "Clear")
     main: String,
+    /// Detailed description (e.g., "light rain")
     description: String,
 }
 
@@ -116,10 +133,7 @@ impl WeatherService {
         Self::new(
             WeatherApiConfig::default(),
             crate::constants::get_server_config()
-                .external_services
-                .weather
-                .api_key
-                .clone(),
+                .and_then(|c| c.external_services.weather.api_key.clone()),
         )
     }
 
@@ -405,36 +419,53 @@ impl Default for WeatherService {
 /// Weather impact analysis result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeatherImpact {
+    /// Classified difficulty level based on weather conditions
     pub difficulty_level: WeatherDifficulty,
+    /// List of specific factors affecting performance
     pub impact_factors: Vec<String>,
-    pub performance_adjustment: f32, // Percentage adjustment to expected performance
+    /// Percentage adjustment to expected performance (negative = slower)
+    pub performance_adjustment: f32,
 }
 
 /// Weather difficulty classification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum WeatherDifficulty {
+    /// Perfect conditions for optimal performance
     Ideal,
+    /// Moderate challenges requiring minor adjustments
     Challenging,
+    /// Significant obstacles affecting performance
     Difficult,
+    /// Dangerous or extreme conditions
     Extreme,
 }
 
 /// Weather service errors
 #[derive(Debug, thiserror::Error)]
 pub enum WeatherError {
+    /// Weather API request failed
     #[error("Weather API request failed: {0}")]
     ApiError(String),
 
+    /// Invalid coordinate values provided
     #[error("Invalid coordinates: lat={lat}, lon={lon}")]
-    InvalidCoordinates { lat: f64, lon: f64 },
+    InvalidCoordinates {
+        /// Latitude value
+        lat: f64,
+        /// Longitude value
+        lon: f64,
+    },
 
+    /// Weather data not available for the requested time
     #[error("Weather data unavailable for requested time")]
     DataUnavailable,
 
+    /// Weather API is disabled in configuration
     #[error("Weather API is disabled")]
     ApiDisabled,
 
+    /// Network communication error
     #[error("Network error: {0}")]
     NetworkError(#[from] reqwest::Error),
 }

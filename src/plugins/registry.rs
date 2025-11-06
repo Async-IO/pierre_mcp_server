@@ -74,8 +74,8 @@ impl PluginRegistry {
         tracing::info!("Dynamically registering plugin: {}", info.name);
 
         let plugin_arc = Arc::from(plugin);
-        self.plugins.insert(info.name.to_string(), plugin_arc);
-        self.plugin_info.insert(info.name.to_string(), info);
+        self.plugins.insert(info.name.to_owned(), plugin_arc);
+        self.plugin_info.insert(info.name.to_owned(), info);
 
         Ok(())
     }
@@ -89,7 +89,7 @@ impl PluginRegistry {
         let plugin = self
             .plugins
             .remove(plugin_name)
-            .ok_or_else(|| ProtocolError::PluginNotFound(plugin_name.to_string()))?;
+            .ok_or_else(|| ProtocolError::PluginNotFound(plugin_name.to_owned()))?;
 
         self.plugin_info.remove(plugin_name);
 
@@ -138,7 +138,7 @@ impl PluginRegistry {
         let plugin = self
             .plugins
             .get(plugin_name)
-            .ok_or_else(|| ProtocolError::PluginNotFound(plugin_name.to_string()))?;
+            .ok_or_else(|| ProtocolError::PluginNotFound(plugin_name.to_owned()))?;
 
         tracing::debug!(
             "Executing plugin: {} for user: {}",
@@ -194,13 +194,21 @@ impl Default for PluginRegistry {
 /// Plugin registry statistics for monitoring and analytics
 #[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PluginRegistryStatistics {
+    /// Total number of registered plugins
     pub total_plugins: usize,
+    /// Number of data access plugins
     pub data_access_plugins: usize,
+    /// Number of intelligence/AI plugins
     pub intelligence_plugins: usize,
+    /// Number of analytics plugins
     pub analytics_plugins: usize,
+    /// Number of goal tracking plugins
     pub goals_plugins: usize,
+    /// Number of provider integration plugins
     pub provider_plugins: usize,
+    /// Number of environmental data plugins
     pub environmental_plugins: usize,
+    /// Number of custom plugins
     pub custom_plugins: usize,
 }
 

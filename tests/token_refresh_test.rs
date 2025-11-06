@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine as _};
 use reqwest::Client;
@@ -26,7 +29,7 @@ async fn test_token_refresh_endpoint() -> Result<()> {
     let initial_token = resources
         .auth_manager
         .generate_token(&user, &resources.jwks_manager)?;
-    println!("✅ Generated initial JWT token");
+    println!("Generated initial JWT token");
 
     // Simulate token refresh request
     let client = Client::new();
@@ -53,7 +56,7 @@ async fn test_token_refresh_endpoint() -> Result<()> {
     match response {
         Ok(resp) if resp.status().is_success() => {
             let refresh_response: serde_json::Value = resp.json().await?;
-            println!("✅ Token refresh successful");
+            println!("Token refresh successful");
             let token_preview = refresh_response
                 .get("jwt_token")
                 .and_then(|v| v.as_str())
@@ -74,24 +77,24 @@ async fn test_token_refresh_endpoint() -> Result<()> {
         Ok(resp) => {
             let status = resp.status();
             let error_text = resp.text().await.unwrap_or_default();
-            println!("❌ Token refresh failed: {status} - {error_text}");
+            println!("Token refresh failed: {status} - {error_text}");
 
             if status == 404 {
                 println!(
-                    "   💡 Server might not be running at 8081. This is expected in unit tests."
+                    "    Server might not be running at 8081. This is expected in unit tests."
                 );
-                println!("   💡 To test fully, run: cargo run --bin pierre-mcp-server");
+                println!("    To test fully, run: cargo run --bin pierre-mcp-server");
                 return Ok(()); // Don't fail the test for missing server
             }
         }
         Err(e) => {
-            println!("🔌 Connection failed: {e}");
-            println!("   💡 Server not running at 8081. This is expected in unit tests.");
+            println!(" Connection failed: {e}");
+            println!("    Server not running at 8081. This is expected in unit tests.");
             return Ok(()); // Don't fail the test for missing server
         }
     }
 
-    println!("✅ Token refresh test completed");
+    println!(" Token refresh test completed");
     Ok(())
 }
 
@@ -112,7 +115,7 @@ async fn test_jwt_token_parsing() -> Result<()> {
     let token = resources
         .auth_manager
         .generate_token(&user, &resources.jwks_manager)?;
-    println!("✅ Generated JWT token for parsing test");
+    println!(" Generated JWT token for parsing test");
 
     // Parse token manually like the MCP client does
     let token_parts: Vec<&str> = token.split('.').collect();
@@ -131,7 +134,7 @@ async fn test_jwt_token_parsing() -> Result<()> {
     let now = chrono::Utc::now().timestamp();
     assert!(claims.exp > now, "Token should not be expired");
 
-    println!("✅ JWT token parsing successful");
+    println!(" JWT token parsing successful");
     println!("   User ID: {}", claims.sub);
     println!(
         "   Expires at: {}",
@@ -151,7 +154,7 @@ fn test_token_refresh_environment_variables() {
 
     // These would normally be tested in the MCP client, but we can test the logic
     let auto_refresh_default = std::env::var("PIERRE_AUTO_REFRESH")
-        .unwrap_or_else(|_| "true".to_string())
+        .unwrap_or_else(|_| "true".to_owned())
         .parse::<bool>()
         .unwrap_or(true);
 
@@ -174,7 +177,7 @@ fn test_token_refresh_environment_variables() {
     std::env::set_var("PIERRE_REFRESH_THRESHOLD_MINUTES", "10");
 
     let auto_refresh_custom = std::env::var("PIERRE_AUTO_REFRESH")
-        .unwrap_or_else(|_| "true".to_string())
+        .unwrap_or_else(|_| "true".to_owned())
         .parse::<bool>()
         .unwrap_or(true);
 
@@ -196,5 +199,5 @@ fn test_token_refresh_environment_variables() {
     std::env::remove_var("PIERRE_AUTO_REFRESH");
     std::env::remove_var("PIERRE_REFRESH_THRESHOLD_MINUTES");
 
-    println!("✅ Environment variable tests passed");
+    println!(" Environment variable tests passed");
 }

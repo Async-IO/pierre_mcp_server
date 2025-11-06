@@ -9,13 +9,17 @@
 //! of the Pierre MCP Server, including environment settings, fitness configurations,
 //! and intelligence module configurations.
 
+/// Environment and server configuration
 pub mod environment;
+/// Fitness and training configuration parameters
 pub mod fitness_config;
+/// Intelligence module configuration and strategies
 pub mod intelligence_config;
 
 // Re-export main configuration types
 pub use environment::ServerConfig;
 pub use fitness_config::{FitnessConfig, WeatherApiConfig};
+/// Re-export intelligence configuration types and strategies
 pub use intelligence_config::{
     AggressiveStrategy, ConfigError, ConservativeStrategy, DefaultStrategy, IntelligenceConfig,
     IntelligenceStrategy,

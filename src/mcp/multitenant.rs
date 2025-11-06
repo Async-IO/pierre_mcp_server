@@ -124,9 +124,10 @@ impl MultiTenantMcpServer {
     #[must_use]
     pub fn new(resources: Arc<ServerResources>) -> Self {
         // Default session cache size from server configuration
+        let session_cache_size =
+            crate::constants::get_server_config().map_or(100, |c| c.mcp.session_cache_size);
         let cache_size =
-            NonZeroUsize::new(crate::constants::get_server_config().mcp.session_cache_size)
-                .unwrap_or(Self::DEFAULT_SESSION_CACHE_SIZE);
+            NonZeroUsize::new(session_cache_size).unwrap_or(Self::DEFAULT_SESSION_CACHE_SIZE);
 
         info!(
             "MCP session cache initialized with capacity: {}",
@@ -1626,7 +1627,7 @@ impl MultiTenantMcpServer {
                                     Ok(crate::auth::AuthResult {
                                         user_id,
                                         auth_method: crate::auth::AuthMethod::JwtToken {
-                                            tier: "basic".to_string(),
+                                            tier: "basic".to_owned(),
                                         },
                                         rate_limit: crate::rate_limiting::UnifiedRateLimitInfo {
                                             is_rate_limited: false,
@@ -1635,8 +1636,8 @@ impl MultiTenantMcpServer {
                                             reset_at: Some(
                                                 chrono::Utc::now() + chrono::Duration::hours(1),
                                             ),
-                                            tier: "basic".to_string(),
-                                            auth_method: "jwt".to_string(),
+                                            tier: "basic".to_owned(),
+                                            auth_method: "jwt".to_owned(),
                                         },
                                     })
                                 }
@@ -1878,7 +1879,7 @@ impl MultiTenantMcpServer {
                 );
                 ""
             });
-        let mcp_method = mcp_method_str.to_string();
+        let mcp_method = mcp_method_str.to_owned();
         tracing::debug!("POST request - MCP method: '{}'", mcp_method);
 
         let requires_auth = Self::mcp_method_requires_auth(&mcp_method);
@@ -2000,7 +2001,7 @@ impl MultiTenantMcpServer {
                             sessions_guard.put(
                                 actual_session_id.clone(),
                                 SessionData {
-                                    jwt_token: token.to_string(),
+                                    jwt_token: token.to_owned(),
                                     user_id: jwt_result.user_id,
                                 },
                             );
@@ -2110,7 +2111,7 @@ impl MultiTenantMcpServer {
                     }
                     Err(parse_error) => {
                         let body_str = serde_json::to_string(&body)
-                            .unwrap_or_else(|_| "invalid json".to_string());
+                            .unwrap_or_else(|_| "invalid json".to_owned());
                         tracing::warn!(
                             "Failed to parse MCP request: {} | Body: {}",
                             parse_error,
@@ -2121,10 +2122,10 @@ impl MultiTenantMcpServer {
                         let error_response = McpResponse::error(
                             Some(default_request_id()),
                             -32600,
-                            "Invalid request".to_string(),
+                            "Invalid request".to_owned(),
                         );
                         let error_response_str = serde_json::to_string(&error_response)
-                            .unwrap_or_else(|_| "failed to serialize error response".to_string());
+                            .unwrap_or_else(|_| "failed to serialize error response".to_owned());
                         tracing::warn!("Sending MCP error response: {}", error_response_str);
 
                         Ok(Box::new(warp::reply::with_status(
@@ -2231,31 +2232,32 @@ impl MultiTenantMcpServer {
     /// Validate origin header for security (DNS rebinding and CSRF protection)
     fn is_valid_origin(origin: &str) -> bool {
         // Check environment-configured allowed origins first
-        let server_config = crate::constants::get_server_config();
-        let allowed_origins = &server_config.cors.allowed_origins;
-        if !allowed_origins.is_empty()
-            && allowed_origins
-                .split(',')
-                .map(str::trim)
-                .any(|x| x == origin)
-        {
-            return true;
-        }
-
-        // Allow localhost in development only if explicitly enabled
-        let allow_localhost = server_config.cors.allow_localhost_dev;
-
-        if allow_localhost {
-            // Validate localhost patterns - be more strict than before
-            let is_localhost = crate::constants::network_config::LOCALHOST_PATTERNS
-                .iter()
-                .any(|pattern| {
-                    origin.starts_with(&format!("http://{pattern}"))
-                        || origin.starts_with(&format!("https://{pattern}"))
-                });
-
-            if is_localhost {
+        if let Some(server_config) = crate::constants::get_server_config() {
+            let allowed_origins = &server_config.cors.allowed_origins;
+            if !allowed_origins.is_empty()
+                && allowed_origins
+                    .split(',')
+                    .map(str::trim)
+                    .any(|x| x == origin)
+            {
                 return true;
+            }
+
+            // Allow localhost in development only if explicitly enabled
+            let allow_localhost = server_config.cors.allow_localhost_dev;
+
+            if allow_localhost {
+                // Validate localhost patterns - be more strict than before
+                let is_localhost = crate::constants::network_config::LOCALHOST_PATTERNS
+                    .iter()
+                    .any(|pattern| {
+                        origin.starts_with(&format!("http://{pattern}"))
+                            || origin.starts_with(&format!("https://{pattern}"))
+                    });
+
+                if is_localhost {
+                    return true;
+                }
             }
         }
 
@@ -2309,6 +2311,7 @@ impl MultiTenantMcpServer {
         }
     }
 
+    /// Route provider-specific tool requests to appropriate handlers
     pub async fn route_provider_tool(
         tool_name: &str,
         args: &Value,
@@ -2329,7 +2332,7 @@ impl MultiTenantMcpServer {
         } else {
             // No tenant context means no provider access - tenant-aware endpoints required
             McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
+                jsonrpc: JSONRPC_VERSION.to_owned(),
                 result: None,
                 error: Some(McpError {
                     code: ERROR_METHOD_NOT_FOUND,
@@ -2407,14 +2410,14 @@ impl MultiTenantMcpServer {
                 });
 
                 McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     result: Some(response),
                     error: None,
                     id: Some(id),
                 }
             }
             Err(e) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
+                jsonrpc: JSONRPC_VERSION.to_owned(),
                 result: None,
                 error: Some(McpError {
                     code: ERROR_INTERNAL_ERROR,
@@ -2439,7 +2442,7 @@ impl MultiTenantMcpServer {
             TRACK_PROGRESS => Self::handle_track_progress(args, user_id, database, &id).await,
             PREDICT_PERFORMANCE => {
                 return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     result: None,
                     error: Some(McpError {
                         code: ERROR_INTERNAL_ERROR,
@@ -2451,7 +2454,7 @@ impl MultiTenantMcpServer {
             }
             _ => {
                 return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
                     result: None,
                     error: Some(McpError {
                         code: ERROR_METHOD_NOT_FOUND,
@@ -2465,7 +2468,7 @@ impl MultiTenantMcpServer {
 
         match result {
             Ok(response) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
+                jsonrpc: JSONRPC_VERSION.to_owned(),
                 result: Some(response),
                 error: None,
                 id: Some(id),
@@ -2495,7 +2498,7 @@ impl MultiTenantMcpServer {
                 Ok(response)
             }
             Err(e) => Err(McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
+                jsonrpc: JSONRPC_VERSION.to_owned(),
                 result: None,
                 error: Some(McpError {
                     code: ERROR_INTERNAL_ERROR,
@@ -2520,7 +2523,7 @@ impl MultiTenantMcpServer {
             Ok(goals) => goals.iter().find(|g| g["id"] == goal_id).map_or_else(
                 || {
                     Err(McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        jsonrpc: JSONRPC_VERSION.to_owned(),
                         result: None,
                         error: Some(McpError {
                             code: ERROR_INVALID_PARAMS,
@@ -2547,7 +2550,7 @@ impl MultiTenantMcpServer {
                 },
             ),
             Err(e) => Err(McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
+                jsonrpc: JSONRPC_VERSION.to_owned(),
                 result: None,
                 error: Some(McpError {
                     code: ERROR_INTERNAL_ERROR,
@@ -2583,9 +2586,9 @@ impl MultiTenantMcpServer {
 
         let usage = ApiKeyUsage {
             id: None,
-            api_key_id: api_key_id.to_string(),
+            api_key_id: api_key_id.to_owned(),
             timestamp: Utc::now(),
-            tool_name: tool_name.to_string(),
+            tool_name: tool_name.to_owned(),
             response_time_ms: u32::try_from(response_time.as_millis()).ok(),
             status_code,
             error_message,
@@ -2641,12 +2644,12 @@ impl MultiTenantMcpServer {
                     )
                 });
             let request = crate::tenant::oauth_client::StoreCredentialsRequest {
-                client_id: id.to_string(),
-                client_secret: secret.to_string(),
+                client_id: id.to_owned(),
+                client_secret: secret.to_owned(),
                 redirect_uri,
                 scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                     .split(',')
-                    .map(str::to_string)
+                    .map(str::to_owned)
                     .collect(),
                 configured_by: tenant_context.user_id,
             };
@@ -2680,19 +2683,19 @@ impl MultiTenantMcpServer {
                     )
                 });
             let request = crate::tenant::oauth_client::StoreCredentialsRequest {
-                client_id: id.to_string(),
-                client_secret: secret.to_string(),
+                client_id: id.to_owned(),
+                client_secret: secret.to_owned(),
                 redirect_uri,
                 scopes: vec![
-                    "activity".to_string(),
-                    "heartrate".to_string(),
-                    "location".to_string(),
-                    "nutrition".to_string(),
-                    "profile".to_string(),
-                    "settings".to_string(),
-                    "sleep".to_string(),
-                    "social".to_string(),
-                    "weight".to_string(),
+                    "activity".to_owned(),
+                    "heartrate".to_owned(),
+                    "location".to_owned(),
+                    "nutrition".to_owned(),
+                    "profile".to_owned(),
+                    "settings".to_owned(),
+                    "sleep".to_owned(),
+                    "social".to_owned(),
+                    "weight".to_owned(),
                 ],
                 configured_by: tenant_context.user_id,
             };
@@ -2750,7 +2753,7 @@ impl MultiTenantMcpServer {
         );
 
         McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             result: Some(serde_json::json!({
                 "content": [
                     {
@@ -2768,7 +2771,8 @@ impl MultiTenantMcpServer {
 
     /// Build OAuth base URL with dynamic port
     fn build_oauth_base_url(http_port: u16) -> String {
-        let host = &crate::constants::get_server_config().host;
+        let host = crate::constants::get_server_config()
+            .map_or_else(|| "localhost".to_owned(), |c| c.host.clone());
         format!("http://{host}:{http_port}/api/oauth")
     }
 
@@ -2929,7 +2933,7 @@ impl MultiTenantMcpServer {
         };
 
         let strava_action = if connection_status.strava_connected {
-            "Ready to use fitness tools!".to_string()
+            "Ready to use fitness tools!".to_owned()
         } else {
             format!(
                 "Click to connect: {base_url}/auth/strava/{}",
@@ -2938,7 +2942,7 @@ impl MultiTenantMcpServer {
         };
 
         let fitbit_action = if connection_status.fitbit_connected {
-            "Ready to use fitness tools!".to_string()
+            "Ready to use fitness tools!".to_owned()
         } else {
             format!(
                 "Click to connect: {base_url}/auth/fitbit/{}",
@@ -2986,7 +2990,7 @@ impl MultiTenantMcpServer {
 
         // In a real implementation, this would revoke tenant-specific OAuth tokens
         McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             result: Some(serde_json::json!({
                 "message": format!("Disconnected from {provider_name}"),
                 "provider": provider_name,
@@ -3006,7 +3010,7 @@ impl MultiTenantMcpServer {
         request_id: Value,
     ) -> McpResponse {
         let error_msg = response_error
-            .unwrap_or_else(|| "Tool execution failed with no error message".to_string());
+            .unwrap_or_else(|| "Tool execution failed with no error message".to_owned());
         tracing::error!(
             "Tool execution failed for {} with provider {}: {} (success=false)",
             tool_name,
@@ -3014,7 +3018,7 @@ impl MultiTenantMcpServer {
             error_msg
         );
         McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
+            jsonrpc: JSONRPC_VERSION.to_owned(),
             result: None,
             error: Some(McpError {
                 code: ERROR_INTERNAL_ERROR,
@@ -3063,7 +3067,7 @@ impl MultiTenantMcpServer {
 
         if !known_provider_tools.contains(&tool_name) {
             return McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
+                jsonrpc: JSONRPC_VERSION.to_owned(),
                 result: None,
                 error: Some(McpError {
                     code: ERROR_METHOD_NOT_FOUND,
@@ -3086,10 +3090,10 @@ impl MultiTenantMcpServer {
 
         // Create a Universal protocol request to execute the tool
         let universal_request = crate::protocols::universal::UniversalRequest {
-            tool_name: tool_name.to_string(),
+            tool_name: tool_name.to_owned(),
             parameters: args.clone(),
             user_id: auth_result.user_id.to_string(),
-            protocol: "mcp".to_string(),
+            protocol: "mcp".to_owned(),
             tenant_id: Some(tenant_context.tenant_id.to_string()),
         };
 
@@ -3106,7 +3110,7 @@ impl MultiTenantMcpServer {
                 // Serialize ToolResponse to JSON for MCP result field
                 match serde_json::to_value(&tool_response) {
                     Ok(result_value) => McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        jsonrpc: JSONRPC_VERSION.to_owned(),
                         result: Some(result_value),
                         error: None,
                         id: Some(request_id),
@@ -3130,8 +3134,11 @@ impl MultiTenantMcpServer {
 }
 
 // Phase 2: Type aliases pointing to unified JSON-RPC foundation
+/// Type alias for MCP requests using the JSON-RPC foundation
 pub type McpRequest = crate::jsonrpc::JsonRpcRequest;
+/// Type alias for MCP responses using the JSON-RPC foundation
 pub type McpResponse = crate::jsonrpc::JsonRpcResponse;
+/// Type alias for MCP errors using the JSON-RPC foundation
 pub type McpError = crate::jsonrpc::JsonRpcError;
 
 /// Re-export `AppError` as `ApiError` for this module

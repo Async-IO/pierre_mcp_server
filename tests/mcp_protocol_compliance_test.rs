@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::constants::{errors::*, protocol::JSONRPC_VERSION};
 use pierre_mcp_server::mcp::{
     multitenant::{McpError, McpRequest, McpResponse},
@@ -176,7 +179,7 @@ async fn test_jsonrpc_message_format_compliance() {
 
     // Test response format
     let response = McpResponse {
-        jsonrpc: JSONRPC_VERSION.to_string(),
+        jsonrpc: JSONRPC_VERSION.to_owned(),
         id: Some(Value::Number(serde_json::Number::from(123))),
         result: Some(json!({"tools": []})),
         error: None,
@@ -194,10 +197,10 @@ async fn test_jsonrpc_message_format_compliance() {
 async fn test_progress_notification_format() {
     let progress_token = "test-token-123";
     let notification = ProgressNotification::new(
-        progress_token.to_string(),
+        progress_token.to_owned(),
         25.0,
         Some(100.0),
-        Some("Processing data...".to_string()),
+        Some("Processing data...".to_owned()),
     );
 
     let serialized = serde_json::to_value(&notification).expect("Should serialize");
@@ -245,7 +248,7 @@ async fn test_tool_response_format_compliance() {
     // Test successful tool response
     let success_response = ToolResponse {
         content: vec![Content::Text {
-            text: "Operation completed successfully".to_string(),
+            text: "Operation completed successfully".to_owned(),
         }],
         is_error: false,
         structured_content: Some(json!({
@@ -267,7 +270,7 @@ async fn test_tool_response_format_compliance() {
     // Test error tool response
     let error_response = ToolResponse {
         content: vec![Content::Text {
-            text: "Tool execution failed".to_string(),
+            text: "Tool execution failed".to_owned(),
         }],
         is_error: true,
         structured_content: Some(json!({
@@ -291,7 +294,7 @@ async fn test_tool_response_format_compliance() {
 async fn test_content_type_format_compliance() {
     // Test text content
     let text_content = Content::Text {
-        text: "Sample text content".to_string(),
+        text: "Sample text content".to_owned(),
     };
     let serialized = serde_json::to_value(&text_content).expect("Should serialize");
     assert_eq!(serialized["type"], "text");
@@ -299,8 +302,8 @@ async fn test_content_type_format_compliance() {
 
     // Test image content
     let image_content = Content::Image {
-        data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==".to_string(),
-        mime_type: "image/png".to_string(),
+        data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==".to_owned(),
+        mime_type: "image/png".to_owned(),
     };
     let serialized = serde_json::to_value(&image_content).expect("Should serialize");
     assert_eq!(serialized["type"], "image");
@@ -309,9 +312,9 @@ async fn test_content_type_format_compliance() {
 
     // Test resource content
     let resource_content = Content::Resource {
-        uri: "https://api.example.com/data/123".to_string(),
-        text: Some("Resource description".to_string()),
-        mime_type: Some("application/json".to_string()),
+        uri: "https://api.example.com/data/123".to_owned(),
+        text: Some("Resource description".to_owned()),
+        mime_type: Some("application/json".to_owned()),
     };
     let serialized = serde_json::to_value(&resource_content).expect("Should serialize");
     assert_eq!(serialized["type"], "resource");
@@ -385,7 +388,7 @@ async fn test_ping_method_compliance() {
 async fn test_error_response_format_compliance() {
     let error = McpError {
         code: ERROR_AUTHENTICATION,
-        message: "Authentication failed".to_string(),
+        message: "Authentication failed".to_owned(),
         data: Some(json!({
             "reason": "Invalid JWT token",
             "suggestion": "Please obtain a new token"
@@ -393,7 +396,7 @@ async fn test_error_response_format_compliance() {
     };
 
     let response = McpResponse {
-        jsonrpc: JSONRPC_VERSION.to_string(),
+        jsonrpc: JSONRPC_VERSION.to_owned(),
         id: Some(Value::Number(serde_json::Number::from(101))),
         result: None,
         error: Some(error),

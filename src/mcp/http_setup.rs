@@ -30,6 +30,7 @@ impl warp::reject::Reject for ApiError {}
 /// HTTP error type for MCP operations
 #[derive(Debug)]
 pub struct McpHttpError {
+    /// Error message describing what went wrong
     pub message: String,
 }
 

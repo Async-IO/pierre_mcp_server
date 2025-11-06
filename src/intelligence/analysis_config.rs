@@ -11,12 +11,15 @@ use thiserror::Error;
 /// Analysis configuration errors
 #[derive(Debug, Error)]
 pub enum AnalysisConfigError {
+    /// Invalid timeframe parameter provided
     #[error("Invalid timeframe: {0}")]
     InvalidTimeframe(String),
 
+    /// Invalid threshold value provided
     #[error("Invalid threshold: {0}")]
     InvalidThreshold(String),
 
+    /// Configuration failed validation checks
     #[error("Configuration validation failed: {0}")]
     ValidationFailed(String),
 }
@@ -140,12 +143,19 @@ pub struct FitnessScoring {
 /// Main analysis configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisConfig {
+    /// Time periods for various analysis windows
     pub timeframes: AnalysisTimeframes,
+    /// Confidence calculation thresholds
     pub confidence: ConfidenceThresholds,
+    /// Statistical analysis parameters
     pub statistical: StatisticalConfig,
+    /// Performance threshold values
     pub performance: PerformanceThresholds,
+    /// Fitness scoring weights and multipliers
     pub fitness_scoring: FitnessScoring,
+    /// Minimum activities required for prediction
     pub min_activities_for_prediction: usize,
+    /// Maximum days into the future for predictions
     pub max_prediction_days: i64,
 }
 
@@ -379,9 +389,13 @@ impl AnalysisConfig {
 /// Confidence levels for analysis results
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ConfidenceLevel {
+    /// Low confidence (0.25 score)
     Low,
+    /// Medium confidence (0.50 score)
     Medium,
+    /// High confidence (0.75 score)
     High,
+    /// Very high confidence (0.95 score)
     VeryHigh,
 }
 

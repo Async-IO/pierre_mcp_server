@@ -4,15 +4,24 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+/// Agent-to-Agent (A2A) authentication and usage tracking
 pub mod a2a;
+/// Analytics and usage statistics database operations
 pub mod analytics;
+/// API key management and validation
 pub mod api_keys;
+/// Database error types
 pub mod errors;
+/// User fitness configuration storage and retrieval
 pub mod fitness_configurations;
+/// OAuth callback notification handling
 pub mod oauth_notifications;
+/// User OAuth token storage and management
 pub mod user_oauth_tokens;
+/// User account management and authentication
 pub mod users;
 
+/// Test utilities for database operations
 pub mod test_utils;
 
 pub use a2a::{A2AUsage, A2AUsageStats};
@@ -22,6 +31,7 @@ use crate::errors::AppError;
 use anyhow::{Context, Result};
 use sqlx::{Pool, Sqlite, SqlitePool};
 
+/// Database connection pool with encryption support
 #[derive(Clone)]
 pub struct Database {
     pool: Pool<Sqlite>,
@@ -44,7 +54,7 @@ impl Database {
         let connection_options = if database_url.starts_with("sqlite:") {
             format!("{database_url}?mode=rwc")
         } else {
-            database_url.to_string()
+            database_url.to_owned()
         };
 
         let pool = SqlitePool::connect(&connection_options).await?;

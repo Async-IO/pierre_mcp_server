@@ -32,7 +32,9 @@ pub struct TrainingLoad {
 /// TSS data point with timestamp
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TssDataPoint {
+    /// Date of the training session
     pub date: DateTime<Utc>,
+    /// Training Stress Score for this session
     pub tss: f64,
 }
 
@@ -96,7 +98,7 @@ impl TrainingLoadCalculator {
 
         metrics
             .training_stress_score
-            .ok_or_else(|| AppError::internal("Unable to calculate TSS for activity".to_string()))
+            .ok_or_else(|| AppError::internal("Unable to calculate TSS for activity".to_owned()))
     }
 
     /// Calculate complete training load metrics (CTL, ATL, TSB) from activities
@@ -207,7 +209,7 @@ impl TrainingLoadCalculator {
 
     /// Calculate exponential moving average for TSS values
     ///
-    /// EMA formula: `EMA_today` = (`TSS_today` × α) + (`EMA_yesterday` × (1 - α))
+    /// EMA formula: `EMA_today` = (`TSS_today` x α) + (`EMA_yesterday` x (1 - α))
     /// where α = 2 / (N + 1) and N is the window size in days
     fn calculate_ema(tss_data: &[TssDataPoint], window_days: i64) -> f64 {
         if tss_data.is_empty() {
@@ -265,7 +267,7 @@ impl TrainingLoadCalculator {
     /// Check if athlete is at risk of overtraining
     ///
     /// Warning conditions:
-    /// - ATL > CTL × 1.3: Acute load spike
+    /// - ATL > CTL x 1.3: Acute load spike
     /// - ATL > 150: Very high acute load
     /// - TSB < -10: Deep fatigue
     #[must_use]
@@ -275,17 +277,17 @@ impl TrainingLoadCalculator {
         // Check for acute load spike
         if training_load.ctl > 0.0 && training_load.atl > training_load.ctl * 1.3 {
             risk_factors
-                .push("Acute training load spike detected (>30% above chronic load)".to_string());
+                .push("Acute training load spike detected (>30% above chronic load)".to_owned());
         }
 
         // Check for very high acute load
         if training_load.atl > 150.0 {
-            risk_factors.push("Very high acute training load (>150 TSS/day)".to_string());
+            risk_factors.push("Very high acute training load (>150 TSS/day)".to_owned());
         }
 
         // Check for deep fatigue
         if training_load.tsb < -10.0 {
-            risk_factors.push("Deep fatigue detected (TSB < -10) - recovery needed".to_string());
+            risk_factors.push("Deep fatigue detected (TSB < -10) - recovery needed".to_owned());
         }
 
         let risk_level = if risk_factors.len() >= 2 {
@@ -336,14 +338,19 @@ pub enum TrainingStatus {
 /// Risk level for overtraining
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RiskLevel {
+    /// Low risk of overtraining
     Low,
+    /// Moderate risk - monitor closely
     Moderate,
+    /// High risk - rest recommended
     High,
 }
 
 /// Overtraining risk assessment
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OvertrainingRisk {
+    /// Overall risk level
     pub risk_level: RiskLevel,
+    /// Specific risk factors identified
     pub risk_factors: Vec<String>,
 }

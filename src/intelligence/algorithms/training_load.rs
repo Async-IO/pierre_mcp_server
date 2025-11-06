@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 pub enum TrainingLoadAlgorithm {
     /// Exponential Moving Average (EMA)
     ///
-    /// Formula: `α = 2/(N+1)`, `EMA_t = α × TSS_t + (1-α) × EMA_{t-1}`
+    /// Formula: `α = 2/(N+1)`, `EMA_t = α x TSS_t + (1-α) x EMA_{t-1}`
     ///
     /// Standard method used by `TrainingPeaks` Performance Manager Chart.
     /// Recent days weighted more heavily with exponential decay.
@@ -56,7 +56,7 @@ pub enum TrainingLoadAlgorithm {
 
     /// Weighted Moving Average (WMA)
     ///
-    /// Formula: `WMA = Σ(w_i × TSS_i) / Σ(w_i)` where `w_i = i` (linear weights)
+    /// Formula: `WMA = Σ(w_i x TSS_i) / Σ(w_i)` where `w_i = i` (linear weights)
     ///
     /// Recent days weighted linearly more than older days.
     ///
@@ -96,7 +96,9 @@ impl Default for TrainingLoadAlgorithm {
 /// TSS data point with timestamp
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TssDataPoint {
+    /// Date of the training session
     pub date: DateTime<Utc>,
+    /// Training Stress Score for this session
     pub tss: f64,
 }
 
@@ -179,7 +181,7 @@ impl TrainingLoadAlgorithm {
 
     /// Calculate Exponential Moving Average
     ///
-    /// Formula: `α = 2/(N+1)`, `EMA_t = α × TSS_t + (1-α) × EMA_{t-1}`
+    /// Formula: `α = 2/(N+1)`, `EMA_t = α x TSS_t + (1-α) x EMA_{t-1}`
     fn calculate_ema(tss_data: &[TssDataPoint], window_days: i64) -> Result<f64, AppError> {
         if tss_data.is_empty() {
             return Ok(0.0);
@@ -202,7 +204,7 @@ impl TrainingLoadAlgorithm {
         let days_span = (last_date - first_date).num_days();
         if days_span < 0 {
             return Err(AppError::invalid_input(
-                "TSS data not sorted by date".to_string(),
+                "TSS data not sorted by date".to_owned(),
             ));
         }
 
@@ -220,7 +222,7 @@ impl TrainingLoadAlgorithm {
             let date_key = current_date.date_naive();
             let daily_tss = tss_map.get(&date_key).copied().unwrap_or(0.0);
 
-            // Apply EMA formula: EMA_t = α × TSS_t + (1-α) × EMA_{t-1}
+            // Apply EMA formula: EMA_t = α x TSS_t + (1-α) x EMA_{t-1}
             ema = daily_tss.mul_add(alpha, ema * (1.0 - alpha));
         }
 
@@ -262,7 +264,7 @@ impl TrainingLoadAlgorithm {
 
     /// Calculate Weighted Moving Average
     ///
-    /// Formula: `WMA = Σ(w_i × TSS_i) / Σ(w_i)` where weights are linear (1, 2, 3, ..., N)
+    /// Formula: `WMA = Σ(w_i x TSS_i) / Σ(w_i)` where weights are linear (1, 2, 3, ..., N)
     fn calculate_wma(tss_data: &[TssDataPoint], window_days: i64) -> Result<f64, AppError> {
         if tss_data.is_empty() {
             return Ok(0.0);
@@ -326,7 +328,7 @@ impl TrainingLoadAlgorithm {
 
         if process_noise <= 0.0 || measurement_noise <= 0.0 {
             return Err(AppError::invalid_input(
-                "Noise parameters must be positive".to_string(),
+                "Noise parameters must be positive".to_owned(),
             ));
         }
 
@@ -336,7 +338,7 @@ impl TrainingLoadAlgorithm {
 
         if days_span < 0 {
             return Err(AppError::invalid_input(
-                "TSS data not sorted by date".to_string(),
+                "TSS data not sorted by date".to_owned(),
             ));
         }
 
@@ -421,9 +423,9 @@ impl TrainingLoadAlgorithm {
     #[must_use]
     pub const fn formula(&self) -> &'static str {
         match self {
-            Self::Ema { .. } => "EMA_t = α × TSS_t + (1-α) × EMA_{t-1}, α = 2/(N+1)",
+            Self::Ema { .. } => "EMA_t = α x TSS_t + (1-α) x EMA_{t-1}, α = 2/(N+1)",
             Self::Sma { .. } => "SMA = Σ(TSS_i) / N",
-            Self::Wma { .. } => "WMA = Σ(i × TSS_i) / Σ(i)",
+            Self::Wma { .. } => "WMA = Σ(i x TSS_i) / Σ(i)",
             Self::KalmanFilter { .. } => {
                 "x̂_t = x̂_{t-1} + K_t(z_t - x̂_{t-1}), K_t = P_{t|t-1}/(P_{t|t-1} + R)"
             }

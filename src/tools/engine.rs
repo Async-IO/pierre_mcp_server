@@ -21,8 +21,11 @@ use uuid::Uuid;
 /// User context for multi-tenant operations
 #[derive(Debug, Clone)]
 pub struct UserContext {
+    /// Unique identifier for the user
     pub user_id: Uuid,
+    /// User's email address
     pub email: String,
+    /// User's subscription tier (e.g., "trial", "professional")
     pub tier: String,
 }
 
@@ -65,7 +68,7 @@ impl ToolEngine {
 
         // Convert to the universal request format that the existing infrastructure expects
         let universal_request = crate::protocols::universal::UniversalRequest {
-            tool_name: tool_name.to_string(),
+            tool_name: tool_name.to_owned(),
             parameters: params,
             protocol: "mcp".into(),
             user_id: user_context
@@ -227,13 +230,13 @@ impl ToolEngine {
         self.list_available_tools()
             .iter()
             .filter_map(|&tool_name| {
-                let description = Self::get_tool_description(tool_name)?.to_string();
+                let description = Self::get_tool_description(tool_name)?.to_owned();
                 let input_schema = self
                     .get_tool_schema(tool_name)
                     .unwrap_or_else(|| serde_json::json!({"type": "object", "properties": {}}));
 
                 Some(crate::mcp::schema::ToolSchema {
-                    name: tool_name.to_string(),
+                    name: tool_name.to_owned(),
                     description,
                     input_schema: crate::mcp::schema::JsonSchema {
                         schema_type: "object".into(),

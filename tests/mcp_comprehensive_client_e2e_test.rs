@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use anyhow::Result;
 use pierre_mcp_server::constants::tools::*;
 use pierre_mcp_server::mcp::multitenant::McpRequest;
@@ -114,8 +117,8 @@ impl MockMcpHandler {
     async fn handle_tool_call(&self, tool_name: &str, arguments: Value) -> Result<Value> {
         // Create an MCP request for tools/call
         let request = McpRequest {
-            jsonrpc: "2.0".to_string(),
-            method: "tools/call".to_string(),
+            jsonrpc: "2.0".to_owned(),
+            method: "tools/call".to_owned(),
             params: Some(json!({
                 "name": tool_name,
                 "arguments": arguments
@@ -200,19 +203,16 @@ impl McpProtocolTester {
                         .as_str()
                         .unwrap_or("Unknown error");
                     self.results.push(TestResult::failure(
-                        tool_name.to_string(),
+                        tool_name.to_owned(),
                         format!("Tool returned error: {error_msg}"),
                     ));
                 } else {
-                    self.results
-                        .push(TestResult::success(tool_name.to_string()));
+                    self.results.push(TestResult::success(tool_name.to_owned()));
                 }
             }
             Err(error) => {
-                self.results.push(TestResult::failure(
-                    tool_name.to_string(),
-                    error.to_string(),
-                ));
+                self.results
+                    .push(TestResult::failure(tool_name.to_owned(), error.to_string()));
             }
         }
     }
@@ -363,7 +363,7 @@ async fn test_comprehensive_mcp_tools_e2e() -> Result<()> {
     // Test MCP protocol methods
     let init_response = MockMcpHandler::handle_initialize();
     println!(
-        "✅ MCP initialize: {}",
+        " MCP initialize: {}",
         init_response.get("result").is_some()
     );
 
@@ -373,7 +373,7 @@ async fn test_comprehensive_mcp_tools_e2e() -> Result<()> {
         .and_then(|r| r.get("tools"))
         .and_then(|t| t.as_array())
     {
-        println!("✅ Found {} MCP tools", tools.len());
+        println!(" Found {} MCP tools", tools.len());
     }
 
     // Test all tools through MCP protocol

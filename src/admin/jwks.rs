@@ -124,7 +124,7 @@ impl RsaKeyPair {
         let public_key = RsaPublicKey::from(&private_key);
 
         Ok(Self {
-            kid: kid.to_string(),
+            kid: kid.to_owned(),
             private_key,
             public_key,
             created_at: Utc::now(),
@@ -152,10 +152,10 @@ impl RsaKeyPair {
         let e_b64 = URL_SAFE_NO_PAD.encode(&e_bytes);
 
         Ok(JsonWebKey {
-            kty: "RSA".to_string(),
-            key_use: "sig".to_string(),
+            kty: "RSA".to_owned(),
+            key_use: "sig".to_owned(),
             kid: self.kid.clone(),
-            alg: "RS256".to_string(),
+            alg: "RS256".to_owned(),
             n: n_b64,
             e: e_b64,
         })
@@ -196,7 +196,7 @@ impl RsaKeyPair {
         let public_key = RsaPublicKey::from(&private_key);
 
         Ok(Self {
-            kid: kid.to_string(),
+            kid: kid.to_owned(),
             private_key,
             public_key,
             created_at: Utc::now(),
@@ -206,28 +206,22 @@ impl RsaKeyPair {
 
     /// Get encoding key for JWT signing
     ///
-    /// # Panics
-    /// Panics if PEM export or encoding key creation fails (should never happen with valid RSA keys)
-    #[must_use]
-    pub fn encoding_key(&self) -> EncodingKey {
+    /// # Errors
+    /// Returns error if PEM export or encoding key creation fails
+    pub fn encoding_key(&self) -> anyhow::Result<EncodingKey> {
         // Export to PEM and create encoding key
-        let pem = self
-            .export_private_key_pem()
-            .expect("Failed to export private key");
-        EncodingKey::from_rsa_pem(pem.as_bytes()).expect("Failed to create encoding key")
+        let pem = self.export_private_key_pem()?;
+        Ok(EncodingKey::from_rsa_pem(pem.as_bytes())?)
     }
 
     /// Get decoding key for JWT verification
     ///
-    /// # Panics
-    /// Panics if PEM export or decoding key creation fails (should never happen with valid RSA keys)
-    #[must_use]
-    pub fn decoding_key(&self) -> DecodingKey {
+    /// # Errors
+    /// Returns error if PEM export or decoding key creation fails
+    pub fn decoding_key(&self) -> anyhow::Result<DecodingKey> {
         // Export to PEM and create decoding key
-        let pem = self
-            .export_public_key_pem()
-            .expect("Failed to export public key");
-        DecodingKey::from_rsa_pem(pem.as_bytes()).expect("Failed to create decoding key")
+        let pem = self.export_public_key_pem()?;
+        Ok(DecodingKey::from_rsa_pem(pem.as_bytes())?)
     }
 }
 
@@ -278,8 +272,8 @@ impl JwksManager {
         }
 
         // Set new key as active
-        self.active_key_id = Some(kid.to_string());
-        self.keys.insert(kid.to_string(), key_pair);
+        self.active_key_id = Some(kid.to_owned());
+        self.keys.insert(kid.to_owned(), key_pair);
 
         Ok(())
     }
@@ -333,10 +327,10 @@ impl JwksManager {
                     prev_key.is_active = false;
                 }
             }
-            self.active_key_id = Some(kid.to_string());
+            self.active_key_id = Some(kid.to_owned());
         }
 
-        self.keys.insert(kid.to_string(), key_pair);
+        self.keys.insert(kid.to_owned(), key_pair);
         Ok(())
     }
 
@@ -450,7 +444,7 @@ impl JwksManager {
         let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
         header.kid = Some(active_key.kid.clone());
 
-        let encoding_key = active_key.encoding_key();
+        let encoding_key = active_key.encoding_key()?;
 
         Ok(encode(&header, claims, &encoding_key)
             .map_err(|e| AppError::internal(format!("Failed to encode RS256 admin JWT: {e}")))?)
@@ -476,7 +470,7 @@ impl JwksManager {
             .get_key(&kid)
             .ok_or_else(|| AppError::auth_invalid(format!("Unknown key ID: {kid}")))?;
 
-        let decoding_key = key_pair.decoding_key();
+        let decoding_key = key_pair.decoding_key()?;
 
         // Set up validation
         let mut validation = Validation::new(jsonwebtoken::Algorithm::RS256);

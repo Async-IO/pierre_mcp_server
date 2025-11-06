@@ -206,11 +206,17 @@ pub enum ZoneGranularity {
 /// Athlete fitness level
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum FitnessLevel {
+    /// Beginner athlete (0-1 years experience)
     Beginner,
+    /// Recreational athlete (casual training, no competition)
     Recreational,
+    /// Intermediate athlete (2-4 years experience, local competition)
     Intermediate,
+    /// Advanced athlete (5+ years, regional competition)
     Advanced,
+    /// Elite athlete (national level competition)
     Elite,
+    /// Professional athlete (world-class, full-time training)
     Professional,
 }
 

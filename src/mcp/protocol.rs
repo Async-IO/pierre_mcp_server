@@ -115,7 +115,7 @@ impl ProtocolHandler {
             return McpResponse::error(
                 Some(request_id),
                 ERROR_INVALID_PARAMS,
-                "Invalid initialize request parameters".to_string(),
+                "Invalid initialize request parameters".to_owned(),
             );
         };
 
@@ -147,7 +147,7 @@ impl ProtocolHandler {
             InitializeResponse::new_with_ports(
                 negotiated_version,
                 crate::constants::protocol::server_name_multitenant(),
-                SERVER_VERSION.to_string(),
+                SERVER_VERSION.to_owned(),
                 resources.config.http_port,
             )
         } else {
@@ -155,7 +155,7 @@ impl ProtocolHandler {
             InitializeResponse::new(
                 negotiated_version,
                 crate::constants::protocol::server_name_multitenant(),
-                SERVER_VERSION.to_string(),
+                SERVER_VERSION.to_owned(),
             )
         };
 
@@ -256,7 +256,7 @@ impl ProtocolHandler {
                         return McpResponse::error(
                             Some(request_id),
                             ERROR_INVALID_PARAMS,
-                            "Invalid user ID in token".to_string(),
+                            "Invalid user ID in token".to_owned(),
                         );
                     }
                 }
@@ -265,7 +265,7 @@ impl ProtocolHandler {
                     return McpResponse::error(
                         Some(request_id),
                         ERROR_INVALID_PARAMS,
-                        "Authentication required".to_string(),
+                        "Authentication required".to_owned(),
                     );
                 }
             }
@@ -273,7 +273,7 @@ impl ProtocolHandler {
             return McpResponse::error(
                 Some(request_id),
                 ERROR_INVALID_PARAMS,
-                "Authentication token required".to_string(),
+                "Authentication token required".to_owned(),
             );
         };
 
@@ -285,14 +285,14 @@ impl ProtocolHandler {
                 return McpResponse::error(
                     Some(request_id),
                     ERROR_INVALID_PARAMS,
-                    "Missing uri parameter".to_string(),
+                    "Missing uri parameter".to_owned(),
                 );
             }
         } else {
             return McpResponse::error(
                 Some(request_id),
                 ERROR_INVALID_PARAMS,
-                "Missing parameters".to_string(),
+                "Missing parameters".to_owned(),
             );
         };
 
@@ -309,7 +309,7 @@ impl ProtocolHandler {
                             "contents": [{
                                 "uri": "oauth://notifications",
                                 "mimeType": "application/json",
-                                "text": serde_json::to_string_pretty(&notifications).unwrap_or_else(|_| "[]".to_string())
+                                "text": serde_json::to_string_pretty(&notifications).unwrap_or_else(|_| "[]".to_owned())
                             }]
                         });
                         McpResponse::success(Some(request_id), response_data)
@@ -357,7 +357,7 @@ impl ProtocolHandler {
                     return McpResponse::error(
                         Some(request_id),
                         ERROR_INVALID_PARAMS,
-                        "Invalid authentication parameters".to_string(),
+                        "Invalid authentication parameters".to_owned(),
                     );
                 }
             };
@@ -395,7 +395,7 @@ impl ProtocolHandler {
             Box::new(McpResponse::error(
                 Some(request_id.clone()),
                 ERROR_AUTHENTICATION,
-                "Authentication token required for OAuth credential storage".to_string(),
+                "Authentication token required for OAuth credential storage".to_owned(),
             ))
         })?;
 
@@ -409,7 +409,7 @@ impl ProtocolHandler {
                     Err(Box::new(McpResponse::error(
                         Some(request_id.clone()),
                         ERROR_AUTHENTICATION,
-                        "Invalid user ID in authentication token".to_string(),
+                        "Invalid user ID in authentication token".to_owned(),
                     )))
                 },
                 Ok,
@@ -417,7 +417,7 @@ impl ProtocolHandler {
             Err(_) => Err(Box::new(McpResponse::error(
                 Some(request_id),
                 ERROR_AUTHENTICATION,
-                "Invalid authentication token".to_string(),
+                "Invalid authentication token".to_owned(),
             ))),
         }
     }

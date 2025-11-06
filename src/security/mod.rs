@@ -24,7 +24,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+/// Security audit logging
 pub mod audit;
+/// Encryption key rotation management
 pub mod key_rotation;
 
 /// Security audit helper function
@@ -47,6 +49,7 @@ pub fn audit_security_headers<S: ::std::hash::BuildHasher>(
     true
 }
 
+/// Security header configuration and validation
 pub mod headers {
     use serde::{Deserialize, Serialize};
     use std::collections::HashMap;
@@ -65,21 +68,21 @@ pub mod headers {
         #[must_use]
         pub fn development() -> Self {
             let mut headers = HashMap::new();
-            headers.insert("Content-Security-Policy".to_string(), 
-                          "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'".to_string());
-            headers.insert("X-Frame-Options".to_string(), "DENY".to_string());
-            headers.insert("X-Content-Type-Options".to_string(), "nosniff".to_string());
+            headers.insert("Content-Security-Policy".to_owned(), 
+                          "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'".to_owned());
+            headers.insert("X-Frame-Options".to_owned(), "DENY".to_owned());
+            headers.insert("X-Content-Type-Options".to_owned(), "nosniff".to_owned());
             headers.insert(
-                "Referrer-Policy".to_string(),
-                "strict-origin-when-cross-origin".to_string(),
+                "Referrer-Policy".to_owned(),
+                "strict-origin-when-cross-origin".to_owned(),
             );
             headers.insert(
-                "Permissions-Policy".to_string(),
-                "camera=(), microphone=(), geolocation=()".to_string(),
+                "Permissions-Policy".to_owned(),
+                "camera=(), microphone=(), geolocation=()".to_owned(),
             );
 
             Self {
-                environment: "development".to_string(),
+                environment: "development".to_owned(),
                 headers,
             }
         }
@@ -89,26 +92,26 @@ pub mod headers {
         pub fn production() -> Self {
             let mut headers = HashMap::new();
             headers.insert(
-                "Content-Security-Policy".to_string(),
-                "default-src 'self'; script-src 'self'; style-src 'self'".to_string(),
+                "Content-Security-Policy".to_owned(),
+                "default-src 'self'; script-src 'self'; style-src 'self'".to_owned(),
             );
-            headers.insert("X-Frame-Options".to_string(), "DENY".to_string());
-            headers.insert("X-Content-Type-Options".to_string(), "nosniff".to_string());
-            headers.insert("Referrer-Policy".to_string(), "strict-origin".to_string());
+            headers.insert("X-Frame-Options".to_owned(), "DENY".to_owned());
+            headers.insert("X-Content-Type-Options".to_owned(), "nosniff".to_owned());
+            headers.insert("Referrer-Policy".to_owned(), "strict-origin".to_owned());
             headers.insert(
-                "Strict-Transport-Security".to_string(),
+                "Strict-Transport-Security".to_owned(),
                 format!(
                     "max-age={}; includeSubDomains",
                     crate::constants::time_constants::SECONDS_PER_YEAR
                 ),
             );
             headers.insert(
-                "Permissions-Policy".to_string(),
-                "camera=(), microphone=(), geolocation=()".to_string(),
+                "Permissions-Policy".to_owned(),
+                "camera=(), microphone=(), geolocation=()".to_owned(),
             );
 
             Self {
-                environment: "production".to_string(),
+                environment: "production".to_owned(),
                 headers,
             }
         }
@@ -366,7 +369,7 @@ impl TenantEncryptionManager {
             metadata: EncryptionMetadata {
                 key_version: self.get_current_version().unwrap_or(1),
                 tenant_id,
-                algorithm: "AES-256-GCM".to_string(),
+                algorithm: "AES-256-GCM".to_owned(),
                 encrypted_at: chrono::Utc::now(),
             },
         })
@@ -426,7 +429,7 @@ impl TenantEncryptionManager {
                 created_at: chrono::Utc::now(),
                 expires_at: chrono::Utc::now() + chrono::Duration::days(365), // 1 year expiry
                 is_active: false, // Not active until re-encryption is complete
-                algorithm: "HKDF-SHA256".to_string(),
+                algorithm: "HKDF-SHA256".to_owned(),
             };
 
             database.store_key_version(&key_version).await?;
@@ -508,8 +511,8 @@ impl TenantEncryptionManager {
             })?;
         Ok(EncryptionStats {
             cached_tenant_keys: cache.len(),
-            master_key_algorithm: "AES-256-GCM".to_string(),
-            key_derivation_algorithm: "HKDF-SHA256".to_string(),
+            master_key_algorithm: "AES-256-GCM".to_owned(),
+            key_derivation_algorithm: "HKDF-SHA256".to_owned(),
         })
     }
 }
@@ -517,8 +520,11 @@ impl TenantEncryptionManager {
 /// Encryption statistics for monitoring
 #[derive(Debug, Serialize)]
 pub struct EncryptionStats {
+    /// Number of tenant keys currently cached in memory
     pub cached_tenant_keys: usize,
+    /// Master key encryption algorithm (e.g., "AES-256-GCM")
     pub master_key_algorithm: String,
+    /// Key derivation function algorithm (e.g., "HKDF-SHA256")
     pub key_derivation_algorithm: String,
 }
 
@@ -555,7 +561,7 @@ impl EnhancedEncryptedToken {
             access_token: encryption_manager.encrypt_tenant_data(tenant_id, access_token)?,
             refresh_token: encryption_manager.encrypt_tenant_data(tenant_id, refresh_token)?,
             expires_at,
-            scopes: scopes.to_string(),
+            scopes: scopes.to_owned(),
             key_version: encryption_manager.get_current_version().unwrap_or(1),
         })
     }

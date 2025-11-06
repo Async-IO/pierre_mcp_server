@@ -12,30 +12,47 @@ pub enum DatabaseError {
     /// Entity not found in database
     #[error("Entity not found: {entity_type} with id '{entity_id}'")]
     NotFound {
+        /// Type of entity that was not found
         entity_type: &'static str,
+        /// ID of the entity that was not found
         entity_id: String,
     },
 
     /// Cross-tenant access attempt detected
     #[error("Tenant isolation violation: attempted to access {entity_type} '{entity_id}' from tenant '{requested_tenant}' but it belongs to tenant '{actual_tenant}'")]
     TenantIsolationViolation {
+        /// Type of entity being accessed
         entity_type: &'static str,
+        /// ID of the entity being accessed
         entity_id: String,
+        /// Tenant that attempted the access
         requested_tenant: String,
+        /// Tenant that actually owns the entity
         actual_tenant: String,
     },
 
     /// Encryption operation failed
     #[error("Encryption failed: {context}")]
-    EncryptionFailed { context: String },
+    EncryptionFailed {
+        /// Context describing the encryption failure
+        context: String,
+    },
 
     /// Decryption operation failed
     #[error("Decryption failed: {context}")]
-    DecryptionFailed { context: String },
+    DecryptionFailed {
+        /// Context describing the decryption failure
+        context: String,
+    },
 
     /// Database constraint violation
     #[error("Constraint violation: {constraint} - {details}")]
-    ConstraintViolation { constraint: String, details: String },
+    ConstraintViolation {
+        /// Name of the constraint that was violated
+        constraint: String,
+        /// Details about the constraint violation
+        details: String,
+    },
 
     /// Database connection error
     #[error("Database connection error: {0}")]
@@ -43,15 +60,28 @@ pub enum DatabaseError {
 
     /// Database query error
     #[error("Query execution error: {context}")]
-    QueryError { context: String },
+    QueryError {
+        /// Context describing the query error
+        context: String,
+    },
 
     /// Migration error
     #[error("Migration failed: {version} - {details}")]
-    MigrationError { version: String, details: String },
+    MigrationError {
+        /// Migration version that failed
+        version: String,
+        /// Details about the migration failure
+        details: String,
+    },
 
     /// Invalid data format
     #[error("Invalid data format for {field}: {reason}")]
-    InvalidData { field: String, reason: String },
+    InvalidData {
+        /// Field that has invalid data
+        field: String,
+        /// Reason why the data is invalid
+        reason: String,
+    },
 
     /// Underlying `SQLx` error
     #[error("Database error: {0}")]

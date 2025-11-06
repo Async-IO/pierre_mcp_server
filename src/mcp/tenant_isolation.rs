@@ -95,7 +95,7 @@ impl TenantIsolation {
                     "Failed to get tenant {}: {}, using default name",
                     tenant_id, e
                 );
-                "Unknown Tenant".to_string()
+                "Unknown Tenant".to_owned()
             }
         }
     }
@@ -277,7 +277,9 @@ impl TenantIsolation {
 
 /// Tenant-scoped resource accessor
 pub struct TenantResources {
+    /// Unique identifier for the tenant
     pub tenant_id: Uuid,
+    /// Database connection for tenant-scoped operations
     pub database: Arc<Database>,
 }
 
@@ -359,8 +361,11 @@ impl TenantResources {
 /// JWT token validation result
 #[derive(Debug, Clone)]
 pub struct JwtValidationResult {
+    /// User ID extracted from the JWT token
     pub user_id: Uuid,
+    /// Tenant context associated with the user
     pub tenant_context: TenantContext,
+    /// When the JWT token expires
     pub expires_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -402,7 +407,7 @@ pub async fn validate_jwt_token_for_mcp(
 
     let tenant_name = match database.get_tenant_by_id(tenant_id).await {
         Ok(tenant) => tenant.name,
-        _ => "Unknown Tenant".to_string(),
+        _ => "Unknown Tenant".to_owned(),
     };
 
     let tenant_context = TenantContext {
@@ -471,7 +476,7 @@ pub async fn extract_tenant_context_internal(
     if let Some(tenant_id) = tenant_id {
         let tenant_name = match database.get_tenant_by_id(tenant_id).await {
             Ok(tenant) => tenant.name,
-            _ => "Unknown Tenant".to_string(),
+            _ => "Unknown Tenant".to_owned(),
         };
 
         return Ok(Some(TenantContext {
@@ -489,7 +494,7 @@ pub async fn extract_tenant_context_internal(
                 if let Ok(tenant_id) = Uuid::parse_str(tenant_id_str) {
                     let tenant_name = match database.get_tenant_by_id(tenant_id).await {
                         Ok(tenant) => tenant.name,
-                        _ => "Unknown Tenant".to_string(),
+                        _ => "Unknown Tenant".to_owned(),
                     };
 
                     return Ok(Some(TenantContext {

@@ -67,7 +67,7 @@ impl Default for RedactionConfig {
         Self {
             enabled: true,
             features: RedactionFeatures::ALL,
-            redaction_placeholder: "[REDACTED]".to_string(),
+            redaction_placeholder: "[REDACTED]".to_owned(),
         }
     }
 }
@@ -76,7 +76,8 @@ impl RedactionConfig {
     /// Create redaction config from environment
     #[must_use]
     pub fn from_env() -> Self {
-        let enabled = crate::constants::get_server_config().logging.redact_pii;
+        let config = crate::constants::get_server_config();
+        let enabled = config.is_none_or(|c| c.logging.redact_pii);
 
         let features = if enabled {
             RedactionFeatures::ALL
@@ -87,10 +88,10 @@ impl RedactionConfig {
         Self {
             enabled,
             features,
-            redaction_placeholder: crate::constants::get_server_config()
-                .logging
-                .redaction_placeholder
-                .clone(),
+            redaction_placeholder: config.map_or_else(
+                || "[REDACTED]".to_owned(),
+                |c| c.logging.redaction_placeholder.clone(),
+            ),
         }
     }
 
@@ -154,7 +155,7 @@ where
     if !config.enabled || !config.features.contains(RedactionFeatures::HEADERS) {
         return headers
             .into_iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .map(|(k, v)| (k.to_owned(), v.to_owned()))
             .collect();
     }
 
@@ -165,9 +166,9 @@ where
             let redacted_value = if SENSITIVE_HEADERS.contains(&name_lower.as_str()) {
                 config.redaction_placeholder.clone()
             } else {
-                value.to_string()
+                value.to_owned()
             };
-            (name.to_string(), redacted_value)
+            (name.to_owned(), redacted_value)
         })
         .collect()
 }
@@ -185,10 +186,10 @@ where
 #[must_use]
 pub fn redact_json_fields(text: &str, config: &RedactionConfig) -> String {
     if !config.enabled || !config.features.contains(RedactionFeatures::BODY_FIELDS) {
-        return text.to_string();
+        return text.to_owned();
     }
 
-    let mut result = text.to_string();
+    let mut result = text.to_owned();
 
     for field in SENSITIVE_FIELDS {
         // Match patterns like:
@@ -230,38 +231,43 @@ pub fn redact_json_fields(text: &str, config: &RedactionConfig) -> String {
 /// Masked email with first character of local and domain parts visible
 #[must_use]
 pub fn mask_email(email: &str) -> String {
-    email_regex()
-        .replace_all(email, |caps: &regex::Captures| {
-            let full_match = &caps[0];
-            full_match.find('@').map_or_else(
-                || full_match.to_string(),
-                |at_pos| {
-                    let (local, domain_with_at) = full_match.split_at(at_pos);
-                    let domain = &domain_with_at[1..]; // Skip '@'
+    email_regex().map_or_else(
+        || email.to_owned(), // If regex fails, return original
+        |regex| {
+            regex
+                .replace_all(email, |caps: &regex::Captures| {
+                    let full_match = &caps[0];
+                    full_match.find('@').map_or_else(
+                        || full_match.to_owned(),
+                        |at_pos| {
+                            let (local, domain_with_at) = full_match.split_at(at_pos);
+                            let domain = &domain_with_at[1..]; // Skip '@'
 
-                    let masked_local = if local.len() > 1 {
-                        format!("{}***", &local[0..1])
-                    } else {
-                        local.to_string()
-                    };
-
-                    let masked_domain = domain.find('.').map_or_else(
-                        || domain.to_string(),
-                        |dot_pos| {
-                            let (subdomain, tld_with_dot) = domain.split_at(dot_pos);
-                            if subdomain.len() > 1 {
-                                format!("{}***{tld_with_dot}", &subdomain[0..1])
+                            let masked_local = if local.len() > 1 {
+                                format!("{}***", &local[0..1])
                             } else {
-                                domain.to_string()
-                            }
-                        },
-                    );
+                                local.to_owned()
+                            };
 
-                    format!("{masked_local}@{masked_domain}")
-                },
-            )
-        })
-        .to_string()
+                            let masked_domain = domain.find('.').map_or_else(
+                                || domain.to_owned(),
+                                |dot_pos| {
+                                    let (subdomain, tld_with_dot) = domain.split_at(dot_pos);
+                                    if subdomain.len() > 1 {
+                                        format!("{}***{tld_with_dot}", &subdomain[0..1])
+                                    } else {
+                                        domain.to_owned()
+                                    }
+                                },
+                            );
+
+                            format!("{masked_local}@{masked_domain}")
+                        },
+                    )
+                })
+                .to_string()
+        },
+    )
 }
 
 /// Redact token-like patterns from text
@@ -282,10 +288,10 @@ pub fn mask_email(email: &str) -> String {
 #[must_use]
 pub fn redact_token_patterns(text: &str, config: &RedactionConfig) -> String {
     if config.is_disabled() {
-        return text.to_string();
+        return text.to_owned();
     }
 
-    let mut result = text.to_string();
+    let mut result = text.to_owned();
 
     // Redact Bearer tokens
     if let Ok(re) = Regex::new(r"Bearer\s+[A-Za-z0-9\-._~+/]+=*") {
@@ -394,12 +400,16 @@ impl std::fmt::Display for BoundedUserLabel {
 }
 
 /// Get compiled email regex (cached)
-fn email_regex() -> &'static Regex {
-    static EMAIL_REGEX: OnceLock<Regex> = OnceLock::new();
-    EMAIL_REGEX.get_or_init(|| {
-        Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
-            .expect("Invalid email regex pattern")
-    })
+///
+/// Returns None if regex compilation fails (should never happen with hardcoded pattern)
+fn email_regex() -> Option<&'static Regex> {
+    static EMAIL_REGEX: OnceLock<Option<Regex>> = OnceLock::new();
+    EMAIL_REGEX
+        .get_or_init(|| {
+            // Hardcoded regex pattern - should always compile
+            Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").ok()
+        })
+        .as_ref()
 }
 
 /// Custom Reply wrapper that applies redaction to HTTP responses
@@ -434,8 +444,8 @@ impl<R: warp::Reply> warp::Reply for RedactedReply<R> {
                 .iter()
                 .map(|(name, value)| {
                     (
-                        name.as_str().to_string(),
-                        value.to_str().unwrap_or("").to_string(),
+                        name.as_str().to_owned(),
+                        value.to_str().unwrap_or("").to_owned(),
                     )
                 })
                 .collect();

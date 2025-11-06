@@ -4,6 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(missing_docs)]
+
 use chrono::Utc;
 use pierre_mcp_server::models::{
     Activity, Athlete, AuthorizationCode, EncryptedToken, HeartRateZone, PersonalRecord, PowerZone,
@@ -340,11 +343,11 @@ fn test_user_creation_with_required_fields() {
 
     let user = User {
         id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: "hashed_password".to_string(),
+        email: "test@example.com".to_owned(),
+        display_name: Some("Test User".to_owned()),
+        password_hash: "hashed_password".to_owned(),
         tier: UserTier::Professional,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         strava_token: None,
         fitbit_token: None,
         is_active: true,
@@ -358,7 +361,7 @@ fn test_user_creation_with_required_fields() {
 
     assert_eq!(user.id, user_id);
     assert_eq!(user.email, "test@example.com");
-    assert_eq!(user.display_name, Some("Test User".to_string()));
+    assert_eq!(user.display_name, Some("Test User".to_owned()));
     assert_eq!(user.tier, UserTier::Professional);
     assert!(user.is_active);
     assert_eq!(user.user_status, UserStatus::Active);
@@ -370,22 +373,22 @@ fn test_user_serialization_roundtrip() {
     let now = Utc::now();
     let original_user = User {
         id: Uuid::new_v4(),
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: "hashed_password".to_string(),
+        email: "test@example.com".to_owned(),
+        display_name: Some("Test User".to_owned()),
+        password_hash: "hashed_password".to_owned(),
         tier: UserTier::Enterprise,
-        tenant_id: Some("test-tenant".to_string()),
+        tenant_id: Some("test-tenant".to_owned()),
         strava_token: Some(EncryptedToken {
-            access_token: "encrypted_access_token".to_string(),
-            refresh_token: "encrypted_refresh_token".to_string(),
+            access_token: "encrypted_access_token".to_owned(),
+            refresh_token: "encrypted_refresh_token".to_owned(),
             expires_at: now + chrono::Duration::hours(1),
-            scope: "read".to_string(),
+            scope: "read".to_owned(),
         }),
         fitbit_token: Some(EncryptedToken {
-            access_token: "encrypted_fitbit_access".to_string(),
-            refresh_token: "encrypted_fitbit_refresh".to_string(),
+            access_token: "encrypted_fitbit_access".to_owned(),
+            refresh_token: "encrypted_fitbit_refresh".to_owned(),
             expires_at: now + chrono::Duration::hours(2),
-            scope: "read_all".to_string(),
+            scope: "read_all".to_owned(),
         }),
         is_active: true,
         user_status: UserStatus::Active,
@@ -417,10 +420,10 @@ fn test_tenant_creation() {
 
     let tenant = Tenant {
         id: tenant_id,
-        name: "Test Company".to_string(),
-        slug: "test-company".to_string(),
-        domain: Some("testcompany.com".to_string()),
-        plan: "enterprise".to_string(),
+        name: "Test Company".to_owned(),
+        slug: "test-company".to_owned(),
+        domain: Some("testcompany.com".to_owned()),
+        plan: "enterprise".to_owned(),
         owner_user_id: Uuid::new_v4(),
         created_at: now,
         updated_at: now,
@@ -428,7 +431,7 @@ fn test_tenant_creation() {
 
     assert_eq!(tenant.id, tenant_id);
     assert_eq!(tenant.name, "Test Company");
-    assert_eq!(tenant.domain, Some("testcompany.com".to_string()));
+    assert_eq!(tenant.domain, Some("testcompany.com".to_owned()));
     assert_eq!(tenant.plan, "enterprise");
     assert_eq!(tenant.slug, "test-company");
 }
@@ -438,10 +441,10 @@ fn test_tenant_serialization_roundtrip() {
     let now = Utc::now();
     let original_tenant = Tenant {
         id: Uuid::new_v4(),
-        name: "Acme Corp".to_string(),
-        slug: "acme-corp".to_string(),
-        domain: Some("acme.com".to_string()),
-        plan: "professional".to_string(),
+        name: "Acme Corp".to_owned(),
+        slug: "acme-corp".to_owned(),
+        domain: Some("acme.com".to_owned()),
+        plan: "professional".to_owned(),
         owner_user_id: Uuid::new_v4(),
         created_at: now,
         updated_at: now,
@@ -460,7 +463,7 @@ fn test_tenant_serialization_roundtrip() {
 #[test]
 fn test_heart_rate_zone_creation() {
     let zone = HeartRateZone {
-        name: "Zone 2".to_string(),
+        name: "Zone 2".to_owned(),
         min_hr: 120,
         max_hr: 140,
         minutes: 25,
@@ -475,7 +478,7 @@ fn test_heart_rate_zone_creation() {
 #[test]
 fn test_power_zone_creation() {
     let zone = PowerZone {
-        name: "Zone 3".to_string(),
+        name: "Zone 3".to_owned(),
         min_power: 200,
         max_power: 250,
         time_in_zone: 15,
@@ -490,10 +493,10 @@ fn test_power_zone_creation() {
 #[test]
 fn test_authorization_code_new() {
     let code = AuthorizationCode::new(
-        "auth_code_123".to_string(),
-        "client_456".to_string(),
-        "https://redirect.uri".to_string(),
-        "read write".to_string(),
+        "auth_code_123".to_owned(),
+        "client_456".to_owned(),
+        "https://redirect.uri".to_owned(),
+        "read write".to_owned(),
         Some(Uuid::new_v4()),
     );
 
@@ -517,10 +520,10 @@ fn test_authorization_code_new() {
 fn test_encrypted_token_creation() {
     let now = Utc::now();
     let token = EncryptedToken {
-        access_token: "encrypted_access_12345".to_string(),
-        refresh_token: "encrypted_refresh_67890".to_string(),
+        access_token: "encrypted_access_12345".to_owned(),
+        refresh_token: "encrypted_refresh_67890".to_owned(),
         expires_at: now + chrono::Duration::hours(1),
-        scope: "read write".to_string(),
+        scope: "read write".to_owned(),
     };
 
     assert_eq!(token.access_token, "encrypted_access_12345");
@@ -534,22 +537,22 @@ fn test_user_with_encrypted_tokens() {
     let now = Utc::now();
     let user = User {
         id: Uuid::new_v4(),
-        email: "tokenuser@example.com".to_string(),
-        display_name: Some("Token User".to_string()),
-        password_hash: "secure_hash".to_string(),
+        email: "tokenuser@example.com".to_owned(),
+        display_name: Some("Token User".to_owned()),
+        password_hash: "secure_hash".to_owned(),
         tier: UserTier::Professional,
-        tenant_id: Some("tenant-123".to_string()),
+        tenant_id: Some("tenant-123".to_owned()),
         strava_token: Some(EncryptedToken {
-            access_token: "strava_encrypted_access".to_string(),
-            refresh_token: "strava_encrypted_refresh".to_string(),
+            access_token: "strava_encrypted_access".to_owned(),
+            refresh_token: "strava_encrypted_refresh".to_owned(),
             expires_at: now + chrono::Duration::hours(6),
-            scope: "read_all,activity:read".to_string(),
+            scope: "read_all,activity:read".to_owned(),
         }),
         fitbit_token: Some(EncryptedToken {
-            access_token: "fitbit_encrypted_access".to_string(),
-            refresh_token: "fitbit_encrypted_refresh".to_string(),
+            access_token: "fitbit_encrypted_access".to_owned(),
+            refresh_token: "fitbit_encrypted_refresh".to_owned(),
             expires_at: now + chrono::Duration::hours(8),
-            scope: "activity,heartrate,sleep".to_string(),
+            scope: "activity,heartrate,sleep".to_owned(),
         }),
         is_active: true,
         user_status: UserStatus::Active,

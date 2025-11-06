@@ -13,12 +13,19 @@ use crate::config::fitness_config::FitnessConfig;
 /// Database representation of a fitness configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FitnessConfigurationRecord {
+    /// Unique configuration ID
     pub id: String,
+    /// Tenant ID for multi-tenant isolation
     pub tenant_id: String,
+    /// Optional user ID for user-specific configurations
     pub user_id: Option<String>,
+    /// Human-readable configuration name
     pub configuration_name: String,
-    pub config_data: String, // JSON serialized FitnessConfig
+    /// JSON serialized `FitnessConfig`
+    pub config_data: String,
+    /// When the configuration was created (ISO 8601)
     pub created_at: String,
+    /// When the configuration was last updated (ISO 8601)
     pub updated_at: String,
 }
 

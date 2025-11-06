@@ -17,17 +17,28 @@ use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 use tracing::{debug, info};
 
+/// Geographic location data with rich context
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocationData {
+    /// City name if available
     pub city: Option<String>,
+    /// Region/state name
     pub region: Option<String>,
+    /// Country name
     pub country: Option<String>,
+    /// Trail or path name for outdoor activities
     pub trail_name: Option<String>,
+    /// Nearby amenity (park, restaurant, etc.)
     pub amenity: Option<String>,
+    /// Natural feature (lake, mountain, forest, etc.)
     pub natural: Option<String>,
+    /// Tourism destination name
     pub tourism: Option<String>,
+    /// Leisure facility (sports center, gym, etc.)
     pub leisure: Option<String>,
+    /// Human-readable location description
     pub display_name: String,
+    /// Latitude and longitude coordinates
     pub coordinates: (f64, f64),
 }
 
@@ -69,6 +80,7 @@ struct CacheEntry {
     timestamp: SystemTime,
 }
 
+/// Service for geocoding and location data enrichment
 pub struct LocationService {
     client: Client,
     cache: HashMap<String, CacheEntry>,
@@ -78,11 +90,13 @@ pub struct LocationService {
 }
 
 impl LocationService {
+    /// Create a new location service with default configuration
     #[must_use]
     pub fn new() -> Self {
         Self::with_config("https://nominatim.openstreetmap.org".into(), true)
     }
 
+    /// Creates a location service with custom configuration
     #[must_use]
     pub fn with_config(base_url: String, enabled: bool) -> Self {
         let client = Client::builder()
@@ -247,6 +261,7 @@ impl LocationService {
         }
     }
 
+    /// Returns cache statistics as `(total_entries, expired_entries)`
     #[must_use]
     pub fn get_cache_stats(&self) -> (usize, usize) {
         let total_entries = self.cache.len();
@@ -261,6 +276,7 @@ impl LocationService {
         (total_entries, expired_entries)
     }
 
+    /// Removes expired entries from the location cache
     pub fn clear_expired_cache(&mut self) {
         let now = SystemTime::now();
         self.cache.retain(|_, entry| {

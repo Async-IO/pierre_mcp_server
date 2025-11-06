@@ -22,35 +22,58 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
 
+/// A2A dashboard overview statistics
 #[derive(Debug, Serialize)]
 pub struct A2ADashboardOverview {
+    /// Total number of registered A2A clients
     pub total_clients: u32,
+    /// Number of active clients
     pub active_clients: u32,
+    /// Total number of sessions
     pub total_sessions: u32,
+    /// Number of active sessions
     pub active_sessions: u32,
+    /// Request count today
     pub requests_today: u32,
+    /// Request count this month
     pub requests_this_month: u32,
+    /// Most frequently used capability
     pub most_used_capability: Option<String>,
+    /// Error rate (0.0-1.0)
     pub error_rate: f64,
+    /// Usage breakdown by client tier
     pub usage_by_tier: Vec<A2ATierUsage>,
 }
 
+/// Usage statistics for an A2A client tier
 #[derive(Debug, Serialize)]
 pub struct A2ATierUsage {
+    /// Tier name (free, pro, enterprise)
     pub tier: String,
+    /// Number of clients in this tier
     pub client_count: u32,
+    /// Total requests from this tier
     pub request_count: u32,
+    /// Percentage of total usage
     pub percentage: f64,
 }
 
+/// Request to register a new A2A client
 #[derive(Debug, Deserialize)]
 pub struct A2AClientRequest {
+    /// Client application name
     pub name: String,
+    /// Client description
     pub description: String,
+    /// Requested A2A capabilities
     pub capabilities: Vec<String>,
+    /// Optional OAuth redirect URIs
     pub redirect_uris: Option<Vec<String>>,
+    /// Contact email for client owner
     pub contact_email: String,
+    /// Agent software version
     pub agent_version: Option<String>,
+    /// URL to client documentation
     pub documentation_url: Option<String>,
 }
 
@@ -83,7 +106,7 @@ impl A2ARoutes {
             })
         })?;
 
-        Ok(token.to_string())
+        Ok(token.to_owned())
     }
 
     /// Validate JWT token and return user ID
@@ -104,6 +127,7 @@ impl A2ARoutes {
             })
     }
 
+    /// Creates a new A2A routes instance
     #[must_use]
     pub fn new(resources: Arc<crate::mcp::resources::ServerResources>) -> Self {
         let client_manager = resources.a2a_client_manager.clone(); // Safe: Arc clone for shared client manager
@@ -301,7 +325,7 @@ impl A2ARoutes {
                 |arr| {
                     arr.iter()
                         .filter_map(|v| v.as_str())
-                        .map(std::string::ToString::to_string)
+                        .map(str::to_owned)
                         .collect::<Vec<String>>()
                 },
             );
@@ -399,7 +423,7 @@ impl A2ARoutes {
 
         // Create universal request
         let universal_request = UniversalRequest {
-            tool_name: tool_name.to_string(),
+            tool_name: tool_name.to_owned(),
             parameters,
             user_id,
             protocol: "a2a".into(),

@@ -32,7 +32,7 @@ async fn fetch_food_details(
             success: false,
             result: None,
             error: Some(
-                "USDA API key not configured. Set USDA_API_KEY environment variable.".to_string(),
+                "USDA API key not configured. Set USDA_API_KEY environment variable.".to_owned(),
             ),
             metadata: None,
         });
@@ -63,7 +63,7 @@ fn parse_gender(gender_str: &str) -> Result<Gender, UniversalResponse> {
         _ => Err(UniversalResponse {
             success: false,
             result: None,
-            error: Some("Gender must be 'male' or 'female'".to_string()),
+            error: Some("Gender must be 'male' or 'female'".to_owned()),
             metadata: None,
         }),
     }
@@ -80,7 +80,7 @@ fn parse_activity_level(activity_str: &str) -> Result<ActivityLevel, UniversalRe
         _ => Err(UniversalResponse {
             success: false,
             result: None,
-            error: Some("Invalid activity_level. Must be one of: sedentary, lightly_active, moderately_active, very_active, extra_active".to_string()),
+            error: Some("Invalid activity_level. Must be one of: sedentary, lightly_active, moderately_active, very_active, extra_active".to_owned()),
             metadata: None,
         }),
     }
@@ -96,7 +96,7 @@ fn parse_training_goal(goal_str: &str) -> Result<TrainingGoal, UniversalResponse
         _ => Err(UniversalResponse {
             success: false,
             result: None,
-            error: Some("Invalid training_goal. Must be one of: maintenance, weight_loss, muscle_gain, endurance_performance".to_string()),
+            error: Some("Invalid training_goal. Must be one of: maintenance, weight_loss, muscle_gain, endurance_performance".to_owned()),
             metadata: None,
         }),
     }
@@ -113,7 +113,7 @@ fn parse_nutrition_params(
         .ok_or_else(|| UniversalResponse {
             success: false,
             result: None,
-            error: Some("Missing or invalid required parameter: weight_kg".to_string()),
+            error: Some("Missing or invalid required parameter: weight_kg".to_owned()),
             metadata: None,
         })?;
 
@@ -124,7 +124,7 @@ fn parse_nutrition_params(
         .ok_or_else(|| UniversalResponse {
             success: false,
             result: None,
-            error: Some("Missing or invalid required parameter: height_cm".to_string()),
+            error: Some("Missing or invalid required parameter: height_cm".to_owned()),
             metadata: None,
         })?;
 
@@ -135,7 +135,7 @@ fn parse_nutrition_params(
         .ok_or_else(|| UniversalResponse {
             success: false,
             result: None,
-            error: Some("Missing or invalid required parameter: age".to_string()),
+            error: Some("Missing or invalid required parameter: age".to_owned()),
             metadata: None,
         })?;
 
@@ -146,7 +146,7 @@ fn parse_nutrition_params(
         return Err(UniversalResponse {
             success: false,
             result: None,
-            error: Some("Age must be between 0 and 150 years".to_string()),
+            error: Some("Age must be between 0 and 150 years".to_owned()),
             metadata: None,
         });
     };
@@ -158,7 +158,7 @@ fn parse_nutrition_params(
         .ok_or_else(|| UniversalResponse {
             success: false,
             result: None,
-            error: Some("Missing or invalid required parameter: gender".to_string()),
+            error: Some("Missing or invalid required parameter: gender".to_owned()),
             metadata: None,
         })?;
 
@@ -171,7 +171,7 @@ fn parse_nutrition_params(
         .ok_or_else(|| UniversalResponse {
             success: false,
             result: None,
-            error: Some("Missing or invalid required parameter: activity_level".to_string()),
+            error: Some("Missing or invalid required parameter: activity_level".to_owned()),
             metadata: None,
         })?;
 
@@ -184,7 +184,7 @@ fn parse_nutrition_params(
         .ok_or_else(|| UniversalResponse {
             success: false,
             result: None,
-            error: Some("Missing or invalid required parameter: training_goal".to_string()),
+            error: Some("Missing or invalid required parameter: training_goal".to_owned()),
             metadata: None,
         })?;
 
@@ -325,7 +325,7 @@ pub fn handle_get_nutrient_timing(
             .and_then(Value::as_f64)
             .ok_or_else(|| {
                 ProtocolError::InvalidRequest(
-                    "Missing or invalid required parameter: weight_kg".to_string(),
+                    "Missing or invalid required parameter: weight_kg".to_owned(),
                 )
             })?;
 
@@ -335,7 +335,7 @@ pub fn handle_get_nutrient_timing(
             .and_then(Value::as_f64)
             .ok_or_else(|| {
                 ProtocolError::InvalidRequest(
-                    "Missing or invalid required parameter: daily_protein_g".to_string(),
+                    "Missing or invalid required parameter: daily_protein_g".to_owned(),
                 )
             })?;
 
@@ -345,7 +345,7 @@ pub fn handle_get_nutrient_timing(
             .and_then(Value::as_str)
             .ok_or_else(|| {
                 ProtocolError::InvalidRequest(
-                    "Missing or invalid required parameter: workout_intensity".to_string(),
+                    "Missing or invalid required parameter: workout_intensity".to_owned(),
                 )
             })?;
 
@@ -358,8 +358,7 @@ pub fn handle_get_nutrient_timing(
                     success: false,
                     result: None,
                     error: Some(
-                        "Invalid workout_intensity. Must be one of: low, moderate, high"
-                            .to_string(),
+                        "Invalid workout_intensity. Must be one of: low, moderate, high".to_owned(),
                     ),
                     metadata: None,
                 })
@@ -439,7 +438,7 @@ pub fn handle_search_food(
             .and_then(Value::as_str)
             .ok_or_else(|| {
                 ProtocolError::InvalidRequest(
-                    "Missing or invalid required parameter: query".to_string(),
+                    "Missing or invalid required parameter: query".to_owned(),
                 )
             })?;
 
@@ -456,7 +455,7 @@ pub fn handle_search_food(
             return Ok(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some("Page size must be between 1 and 200".to_string()),
+                error: Some("Page size must be between 1 and 200".to_owned()),
                 metadata: None,
             });
         };
@@ -475,7 +474,7 @@ pub fn handle_search_food(
                 result: None,
                 error: Some(
                     "USDA API key not configured. Set USDA_API_KEY environment variable."
-                        .to_string(),
+                        .to_owned(),
                 ),
                 metadata: None,
             });
@@ -537,7 +536,7 @@ pub fn handle_get_food_details(
             .and_then(Value::as_u64)
             .ok_or_else(|| {
                 ProtocolError::InvalidRequest(
-                    "Missing or invalid required parameter: fdc_id".to_string(),
+                    "Missing or invalid required parameter: fdc_id".to_owned(),
                 )
             })?;
 
@@ -555,7 +554,7 @@ pub fn handle_get_food_details(
                 result: None,
                 error: Some(
                     "USDA API key not configured. Set USDA_API_KEY environment variable."
-                        .to_string(),
+                        .to_owned(),
                 ),
                 metadata: None,
             });
@@ -637,7 +636,7 @@ pub fn handle_analyze_meal_nutrition(
             .and_then(Value::as_array)
             .ok_or_else(|| {
                 ProtocolError::InvalidRequest(
-                    "Missing or invalid required parameter: foods (must be array)".to_string(),
+                    "Missing or invalid required parameter: foods (must be array)".to_owned(),
                 )
             })?;
 
@@ -648,14 +647,14 @@ pub fn handle_analyze_meal_nutrition(
                 .get("fdc_id")
                 .and_then(Value::as_u64)
                 .ok_or_else(|| {
-                    ProtocolError::InvalidRequest("Each food must have fdc_id".to_string())
+                    ProtocolError::InvalidRequest("Each food must have fdc_id".to_owned())
                 })?;
 
             let grams = food_item
                 .get("grams")
                 .and_then(Value::as_f64)
                 .ok_or_else(|| {
-                    ProtocolError::InvalidRequest("Each food must have grams".to_string())
+                    ProtocolError::InvalidRequest("Each food must have grams".to_owned())
                 })?;
 
             meal_foods.push((fdc_id, grams));
