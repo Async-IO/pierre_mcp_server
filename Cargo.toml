@@ -147,8 +147,7 @@ rand_chacha = "0.3"
 
 [lints.rust]
 # Forbid unsafe code (already enforced by codebase standards)
-# Use "deny" instead of "forbid" to allow test files to override with #![allow(unsafe_code)]
-unsafe_code = "deny"
+unsafe_code = "forbid"
 
 # Warn on missing documentation for public APIs
 missing_docs = "warn"
@@ -193,7 +192,6 @@ too_many_lines = "allow"
 # ============================================================================
 # Additional Code Quality Lints
 # ============================================================================
-
 # Catch common performance issues
 clone_on_copy = "warn"
 redundant_clone = "warn"

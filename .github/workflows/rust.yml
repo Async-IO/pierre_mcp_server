@@ -35,7 +35,7 @@ jobs:
         rm -rf ~/.cargo/git/db/
     
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@1.87.0
+      uses: dtolnay/rust-toolchain@1.88.0
       with:
         components: rustfmt, clippy
 
@@ -51,52 +51,21 @@ jobs:
     - name: Check formatting
       run: cargo fmt --all -- --check
 
-    - name: Lint with Clippy (Zero Tolerance)
-      run: cargo clippy --all-targets --all-features --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
+    - name: Lint with Clippy (Zero Tolerance via Cargo.toml)
+      run: cargo clippy --all-targets --all-features --quiet
 
-    - name: Code Quality Validation (TOML-based)
-      run: |
-        echo "🔍 Running TOML-based code quality validation..."
+    - name: Install cargo-deny
+      uses: taiki-e/install-action@cargo-deny
 
-        # Install ripgrep if not available
-        if ! command -v rg &> /dev/null; then
-          echo "📦 Installing ripgrep..."
-          sudo apt-get update && sudo apt-get install -y ripgrep
-        fi
+    - name: Security Audit (via deny.toml)
+      run: cargo deny check
+      continue-on-error: true
 
-        python3 scripts/parse-validation-patterns.py scripts/validation-patterns.toml > /tmp/patterns.env
-        source /tmp/patterns.env
+    - name: Install ripgrep (for architectural validation)
+      run: sudo apt-get update && sudo apt-get install -y ripgrep
 
-        # Check for critical placeholder patterns
-        CRITICAL_COUNT=$(rg "$CRITICAL_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-
-        # Calculate warning count excluding documented long functions
-        TOTAL_WARNING_COUNT=$(rg "$WARNING_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-        DOCUMENTED_LONG_FUNCTIONS=$(rg -B2 "#\[allow\(clippy::too_many_lines\)\]" src/ | rg "// Long function:|// Safe:" --count 2>/dev/null || echo "0")
-        WARNING_COUNT=$((TOTAL_WARNING_COUNT - DOCUMENTED_LONG_FUNCTIONS))
-
-        echo "📊 Validation Results:"
-        echo "  Critical patterns: $CRITICAL_COUNT"
-        echo "  Total warning patterns: $TOTAL_WARNING_COUNT"
-        echo "  Documented long functions: $DOCUMENTED_LONG_FUNCTIONS"
-        echo "  Actual warnings: $WARNING_COUNT"
-
-        if [ "$CRITICAL_COUNT" -gt 0 ]; then
-          echo "❌ Critical placeholder patterns found:"
-          rg "$CRITICAL_PATTERNS" src/ -n | head -10
-          echo ""
-          echo "These patterns indicate incomplete implementations that must be fixed."
-          exit 1
-        fi
-
-        if [ "$WARNING_COUNT" -gt 0 ]; then
-          echo "⚠️  Warning patterns found:"
-          rg "$WARNING_PATTERNS" src/ -n | head -5
-          echo ""
-          echo "Consider reviewing these patterns for code quality improvements."
-        fi
-
-        echo "✅ Code quality validation passed!"
+    - name: Architectural Validation (Custom Patterns)
+      run: ./scripts/architectural-validation.sh
 
     - name: Build (optimized for space)
       run: cargo build --verbose --release

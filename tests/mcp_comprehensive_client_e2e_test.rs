@@ -362,10 +362,7 @@ async fn test_comprehensive_mcp_tools_e2e() -> Result<()> {
 
     // Test MCP protocol methods
     let init_response = MockMcpHandler::handle_initialize();
-    println!(
-        " MCP initialize: {}",
-        init_response.get("result").is_some()
-    );
+    println!(" MCP initialize: {}", init_response.get("result").is_some());
 
     let tools_response = MockMcpHandler::handle_list_tools();
     if let Some(tools) = tools_response
