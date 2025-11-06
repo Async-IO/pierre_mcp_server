@@ -110,6 +110,46 @@ New-Item -Path "$env:APPDATA\ChatGPT\config.json" -ItemType File -Force
 }
 ```
 
+### Claude Code
+
+Claude Code uses HTTP transport instead of stdio and requires JWT authentication.
+
+**Configuration File Location:**
+- `~/.claude.json` (NOT `~/.config/claude-code/mcp_config.json`)
+
+**Configuration:**
+
+```json
+{
+  "mcpServers": {
+    "pierre-production": {
+      "url": "http://localhost:8081/mcp",
+      "transport": "http",
+      "headers": {
+        "Authorization": "Bearer <JWT_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+**Getting Your JWT Token:**
+
+```bash
+# Generate fresh user account and JWT token
+./scripts/complete-user-workflow.sh 8081
+
+# The JWT token will be in .workflow_test_env
+source .workflow_test_env
+echo $JWT_TOKEN
+```
+
+**Important: JWT Token Caching**
+
+Claude Code caches JWT tokens in memory. If you update the token in `~/.claude.json`, you **must quit Claude Code completely** (Cmd+Q) and relaunch it. Simply reconnecting or closing windows will not clear the cached token.
+
+See [Troubleshooting JWT Token Issues](#jwt-token-caching-issues) for details.
+
 ### Other MCP Clients
 
 For any MCP-compatible client, use the stdio transport configuration:
@@ -316,6 +356,70 @@ curl -X POST "http://localhost:8081/oauth/disconnect/strava" \
 # Get new authorization URL
 curl "http://localhost:8081/oauth/strava/connect" \
   -H "Authorization: Bearer $JWT_TOKEN"
+```
+
+### JWT Token Caching Issues
+
+**Symptoms:**
+- MCP tools return "Unauthorized" error
+- Config file (`~/.claude.json`) has correct JWT token
+- Server logs show authentication failures with old JWT key ID
+- Error message: `Key not found in JWKS: key_20251103_210741`
+
+**Root Cause:**
+
+Claude Code caches JWT tokens at multiple levels:
+1. **MCP transport layer** (in-memory cache)
+2. **MCP connection logs** at `~/Library/Caches/claude-cli-nodejs/`
+3. **Session history** at `~/.claude/projects/`
+
+**Solution:**
+
+**1. Verify your token is correct:**
+
+```bash
+# Check the key ID in your config file
+python3 -c "import base64, json; header = '$(grep "Authorization" ~/.claude.json | grep -o "eyJ[A-Za-z0-9_-]*" | head -1)'; decoded = json.loads(base64.urlsafe_b64decode(header + '==').decode('utf-8')); print('Config kid:', decoded['kid'])"
+```
+
+**2. Check server logs for actual key received:**
+
+```bash
+grep "Key not found in JWKS" server.log | tail -1
+```
+
+**3. If the key IDs don't match - Restart Claude Code:**
+
+- Quit Claude Code completely with **Cmd+Q** (macOS) or exit all windows
+- Wait 2-3 seconds
+- Relaunch Claude Code
+- The MCP client will re-read `~/.claude.json` with the fresh token
+
+**Note:** Running `/mcp reconnect` or closing individual windows does NOT clear the JWT cache.
+
+**4. Test authentication:**
+
+After restarting, test an MCP tool to verify authentication works.
+
+**When JWT Tokens Expire:**
+
+Pierre MCP Server generates new RSA signing keys on each restart. When this happens:
+1. All existing JWT tokens become invalid
+2. Generate a new JWT token: `./scripts/complete-user-workflow.sh 8081`
+3. Update `~/.claude.json` with the new token (JWT_TOKEN from `.workflow_test_env`)
+4. Restart Claude Code completely (Cmd+Q)
+
+**Debugging Commands:**
+
+```bash
+# View recent server authentication events
+tail -f server.log | grep "JWT authentication\|Key not found"
+
+# Check MCP connection logs
+ls -lt ~/Library/Caches/claude-cli-nodejs/-Users-*/mcp-logs-pierre-production/ | head -5
+
+# Verify config file JWT
+grep "Authorization" ~/.claude.json | cut -c1-100
 ```
 
 ## Advanced Configuration

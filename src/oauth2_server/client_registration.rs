@@ -84,6 +84,10 @@ impl ClientRegistrationManager {
             })?;
 
         // Return registration response
+        // Build default client_uri from actual server configuration (if initialized)
+        // Falls back to localhost:8081 for test environments
+        let default_client_uri = Self::get_default_client_uri();
+
         Ok(ClientRegistrationResponse {
             client_id,
             client_secret,
@@ -93,7 +97,9 @@ impl ClientRegistrationManager {
             grant_types,
             response_types,
             client_name: request.client_name,
-            client_uri: request.client_uri,
+            // RFC 7591: client_uri is OPTIONAL but Claude Code requires it to be non-null
+            // Provide actual server URL when not specified by the client
+            client_uri: request.client_uri.or(Some(default_client_uri)),
             scope: request
                 .scope
                 .or_else(|| Some("fitness:read activities:read profile:read".to_string())),
@@ -291,6 +297,16 @@ impl ClientRegistrationManager {
     /// Generate client ID
     fn generate_client_id() -> String {
         format!("mcp_client_{}", Uuid::new_v4().simple())
+    }
+
+    /// Get default `client_uri` for OAuth client registration
+    ///
+    /// Uses server config if initialized (production), falls back to localhost:8081 (tests)
+    fn get_default_client_uri() -> String {
+        crate::constants::try_get_server_config().map_or_else(
+            || "http://localhost:8081".to_string(),
+            |config| format!("http://{}:{}", config.host, config.http_port),
+        )
     }
 
     /// Generate client secret

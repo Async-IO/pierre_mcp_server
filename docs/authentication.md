@@ -173,6 +173,253 @@ Pierre requires pkce (rfc 7636) for security:
 
 No plain text challenge methods allowed.
 
+## mcp client integration (claude code, vs code, etc.)
+
+mcp clients (claude code, vs code with cline/continue, cursor, etc.) connect to pierre via http-based mcp protocol.
+
+### authentication flow
+
+1. **user registration and login**:
+```bash
+# create user account
+curl -X POST http://localhost:8081/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePass123!"
+  }'
+
+# login to get jwt token
+curl -X POST http://localhost:8081/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePass123!"
+  }'
+```
+
+response includes jwt token:
+```json
+{
+  "jwt_token": "eyJ0eXAiOiJKV1Qi...",
+  "expires_at": "2025-11-05T18:00:00Z",
+  "user": {
+    "id": "75059e8b-1f56-4fcf-a14e-860966783c93",
+    "email": "user@example.com"
+  }
+}
+```
+
+2. **configure mcp client**:
+
+option a: **claude code** - using `/mcp` command (interactive):
+```bash
+# in claude code session
+/mcp add pierre-production \
+  --url http://localhost:8081/mcp \
+  --transport http \
+  --header "Authorization: Bearer eyJ0eXAiOiJKV1Qi..."
+```
+
+manual configuration (`~/.config/claude-code/mcp_config.json`):
+```json
+{
+  "mcpServers": {
+    "pierre-production": {
+      "url": "http://localhost:8081/mcp",
+      "transport": "http",
+      "headers": {
+        "Authorization": "Bearer eyJ0eXAiOiJKV1Qi..."
+      }
+    }
+  }
+}
+```
+
+option b: **vs code** (cline, continue, cursor) - edit settings:
+
+for cline extension (`~/.vscode/settings.json` or workspace settings):
+```json
+{
+  "cline.mcpServers": {
+    "pierre-production": {
+      "url": "http://localhost:8081/mcp",
+      "transport": "http",
+      "headers": {
+        "Authorization": "Bearer eyJ0eXAiOiJKV1Qi..."
+      }
+    }
+  }
+}
+```
+
+for continue extension:
+```json
+{
+  "continue.mcpServers": [{
+    "url": "http://localhost:8081/mcp",
+    "headers": {
+      "Authorization": "Bearer eyJ0eXAiOiJKV1Qi..."
+    }
+  }]
+}
+```
+
+3. **automatic authentication**:
+
+mcp clients include jwt token in all mcp requests:
+```http
+POST /mcp HTTP/1.1
+Host: localhost:8081
+Authorization: Bearer eyJ0eXAiOiJKV1Qi...
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "connect_provider",
+    "arguments": {"provider": "strava"}
+  }
+}
+```
+
+pierre's mcp server validates jwt on every request:
+- extracts user_id from token
+- validates signature using jwks
+- checks expiration
+- enforces rate limits per tenant
+
+### mcp endpoint authentication requirements
+
+| endpoint | auth required | notes |
+|----------|---------------|-------|
+| `POST /mcp` (initialize) | no | discovery only |
+| `POST /mcp` (tools/list) | no | unauthenticated tool listing |
+| `POST /mcp` (tools/call) | yes | requires valid jwt |
+| `POST /mcp` (prompts/list) | no | discovery only |
+| `POST /mcp` (resources/list) | no | discovery only |
+
+implementation: `src/mcp/multitenant.rs:1726`
+
+### token expiry and refresh
+
+jwt tokens expire after 24 hours (default, configurable via `JWT_EXPIRY_HOURS`).
+
+when token expires, user must:
+1. login again to get new jwt token
+2. update claude code configuration with new token
+
+automatic refresh not implemented in most mcp clients (requires manual re-login).
+
+### connecting to fitness providers
+
+once authenticated to pierre, connect to fitness providers:
+
+1. **using mcp tool** (recommended):
+```
+user: "connect to strava"
+```
+
+mcp client calls `connect_provider` tool with jwt authentication:
+- pierre validates jwt, extracts user_id
+- generates oauth authorization url for that user_id
+- opens browser for strava authorization
+- callback stores strava token for user_id
+- **no pierre login required** - user already authenticated via jwt!
+
+2. **via rest api**:
+```bash
+curl -H "Authorization: Bearer <jwt>" \
+  http://localhost:8081/api/oauth/auth/strava/<user_id>
+```
+
+### why no pierre login during strava oauth?
+
+common question: "why don't i need to log into pierre when connecting to strava?"
+
+**answer**: you're already authenticated!
+
+sequence:
+1. you logged into pierre (got jwt token)
+2. configured your mcp client (claude code, vs code, cursor, etc.) with jwt token
+3. mcp client includes jwt in every mcp request
+4. when you say "connect to strava":
+   - mcp client sends `tools/call` with jwt
+   - pierre extracts user_id from jwt (e.g., `75059e8b-1f56-4fcf-a14e-860966783c93`)
+   - generates oauth url: `http://localhost:8081/api/oauth/auth/strava/75059e8b-1f56-4fcf-a14e-860966783c93`
+   - state parameter includes user_id: `75059e8b-1f56-4fcf-a14e-860966783c93:random_nonce`
+5. browser opens strava authorization (you prove you own the strava account)
+6. strava redirects to callback with code
+7. pierre validates state, exchanges code for token
+8. stores strava token for your user_id (from jwt)
+
+**key insight**: jwt token proves your identity to pierre. strava oauth proves you own the fitness account. no duplicate login needed.
+
+### security considerations
+
+**jwt token storage**: mcp clients store jwt tokens in configuration files:
+- claude code: `~/.config/claude-code/mcp_config.json`
+- vs code extensions: `.vscode/settings.json` or user settings
+
+these files should have restricted permissions (chmod 600 for config files).
+
+**token exposure**: jwt tokens in config files are sensitive. treat like passwords:
+- don't commit to version control
+- don't share tokens
+- rotate regularly (re-login to get new token)
+- revoke if compromised
+
+**oauth state validation**: pierre validates oauth state parameters to prevent:
+- csrf attacks (random nonce verified)
+- user_id spoofing (state must match authenticated user)
+- replay attacks (state used once)
+
+**implementation**: `src/routes/auth.rs`, `src/mcp/multitenant.rs`
+
+### troubleshooting
+
+**"authentication required" error**:
+- check jwt token in your mcp client's configuration file
+  - claude code: `~/.config/claude-code/mcp_config.json`
+  - vs code: `.vscode/settings.json`
+- verify token not expired (24h default)
+- confirm token format: `Bearer eyJ0eXAi...`
+
+**"invalid token" error**:
+- token may be expired - login again
+- token signature invalid - check `PIERRE_MASTER_ENCRYPTION_KEY`
+- user account may be disabled - check user status
+
+**fitness provider connection fails**:
+- check oauth credentials (client_id, client_secret) at server startup
+- verify redirect_uri matches provider registration
+- see oauth credential validation logs for fingerprint debugging
+
+**oauth credential debugging**:
+
+pierre validates oauth credentials at startup and logs fingerprints:
+```
+OAuth provider strava: enabled=true, client_id=163846,
+  secret_length=40, secret_fingerprint=f3c0d77f
+```
+
+use fingerprints to compare secrets without exposing actual values:
+```bash
+# check correct secret
+echo -n "0f2b184c076e60a35e8ced43db9c3c20c5fcf4f3" | \
+  sha256sum | cut -c1-8
+# output: f3c0d77f ← correct
+
+# check wrong secret
+echo -n "1dfc45ad0a1f6983b835e4495aa9473d111d03bc" | \
+  sha256sum | cut -c1-8
+# output: 79092abb ← wrong!
+```
+
+if fingerprints don't match, you're using wrong credentials.
+
 ## provider oauth (fitness data)
 
 Pierre acts as oauth client to fitness providers.

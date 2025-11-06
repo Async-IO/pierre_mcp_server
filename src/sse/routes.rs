@@ -127,23 +127,20 @@ pub async fn handle_protocol_sse(
     let session_id_clone = session_id.clone();
 
     let stream = async_stream::stream! {
-        // Send initial connection established event with sequential event IDs
+        // Sequential event IDs for MCP protocol messages
         let mut event_id: u64 = 0;
-        event_id += 1;
-        yield Ok::<_, warp::Error>(warp::sse::Event::default()
-            .id(event_id.to_string())
-            .data("MCP protocol stream ready")
-            .event("connected"));
 
-        // Listen for MCP messages
+        // Listen for MCP messages - no initial "connected" event as per MCP spec
+        // The MCP protocol handshake will happen via JSON-RPC initialize exchange
         loop {
             match receiver.recv().await {
                 Ok(message) => {
                     event_id += 1;
-                    yield Ok(warp::sse::Event::default()
+                    // Send JSON-RPC message as SSE data without custom event type
+                    // MCP spec: SSE events contain JSON-RPC messages as data
+                    yield Ok::<_, warp::Error>(warp::sse::Event::default()
                         .id(event_id.to_string())
-                        .data(message)
-                        .event("message"));
+                        .data(message));
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
                     use crate::config::environment::SseBufferStrategy;

@@ -72,7 +72,34 @@ fn setup_configuration(args: &Args) -> Result<ServerConfig> {
     info!("Starting Pierre Fitness API - Production Mode");
     info!("{}", config.summary());
 
+    validate_oauth_providers(&config);
+
     Ok(config)
+}
+
+/// Validate OAuth provider credentials at startup
+fn validate_oauth_providers(config: &ServerConfig) {
+    info!("Validating OAuth provider credentials...");
+    let all_valid = validate_all_providers(config);
+    log_validation_result(all_valid);
+}
+
+/// Validate all OAuth providers and return combined result
+fn validate_all_providers(config: &ServerConfig) -> bool {
+    let strava_valid = config.oauth.strava.validate_and_log("strava");
+    let fitbit_valid = config.oauth.fitbit.validate_and_log("fitbit");
+    let garmin_valid = config.oauth.garmin.validate_and_log("garmin");
+    strava_valid && fitbit_valid && garmin_valid
+}
+
+/// Log OAuth validation result
+fn log_validation_result(all_valid: bool) {
+    if all_valid {
+        info!("OAuth credential validation passed for all enabled providers");
+    } else {
+        error!("OAuth credential validation failed - check client_id/client_secret configuration");
+        error!("Hint: Compare secret_fingerprint with known good values to detect mismatches");
+    }
 }
 
 /// Bootstrap the complete server with all dependencies

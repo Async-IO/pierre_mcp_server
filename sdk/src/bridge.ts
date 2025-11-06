@@ -1136,6 +1136,26 @@ export class PierreMcpClient {
 
         // Connect to Pierre MCP Server
         await this.pierreClient.connect(transport);
+
+        // CRITICAL: Validate that the MCP handshake completed successfully
+        // The server MUST respond to initialize with proper JSON-RPC, not custom SSE events
+        // This catches servers that send "event:connected" or other non-MCP messages
+        try {
+          this.log('Validating MCP protocol handshake with ping...');
+          const pingTimeout = 5000; // 5 second timeout for validation
+          const pingResult = await Promise.race([
+            this.pierreClient.ping(),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('MCP ping timeout - server may not be responding to JSON-RPC requests')), pingTimeout)
+            )
+          ]);
+          this.log('MCP protocol validation successful - server is responding to JSON-RPC requests');
+        } catch (validationError: any) {
+          this.log(`MCP protocol validation FAILED: ${validationError.message}`);
+          this.log('Server may be sending invalid SSE events (e.g., "event:connected") instead of JSON-RPC messages');
+          throw new Error(`MCP protocol validation failed: ${validationError.message}. Server must send only JSON-RPC messages over SSE, not custom events.`);
+        }
+
         connected = true;
 
         if (hasTokens) {

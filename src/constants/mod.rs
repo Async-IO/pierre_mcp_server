@@ -39,6 +39,14 @@ pub fn get_server_config() -> &'static ServerConfig {
         .expect("Server configuration not initialized - call init_server_config() first")
 }
 
+/// Try to get reference to the static server configuration without panicking
+///
+/// Returns `None` if `init_server_config()` hasn't been called yet (e.g., in tests)
+#[must_use]
+pub fn try_get_server_config() -> Option<&'static ServerConfig> {
+    SERVER_CONFIG.get()
+}
+
 // Domain-specific modules
 pub mod cache;
 pub mod errors;

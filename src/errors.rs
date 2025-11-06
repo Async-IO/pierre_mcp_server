@@ -239,6 +239,9 @@ impl AppError {
             | ErrorCode::MissingRequiredField
             | ErrorCode::InvalidFormat
             | ErrorCode::ValueOutOfRange => self.message.clone(),
+            // JWT validation errors: expose details to help with troubleshooting
+            // (key mismatches, expiry, etc. don't contain sensitive data)
+            ErrorCode::AuthInvalid if self.message.contains("JWT") => self.message.clone(),
             // All other errors: use generic description (auth, database, internal)
             _ => self.code.description().to_string(),
         }

@@ -364,6 +364,93 @@ pub struct OAuthProviderConfig {
     pub enabled: bool,
 }
 
+impl OAuthProviderConfig {
+    /// Compute SHA256 fingerprint of client secret for debugging (first 8 hex chars)
+    /// This allows comparing secrets without logging actual values
+    #[must_use]
+    pub fn secret_fingerprint(&self) -> Option<String> {
+        self.client_secret.as_ref().map(|secret| {
+            use sha2::{Digest, Sha256};
+            let mut hasher = Sha256::new();
+            hasher.update(secret.as_bytes());
+            let result = hasher.finalize();
+            format!("{result:x}").chars().take(8).collect()
+        })
+    }
+
+    /// Validate OAuth credentials and log diagnostics
+    /// Returns true if credentials appear valid, false otherwise
+    pub fn validate_and_log(&self, provider_name: &str) -> bool {
+        if !self.enabled {
+            info!("OAuth provider {provider_name} is disabled");
+            return true; // Disabled is valid state
+        }
+
+        let Some(client_id) = self.validate_client_id(provider_name) else {
+            return false;
+        };
+
+        let Some(client_secret) = self.validate_client_secret(provider_name) else {
+            return false;
+        };
+
+        self.log_credential_diagnostics(provider_name, client_id, client_secret);
+        Self::validate_secret_length(provider_name, client_secret)
+    }
+
+    /// Validate client ID is present and non-empty
+    fn validate_client_id(&self, provider_name: &str) -> Option<&str> {
+        match &self.client_id {
+            Some(id) if !id.is_empty() => Some(id.as_str()),
+            _ => {
+                warn!("OAuth provider {provider_name}: client_id is missing or empty");
+                None
+            }
+        }
+    }
+
+    /// Validate client secret is present and non-empty
+    fn validate_client_secret(&self, provider_name: &str) -> Option<&str> {
+        match &self.client_secret {
+            Some(secret) if !secret.is_empty() => Some(secret.as_str()),
+            _ => {
+                warn!("OAuth provider {provider_name}: client_secret is missing or empty");
+                None
+            }
+        }
+    }
+
+    /// Log OAuth credential diagnostics (fingerprint, lengths, etc.)
+    fn log_credential_diagnostics(
+        &self,
+        provider_name: &str,
+        client_id: &str,
+        client_secret: &str,
+    ) {
+        let fingerprint = self
+            .secret_fingerprint()
+            .unwrap_or_else(|| "none".to_string());
+        info!(
+            "OAuth provider {provider_name}: enabled=true, client_id={client_id}, \
+             secret_length={}, secret_fingerprint={fingerprint}",
+            client_secret.len()
+        );
+    }
+
+    /// Validate secret length meets minimum requirements
+    fn validate_secret_length(provider_name: &str, client_secret: &str) -> bool {
+        if client_secret.len() < 20 {
+            warn!(
+                "OAuth provider {provider_name}: client_secret is unusually short ({} chars) - \
+                 this may indicate a configuration error",
+                client_secret.len()
+            );
+            return false;
+        }
+        true
+    }
+}
+
 /// `OAuth2` authorization server configuration (for Pierre acting as OAuth server)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuth2ServerConfig {
