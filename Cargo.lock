@@ -1995,6 +1995,7 @@ dependencies = [
  "urlencoding",
  "uuid",
  "warp",
+ "zeroize",
 ]
 
 [[package]]

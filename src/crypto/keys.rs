@@ -11,6 +11,7 @@ use base64::{engine::general_purpose, Engine};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroize;
 
 /// Ed25519 keypair for A2A client authentication
 #[derive(Debug, Clone)]
@@ -49,6 +50,10 @@ impl A2AKeyManager {
         rng.fill_bytes(&mut secret_bytes);
 
         let signing_key = SigningKey::from_bytes(&secret_bytes);
+
+        // Security: Zeroize secret bytes after key creation to prevent memory exposure
+        secret_bytes.zeroize();
+
         let verifying_key = signing_key.verifying_key();
 
         let public_key = general_purpose::STANDARD.encode(verifying_key.as_bytes());

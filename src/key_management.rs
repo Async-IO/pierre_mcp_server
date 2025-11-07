@@ -91,13 +91,34 @@ impl MasterEncryptionKey {
     }
 
     /// Log the generated key for development use
+    ///
+    /// # Security
+    /// Only logs MEK in debug builds AND when `PIERRE_LOG_MEK=true` env var is set
+    /// This prevents accidental key exposure in production logs
     fn log_generated_key(key: &[u8; 32]) {
-        let encoded = base64::engine::general_purpose::STANDARD.encode(key);
-        warn!(
-            "Generated MEK (save for production): PIERRE_MASTER_ENCRYPTION_KEY={}",
-            encoded
-        );
-        warn!("Add this to your environment variables for production deployment");
+        // Only log MEK in debug builds with explicit environment flag
+        #[cfg(debug_assertions)]
+        {
+            if std::env::var("PIERRE_LOG_MEK").unwrap_or_default() == "true" {
+                let encoded = base64::engine::general_purpose::STANDARD.encode(key);
+                warn!(
+                    "Generated MEK (save for production): PIERRE_MASTER_ENCRYPTION_KEY={}",
+                    encoded
+                );
+                warn!("Add this to your environment variables for production deployment");
+            } else {
+                warn!("Generated MEK - Set PIERRE_LOG_MEK=true to display (debug builds only)");
+            }
+        }
+
+        // In release builds, never log the key
+        #[cfg(not(debug_assertions))]
+        {
+            let _ = key; // Silence unused warning
+            warn!(
+                "Generated temporary MEK - Use PIERRE_MASTER_ENCRYPTION_KEY env var for production"
+            );
+        }
     }
 
     /// Get the raw key bytes for encryption operations

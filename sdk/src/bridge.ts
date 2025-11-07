@@ -148,7 +148,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     this.log(`Client info storage path: ${this.clientInfoPath}`);
   }
 
-  private async initializeSecureStorage(): Promise<void> {
+  public async initializeSecureStorage(): Promise<void> {
     try {
       this.secureStorage = await createSecureStorage(this.log.bind(this));
       // Load existing tokens from keychain
@@ -1051,6 +1051,9 @@ export class PierreMcpClient {
     // Set up Pierre connection parameters
     this.mcpUrl = `${this.config.pierreServerUrl}/mcp`;
     this.oauthProvider = new PierreOAuthClientProvider(this.config.pierreServerUrl, this.config);
+
+    // Initialize secure storage before any operations that might need it
+    await this.oauthProvider.initializeSecureStorage();
     this.log(`Pierre MCP URL configured: ${this.mcpUrl}`);
 
     // Validate cached tokens and client registration at startup
