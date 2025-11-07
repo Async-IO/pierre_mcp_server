@@ -1007,17 +1007,20 @@ async fn handle_token_info(
     }
 }
 
-/// Handle admin setup - create first admin user and return token
-// Long function: Creates complete initial admin setup with validation and token generation
-#[allow(clippy::too_many_lines)]
-async fn handle_admin_setup(
-    request: AdminSetupRequest,
-    context: AdminApiContext,
-) -> Result<impl Reply, Rejection> {
-    info!("Admin setup request for email: {}", request.email);
-
-    // First check if any admin users already exist
-    match context.database.get_users_by_status("active").await {
+/// Check if any admin users already exist
+///
+/// Returns an error response if an admin already exists, or Ok(None) if setup can proceed
+///
+/// # Arguments
+/// * `database` - Database connection to query users
+///
+/// # Returns
+/// * `Ok(None)` - No admin exists, setup can proceed
+/// * `Ok(Some(response))` - Admin exists, contains error response to return
+async fn check_no_admin_exists(
+    database: &Database,
+) -> Result<Option<warp::reply::WithStatus<warp::reply::Json>>, Rejection> {
+    match database.get_users_by_status("active").await {
         Ok(users) => {
             let admin_exists = users.iter().any(|u| u.is_admin);
             if admin_exists {
@@ -1027,8 +1030,9 @@ async fn handle_admin_setup(
                         .into(),
                     data: None,
                 };
-                return Ok(with_status(json(&response), StatusCode::CONFLICT));
+                return Ok(Some(with_status(json(&response), StatusCode::CONFLICT)));
             }
+            Ok(None)
         }
         Err(e) => {
             error!("Failed to check existing admin users: {}", e);
@@ -1037,15 +1041,32 @@ async fn handle_admin_setup(
                 message: format!("Database error: {e}"),
                 data: None,
             };
-            return Ok(with_status(
+            Ok(Some(with_status(
                 json(&response),
                 StatusCode::INTERNAL_SERVER_ERROR,
-            ));
+            )))
         }
     }
+}
 
-    // Create admin user
+/// Create admin user record with hashed password
+///
+/// Hashes the password and creates an admin user in the database
+///
+/// # Arguments
+/// * `database` - Database connection for persistence
+/// * `request` - Admin setup request with email, password, and display name
+///
+/// # Returns
+/// * `Ok(user_id)` - Successfully created user, returns the user ID
+/// * `Err(response)` - Failed to create user, contains error response
+async fn create_admin_user_record(
+    database: &Database,
+    request: &AdminSetupRequest,
+) -> Result<Uuid, warp::reply::WithStatus<warp::reply::Json>> {
     let user_id = Uuid::new_v4();
+
+    // Hash password
     let password_hash = match bcrypt::hash(&request.password, bcrypt::DEFAULT_COST) {
         Ok(hash) => hash,
         Err(e) => {
@@ -1055,7 +1076,7 @@ async fn handle_admin_setup(
                 message: "Failed to process password".into(),
                 data: None,
             };
-            return Ok(with_status(
+            return Err(with_status(
                 json(&response),
                 StatusCode::INTERNAL_SERVER_ERROR,
             ));
@@ -1072,62 +1093,11 @@ async fn handle_admin_setup(
     admin_user.is_admin = true;
     admin_user.user_status = crate::models::UserStatus::Active;
 
-    // Create user in database
-    match context.database.create_user(&admin_user).await {
+    // Persist to database
+    match database.create_user(&admin_user).await {
         Ok(_) => {
             info!("Admin user created successfully: {}", request.email);
-
-            // Generate admin token immediately
-            let token_request = crate::admin::models::CreateAdminTokenRequest {
-                service_name: "initial_admin_setup".to_owned(),
-                service_description: Some("Initial admin setup token".to_owned()),
-                permissions: Some(vec![
-                    crate::admin::models::AdminPermission::ManageUsers,
-                    crate::admin::models::AdminPermission::ManageAdminTokens,
-                    crate::admin::models::AdminPermission::ProvisionKeys,
-                    crate::admin::models::AdminPermission::ListKeys,
-                    crate::admin::models::AdminPermission::UpdateKeyLimits,
-                    crate::admin::models::AdminPermission::RevokeKeys,
-                    crate::admin::models::AdminPermission::ViewAuditLogs,
-                ]),
-                is_super_admin: true,
-                expires_in_days: Some(365),
-            };
-
-            match context
-                .database
-                .create_admin_token(
-                    &token_request,
-                    &context.admin_jwt_secret,
-                    &context.jwks_manager,
-                )
-                .await
-            {
-                Ok(generated_token) => {
-                    let response = AdminSetupResponse {
-                        user_id: user_id.to_string(),
-                        admin_token: generated_token.jwt_token,
-                        message: format!(
-                            "Admin user {} created successfully with token",
-                            request.email
-                        ),
-                    };
-                    info!("Admin setup completed successfully for: {}", request.email);
-                    Ok(with_status(json(&response), StatusCode::CREATED))
-                }
-                Err(e) => {
-                    error!("Failed to generate admin token after creating user: {}", e);
-                    let response = AdminResponse {
-                        success: false,
-                        message: format!("User created but token generation failed: {e}"),
-                        data: None,
-                    };
-                    Ok(with_status(
-                        json(&response),
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                    ))
-                }
-            }
+            Ok(user_id)
         }
         Err(e) => {
             error!("Failed to create admin user: {}", e);
@@ -1136,12 +1106,109 @@ async fn handle_admin_setup(
                 message: format!("Failed to create admin user: {e}"),
                 data: None,
             };
-            Ok(with_status(
+            Err(with_status(
                 json(&response),
                 StatusCode::INTERNAL_SERVER_ERROR,
             ))
         }
     }
+}
+
+/// Generate initial admin token with full permissions
+///
+/// Creates a super admin token with all permissions for initial setup
+///
+/// # Arguments
+/// * `database` - Database connection for token creation
+/// * `admin_jwt_secret` - JWT secret for token signing
+/// * `jwks_manager` - JWKS manager for key management
+///
+/// # Returns
+/// * `Ok(token)` - Successfully generated token string
+/// * `Err(response)` - Failed to generate token, contains error response
+async fn generate_initial_admin_token(
+    database: &Database,
+    admin_jwt_secret: &str,
+    jwks_manager: &Arc<crate::admin::jwks::JwksManager>,
+) -> Result<String, warp::reply::WithStatus<warp::reply::Json>> {
+    let token_request = crate::admin::models::CreateAdminTokenRequest {
+        service_name: "initial_admin_setup".to_owned(),
+        service_description: Some("Initial admin setup token".to_owned()),
+        permissions: Some(vec![
+            crate::admin::models::AdminPermission::ManageUsers,
+            crate::admin::models::AdminPermission::ManageAdminTokens,
+            crate::admin::models::AdminPermission::ProvisionKeys,
+            crate::admin::models::AdminPermission::ListKeys,
+            crate::admin::models::AdminPermission::UpdateKeyLimits,
+            crate::admin::models::AdminPermission::RevokeKeys,
+            crate::admin::models::AdminPermission::ViewAuditLogs,
+        ]),
+        is_super_admin: true,
+        expires_in_days: Some(365),
+    };
+
+    match database
+        .create_admin_token(&token_request, admin_jwt_secret, jwks_manager)
+        .await
+    {
+        Ok(generated_token) => Ok(generated_token.jwt_token),
+        Err(e) => {
+            error!("Failed to generate admin token after creating user: {}", e);
+            let response = AdminResponse {
+                success: false,
+                message: format!("User created but token generation failed: {e}"),
+                data: None,
+            };
+            Err(with_status(
+                json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
+    }
+}
+
+/// Handle admin setup - create first admin user and return token
+async fn handle_admin_setup(
+    request: AdminSetupRequest,
+    context: AdminApiContext,
+) -> Result<impl Reply, Rejection> {
+    info!("Admin setup request for email: {}", request.email);
+
+    // Check if any admin users already exist
+    if let Some(error_response) = check_no_admin_exists(&context.database).await? {
+        return Ok(error_response);
+    }
+
+    // Create admin user
+    let user_id = match create_admin_user_record(&context.database, &request).await {
+        Ok(id) => id,
+        Err(error_response) => return Ok(error_response),
+    };
+
+    // Generate admin token
+    let admin_token = match generate_initial_admin_token(
+        &context.database,
+        &context.admin_jwt_secret,
+        &context.jwks_manager,
+    )
+    .await
+    {
+        Ok(token) => token,
+        Err(error_response) => return Ok(error_response),
+    };
+
+    // Return success response
+    let response = AdminSetupResponse {
+        user_id: user_id.to_string(),
+        admin_token,
+        message: format!(
+            "Admin user {} created successfully with token",
+            request.email
+        ),
+    };
+
+    info!("Admin setup completed successfully for: {}", request.email);
+    Ok(with_status(json(&response), StatusCode::CREATED))
 }
 
 /// Handle setup status check - returns whether admin setup is needed
@@ -1663,33 +1730,82 @@ async fn handle_admin_tokens_rotate(
     }
 }
 
-/// Handle JWT secret rotation
-async fn handle_rotate_jwt_secret(
-    admin_token: crate::admin::models::ValidatedAdminToken,
-    context: AdminApiContext,
-) -> Result<impl Reply, Rejection> {
-    info!(
-        "Rotating JWT secret requested by admin: {}",
-        admin_token.service_name
-    );
-
-    // Only super admins can rotate JWT secrets
+/// Check if admin token has super admin permission
+///
+/// Returns an error response if not a super admin
+///
+/// # Arguments
+/// * `admin_token` - Validated admin token to check
+///
+/// # Returns
+/// * `None` - Token is super admin, can proceed
+/// * `Some(response)` - Not super admin, contains forbidden response
+fn check_super_admin_permission(
+    admin_token: &crate::admin::models::ValidatedAdminToken,
+) -> Option<warp::reply::WithStatus<warp::reply::Json>> {
     if !admin_token.is_super_admin {
         let response = AdminResponse {
             success: false,
             message: "Only super admin tokens can rotate JWT secrets".into(),
             data: None,
         };
-        return Ok(with_status(json(&response), StatusCode::FORBIDDEN));
+        return Some(with_status(json(&response), StatusCode::FORBIDDEN));
     }
+    None
+}
 
-    // Generate new JWT secret
-    let new_jwt_secret = crate::admin::jwt::AdminJwtManager::generate_jwt_secret();
+/// Record JWT rotation audit trail
+///
+/// Records the JWT rotation action for audit logging
+///
+/// # Arguments
+/// * `database` - Database connection for audit logging
+/// * `token_id` - Admin token ID performing the rotation
+/// * `success` - Whether the rotation succeeded
+/// * `error_message` - Optional error message if failed
+async fn record_jwt_rotation_audit(
+    database: &Database,
+    token_id: &str,
+    success: bool,
+    error_message: Option<String>,
+) {
+    let usage = crate::admin::models::AdminTokenUsage {
+        id: None,
+        admin_token_id: token_id.to_owned(),
+        timestamp: chrono::Utc::now(),
+        action: crate::admin::models::AdminAction::ViewAuditLogs, // Closest available action
+        target_resource: Some("jwt_secret".to_owned()),
+        ip_address: None,
+        user_agent: None,
+        request_size_bytes: None,
+        success,
+        error_message,
+        response_time_ms: None,
+    };
 
-    // Update the secret in database
-    match context
-        .database
-        .update_system_secret("admin_jwt_secret", &new_jwt_secret)
+    if let Err(e) = database.record_admin_token_usage(&usage).await {
+        warn!("Failed to record admin token usage for JWT rotation: {}", e);
+    }
+}
+
+/// Perform JWT secret rotation and return response
+///
+/// Updates the JWT secret in the database and records audit trail
+///
+/// # Arguments
+/// * `database` - Database connection for secret update
+/// * `new_secret` - New JWT secret to store
+/// * `admin_token` - Admin token performing the rotation (for audit)
+///
+/// # Returns
+/// Response indicating success or failure
+async fn perform_jwt_secret_rotation(
+    database: &Database,
+    new_secret: &str,
+    admin_token: &crate::admin::models::ValidatedAdminToken,
+) -> warp::reply::WithStatus<warp::reply::Json> {
+    match database
+        .update_system_secret("admin_jwt_secret", new_secret)
         .await
     {
         Ok(()) => {
@@ -1698,25 +1814,7 @@ async fn handle_rotate_jwt_secret(
                 admin_token.service_name
             );
 
-            // Record admin action for audit trail
-            let usage = crate::admin::models::AdminTokenUsage {
-                id: None,
-                admin_token_id: admin_token.token_id,
-                timestamp: chrono::Utc::now(),
-                action: crate::admin::models::AdminAction::ViewAuditLogs, // Closest available action
-                target_resource: Some("jwt_secret".to_owned()),
-                ip_address: None,
-                user_agent: None,
-                request_size_bytes: None,
-                success: true,
-                error_message: None,
-                response_time_ms: None,
-            };
-
-            // Record usage (ignore errors for audit)
-            if let Err(e) = context.database.record_admin_token_usage(&usage).await {
-                warn!("Failed to record admin token usage for JWT rotation: {}", e);
-            }
+            record_jwt_rotation_audit(database, &admin_token.token_id, true, None).await;
 
             let response = AdminResponse {
                 success: true,
@@ -1727,45 +1825,44 @@ async fn handle_rotate_jwt_secret(
                     "warning": "All existing admin tokens are now invalid and must be regenerated"
                 })),
             };
-            Ok(with_status(json(&response), StatusCode::OK))
+            with_status(json(&response), StatusCode::OK)
         }
         Err(e) => {
             warn!("Failed to rotate JWT secret: {}", e);
 
-            // Record failed action for audit trail
-            let usage = crate::admin::models::AdminTokenUsage {
-                id: None,
-                admin_token_id: admin_token.token_id,
-                timestamp: chrono::Utc::now(),
-                action: crate::admin::models::AdminAction::ViewAuditLogs,
-                target_resource: Some("jwt_secret".to_owned()),
-                ip_address: None,
-                user_agent: None,
-                request_size_bytes: None,
-                success: false,
-                error_message: Some(e.to_string()),
-                response_time_ms: None,
-            };
-
-            // Record usage (ignore errors for audit)
-            if let Err(e) = context.database.record_admin_token_usage(&usage).await {
-                warn!(
-                    "Failed to record admin token usage for failed JWT rotation: {}",
-                    e
-                );
-            }
+            record_jwt_rotation_audit(database, &admin_token.token_id, false, Some(e.to_string()))
+                .await;
 
             let response = AdminResponse {
                 success: false,
                 message: format!("Failed to rotate JWT secret: {e}"),
                 data: None,
             };
-            Ok(with_status(
-                json(&response),
-                StatusCode::INTERNAL_SERVER_ERROR,
-            ))
+            with_status(json(&response), StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+/// Handle JWT secret rotation
+async fn handle_rotate_jwt_secret(
+    admin_token: crate::admin::models::ValidatedAdminToken,
+    context: AdminApiContext,
+) -> Result<impl Reply, Rejection> {
+    info!(
+        "Rotating JWT secret requested by admin: {}",
+        admin_token.service_name
+    );
+
+    // Check super admin permission
+    if let Some(error_response) = check_super_admin_permission(&admin_token) {
+        return Ok(error_response);
+    }
+
+    // Generate new JWT secret
+    let new_jwt_secret = crate::admin::jwt::AdminJwtManager::generate_jwt_secret();
+
+    // Perform rotation and return response
+    Ok(perform_jwt_secret_rotation(&context.database, &new_jwt_secret, &admin_token).await)
 }
 
 /// Pending users route
