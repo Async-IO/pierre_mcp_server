@@ -10,10 +10,10 @@ version = 2
 # Ignored advisories (from original script)
 ignore = [
     "RUSTSEC-2023-0071",  # Existing ignore from scripts/lint-and-test.sh
+    "RUSTSEC-2024-0384",  # instant crate unmaintained (no safe upgrade via reqwest-retry)
+    "RUSTSEC-2024-0387",  # opentelemetry_api merged into opentelemetry (used by opentelemetry-stdout)
 ]
 
-# Fail the build on any vulnerability except ignored ones
-deny = []
 # Warn on yanked crates
 yanked = "warn"
 
@@ -21,14 +21,19 @@ yanked = "warn"
 # License Validation - Ensure Only Approved Open Source Licenses
 # ============================================================================
 [licenses]
-# Only allow MIT and Apache-2.0 (matches package.license in Cargo.toml)
-allow = ["MIT", "Apache-2.0"]
+# Allow OSI-approved permissive licenses used by dependencies
+allow = [
+    "MIT",                    # Most common permissive license
+    "Apache-2.0",             # Apache license
+    "Unicode-3.0",            # ICU Unicode libraries
+    "ISC",                    # ring/untrusted crypto libraries
+    "CDLA-Permissive-2.0",    # webpki-roots TLS certificates
+    "BSD-3-Clause",           # BSD license (crypto: curve25519, ed25519, redis, subtle, instant)
+    "MPL-2.0",                # Mozilla Public License (option-ext)
+    "Zlib",                   # zlib license (foldhash)
+]
 # Confidence threshold for license detection
 confidence-threshold = 0.93
-# Deny licenses that are not explicitly allowed
-deny = []
-# Warn on copyleft licenses
-copyleft = "warn"
 # Allow certain licenses for exceptions (if needed in future)
 exceptions = []
 
