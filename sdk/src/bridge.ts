@@ -38,6 +38,7 @@ import {
   OAuthClientInformationFull
 } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { z } from 'zod';
+import { createSecureStorage, SecureTokenStorage } from './secure-storage.js';
 
 // Load OAuth HTML templates
 // __dirname is available in CommonJS, TypeScript will compile this correctly
@@ -119,30 +120,43 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   private authorizationPending: Promise<any> | undefined = undefined;
   private callbackPort: number = 0;
 
-  // Client-side token storage
-  private tokenStoragePath: string;
+  // Secure token storage using OS keychain
+  private secureStorage: SecureTokenStorage | undefined = undefined;
   private allStoredTokens: StoredTokens = {};
 
-  // Client-side client info storage
+  // Client-side client info storage (client info is not sensitive, can stay in file)
   private clientInfoPath: string;
 
   constructor(serverUrl: string, config: BridgeConfig) {
     this.serverUrl = serverUrl;
     this.config = config;
 
-    // Initialize client-side storage paths
+    // Initialize client info storage path
     const os = require('os');
     const path = require('path');
-    this.tokenStoragePath = path.join(os.homedir(), '.pierre-mcp-tokens.json');
     this.clientInfoPath = path.join(os.homedir(), '.pierre-mcp-client-info.json');
 
-    // Load existing tokens and client info from storage
-    this.loadStoredTokens();
+    // Initialize secure storage (async, will be loaded in async init)
+    this.initializeSecureStorage();
+
+    // Load client info from storage (synchronous, non-sensitive)
     this.loadClientInfo();
 
     this.log(`OAuth client provider created for server: ${serverUrl}`);
-    this.log(`Token storage path: ${this.tokenStoragePath}`);
+    this.log(`Using OS keychain for secure token storage`);
     this.log(`Client info storage path: ${this.clientInfoPath}`);
+  }
+
+  private async initializeSecureStorage(): Promise<void> {
+    try {
+      this.secureStorage = await createSecureStorage(this.log.bind(this));
+      // Load existing tokens from keychain
+      await this.loadStoredTokens();
+      this.log('Secure storage initialized with OS keychain');
+    } catch (error) {
+      this.log(`Failed to initialize secure storage: ${error}`);
+      this.log('WARNING: Token storage will not be available');
+    }
   }
 
   private log(message: string, ...args: any[]): void {
@@ -150,26 +164,30 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     console.error(`[${timestamp}] [Pierre OAuth] ${message}`, ...args);
   }
 
-  // Client-side token storage methods
-  private loadStoredTokens(): void {
+  // Client-side token storage methods using secure keychain
+  private async loadStoredTokens(): Promise<void> {
     try {
-      const fs = require('fs');
-      if (fs.existsSync(this.tokenStoragePath)) {
-        const data = fs.readFileSync(this.tokenStoragePath, 'utf8');
-        this.allStoredTokens = JSON.parse(data);
+      if (!this.secureStorage) {
+        this.log('Secure storage not initialized, skipping token load');
+        return;
+      }
+
+      const tokens = await this.secureStorage.getTokens();
+      if (tokens) {
+        this.allStoredTokens = tokens;
 
         // Load Pierre tokens into memory for MCP SDK compatibility
         if (this.allStoredTokens.pierre) {
           this.savedTokens = this.allStoredTokens.pierre;
-          this.log(`Loaded Pierre tokens from storage`);
+          this.log(`Loaded Pierre tokens from keychain`);
         }
 
         if (this.allStoredTokens.providers) {
           const providerCount = Object.keys(this.allStoredTokens.providers).length;
-          this.log(`Loaded ${providerCount} provider token(s) from storage`);
+          this.log(`Loaded ${providerCount} provider token(s) from keychain`);
         }
       } else {
-        this.log(`No stored tokens found, starting fresh`);
+        this.log(`No stored tokens found in keychain, starting fresh`);
       }
     } catch (error) {
       this.log(`Failed to load stored tokens: ${error}`);
@@ -209,12 +227,15 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
   private async saveStoredTokens(): Promise<void> {
     try {
-      const fs = require('fs');
-      const data = JSON.stringify(this.allStoredTokens, null, 2);
-      fs.writeFileSync(this.tokenStoragePath, data, 'utf8');
-      this.log(`Saved tokens to storage`);
+      if (!this.secureStorage) {
+        this.log('Secure storage not initialized, cannot save tokens');
+        return;
+      }
+
+      await this.secureStorage.saveTokens(this.allStoredTokens);
+      this.log(`Saved tokens to OS keychain`);
     } catch (error) {
-      this.log(`Failed to save tokens to storage: ${error}`);
+      this.log(`Failed to save tokens to keychain: ${error}`);
     }
   }
 
@@ -224,9 +245,14 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       this.savedTokens = undefined;
       delete this.allStoredTokens.pierre;
 
-      // Save updated storage (without Pierre tokens)
-      await this.saveStoredTokens();
-      this.log(`Cleared Pierre tokens from storage`);
+      // Clear from keychain if secure storage is available
+      if (this.secureStorage) {
+        await this.secureStorage.clearTokens();
+        this.log(`Cleared all tokens from keychain`);
+      }
+
+      // Reset in-memory storage
+      this.allStoredTokens = {};
     } catch (error) {
       this.log(`Failed to clear tokens: ${error}`);
     }
@@ -914,13 +940,10 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         this.log(`Cached credentials are invalid: ${result.error || 'unknown error'}`);
         this.log('Cleaning up invalid cached credentials...');
 
-        // Clear invalid tokens
-        if (existingTokens) {
-          const fs = require('fs');
-          if (fs.existsSync(this.tokenStoragePath)) {
-            fs.unlinkSync(this.tokenStoragePath);
-            this.log('Cleared invalid tokens');
-          }
+        // Clear invalid tokens from keychain
+        if (existingTokens && this.secureStorage) {
+          await this.secureStorage.clearTokens();
+          this.log('Cleared invalid tokens from keychain');
         }
 
         // Clear invalid client info

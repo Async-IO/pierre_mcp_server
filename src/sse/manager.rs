@@ -311,6 +311,16 @@ impl SseManager {
             metadata_map.remove(&connection_id);
         }
 
+        // Clean up session from user_sessions to prevent memory leak
+        {
+            let mut user_sessions = self.user_sessions.write().await;
+            user_sessions.retain(|_user_id, sessions| {
+                sessions.retain(|s| s != session_id);
+                // Keep user entry only if they still have active sessions
+                !sessions.is_empty()
+            });
+        }
+
         tracing::info!("Unregistered protocol stream for session: {}", session_id);
     }
 
