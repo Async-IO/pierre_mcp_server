@@ -92,7 +92,7 @@ fn create_test_config(port: u16) -> Arc<pierre_mcp_server::config::environment::
             },
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["*".to_owned()],
             tls: pierre_mcp_server::config::environment::TlsConfig {
                 enabled: false,
                 cert_path: None,

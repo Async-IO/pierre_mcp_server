@@ -200,5 +200,5 @@ redundant_clone = "warn"
 await_holding_lock = "warn"
 
 # Catch string allocation inefficiencies
-string_to_string = "warn"
-str_to_string = "warn"
+string_to_string = "deny"
+str_to_string = "deny"

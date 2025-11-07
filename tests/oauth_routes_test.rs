@@ -87,7 +87,7 @@ async fn test_email_validation() {
             ..Default::default()
         },
         security: SecurityConfig {
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["*".to_owned()],
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -285,7 +285,7 @@ async fn test_password_validation() {
             ..Default::default()
         },
         security: SecurityConfig {
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["*".to_owned()],
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -455,7 +455,7 @@ async fn test_duplicate_user_registration() {
             ..Default::default()
         },
         security: SecurityConfig {
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["*".to_owned()],
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -616,7 +616,7 @@ async fn test_login_with_correct_credentials() {
             ..Default::default()
         },
         security: SecurityConfig {
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["*".to_owned()],
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -821,7 +821,7 @@ async fn test_login_with_wrong_password() {
             ..Default::default()
         },
         security: SecurityConfig {
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["*".to_owned()],
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -989,7 +989,7 @@ async fn test_login_with_non_existent_user() {
             ..Default::default()
         },
         security: SecurityConfig {
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["*".to_owned()],
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,

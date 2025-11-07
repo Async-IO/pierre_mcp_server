@@ -236,7 +236,7 @@ async fn test_multitenant_auth_flow() -> Result<()> {
             },
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["*".to_owned()],
             tls: pierre_mcp_server::config::environment::TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -691,7 +691,7 @@ async fn test_input_validation() -> Result<()> {
             },
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["*".to_owned()],
             tls: pierre_mcp_server::config::environment::TlsConfig {
                 enabled: false,
                 cert_path: None,

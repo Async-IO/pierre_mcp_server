@@ -1635,7 +1635,7 @@ fn create_test_server_config() -> ServerConfig {
             },
         },
         security: SecurityConfig {
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["*".to_owned()],
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,

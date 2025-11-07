@@ -223,7 +223,7 @@ fn create_test_server_config_without_oauth(
             },
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["*".to_owned()],
             tls: pierre_mcp_server::config::environment::TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -322,7 +322,7 @@ fn create_test_server_config(
             },
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["*".to_owned()],
             tls: pierre_mcp_server::config::environment::TlsConfig {
                 enabled: false,
                 cert_path: None,

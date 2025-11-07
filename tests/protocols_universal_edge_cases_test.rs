@@ -81,7 +81,7 @@ fn create_test_config() -> Arc<ServerConfig> {
             },
         },
         security: SecurityConfig {
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["*".to_owned()],
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,

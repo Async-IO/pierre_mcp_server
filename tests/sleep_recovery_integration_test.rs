@@ -86,7 +86,7 @@ fn create_test_external_services_config() -> ExternalServicesConfig {
 /// Create test security configuration
 fn create_test_security_config() -> SecurityConfig {
     SecurityConfig {
-        cors_origins: vec!["*".to_string()],
+        cors_origins: vec!["*".to_owned()],
         tls: TlsConfig {
             enabled: false,
             cert_path: None,

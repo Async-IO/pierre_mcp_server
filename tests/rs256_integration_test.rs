@@ -4,7 +4,7 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, unsafe_code)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
 mod common;
@@ -236,15 +236,18 @@ async fn test_rs256_tampered_token_rejection() -> Result<()> {
     );
 
     // Generate valid token
-    let mut token = auth_manager.generate_token(&user, &jwks_manager_arc)?;
+    let token = auth_manager.generate_token(&user, &jwks_manager_arc)?;
 
-    // Tamper with token by changing a character
-    let bytes = unsafe { token.as_bytes_mut() };
-    if bytes[50] == b'a' {
-        bytes[50] = b'b';
+    // Tamper with token by changing a character (safe approach)
+    let mut token_bytes = token.into_bytes();
+    if token_bytes[50] == b'a' {
+        token_bytes[50] = b'b';
     } else {
-        bytes[50] = b'a';
+        token_bytes[50] = b'a';
     }
+    // Safe: We're only modifying ASCII characters in a JWT token
+    #[allow(clippy::unwrap_used)]
+    let token = String::from_utf8(token_bytes).unwrap();
 
     // Tampered token should fail validation
     let result = auth_manager.validate_token(&token, &jwks_manager_arc);

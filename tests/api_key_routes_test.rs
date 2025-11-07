@@ -136,7 +136,7 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                     },
                 },
                 security: pierre_mcp_server::config::environment::SecurityConfig {
-                    cors_origins: vec!["*".to_string()],
+                    cors_origins: vec!["*".to_owned()],
                     tls: pierre_mcp_server::config::environment::TlsConfig {
                         enabled: false,
                         cert_path: None,

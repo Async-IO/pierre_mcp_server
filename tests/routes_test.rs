@@ -134,7 +134,7 @@ async fn test_register_user() {
             ..Default::default()
         },
         security: SecurityConfig {
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["*".to_owned()],
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
@@ -295,7 +295,7 @@ async fn test_register_duplicate_user() {
             ..Default::default()
         },
         security: SecurityConfig {
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["*".to_owned()],
             tls: TlsConfig {
                 enabled: false,
                 cert_path: None,
