@@ -137,14 +137,15 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     const path = require('path');
     this.clientInfoPath = path.join(os.homedir(), '.pierre-mcp-client-info.json');
 
-    // Initialize secure storage (async, will be loaded in async init)
-    this.initializeSecureStorage();
+    // NOTE: Secure storage initialization is async, so it's deferred to start()
+    // to avoid race conditions with constructor completion
+    // See initializePierreConnection() for the actual initialization
 
     // Load client info from storage (synchronous, non-sensitive)
     this.loadClientInfo();
 
     this.log(`OAuth client provider created for server: ${serverUrl}`);
-    this.log(`Using OS keychain for secure token storage`);
+    this.log(`Using OS keychain for secure token storage (will initialize on start)`);
     this.log(`Client info storage path: ${this.clientInfoPath}`);
   }
 
