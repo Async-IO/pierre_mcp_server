@@ -120,6 +120,67 @@ else
 fi
 
 # ============================================================================
+# CLIPPY ALLOW ATTRIBUTE VALIDATION (CLAUDE.md enforcement)
+# ============================================================================
+
+echo -e "${BLUE}Validating clippy allow attribute usage...${NC}"
+
+# Allowed exceptions (from Cargo.toml [lints.clippy] section and justified cases)
+# Cast-related exceptions (CLAUDE.md explicitly allows these when validated):
+#   - cast_possible_truncation, cast_sign_loss, cast_precision_loss (explicit CLAUDE.md policy)
+#   - cast_possible_wrap (similar cast safety validation with "// Safe:" comments)
+# Structural exceptions (allowed in Cargo.toml):
+#   - struct_excessive_bools (configuration structs with boolean flags)
+#   - too_many_lines (long functions with mandatory documentation)
+# Legitimate technical exceptions (with justification comments):
+#   - let_unit_value (intentional unit value patterns)
+#   - option_if_let_else (borrow checker constraints)
+#   - cognitive_complexity (complex algorithms requiring detailed logic)
+#   - bool_to_int_with_if (multi-level thresholds, not simple conversions)
+#   - type_complexity (complex types in generic code)
+#   - too_many_arguments (algorithm functions with many validated parameters)
+ALLOWED_CLIPPY_ALLOWS="cast_possible_truncation|cast_sign_loss|cast_precision_loss|cast_possible_wrap|struct_excessive_bools|too_many_lines|let_unit_value|option_if_let_else|cognitive_complexity|bool_to_int_with_if|type_complexity|too_many_arguments"
+
+# Find all #[allow(clippy::...)] usages
+CLIPPY_ALLOWS=$(rg "#\[allow\(clippy::" src/ -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+if [ "$CLIPPY_ALLOWS" -gt 0 ]; then
+    # Check if any are NOT in the allowed exceptions list
+    FORBIDDEN_ALLOWS=$(rg "#\[allow\(clippy::" src/ -g "!src/bin/*" | grep -v -E "$ALLOWED_CLIPPY_ALLOWS" | wc -l | awk '{print $1+0}')
+
+    if [ "$FORBIDDEN_ALLOWS" -gt 0 ]; then
+        echo -e "${RED}❌ FORBIDDEN: Found $FORBIDDEN_ALLOWS unauthorized #[allow(clippy::)] attributes${NC}"
+        echo -e "${RED}Only allowed for: cast_possible_truncation, cast_sign_loss, cast_precision_loss${NC}"
+        rg "#\[allow\(clippy::" src/ -g "!src/bin/*" -n | grep -v -E "$ALLOWED_CLIPPY_ALLOWS" | head -10
+        fail_validation "Fix the underlying issue instead of silencing warnings"
+    else
+        pass_validation "Clippy allow attributes limited to approved cast exceptions"
+    fi
+else
+    pass_validation "No clippy allow attributes found"
+fi
+
+# ============================================================================
+# UNDERSCORE-PREFIXED NAME VALIDATION (CLAUDE.md enforcement)
+# ============================================================================
+
+echo -e "${BLUE}Validating underscore-prefixed names...${NC}"
+
+# Pattern: fn _, let _foo, struct _, enum _
+# Note: This allows single underscore (_) for unused variables, but forbids
+# names like _foo, _bar, _test, etc.
+UNDERSCORE_NAMES=$(rg "fn _[a-zA-Z]|let _[a-zA-Z]|struct _[a-zA-Z]|enum _[a-zA-Z]" src/ -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+if [ "$UNDERSCORE_NAMES" -gt 0 ]; then
+    echo -e "${RED}❌ FORBIDDEN: Found $UNDERSCORE_NAMES underscore-prefixed names${NC}"
+    echo -e "${RED}Use meaningful names or proper unused variable handling${NC}"
+    rg "fn _[a-zA-Z]|let _[a-zA-Z]|struct _[a-zA-Z]|enum _[a-zA-Z]" src/ -g "!src/bin/*" -n | head -10
+    fail_validation "Replace underscore-prefixed names with meaningful identifiers"
+else
+    pass_validation "No underscore-prefixed names found"
+fi
+
+# ============================================================================
 # ALGORITHM DI ARCHITECTURE ENFORCEMENT
 # ============================================================================
 
