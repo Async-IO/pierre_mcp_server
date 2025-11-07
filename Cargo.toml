@@ -146,8 +146,12 @@ rand_chacha = "0.3"
 # All clippy warnings are now ERRORS via level = "deny" configuration below.
 
 [lints.rust]
-# Forbid unsafe code (already enforced by codebase standards)
-unsafe_code = "forbid"
+# STRICT UNSAFE CODE POLICY: Zero tolerance with whitelisted exceptions
+# - "deny" level: Unsafe code is an ERROR by default everywhere
+# - scripts/architectural-validation.sh: Enforces ONLY src/health.rs can use unsafe (Windows FFI)
+# - Any unsafe usage outside approved locations FAILS build immediately
+# - Approved: Windows health monitoring FFI (GlobalMemoryStatusEx, GetDiskFreeSpaceExW)
+unsafe_code = "deny"
 
 # Warn on missing documentation for public APIs
 missing_docs = "warn"

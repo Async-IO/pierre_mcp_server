@@ -98,6 +98,27 @@ if [ "$TOML_ERROR_CONTEXT" -gt 0 ]; then
     fail_validation "Use AppError/DatabaseError/ProviderError instead of anyhow!"
 fi
 
+# STRICT unsafe code usage validation (CLAUDE.md enforcement)
+# Only allowed in src/health.rs for Windows FFI (GlobalMemoryStatusEx, GetDiskFreeSpaceExW)
+echo -e "${BLUE}Validating unsafe code usage...${NC}"
+UNSAFE_USAGE=$(rg "#\[allow\(unsafe_code\)\]|unsafe \{|unsafe fn" src/ -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+if [ "$UNSAFE_USAGE" -gt 0 ]; then
+    # Check if unsafe usage is ONLY in approved locations
+    APPROVED_UNSAFE=$(rg "#\[allow\(unsafe_code\)\]|unsafe \{|unsafe fn" src/health.rs --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    UNAPPROVED_UNSAFE=$(rg "#\[allow\(unsafe_code\)\]|unsafe \{|unsafe fn" src/ -g "!src/health.rs" -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+    if [ "$UNAPPROVED_UNSAFE" -gt 0 ]; then
+        echo -e "${RED}❌ FORBIDDEN: Found $UNAPPROVED_UNSAFE unauthorized unsafe code usages${NC}"
+        echo -e "${RED}Unsafe code is ONLY permitted in src/health.rs for Windows FFI${NC}"
+        rg "#\[allow\(unsafe_code\)\]|unsafe \{|unsafe fn" src/ -g "!src/health.rs" -g "!src/bin/*" -n | head -10
+        fail_validation "Remove unsafe code or justify with ChefFamille approval"
+    else
+        pass_validation "Unsafe code usage limited to approved locations (src/health.rs for Windows FFI)"
+    fi
+else
+    pass_validation "No unsafe code found in production code"
+fi
+
 # ============================================================================
 # ALGORITHM DI ARCHITECTURE ENFORCEMENT
 # ============================================================================
