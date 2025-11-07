@@ -342,7 +342,7 @@ impl ToolHandlers {
                         result: Some(json!({
                             "content": [{
                                 "type": "text",
-                                "text": format!("Invalid provider '{}'. Supported providers are: strava, fitbit", provider_name)
+                                "text": format!("Invalid provider '{provider_name}'. Supported providers are: strava, fitbit")
                             }],
                             "isError": true
                         })),
@@ -557,7 +557,7 @@ impl ToolHandlers {
                         jsonrpc: JSONRPC_VERSION.to_owned(),
                         result: Some(serde_json::json!({
                             "success": true,
-                            "message": format!("Marked {} notifications as read", count),
+                            "message": format!("Marked {count} notifications as read"),
                             "marked_count": count
                         })),
                         error: None,

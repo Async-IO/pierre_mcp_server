@@ -155,16 +155,11 @@ impl PaginationParams {
 }
 
 /// Direction for pagination
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum PaginationDirection {
     /// Paginate forward (older to newer)
+    #[default]
     Forward,
     /// Paginate backward (newer to older)
     Backward,
-}
-
-impl Default for PaginationDirection {
-    fn default() -> Self {
-        Self::Forward
-    }
 }

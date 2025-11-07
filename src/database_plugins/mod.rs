@@ -86,7 +86,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         admin_token_id: &str,
     ) -> Result<User>;
 
-    /// Update user's tenant_id to link them to a tenant (tenant_id should be UUID string)
+    /// Update user's `tenant_id` to link them to a tenant (`tenant_id` should be UUID string)
     async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()>;
 
     // ================================
@@ -140,7 +140,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     // User OAuth App Credentials
     // ================================
 
-    /// Store user OAuth app credentials (client_id, client_secret)
+    /// Store user OAuth app credentials (`client_id`, `client_secret`)
     async fn store_user_oauth_app(
         &self,
         user_id: Uuid,
@@ -572,7 +572,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         client: &crate::oauth2_server::models::OAuth2Client,
     ) -> Result<()>;
 
-    /// Get OAuth 2.0 client by client_id
+    /// Get OAuth 2.0 client by `client_id`
     async fn get_oauth2_client(
         &self,
         client_id: &str,
@@ -621,8 +621,8 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     ///
     /// # Arguments
     /// * `code` - The authorization code to consume
-    /// * `client_id` - Expected client_id (validation)
-    /// * `redirect_uri` - Expected redirect_uri (validation)
+    /// * `client_id` - Expected `client_id` (validation)
+    /// * `redirect_uri` - Expected `redirect_uri` (validation)
     /// * `now` - Current timestamp for expiration check
     async fn consume_auth_code(
         &self,
@@ -642,7 +642,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     ///
     /// # Arguments
     /// * `token` - The refresh token to consume
-    /// * `client_id` - Expected client_id (validation)
+    /// * `client_id` - Expected `client_id` (validation)
     /// * `now` - Current timestamp for expiration check
     async fn consume_refresh_token(
         &self,
@@ -651,7 +651,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         now: DateTime<Utc>,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>>;
 
-    /// Look up a refresh token by its value (without client_id constraint)
+    /// Look up a refresh token by its value (without `client_id` constraint)
     ///
     /// This is used by the validate-and-refresh endpoint where we only have the token value
     /// and need to look it up to verify ownership.
@@ -682,17 +682,17 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Delete authorization code (after use)
     async fn delete_authorization_code(&self, code: &str) -> Result<()>;
 
-    /// Store OAuth2 state for CSRF protection
+    /// Store `OAuth2` state for CSRF protection
     async fn store_oauth2_state(
         &self,
         state: &crate::oauth2_server::models::OAuth2State,
     ) -> Result<()>;
 
-    /// Consume OAuth2 state (atomically check and mark as used)
+    /// Consume `OAuth2` state (atomically check and mark as used)
     ///
     /// # Arguments
     /// * `state_value` - The state parameter to consume
-    /// * `client_id` - Expected client_id (validation)
+    /// * `client_id` - Expected `client_id` (validation)
     /// * `now` - Current timestamp for expiration check
     async fn consume_oauth2_state(
         &self,

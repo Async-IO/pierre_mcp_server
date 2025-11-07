@@ -1290,7 +1290,7 @@ fn analyze_performance_trend(
             "timeframe": timeframe,
             "trend": "insufficient_data",
             "activities_analyzed": filtered_activities.len(),
-            "insights": [format!("Metric '{}' not available in enough activities", metric)]
+            "insights": [format!("Metric '{metric}' not available in enough activities")]
         });
     };
 
@@ -1300,7 +1300,7 @@ fn analyze_performance_trend(
             "timeframe": timeframe,
             "trend": "insufficient_data",
             "activities_analyzed": filtered_activities.len(),
-            "insights": [format!("Metric '{}' not available in enough activities", metric)]
+            "insights": [format!("Metric '{metric}' not available in enough activities")]
         });
     }
 
@@ -1732,8 +1732,8 @@ fn compare_with_specific_activity(
         return serde_json::json!({
             "activity_id": target.id,
             "comparison_type": "specific_activity",
-            "error": format!("Activity with ID '{}' not found", compare_id),
-            "insights": [format!("Could not find activity '{}' for comparison", compare_id)],
+            "error": format!("Activity with ID '{compare_id}' not found"),
+            "insights": [format!("Could not find activity '{compare_id}' for comparison")],
         });
     };
 
@@ -3122,7 +3122,7 @@ fn predict_race_performance(
         Err(e) => {
             serde_json::json!({
                 "target_sport": target_sport,
-                "error": format!("Failed to generate predictions: {}", e),
+                "error": format!("Failed to generate predictions: {e}"),
                 "predictions": [],
                 "message": "Unable to calculate race predictions from available data",
             })

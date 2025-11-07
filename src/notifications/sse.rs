@@ -139,19 +139,23 @@ impl SseConnectionManager {
     /// Called periodically to prevent resource exhaustion from long-lived connections
     pub async fn cleanup_stale_connections(&self) {
         let now = Instant::now();
-        let mut connections = self.connections.write().await;
+        let active_count = {
+            let mut connections = self.connections.write().await;
 
-        connections.retain(|_user_id, user_conns| {
-            // Remove timed-out connections
-            user_conns.retain(|conn| now.duration_since(conn.created_at) < self.timeout);
+            connections.retain(|_user_id, user_conns| {
+                // Remove timed-out connections
+                user_conns.retain(|conn| now.duration_since(conn.created_at) < self.timeout);
 
-            // Remove user entry if no connections left
-            !user_conns.is_empty()
-        });
+                // Remove user entry if no connections left
+                !user_conns.is_empty()
+            });
+
+            connections.len()
+        };
 
         tracing::debug!(
             "SSE cleanup completed - {} users have active connections",
-            connections.len()
+            active_count
         );
     }
 

@@ -47,14 +47,14 @@ impl SyntheticDataBuilder {
     /// Generate a synthetic running activity
     #[must_use]
     #[allow(clippy::missing_const_for_fn)] // Cannot be const: uses &mut self.rng
-    pub fn generate_run(&mut self) -> ActivityBuilder {
+    pub fn generate_run(&mut self) -> ActivityBuilder<'_> {
         ActivityBuilder::new(SportType::Run, &mut self.rng)
     }
 
     /// Generate a synthetic cycling activity
     #[must_use]
     #[allow(clippy::missing_const_for_fn)] // Cannot be const: uses &mut self.rng
-    pub fn generate_ride(&mut self) -> ActivityBuilder {
+    pub fn generate_ride(&mut self) -> ActivityBuilder<'_> {
         ActivityBuilder::new(SportType::Ride, &mut self.rng)
     }
 
@@ -62,7 +62,7 @@ impl SyntheticDataBuilder {
     /// Reserved for future swimming-specific training pattern tests
     #[must_use]
     #[allow(dead_code, clippy::missing_const_for_fn)] // Cannot be const: uses &mut self.rng
-    pub fn generate_swim(&mut self) -> ActivityBuilder {
+    pub fn generate_swim(&mut self) -> ActivityBuilder<'_> {
         ActivityBuilder::new(SportType::Swim, &mut self.rng)
     }
 

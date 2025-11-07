@@ -19,6 +19,7 @@ use std::str::FromStr;
 /// - Riegel, P.S. (1981). "Athletic records and human endurance." *American Scientist*, 69(3), 285-290.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum VdotAlgorithm {
     /// Jack Daniels' VDOT formula
     ///
@@ -28,6 +29,7 @@ pub enum VdotAlgorithm {
     ///
     /// Pros: Physiologically accurate, accounts for running economy
     /// Cons: Requires velocity calculation, best for 5K-Marathon distances
+    #[default]
     Daniels,
 
     /// Riegel power-law formula
@@ -49,12 +51,6 @@ pub enum VdotAlgorithm {
     /// 1. Daniels for 5K-Marathon range (optimal accuracy)
     /// 2. Riegel for ultra distances or when multiple race times available
     Hybrid,
-}
-
-impl Default for VdotAlgorithm {
-    fn default() -> Self {
-        Self::Daniels // Gold standard for typical race distances
-    }
 }
 
 /// Minimum velocity for VDOT calculation (m/min)

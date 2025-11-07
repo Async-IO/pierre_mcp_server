@@ -22,6 +22,7 @@ use std::str::FromStr;
 /// - Gulati, M. et al. (2010). "Heart rate response to exercise stress testing." *Circulation*, 122(2), 130-137.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum MaxHrAlgorithm {
     /// Fox formula: 220 - age
     ///
@@ -36,6 +37,7 @@ pub enum MaxHrAlgorithm {
     /// Based on meta-analysis of 18,712 subjects
     /// Standard deviation: ±7-8 bpm
     /// More accurate across all age groups
+    #[default]
     Tanaka,
 
     /// Nes formula: 211 - 0.64 x age
@@ -51,13 +53,6 @@ pub enum MaxHrAlgorithm {
     /// Standard deviation: ±7-8 bpm
     /// More accurate for female athletes than generic formulas
     Gulati,
-}
-
-impl Default for MaxHrAlgorithm {
-    fn default() -> Self {
-        // Use Tanaka as default (most accurate, research-backed)
-        Self::Tanaka
-    }
 }
 
 impl MaxHrAlgorithm {

@@ -352,7 +352,7 @@ async fn test_goal_tracking_integration() -> Result<()> {
     let goal_id = database.create_goal(user.id, goal_data).await?;
 
     // Create activities that contribute to the goal
-    let activities = vec![
+    let activities = [
         create_test_activity("run_001", &SportType::Run, 5000.0), // 5km
         create_test_activity("run_002", &SportType::Run, 8000.0), // 8km
         create_test_activity("run_003", &SportType::Run, 10000.0), // 10km

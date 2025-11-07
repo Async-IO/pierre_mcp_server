@@ -58,7 +58,7 @@ pub trait FitnessProvider: Send + Sync {
     /// Get provider configuration
     fn config(&self) -> &ProviderConfig;
 
-    /// Set OAuth2 credentials for this provider
+    /// Set `OAuth2` credentials for this provider
     async fn set_credentials(&self, credentials: OAuth2Credentials) -> Result<()>;
 
     /// Check if provider has valid authentication

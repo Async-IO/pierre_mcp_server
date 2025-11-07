@@ -50,7 +50,7 @@ async fn test_unknown_method_handler() -> Result<()> {
     let token = server
         .auth_manager()
         .generate_token(&user, &jwks_manager)
-        .map_err(|e| anyhow::anyhow!("Failed to generate JWT: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to generate JWT: {e}"))?;
 
     // Test unknown method request
     let _request_json = json!({
@@ -68,7 +68,7 @@ async fn test_unknown_method_handler() -> Result<()> {
     Ok(())
 }
 
-/// Test connect_strava handler with invalid parameters
+/// Test `connect_strava` handler with invalid parameters
 #[tokio::test]
 async fn test_connect_strava_handler_errors() -> Result<()> {
     common::init_server_config();
@@ -98,7 +98,7 @@ async fn test_connect_strava_handler_errors() -> Result<()> {
     Ok(())
 }
 
-/// Test disconnect_provider handler with various scenarios
+/// Test `disconnect_provider` handler with various scenarios
 #[tokio::test]
 async fn test_disconnect_provider_handler() -> Result<()> {
     common::init_server_config();
@@ -196,7 +196,7 @@ async fn test_rate_limiting_enforcement() -> Result<()> {
     let token = server
         .auth_manager()
         .generate_token(&user, &jwks_manager)
-        .map_err(|e| anyhow::anyhow!("Failed to generate JWT: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to generate JWT: {e}"))?;
 
     // Test rapid requests to trigger rate limiting
     // This tests the rate limiting middleware

@@ -73,7 +73,7 @@ async fn create_test_user(database: &Database, email: &str, tenant_id: Uuid) -> 
 /// Test 1: Tenant Credential Isolation
 ///
 /// Verifies that tenant A uses server-level credentials while tenant B uses
-/// tenant-specific credentials with a different CLIENT_ID
+/// tenant-specific credentials with a different `CLIENT_ID`
 #[tokio::test]
 async fn test_tenant_credential_isolation() -> Result<()> {
     let database = setup_test_database().await?;
@@ -324,7 +324,7 @@ async fn create_tenant_with_token(
 
 /// Test 3: Cross-Tenant Data Isolation
 ///
-/// Verifies that OAuth tokens are properly isolated by (user_id, tenant_id, provider)
+/// Verifies that OAuth tokens are properly isolated by (`user_id`, `tenant_id`, provider)
 /// and users cannot access tokens from other tenants
 #[tokio::test]
 async fn test_cross_tenant_oauth_token_isolation() -> Result<()> {
@@ -440,7 +440,7 @@ async fn test_cross_tenant_oauth_token_isolation() -> Result<()> {
 
 /// Test 4: OAuth Callback Tenant ID Preservation
 ///
-/// Verifies that the OAuth callback flow preserves tenant_id through the state parameter
+/// Verifies that the OAuth callback flow preserves `tenant_id` through the state parameter
 #[tokio::test]
 async fn test_oauth_callback_tenant_preservation() -> Result<()> {
     let database = setup_test_database().await?;
@@ -488,7 +488,7 @@ async fn test_oauth_callback_tenant_preservation() -> Result<()> {
 
 /// Test 5: Token Refresh with Tenant Credentials
 ///
-/// Verifies that token refresh uses the correct tenant-specific CLIENT_ID/SECRET
+/// Verifies that token refresh uses the correct tenant-specific `CLIENT_ID/SECRET`
 #[tokio::test]
 async fn test_token_refresh_uses_tenant_credentials() -> Result<()> {
     let database = setup_test_database().await?;

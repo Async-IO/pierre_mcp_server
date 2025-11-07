@@ -87,14 +87,10 @@
     clippy::macro_use_imports,
     clippy::manual_assert,
     clippy::manual_instant_elapsed,
-    clippy::manual_let_else,
     clippy::manual_ok_or,
     clippy::manual_string_new,
     clippy::many_single_char_names,
-    clippy::match_on_vec_items,
-    clippy::match_same_arms,
     clippy::match_wild_err_arm,
-    clippy::match_wildcard_for_single_variants,
     clippy::mem_forget,
     clippy::missing_enforced_import_renames,
     clippy::missing_inline_in_public_items,
@@ -122,28 +118,21 @@
     clippy::redundant_allocation,
     clippy::redundant_pub_crate,
     clippy::ref_binding_to_reference,
-    clippy::ref_option_ref,
     clippy::rest_pat_in_fully_bound_structs,
     clippy::same_functions_in_if_condition,
-    clippy::semicolon_if_nothing_returned,
-    clippy::single_match_else,
     clippy::str_to_string,
     clippy::string_add,
     clippy::string_add_assign,
     clippy::string_lit_as_bytes,
-    clippy::string_to_string,
     clippy::trait_duplication_in_bounds,
     clippy::transmute_ptr_to_ptr,
-    clippy::trivially_copy_pass_by_ref,
     clippy::tuple_array_conversions,
     clippy::unchecked_duration_subtraction,
     clippy::unicode_not_nfc,
     clippy::unimplemented,
-    clippy::uninlined_format_args,
     clippy::unnecessary_box_returns,
     clippy::unnecessary_struct_initialization,
     clippy::unnecessary_to_owned,
-    clippy::unnecessary_wraps,
     clippy::unnested_or_patterns,
     clippy::unused_peekable,
     clippy::unused_rounding,
@@ -710,7 +699,7 @@ mod integration_tests {
             },
         };
 
-        let _activities = vec![create_test_activity()];
+        let _activities = [create_test_activity()];
 
         // Test that the engine can be created with conservative strategy
         // Implementation of generate_recommendations would be in the trait

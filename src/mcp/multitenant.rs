@@ -1873,7 +1873,7 @@ impl MultiTenantMcpServer {
             Ok(Box::new(warp::reply::with_status(
                 warp::reply::json(&serde_json::json!({
                     "error": "Unauthorized access",
-                    "message": format!("Authentication required for MCP method '{}'", mcp_method),
+                    "message": format!("Authentication required for MCP method '{mcp_method}'"),
                     "method": mcp_method
                 })),
                 warp::http::StatusCode::UNAUTHORIZED,

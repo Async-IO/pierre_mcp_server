@@ -123,8 +123,10 @@ pub enum UserTier {
 /// User account status for admin approval workflow
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum UserStatus {
     /// Account pending admin approval (new registrations)
+    #[default]
     Pending,
     /// Account approved and active
     Active,
@@ -147,12 +149,6 @@ impl UserStatus {
             Self::Active => "Account is active",
             Self::Suspended => "Your account has been suspended",
         }
-    }
-}
-
-impl Default for UserStatus {
-    fn default() -> Self {
-        Self::Pending
     }
 }
 

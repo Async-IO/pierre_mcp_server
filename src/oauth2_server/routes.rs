@@ -82,10 +82,10 @@ fn oauth2_discovery_route(
         .map(move || {
             warp::reply::json(&serde_json::json!({
                 "issuer": issuer_url,
-                "authorization_endpoint": format!("{}/oauth2/authorize", issuer_url),
-                "token_endpoint": format!("{}/oauth2/token", issuer_url),
-                "registration_endpoint": format!("{}/oauth2/register", issuer_url),
-                "jwks_uri": format!("{}/.well-known/jwks.json", issuer_url),
+                "authorization_endpoint": format!("{issuer_url}/oauth2/authorize"),
+                "token_endpoint": format!("{issuer_url}/oauth2/token"),
+                "registration_endpoint": format!("{issuer_url}/oauth2/register"),
+                "jwks_uri": format!("{issuer_url}/.well-known/jwks.json"),
                 "grant_types_supported": ["authorization_code", "client_credentials", "refresh_token"],
                 "response_types_supported": ["code"],
                 "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"],

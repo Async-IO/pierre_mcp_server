@@ -300,7 +300,7 @@ impl StatisticalAnalyzer {
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         let len = sorted.len();
-        if len % 2 == 0 {
+        if len.is_multiple_of(2) {
             f64::midpoint(sorted[len / 2 - 1], sorted[len / 2])
         } else {
             sorted[len / 2]

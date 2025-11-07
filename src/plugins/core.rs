@@ -193,7 +193,7 @@ macro_rules! impl_static_plugin {
     };
 }
 
-/// Implementation trait for static plugins - plugins implement this instead of PluginTool directly
+/// Implementation trait for static plugins - plugins implement this instead of `PluginTool` directly
 #[async_trait]
 pub trait PluginImplementation {
     /// Plugin-specific implementation

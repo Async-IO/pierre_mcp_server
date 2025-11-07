@@ -22,6 +22,7 @@ use std::str::FromStr;
 /// - Lucia, A. et al. (2003). "Tour de France versus Vuelta a Espana." *Br J Sports Med*, 37(1), 50-55.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum TrimpAlgorithm {
     /// Bannister formula for males
     ///
@@ -80,13 +81,8 @@ pub enum TrimpAlgorithm {
     /// 1. Bannister (if gender, `max_hr`, `resting_hr` available)
     /// 2. Edwards (if `max_hr` available)
     /// 3. Fallback to simplified estimation
+    #[default]
     Hybrid,
-}
-
-impl Default for TrimpAlgorithm {
-    fn default() -> Self {
-        Self::Hybrid
-    }
 }
 
 impl TrimpAlgorithm {

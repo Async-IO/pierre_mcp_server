@@ -1502,7 +1502,7 @@ impl DatabaseProvider for SqliteDatabase {
         Ok(())
     }
 
-    /// Get OAuth 2.0 client by client_id
+    /// Get OAuth 2.0 client by `client_id`
     async fn get_oauth2_client(
         &self,
         client_id: &str,
@@ -1722,7 +1722,7 @@ impl DatabaseProvider for SqliteDatabase {
 
     /// Atomically consume OAuth 2.0 authorization code
     ///
-    /// Implements atomic check-and-set using UPDATE...WHERE...RETURNING (SQLite 3.35.0+)
+    /// Implements atomic check-and-set using UPDATE...WHERE...RETURNING (`SQLite` 3.35.0+)
     /// to prevent TOCTOU race conditions in concurrent token exchange requests.
     async fn consume_auth_code(
         &self,
@@ -1775,7 +1775,7 @@ impl DatabaseProvider for SqliteDatabase {
 
     /// Atomically consume OAuth 2.0 refresh token
     ///
-    /// Implements atomic check-and-revoke using UPDATE...WHERE...RETURNING (SQLite 3.35.0+)
+    /// Implements atomic check-and-revoke using UPDATE...WHERE...RETURNING (`SQLite` 3.35.0+)
     /// to prevent TOCTOU race conditions in concurrent refresh requests.
     async fn consume_refresh_token(
         &self,
@@ -1857,7 +1857,7 @@ impl DatabaseProvider for SqliteDatabase {
         }
     }
 
-    /// Store OAuth2 state for CSRF protection
+    /// Store `OAuth2` state for CSRF protection
     async fn store_oauth2_state(
         &self,
         state: &crate::oauth2_server::models::OAuth2State,
@@ -1887,7 +1887,7 @@ impl DatabaseProvider for SqliteDatabase {
         Ok(())
     }
 
-    /// Consume OAuth2 state (atomically check and mark as used)
+    /// Consume `OAuth2` state (atomically check and mark as used)
     async fn consume_oauth2_state(
         &self,
         state_value: &str,
@@ -2585,7 +2585,7 @@ impl DatabaseProvider for SqliteDatabase {
     // User OAuth App Credentials Implementation
     // ================================
 
-    /// Store user OAuth app credentials (client_id, client_secret)
+    /// Store user OAuth app credentials (`client_id`, `client_secret`)
     async fn store_user_oauth_app(
         &self,
         user_id: Uuid,

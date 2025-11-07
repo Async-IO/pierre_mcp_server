@@ -112,20 +112,21 @@ impl MasterEncryptionKey {
     ///
     /// Returns an error if encryption fails
     pub fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
-        use aes_gcm::aead::generic_array::GenericArray;
-        use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit};
+        use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
         use rand::RngCore;
 
-        let cipher = Aes256Gcm::new(GenericArray::from_slice(&self.key));
+        let cipher = Aes256Gcm::new_from_slice(&self.key)
+            .map_err(|e| AppError::internal(format!("Invalid key length: {e}")))?;
 
         // Generate random nonce
         let mut nonce_bytes = [0u8; 12];
         rand::thread_rng().fill_bytes(&mut nonce_bytes);
-        let nonce = GenericArray::from_slice(&nonce_bytes);
+        let nonce = Nonce::try_from(nonce_bytes.as_slice())
+            .map_err(|e| AppError::internal(format!("Invalid nonce length: {e}")))?;
 
         // Encrypt the data
         let ciphertext = cipher
-            .encrypt(nonce, plaintext)
+            .encrypt(&nonce, plaintext)
             .map_err(|e| AppError::internal(format!("Encryption failed: {e}")))?;
 
         // Prepend nonce to ciphertext
@@ -144,22 +145,23 @@ impl MasterEncryptionKey {
     /// - The encrypted data is too short to contain a nonce
     /// - Decryption fails due to invalid data or wrong key
     pub fn decrypt(&self, encrypted_data: &[u8]) -> Result<Vec<u8>> {
-        use aes_gcm::aead::generic_array::GenericArray;
-        use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit};
+        use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
 
         if encrypted_data.len() < 12 {
             return Err(AppError::invalid_input("Encrypted data too short").into());
         }
 
-        let cipher = Aes256Gcm::new(GenericArray::from_slice(&self.key));
+        let cipher = Aes256Gcm::new_from_slice(&self.key)
+            .map_err(|e| AppError::internal(format!("Invalid key length: {e}")))?;
 
         // Extract nonce and ciphertext
-        let nonce = GenericArray::from_slice(&encrypted_data[..12]);
+        let nonce = Nonce::try_from(&encrypted_data[..12])
+            .map_err(|e| AppError::internal(format!("Invalid nonce length: {e}")))?;
         let ciphertext = &encrypted_data[12..];
 
         // Decrypt the data
         let plaintext = cipher
-            .decrypt(nonce, ciphertext)
+            .decrypt(&nonce, ciphertext)
             .map_err(|e| AppError::internal(format!("Decryption failed: {e}")))?;
 
         Ok(plaintext)

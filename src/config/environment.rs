@@ -1010,19 +1010,15 @@ pub struct SseConfig {
 /// Strategy for handling SSE buffer overflow
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum SseBufferStrategy {
     /// Drop oldest event when buffer is full
+    #[default]
     DropOldest,
     /// Drop new event when buffer is full
     DropNew,
     /// Close SSE connection when buffer is full
     CloseConnection,
-}
-
-impl Default for SseBufferStrategy {
-    fn default() -> Self {
-        Self::DropOldest
-    }
 }
 
 impl Default for HttpClientConfig {

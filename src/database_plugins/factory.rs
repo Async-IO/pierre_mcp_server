@@ -1727,7 +1727,7 @@ impl DatabaseProvider for Database {
     // User OAuth App Credentials
     // ================================
 
-    /// Store user OAuth app credentials (client_id, client_secret)
+    /// Store user OAuth app credentials (`client_id`, `client_secret`)
     async fn store_user_oauth_app(
         &self,
         user_id: Uuid,

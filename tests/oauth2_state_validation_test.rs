@@ -303,7 +303,7 @@ async fn test_state_not_found() {
     );
 }
 
-/// Test state client_id mismatch (CSRF attack scenario)
+/// Test state `client_id` mismatch (CSRF attack scenario)
 #[tokio::test]
 async fn test_state_client_id_mismatch() {
     let encryption_key = generate_encryption_key().to_vec();

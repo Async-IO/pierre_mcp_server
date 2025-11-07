@@ -494,6 +494,25 @@ impl DatabaseProvider for PostgresDatabase {
     ) -> Result<crate::pagination::CursorPage<User>> {
         use crate::pagination::{Cursor, CursorPage};
 
+        const QUERY_WITH_CURSOR: &str = r"
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
+                   COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
+            FROM users
+            WHERE COALESCE(user_status, 'active') = $1
+              AND (created_at < $2 OR (created_at = $2 AND id::text < $3))
+            ORDER BY created_at DESC, id DESC
+            LIMIT $4
+        ";
+
+        const QUERY_WITHOUT_CURSOR: &str = r"
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
+                   COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
+            FROM users
+            WHERE COALESCE(user_status, 'active') = $1
+            ORDER BY created_at DESC, id DESC
+            LIMIT $2
+        ";
+
         // Validate status
         let status_enum = match status {
             "active" => "active",
@@ -519,25 +538,6 @@ impl DatabaseProvider for PostgresDatabase {
             );
             AppError::invalid_input(format!("Pagination limit too large: {fetch_limit}"))
         })?;
-
-        const QUERY_WITH_CURSOR: &str = r"
-            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
-                   COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
-            FROM users
-            WHERE COALESCE(user_status, 'active') = $1
-              AND (created_at < $2 OR (created_at = $2 AND id::text < $3))
-            ORDER BY created_at DESC, id DESC
-            LIMIT $4
-        ";
-
-        const QUERY_WITHOUT_CURSOR: &str = r"
-            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
-                   COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
-            FROM users
-            WHERE COALESCE(user_status, 'active') = $1
-            ORDER BY created_at DESC, id DESC
-            LIMIT $2
-        ";
 
         // Execute query with appropriate parameters
         let rows = if let Some(ref cursor) = params.cursor {
@@ -2135,6 +2135,8 @@ impl DatabaseProvider for PostgresDatabase {
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<crate::database::A2AUsageStats> {
+        use sqlx::Row;
+
         let row = sqlx::query(
             r"
             SELECT 
@@ -2154,7 +2156,6 @@ impl DatabaseProvider for PostgresDatabase {
         .fetch_one(&self.pool)
         .await?;
 
-        use sqlx::Row;
         let total_requests: i64 = row.try_get("total_requests")?;
         let successful_requests: i64 = row.try_get("successful_requests")?;
         let failed_requests: i64 = row.try_get("failed_requests")?;
@@ -4185,7 +4186,7 @@ impl DatabaseProvider for PostgresDatabase {
     // User OAuth App Credentials Implementation
     // ================================
 
-    /// Store user OAuth app credentials (client_id, client_secret)
+    /// Store user OAuth app credentials (`client_id`, `client_secret`)
     async fn store_user_oauth_app(
         &self,
         user_id: Uuid,
@@ -5059,7 +5060,7 @@ impl DatabaseProvider for PostgresDatabase {
         }
     }
 
-    /// Store OAuth2 state for CSRF protection
+    /// Store `OAuth2` state for CSRF protection
     async fn store_oauth2_state(
         &self,
         state: &crate::oauth2_server::models::OAuth2State,
@@ -5085,7 +5086,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
-    /// Consume OAuth2 state (atomically check and mark as used)
+    /// Consume `OAuth2` state (atomically check and mark as used)
     async fn consume_oauth2_state(
         &self,
         state_value: &str,

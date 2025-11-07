@@ -100,14 +100,19 @@ fi
 
 # Clippy linting (reads Cargo.toml [lints.clippy] with level = "deny")
 echo -e "${BLUE}Running cargo clippy (zero tolerance via Cargo.toml)...${NC}"
-if cargo clippy --all-targets --all-features --quiet; then
-    echo -e "${GREEN}[OK] Clippy passed - ZERO warnings (enforced by Cargo.toml)${NC}"
-else
-    echo -e "${RED}[CRITICAL] Clippy failed${NC}"
-    echo -e "${RED}Re-run without --quiet to see details:${NC}"
-    echo -e "${RED}  cargo clippy --all-targets --all-features${NC}"
+CLIPPY_OUTPUT=$(cargo clippy --all-targets --all-features 2>&1)
+CLIPPY_EXIT=$?
+# Count only code warnings, exclude dependency future-compatibility warnings
+WARNING_COUNT=$(echo "$CLIPPY_OUTPUT" | grep "^warning:" | grep -v "the following packages contain code that will be rejected by a future version of Rust" | wc -l | tr -d ' ')
+
+if [ $CLIPPY_EXIT -ne 0 ] || [ "$WARNING_COUNT" -gt 0 ]; then
+    echo "$CLIPPY_OUTPUT"
+    echo -e "${RED}[CRITICAL] Clippy failed with $WARNING_COUNT code warnings${NC}"
+    echo -e "${RED}ALL code warnings must be fixed - zero tolerance policy${NC}"
     ALL_PASSED=false
     exit 1
+else
+    echo -e "${GREEN}[OK] Clippy passed - ZERO code warnings (enforced by Cargo.toml)${NC}"
 fi
 
 # Security audit (reads deny.toml)
@@ -127,12 +132,19 @@ fi
 
 # Compilation check
 echo -e "${BLUE}Running cargo check...${NC}"
-if cargo check --all-targets --quiet; then
-    echo -e "${GREEN}[OK] Compilation check passed${NC}"
-else
-    echo -e "${RED}[CRITICAL] Compilation failed${NC}"
+CHECK_OUTPUT=$(cargo check --all-targets 2>&1)
+CHECK_EXIT=$?
+# Count only code warnings, exclude dependency future-compatibility warnings
+CHECK_WARNING_COUNT=$(echo "$CHECK_OUTPUT" | grep "^warning:" | grep -v "the following packages contain code that will be rejected by a future version of Rust" | wc -l | tr -d ' ')
+
+if [ $CHECK_EXIT -ne 0 ] || [ "$CHECK_WARNING_COUNT" -gt 0 ]; then
+    echo "$CHECK_OUTPUT"
+    echo -e "${RED}[CRITICAL] Compilation failed with $CHECK_WARNING_COUNT code warnings${NC}"
+    echo -e "${RED}ALL code warnings must be fixed - zero tolerance policy${NC}"
     ALL_PASSED=false
     exit 1
+else
+    echo -e "${GREEN}[OK] Compilation check passed${NC}"
 fi
 
 # ============================================================================

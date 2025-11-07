@@ -21,6 +21,7 @@ use std::str::FromStr;
 /// - Sanders, D. & Heijboer, M. (2018). "The anaerobic power reserve." *J Sports Sci*, 36(6), 621-629.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum TssAlgorithm {
     /// Average power based TSS (current default)
     ///
@@ -28,6 +29,7 @@ pub enum TssAlgorithm {
     ///
     /// Pros: O(1) computation, works without power stream
     /// Cons: Underestimates variable efforts by 15-30%
+    #[default]
     AvgPower,
 
     /// Normalized Power based TSS (industry standard)
@@ -47,12 +49,6 @@ pub enum TssAlgorithm {
     ///
     /// Best of both worlds for defensive programming
     Hybrid,
-}
-
-impl Default for TssAlgorithm {
-    fn default() -> Self {
-        Self::AvgPower
-    }
 }
 
 impl TssAlgorithm {

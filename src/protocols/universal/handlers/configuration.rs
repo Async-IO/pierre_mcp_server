@@ -61,7 +61,7 @@ pub fn handle_get_configuration_profiles(
             serde_json::json!({
                 "name": name,
                 "profile": profile,
-                "description": format!("Configuration profile: {}", name)
+                "description": format!("Configuration profile: {name}")
             })
         })
         .collect();

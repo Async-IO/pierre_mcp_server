@@ -103,7 +103,7 @@ fn generate_code_challenge(code_verifier: &str) -> String {
     general_purpose::URL_SAFE_NO_PAD.encode(hash)
 }
 
-/// Test PKCE enforcement - authorization without code_challenge should fail
+/// Test PKCE enforcement - authorization without `code_challenge` should fail
 #[tokio::test]
 async fn test_pkce_enforcement_no_code_challenge() {
     let (database, _auth_manager, oauth_server, client_id, _client_secret) = setup_test_env().await;
@@ -139,7 +139,7 @@ async fn test_pkce_enforcement_no_code_challenge() {
         .contains("code_challenge is required"));
 }
 
-/// Test PKCE enforcement - valid authorization with S256 code_challenge
+/// Test PKCE enforcement - valid authorization with S256 `code_challenge`
 #[tokio::test]
 async fn test_pkce_valid_s256_flow() {
     let (database, _auth_manager, oauth_server, client_id, client_secret) = setup_test_env().await;
@@ -189,7 +189,7 @@ async fn test_pkce_valid_s256_flow() {
     assert!(token_response.is_ok());
 }
 
-/// Test PKCE verification - wrong code_verifier should fail
+/// Test PKCE verification - wrong `code_verifier` should fail
 #[tokio::test]
 async fn test_pkce_invalid_code_verifier() {
     let (database, _auth_manager, oauth_server, client_id, client_secret) = setup_test_env().await;
@@ -242,7 +242,7 @@ async fn test_pkce_invalid_code_verifier() {
     assert!(error.error_description.unwrap().contains("code_verifier"));
 }
 
-/// Test PKCE - missing code_verifier when code_challenge was provided
+/// Test PKCE - missing `code_verifier` when `code_challenge` was provided
 #[tokio::test]
 async fn test_pkce_missing_code_verifier() {
     let (database, _auth_manager, oauth_server, client_id, client_secret) = setup_test_env().await;
@@ -434,7 +434,7 @@ async fn test_auth_code_client_binding() {
         .contains("Invalid or expired"));
 }
 
-/// Test redirect_uri exact match requirement
+/// Test `redirect_uri` exact match requirement
 #[tokio::test]
 async fn test_redirect_uri_exact_match() {
     let (database, _auth_manager, oauth_server, client_id, client_secret) = setup_test_env().await;

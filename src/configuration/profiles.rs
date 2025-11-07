@@ -13,8 +13,10 @@ use std::collections::HashMap;
 /// Predefined configuration profiles
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
+#[derive(Default)]
 pub enum ConfigProfile {
     /// Default configuration with standard thresholds
+    #[default]
     Default,
 
     /// Research-grade detailed analysis
@@ -183,12 +185,6 @@ impl ConfigProfile {
         }
 
         adjustments
-    }
-}
-
-impl Default for ConfigProfile {
-    fn default() -> Self {
-        Self::Default
     }
 }
 

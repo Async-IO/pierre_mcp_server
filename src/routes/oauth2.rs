@@ -31,8 +31,8 @@ impl OAuth2Routes {
             |c| c.base_url.clone(),
         );
         Ok(warp::reply::json(&serde_json::json!({
-            "authorization_endpoint": format!("{}/oauth2/authorize", base_url),
-            "token_endpoint": format!("{}/oauth2/token", base_url),
+            "authorization_endpoint": format!("{base_url}/oauth2/authorize"),
+            "token_endpoint": format!("{base_url}/oauth2/token"),
             "supported_scopes": ["read", "write", "admin"],
             "response_types_supported": ["code", "token"]
         })))

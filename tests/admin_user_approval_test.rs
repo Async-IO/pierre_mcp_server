@@ -26,7 +26,7 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
 
     // Create test directory if it doesn't exist
     std::fs::create_dir_all("./test_data")
-        .map_err(|e| anyhow::anyhow!("Failed to create test directory: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to create test directory: {e}"))?;
 
     let db_path = format!("./test_data/admin_approval_test_{test_id}.db");
     let db_url = format!("sqlite:{db_path}");
