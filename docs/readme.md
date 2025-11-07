@@ -9,6 +9,7 @@ Concise documentation for pierre mcp server.
 - **[protocols.md](protocols.md)** - mcp, oauth2, a2a, rest protocols
 - **[authentication.md](authentication.md)** - jwt, api keys, oauth2
 - **[configuration.md](configuration.md)** - environment variables and settings
+- **[build.md](build.md)** - rust toolchain, cargo configuration, linting enforcement
 - **[contributing.md](contributing.md)** - development guidelines
 
 ## quick links
@@ -19,8 +20,9 @@ Start with [getting-started.md](getting-started.md) → connect claude/chatgpt t
 ### for developers
 1. [getting-started.md](getting-started.md) - setup dev environment
 2. [architecture.md](architecture.md) - understand the system
-3. [contributing.md](contributing.md) - coding standards
-4. [protocols.md](protocols.md) - protocol details
+3. [build.md](build.md) - build configuration and linting
+4. [contributing.md](contributing.md) - coding standards
+5. [protocols.md](protocols.md) - protocol details
 
 ### for integrators
 - mcp clients: [protocols.md#mcp](protocols.md#mcp-model-context-protocol)
