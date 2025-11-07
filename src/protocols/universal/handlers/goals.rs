@@ -224,6 +224,83 @@ fn build_feasibility_response(params: &FeasibilityResponseParams) -> UniversalRe
     }
 }
 
+/// Extract goal parameters from request
+///
+/// Parses and validates required goal parameters from the request.
+///
+/// # Arguments
+/// * `request` - Universal request containing goal parameters
+///
+/// # Returns
+/// Tuple of (`goal_type`, `target_value`, `timeframe`, `title`)
+fn extract_goal_params(
+    request: &UniversalRequest,
+) -> Result<(&str, f64, &str, &str), ProtocolError> {
+    let goal_type = request
+        .parameters
+        .get("goal_type")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| ProtocolError::InvalidRequest("goal_type is required".to_owned()))?;
+
+    let target_value = request
+        .parameters
+        .get("target_value")
+        .and_then(serde_json::Value::as_f64)
+        .ok_or_else(|| ProtocolError::InvalidRequest("target_value is required".to_owned()))?;
+
+    let timeframe = request
+        .parameters
+        .get("timeframe")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| ProtocolError::InvalidRequest("timeframe is required".to_owned()))?;
+
+    let title = request
+        .parameters
+        .get("title")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Fitness Goal");
+
+    Ok((goal_type, target_value, timeframe, title))
+}
+
+/// Build goal creation response
+///
+/// Constructs success response for goal creation.
+///
+/// # Arguments
+/// * `goal_id` - Created goal's ID
+/// * `goal_type` - Type of goal
+/// * `target_value` - Target value
+/// * `timeframe` - Goal timeframe
+/// * `title` - Goal title
+/// * `created_at` - Creation timestamp
+///
+/// # Returns
+/// Universal response with goal details
+fn build_goal_creation_response(
+    goal_id: &str,
+    goal_type: &str,
+    target_value: f64,
+    timeframe: &str,
+    title: &str,
+    created_at: chrono::DateTime<chrono::Utc>,
+) -> UniversalResponse {
+    UniversalResponse {
+        success: true,
+        result: Some(serde_json::json!({
+            "goal_id": goal_id,
+            "goal_type": goal_type,
+            "target_value": target_value,
+            "timeframe": timeframe,
+            "title": title,
+            "created_at": created_at.to_rfc3339(),
+            "status": "created"
+        })),
+        error: None,
+        metadata: None,
+    }
+}
+
 /// Handle `set_goal` tool - set a new fitness goal
 #[must_use]
 pub fn handle_set_goal(
@@ -233,31 +310,7 @@ pub fn handle_set_goal(
     Box::pin(async move {
         use crate::utils::uuid::parse_user_id_for_protocol;
 
-        let goal_type = request
-            .parameters
-            .get("goal_type")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ProtocolError::InvalidRequest("goal_type is required".to_owned()))?;
-
-        let target_value = request
-            .parameters
-            .get("target_value")
-            .and_then(serde_json::Value::as_f64)
-            .ok_or_else(|| ProtocolError::InvalidRequest("target_value is required".to_owned()))?;
-
-        let timeframe = request
-            .parameters
-            .get("timeframe")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ProtocolError::InvalidRequest("timeframe is required".to_owned()))?;
-
-        let title = request
-            .parameters
-            .get("title")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Fitness Goal");
-
-        // Parse user ID
+        let (goal_type, target_value, timeframe, title) = extract_goal_params(&request)?;
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Save goal to database
@@ -275,21 +328,137 @@ pub fn handle_set_goal(
             .await
             .map_err(|e| ProtocolError::InternalError(format!("Database error: {e}")))?;
 
-        Ok(UniversalResponse {
-            success: true,
-            result: Some(serde_json::json!({
-                "goal_id": goal_id,
-                "goal_type": goal_type,
-                "target_value": target_value,
-                "timeframe": timeframe,
-                "title": title,
-                "created_at": created_at.to_rfc3339(),
-                "status": "created"
-            })),
-            error: None,
-            metadata: None,
-        })
+        Ok(build_goal_creation_response(
+            &goal_id,
+            goal_type,
+            target_value,
+            timeframe,
+            title,
+            created_at,
+        ))
     })
+}
+
+/// Load user fitness profile from database
+///
+/// Attempts to load profile from database, falling back to calculated profile from activities.
+///
+/// # Arguments
+/// * `database` - Database provider
+/// * `user_uuid` - User's UUID
+/// * `user_id` - User ID string for logging
+/// * `activities` - Activities for fallback profile calculation
+///
+/// # Returns
+/// `UserFitnessProfile` (either from DB or calculated fallback)
+async fn load_user_profile<D: DatabaseProvider>(
+    database: &D,
+    user_uuid: uuid::Uuid,
+    user_id: &str,
+    activities: &[crate::models::Activity],
+) -> crate::intelligence::UserFitnessProfile {
+    match database.get_user_profile(user_uuid).await {
+        Ok(Some(profile_json)) => serde_json::from_value(profile_json).unwrap_or_else(|e| {
+            tracing::warn!(
+                user_id = %user_id,
+                error = %e,
+                "Failed to deserialize user fitness profile, using fallback profile"
+            );
+            create_fallback_profile(user_id.to_owned(), activities)
+        }),
+        Ok(None) | Err(_) => create_fallback_profile(user_id.to_owned(), activities),
+    }
+}
+
+/// Format goal suggestions for response
+///
+/// Converts goal suggestions into JSON format for API response.
+///
+/// # Arguments
+/// * `suggestions` - Vector of goal suggestions from engine
+///
+/// # Returns
+/// JSON array of formatted goal suggestions
+fn format_goal_suggestions(
+    suggestions: Vec<crate::intelligence::goal_engine::GoalSuggestion>,
+) -> Vec<serde_json::Value> {
+    suggestions
+        .into_iter()
+        .map(|g| {
+            serde_json::json!({
+                "goal_type": format!("{:?}", g.goal_type),
+                "target_value": g.suggested_target,
+                "difficulty": format!("{:?}", g.difficulty),
+                "rationale": g.rationale,
+                "estimated_timeline_days": g.estimated_timeline_days,
+                "success_probability": g.success_probability
+            })
+        })
+        .collect()
+}
+
+/// Create metadata for goal suggestion response
+///
+/// Builds metadata hashmap with analysis engine information.
+///
+/// # Returns
+/// Metadata hashmap for response
+fn create_suggestion_metadata() -> std::collections::HashMap<String, serde_json::Value> {
+    let mut map = std::collections::HashMap::with_capacity(2);
+    map.insert(
+        "analysis_engine".into(),
+        serde_json::Value::String("smart_goal_engine".into()),
+    );
+    map.insert(
+        "suggestion_algorithm".into(),
+        serde_json::Value::String("adaptive_goal_generation".into()),
+    );
+    map
+}
+
+/// Fetch activities for goal suggestions
+///
+/// Retrieves limited set of recent activities for AI goal suggestion analysis.
+///
+/// # Arguments
+/// * `executor` - Universal tool executor with auth and provider access
+/// * `user_uuid` - User's UUID for authentication
+/// * `tenant_id` - Optional tenant ID for multi-tenant environments
+///
+/// # Returns
+/// Vector of recent activities (empty if fetch fails)
+async fn fetch_suggestion_activities(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    user_uuid: uuid::Uuid,
+    tenant_id: Option<&str>,
+) -> Vec<crate::models::Activity> {
+    let mut activities = Vec::new();
+    if let Ok(Some(_token_data)) = executor
+        .auth_service
+        .get_valid_token(
+            user_uuid,
+            crate::constants::oauth_providers::STRAVA,
+            tenant_id,
+        )
+        .await
+    {
+        if let Ok(provider) = executor
+            .resources
+            .provider_registry
+            .create_provider(crate::constants::oauth_providers::STRAVA)
+        {
+            if let Ok(provider_activities) = provider
+                .get_activities(
+                    Some(crate::intelligence::physiological_constants::goal_feasibility::GOAL_SUGGESTION_ACTIVITY_LIMIT),
+                    None,
+                )
+                .await
+            {
+                activities = provider_activities;
+            }
+        }
+    }
+    activities
 }
 
 /// Handle `suggest_goals` tool - get AI-suggested fitness goals
@@ -301,84 +470,31 @@ pub fn handle_suggest_goals(
     Box::pin(async move {
         use crate::utils::uuid::parse_user_id_for_protocol;
 
-        // Parse user ID
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Get recent activities using token-based approach
-        let mut activities: Vec<crate::models::Activity> = Vec::new();
-        if let Ok(Some(_token_data)) = executor
-            .auth_service
-            .get_valid_token(
-                user_uuid,
-                crate::constants::oauth_providers::STRAVA,
-                request.tenant_id.as_deref(),
-            )
-            .await
-        {
-            // Create provider and get activities (simplified approach)
-            if let Ok(provider) = executor
-                .resources
-                .provider_registry
-                .create_provider(crate::constants::oauth_providers::STRAVA)
-            {
-                if let Ok(provider_activities) = provider.get_activities(Some(crate::intelligence::physiological_constants::goal_feasibility::GOAL_SUGGESTION_ACTIVITY_LIMIT), None).await {
-                    activities = provider_activities;
-                }
-            }
-        }
+        // Fetch activities and load user profile
+        let activities =
+            fetch_suggestion_activities(executor, user_uuid, request.tenant_id.as_deref()).await;
 
-        // Use the goal engine from intelligence module
+        // Generate goal suggestions
         let goal_engine = crate::intelligence::goal_engine::AdvancedGoalEngine::new();
-
-        // Load user profile from database (falls back to sensible defaults if not found)
-        let user_profile = match (*executor.resources.database)
-            .get_user_profile(user_uuid)
-            .await
-        {
-            Ok(Some(profile_json)) => {
-                // Try to deserialize as UserFitnessProfile
-                serde_json::from_value(profile_json).unwrap_or_else(|e| {
-                    tracing::warn!(
-                        user_id = %request.user_id,
-                        error = %e,
-                        "Failed to deserialize user fitness profile, using fallback profile"
-                    );
-                    // Fallback if profile doesn't match structure
-                    create_fallback_profile(request.user_id.clone(), &activities)
-                })
-            }
-            Ok(None) | Err(_) => create_fallback_profile(request.user_id.clone(), &activities),
-        };
+        let user_profile = load_user_profile(
+            &*executor.resources.database,
+            user_uuid,
+            &request.user_id,
+            &activities,
+        )
+        .await;
 
         match goal_engine.suggest_goals(&user_profile, &activities).await {
             Ok(suggestions) => Ok(UniversalResponse {
                 success: true,
                 result: Some(serde_json::json!({
-                    "suggested_goals": suggestions.into_iter().map(|g| {
-                        serde_json::json!({
-                            "goal_type": format!("{:?}", g.goal_type),
-                            "target_value": g.suggested_target,
-                            "difficulty": format!("{:?}", g.difficulty),
-                            "rationale": g.rationale,
-                            "estimated_timeline_days": g.estimated_timeline_days,
-                            "success_probability": g.success_probability
-                        })
-                    }).collect::<Vec<_>>(),
+                    "suggested_goals": format_goal_suggestions(suggestions),
                     "activities_analyzed": activities.len()
                 })),
                 error: None,
-                metadata: Some({
-                    let mut map = std::collections::HashMap::with_capacity(4);
-                    map.insert(
-                        "analysis_engine".into(),
-                        serde_json::Value::String("smart_goal_engine".into()),
-                    );
-                    map.insert(
-                        "suggestion_algorithm".into(),
-                        serde_json::Value::String("adaptive_goal_generation".into()),
-                    );
-                    map
-                }),
+                metadata: Some(create_suggestion_metadata()),
             }),
             Err(e) => Ok(UniversalResponse {
                 success: false,
@@ -388,6 +504,87 @@ pub fn handle_suggest_goals(
             }),
         }
     })
+}
+
+/// Fetch activities for goal feasibility analysis
+///
+/// Retrieves user activities from Strava for analyzing goal feasibility.
+/// Returns empty vector if authentication fails or activities cannot be fetched.
+///
+/// # Arguments
+/// * `executor` - Universal tool executor with auth and provider access
+/// * `user_uuid` - User's UUID for authentication
+/// * `tenant_id` - Optional tenant ID for multi-tenant environments
+///
+/// # Returns
+/// Vector of activities for analysis (empty if fetch fails)
+async fn fetch_feasibility_activities(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    user_uuid: uuid::Uuid,
+    tenant_id: Option<&str>,
+) -> Vec<crate::models::Activity> {
+    let mut activities: Vec<crate::models::Activity> =
+        Vec::with_capacity(crate::constants::limits::ACTIVITY_CAPACITY_HINT);
+
+    if let Ok(Some(_token_data)) = executor
+        .auth_service
+        .get_valid_token(
+            user_uuid,
+            crate::constants::oauth_providers::STRAVA,
+            tenant_id,
+        )
+        .await
+    {
+        if let Ok(provider) = executor
+            .resources
+            .provider_registry
+            .create_provider(crate::constants::oauth_providers::STRAVA)
+        {
+            if let Ok(provider_activities) = provider
+                .get_activities(
+                    Some(crate::intelligence::physiological_constants::goal_feasibility::PROGRESS_TRACKING_ACTIVITY_LIMIT),
+                    None,
+                )
+                .await
+            {
+                activities = provider_activities;
+            }
+        }
+    }
+
+    activities
+}
+
+/// Analyze goal performance based on goal type
+///
+/// Dispatches to the appropriate goal-specific analysis function based on type.
+/// Returns performance metrics, confidence level, risk factors, and recommendations.
+///
+/// # Arguments
+/// * `goal_type` - Type of goal (distance, duration, or frequency)
+/// * `activities` - Historical activities for analysis
+/// * `target_value` - Target value for the goal
+/// * `timeframe_days` - Timeframe for goal completion in days
+///
+/// # Returns
+/// Tuple of (`current_level`, `confidence_level`, `risk_factors`, `recommendations`)
+fn analyze_goal_by_type(
+    goal_type: &str,
+    activities: &[crate::models::Activity],
+    target_value: f64,
+    timeframe_days: u32,
+) -> (f64, f64, Vec<String>, Vec<String>) {
+    match goal_type {
+        "distance" => analyze_distance_goal_feasibility(activities, target_value, timeframe_days),
+        "duration" => analyze_duration_goal_feasibility(activities, target_value, timeframe_days),
+        "frequency" => analyze_frequency_goal_feasibility(activities, target_value, timeframe_days),
+        _ => (
+            0.0,
+            crate::intelligence::physiological_constants::goal_feasibility::VERY_LOW_CONFIDENCE_LEVEL,
+            vec!["Unknown goal type".to_owned()],
+            vec!["Specify a valid goal type: distance, duration, or frequency".to_owned()],
+        ),
+    }
 }
 
 /// Handle `analyze_goal_feasibility` tool - analyze if goal is achievable
@@ -401,46 +598,12 @@ pub fn handle_analyze_goal_feasibility(
         let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
         // Get historical activities
-        let mut activities: Vec<crate::models::Activity> =
-            Vec::with_capacity(crate::constants::limits::ACTIVITY_CAPACITY_HINT);
-        if let Ok(Some(_token_data)) = executor
-            .auth_service
-            .get_valid_token(
-                user_uuid,
-                crate::constants::oauth_providers::STRAVA,
-                request.tenant_id.as_deref(),
-            )
-            .await
-        {
-            if let Ok(provider) = executor
-                .resources
-                .provider_registry
-                .create_provider(crate::constants::oauth_providers::STRAVA)
-            {
-                if let Ok(provider_activities) = provider
-                    .get_activities(
-                        Some(crate::intelligence::physiological_constants::goal_feasibility::PROGRESS_TRACKING_ACTIVITY_LIMIT),
-                        None,
-                    )
-                    .await
-                {
-                    activities = provider_activities;
-                }
-            }
-        }
+        let activities =
+            fetch_feasibility_activities(executor, user_uuid, request.tenant_id.as_deref()).await;
 
         // Analyze current performance
-        let (current_level, confidence_level, risk_factors, recommendations) = match goal_type.as_str() {
-            "distance" => analyze_distance_goal_feasibility(&activities, target_value, effective_timeframe),
-            "duration" => analyze_duration_goal_feasibility(&activities, target_value, effective_timeframe),
-            "frequency" => analyze_frequency_goal_feasibility(&activities, target_value, effective_timeframe),
-            _ => (
-                0.0,
-                crate::intelligence::physiological_constants::goal_feasibility::VERY_LOW_CONFIDENCE_LEVEL,
-                vec!["Unknown goal type".to_owned()],
-                vec!["Specify a valid goal type: distance, duration, or frequency".to_owned()],
-            ),
-        };
+        let (current_level, confidence_level, risk_factors, recommendations) =
+            analyze_goal_by_type(&goal_type, &activities, target_value, effective_timeframe);
 
         let (feasibility_score, improvement_required, safe_improvement_capacity) =
             calculate_feasibility_score(current_level, target_value, effective_timeframe);
@@ -996,6 +1159,118 @@ async fn fetch_progress_activities(
     }
 }
 
+/// Fetch and validate goal from database
+///
+/// Retrieves user goals, finds the specified goal, and validates its structure.
+///
+/// # Arguments
+/// * `database` - Database provider for fetching goals
+/// * `user_uuid` - User's UUID
+/// * `goal_id` - ID of the goal to find
+///
+/// # Returns
+/// Result containing validated `GoalDetails` or error response
+async fn fetch_and_validate_goal<D: DatabaseProvider>(
+    database: &D,
+    user_uuid: uuid::Uuid,
+    goal_id: &str,
+) -> Result<GoalDetails, UniversalResponse> {
+    let goals = match database.get_user_goals(user_uuid).await {
+        Ok(goals) => goals,
+        Err(e) => {
+            return Err(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Failed to load goals from database: {e}")),
+                metadata: None,
+            });
+        }
+    };
+
+    let Some(goal) = goals
+        .iter()
+        .find(|g| g.get("goal_id").and_then(|v| v.as_str()) == Some(goal_id))
+    else {
+        return Err(UniversalResponse {
+            success: false,
+            result: None,
+            error: Some(format!("Goal {goal_id} not found")),
+            metadata: None,
+        });
+    };
+
+    let Some(goal_object) = goal.as_object() else {
+        return Err(UniversalResponse {
+            success: false,
+            result: None,
+            error: Some("Goal data is not a valid object".to_owned()),
+            metadata: None,
+        });
+    };
+
+    let Some(details) = extract_goal_details(goal_object) else {
+        return Err(UniversalResponse {
+            success: false,
+            result: None,
+            error: Some("Goal is missing required target_value field".to_owned()),
+            metadata: None,
+        });
+    };
+
+    Ok(details)
+}
+
+/// Filter activities relevant to goal timeframe
+///
+/// Returns activities that occurred after goal creation, or all activities if no creation date.
+///
+/// # Arguments
+/// * `activities` - All available activities
+/// * `created_at` - Optional goal creation timestamp
+///
+/// # Returns
+/// Vector of references to relevant activities
+fn filter_relevant_activities(
+    activities: &[crate::models::Activity],
+    created_at: Option<chrono::DateTime<chrono::FixedOffset>>,
+) -> Vec<&crate::models::Activity> {
+    created_at.map_or_else(
+        || activities.iter().collect(),
+        |created| {
+            activities
+                .iter()
+                .filter(|a| a.start_date > created)
+                .collect::<Vec<_>>()
+        },
+    )
+}
+
+/// Calculate progress metrics for goal tracking
+///
+/// Computes current progress value, percentage, and on-track status.
+///
+/// # Arguments
+/// * `goal_type` - Type of goal being tracked
+/// * `relevant_activities` - Activities to analyze
+/// * `goal_target` - Target value for the goal
+///
+/// # Returns
+/// Tuple of (`current_value`, `unit`, `progress_percentage`, `on_track`)
+fn calculate_progress_metrics(
+    goal_type: &str,
+    relevant_activities: &[&crate::models::Activity],
+    goal_target: f64,
+) -> (f64, &'static str, f64, bool) {
+    let (current_value, unit) = calculate_current_progress(goal_type, relevant_activities);
+
+    let progress_percentage =
+        (current_value / goal_target) * crate::constants::limits::PERCENTAGE_MULTIPLIER;
+    let on_track = progress_percentage
+        >= crate::intelligence::physiological_constants::goal_feasibility::SIMPLE_PROGRESS_THRESHOLD;
+
+    (current_value, unit, progress_percentage, on_track)
+}
+
 /// Handle `track_progress` tool - track progress towards goals
 #[must_use]
 pub fn handle_track_progress(
@@ -1012,53 +1287,17 @@ pub fn handle_track_progress(
 
         let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
-        let goals = match (*executor.resources.database)
-            .get_user_goals(user_uuid)
-            .await
-        {
-            Ok(goals) => goals,
-            Err(e) => {
-                return Ok(UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Failed to load goals from database: {e}")),
-                    metadata: None,
-                });
-            }
-        };
-
-        let Some(goal) = goals
-            .iter()
-            .find(|g| g.get("goal_id").and_then(|v| v.as_str()) == Some(&goal_id))
-        else {
-            return Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Goal {goal_id} not found")),
-                metadata: None,
-            });
-        };
-
-        let Some(goal_object) = goal.as_object() else {
-            return Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some("Goal data is not a valid object".to_owned()),
-                metadata: None,
-            });
-        };
-
-        let Some(details) = extract_goal_details(goal_object) else {
-            return Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some("Goal is missing required target_value field".to_owned()),
-                metadata: None,
-            });
-        };
+        // Fetch and validate goal
+        let details =
+            match fetch_and_validate_goal(&*executor.resources.database, user_uuid, &goal_id).await
+            {
+                Ok(d) => d,
+                Err(err_response) => return Ok(err_response),
+            };
 
         let days_remaining = calculate_days_remaining(details.created_at, &details.timeframe);
 
+        // Fetch activities
         let activities = match fetch_progress_activities(
             executor,
             user_uuid,
@@ -1070,25 +1309,15 @@ pub fn handle_track_progress(
             Err(err_response) => return Ok(err_response),
         };
 
-        let relevant_activities = details.created_at.map_or_else(
-            || activities.iter().collect(),
-            |created| {
-                activities
-                    .iter()
-                    .filter(|a| a.start_date > created)
-                    .collect::<Vec<_>>()
-            },
+        // Filter and calculate progress
+        let relevant_activities = filter_relevant_activities(&activities, details.created_at);
+        let (current_value, unit, progress_percentage, on_track) = calculate_progress_metrics(
+            &details.goal_type,
+            &relevant_activities,
+            details.goal_target,
         );
 
-        let (current_value, unit) =
-            calculate_current_progress(&details.goal_type, &relevant_activities);
-
         let total_duration: u64 = relevant_activities.iter().map(|a| a.duration_seconds).sum();
-        let progress_percentage =
-            (current_value / details.goal_target) * crate::constants::limits::PERCENTAGE_MULTIPLIER;
-        let on_track = progress_percentage
-            >= crate::intelligence::physiological_constants::goal_feasibility::SIMPLE_PROGRESS_THRESHOLD;
-
         let projected_completion =
             calculate_projected_completion(current_value, details.goal_target, details.created_at);
 
