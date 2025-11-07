@@ -119,6 +119,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   private callbackServer: any = undefined;
   private authorizationPending: Promise<any> | undefined = undefined;
   private callbackPort: number = 0;
+  private callbackSessionToken: string | undefined = undefined;
 
   // Secure token storage using OS keychain
   private secureStorage: SecureTokenStorage | undefined = undefined;
@@ -467,7 +468,6 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
     this.log(`tokens() called, returning tokens: ${this.savedTokens ? 'available' : 'none'}`);
     if (this.savedTokens) {
-      this.log(`Returning access_token: ${this.savedTokens.access_token.substring(0, 20)}...`);
       this.log(`Token type: ${this.savedTokens.token_type}`);
     }
     return this.savedTokens;
@@ -783,6 +783,11 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   private setupCallbackHandler(): void {
     if (!this.callbackServer) return;
 
+    // Generate a random session token for callback authentication
+    const crypto = require('crypto');
+    this.callbackSessionToken = crypto.randomBytes(32).toString('hex');
+    this.log(`Generated callback session token for authentication`);
+
     this.callbackServer.removeAllListeners('request');
     this.callbackServer.on('request', async (req: any, res: any) => {
       try {
@@ -831,6 +836,30 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
           // Handle provider token callback for client-side storage
           const pathParts = parsedUrl.pathname.split('/');
           const provider = pathParts[3]; // /oauth/provider-callback/{provider}
+
+          // Security: Validate session token to prevent local CSRF attacks
+          const sessionToken = parsedUrl.query.session_token || req.headers['x-session-token'];
+          if (sessionToken !== this.callbackSessionToken) {
+            this.log(`Rejected POST callback for ${provider}: Invalid session token`);
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: false,
+              message: 'Invalid session token - authentication required'
+            }));
+            return;
+          }
+
+          // Security: Validate Host header (localhost only)
+          const host = req.headers.host;
+          if (!host || !(host.startsWith('localhost') || host.startsWith('127.0.0.1'))) {
+            this.log(`Rejected POST callback for ${provider}: Invalid host ${host}`);
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: false,
+              message: 'Invalid host - only localhost allowed'
+            }));
+            return;
+          }
 
           this.log(`Provider token callback for ${provider}`);
 
