@@ -33,7 +33,7 @@ jobs:
         run: cargo clean
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.88.0
+        uses: dtolnay/rust-toolchain@1.91.0
         with:
           components: rustfmt, clippy
       
@@ -50,7 +50,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-1.87.0-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-1.91.0-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install rustfmt
         run: rustup component add rustfmt
@@ -137,7 +137,7 @@ jobs:
           swap-storage: true
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.88.0
+        uses: dtolnay/rust-toolchain@1.91.0
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
@@ -152,7 +152,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-postgres-1.87.0-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-postgres-1.91.0-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Wait for PostgreSQL
         run: |
@@ -268,7 +268,7 @@ jobs:
           df -h
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.88.0
+        uses: dtolnay/rust-toolchain@1.91.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -284,9 +284,9 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-1.87.0-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-1.91.0-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-1.87.0-
+            ${{ runner.os }}-cargo-1.91.0-
 
       - name: Install frontend dependencies
         working-directory: frontend

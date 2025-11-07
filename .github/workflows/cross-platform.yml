@@ -71,7 +71,7 @@ jobs:
           swap-storage: true
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.87.0
+        uses: dtolnay/rust-toolchain@1.91.0
         with:
           components: rustfmt, clippy
 
