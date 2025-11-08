@@ -303,6 +303,19 @@ export async function createSecureStorage(
 ): Promise<SecureTokenStorage> {
   const log = logFunction || ((msg: string) => console.error(`[SecureStorage] ${msg}`));
 
+  // TODO: Fix keytar to work properly on Linux CI (currently hangs on D-Bus access)
+  // Temporarily skip keytar in CI environments to prevent MCP validator timeout
+  if (process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true') {
+    log('CI environment detected - using encrypted file storage (keytar disabled for now)');
+    const encryptedStorage = new EncryptedFileStorage(logFunction);
+
+    // Attempt migration from plaintext file
+    const legacyTokenPath = join(homedir(), '.pierre-mcp-tokens.json');
+    await encryptedStorage.migrateFromPlaintextFile(legacyTokenPath);
+
+    return encryptedStorage;
+  }
+
   // Try OS keychain first
   try {
     const keychainStorage = new KeychainTokenStorage(logFunction);
