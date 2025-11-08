@@ -15,6 +15,16 @@
 import { Command } from 'commander';
 import { PierreMcpClient } from './bridge';
 
+// DEBUG: Log environment at startup (stderr only - stdout is for MCP protocol)
+console.error('[DEBUG] Bridge CLI starting...');
+console.error('[DEBUG] CI environment variables:');
+console.error(`  process.env.CI = ${process.env.CI}`);
+console.error(`  process.env.GITHUB_ACTIONS = ${process.env.GITHUB_ACTIONS}`);
+console.error(`  process.env.NODE_ENV = ${process.env.NODE_ENV}`);
+console.error('[DEBUG] Auth environment variables:');
+console.error(`  PIERRE_JWT_TOKEN = ${process.env.PIERRE_JWT_TOKEN ? '[SET]' : '[NOT SET]'}`);
+console.error(`  PIERRE_SERVER_URL = ${process.env.PIERRE_SERVER_URL || '[NOT SET]'}`);
+
 const program = new Command();
 
 program

@@ -75,6 +75,10 @@ jobs:
       - name: Run MCP compliance validation
         run: ./scripts/ensure_mcp_compliance.sh
         env:
+          # CI detection variables for bridge
+          CI: "true"
+          GITHUB_ACTIONS: "true"
+          # Pierre server configuration
           HTTP_PORT: 8080
           DATABASE_URL: "sqlite::memory:"
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="

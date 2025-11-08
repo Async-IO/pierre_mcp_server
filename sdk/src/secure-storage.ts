@@ -303,6 +303,12 @@ export async function createSecureStorage(
 ): Promise<SecureTokenStorage> {
   const log = logFunction || ((msg: string) => console.error(`[SecureStorage] ${msg}`));
 
+  // DEBUG: Log environment variable values
+  log('[DEBUG] createSecureStorage() called');
+  log(`[DEBUG]   process.env.CI = "${process.env.CI}"`);
+  log(`[DEBUG]   process.env.GITHUB_ACTIONS = "${process.env.GITHUB_ACTIONS}"`);
+  log(`[DEBUG]   CI check: ${process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true'}`);
+
   // TODO: Fix keytar to work properly on Linux CI (currently hangs on D-Bus access)
   // Temporarily skip keytar in CI environments to prevent MCP validator timeout
   if (process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true') {
