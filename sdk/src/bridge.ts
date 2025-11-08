@@ -1038,10 +1038,13 @@ export class PierreMcpClient {
       await this.startBridge();
 
       // Step 3: Create MCP client connection to Pierre using Streamable HTTP
-      // With proactive connection: if tokens exist, connect and cache tools
-      await this.initializePierreConnection();
+      // Initialize in background so MCP server can respond immediately (critical for CI/validators)
+      // Connection will complete asynchronously; tools will be available once connected
+      this.initializePierreConnection().catch(error => {
+        this.log('Pierre connection initialization failed (will retry on first tool call):', error);
+      });
 
-      this.log('Bridge started successfully');
+      this.log('Bridge started successfully (Pierre connection initializing in background)');
     } catch (error) {
       this.log('Failed to start bridge:', error);
       throw error;
