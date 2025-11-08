@@ -662,7 +662,7 @@ impl HealthChecker {
             ull_avail_extended_virtual: 0,
         };
 
-        let result = unsafe { GlobalMemoryStatusEx(&mut mem_status) };
+        let result = unsafe { GlobalMemoryStatusEx(&raw mut mem_status) };
         if result == 0 {
             return Err("Failed to get Windows memory status".into());
         }
@@ -763,9 +763,9 @@ impl HealthChecker {
         let result = unsafe {
             GetDiskFreeSpaceExW(
                 wide_path.as_ptr(),
-                &mut free_bytes_available,
-                &mut total_bytes,
-                &mut total_free_bytes,
+                &raw mut free_bytes_available,
+                &raw mut total_bytes,
+                &raw mut total_free_bytes,
             )
         };
 

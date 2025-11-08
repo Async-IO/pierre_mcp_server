@@ -96,13 +96,13 @@ impl ErrorCode {
             | Self::InvalidFormat
             | Self::ValueOutOfRange => crate::constants::http_status::BAD_REQUEST,
 
-            // 401 Unauthorized - Authentication issues (missing, invalid, expired, malformed)
-            Self::AuthRequired | Self::AuthInvalid | Self::AuthExpired | Self::AuthMalformed => {
-                crate::constants::http_status::UNAUTHORIZED
-            }
+            // 401 Unauthorized - Authentication issues (missing or invalid credentials)
+            Self::AuthRequired | Self::AuthInvalid => crate::constants::http_status::UNAUTHORIZED,
 
-            // 403 Forbidden - Authorization issues (authenticated but not permitted)
-            Self::PermissionDenied => crate::constants::http_status::FORBIDDEN,
+            // 403 Forbidden - Authorization issues (expired/malformed tokens, permission denied)
+            Self::AuthExpired | Self::AuthMalformed | Self::PermissionDenied => {
+                crate::constants::http_status::FORBIDDEN
+            }
 
             // 404 Not Found
             Self::ResourceNotFound => crate::constants::http_status::NOT_FOUND,
