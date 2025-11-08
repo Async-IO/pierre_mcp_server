@@ -1,7 +1,8 @@
 // ABOUTME: Secure token storage using OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service)
 // ABOUTME: Provides encrypted storage for OAuth tokens with automatic migration from plaintext files
 
-import * as keytar from 'keytar';
+// NOTE: keytar is lazy-loaded to prevent D-Bus hangs in Linux CI environments
+// import * as keytar from 'keytar';  // Moved to lazy loading in createSecureStorage()
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { homedir, networkInterfaces } from 'os';
@@ -37,18 +38,21 @@ export interface SecureTokenStorage {
 
 /**
  * OS Keychain-based secure storage implementation
+ * NOTE: keytar must be passed as a parameter to avoid top-level import issues
  */
 export class KeychainTokenStorage implements SecureTokenStorage {
   private log: (message: string, ...args: any[]) => void;
+  private keytar: any;
 
-  constructor(logFunction?: (message: string, ...args: any[]) => void) {
+  constructor(keytar: any, logFunction?: (message: string, ...args: any[]) => void) {
+    this.keytar = keytar;
     this.log = logFunction || ((msg) => console.error(`[SecureStorage] ${msg}`));
   }
 
   async saveTokens(tokens: Record<string, any>): Promise<void> {
     try {
       const serialized = JSON.stringify(tokens);
-      await keytar.setPassword(
+      await this.keytar.setPassword(
         KEYCHAIN_SERVICE,
         KEYCHAIN_ACCOUNT_PREFIX,
         serialized
@@ -62,7 +66,7 @@ export class KeychainTokenStorage implements SecureTokenStorage {
 
   async getTokens(): Promise<Record<string, any> | null> {
     try {
-      const serialized = await keytar.getPassword(
+      const serialized = await this.keytar.getPassword(
         KEYCHAIN_SERVICE,
         KEYCHAIN_ACCOUNT_PREFIX
       );
@@ -83,7 +87,7 @@ export class KeychainTokenStorage implements SecureTokenStorage {
 
   async clearTokens(): Promise<void> {
     try {
-      const deleted = await keytar.deletePassword(
+      const deleted = await this.keytar.deletePassword(
         KEYCHAIN_SERVICE,
         KEYCHAIN_ACCOUNT_PREFIX
       );
@@ -322,9 +326,14 @@ export async function createSecureStorage(
     return encryptedStorage;
   }
 
-  // Try OS keychain first
+  // Try OS keychain first (lazy-load keytar to avoid D-Bus hangs on Linux CI)
   try {
-    const keychainStorage = new KeychainTokenStorage(logFunction);
+    log('[DEBUG] Attempting to lazy-load keytar...');
+    // Use dynamic import to avoid loading keytar at module-import time
+    const keytar = await import('keytar');
+    log('[DEBUG] keytar loaded successfully');
+
+    const keychainStorage = new KeychainTokenStorage(keytar, logFunction);
 
     // Test keychain availability by trying to get tokens
     await keychainStorage.getTokens();
