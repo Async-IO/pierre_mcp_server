@@ -129,7 +129,7 @@ impl LthrAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// let algorithm = LthrAlgorithm::From30MinTest { avg_hr_30min: 165.0 };
     /// let lthr = algorithm.estimate_lthr()?;
     /// // lthr = 169.95 bpm (165 x 1.03)

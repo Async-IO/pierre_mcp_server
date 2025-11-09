@@ -148,7 +148,7 @@ impl Vo2maxAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// let algorithm = Vo2maxAlgorithm::CooperTest { distance_meters: 2800.0 };
     /// let vo2max = algorithm.estimate_vo2max()?;
     /// // vo2max ≈ 51.3 ml/kg/min

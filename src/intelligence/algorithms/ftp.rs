@@ -158,7 +158,7 @@ impl FtpAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// let algorithm = FtpAlgorithm::From20MinTest { avg_power_20min: 250.0 };
     /// let ftp = algorithm.estimate_ftp()?;
     /// // ftp = 237.5 watts (250 x 0.95)

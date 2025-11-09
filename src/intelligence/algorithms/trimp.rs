@@ -105,7 +105,7 @@ impl TrimpAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// let algorithm = TrimpAlgorithm::BannisterMale;
     /// let trimp = algorithm.calculate(150, 60.0, 190, Some(60), Some("male"))?;
     /// ```

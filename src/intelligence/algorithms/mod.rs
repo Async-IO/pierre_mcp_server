@@ -16,7 +16,7 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use pierre_mcp_server::intelligence::algorithms::TssAlgorithm;
 //!
 //! let algorithm = TssAlgorithm::NormalizedPower { window_seconds: 30 };

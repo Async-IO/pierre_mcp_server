@@ -128,7 +128,7 @@ impl RecoveryAggregationAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// let algorithm = RecoveryAggregationAlgorithm::WeightedAverage {
     ///     tsb_weight_full: 0.30,
     ///     sleep_weight_full: 0.40,

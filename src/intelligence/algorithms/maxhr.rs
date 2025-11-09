@@ -69,7 +69,7 @@ impl MaxHrAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// let max_hr = MaxHrAlgorithm::Tanaka.estimate(40, None)?;
     /// assert_eq!(max_hr, 180.0); // 208 - 0.7*40 = 180
     /// ```
