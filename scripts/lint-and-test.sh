@@ -81,6 +81,37 @@ find . -name "*demo*.json" -not -path "./target/*" -delete 2>/dev/null || true
 echo -e "${GREEN}[OK] Cleanup completed${NC}"
 
 # ============================================================================
+# DISABLED FILE DETECTION (Prevents incomplete migrations)
+# ============================================================================
+
+echo ""
+echo -e "${BLUE}==== Checking for disabled test/source files... ====${NC}"
+
+# Find all disabled files
+DISABLED_TESTS=$(find tests -name "*.disabled" -o -name "*.warp-backup" 2>/dev/null)
+DISABLED_SRC=$(find src -name "*.disabled" 2>/dev/null)
+
+DISABLED_COUNT=0
+if [ -n "$DISABLED_TESTS" ]; then
+    DISABLED_COUNT=$((DISABLED_COUNT + $(echo "$DISABLED_TESTS" | wc -l)))
+fi
+if [ -n "$DISABLED_SRC" ]; then
+    DISABLED_COUNT=$((DISABLED_COUNT + $(echo "$DISABLED_SRC" | wc -l)))
+fi
+
+if [ "$DISABLED_COUNT" -gt 0 ]; then
+    echo -e "${RED}[CRITICAL] Found $DISABLED_COUNT disabled files:${NC}"
+    [ -n "$DISABLED_TESTS" ] && echo -e "${RED}Disabled tests:${NC}\n$DISABLED_TESTS"
+    [ -n "$DISABLED_SRC" ] && echo -e "${RED}Disabled source files:${NC}\n$DISABLED_SRC"
+    echo -e "${RED}All test files must be enabled and passing before merge${NC}"
+    echo -e "${RED}Rename files to remove .disabled/.warp-backup extensions${NC}"
+    ALL_PASSED=false
+    exit 1
+else
+    echo -e "${GREEN}[OK] No disabled files found - all tests are active${NC}"
+fi
+
+# ============================================================================
 # NATIVE CARGO VALIDATION (Reads Cargo.toml [lints] + deny.toml)
 # ============================================================================
 
@@ -411,6 +442,7 @@ if [ "$ALL_PASSED" = true ]; then
     echo "[OK] Rust linting + build (cargo clippy via Cargo.toml)"
     echo "[OK] Security audit (cargo deny via deny.toml)"
     echo "[OK] Secret pattern detection"
+    echo "[OK] No disabled test files (.disabled/.warp-backup extensions)"
     echo "[OK] Architectural validation (custom)"
     echo "[OK] Rust tests (cargo test - reused debug build)"
     echo "[OK] HTTP API integration tests"
