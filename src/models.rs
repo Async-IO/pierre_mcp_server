@@ -114,10 +114,20 @@ pub struct TimeSeriesData {
 pub enum UserTier {
     /// Free tier with basic limits
     Starter,
-    /// Professional tier with higher limits  
+    /// Professional tier with higher limits
     Professional,
     /// Enterprise tier with unlimited access
     Enterprise,
+}
+
+impl std::fmt::Display for UserTier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Starter => write!(f, "Starter"),
+            Self::Professional => write!(f, "Professional"),
+            Self::Enterprise => write!(f, "Enterprise"),
+        }
+    }
 }
 
 /// User account status for admin approval workflow

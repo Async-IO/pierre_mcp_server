@@ -252,11 +252,13 @@ pub struct RateLimitConfig {
     pub cleanup_threshold: usize,
     /// Stale entry timeout in seconds
     pub stale_entry_timeout_secs: u64,
+    /// Admin-provisioned API key default monthly request limit
+    pub admin_provisioned_api_key_monthly_limit: u32,
 }
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
-        use crate::constants::{oauth_rate_limiting, rate_limiting_bursts};
+        use crate::constants::{oauth_rate_limiting, rate_limiting_bursts, system_config};
         Self {
             free_tier_burst: rate_limiting_bursts::FREE_TIER_BURST,
             professional_burst: rate_limiting_bursts::PROFESSIONAL_BURST,
@@ -267,6 +269,7 @@ impl Default for RateLimitConfig {
             rate_limit_window_secs: oauth_rate_limiting::WINDOW_SECS,
             cleanup_threshold: oauth_rate_limiting::CLEANUP_THRESHOLD,
             stale_entry_timeout_secs: oauth_rate_limiting::STALE_ENTRY_TIMEOUT_SECS,
+            admin_provisioned_api_key_monthly_limit: system_config::STARTER_MONTHLY_LIMIT,
         }
     }
 }
@@ -1695,7 +1698,7 @@ impl ServerConfig {
 
     /// Load rate limiting configuration from environment
     fn load_rate_limiting_config() -> RateLimitConfig {
-        use crate::constants::{oauth_rate_limiting, rate_limiting_bursts};
+        use crate::constants::{oauth_rate_limiting, rate_limiting_bursts, system_config};
 
         RateLimitConfig {
             free_tier_burst: env::var("RATE_LIMIT_FREE_TIER_BURST")
@@ -1734,6 +1737,10 @@ impl ServerConfig {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(oauth_rate_limiting::STALE_ENTRY_TIMEOUT_SECS),
+            admin_provisioned_api_key_monthly_limit: env::var("PIERRE_ADMIN_API_KEY_MONTHLY_LIMIT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(system_config::STARTER_MONTHLY_LIMIT),
         }
     }
 

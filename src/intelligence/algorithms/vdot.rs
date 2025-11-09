@@ -89,9 +89,7 @@ impl VdotAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// use pierre_mcp_server::intelligence::algorithms::VdotAlgorithm;
-    ///
+    /// ```rust,no_run
     /// let algorithm = VdotAlgorithm::Daniels;
     /// let vdot = algorithm.calculate_vdot(5000.0, 1200.0)?; // 5K in 20:00
     /// ```

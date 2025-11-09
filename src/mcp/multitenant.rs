@@ -264,11 +264,17 @@ impl MultiTenantMcpServer {
         let jwt_secret_str = resources.admin_jwt_secret.as_ref();
         info!("Using admin JWT secret from server startup");
 
+        let admin_api_key_limit = resources
+            .config
+            .rate_limiting
+            .admin_provisioned_api_key_monthly_limit;
+
         let admin_context = crate::admin_routes::AdminApiContext::new(
             resources.database.clone(),
             jwt_secret_str,
             resources.auth_manager.clone(),
             resources.jwks_manager.clone(),
+            admin_api_key_limit,
         );
         let admin_routes = crate::admin_routes::admin_routes_with_rejection(admin_context);
 

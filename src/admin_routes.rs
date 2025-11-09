@@ -52,6 +52,8 @@ pub struct AdminApiContext {
     pub admin_jwt_secret: String,
     /// JWKS manager for key rotation and validation
     pub jwks_manager: Arc<crate::admin::jwks::JwksManager>,
+    /// Monthly rate limit for admin-provisioned API keys
+    pub admin_api_key_monthly_limit: u32,
 }
 
 impl AdminApiContext {
@@ -61,6 +63,7 @@ impl AdminApiContext {
         jwt_secret: &str,
         auth_manager: Arc<AuthManager>,
         jwks_manager: Arc<crate::admin::jwks::JwksManager>,
+        admin_api_key_monthly_limit: u32,
     ) -> Self {
         tracing::info!(
             "Creating AdminApiContext with JWT secret (first 10 chars): {}...",
@@ -73,6 +76,7 @@ impl AdminApiContext {
             auth_manager,
             admin_jwt_secret: jwt_secret.to_owned(),
             jwks_manager,
+            admin_api_key_monthly_limit,
         }
     }
 }

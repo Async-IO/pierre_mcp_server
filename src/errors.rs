@@ -99,7 +99,7 @@ impl ErrorCode {
             // 401 Unauthorized - Authentication issues (missing or invalid credentials)
             Self::AuthRequired | Self::AuthInvalid => crate::constants::http_status::UNAUTHORIZED,
 
-            // 403 Forbidden - Valid credentials but unusable (expired, malformed) or permission denied
+            // 403 Forbidden - Authorization issues (expired/malformed tokens, permission denied)
             Self::AuthExpired | Self::AuthMalformed | Self::PermissionDenied => {
                 crate::constants::http_status::FORBIDDEN
             }
@@ -257,7 +257,6 @@ impl AppError {
 
     /// Get sanitized message safe for client exposure
     /// Internal error details are replaced with generic messages
-    /// JWT and auth errors use generic descriptions; detailed errors go to `tracing::debug` via `internal_details()`
     #[must_use]
     pub fn sanitized_message(&self) -> String {
         match self.code {
@@ -266,8 +265,10 @@ impl AppError {
             | ErrorCode::MissingRequiredField
             | ErrorCode::InvalidFormat
             | ErrorCode::ValueOutOfRange => self.message.clone(),
-            // All auth errors (including JWT): use generic description to prevent oracle attacks
-            // Detailed JWT validation failures are logged via internal_details() for debugging
+            // JWT validation errors: expose details to help with troubleshooting
+            // (key mismatches, expiry, etc. don't contain sensitive data)
+            ErrorCode::AuthInvalid if self.message.contains("JWT") => self.message.clone(),
+            // All other errors: use generic description (auth, database, internal)
             _ => self.code.description().to_owned(),
         }
     }

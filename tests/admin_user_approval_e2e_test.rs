@@ -52,11 +52,14 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     let jwks_manager = common::get_shared_test_jwks();
 
     // Create admin API context
+    let admin_api_key_monthly_limit =
+        pierre_mcp_server::constants::system_config::STARTER_MONTHLY_LIMIT;
     let admin_context = AdminApiContext::new(
         Arc::new(database.clone()),
         jwt_secret,
         Arc::new(auth_manager.clone()),
         jwks_manager.clone(),
+        admin_api_key_monthly_limit,
     );
 
     // Create admin routes
@@ -240,11 +243,14 @@ async fn test_admin_token_management_workflow() -> Result<()> {
     // Create JWKS manager for RS256 with 2048-bit test keys for faster execution
     let jwks_manager = common::get_shared_test_jwks();
 
+    let admin_api_key_monthly_limit =
+        pierre_mcp_server::constants::system_config::STARTER_MONTHLY_LIMIT;
     let admin_context = AdminApiContext::new(
         Arc::new(database.clone()),
         jwt_secret,
         Arc::new(auth_manager),
         jwks_manager.clone(),
+        admin_api_key_monthly_limit,
     );
     let admin_routes =
         pierre_mcp_server::admin_routes::admin_routes_with_scoped_recovery(admin_context);
@@ -371,11 +377,14 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
     // Create JWKS manager for RS256 with 2048-bit test keys for faster execution
     let jwks_manager = common::get_shared_test_jwks();
 
+    let admin_api_key_monthly_limit =
+        pierre_mcp_server::constants::system_config::STARTER_MONTHLY_LIMIT;
     let admin_context = AdminApiContext::new(
         Arc::new(database),
         jwt_secret,
         Arc::new(auth_manager),
         jwks_manager,
+        admin_api_key_monthly_limit,
     );
     let admin_routes =
         pierre_mcp_server::admin_routes::admin_routes_with_scoped_recovery(admin_context);

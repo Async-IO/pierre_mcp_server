@@ -5,8 +5,8 @@
 // import * as keytar from 'keytar';  // Moved to lazy loading in createSecureStorage()
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { homedir, networkInterfaces } from 'os';
+import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'crypto';
 
 const KEYCHAIN_SERVICE = 'pierre-mcp-client';
 const KEYCHAIN_ACCOUNT_PREFIX = 'pierre-mcp-tokens';
@@ -139,54 +139,46 @@ export class KeychainTokenStorage implements SecureTokenStorage {
 
 /**
  * Encrypted file-based storage (fallback when keychain unavailable)
- * Uses AES-256-GCM with randomly generated encryption key stored separately
+ * Uses AES-256-GCM with machine-specific key derivation
  */
 export class EncryptedFileStorage implements SecureTokenStorage {
   private log: (message: string, ...args: any[]) => void;
   private encryptedFilePath: string;
-  private keyFilePath: string;
   private encryptionKey: Buffer;
 
   constructor(logFunction?: (message: string, ...args: any[]) => void) {
     this.log = logFunction || ((msg) => console.error(`[SecureStorage] ${msg}`));
     this.encryptedFilePath = join(homedir(), '.pierre-mcp-tokens.enc');
-    this.keyFilePath = join(homedir(), '.pierre-mcp-keyfile');
-    this.encryptionKey = this.getOrCreateEncryptionKey();
+    this.encryptionKey = this.deriveEncryptionKey();
   }
 
   /**
-   * Get existing encryption key or generate a new random key
-   * Security: Uses cryptographically random 256-bit key instead of deterministic derivation
+   * Derive encryption key from machine-specific data
+   * Uses MAC addresses and homedir to create a stable machine-specific key
    */
-  private getOrCreateEncryptionKey(): Buffer {
-    try {
-      // Try to read existing key file
-      if (existsSync(this.keyFilePath)) {
-        const keyHex = readFileSync(this.keyFilePath, 'utf8').trim();
+  private deriveEncryptionKey(): Buffer {
+    const interfaces = networkInterfaces();
+    const macAddresses: string[] = [];
 
-        // Validate key format
-        if (keyHex.length === 64 && /^[0-9a-f]{64}$/i.test(keyHex)) {
-          this.log('Loaded existing encryption key from keyfile');
-          return Buffer.from(keyHex, 'hex');
-        } else {
-          this.log('WARNING: Invalid key file format, generating new key');
+    // Collect MAC addresses for machine fingerprint
+    for (const name of Object.keys(interfaces)) {
+      const iface = interfaces[name];
+      if (iface) {
+        for (const addr of iface) {
+          if (addr.mac && addr.mac !== '00:00:00:00:00:00') {
+            macAddresses.push(addr.mac);
+          }
         }
       }
-
-      // Generate new random 256-bit key
-      const newKey = randomBytes(32);
-
-      // Save key to file with restrictive permissions (0600)
-      writeFileSync(this.keyFilePath, newKey.toString('hex'), { mode: 0o600 });
-      this.log('Generated and saved new random encryption key');
-
-      return newKey;
-    } catch (error) {
-      this.log(`ERROR: Failed to read/create encryption key: ${error}`);
-      // Fallback: generate ephemeral key (will lose ability to decrypt old tokens)
-      this.log('WARNING: Using ephemeral encryption key - old tokens will be inaccessible');
-      return randomBytes(32);
     }
+
+    // Combine MAC addresses and homedir for stable machine-specific seed
+    const macSeed = macAddresses.sort().join(':') || 'default-seed';
+    const homeSeed = homedir();
+    const combinedSeed = `${macSeed}:${homeSeed}:pierre-mcp-encryption-v1`;
+
+    // Derive 32-byte key using SHA-256
+    return createHash('sha256').update(combinedSeed).digest();
   }
 
   /**

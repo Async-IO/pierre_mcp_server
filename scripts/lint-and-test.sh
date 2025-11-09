@@ -98,21 +98,35 @@ else
     exit 1
 fi
 
-# Clippy linting (reads Cargo.toml [lints.clippy] with level = "deny")
-echo -e "${BLUE}Running cargo clippy (zero tolerance via Cargo.toml)...${NC}"
-CLIPPY_OUTPUT=$(cargo clippy --all-targets --all-features 2>&1)
+# Clippy linting and compilation (reads Cargo.toml [lints.clippy] with level = "deny")
+# NOTE: This builds the debug binary ONCE - all subsequent steps reuse this build
+echo -e "${BLUE}Running cargo clippy + build (zero tolerance via Cargo.toml)...${NC}"
+
+# Run clippy with output to both screen and variable
+CLIPPY_OUTPUT=$(cargo clippy --all-targets --all-features 2>&1 | tee /dev/stderr)
 CLIPPY_EXIT=$?
+
+# Check if clippy was killed (exit code 137 = SIGKILL, 143 = SIGTERM)
+if [ $CLIPPY_EXIT -eq 137 ] || [ $CLIPPY_EXIT -eq 143 ]; then
+    echo ""
+    echo -e "${RED}[CRITICAL] Clippy was killed (possibly out of memory)${NC}"
+    echo -e "${RED}Exit code: $CLIPPY_EXIT${NC}"
+    ALL_PASSED=false
+    exit 1
+fi
+
 # Count only code warnings, exclude dependency future-compatibility warnings
 WARNING_COUNT=$(echo "$CLIPPY_OUTPUT" | grep "^warning:" | grep -v "the following packages contain code that will be rejected by a future version of Rust" | wc -l | tr -d ' ')
 
 if [ $CLIPPY_EXIT -ne 0 ] || [ "$WARNING_COUNT" -gt 0 ]; then
-    echo "$CLIPPY_OUTPUT"
-    echo -e "${RED}[CRITICAL] Clippy failed with $WARNING_COUNT code warnings${NC}"
+    echo ""
+    echo -e "${RED}[CRITICAL] Clippy failed with exit code $CLIPPY_EXIT and $WARNING_COUNT code warnings${NC}"
     echo -e "${RED}ALL code warnings must be fixed - zero tolerance policy${NC}"
     ALL_PASSED=false
     exit 1
 else
     echo -e "${GREEN}[OK] Clippy passed - ZERO code warnings (enforced by Cargo.toml)${NC}"
+    echo -e "${GREEN}[OK] Debug build completed (reused for all validation)${NC}"
 fi
 
 # Security audit (reads deny.toml)
@@ -128,42 +142,6 @@ if command_exists cargo-deny; then
 else
     echo -e "${YELLOW}[WARN] cargo-deny not installed${NC}"
     echo -e "${YELLOW}Install with: cargo install cargo-deny${NC}"
-fi
-
-# Compilation check
-echo -e "${BLUE}Running cargo check...${NC}"
-CHECK_OUTPUT=$(cargo check --all-targets 2>&1)
-CHECK_EXIT=$?
-# Count only code warnings, exclude dependency future-compatibility warnings
-CHECK_WARNING_COUNT=$(echo "$CHECK_OUTPUT" | grep "^warning:" | grep -v "the following packages contain code that will be rejected by a future version of Rust" | wc -l | tr -d ' ')
-
-if [ $CHECK_EXIT -ne 0 ] || [ "$CHECK_WARNING_COUNT" -gt 0 ]; then
-    echo "$CHECK_OUTPUT"
-    echo -e "${RED}[CRITICAL] Compilation failed with $CHECK_WARNING_COUNT code warnings${NC}"
-    echo -e "${RED}ALL code warnings must be fixed - zero tolerance policy${NC}"
-    ALL_PASSED=false
-    exit 1
-else
-    echo -e "${GREEN}[OK] Compilation check passed${NC}"
-fi
-
-# ============================================================================
-# CUSTOM ARCHITECTURAL VALIDATION (Project-Specific Rules)
-# ============================================================================
-
-echo ""
-echo -e "${BLUE}==== Custom Architectural Validation ====${NC}"
-
-if [ -f "$SCRIPT_DIR/architectural-validation.sh" ]; then
-    if "$SCRIPT_DIR/architectural-validation.sh"; then
-        echo -e "${GREEN}[OK] Architectural validation passed${NC}"
-    else
-        echo -e "${RED}[CRITICAL] Architectural validation failed${NC}"
-        ALL_PASSED=false
-        exit 1
-    fi
-else
-    echo -e "${YELLOW}[WARN] Architectural validation script not found - skipping${NC}"
 fi
 
 # ============================================================================
@@ -185,11 +163,32 @@ else
 fi
 
 # ============================================================================
+# CUSTOM ARCHITECTURAL VALIDATION (Project-Specific Rules)
+# ============================================================================
+# NOTE: Runs early for fail-fast behavior (before tests)
+# Binary size check will warn if release binary doesn't exist yet (expected - built at end)
+
+echo ""
+echo -e "${BLUE}==== Custom Architectural Validation ====${NC}"
+
+if [ -f "$SCRIPT_DIR/architectural-validation.sh" ]; then
+    if "$SCRIPT_DIR/architectural-validation.sh"; then
+        echo -e "${GREEN}[OK] Architectural validation passed${NC}"
+    else
+        echo -e "${RED}[CRITICAL] Architectural validation failed${NC}"
+        ALL_PASSED=false
+        exit 1
+    fi
+else
+    echo -e "${YELLOW}[WARN] Architectural validation script not found - skipping${NC}"
+fi
+
+# ============================================================================
 # TEST EXECUTION
 # ============================================================================
 
 echo ""
-echo -e "${BLUE}==== Running Tests ====${NC}"
+echo -e "${BLUE}==== Running Tests (reusing debug build from clippy) ====${NC}"
 
 # Clean test databases
 echo -e "${BLUE}Cleaning test databases...${NC}"
@@ -207,7 +206,7 @@ echo -e "${BLUE}Total tests to run: $TOTAL_TESTS${NC}"
 # Use 2048-bit RSA for faster test execution
 export PIERRE_RSA_KEY_SIZE=2048
 
-# Run tests
+# Run tests (reuses build artifacts from clippy step)
 if [ "$ENABLE_COVERAGE" = true ]; then
     echo -e "${BLUE}Running tests with coverage...${NC}"
     if command_exists cargo-llvm-cov; then
@@ -315,17 +314,25 @@ fi
 # ============================================================================
 
 echo ""
-echo -e "${BLUE}==== Performance and Documentation ====${NC}"
+echo -e "${BLUE}==== Release Build and Documentation ====${NC}"
 
-# Build release binary
+# Build release binary (only after all tests pass)
 echo -e "${BLUE}Building release binary...${NC}"
 if cargo build --release --quiet; then
     echo -e "${GREEN}[OK] Release build successful${NC}"
 
-    # Binary size check (will be validated by architectural-validation.sh)
+    # Binary size check
     if [ -f "target/release/pierre-mcp-server" ]; then
         BINARY_SIZE=$(ls -lh target/release/pierre-mcp-server | awk '{print $5}')
-        echo -e "${GREEN}[INFO] Binary size: $BINARY_SIZE${NC}"
+        BINARY_SIZE_BYTES=$(ls -l target/release/pierre-mcp-server | awk '{print $5}')
+        MAX_SIZE_BYTES=$((50 * 1024 * 1024))  # 50MB in bytes
+
+        if [ "$BINARY_SIZE_BYTES" -le "$MAX_SIZE_BYTES" ]; then
+            echo -e "${GREEN}[OK] Binary size ($BINARY_SIZE) within limit (<50MB)${NC}"
+        else
+            echo -e "${RED}[FAIL] Binary size ($BINARY_SIZE) exceeds limit (50MB)${NC}"
+            ALL_PASSED=false
+        fi
     fi
 else
     echo -e "${RED}[FAIL] Release build failed${NC}"
@@ -398,21 +405,38 @@ echo -e "${BLUE}Total execution time: ${TOTAL_MINUTES}m ${REMAINING_SECONDS}s${N
 echo ""
 
 if [ "$ALL_PASSED" = true ]; then
-    echo -e "${GREEN}✅ ALL VALIDATION PASSED${NC}"
+    echo -e "${GREEN}✅ ALL VALIDATION PASSED - Task can be marked complete${NC}"
     echo ""
-    echo "[OK] Formatting (cargo fmt)"
-    echo "[OK] Linting (cargo clippy via Cargo.toml)"
-    echo "[OK] Security (cargo deny via deny.toml)"
-    echo "[OK] Compilation (cargo check)"
+    echo "[OK] Rust formatting (cargo fmt)"
+    echo "[OK] Rust linting + build (cargo clippy via Cargo.toml)"
+    echo "[OK] Security audit (cargo deny via deny.toml)"
+    echo "[OK] Secret pattern detection"
     echo "[OK] Architectural validation (custom)"
-    echo "[OK] Tests (cargo test)"
-    echo "[OK] Frontend (npm)"
+    echo "[OK] Rust tests (cargo test - reused debug build)"
+    echo "[OK] HTTP API integration tests"
+    echo "[OK] A2A compliance tests"
+    if [ -d "frontend" ]; then
+        echo "[OK] Frontend linting"
+        echo "[OK] TypeScript type checking"
+        echo "[OK] Frontend tests"
+        echo "[OK] Frontend build"
+    fi
+    echo "[OK] Release build (cargo build --release)"
     echo "[OK] Documentation (cargo doc)"
+    if [ -f "$SCRIPT_DIR/ensure_mcp_compliance.sh" ]; then
+        echo "[OK] MCP spec compliance validation"
+    fi
+    if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
+        echo "[OK] Bridge test suite"
+    fi
+    if [ "$ENABLE_COVERAGE" = true ] && command_exists cargo-llvm-cov; then
+        echo "[OK] Rust code coverage"
+    fi
     echo ""
     echo -e "${GREEN}Code meets ALL standards and is ready for production!${NC}"
     exit 0
 else
-    echo -e "${RED}❌ VALIDATION FAILED${NC}"
-    echo -e "${RED}Fix issues above before deployment${NC}"
+    echo -e "${RED}❌ VALIDATION FAILED - Task cannot be marked complete${NC}"
+    echo -e "${RED}Fix ALL issues above to meet dev standards requirements${NC}"
     exit 1
 fi

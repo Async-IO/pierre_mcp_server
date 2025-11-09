@@ -72,9 +72,7 @@ impl TssAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// use pierre_mcp_server::intelligence::algorithms::TssAlgorithm;
-    ///
+    /// ```rust,no_run
     /// let algorithm = TssAlgorithm::NormalizedPower { window_seconds: 30 };
     /// let tss = algorithm.calculate(&activity, 250.0, 1.5)?;
     /// ```
@@ -132,8 +130,7 @@ impl TssAlgorithm {
         duration_hours: f64,
         window_seconds: u32,
     ) -> Result<f64, AppError> {
-        // This would require power stream data, which we'll implement when we have stream support
-        // For now, this is a placeholder that will be implemented in the next phase
+        // Calculate TSS using normalized power from activity power stream data
         let np = Self::calculate_normalized_power(activity, window_seconds)?;
         let intensity_factor = np / ftp;
         Ok((duration_hours * intensity_factor * intensity_factor * TSS_BASE_MULTIPLIER).round())

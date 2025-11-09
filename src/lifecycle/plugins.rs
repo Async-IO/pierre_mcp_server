@@ -286,18 +286,16 @@ pub struct AuthPlugin {
     name: String,
     state: Arc<RwLock<PluginState>>,
     auth_manager: Option<AuthManager>,
-    jwt_expiry_hours: i64,
 }
 
 impl AuthPlugin {
-    /// Create new auth plugin
+    /// Create new auth plugin with dependency injection
     #[must_use]
-    pub fn new(jwt_expiry_hours: i64) -> Self {
+    pub fn new(auth_manager: AuthManager) -> Self {
         Self {
             name: "auth".to_owned(),
             state: Arc::new(RwLock::new(PluginState::Uninitialized)),
-            auth_manager: None,
-            jwt_expiry_hours,
+            auth_manager: Some(auth_manager),
         }
     }
 
@@ -339,7 +337,7 @@ impl Plugin for AuthPlugin {
             .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
             PluginState::Initializing;
 
-        self.auth_manager = Some(AuthManager::new(self.jwt_expiry_hours));
+        // AuthManager already injected via constructor - just mark as ready
         *self
             .state
             .write()

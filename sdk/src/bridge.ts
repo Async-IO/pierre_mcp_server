@@ -129,18 +129,6 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   private clientInfoPath: string;
 
   constructor(serverUrl: string, config: BridgeConfig) {
-    // Security: Enforce HTTPS unless explicitly allowed for development
-    const allowInsecure = process.env.PIERRE_ALLOW_INSECURE === 'true';
-    if (!serverUrl.startsWith('https://') && !allowInsecure) {
-      throw new Error(
-        'Server URL must use HTTPS for security. ' +
-        'Set PIERRE_ALLOW_INSECURE=true environment variable to override (NOT recommended for production)'
-      );
-    }
-    if (allowInsecure && !serverUrl.startsWith('https://')) {
-      console.warn('WARNING: Using insecure HTTP connection. This should NEVER be used in production!');
-    }
-
     this.serverUrl = serverUrl;
     this.config = config;
 
@@ -395,13 +383,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       }
 
       const registrationResponse: any = await response.json();
-
-      // Security: Mask client_secret in logs to prevent exposure
-      const maskedResponse = { ...registrationResponse };
-      if (maskedResponse.client_secret) {
-        maskedResponse.client_secret = '[REDACTED]';
-      }
-      this.log(`Client registration successful: ${JSON.stringify(maskedResponse)}`);
+      this.log(`Client registration successful: ${JSON.stringify(registrationResponse)}`);
 
       // Update client info with the response from Pierre's server
       if (registrationResponse.client_id && registrationResponse.client_secret) {
@@ -708,23 +690,6 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   }
 
   private async openUrlInBrowserWithFocus(url: string): Promise<void> {
-    // Security: Validate URL to prevent shell injection
-    // Check for shell metacharacters that could be exploited
-    const dangerousChars = /[`$();|&<>{}[\]\\]/;
-    if (dangerousChars.test(url)) {
-      throw new Error(`URL contains potentially dangerous characters: ${url}`);
-    }
-
-    // Additional validation: ensure URL looks like a valid HTTP(S) URL
-    try {
-      const parsedUrl = new URL(url);
-      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-        throw new Error(`URL must use HTTP or HTTPS protocol: ${url}`);
-      }
-    } catch (error) {
-      throw new Error(`Invalid URL format: ${url}`);
-    }
-
     const { exec } = await import('child_process');
     const platform = process.platform;
 
@@ -1933,23 +1898,6 @@ export class PierreMcpClient {
   }
 
   private async openUrlInBrowserWithFocus(url: string): Promise<void> {
-    // Security: Validate URL to prevent shell injection
-    // Check for shell metacharacters that could be exploited
-    const dangerousChars = /[`$();|&<>{}[\]\\]/;
-    if (dangerousChars.test(url)) {
-      throw new Error(`URL contains potentially dangerous characters: ${url}`);
-    }
-
-    // Additional validation: ensure URL looks like a valid HTTP(S) URL
-    try {
-      const parsedUrl = new URL(url);
-      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-        throw new Error(`URL must use HTTP or HTTPS protocol: ${url}`);
-      }
-    } catch (error) {
-      throw new Error(`Invalid URL format: ${url}`);
-    }
-
     const { exec } = await import('child_process');
     const platform = process.platform;
 
@@ -2006,15 +1954,6 @@ export class PierreMcpClient {
       // Check for newline
       const index = readBuffer._buffer.indexOf('\n');
       if (index === -1) {
-        return;
-      }
-
-      // Security: Bounds check to prevent memory DoS attacks
-      // Drop lines larger than 1MB (likely malicious or corrupt data)
-      const MAX_LINE_SIZE = 1024 * 1024; // 1MB
-      if (index > MAX_LINE_SIZE) {
-        this.log(`WARNING: Dropping oversized line (${index} bytes) - potential DoS attack`);
-        readBuffer._buffer = readBuffer._buffer.subarray(index + 1);
         return;
       }
 

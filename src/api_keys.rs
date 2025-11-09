@@ -40,6 +40,17 @@ pub enum ApiKeyTier {
     Enterprise,
 }
 
+impl std::fmt::Display for ApiKeyTier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Trial => write!(f, "Trial"),
+            Self::Starter => write!(f, "Starter"),
+            Self::Professional => write!(f, "Professional"),
+            Self::Enterprise => write!(f, "Enterprise"),
+        }
+    }
+}
+
 impl ApiKeyTier {
     /// Returns the monthly API request limit for this tier
     #[must_use]

@@ -188,11 +188,14 @@ impl AdminTestSetup {
 
         // Create admin context
         let jwt_secret = "test_admin_jwt_secret_for_route_testing";
+        let admin_api_key_monthly_limit =
+            pierre_mcp_server::constants::system_config::STARTER_MONTHLY_LIMIT;
         let context = AdminApiContext::new(
             Arc::new((*database).clone()),
             jwt_secret,
             auth_manager.clone(),
             jwks_manager.clone(),
+            admin_api_key_monthly_limit,
         );
 
         // Create test user
