@@ -112,6 +112,40 @@ else
 fi
 
 # ============================================================================
+# IGNORED TEST DETECTION (Zero tolerance policy)
+# ============================================================================
+
+echo ""
+echo -e "${BLUE}==== Checking for ignored tests... ====${NC}"
+
+# Find all #[ignore] attributes in test files
+IGNORED_TESTS=$(rg "#\[ignore\]" tests/ -l 2>/dev/null || true)
+IGNORED_COUNT=0
+
+if [ -n "$IGNORED_TESTS" ]; then
+    IGNORED_COUNT=$(echo "$IGNORED_TESTS" | wc -l | tr -d ' ')
+fi
+
+if [ "$IGNORED_COUNT" -gt 0 ]; then
+    echo -e "${RED}[CRITICAL] Found $IGNORED_COUNT test files with #[ignore] attributes:${NC}"
+    echo -e "${RED}$IGNORED_TESTS${NC}"
+    echo ""
+
+    # Show the actual ignored tests
+    echo -e "${RED}Ignored test details:${NC}"
+    rg "#\[ignore\]" tests/ -B 2 -A 1 2>/dev/null | head -30
+    echo ""
+
+    echo -e "${RED}Main branch policy: ZERO ignored tests (main has 0, branch must match)${NC}"
+    echo -e "${RED}Tests must either pass or be removed - #[ignore] hides incomplete work${NC}"
+    echo -e "${RED}Remove #[ignore] attributes and ensure all tests pass${NC}"
+    ALL_PASSED=false
+    exit 1
+else
+    echo -e "${GREEN}[OK] No ignored tests found - 100% test execution${NC}"
+fi
+
+# ============================================================================
 # NATIVE CARGO VALIDATION (Reads Cargo.toml [lints] + deny.toml)
 # ============================================================================
 
@@ -443,6 +477,7 @@ if [ "$ALL_PASSED" = true ]; then
     echo "[OK] Security audit (cargo deny via deny.toml)"
     echo "[OK] Secret pattern detection"
     echo "[OK] No disabled test files (.disabled/.warp-backup extensions)"
+    echo "[OK] No ignored tests (#[ignore] attributes - 100% test execution)"
     echo "[OK] Architectural validation (custom)"
     echo "[OK] Rust tests (cargo test - reused debug build)"
     echo "[OK] HTTP API integration tests"
