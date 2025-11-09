@@ -13,6 +13,19 @@ use crate::providers::errors::ProviderError;
 use crate::rate_limiting::UnifiedRateLimitCalculator;
 use crate::utils::errors::auth_error;
 use anyhow::{Context, Result};
+use sha2::{Digest, Sha256};
+
+/// Compute constant-length hash identifier for auth tokens
+/// Returns first 8 hex chars of SHA-256 hash for correlation without exposing token data
+fn compute_token_identifier(token: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    let hash = hasher.finalize();
+    format!(
+        "{:02x}{:02x}{:02x}{:02x}",
+        hash[0], hash[1], hash[2], hash[3]
+    )
+}
 
 /// Middleware for `MCP` protocol authentication
 #[derive(Clone)]
@@ -68,10 +81,9 @@ impl McpAuthMiddleware {
 
         let auth_str = if let Some(header) = auth_header {
             tracing::debug!(
-                "Auth header content (first 100 chars): {}",
-                &header[..std::cmp::min(100, header.len())]
+                "Auth token identifier (SHA-256 prefix): {}",
+                compute_token_identifier(header)
             );
-            tracing::debug!("Auth header length: {} characters", header.len());
 
             tracing::debug!(
                 "Authentication attempt with header type: {}",

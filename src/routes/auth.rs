@@ -20,6 +20,10 @@ use crate::{
     utils::errors::{auth_error, user_state_error, validation_error},
 };
 use anyhow::Result;
+use argon2::{
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing;
@@ -177,8 +181,13 @@ impl AuthService {
             return Err(user_state_error(error_messages::USER_ALREADY_EXISTS).into());
         }
 
-        // Hash password
-        let password_hash = bcrypt::hash(&request.password, bcrypt::DEFAULT_COST)?;
+        // Hash password using Argon2id (more secure than bcrypt)
+        let salt = SaltString::generate(&mut rand::thread_rng());
+        let argon2 = Argon2::default();
+        let password_hash = argon2
+            .hash_password(request.password.as_bytes(), &salt)
+            .map_err(|e| AppError::internal(format!("Password hashing failed: {e}")))?
+            .to_string();
 
         // Create user
         let user = User::new(request.email.clone(), password_hash, request.display_name); // Safe: String ownership needed for user model
@@ -217,13 +226,31 @@ impl AuthService {
             })?;
 
         // Verify password using spawn_blocking to avoid blocking async executor
+        // Supports both argon2id (new) and bcrypt (legacy) hashes
         let password = request.password.clone();
         let password_hash = user.password_hash.clone();
-        let is_valid =
-            tokio::task::spawn_blocking(move || bcrypt::verify(&password, &password_hash))
-                .await
-                .map_err(|e| AppError::internal(format!("Password verification task failed: {e}")))?
-                .map_err(|e| AppError::internal(format!("Password verification error: {e}")))?;
+        let is_valid = tokio::task::spawn_blocking(move || -> Result<bool, String> {
+            // Try bcrypt first if hash format indicates bcrypt (starts with $2)
+            if password_hash.starts_with("$2") {
+                return match bcrypt::verify(&password, &password_hash) {
+                    Ok(valid) => Ok(valid),
+                    Err(e) => Err(format!("Bcrypt verification system error: {e}")),
+                };
+            }
+
+            // Otherwise try argon2id
+            let parsed_hash = PasswordHash::new(&password_hash)
+                .map_err(|e| format!("Invalid password hash format: {e}"))?;
+
+            match Argon2::default().verify_password(password.as_bytes(), &parsed_hash) {
+                Ok(()) => Ok(true),
+                Err(argon2::password_hash::Error::Password) => Ok(false), // Wrong password - not an error
+                Err(e) => Err(format!("Argon2 verification system error: {e}")), // System error
+            }
+        })
+        .await
+        .map_err(|e| AppError::internal(format!("Password verification task failed: {e}")))?
+        .map_err(|e| AppError::internal(format!("Password verification error: {e}")))?;
 
         if !is_valid {
             tracing::error!("Invalid password for user: {}", request.email);

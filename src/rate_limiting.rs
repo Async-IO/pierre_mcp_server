@@ -182,19 +182,21 @@ impl TenantRateLimitTier {
     }
 
     /// Apply multiplier to get effective monthly limit
+    ///
+    /// Returns `None` for unlimited tiers to prevent arithmetic overflow issues
     #[must_use]
     #[allow(
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
         clippy::cast_precision_loss
     )]
-    /// Returns the effective monthly limit after applying the tier multiplier
+    /// Returns the effective monthly limit after applying the tier multiplier, or None if unlimited
     // Safe: multiplier values are controlled and positive, result fits in u32 range
-    pub fn effective_monthly_limit(&self) -> u32 {
+    pub fn effective_monthly_limit(&self) -> Option<u32> {
         if self.unlimited {
-            u32::MAX
+            None
         } else {
-            (self.monthly_limit as f32 * self.multiplier) as u32
+            Some((self.monthly_limit as f32 * self.multiplier) as u32)
         }
     }
 
@@ -398,7 +400,10 @@ impl UnifiedRateLimitCalculator {
                 auth_method: "jwt_token".into(),
             }
         } else {
-            let limit = user.tier.monthly_limit().unwrap_or(u32::MAX);
+            // Get tier limit - fallback to Starter limit (10k) if somehow None for non-Enterprise tier
+            // This defensive fallback prevents overflow issues from using u32::MAX
+            const FALLBACK_STARTER_LIMIT: u32 = 10_000;
+            let limit = user.tier.monthly_limit().unwrap_or(FALLBACK_STARTER_LIMIT);
             let remaining = limit.saturating_sub(current_usage);
             let is_rate_limited = current_usage >= limit;
 
@@ -430,7 +435,10 @@ impl UnifiedRateLimitCalculator {
                 auth_method: "jwt_token".into(),
             }
         } else {
-            let limit = tier.monthly_limit().unwrap_or(u32::MAX);
+            // Get tier limit - fallback to Starter limit (10k) if somehow None for non-Enterprise tier
+            // This defensive fallback prevents overflow issues from using u32::MAX
+            const FALLBACK_STARTER_LIMIT: u32 = 10_000;
+            let limit = tier.monthly_limit().unwrap_or(FALLBACK_STARTER_LIMIT);
             let remaining = limit.saturating_sub(current_usage);
             let is_rate_limited = current_usage >= limit;
 
@@ -469,6 +477,7 @@ impl UnifiedRateLimitCalculator {
             }
         };
 
+        // Check for unlimited tier - return early with no limits
         if tenant_config.unlimited {
             UnifiedRateLimitInfo {
                 is_rate_limited: false,
@@ -479,7 +488,24 @@ impl UnifiedRateLimitCalculator {
                 auth_method: "tenant_token".into(),
             }
         } else {
-            let limit = tenant_config.effective_monthly_limit();
+            // Get effective limit (None for unlimited, Some(value) for limited tiers)
+            // Since we already checked unlimited above, this should always return Some
+            let Some(limit) = tenant_config.effective_monthly_limit() else {
+                // Fallback: if effective_monthly_limit returns None despite !unlimited, treat as unlimited
+                tracing::warn!(
+                    "Tenant {} has unlimited=false but effective_monthly_limit returned None",
+                    tenant.id
+                );
+                return UnifiedRateLimitInfo {
+                    is_rate_limited: false,
+                    limit: None,
+                    remaining: None,
+                    reset_at: None,
+                    tier: tenant.plan.clone(),
+                    auth_method: "tenant_token".into(),
+                };
+            };
+
             let remaining = limit.saturating_sub(current_usage);
             let is_rate_limited = current_usage >= limit;
 

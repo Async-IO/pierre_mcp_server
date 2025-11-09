@@ -28,7 +28,6 @@
 //! ```
 
 use anyhow::Result;
-use bcrypt::{hash, DEFAULT_COST};
 use clap::{Parser, Subcommand};
 use pierre_mcp_server::{
     admin::models::{CreateAdminTokenRequest, GeneratedAdminToken},
@@ -637,7 +636,17 @@ async fn create_admin_user_command(
             id: existing_user.id,
             email: email.clone(),
             display_name: Some(name.clone()),
-            password_hash: hash(&password, DEFAULT_COST)?,
+            password_hash: {
+                use argon2::{
+                    password_hash::{PasswordHasher, SaltString},
+                    Argon2,
+                };
+                let salt = SaltString::generate(&mut rand::thread_rng());
+                Argon2::default()
+                    .hash_password(password.as_bytes(), &salt)
+                    .map_err(|e| anyhow::anyhow!("Password hashing failed: {e}"))?
+                    .to_string()
+            },
             tier: pierre_mcp_server::models::UserTier::Enterprise, // Admin gets enterprise tier
             tenant_id: existing_user.tenant_id, // Preserve existing tenant_id or None for system admins
             strava_token: existing_user.strava_token,
@@ -660,7 +669,17 @@ async fn create_admin_user_command(
             id: Uuid::new_v4(),
             email: email.clone(),
             display_name: Some(name.clone()),
-            password_hash: hash(&password, DEFAULT_COST)?,
+            password_hash: {
+                use argon2::{
+                    password_hash::{PasswordHasher, SaltString},
+                    Argon2,
+                };
+                let salt = SaltString::generate(&mut rand::thread_rng());
+                Argon2::default()
+                    .hash_password(password.as_bytes(), &salt)
+                    .map_err(|e| anyhow::anyhow!("Password hashing failed: {e}"))?
+                    .to_string()
+            },
             tier: pierre_mcp_server::models::UserTier::Enterprise, // Admin gets enterprise tier
             tenant_id: None, // System admins don't belong to specific tenants
             strava_token: None,

@@ -100,13 +100,13 @@ fn test_tenant_rate_limit_tier_effective_limits() {
 
     assert_eq!(
         config.effective_monthly_limit(),
-        TENANT_PROFESSIONAL_LIMIT * 2
+        Some(TENANT_PROFESSIONAL_LIMIT * 2)
     );
     assert_eq!(config.effective_burst_limit(), 1000); // 500 * 2.0
 
-    // Test unlimited behavior
+    // Test unlimited behavior - should return None instead of u32::MAX
     config.unlimited = true;
-    assert_eq!(config.effective_monthly_limit(), u32::MAX);
+    assert_eq!(config.effective_monthly_limit(), None);
 }
 
 #[test]
