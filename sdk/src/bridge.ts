@@ -383,7 +383,13 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       }
 
       const registrationResponse: any = await response.json();
-      this.log(`Client registration successful: ${JSON.stringify(registrationResponse)}`);
+
+      // Security: Mask client_secret before logging
+      const sanitizedResponse = { ...registrationResponse };
+      if (sanitizedResponse.client_secret) {
+        sanitizedResponse.client_secret = '***REDACTED***';
+      }
+      this.log(`Client registration successful: ${JSON.stringify(sanitizedResponse)}`);
 
       // Update client info with the response from Pierre's server
       if (registrationResponse.client_id && registrationResponse.client_secret) {

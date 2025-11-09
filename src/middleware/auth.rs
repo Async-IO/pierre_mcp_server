@@ -67,12 +67,7 @@ impl McpAuthMiddleware {
         tracing::debug!("Auth header provided: {}", auth_header.is_some());
 
         let auth_str = if let Some(header) = auth_header {
-            tracing::debug!(
-                "Auth header content (first 100 chars): {}",
-                &header[..std::cmp::min(100, header.len())]
-            );
-            tracing::debug!("Auth header length: {} characters", header.len());
-
+            // Security: Do not log auth header content to prevent token leakage
             tracing::debug!(
                 "Authentication attempt with header type: {}",
                 if header.starts_with(key_prefixes::API_KEY_LIVE) {
