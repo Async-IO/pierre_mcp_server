@@ -10,7 +10,7 @@
 use chrono::Utc;
 use pierre_mcp_server::models::{
     Activity, Athlete, AuthorizationCode, EncryptedToken, HeartRateZone, PersonalRecord, PowerZone,
-    PrMetric, SportType, Stats, Tenant, User, UserStatus, UserTier,
+    PrMetric, SegmentEffort, SportType, Stats, Tenant, User, UserStatus, UserTier,
 };
 use uuid::Uuid;
 
@@ -63,6 +63,12 @@ fn create_sample_activity() -> Activity {
         region: Some("Quebec".into()),
         country: Some("Canada".into()),
         trail_name: Some("Mount Royal Trail".into()),
+
+        // New detailed fields
+        workout_type: Some(10), // Trail run
+        sport_type_detail: Some("TrailRun".into()),
+        segment_efforts: None,
+
         provider: "strava".into(),
     }
 }
@@ -576,4 +582,332 @@ fn test_user_with_encrypted_tokens() {
         assert_eq!(fitbit_token.scope, "activity,heartrate,sleep");
         assert!(fitbit_token.expires_at > now);
     }
+}
+
+#[test]
+fn test_activity_detailed_fields() {
+    // Test that the new detailed activity fields (workout_type, sport_type_detail, segments)
+    // are properly handled in Activity model
+    let activity = Activity {
+        id: "test_123".into(),
+        name: "Trail Run with Segments".into(),
+        sport_type: SportType::Run,
+        start_date: Utc::now(),
+        duration_seconds: 3600,
+        distance_meters: Some(10_000.0),
+        elevation_gain: Some(250.0),
+        average_heart_rate: Some(155),
+        max_heart_rate: Some(180),
+        average_speed: Some(2.78),
+        max_speed: Some(4.5),
+        calories: Some(600),
+        steps: Some(12_000),
+        heart_rate_zones: None,
+        average_power: None,
+        max_power: None,
+        normalized_power: None,
+        power_zones: None,
+        ftp: None,
+        average_cadence: Some(180),
+        max_cadence: Some(195),
+        hrv_score: None,
+        recovery_heart_rate: None,
+        temperature: Some(15.0),
+        humidity: Some(60.0),
+        average_altitude: Some(300.0),
+        wind_speed: None,
+        ground_contact_time: Some(220),
+        vertical_oscillation: Some(8.5),
+        stride_length: Some(1.25),
+        running_power: Some(250),
+        breathing_rate: None,
+        spo2: None,
+        training_stress_score: None,
+        intensity_factor: None,
+        suffer_score: Some(85),
+        time_series_data: None,
+        start_latitude: Some(45.5017),
+        start_longitude: Some(-73.5673),
+        city: Some("Saint-Hippolyte".into()),
+        region: Some("Quebec".into()),
+        country: Some("Canada".into()),
+        trail_name: Some("Mont Rigaud Trail".into()),
+
+        // New detailed fields - THIS IS WHAT WE'RE TESTING
+        workout_type: Some(10), // Strava: 10 = trail run
+        sport_type_detail: Some("TrailRun".into()),
+        segment_efforts: Some(vec![
+            SegmentEffort {
+                id: "seg_001".into(),
+                name: "Steep Climb".into(),
+                elapsed_time: 600, // 10 minutes
+                moving_time: Some(590),
+                start_date: Utc::now(),
+                distance: 1200.0, // 1.2 km
+                average_heart_rate: Some(170),
+                max_heart_rate: Some(185),
+                average_cadence: Some(165),
+                average_watts: None,
+                kom_rank: Some(5),           // 5th best time ever
+                pr_rank: Some(2),            // 2nd best personal time
+                climb_category: Some(3),     // Category 3 climb
+                average_grade: Some(8.5),    // 8.5% grade
+                elevation_gain: Some(102.0), // 102m elevation gain
+            },
+            SegmentEffort {
+                id: "seg_002".into(),
+                name: "Fast Descent".into(),
+                elapsed_time: 300, // 5 minutes
+                moving_time: Some(295),
+                start_date: Utc::now(),
+                distance: 1500.0, // 1.5 km
+                average_heart_rate: Some(145),
+                max_heart_rate: Some(160),
+                average_cadence: Some(190),
+                average_watts: None,
+                kom_rank: Some(12),
+                pr_rank: Some(1),          // Best personal time!
+                climb_category: None,      // Descent, no climb category
+                average_grade: Some(-6.5), // -6.5% grade (descent)
+                elevation_gain: None,
+            },
+        ]),
+
+        provider: "strava".into(),
+    };
+
+    // Validate workout_type
+    assert_eq!(activity.workout_type, Some(10));
+    assert!(
+        activity.workout_type.is_some(),
+        "workout_type should be present"
+    );
+
+    // Validate sport_type_detail
+    assert_eq!(activity.sport_type_detail, Some("TrailRun".into()));
+    assert!(
+        activity.sport_type_detail.is_some(),
+        "sport_type_detail should be present"
+    );
+
+    // Validate segment_efforts
+    assert!(
+        activity.segment_efforts.is_some(),
+        "segment_efforts should be present"
+    );
+    let segments = activity.segment_efforts.as_ref().unwrap();
+    assert_eq!(segments.len(), 2, "Should have 2 segment efforts");
+
+    // Validate first segment (climb)
+    let climb = &segments[0];
+    assert_eq!(climb.name, "Steep Climb");
+    assert_eq!(climb.elapsed_time, 600);
+    assert_eq!(climb.distance, 1200.0);
+    assert_eq!(climb.kom_rank, Some(5));
+    assert_eq!(climb.pr_rank, Some(2));
+    assert_eq!(climb.climb_category, Some(3));
+    assert_eq!(climb.average_grade, Some(8.5));
+    assert_eq!(climb.elevation_gain, Some(102.0));
+
+    // Validate second segment (descent)
+    let descent = &segments[1];
+    assert_eq!(descent.name, "Fast Descent");
+    assert_eq!(descent.elapsed_time, 300);
+    assert_eq!(descent.pr_rank, Some(1), "Should be PR!");
+    assert_eq!(
+        descent.average_grade,
+        Some(-6.5),
+        "Should be negative grade for descent"
+    );
+    assert_eq!(
+        descent.climb_category, None,
+        "Descents don't have climb category"
+    );
+
+    // Validate location fields work together
+    assert_eq!(activity.city, Some("Saint-Hippolyte".into()));
+    assert_eq!(activity.region, Some("Quebec".into()));
+    assert_eq!(activity.country, Some("Canada".into()));
+}
+
+#[test]
+fn test_activity_detailed_fields_serialization() {
+    // Test that detailed fields serialize/deserialize correctly
+    let segment = SegmentEffort {
+        id: "seg_test".into(),
+        name: "Test Segment".into(),
+        elapsed_time: 180,
+        moving_time: Some(175),
+        start_date: Utc::now(),
+        distance: 800.0,
+        average_heart_rate: Some(160),
+        max_heart_rate: Some(175),
+        average_cadence: Some(170),
+        average_watts: Some(220),
+        kom_rank: Some(1),
+        pr_rank: Some(1),
+        climb_category: Some(4),
+        average_grade: Some(5.2),
+        elevation_gain: Some(42.0),
+    };
+
+    let activity = Activity {
+        id: "serialize_test".into(),
+        name: "Serialization Test".into(),
+        sport_type: SportType::Run,
+        start_date: Utc::now(),
+        duration_seconds: 1800,
+        distance_meters: Some(5000.0),
+        elevation_gain: Some(100.0),
+        average_heart_rate: Some(150),
+        max_heart_rate: Some(170),
+        average_speed: Some(2.78),
+        max_speed: Some(3.5),
+        calories: Some(300),
+        steps: Some(7500),
+        heart_rate_zones: None,
+        average_power: None,
+        max_power: None,
+        normalized_power: None,
+        power_zones: None,
+        ftp: None,
+        average_cadence: None,
+        max_cadence: None,
+        hrv_score: None,
+        recovery_heart_rate: None,
+        temperature: None,
+        humidity: None,
+        average_altitude: None,
+        wind_speed: None,
+        ground_contact_time: None,
+        vertical_oscillation: None,
+        stride_length: None,
+        running_power: None,
+        breathing_rate: None,
+        spo2: None,
+        training_stress_score: None,
+        intensity_factor: None,
+        suffer_score: None,
+        time_series_data: None,
+        start_latitude: None,
+        start_longitude: None,
+        city: Some("Montreal".into()),
+        region: Some("Quebec".into()),
+        country: Some("Canada".into()),
+        trail_name: None,
+        workout_type: Some(11), // Road run
+        sport_type_detail: Some("RoadRun".into()),
+        segment_efforts: Some(vec![segment]),
+        provider: "strava".into(),
+    };
+
+    // Serialize to JSON
+    let json = serde_json::to_string(&activity).expect("Should serialize to JSON");
+
+    // Verify JSON contains the new fields
+    assert!(
+        json.contains("workout_type"),
+        "JSON should contain workout_type"
+    );
+    assert!(
+        json.contains("sport_type_detail"),
+        "JSON should contain sport_type_detail"
+    );
+    assert!(
+        json.contains("segment_efforts"),
+        "JSON should contain segment_efforts"
+    );
+    assert!(
+        json.contains("RoadRun"),
+        "JSON should contain sport_type_detail value"
+    );
+
+    // Deserialize back
+    let deserialized: Activity = serde_json::from_str(&json).expect("Should deserialize from JSON");
+
+    // Verify fields roundtrip correctly
+    assert_eq!(deserialized.workout_type, Some(11));
+    assert_eq!(deserialized.sport_type_detail, Some("RoadRun".into()));
+    assert!(deserialized.segment_efforts.is_some());
+    assert_eq!(deserialized.segment_efforts.as_ref().unwrap().len(), 1);
+
+    let segment_check = &deserialized.segment_efforts.as_ref().unwrap()[0];
+    assert_eq!(segment_check.id, "seg_test");
+    assert_eq!(segment_check.kom_rank, Some(1));
+    assert_eq!(segment_check.climb_category, Some(4));
+}
+
+#[test]
+fn test_activity_without_detailed_fields() {
+    // Test that activities without the new fields still work (backward compatibility)
+    let activity = Activity {
+        id: "basic_test".into(),
+        name: "Basic Activity".into(),
+        sport_type: SportType::Ride,
+        start_date: Utc::now(),
+        duration_seconds: 3600,
+        distance_meters: Some(30_000.0),
+        elevation_gain: Some(500.0),
+        average_heart_rate: Some(140),
+        max_heart_rate: Some(165),
+        average_speed: Some(8.33),
+        max_speed: Some(12.5),
+        calories: Some(800),
+        steps: None,
+        heart_rate_zones: None,
+        average_power: Some(200),
+        max_power: Some(400),
+        normalized_power: Some(215),
+        power_zones: None,
+        ftp: Some(250),
+        average_cadence: Some(90),
+        max_cadence: Some(110),
+        hrv_score: None,
+        recovery_heart_rate: None,
+        temperature: None,
+        humidity: None,
+        average_altitude: None,
+        wind_speed: None,
+        ground_contact_time: None,
+        vertical_oscillation: None,
+        stride_length: None,
+        running_power: None,
+        breathing_rate: None,
+        spo2: None,
+        training_stress_score: None,
+        intensity_factor: None,
+        suffer_score: None,
+        time_series_data: None,
+        start_latitude: None,
+        start_longitude: None,
+        city: None,
+        region: None,
+        country: None,
+        trail_name: None,
+
+        // New fields are None - should still work
+        workout_type: None,
+        sport_type_detail: None,
+        segment_efforts: None,
+
+        provider: "garmin".into(),
+    };
+
+    // Validate basic fields work
+    assert_eq!(activity.id, "basic_test");
+    assert_eq!(activity.sport_type, SportType::Ride);
+    assert_eq!(activity.provider, "garmin");
+
+    // Validate new fields can be None
+    assert!(activity.workout_type.is_none());
+    assert!(activity.sport_type_detail.is_none());
+    assert!(activity.segment_efforts.is_none());
+
+    // Serialize should still work
+    let json = serde_json::to_string(&activity).expect("Should serialize");
+    let deserialized: Activity = serde_json::from_str(&json).expect("Should deserialize");
+
+    assert_eq!(deserialized.id, activity.id);
+    assert!(deserialized.workout_type.is_none());
+    assert!(deserialized.segment_efforts.is_none());
 }

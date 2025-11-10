@@ -241,13 +241,20 @@ pub async fn handle_calculate_metrics(
     let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
     // Get provider name
-    let provider_name = request.parameters
+    let provider_name = request
+        .parameters
         .get("provider")
         .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| ProtocolError::InvalidParameters("provider parameter required".to_owned()))?;
+        .ok_or_else(|| {
+            ProtocolError::InvalidParameters("provider parameter required".to_owned())
+        })?;
 
     // Check if activity_id is provided (schema-compliant path)
-    if let Some(activity_id) = request.parameters.get("activity_id").and_then(serde_json::Value::as_str) {
+    if let Some(activity_id) = request
+        .parameters
+        .get("activity_id")
+        .and_then(serde_json::Value::as_str)
+    {
         // Get valid token
         let token_data = match executor
             .auth_service
@@ -276,12 +283,31 @@ pub async fn handle_calculate_metrics(
         };
 
         // Create configured provider
-        let provider = executor.resources.provider_registry.create_provider(provider_name)
-            .map_err(|e| ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}")))?;
+        let provider = executor
+            .resources
+            .provider_registry
+            .create_provider(provider_name)
+            .map_err(|e| {
+                ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
+            })?;
 
         let credentials = crate::providers::OAuth2Credentials {
-            client_id: executor.resources.config.oauth.strava.client_id.clone().unwrap_or_default(),
-            client_secret: executor.resources.config.oauth.strava.client_secret.clone().unwrap_or_default(),
+            client_id: executor
+                .resources
+                .config
+                .oauth
+                .strava
+                .client_id
+                .clone()
+                .unwrap_or_default(),
+            client_secret: executor
+                .resources
+                .config
+                .oauth
+                .strava
+                .client_secret
+                .clone()
+                .unwrap_or_default(),
             access_token: Some(token_data.access_token.clone()),
             refresh_token: Some(token_data.refresh_token.clone()),
             expires_at: Some(token_data.expires_at),
@@ -291,31 +317,39 @@ pub async fn handle_calculate_metrics(
                 .collect(),
         };
 
-        provider.set_credentials(credentials).await
-            .map_err(|e| ProtocolError::ConfigurationError(format!("Failed to set provider credentials: {e}")))?;
+        provider.set_credentials(credentials).await.map_err(|e| {
+            ProtocolError::ConfigurationError(format!("Failed to set provider credentials: {e}"))
+        })?;
 
         // Fetch activity from provider
-        let activity = provider.get_activity(activity_id).await
-            .map_err(|e| ProtocolError::ExecutionFailed(format!("Failed to fetch activity {activity_id}: {e}")))?;
+        let activity = provider.get_activity(activity_id).await.map_err(|e| {
+            ProtocolError::ExecutionFailed(format!("Failed to fetch activity {activity_id}: {e}"))
+        })?;
 
         // Convert Activity model to parameters format
         let mut request_with_activity = request.clone();
         if let Some(params_obj) = request_with_activity.parameters.as_object_mut() {
-            params_obj.insert("activity".to_owned(), serde_json::json!({
-                "distance": activity.distance_meters,
-                "duration": activity.duration_seconds,
-                "elevation_gain": activity.elevation_gain,
-                "average_heart_rate": activity.average_heart_rate,
-            }));
+            params_obj.insert(
+                "activity".to_owned(),
+                serde_json::json!({
+                    "distance": activity.distance_meters,
+                    "duration": activity.duration_seconds,
+                    "elevation_gain": activity.elevation_gain,
+                    "average_heart_rate": activity.average_heart_rate,
+                }),
+            );
         } else {
-            return Err(ProtocolError::InvalidParameters("parameters must be a JSON object".to_owned()));
+            return Err(ProtocolError::InvalidParameters(
+                "parameters must be a JSON object".to_owned(),
+            ));
         }
 
         // Parse parameters from converted activity
         let params = parse_activity_parameters(&request_with_activity)?;
 
         // Determine max heart rate
-        let (max_hr, max_hr_source) = determine_max_heart_rate(params.max_hr_provided, params.user_age);
+        let (max_hr, max_hr_source) =
+            determine_max_heart_rate(params.max_hr_provided, params.user_age);
 
         // Calculate metrics
         let metrics = calculate_activity_metrics(&params, max_hr);
@@ -580,25 +614,36 @@ async fn fetch_and_analyze_activity(
         Ok(activity) => create_intelligence_response(&activity, activity_id, user_uuid, tenant_id),
         Err(e) => {
             // Handle NotFound by auto-fetching recent activities
-            if let Some(provider_err) = e.downcast_ref::<crate::providers::errors::ProviderError>() {
-                if let crate::providers::errors::ProviderError::NotFound { resource_id, .. } = provider_err {
+            if let Some(provider_err) = e.downcast_ref::<crate::providers::errors::ProviderError>()
+            {
+                if let crate::providers::errors::ProviderError::NotFound { resource_id, .. } =
+                    provider_err
+                {
                     // Activity not found - fetch recent activities to show valid IDs
                     match provider.get_activities(Some(5), None).await {
                         Ok(activities) if !activities.is_empty() => {
                             let activity_list: Vec<String> = activities
                                 .iter()
-                                .map(|a| format!("- {} (ID: {}): {} - {:?}",
-                                    a.start_date.format("%Y-%m-%d"),
-                                    a.id,
-                                    a.name,
-                                    a.sport_type
-                                ))
+                                .map(|a| {
+                                    format!(
+                                        "- {} (ID: {}): {} - {:?}",
+                                        a.start_date.format("%Y-%m-%d"),
+                                        a.id,
+                                        a.name,
+                                        a.sport_type
+                                    )
+                                })
                                 .collect();
 
                             let most_recent = &activities[0];
 
                             // Analyze the most recent activity automatically
-                            let mut response = create_intelligence_response(most_recent, &most_recent.id, user_uuid, tenant_id);
+                            let mut response = create_intelligence_response(
+                                most_recent,
+                                &most_recent.id,
+                                user_uuid,
+                                tenant_id,
+                            );
 
                             // Add auto-selection note to the result
                             if let Some(result) = response.result.as_mut() {
@@ -612,7 +657,7 @@ async fn fetch_and_analyze_activity(
                             }
 
                             return response;
-                        },
+                        }
                         Ok(_) => {
                             return UniversalResponse {
                                 success: false,
@@ -620,7 +665,7 @@ async fn fetch_and_analyze_activity(
                                 error: Some(format!("Activity '{}' not found and no activities available in your account.", resource_id)),
                                 metadata: None,
                             };
-                        },
+                        }
                         Err(fetch_err) => {
                             return UniversalResponse {
                                 success: false,
