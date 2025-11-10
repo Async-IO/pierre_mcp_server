@@ -117,6 +117,9 @@ async fn test_activity_analysis_through_universal_tools() -> Result<()> {
         region: Some("Quebec".to_owned()),
         country: Some("Canada".to_owned()),
         trail_name: Some("Lachine Canal".to_owned()),
+        workout_type: None,
+        sport_type_detail: None,
+        segment_efforts: None,
         provider: "strava".to_owned(),
     };
 
@@ -289,6 +292,9 @@ async fn test_recommendation_engine_integration() -> Result<()> {
         region: Some("Quebec".to_owned()),
         country: Some("Canada".to_owned()),
         trail_name: None,
+        workout_type: None,
+        sport_type_detail: None,
+        segment_efforts: None,
         provider: "strava".to_owned(),
     };
 
@@ -479,6 +485,9 @@ fn create_test_activity(id: &str, sport_type: &SportType, distance: f64) -> Acti
         region: Some("Quebec".to_owned()),
         country: Some("Canada".to_owned()),
         trail_name: None,
+        workout_type: None,
+        sport_type_detail: None,
+        segment_efforts: None,
         provider: "test".to_owned(),
     }
 }

@@ -60,6 +60,9 @@ fn create_test_activity() -> Activity {
         region: None,
         country: None,
         trail_name: None,
+        workout_type: None,
+        sport_type_detail: None,
+        segment_efforts: None,
     }
 }
 

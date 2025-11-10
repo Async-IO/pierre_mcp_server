@@ -323,7 +323,7 @@ impl StravaProvider {
                     tracing::debug!(
                         "Strava 404 error: {} (errors: {})",
                         error_response.message,
-                        error_response.errors.as_ref().map_or(0, |e| e.len())
+                        error_response.errors.as_ref().map_or(0, std::vec::Vec::len)
                     );
 
                     if let Some(errors) = error_response.errors {
@@ -337,7 +337,7 @@ impl StravaProvider {
 
                             // Extract resource ID from URL path (e.g., /activities/123456)
                             let resource_id =
-                                url_path.split('/').last().unwrap_or("unknown").to_owned();
+                                url_path.split('/').next_back().unwrap_or("unknown").to_owned();
 
                             return Err(ProviderError::NotFound {
                                 provider: oauth_providers::STRAVA.to_owned(),
@@ -459,6 +459,12 @@ impl StravaProvider {
             region: activity.location_state,
             country: activity.location_country,
             trail_name: None,
+
+            // Detailed activity classification - available from detailed endpoint
+            workout_type: None,
+            sport_type_detail: Some(activity.activity_type.clone()),
+            segment_efforts: None,
+
             provider: oauth_providers::STRAVA.to_owned(),
         })
     }

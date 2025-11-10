@@ -63,6 +63,9 @@ fn create_test_activity(
         region: None,
         country: None,
         trail_name: None,
+        workout_type: None,
+        sport_type_detail: None,
+        segment_efforts: None,
         provider: "test".to_owned(),
     }
 }

@@ -665,6 +665,9 @@ mod integration_tests {
             provider: "test".to_owned(),
             region: None,
             trail_name: None,
+            workout_type: None,
+            sport_type_detail: None,
+            segment_efforts: None,
         }
     }
 

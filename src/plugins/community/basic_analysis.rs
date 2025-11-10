@@ -112,20 +112,18 @@ async fn perform_basic_analysis(
     // Fetch actual activity data from the provider
     let activity = provider.get_activity(activity_id).await.map_err(|e| {
         // Provide helpful error message for NotFound errors
-        let error_message = if let Some(provider_err) = e.downcast_ref::<crate::providers::errors::ProviderError>() {
-            match provider_err {
-                crate::providers::errors::ProviderError::NotFound { resource_type, resource_id, .. } => {
-                    format!(
-                        "{} '{}' not found. Please use get_activities to retrieve your activity IDs first, then use analyze_activity with a valid ID from the list.",
-                        resource_type,
-                        resource_id
-                    )
-                },
-                _ => format!("Failed to fetch activity {activity_id}: {e}"),
-            }
-        } else {
-            format!("Failed to fetch activity {activity_id}: {e}")
-        };
+        let error_message = e.downcast_ref::<crate::providers::errors::ProviderError>()
+            .map_or_else(
+                || format!("Failed to fetch activity {activity_id}: {e}"),
+                |provider_err| match provider_err {
+                    crate::providers::errors::ProviderError::NotFound { resource_type, resource_id, .. } => {
+                        format!(
+                            "{resource_type} '{resource_id}' not found. Please use get_activities to retrieve your activity IDs first, then use analyze_activity with a valid ID from the list."
+                        )
+                    },
+                    _ => format!("Failed to fetch activity {activity_id}: {e}"),
+                }
+            );
         ProtocolError::ExecutionFailed(error_message)
     })?;
 

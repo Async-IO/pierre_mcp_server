@@ -202,6 +202,9 @@ async fn test_intelligence_analysis_integration() -> Result<()> {
         region: Some("Quebec".to_owned()),
         country: Some("Canada".to_owned()),
         trail_name: Some("Test Trail".to_owned()),
+        workout_type: None,
+        sport_type_detail: None,
+        segment_efforts: None,
         provider: "test".to_owned(),
     };
 
@@ -293,6 +296,9 @@ async fn test_activity_model_creation() -> Result<()> {
             region: None,
             country: None,
             trail_name: None,
+            workout_type: None,
+            sport_type_detail: None,
+            segment_efforts: None,
             provider: "test".to_owned(),
         };
 
@@ -359,6 +365,9 @@ async fn test_concurrent_analysis() -> Result<()> {
                 region: None,
                 country: None,
                 trail_name: None,
+                workout_type: None,
+                sport_type_detail: None,
+                segment_efforts: None,
                 provider: "test".to_owned(),
             };
 

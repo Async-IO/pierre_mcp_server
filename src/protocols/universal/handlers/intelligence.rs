@@ -614,11 +614,9 @@ async fn fetch_and_analyze_activity(
         Ok(activity) => create_intelligence_response(&activity, activity_id, user_uuid, tenant_id),
         Err(e) => {
             // Handle NotFound by auto-fetching recent activities
-            if let Some(provider_err) = e.downcast_ref::<crate::providers::errors::ProviderError>()
+            if let Some(crate::providers::errors::ProviderError::NotFound { resource_id, .. }) =
+                e.downcast_ref::<crate::providers::errors::ProviderError>()
             {
-                if let crate::providers::errors::ProviderError::NotFound { resource_id, .. } =
-                    provider_err
-                {
                     // Activity not found - fetch recent activities to show valid IDs
                     match provider.get_activities(Some(5), None).await {
                         Ok(activities) if !activities.is_empty() => {
@@ -662,7 +660,7 @@ async fn fetch_and_analyze_activity(
                             return UniversalResponse {
                                 success: false,
                                 result: None,
-                                error: Some(format!("Activity '{}' not found and no activities available in your account.", resource_id)),
+                                error: Some(format!("Activity '{resource_id}' not found and no activities available in your account.")),
                                 metadata: None,
                             };
                         }
@@ -670,12 +668,11 @@ async fn fetch_and_analyze_activity(
                             return UniversalResponse {
                                 success: false,
                                 result: None,
-                                error: Some(format!("Activity '{}' not found. Failed to fetch available activities: {}", resource_id, fetch_err)),
+                                error: Some(format!("Activity '{resource_id}' not found. Failed to fetch available activities: {fetch_err}")),
                                 metadata: None,
                             };
                         }
                     }
-                }
             }
 
             // Other errors - generic message
@@ -996,20 +993,18 @@ pub fn handle_compare_activities(
                     }
                     Err(e) => {
                         // Provide helpful error message for NotFound errors
-                        let error_message = if let Some(provider_err) = e.downcast_ref::<crate::providers::errors::ProviderError>() {
-                            match provider_err {
-                                crate::providers::errors::ProviderError::NotFound { resource_type, resource_id, .. } => {
-                                    format!(
-                                        "{} '{}' not found. Please use get_activities to retrieve your activity IDs first, then use compare_activities with a valid ID from the list.",
-                                        resource_type,
-                                        resource_id
-                                    )
-                                },
-                                _ => format!("Failed to fetch activity {activity_id}: {e}"),
-                            }
-                        } else {
-                            format!("Failed to fetch activity {activity_id}: {e}")
-                        };
+                        let error_message = e.downcast_ref::<crate::providers::errors::ProviderError>()
+                            .map_or_else(
+                                || format!("Failed to fetch activity {activity_id}: {e}"),
+                                |provider_err| match provider_err {
+                                    crate::providers::errors::ProviderError::NotFound { resource_type, resource_id, .. } => {
+                                        format!(
+                                            "{resource_type} '{resource_id}' not found. Please use get_activities to retrieve your activity IDs first, then use compare_activities with a valid ID from the list."
+                                        )
+                                    },
+                                    _ => format!("Failed to fetch activity {activity_id}: {e}"),
+                                }
+                            );
 
                         Ok(UniversalResponse {
                             success: false,

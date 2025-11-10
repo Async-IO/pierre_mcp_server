@@ -410,8 +410,8 @@ pub struct Activity {
     /// Workout type designation (e.g., Strava: 0=default, 1=race, 2=long run, 3=workout, 10=trail run, 11=road run)
     /// This helps distinguish trail vs road runs, race efforts, etc.
     pub workout_type: Option<u32>,
-    /// Detailed sport type from provider (e.g., "MountainBikeRide", "TrailRun", "VirtualRide")
-    /// More granular than sport_type enum
+    /// Detailed sport type from provider (e.g., "`MountainBikeRide`", "`TrailRun`", "`VirtualRide`")
+    /// More granular than `sport_type` enum
     pub sport_type_detail: Option<String>,
 
     // Segment Performance Data
@@ -658,6 +658,12 @@ impl Default for Activity {
             region: None,
             country: None,
             trail_name: None,
+
+            // Detailed activity classification fields
+            workout_type: None,
+            sport_type_detail: None,
+            segment_efforts: None,
+
             provider: "test".into(),
         }
     }

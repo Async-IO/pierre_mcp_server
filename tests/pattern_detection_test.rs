@@ -58,6 +58,9 @@ fn create_test_activity(days_ago: i64, distance_km: f64, avg_hr: Option<u32>) ->
         region: None,
         country: None,
         trail_name: None,
+        workout_type: None,
+        sport_type_detail: None,
+        segment_efforts: None,
         provider: "test".to_owned(),
     }
 }

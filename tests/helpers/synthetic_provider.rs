@@ -490,6 +490,9 @@ mod tests {
             region: Some("Quebec".to_owned()),
             country: Some("Canada".to_owned()),
             trail_name: None,
+            workout_type: None,
+            sport_type_detail: None,
+            segment_efforts: None,
             provider: "synthetic".to_owned(),
         }
     }

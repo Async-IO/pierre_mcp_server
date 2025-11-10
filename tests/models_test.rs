@@ -278,6 +278,9 @@ fn test_activity_optional_fields() {
         region: None,
         country: None,
         trail_name: None,
+        workout_type: None,
+        sport_type_detail: None,
+        segment_efforts: None,
         provider: "manual".into(),
     };
 
@@ -585,6 +588,7 @@ fn test_user_with_encrypted_tokens() {
 }
 
 #[test]
+#[allow(clippy::float_cmp)] // Test assertions with exact literal float values
 fn test_activity_detailed_fields() {
     // Test that the new detailed activity fields (workout_type, sport_type_detail, segments)
     // are properly handled in Activity model

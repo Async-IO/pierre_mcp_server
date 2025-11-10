@@ -81,6 +81,9 @@ fn test_enhanced_activity_with_power_metrics() {
         region: Some("Quebec".to_owned()),
         country: Some("Canada".to_owned()),
         trail_name: Some("Lachine Canal".to_owned()),
+        workout_type: None,
+        sport_type_detail: None,
+        segment_efforts: None,
         provider: "strava".to_owned(),
     };
 
@@ -157,6 +160,9 @@ fn test_running_activity_with_biomechanical_data() {
         region: Some("Quebec".to_owned()),
         country: Some("Canada".to_owned()),
         trail_name: Some("Mount Royal".to_owned()),
+        workout_type: None,
+        sport_type_detail: None,
+        segment_efforts: None,
         provider: "garmin".to_owned(),
     };
 
@@ -430,6 +436,9 @@ fn test_backward_compatibility() {
         region: Some("Quebec".to_owned()),
         country: Some("Canada".to_owned()),
         trail_name: Some("Mount Royal Trail".to_owned()),
+        workout_type: None,
+        sport_type_detail: None,
+        segment_efforts: None,
         provider: "strava".to_owned(),
     };
 
