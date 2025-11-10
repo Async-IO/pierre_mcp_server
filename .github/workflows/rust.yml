@@ -51,8 +51,8 @@ jobs:
     - name: Check formatting
       run: cargo fmt --all -- --check
 
-    - name: Lint with Clippy (Zero Tolerance via Cargo.toml)
-      run: cargo clippy --all-targets --all-features --quiet
+    - name: Lint with Clippy (Zero Tolerance)
+      run: cargo clippy --all-targets --all-features -- -D warnings
 
     - name: Install cargo-deny
       uses: taiki-e/install-action@cargo-deny
