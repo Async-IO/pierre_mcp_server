@@ -185,14 +185,20 @@ impl ProtocolConverter {
                         },
                     );
 
+                let activity_id = activity
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("unknown");
+
                 writeln!(
                     &mut text,
-                    "{}. {} - {} | {} | {}",
+                    "{}. {} - {} | {} | {} | ID: {}",
                     i + 1,
                     name,
                     activity_type,
                     distance,
-                    moving_time
+                    moving_time,
+                    activity_id
                 )
                 .unwrap_or_else(|_| tracing::warn!("Failed to write activity line"));
             }

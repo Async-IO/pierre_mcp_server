@@ -213,9 +213,9 @@ impl UniversalExecutor {
     }
 
     fn register_intelligence_tools(registry: &mut ToolRegistry) {
-        registry.register(ToolInfo::sync_tool(
+        registry.register(ToolInfo::async_tool(
             ToolId::CalculateMetrics,
-            handle_calculate_metrics,
+            |executor, request| Box::pin(handle_calculate_metrics(executor, request)),
         ));
         registry.register(ToolInfo::async_tool(
             ToolId::GetActivityIntelligence,

@@ -20,6 +20,20 @@ use reqwest::Client;
 use serde::Deserialize;
 use tracing::{debug, info, warn};
 
+/// Strava API error response format
+#[derive(Debug, Deserialize)]
+struct StravaErrorResponse {
+    message: String,
+    errors: Option<Vec<StravaError>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StravaError {
+    resource: String,
+    field: String,
+    code: String,
+}
+
 /// Strava API response for athlete data
 #[derive(Debug, Deserialize)]
 struct StravaAthleteResponse {
@@ -294,12 +308,51 @@ impl StravaProvider {
 
         if !response.status().is_success() {
             let status = response.status();
+            let url_path = url;
             let text = response.text().await.unwrap_or_default();
             tracing::error!(
                 "Strava API request failed - status: {}, body: {}",
                 status,
                 text
             );
+
+            // Handle 404 Not Found errors specifically
+            if status.as_u16() == 404 {
+                // Try to parse Strava's error response to extract resource details
+                if let Ok(error_response) = serde_json::from_str::<StravaErrorResponse>(&text) {
+                    tracing::debug!(
+                        "Strava 404 error: {} (errors: {})",
+                        error_response.message,
+                        error_response.errors.as_ref().map_or(0, |e| e.len())
+                    );
+
+                    if let Some(errors) = error_response.errors {
+                        if let Some(first_error) = errors.first() {
+                            tracing::debug!(
+                                "Strava error details: resource={}, field={}, code={}",
+                                first_error.resource,
+                                first_error.field,
+                                first_error.code
+                            );
+
+                            // Extract resource ID from URL path (e.g., /activities/123456)
+                            let resource_id = url_path
+                                .split('/')
+                                .last()
+                                .unwrap_or("unknown")
+                                .to_owned();
+
+                            return Err(ProviderError::NotFound {
+                                provider: oauth_providers::STRAVA.to_owned(),
+                                resource_type: first_error.resource.clone(),
+                                resource_id,
+                            }
+                            .into());
+                        }
+                    }
+                }
+            }
+
             return Err(ProviderError::ApiError {
                 provider: oauth_providers::STRAVA.to_owned(),
                 status_code: status.as_u16(),
