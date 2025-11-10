@@ -2910,9 +2910,7 @@ fn generate_goal_specific_recommendations(
 
 /// Generate nutrition recommendations based on recent activity
 /// Calculate activity nutrition metrics (duration, calories, intensity)
-fn calculate_nutrition_metrics(
-    activity: &crate::models::Activity,
-) -> (f64, f64, &'static str) {
+fn calculate_nutrition_metrics(activity: &crate::models::Activity) -> (f64, f64, &'static str) {
     use crate::constants::time_constants;
 
     let duration_hours = f64::from(
@@ -2925,7 +2923,11 @@ fn calculate_nutrition_metrics(
     }));
 
     let intensity = activity.average_heart_rate.map_or(
-        if duration_hours > 1.5 { "moderate" } else { "low" },
+        if duration_hours > 1.5 {
+            "moderate"
+        } else {
+            "low"
+        },
         |avg_hr| {
             let avg_hr_f64 = f64::from(avg_hr);
             if avg_hr_f64 > 160.0 {
@@ -3043,7 +3045,10 @@ fn generate_nutrition_recommendations(activities: &[crate::models::Activity]) ->
     let meal_suggestions = build_meal_suggestions(intensity);
 
     let mut key_insights = vec![
-        format!("Activity burned approximately {:.0} calories", calories_burned),
+        format!(
+            "Activity burned approximately {:.0} calories",
+            calories_burned
+        ),
         format!("Workout intensity: {intensity} - adjust nutrition accordingly"),
     ];
 

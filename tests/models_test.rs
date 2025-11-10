@@ -700,8 +700,7 @@ fn validate_descent_segment(descent: &SegmentEffort) {
         "Should be negative grade for descent"
     );
     assert_eq!(
-        descent.climb_category,
-        None,
+        descent.climb_category, None,
         "Descents don't have climb category"
     );
 }
@@ -713,7 +712,10 @@ fn test_activity_detailed_fields() {
 
     // Validate workout_type
     assert_eq!(activity.workout_type, Some(10));
-    assert!(activity.workout_type.is_some(), "workout_type should be present");
+    assert!(
+        activity.workout_type.is_some(),
+        "workout_type should be present"
+    );
 
     // Validate sport_type_detail
     assert_eq!(activity.sport_type_detail, Some("TrailRun".into()));
