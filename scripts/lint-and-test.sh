@@ -167,8 +167,39 @@ fi
 # NOTE: This builds the debug binary ONCE - all subsequent steps reuse this build
 echo -e "${BLUE}Running cargo clippy + build (zero tolerance via Cargo.toml)...${NC}"
 
+# ============================================================================
+# CRITICAL: Why we need explicit -- -D warnings flag
+# ============================================================================
+# DO NOT REMOVE THE "-D warnings" FLAG - Here's why:
+#
+# The [lints.clippy] configuration in Cargo.toml (lines 160-166) has known
+# reliability issues with flag ordering that cause inconsistent behavior:
+#
+# GitHub Issue: https://github.com/rust-lang/rust-clippy/issues/11237
+# Title: "cargo clippy not obeying [lints.clippy] from Cargo.toml"
+# Root Cause: Cargo sorts flags before passing to clippy, breaking precedence
+# Examples: wildcard_imports, too_many_lines, option_if_let_else all failed
+#           to respect [lints.clippy] deny configuration
+#
+# Official Clippy Documentation (https://doc.rust-lang.org/clippy/usage.html):
+# "For CI all warnings can be elevated to errors which will in turn fail
+#  the build and cause Clippy to exit with a code other than 0"
+# Recommended Command: cargo clippy -- -Dwarnings
+#
+# Without explicit -D warnings:
+# ❌ Clippy may exit with code 0 even when warnings exist
+# ❌ CI/CD won't fail on code quality issues
+# ❌ Cargo.toml [lints] flag ordering can be inconsistent
+#
+# With explicit -D warnings:
+# ✅ Guaranteed non-zero exit code on ANY warning
+# ✅ Bypasses Cargo.toml flag ordering bugs
+# ✅ Standard CI/CD pattern (documented in official Clippy docs)
+# ============================================================================
+
 # Run clippy with output to both screen and variable
 # Explicit -W flags ensure nursery lints (including too_many_lines) apply to all targets
+# CRITICAL: The "-- -D warnings" suffix is REQUIRED - see documentation above
 CLIPPY_OUTPUT=$(cargo clippy --all-targets --all-features --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings 2>&1 | tee /dev/stderr)
 CLIPPY_EXIT=$?
 
