@@ -1012,6 +1012,7 @@ export class PierreMcpClient {
   private mcpServer: Server | null = null;
   private serverTransport: StdioServerTransport | null = null;
   private cachedTools: any = null;
+  private proactiveConnectionPromise: Promise<void> | null = null;
 
   constructor(config: BridgeConfig) {
     this.config = config;
@@ -1046,8 +1047,12 @@ export class PierreMcpClient {
       // Step 3: Create MCP client connection to Pierre using Streamable HTTP
       // Initialize in background so MCP server can respond immediately (critical for CI/validators)
       // Connection will complete asynchronously; tools will be available once connected
-      this.initializePierreConnection().catch(error => {
+      // Store promise so tools/list can wait for completion
+      this.proactiveConnectionPromise = this.initializePierreConnection().catch(error => {
         this.log('Pierre connection initialization failed (will retry on first tool call):', error);
+      }).then(() => {
+        // Mark promise as resolved
+        this.log('Proactive connection promise resolved');
       });
 
       this.log('Bridge started successfully (Pierre connection initializing in background)');
@@ -1330,6 +1335,34 @@ export class PierreMcpClient {
 
         // Step 6: Connect after OAuth completes
         await this.attemptConnection();
+
+        // Step 7: Refresh cached tools with authenticated toolset
+        // Before OAuth, we may have cached unauthenticated tools (just connect_to_pierre)
+        // After OAuth, we need to fetch and cache the FULL authenticated toolset
+        try {
+          if (this.pierreClient) {
+            this.log('Fetching authenticated tools after OAuth...');
+            const toolsResult = await this.pierreClient.listTools();
+            this.cachedTools = toolsResult;
+            this.log(`Refreshed cache with ${toolsResult.tools.length} authenticated tools: ${JSON.stringify(toolsResult.tools.map((t: any) => t.name))}`);
+
+            // Notify MCP host that tools have changed (now authenticated)
+            if (this.mcpServer) {
+              try {
+                await this.mcpServer.notification({
+                  method: 'notifications/tools/list_changed',
+                  params: {}
+                });
+                this.log('Sent tools/list_changed notification after OAuth');
+              } catch (notifError: any) {
+                this.log('Failed to send tools/list_changed notification:', notifError.message);
+              }
+            }
+          }
+        } catch (toolsError: any) {
+          this.log('Failed to refresh tools after OAuth:', toolsError.message);
+          // Non-fatal - tools will be fetched on next request
+        }
       } catch (error) {
         this.log(`Failed to start OAuth flow: ${error}`);
         throw error;
@@ -1388,6 +1421,27 @@ export class PierreMcpClient {
       this.log('Bridging tools/list request');
 
       try {
+        // Wait for proactive connection to complete if it's still running
+        // This ensures we have the full toolset cached before responding
+        // Use a shorter timeout (1 second) to avoid blocking tools/list too long
+        if (this.proactiveConnectionPromise) {
+          this.log('Waiting for proactive connection to complete...');
+          const waitResult = await this.withTimeout(
+            this.proactiveConnectionPromise,
+            1000,
+            'tools/list waiting for proactive connection'
+          );
+
+          // Clear the promise reference so subsequent calls don't wait
+          this.proactiveConnectionPromise = null;
+
+          if (waitResult === null) {
+            this.log('Proactive connection still running after 1s, proceeding with current cache');
+          } else {
+            this.log('Proactive connection completed, checking cache');
+          }
+        }
+
         // If we have cached tools, return them immediately (from proactive connection)
         if (this.cachedTools) {
           this.log(`Using cached tools from proactive connection (${this.cachedTools.tools.length} tools)`);
