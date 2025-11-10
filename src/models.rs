@@ -108,6 +108,42 @@ pub struct TimeSeriesData {
     pub gps_coordinates: Option<Vec<(f64, f64)>>,
 }
 
+/// Segment effort within an activity (primarily from Strava)
+/// Represents performance on a known route/segment during an activity
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SegmentEffort {
+    /// Unique identifier for the segment effort
+    pub id: String,
+    /// Name of the segment
+    pub name: String,
+    /// Elapsed time on segment in seconds
+    pub elapsed_time: u64,
+    /// Moving time on segment in seconds (excludes stopped time)
+    pub moving_time: Option<u64>,
+    /// When the segment effort started (UTC)
+    pub start_date: DateTime<Utc>,
+    /// Distance of the segment in meters
+    pub distance: f64,
+    /// Average heart rate during segment (BPM)
+    pub average_heart_rate: Option<u32>,
+    /// Max heart rate during segment (BPM)
+    pub max_heart_rate: Option<u32>,
+    /// Average cadence during segment
+    pub average_cadence: Option<u32>,
+    /// Average power during segment (watts)
+    pub average_watts: Option<u32>,
+    /// King of the Mountain (KOM) rank for this effort (1 = fastest ever)
+    pub kom_rank: Option<u32>,
+    /// Personal Record (PR) rank for this athlete (1 = athlete's best)
+    pub pr_rank: Option<u32>,
+    /// Segment climb category (HC, 1-4, or None)
+    pub climb_category: Option<u32>,
+    /// Average grade/gradient of the segment (percentage)
+    pub average_grade: Option<f32>,
+    /// Elevation gain on the segment in meters
+    pub elevation_gain: Option<f64>,
+}
+
 /// User tier for rate limiting - same as `API` key tiers for consistency
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -369,6 +405,20 @@ pub struct Activity {
     pub country: Option<String>,
     /// Trail or route name if available (e.g., "Saint-Hippolyte trail")
     pub trail_name: Option<String>,
+
+    // Activity Classification and Detail
+    /// Workout type designation (e.g., Strava: 0=default, 1=race, 2=long run, 3=workout, 10=trail run, 11=road run)
+    /// This helps distinguish trail vs road runs, race efforts, etc.
+    pub workout_type: Option<u32>,
+    /// Detailed sport type from provider (e.g., "MountainBikeRide", "TrailRun", "VirtualRide")
+    /// More granular than sport_type enum
+    pub sport_type_detail: Option<String>,
+
+    // Segment Performance Data
+    /// Segment efforts for this activity (primarily from Strava)
+    /// Contains performance data for known segments/routes within the activity
+    pub segment_efforts: Option<Vec<SegmentEffort>>,
+
     /// Source provider of this activity data
     pub provider: String,
 }

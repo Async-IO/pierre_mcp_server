@@ -291,6 +291,13 @@ impl GarminProvider {
             region: None,
             country: None,
             trail_name: None,
+
+            // New fields - Garmin may provide these in detailed activity responses
+            // TODO: Add these fields to GarminActivityResponse once we have API documentation
+            workout_type: None,
+            sport_type_detail: None,
+            segment_efforts: None,
+
             provider: oauth_providers::GARMIN.to_owned(),
         })
     }

@@ -630,6 +630,55 @@ struct StravaActivity {
     average_speed: Option<f64>,
     max_speed: Option<f64>,
     start_latlng: Option<Vec<f64>>, // [latitude, longitude]
+
+    // Location fields
+    location_city: Option<String>,
+    location_state: Option<String>,
+    location_country: Option<String>,
+
+    // Activity classification
+    workout_type: Option<u32>,
+    sport_type: Option<String>,
+
+    // Performance metrics
+    average_cadence: Option<f32>,
+    average_watts: Option<f32>,
+    weighted_average_watts: Option<f32>,
+    max_watts: Option<u32>,
+    device_watts: Option<bool>,
+    kilojoules: Option<f32>,
+    calories: Option<f32>,
+    suffer_score: Option<u32>,
+
+    // Segment data
+    segment_efforts: Option<Vec<StravaSegmentEffort>>,
+}
+
+/// Strava segment effort data
+#[derive(Debug, Deserialize)]
+struct StravaSegmentEffort {
+    id: u64,
+    name: String,
+    elapsed_time: u64,
+    moving_time: Option<u64>,
+    start_date: DateTime<Utc>,
+    distance: f64,
+    average_heartrate: Option<f32>,
+    max_heartrate: Option<f32>,
+    average_cadence: Option<f32>,
+    average_watts: Option<f32>,
+    kom_rank: Option<u32>,
+    pr_rank: Option<u32>,
+    segment: Option<StravaSegment>,
+}
+
+/// Strava segment metadata
+#[derive(Debug, Deserialize)]
+struct StravaSegment {
+    climb_category: Option<u32>,
+    average_grade: Option<f32>,
+    elevation_high: Option<f64>,
+    elevation_low: Option<f64>,
 }
 
 impl From<StravaActivity> for Activity {
@@ -675,17 +724,43 @@ impl From<StravaActivity> for Activity {
             }),
             average_speed: strava.average_speed,
             max_speed: strava.max_speed,
-            calories: None,
+            calories: strava.calories.and_then(|c| {
+                if c.is_finite() && c >= 0.0 {
+                    Some(c.round() as u32)
+                } else {
+                    None
+                }
+            }),
             steps: None,            // Strava doesn't provide step data
             heart_rate_zones: None, // Strava doesn't provide zone breakdown data
 
-            // Advanced metrics - all None for basic Strava data
-            average_power: None,
-            max_power: None,
-            normalized_power: None,
+            // Power metrics - now extracted from Strava
+            average_power: strava.average_watts.and_then(|w| {
+                if w.is_finite() && w >= 0.0 {
+                    Some(w.round() as u32)
+                } else {
+                    None
+                }
+            }),
+            max_power: strava.max_watts,
+            normalized_power: strava.weighted_average_watts.and_then(|w| {
+                if w.is_finite() && w >= 0.0 {
+                    Some(w.round() as u32)
+                } else {
+                    None
+                }
+            }),
             power_zones: None,
             ftp: None,
-            average_cadence: None,
+
+            // Cadence metrics - now extracted from Strava
+            average_cadence: strava.average_cadence.and_then(|c| {
+                if c.is_finite() && c >= 0.0 {
+                    Some(c.round() as u32)
+                } else {
+                    None
+                }
+            }),
             max_cadence: None,
             hrv_score: None,
             recovery_heart_rate: None,
@@ -701,15 +776,72 @@ impl From<StravaActivity> for Activity {
             spo2: None,
             training_stress_score: None,
             intensity_factor: None,
-            suffer_score: None,
+            suffer_score: strava.suffer_score,
             time_series_data: None,
 
             start_latitude,
             start_longitude,
-            city: None,
-            region: None,
-            country: None,
+            city: strava.location_city,
+            region: strava.location_state,
+            country: strava.location_country,
             trail_name: None,
+
+            // New fields
+            workout_type: strava.workout_type,
+            sport_type_detail: strava.sport_type,
+            segment_efforts: strava.segment_efforts.map(|efforts| {
+                efforts.into_iter().map(|effort| {
+                    let segment_elevation_gain = effort.segment.as_ref().and_then(|seg| {
+                        match (seg.elevation_high, seg.elevation_low) {
+                            (Some(high), Some(low)) => Some(high - low),
+                            _ => None,
+                        }
+                    });
+
+                    crate::models::SegmentEffort {
+                        id: effort.id.to_string(),
+                        name: effort.name,
+                        elapsed_time: effort.elapsed_time,
+                        moving_time: effort.moving_time,
+                        start_date: effort.start_date,
+                        distance: effort.distance,
+                        average_heart_rate: effort.average_heartrate.and_then(|hr| {
+                            if hr.is_finite() && hr >= 0.0 {
+                                Some(hr.round() as u32)
+                            } else {
+                                None
+                            }
+                        }),
+                        max_heart_rate: effort.max_heartrate.and_then(|hr| {
+                            if hr.is_finite() && hr >= 0.0 {
+                                Some(hr.round() as u32)
+                            } else {
+                                None
+                            }
+                        }),
+                        average_cadence: effort.average_cadence.and_then(|c| {
+                            if c.is_finite() && c >= 0.0 {
+                                Some(c.round() as u32)
+                            } else {
+                                None
+                            }
+                        }),
+                        average_watts: effort.average_watts.and_then(|w| {
+                            if w.is_finite() && w >= 0.0 {
+                                Some(w.round() as u32)
+                            } else {
+                                None
+                            }
+                        }),
+                        kom_rank: effort.kom_rank,
+                        pr_rank: effort.pr_rank,
+                        climb_category: effort.segment.as_ref().and_then(|seg| seg.climb_category),
+                        average_grade: effort.segment.as_ref().and_then(|seg| seg.average_grade),
+                        elevation_gain: segment_elevation_gain,
+                    }
+                }).collect()
+            }),
+
             provider: "strava".into(),
         }
     }

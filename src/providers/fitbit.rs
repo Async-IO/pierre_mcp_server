@@ -581,6 +581,12 @@ impl From<FitbitActivity> for Activity {
             region: None,
             country: None,
             trail_name: None,
+
+            // New fields - Fitbit doesn't provide workout type classification or segments
+            workout_type: None,
+            sport_type_detail: None,
+            segment_efforts: None,
+
             provider: "fitbit".into(),
         }
     }

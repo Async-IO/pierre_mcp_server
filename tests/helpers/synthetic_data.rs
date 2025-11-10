@@ -581,6 +581,16 @@ impl<'a> ActivityBuilder<'a> {
             region: Some("Quebec".to_owned()),
             country: Some("Canada".to_owned()),
             trail_name: Some("Synthetic Training Route".to_owned()),
+
+            // New fields for workout classification and segments
+            workout_type: if sport_type == SportType::Run {
+                Some(10) // Trail run
+            } else {
+                None
+            },
+            sport_type_detail: Some(format!("{sport_type:?}")),
+            segment_efforts: None, // Synthetic data doesn't generate segment efforts
+
             provider: "synthetic".to_owned(),
         }
     }
