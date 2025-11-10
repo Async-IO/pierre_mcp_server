@@ -168,7 +168,8 @@ fi
 echo -e "${BLUE}Running cargo clippy + build (zero tolerance via Cargo.toml)...${NC}"
 
 # Run clippy with output to both screen and variable
-CLIPPY_OUTPUT=$(cargo clippy --all-targets --all-features 2>&1 | tee /dev/stderr)
+# Explicit -W flags ensure nursery lints (including too_many_lines) apply to all targets
+CLIPPY_OUTPUT=$(cargo clippy --all-targets --all-features --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings 2>&1 | tee /dev/stderr)
 CLIPPY_EXIT=$?
 
 # Check if clippy was killed (exit code 137 = SIGKILL, 143 = SIGTERM)
