@@ -646,7 +646,7 @@ async fn fetch_and_analyze_activity(
                         // Add auto-selection note to the result
                         if let Some(result) = response.result.as_mut() {
                             result["auto_selected"] = serde_json::json!({
-                                "reason": format!("Activity '{}' not found", resource_id),
+                                "reason": format!("Activity '{resource_id}' not found"),
                                 "selected_activity": most_recent.id.clone(),
                                 "selected_activity_name": most_recent.name.clone(),
                                 "selected_activity_date": most_recent.start_date.format("%Y-%m-%d").to_string(),
@@ -658,19 +658,19 @@ async fn fetch_and_analyze_activity(
                     }
                     Ok(_) => {
                         return UniversalResponse {
-                                success: false,
-                                result: None,
-                                error: Some(format!("Activity '{resource_id}' not found and no activities available in your account.")),
-                                metadata: None,
-                            };
+                            success: false,
+                            result: None,
+                            error: Some(format!("Activity '{resource_id}' not found and no activities available in your account.")),
+                            metadata: None,
+                        };
                     }
                     Err(fetch_err) => {
                         return UniversalResponse {
-                                success: false,
-                                result: None,
-                                error: Some(format!("Activity '{resource_id}' not found. Failed to fetch available activities: {fetch_err}")),
-                                metadata: None,
-                            };
+                            success: false,
+                            result: None,
+                            error: Some(format!("Activity '{resource_id}' not found. Failed to fetch available activities: {fetch_err}")),
+                            metadata: None,
+                        };
                     }
                 }
             }
@@ -993,18 +993,23 @@ pub fn handle_compare_activities(
                     }
                     Err(e) => {
                         // Provide helpful error message for NotFound errors
-                        let error_message = e.downcast_ref::<crate::providers::errors::ProviderError>()
-                            .map_or_else(
-                                || format!("Failed to fetch activity {activity_id}: {e}"),
-                                |provider_err| match provider_err {
-                                    crate::providers::errors::ProviderError::NotFound { resource_type, resource_id, .. } => {
-                                        format!(
-                                            "{resource_type} '{resource_id}' not found. Please use get_activities to retrieve your activity IDs first, then use compare_activities with a valid ID from the list."
-                                        )
+                        let error_message =
+                            e.downcast_ref::<crate::providers::errors::ProviderError>()
+                                .map_or_else(
+                                    || format!("Failed to fetch activity {activity_id}: {e}"),
+                                    |provider_err| match provider_err {
+                                        crate::providers::errors::ProviderError::NotFound {
+                                            resource_type,
+                                            resource_id,
+                                            ..
+                                        } => {
+                                            format!(
+                                                "{resource_type} '{resource_id}' not found. Please use get_activities to retrieve your activity IDs first, then use compare_activities with a valid ID from the list."
+                                            )
+                                        }
+                                        _ => format!("Failed to fetch activity {activity_id}: {e}"),
                                     },
-                                    _ => format!("Failed to fetch activity {activity_id}: {e}"),
-                                }
-                            );
+                                );
 
                         Ok(UniversalResponse {
                             success: false,
@@ -2435,6 +2440,7 @@ fn generate_training_recommendations(
         "recovery" => generate_recovery_recommendations(&recent_activities),
         "intensity" => generate_intensity_recommendations(&recent_activities),
         "goal_specific" => generate_goal_specific_recommendations(&recent_activities),
+        "nutrition" => generate_nutrition_recommendations(&recent_activities),
         _ => generate_comprehensive_recommendations(&recent_activities),
     }
 }
@@ -2875,6 +2881,186 @@ fn generate_goal_specific_recommendations(
             "Peak Phase: Race-specific intensity (2-3 weeks)",
             "Taper: Reduce volume, maintain sharpness (1-2 weeks)",
         ],
+    })
+}
+
+/// Generate nutrition recommendations based on recent activity
+fn generate_nutrition_recommendations(activities: &[crate::models::Activity]) -> serde_json::Value {
+    use crate::constants::time_constants;
+
+    // Get most recent activity for nutrition recommendations
+    let most_recent = activities.iter().max_by_key(|a| a.start_date);
+
+    if most_recent.is_none() {
+        return serde_json::json!({
+            "recommendation_type": "nutrition",
+            "priority": "medium",
+            "reasoning": "No recent activity data available",
+            "recommendations": [
+                "Maintain balanced nutrition with adequate protein (1.6-2.2g/kg body weight)",
+                "Stay hydrated throughout the day (2-3 liters water)",
+                "Eat regular meals with complex carbohydrates, lean protein, and healthy fats"
+            ],
+        });
+    }
+
+    // Safe: most_recent is Some() at this point due to early return above
+    let Some(activity) = most_recent else {
+        // This should never happen due to early return above
+        return serde_json::json!({
+            "recommendations": [
+                "No recent activities found for nutrition analysis"
+            ],
+        });
+    };
+
+    // Calculate activity metrics
+    let duration_hours = f64::from(
+        u32::try_from(activity.duration_seconds.min(u64::from(u32::MAX))).unwrap_or(u32::MAX),
+    ) / time_constants::SECONDS_PER_HOUR_F64;
+    let calories_burned = f64::from(activity.calories.unwrap_or_else(|| {
+        // Estimate calories if not provided (rough estimate: 10 cal/min for moderate activity)
+        let duration_mins = u32::try_from(activity.duration_seconds / 60).unwrap_or(u32::MAX);
+        duration_mins * 10
+    }));
+
+    // Determine workout intensity based on heart rate and duration
+    let intensity = activity.average_heart_rate.map_or(
+        if duration_hours > 1.5 {
+            "moderate"
+        } else {
+            "low"
+        },
+        |avg_hr| {
+            let avg_hr_f64 = f64::from(avg_hr);
+            if avg_hr_f64 > 160.0 {
+                "high"
+            } else if avg_hr_f64 > 130.0 {
+                "moderate"
+            } else {
+                "low"
+            }
+        },
+    );
+
+    // Calculate post-workout nutrition needs
+    // Protein: 20-40g for recovery (higher for longer/harder workouts)
+    let protein_g = if intensity == "high" || duration_hours > 1.5 {
+        30.0 + (duration_hours * 5.0).min(20.0)
+    } else {
+        20.0 + (duration_hours * 5.0).min(15.0)
+    };
+
+    // Carbs: 0.8-1.2g per kg body weight per hour of exercise (assume 70kg)
+    let carbs_g = duration_hours * 70.0 * 1.0; // Using 1.0 g/kg/hr as middle ground
+
+    // Hydration: Replace fluid losses (approximately 500-1000ml per hour)
+    let hydration_ml = duration_hours * 750.0;
+
+    // Build recommendations based on activity
+    let mut recommendations = Vec::new();
+    let mut meal_suggestions = Vec::new();
+
+    // Immediate recovery window (0-30 minutes)
+    recommendations.push(format!(
+        "Within 30 minutes: Consume {:.0}g protein and {:.0}g carbohydrates for optimal recovery",
+        protein_g,
+        carbs_g * 0.5
+    ));
+
+    // Hydration
+    recommendations.push(format!(
+        "Rehydrate with {:.0}-{:.0}ml of water or electrolyte drink",
+        hydration_ml,
+        hydration_ml * 1.3
+    ));
+
+    // Meal timing
+    if intensity == "high" || duration_hours > 1.0 {
+        recommendations.push(
+            "Follow up with a complete meal within 2 hours to fully replenish glycogen stores"
+                .to_owned(),
+        );
+    }
+
+    // Specific food suggestions
+    meal_suggestions.push(serde_json::json!({
+        "option": "Quick Recovery Shake",
+        "description": "Protein shake with banana and honey",
+        "protein_g": 25,
+        "carbs_g": 50,
+        "timing": "Immediate (0-15 min)"
+    }));
+
+    meal_suggestions.push(serde_json::json!({
+        "option": "Greek Yogurt Bowl",
+        "description": "200g Greek yogurt with granola, berries, and honey",
+        "protein_g": 20,
+        "carbs_g": 60,
+        "timing": "Within 30 minutes"
+    }));
+
+    meal_suggestions.push(serde_json::json!({
+        "option": "Recovery Meal",
+        "description": "Grilled chicken with sweet potato and vegetables",
+        "protein_g": 35,
+        "carbs_g": 50,
+        "timing": "Within 2 hours"
+    }));
+
+    if intensity == "high" {
+        meal_suggestions.push(serde_json::json!({
+            "option": "Endurance Option",
+            "description": "Pasta with lean meat sauce and mixed salad",
+            "protein_g": 30,
+            "carbs_g": 80,
+            "timing": "Within 2 hours"
+        }));
+    }
+
+    // Additional nutritional guidance
+    let mut key_insights = vec![
+        format!(
+            "Activity burned approximately {:.0} calories",
+            calories_burned
+        ),
+        format!(
+            "Workout intensity: {} - adjust nutrition accordingly",
+            intensity
+        ),
+    ];
+
+    if duration_hours > 1.5 {
+        key_insights
+            .push("Extended duration activity - prioritize carbohydrate replenishment".to_owned());
+    }
+
+    serde_json::json!({
+        "recommendation_type": "nutrition",
+        "priority": if intensity == "high" { "high" } else { "medium" },
+        "reasoning": format!(
+            "Based on {:.1} hour {} intensity {:?} with {:.0} calories burned",
+            duration_hours,
+            intensity,
+            activity.sport_type,
+            calories_burned
+        ),
+        "recovery_window": "Critical recovery period: 0-2 hours post-workout",
+        "key_insights": key_insights,
+        "recommendations": recommendations,
+        "meal_suggestions": meal_suggestions,
+        "macronutrient_targets": {
+            "protein_g": protein_g.round(),
+            "carbohydrates_g": carbs_g.round(),
+            "hydration_ml": hydration_ml.round(),
+        },
+        "activity_summary": {
+            "name": &activity.name,
+            "type": &activity.sport_type,
+            "duration_minutes": activity.duration_seconds / 60,
+            "distance_km": activity.distance_meters.map(|d| (d / 1000.0).round()),
+            "calories": calories_burned.round(),
+        }
     })
 }
 
