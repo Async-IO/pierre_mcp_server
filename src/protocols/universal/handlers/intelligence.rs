@@ -229,6 +229,114 @@ fn build_metrics_response(
     }
 }
 
+/// Fetch activity from provider and calculate metrics (helper for `activity_id` path)
+async fn fetch_and_calculate_metrics(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: &UniversalRequest,
+    activity_id: &str,
+    provider_name: &str,
+    user_uuid: uuid::Uuid,
+) -> Result<UniversalResponse, ProtocolError> {
+    // Get valid token
+    let token_data = match executor
+        .auth_service
+        .get_valid_token(user_uuid, provider_name, request.tenant_id.as_deref())
+        .await
+    {
+        Ok(Some(token)) => token,
+        Ok(None) => {
+            return Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!(
+                    "No valid token for {provider_name}. Please connect using the connect_provider tool first."
+                )),
+                metadata: None,
+            });
+        }
+        Err(e) => {
+            return Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Authentication error: {e}")),
+                metadata: None,
+            });
+        }
+    };
+
+    // Create configured provider
+    let provider = executor
+        .resources
+        .provider_registry
+        .create_provider(provider_name)
+        .map_err(|e| ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}")))?;
+
+    let credentials = crate::providers::OAuth2Credentials {
+        client_id: executor
+            .resources
+            .config
+            .oauth
+            .strava
+            .client_id
+            .clone()
+            .unwrap_or_default(),
+        client_secret: executor
+            .resources
+            .config
+            .oauth
+            .strava
+            .client_secret
+            .clone()
+            .unwrap_or_default(),
+        access_token: Some(token_data.access_token.clone()),
+        refresh_token: Some(token_data.refresh_token.clone()),
+        expires_at: Some(token_data.expires_at),
+        scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+            .split(',')
+            .map(str::to_owned)
+            .collect(),
+    };
+
+    provider.set_credentials(credentials).await.map_err(|e| {
+        ProtocolError::ConfigurationError(format!("Failed to set provider credentials: {e}"))
+    })?;
+
+    // Fetch activity from provider
+    let activity = provider.get_activity(activity_id).await.map_err(|e| {
+        ProtocolError::ExecutionFailed(format!("Failed to fetch activity {activity_id}: {e}"))
+    })?;
+
+    // Convert Activity model to parameters format
+    let mut request_with_activity = request.clone();
+    if let Some(params_obj) = request_with_activity.parameters.as_object_mut() {
+        params_obj.insert(
+            "activity".to_owned(),
+            serde_json::json!({
+                "distance": activity.distance_meters,
+                "duration": activity.duration_seconds,
+                "elevation_gain": activity.elevation_gain,
+                "average_heart_rate": activity.average_heart_rate,
+            }),
+        );
+    } else {
+        return Err(ProtocolError::InvalidParameters(
+            "parameters must be a JSON object".to_owned(),
+        ));
+    }
+
+    // Parse parameters from converted activity
+    let params = parse_activity_parameters(&request_with_activity)?;
+    let (max_hr, max_hr_source) = determine_max_heart_rate(params.max_hr_provided, params.user_age);
+    let metrics = calculate_activity_metrics(&params, max_hr);
+
+    Ok(build_metrics_response(
+        &params,
+        &metrics,
+        max_hr,
+        &max_hr_source,
+    ))
+}
+
 /// Handle `calculate_metrics` tool - calculate custom fitness metrics (async)
 ///
 /// # Errors
@@ -237,7 +345,6 @@ pub async fn handle_calculate_metrics(
     executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Result<UniversalResponse, ProtocolError> {
-    // Parse user ID
     let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
     // Check if activity_id is provided (schema-compliant path)
@@ -246,7 +353,6 @@ pub async fn handle_calculate_metrics(
         .get("activity_id")
         .and_then(serde_json::Value::as_str)
     {
-        // Get provider name (required when using activity_id)
         let provider_name = request
             .parameters
             .get("provider")
@@ -256,124 +362,22 @@ pub async fn handle_calculate_metrics(
                     "provider parameter required when using activity_id".to_owned(),
                 )
             })?;
-        // Get valid token
-        let token_data = match executor
-            .auth_service
-            .get_valid_token(user_uuid, provider_name, request.tenant_id.as_deref())
-            .await
-        {
-            Ok(Some(token)) => token,
-            Ok(None) => {
-                return Ok(UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!(
-                        "No valid token for {provider_name}. Please connect using the connect_provider tool first."
-                    )),
-                    metadata: None,
-                });
-            }
-            Err(e) => {
-                return Ok(UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Authentication error: {e}")),
-                    metadata: None,
-                });
-            }
-        };
 
-        // Create configured provider
-        let provider = executor
-            .resources
-            .provider_registry
-            .create_provider(provider_name)
-            .map_err(|e| {
-                ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
-            })?;
-
-        let credentials = crate::providers::OAuth2Credentials {
-            client_id: executor
-                .resources
-                .config
-                .oauth
-                .strava
-                .client_id
-                .clone()
-                .unwrap_or_default(),
-            client_secret: executor
-                .resources
-                .config
-                .oauth
-                .strava
-                .client_secret
-                .clone()
-                .unwrap_or_default(),
-            access_token: Some(token_data.access_token.clone()),
-            refresh_token: Some(token_data.refresh_token.clone()),
-            expires_at: Some(token_data.expires_at),
-            scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
-                .split(',')
-                .map(str::to_owned)
-                .collect(),
-        };
-
-        provider.set_credentials(credentials).await.map_err(|e| {
-            ProtocolError::ConfigurationError(format!("Failed to set provider credentials: {e}"))
-        })?;
-
-        // Fetch activity from provider
-        let activity = provider.get_activity(activity_id).await.map_err(|e| {
-            ProtocolError::ExecutionFailed(format!("Failed to fetch activity {activity_id}: {e}"))
-        })?;
-
-        // Convert Activity model to parameters format
-        let mut request_with_activity = request.clone();
-        if let Some(params_obj) = request_with_activity.parameters.as_object_mut() {
-            params_obj.insert(
-                "activity".to_owned(),
-                serde_json::json!({
-                    "distance": activity.distance_meters,
-                    "duration": activity.duration_seconds,
-                    "elevation_gain": activity.elevation_gain,
-                    "average_heart_rate": activity.average_heart_rate,
-                }),
-            );
-        } else {
-            return Err(ProtocolError::InvalidParameters(
-                "parameters must be a JSON object".to_owned(),
-            ));
-        }
-
-        // Parse parameters from converted activity
-        let params = parse_activity_parameters(&request_with_activity)?;
-
-        // Determine max heart rate
-        let (max_hr, max_hr_source) =
-            determine_max_heart_rate(params.max_hr_provided, params.user_age);
-
-        // Calculate metrics
-        let metrics = calculate_activity_metrics(&params, max_hr);
-
-        // Build and return response
-        return Ok(build_metrics_response(
-            &params,
-            &metrics,
-            max_hr,
-            &max_hr_source,
-        ));
+        return fetch_and_calculate_metrics(
+            executor,
+            &request,
+            activity_id,
+            provider_name,
+            user_uuid,
+        )
+        .await;
     }
 
     // Fallback path: activity object provided directly (for backward compatibility)
     let params = parse_activity_parameters(&request)?;
-
-    // Determine max heart rate
     let (max_hr, max_hr_source) = determine_max_heart_rate(params.max_hr_provided, params.user_age);
-
-    // Calculate metrics
     let metrics = calculate_activity_metrics(&params, max_hr);
 
-    // Build and return response
     Ok(build_metrics_response(
         &params,
         &metrics,
@@ -906,6 +910,73 @@ pub fn handle_analyze_performance_trends(
     })
 }
 
+/// Execute activity comparison with authenticated provider
+async fn execute_activity_comparison(
+    provider: Box<dyn crate::providers::core::FitnessProvider>,
+    activity_id: &str,
+    comparison_type: &str,
+    compare_activity_id: Option<&str>,
+    user_uuid: uuid::Uuid,
+) -> UniversalResponse {
+    use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
+
+    match provider.get_activity(activity_id).await {
+        Ok(target_activity) => {
+            let all_activities = provider
+                .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
+                .await
+                .unwrap_or_default();
+
+            let comparison = compare_activity_logic(
+                &target_activity,
+                &all_activities,
+                comparison_type,
+                compare_activity_id,
+            );
+
+            UniversalResponse {
+                success: true,
+                result: Some(comparison),
+                error: None,
+                metadata: Some({
+                    let mut map = std::collections::HashMap::new();
+                    map.insert(
+                        "user_id".to_owned(),
+                        serde_json::Value::String(user_uuid.to_string()),
+                    );
+                    map
+                }),
+            }
+        }
+        Err(e) => {
+            let error_message =
+                e.downcast_ref::<crate::providers::errors::ProviderError>()
+                    .map_or_else(
+                        || format!("Failed to fetch activity {activity_id}: {e}"),
+                        |provider_err| match provider_err {
+                            crate::providers::errors::ProviderError::NotFound {
+                                resource_type,
+                                resource_id,
+                                ..
+                            } => {
+                                format!(
+                                    "{resource_type} '{resource_id}' not found. Please use get_activities to retrieve your activity IDs first, then use compare_activities with a valid ID from the list."
+                                )
+                            }
+                            _ => format!("Failed to fetch activity {activity_id}: {e}"),
+                        },
+                    );
+
+            UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(error_message),
+                metadata: None,
+            }
+        }
+    }
+}
+
 /// Handle `compare_activities` tool - compare two activities
 #[must_use]
 pub fn handle_compare_activities(
@@ -914,7 +985,6 @@ pub fn handle_compare_activities(
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
         use crate::constants::oauth_providers;
-        use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
@@ -965,61 +1035,14 @@ pub fn handle_compare_activities(
                     ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
                 })?;
 
-                match provider.get_activity(activity_id).await {
-                    Ok(target_activity) => {
-                        // Get additional activities for comparison
-                        let all_activities = provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await
-                            .unwrap_or_default();
-
-                        let comparison = compare_activity_logic(
-                            &target_activity,
-                            &all_activities,
-                            comparison_type,
-                            compare_activity_id,
-                        );
-
-                        Ok(UniversalResponse {
-                            success: true,
-                            result: Some(comparison),
-                            error: None,
-                            metadata: Some({
-                                let mut map = std::collections::HashMap::new();
-                                map.insert(
-                                    "user_id".to_owned(),
-                                    serde_json::Value::String(user_uuid.to_string()),
-                                );
-                                map
-                            }),
-                        })
-                    }
-                    Err(e) => {
-                        // Provide helpful error message for NotFound errors
-                        let error_message =
-                            e.downcast_ref::<crate::providers::errors::ProviderError>()
-                                .map_or_else(
-                                    || format!("Failed to fetch activity {activity_id}: {e}"),
-                                    |provider_err| match provider_err {
-                                        crate::providers::errors::ProviderError::NotFound {
-                                            resource_type,
-                                            resource_id,
-                                            ..
-                                        } => {
-                                            format!(
-                                                "{resource_type} '{resource_id}' not found. Please use get_activities to retrieve your activity IDs first, then use compare_activities with a valid ID from the list."
-                                            )
-                                        }
-                                        _ => format!("Failed to fetch activity {activity_id}: {e}"),
-                                    },
-                                );
-
-                        Ok(UniversalResponse {
-                            success: false,
-                            result: None,
-                            error: Some(error_message),
-                            metadata: None,
-                        })
-                    },
-                }
+                Ok(execute_activity_comparison(
+                    provider,
+                    activity_id,
+                    comparison_type,
+                    compare_activity_id,
+                    user_uuid,
+                )
+                .await)
             }
             Ok(None) => Ok(UniversalResponse {
                 success: false,
@@ -2886,10 +2909,92 @@ fn generate_goal_specific_recommendations(
 }
 
 /// Generate nutrition recommendations based on recent activity
-fn generate_nutrition_recommendations(activities: &[crate::models::Activity]) -> serde_json::Value {
+/// Calculate activity nutrition metrics (duration, calories, intensity)
+fn calculate_nutrition_metrics(
+    activity: &crate::models::Activity,
+) -> (f64, f64, &'static str) {
     use crate::constants::time_constants;
 
-    // Get most recent activity for nutrition recommendations
+    let duration_hours = f64::from(
+        u32::try_from(activity.duration_seconds.min(u64::from(u32::MAX))).unwrap_or(u32::MAX),
+    ) / time_constants::SECONDS_PER_HOUR_F64;
+
+    let calories_burned = f64::from(activity.calories.unwrap_or_else(|| {
+        let duration_mins = u32::try_from(activity.duration_seconds / 60).unwrap_or(u32::MAX);
+        duration_mins * 10
+    }));
+
+    let intensity = activity.average_heart_rate.map_or(
+        if duration_hours > 1.5 { "moderate" } else { "low" },
+        |avg_hr| {
+            let avg_hr_f64 = f64::from(avg_hr);
+            if avg_hr_f64 > 160.0 {
+                "high"
+            } else if avg_hr_f64 > 130.0 {
+                "moderate"
+            } else {
+                "low"
+            }
+        },
+    );
+
+    (duration_hours, calories_burned, intensity)
+}
+
+/// Calculate macronutrient needs based on workout intensity and duration
+fn calculate_macronutrient_needs(intensity: &str, duration_hours: f64) -> (f64, f64, f64) {
+    let protein_g = if intensity == "high" || duration_hours > 1.5 {
+        30.0 + (duration_hours * 5.0).min(20.0)
+    } else {
+        20.0 + (duration_hours * 5.0).min(15.0)
+    };
+
+    let carbs_g = duration_hours * 70.0;
+    let hydration_ml = duration_hours * 750.0;
+
+    (protein_g, carbs_g, hydration_ml)
+}
+
+/// Build meal suggestions based on workout intensity
+fn build_meal_suggestions(intensity: &str) -> Vec<serde_json::Value> {
+    let mut suggestions = vec![
+        serde_json::json!({
+            "option": "Quick Recovery Shake",
+            "description": "Protein shake with banana and honey",
+            "protein_g": 25,
+            "carbs_g": 50,
+            "timing": "Immediate (0-15 min)"
+        }),
+        serde_json::json!({
+            "option": "Greek Yogurt Bowl",
+            "description": "200g Greek yogurt with granola, berries, and honey",
+            "protein_g": 20,
+            "carbs_g": 60,
+            "timing": "Within 30 minutes"
+        }),
+        serde_json::json!({
+            "option": "Recovery Meal",
+            "description": "Grilled chicken with sweet potato and vegetables",
+            "protein_g": 35,
+            "carbs_g": 50,
+            "timing": "Within 2 hours"
+        }),
+    ];
+
+    if intensity == "high" {
+        suggestions.push(serde_json::json!({
+            "option": "Endurance Option",
+            "description": "Pasta with lean meat sauce and mixed salad",
+            "protein_g": 30,
+            "carbs_g": 80,
+            "timing": "Within 2 hours"
+        }));
+    }
+
+    suggestions
+}
+
+fn generate_nutrition_recommendations(activities: &[crate::models::Activity]) -> serde_json::Value {
     let most_recent = activities.iter().max_by_key(|a| a.start_date);
 
     if most_recent.is_none() {
@@ -2905,78 +3010,29 @@ fn generate_nutrition_recommendations(activities: &[crate::models::Activity]) ->
         });
     }
 
-    // Safe: most_recent is Some() at this point due to early return above
     let Some(activity) = most_recent else {
-        // This should never happen due to early return above
         return serde_json::json!({
-            "recommendations": [
-                "No recent activities found for nutrition analysis"
-            ],
+            "recommendations": ["No recent activities found for nutrition analysis"],
         });
     };
 
-    // Calculate activity metrics
-    let duration_hours = f64::from(
-        u32::try_from(activity.duration_seconds.min(u64::from(u32::MAX))).unwrap_or(u32::MAX),
-    ) / time_constants::SECONDS_PER_HOUR_F64;
-    let calories_burned = f64::from(activity.calories.unwrap_or_else(|| {
-        // Estimate calories if not provided (rough estimate: 10 cal/min for moderate activity)
-        let duration_mins = u32::try_from(activity.duration_seconds / 60).unwrap_or(u32::MAX);
-        duration_mins * 10
-    }));
+    let (duration_hours, calories_burned, intensity) = calculate_nutrition_metrics(activity);
+    let (protein_g, carbs_g, hydration_ml) =
+        calculate_macronutrient_needs(intensity, duration_hours);
 
-    // Determine workout intensity based on heart rate and duration
-    let intensity = activity.average_heart_rate.map_or(
-        if duration_hours > 1.5 {
-            "moderate"
-        } else {
-            "low"
-        },
-        |avg_hr| {
-            let avg_hr_f64 = f64::from(avg_hr);
-            if avg_hr_f64 > 160.0 {
-                "high"
-            } else if avg_hr_f64 > 130.0 {
-                "moderate"
-            } else {
-                "low"
-            }
-        },
-    );
+    let mut recommendations = vec![
+        format!(
+            "Within 30 minutes: Consume {:.0}g protein and {:.0}g carbohydrates for optimal recovery",
+            protein_g,
+            carbs_g * 0.5
+        ),
+        format!(
+            "Rehydrate with {:.0}-{:.0}ml of water or electrolyte drink",
+            hydration_ml,
+            hydration_ml * 1.3
+        ),
+    ];
 
-    // Calculate post-workout nutrition needs
-    // Protein: 20-40g for recovery (higher for longer/harder workouts)
-    let protein_g = if intensity == "high" || duration_hours > 1.5 {
-        30.0 + (duration_hours * 5.0).min(20.0)
-    } else {
-        20.0 + (duration_hours * 5.0).min(15.0)
-    };
-
-    // Carbs: 0.8-1.2g per kg body weight per hour of exercise (assume 70kg)
-    let carbs_g = duration_hours * 70.0 * 1.0; // Using 1.0 g/kg/hr as middle ground
-
-    // Hydration: Replace fluid losses (approximately 500-1000ml per hour)
-    let hydration_ml = duration_hours * 750.0;
-
-    // Build recommendations based on activity
-    let mut recommendations = Vec::new();
-    let mut meal_suggestions = Vec::new();
-
-    // Immediate recovery window (0-30 minutes)
-    recommendations.push(format!(
-        "Within 30 minutes: Consume {:.0}g protein and {:.0}g carbohydrates for optimal recovery",
-        protein_g,
-        carbs_g * 0.5
-    ));
-
-    // Hydration
-    recommendations.push(format!(
-        "Rehydrate with {:.0}-{:.0}ml of water or electrolyte drink",
-        hydration_ml,
-        hydration_ml * 1.3
-    ));
-
-    // Meal timing
     if intensity == "high" || duration_hours > 1.0 {
         recommendations.push(
             "Follow up with a complete meal within 2 hours to fully replenish glycogen stores"
@@ -2984,51 +3040,11 @@ fn generate_nutrition_recommendations(activities: &[crate::models::Activity]) ->
         );
     }
 
-    // Specific food suggestions
-    meal_suggestions.push(serde_json::json!({
-        "option": "Quick Recovery Shake",
-        "description": "Protein shake with banana and honey",
-        "protein_g": 25,
-        "carbs_g": 50,
-        "timing": "Immediate (0-15 min)"
-    }));
+    let meal_suggestions = build_meal_suggestions(intensity);
 
-    meal_suggestions.push(serde_json::json!({
-        "option": "Greek Yogurt Bowl",
-        "description": "200g Greek yogurt with granola, berries, and honey",
-        "protein_g": 20,
-        "carbs_g": 60,
-        "timing": "Within 30 minutes"
-    }));
-
-    meal_suggestions.push(serde_json::json!({
-        "option": "Recovery Meal",
-        "description": "Grilled chicken with sweet potato and vegetables",
-        "protein_g": 35,
-        "carbs_g": 50,
-        "timing": "Within 2 hours"
-    }));
-
-    if intensity == "high" {
-        meal_suggestions.push(serde_json::json!({
-            "option": "Endurance Option",
-            "description": "Pasta with lean meat sauce and mixed salad",
-            "protein_g": 30,
-            "carbs_g": 80,
-            "timing": "Within 2 hours"
-        }));
-    }
-
-    // Additional nutritional guidance
     let mut key_insights = vec![
-        format!(
-            "Activity burned approximately {:.0} calories",
-            calories_burned
-        ),
-        format!(
-            "Workout intensity: {} - adjust nutrition accordingly",
-            intensity
-        ),
+        format!("Activity burned approximately {:.0} calories", calories_burned),
+        format!("Workout intensity: {intensity} - adjust nutrition accordingly"),
     ];
 
     if duration_hours > 1.5 {
@@ -3040,9 +3056,8 @@ fn generate_nutrition_recommendations(activities: &[crate::models::Activity]) ->
         "recommendation_type": "nutrition",
         "priority": if intensity == "high" { "high" } else { "medium" },
         "reasoning": format!(
-            "Based on {:.1} hour {} intensity {:?} with {:.0} calories burned",
+            "Based on {:.1} hour {intensity} intensity {:?} with {:.0} calories burned",
             duration_hours,
-            intensity,
             activity.sport_type,
             calories_burned
         ),

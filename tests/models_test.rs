@@ -587,12 +587,9 @@ fn test_user_with_encrypted_tokens() {
     }
 }
 
-#[test]
-#[allow(clippy::float_cmp)] // Test assertions with exact literal float values
-fn test_activity_detailed_fields() {
-    // Test that the new detailed activity fields (workout_type, sport_type_detail, segments)
-    // are properly handled in Activity model
-    let activity = Activity {
+/// Create test activity with detailed segment efforts for validation
+fn create_test_activity_with_segments() -> Activity {
+    Activity {
         id: "test_123".into(),
         name: "Trail Run with Segments".into(),
         sport_type: SportType::Run,
@@ -636,56 +633,87 @@ fn test_activity_detailed_fields() {
         region: Some("Quebec".into()),
         country: Some("Canada".into()),
         trail_name: Some("Mont Rigaud Trail".into()),
-
-        // New detailed fields - THIS IS WHAT WE'RE TESTING
-        workout_type: Some(10), // Strava: 10 = trail run
+        workout_type: Some(10),
         sport_type_detail: Some("TrailRun".into()),
         segment_efforts: Some(vec![
             SegmentEffort {
                 id: "seg_001".into(),
                 name: "Steep Climb".into(),
-                elapsed_time: 600, // 10 minutes
+                elapsed_time: 600,
                 moving_time: Some(590),
                 start_date: Utc::now(),
-                distance: 1200.0, // 1.2 km
+                distance: 1200.0,
                 average_heart_rate: Some(170),
                 max_heart_rate: Some(185),
                 average_cadence: Some(165),
                 average_watts: None,
-                kom_rank: Some(5),           // 5th best time ever
-                pr_rank: Some(2),            // 2nd best personal time
-                climb_category: Some(3),     // Category 3 climb
-                average_grade: Some(8.5),    // 8.5% grade
-                elevation_gain: Some(102.0), // 102m elevation gain
+                kom_rank: Some(5),
+                pr_rank: Some(2),
+                climb_category: Some(3),
+                average_grade: Some(8.5),
+                elevation_gain: Some(102.0),
             },
             SegmentEffort {
                 id: "seg_002".into(),
                 name: "Fast Descent".into(),
-                elapsed_time: 300, // 5 minutes
+                elapsed_time: 300,
                 moving_time: Some(295),
                 start_date: Utc::now(),
-                distance: 1500.0, // 1.5 km
+                distance: 1500.0,
                 average_heart_rate: Some(145),
                 max_heart_rate: Some(160),
                 average_cadence: Some(190),
                 average_watts: None,
                 kom_rank: Some(12),
-                pr_rank: Some(1),          // Best personal time!
-                climb_category: None,      // Descent, no climb category
-                average_grade: Some(-6.5), // -6.5% grade (descent)
+                pr_rank: Some(1),
+                climb_category: None,
+                average_grade: Some(-6.5),
                 elevation_gain: None,
             },
         ]),
-
         provider: "strava".into(),
-    };
+    }
+}
+
+/// Validate climb segment fields
+#[allow(clippy::float_cmp)] // Test assertions with exact literal float values
+fn validate_climb_segment(climb: &SegmentEffort) {
+    assert_eq!(climb.name, "Steep Climb");
+    assert_eq!(climb.elapsed_time, 600);
+    assert_eq!(climb.distance, 1200.0);
+    assert_eq!(climb.kom_rank, Some(5));
+    assert_eq!(climb.pr_rank, Some(2));
+    assert_eq!(climb.climb_category, Some(3));
+    assert_eq!(climb.average_grade, Some(8.5));
+    assert_eq!(climb.elevation_gain, Some(102.0));
+}
+
+/// Validate descent segment fields
+#[allow(clippy::float_cmp)] // Test assertions with exact literal float values
+fn validate_descent_segment(descent: &SegmentEffort) {
+    assert_eq!(descent.name, "Fast Descent");
+    assert_eq!(descent.elapsed_time, 300);
+    assert_eq!(descent.pr_rank, Some(1), "Should be PR!");
+    assert_eq!(
+        descent.average_grade,
+        Some(-6.5),
+        "Should be negative grade for descent"
+    );
+    assert_eq!(
+        descent.climb_category,
+        None,
+        "Descents don't have climb category"
+    );
+}
+
+#[test]
+#[allow(clippy::float_cmp)] // Test assertions with exact literal float values
+fn test_activity_detailed_fields() {
+    let activity = create_test_activity_with_segments();
 
     // Validate workout_type
     assert_eq!(activity.workout_type, Some(10));
-    assert!(
-        activity.workout_type.is_some(),
-        "workout_type should be present"
-    );
+    assert!(activity.workout_type.is_some(), "workout_type should be present");
 
     // Validate sport_type_detail
     assert_eq!(activity.sport_type_detail, Some("TrailRun".into()));
@@ -702,31 +730,9 @@ fn test_activity_detailed_fields() {
     let segments = activity.segment_efforts.as_ref().unwrap();
     assert_eq!(segments.len(), 2, "Should have 2 segment efforts");
 
-    // Validate first segment (climb)
-    let climb = &segments[0];
-    assert_eq!(climb.name, "Steep Climb");
-    assert_eq!(climb.elapsed_time, 600);
-    assert_eq!(climb.distance, 1200.0);
-    assert_eq!(climb.kom_rank, Some(5));
-    assert_eq!(climb.pr_rank, Some(2));
-    assert_eq!(climb.climb_category, Some(3));
-    assert_eq!(climb.average_grade, Some(8.5));
-    assert_eq!(climb.elevation_gain, Some(102.0));
-
-    // Validate second segment (descent)
-    let descent = &segments[1];
-    assert_eq!(descent.name, "Fast Descent");
-    assert_eq!(descent.elapsed_time, 300);
-    assert_eq!(descent.pr_rank, Some(1), "Should be PR!");
-    assert_eq!(
-        descent.average_grade,
-        Some(-6.5),
-        "Should be negative grade for descent"
-    );
-    assert_eq!(
-        descent.climb_category, None,
-        "Descents don't have climb category"
-    );
+    // Validate segments using helper functions
+    validate_climb_segment(&segments[0]);
+    validate_descent_segment(&segments[1]);
 
     // Validate location fields work together
     assert_eq!(activity.city, Some("Saint-Hippolyte".into()));
