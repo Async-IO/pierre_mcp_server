@@ -1691,6 +1691,26 @@ export class PierreMcpClient {
         };
       }
 
+      // CRITICAL: Prevent interactive OAuth flow ONLY in CI/CD environments
+      // Block OAuth if:
+      // 1. No TTY (not a terminal session)
+      // 2. Running in CI/CD (CI=true or GITHUB_ACTIONS=true)
+      // This prevents hanging in automated tests while allowing OAuth in MCP hosts like Claude Code Desktop
+      const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+      const hasTTY = process.stdin.isTTY;
+
+      if (!hasTokens && !hasTTY && isCI) {
+        this.log('Refusing to start interactive OAuth flow in CI/CD environment (would hang automated tests)');
+        this.log('Hint: In CI/CD, pre-authenticate using credentials or skip OAuth-requiring tests');
+        return {
+          content: [{
+            type: 'text',
+            text: 'Authentication required but cannot start interactive OAuth flow in CI/CD environment. Please use credentials-based auth or skip OAuth tests.'
+          }],
+          isError: true
+        };
+      }
+
       // Initiate the OAuth connection
       await this.initiateConnection();
 
