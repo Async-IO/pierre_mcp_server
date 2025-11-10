@@ -240,21 +240,22 @@ pub async fn handle_calculate_metrics(
     // Parse user ID
     let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
-    // Get provider name
-    let provider_name = request
-        .parameters
-        .get("provider")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| {
-            ProtocolError::InvalidParameters("provider parameter required".to_owned())
-        })?;
-
     // Check if activity_id is provided (schema-compliant path)
     if let Some(activity_id) = request
         .parameters
         .get("activity_id")
         .and_then(serde_json::Value::as_str)
     {
+        // Get provider name (required when using activity_id)
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| {
+                ProtocolError::InvalidParameters(
+                    "provider parameter required when using activity_id".to_owned(),
+                )
+            })?;
         // Get valid token
         let token_data = match executor
             .auth_service
