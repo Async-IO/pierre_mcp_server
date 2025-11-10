@@ -617,62 +617,62 @@ async fn fetch_and_analyze_activity(
             if let Some(crate::providers::errors::ProviderError::NotFound { resource_id, .. }) =
                 e.downcast_ref::<crate::providers::errors::ProviderError>()
             {
-                    // Activity not found - fetch recent activities to show valid IDs
-                    match provider.get_activities(Some(5), None).await {
-                        Ok(activities) if !activities.is_empty() => {
-                            let activity_list: Vec<String> = activities
-                                .iter()
-                                .map(|a| {
-                                    format!(
-                                        "- {} (ID: {}): {} - {:?}",
-                                        a.start_date.format("%Y-%m-%d"),
-                                        a.id,
-                                        a.name,
-                                        a.sport_type
-                                    )
-                                })
-                                .collect();
+                // Activity not found - fetch recent activities to show valid IDs
+                match provider.get_activities(Some(5), None).await {
+                    Ok(activities) if !activities.is_empty() => {
+                        let activity_list: Vec<String> = activities
+                            .iter()
+                            .map(|a| {
+                                format!(
+                                    "- {} (ID: {}): {} - {:?}",
+                                    a.start_date.format("%Y-%m-%d"),
+                                    a.id,
+                                    a.name,
+                                    a.sport_type
+                                )
+                            })
+                            .collect();
 
-                            let most_recent = &activities[0];
+                        let most_recent = &activities[0];
 
-                            // Analyze the most recent activity automatically
-                            let mut response = create_intelligence_response(
-                                most_recent,
-                                &most_recent.id,
-                                user_uuid,
-                                tenant_id,
-                            );
+                        // Analyze the most recent activity automatically
+                        let mut response = create_intelligence_response(
+                            most_recent,
+                            &most_recent.id,
+                            user_uuid,
+                            tenant_id,
+                        );
 
-                            // Add auto-selection note to the result
-                            if let Some(result) = response.result.as_mut() {
-                                result["auto_selected"] = serde_json::json!({
-                                    "reason": format!("Activity '{}' not found", resource_id),
-                                    "selected_activity": most_recent.id.clone(),
-                                    "selected_activity_name": most_recent.name.clone(),
-                                    "selected_activity_date": most_recent.start_date.format("%Y-%m-%d").to_string(),
-                                    "available_activities": activity_list
-                                });
-                            }
-
-                            return response;
+                        // Add auto-selection note to the result
+                        if let Some(result) = response.result.as_mut() {
+                            result["auto_selected"] = serde_json::json!({
+                                "reason": format!("Activity '{}' not found", resource_id),
+                                "selected_activity": most_recent.id.clone(),
+                                "selected_activity_name": most_recent.name.clone(),
+                                "selected_activity_date": most_recent.start_date.format("%Y-%m-%d").to_string(),
+                                "available_activities": activity_list
+                            });
                         }
-                        Ok(_) => {
-                            return UniversalResponse {
+
+                        return response;
+                    }
+                    Ok(_) => {
+                        return UniversalResponse {
                                 success: false,
                                 result: None,
                                 error: Some(format!("Activity '{resource_id}' not found and no activities available in your account.")),
                                 metadata: None,
                             };
-                        }
-                        Err(fetch_err) => {
-                            return UniversalResponse {
+                    }
+                    Err(fetch_err) => {
+                        return UniversalResponse {
                                 success: false,
                                 result: None,
                                 error: Some(format!("Activity '{resource_id}' not found. Failed to fetch available activities: {fetch_err}")),
                                 metadata: None,
                             };
-                        }
                     }
+                }
             }
 
             // Other errors - generic message

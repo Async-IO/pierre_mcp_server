@@ -336,8 +336,11 @@ impl StravaProvider {
                             );
 
                             // Extract resource ID from URL path (e.g., /activities/123456)
-                            let resource_id =
-                                url_path.split('/').next_back().unwrap_or("unknown").to_owned();
+                            let resource_id = url_path
+                                .split('/')
+                                .next_back()
+                                .unwrap_or("unknown")
+                                .to_owned();
 
                             return Err(ProviderError::NotFound {
                                 provider: oauth_providers::STRAVA.to_owned(),
