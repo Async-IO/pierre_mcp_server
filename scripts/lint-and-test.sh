@@ -407,13 +407,55 @@ if [ -d "frontend" ]; then
 fi
 
 # ============================================================================
-# PERFORMANCE AND DOCUMENTATION
+# FINAL CLEANUP
+# ============================================================================
+
+echo -e "${BLUE}Final cleanup...${NC}"
+rm -f ./mcp_activities_*.json ./examples/mcp_activities_*.json ./a2a_*.json ./enterprise_strava_dataset.json 2>/dev/null || true
+find . -name "*demo*.json" -not -path "./target/*" -delete 2>/dev/null || true
+find . -name "a2a_enterprise_report_*.json" -delete 2>/dev/null || true
+find . -name "mcp_investor_demo_*.json" -delete 2>/dev/null || true
+echo -e "${GREEN}[OK] Cleanup completed${NC}"
+
+# ============================================================================
+# MCP SPEC COMPLIANCE
+# ============================================================================
+
+echo ""
+echo -e "${BLUE}==== MCP Spec Compliance ====${NC}"
+if [ -f "$SCRIPT_DIR/ensure_mcp_compliance.sh" ]; then
+    if "$SCRIPT_DIR/ensure_mcp_compliance.sh"; then
+        echo -e "${GREEN}[OK] MCP compliance validation passed${NC}"
+    else
+        echo -e "${RED}[FAIL] MCP compliance validation failed${NC}"
+        ALL_PASSED=false
+    fi
+else
+    echo -e "${YELLOW}[WARN] MCP compliance script not found - skipping${NC}"
+fi
+
+# Bridge test suite (SDK tests - uses debug binary)
+echo ""
+echo -e "${BLUE}==== Bridge Test Suite (SDK Tests) ====${NC}"
+if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
+    if "$SCRIPT_DIR/run_bridge_tests.sh"; then
+        echo -e "${GREEN}[OK] Bridge test suite passed${NC}"
+    else
+        echo -e "${RED}[FAIL] Bridge test suite failed${NC}"
+        ALL_PASSED=false
+    fi
+else
+    echo -e "${YELLOW}[WARN] Bridge test script not found - skipping${NC}"
+fi
+
+# ============================================================================
+# PERFORMANCE AND DOCUMENTATION (After all tests including SDK)
 # ============================================================================
 
 echo ""
 echo -e "${BLUE}==== Release Build and Documentation ====${NC}"
 
-# Build release binary (only after all tests pass)
+# Build release binary (only after all tests pass including SDK tests)
 echo -e "${BLUE}Building release binary...${NC}"
 if cargo build --release --quiet; then
     echo -e "${GREEN}[OK] Release build successful${NC}"
@@ -443,48 +485,6 @@ if cargo doc --no-deps --quiet; then
 else
     echo -e "${RED}[FAIL] Documentation build failed${NC}"
     ALL_PASSED=false
-fi
-
-# ============================================================================
-# FINAL CLEANUP
-# ============================================================================
-
-echo -e "${BLUE}Final cleanup...${NC}"
-rm -f ./mcp_activities_*.json ./examples/mcp_activities_*.json ./a2a_*.json ./enterprise_strava_dataset.json 2>/dev/null || true
-find . -name "*demo*.json" -not -path "./target/*" -delete 2>/dev/null || true
-find . -name "a2a_enterprise_report_*.json" -delete 2>/dev/null || true
-find . -name "mcp_investor_demo_*.json" -delete 2>/dev/null || true
-echo -e "${GREEN}[OK] Cleanup completed${NC}"
-
-# ============================================================================
-# MCP SPEC COMPLIANCE
-# ============================================================================
-
-echo ""
-echo -e "${BLUE}==== MCP Spec Compliance ====${NC}"
-if [ -f "$SCRIPT_DIR/ensure_mcp_compliance.sh" ]; then
-    if "$SCRIPT_DIR/ensure_mcp_compliance.sh"; then
-        echo -e "${GREEN}[OK] MCP compliance validation passed${NC}"
-    else
-        echo -e "${RED}[FAIL] MCP compliance validation failed${NC}"
-        ALL_PASSED=false
-    fi
-else
-    echo -e "${YELLOW}[WARN] MCP compliance script not found - skipping${NC}"
-fi
-
-# Bridge test suite
-echo ""
-echo -e "${BLUE}==== Bridge Test Suite ====${NC}"
-if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
-    if "$SCRIPT_DIR/run_bridge_tests.sh"; then
-        echo -e "${GREEN}[OK] Bridge test suite passed${NC}"
-    else
-        echo -e "${RED}[FAIL] Bridge test suite failed${NC}"
-        ALL_PASSED=false
-    fi
-else
-    echo -e "${YELLOW}[WARN] Bridge test script not found - skipping${NC}"
 fi
 
 # ============================================================================
@@ -520,14 +520,14 @@ if [ "$ALL_PASSED" = true ]; then
         echo "[OK] Frontend tests"
         echo "[OK] Frontend build"
     fi
-    echo "[OK] Release build (cargo build --release)"
-    echo "[OK] Documentation (cargo doc)"
     if [ -f "$SCRIPT_DIR/ensure_mcp_compliance.sh" ]; then
         echo "[OK] MCP spec compliance validation"
     fi
     if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
-        echo "[OK] Bridge test suite"
+        echo "[OK] Bridge test suite (SDK tests with debug binary)"
     fi
+    echo "[OK] Release build (cargo build --release)"
+    echo "[OK] Documentation (cargo doc)"
     if [ "$ENABLE_COVERAGE" = true ] && command_exists cargo-llvm-cov; then
         echo "[OK] Rust code coverage"
     fi
