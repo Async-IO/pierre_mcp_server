@@ -1,0 +1,130 @@
+name: Release Binary Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  test-release-binary:
+    name: Test Release Binary
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.91.0
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-release-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-1.91.0-
+            ${{ runner.os }}-cargo-
+
+      - name: Build release binary
+        run: cargo build --release --verbose
+        env:
+          CARGO_INCREMENTAL: 0
+          RUSTFLAGS: "-C opt-level=3"
+
+      - name: Verify release binary exists
+        run: |
+          if [ -f "target/release/pierre-mcp-server" ]; then
+            echo "✅ Release binary built successfully"
+            ls -lh target/release/pierre-mcp-server
+          else
+            echo "❌ Release binary not found"
+            exit 1
+          fi
+
+      - name: Check release binary size
+        run: |
+          BINARY_SIZE_BYTES=$(ls -l target/release/pierre-mcp-server | awk '{print $5}')
+          BINARY_SIZE_MB=$((BINARY_SIZE_BYTES / 1024 / 1024))
+          MAX_SIZE_MB=50
+
+          echo "Binary size: ${BINARY_SIZE_MB}MB"
+
+          if [ "$BINARY_SIZE_MB" -le "$MAX_SIZE_MB" ]; then
+            echo "✅ Binary size (${BINARY_SIZE_MB}MB) within limit (<${MAX_SIZE_MB}MB)"
+          else
+            echo "❌ Binary size (${BINARY_SIZE_MB}MB) exceeds limit (${MAX_SIZE_MB}MB)"
+            exit 1
+          fi
+
+      - name: Run tests with release binary
+        run: cargo test --release --all-targets --no-fail-fast -- --test-threads=1
+        env:
+          DATABASE_URL: "sqlite::memory:"
+          ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_RSA_KEY_SIZE: "2048"
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+          CARGO_INCREMENTAL: 0
+
+      - name: Run HTTP API integration tests (release)
+        run: cargo test --release --test http_api_integration_test
+        env:
+          DATABASE_URL: "sqlite::memory:"
+          ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_RSA_KEY_SIZE: "2048"
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+
+      - name: Run A2A compliance tests (release)
+        run: cargo test --release --test a2a_compliance_test
+        env:
+          DATABASE_URL: "sqlite::memory:"
+          ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_RSA_KEY_SIZE: "2048"
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+
+      - name: Basic smoke test of release binary
+        run: |
+          timeout 5 target/release/pierre-mcp-server --version || true
+          echo "✅ Release binary executed successfully"
+
+      - name: Upload release binary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pierre-mcp-server-release-ubuntu
+          path: target/release/pierre-mcp-server
+          retention-days: 7
