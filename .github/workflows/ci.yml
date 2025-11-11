@@ -62,7 +62,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Lint with Clippy (Zero Tolerance)
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --all-features -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@cargo-deny
