@@ -1,0 +1,93 @@
+name: SDK Tests
+
+on:
+  push:
+    branches: [ "main", "debug/*", "feature/*" ]
+    paths:
+      - 'sdk/**'
+      - '.github/workflows/sdk-tests.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'sdk/**'
+      - '.github/workflows/sdk-tests.yml'
+
+jobs:
+  sdk-tests:
+    name: SDK Test Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: sdk/package-lock.json
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.91.0
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-sdk-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-sdk-1.91.0-
+            ${{ runner.os }}-cargo-
+
+      - name: Install SDK dependencies
+        working-directory: sdk
+        run: npm ci --prefer-offline
+
+      - name: Build SDK bridge
+        working-directory: sdk
+        run: npm run build
+
+      - name: Run SDK unit tests
+        working-directory: sdk
+        run: npm run test:unit
+
+      - name: Build Pierre server (debug, for integration tests)
+        run: cargo build
+        env:
+          CARGO_INCREMENTAL: 0
+
+      - name: Run SDK integration tests
+        working-directory: sdk
+        run: npm run test:integration -- --forceExit
+        env:
+          DATABASE_URL: "sqlite::memory:"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_RSA_KEY_SIZE: "2048"
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+
+      - name: Run SDK E2E tests
+        working-directory: sdk
+        run: npm run test:e2e -- --forceExit
+        env:
+          DATABASE_URL: "sqlite::memory:"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_RSA_KEY_SIZE: "2048"
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+
+      - name: Upload SDK test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-test-results
+          path: sdk/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
