@@ -350,6 +350,37 @@ else
     ALL_PASSED=false
 fi
 
+# Bridge test suite (SDK tests - uses debug binary)
+echo ""
+echo -e "${BLUE}==== Bridge Test Suite (SDK Tests) ====${NC}"
+if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
+    if "$SCRIPT_DIR/run_bridge_tests.sh"; then
+        echo -e "${GREEN}[OK] Bridge test suite passed${NC}"
+    else
+        echo -e "${RED}[FAIL] Bridge test suite failed${NC}"
+        ALL_PASSED=false
+    fi
+else
+    echo -e "${YELLOW}[WARN] Bridge test script not found - skipping${NC}"
+fi
+
+# ============================================================================
+# MCP SPEC COMPLIANCE
+# ============================================================================
+
+echo ""
+echo -e "${BLUE}==== MCP Spec Compliance ====${NC}"
+if [ -f "$SCRIPT_DIR/ensure_mcp_compliance.sh" ]; then
+    if "$SCRIPT_DIR/ensure_mcp_compliance.sh"; then
+        echo -e "${GREEN}[OK] MCP compliance validation passed${NC}"
+    else
+        echo -e "${RED}[FAIL] MCP compliance validation failed${NC}"
+        ALL_PASSED=false
+    fi
+else
+    echo -e "${YELLOW}[WARN] MCP compliance script not found - skipping${NC}"
+fi
+
 # ============================================================================
 # FRONTEND VALIDATION (Separate Toolchain)
 # ============================================================================
@@ -404,37 +435,6 @@ if [ -d "frontend" ]; then
     fi
 
     cd ..
-fi
-
-# Bridge test suite (SDK tests - uses debug binary)
-echo ""
-echo -e "${BLUE}==== Bridge Test Suite (SDK Tests) ====${NC}"
-if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
-    if "$SCRIPT_DIR/run_bridge_tests.sh"; then
-        echo -e "${GREEN}[OK] Bridge test suite passed${NC}"
-    else
-        echo -e "${RED}[FAIL] Bridge test suite failed${NC}"
-        ALL_PASSED=false
-    fi
-else
-    echo -e "${YELLOW}[WARN] Bridge test script not found - skipping${NC}"
-fi
-
-# ============================================================================
-# MCP SPEC COMPLIANCE
-# ============================================================================
-
-echo ""
-echo -e "${BLUE}==== MCP Spec Compliance ====${NC}"
-if [ -f "$SCRIPT_DIR/ensure_mcp_compliance.sh" ]; then
-    if "$SCRIPT_DIR/ensure_mcp_compliance.sh"; then
-        echo -e "${GREEN}[OK] MCP compliance validation passed${NC}"
-    else
-        echo -e "${RED}[FAIL] MCP compliance validation failed${NC}"
-        ALL_PASSED=false
-    fi
-else
-    echo -e "${YELLOW}[WARN] MCP compliance script not found - skipping${NC}"
 fi
 
 # ============================================================================
