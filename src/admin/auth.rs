@@ -31,17 +31,28 @@ pub struct AdminAuthService {
     // TTL cache for validated tokens with automatic expiration
     token_cache:
         Arc<tokio::sync::RwLock<HashMap<String, (ValidatedAdminToken, std::time::Instant)>>>,
+    // Cache TTL in seconds (default: 300 seconds = 5 minutes)
+    cache_ttl: std::time::Duration,
 }
 
 impl AdminAuthService {
+    /// Default cache TTL (5 minutes)
+    const DEFAULT_CACHE_TTL_SECS: u64 = 300;
+
     /// Create new admin auth service with RS256 (REQUIRED)
     #[must_use]
     pub fn new(database: Database, jwks_manager: Arc<crate::admin::jwks::JwksManager>) -> Self {
+        let cache_ttl_secs = std::env::var("ADMIN_TOKEN_CACHE_TTL_SECS")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(Self::DEFAULT_CACHE_TTL_SECS);
+
         Self {
             database,
             jwt_manager: AdminJwtManager::new(),
             jwks_manager,
             token_cache: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+            cache_ttl: std::time::Duration::from_secs(cache_ttl_secs),
         }
     }
 
@@ -151,20 +162,33 @@ impl AdminAuthService {
         // Validate token to extract token_id for cache lookup
         let validated_token = self.jwt_manager.validate_token(token, &self.jwks_manager)?;
 
-        // Try cache first
+        // Try cache first with TTL check
         {
-            let cache = self.token_cache.read().await;
-            if let Some((cached_token, _timestamp)) = cache.get(&validated_token.token_id) {
-                if cached_token
-                    .permissions
-                    .has_permission(&required_permission)
-                {
-                    return Ok(cached_token.clone());
+            let mut cache = self.token_cache.write().await;
+            if let Some((cached_token, timestamp)) = cache.get(&validated_token.token_id) {
+                // Check if cache entry is still valid (within TTL)
+                if timestamp.elapsed() < self.cache_ttl {
+                    if cached_token
+                        .permissions
+                        .has_permission(&required_permission)
+                    {
+                        let result = cached_token.clone();
+                        drop(cache);
+                        return Ok(result);
+                    }
+                } else {
+                    // Expired - remove it
+                    cache.remove(&validated_token.token_id);
+                    drop(cache);
+                    tracing::debug!(
+                        "Removed expired admin token from cache: {}",
+                        validated_token.token_id
+                    );
                 }
             }
         }
 
-        // Cache miss - do full authentication
+        // Cache miss or expired - do full authentication
         self.authenticate_and_authorize(token, required_permission, None)
             .await
     }

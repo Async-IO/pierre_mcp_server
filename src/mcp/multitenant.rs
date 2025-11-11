@@ -84,6 +84,7 @@ struct ProviderConnectionStatus {
 struct SessionData {
     jwt_token: String,
     user_id: uuid::Uuid,
+    expires_at: std::time::Instant,
 }
 
 /// HTTP request headers for MCP requests
@@ -129,6 +130,9 @@ impl MultiTenantMcpServer {
         Some(n) => n,
         None => unreachable!(),
     };
+
+    /// Default session TTL (5 minutes)
+    const DEFAULT_SESSION_TTL_SECS: u64 = 300;
 
     /// Create a new MCP server with pre-built resources (dependency injection)
     #[must_use]
@@ -2077,13 +2081,29 @@ impl MultiTenantMcpServer {
         } else if let Some(sid) = headers.session_id.as_ref() {
             // No auth in current request, check session store
             let mut sessions_guard = sessions.lock().await;
-            sessions_guard.get(sid).map(|session_data| {
-                tracing::info!(
-                    "Using stored session auth for user {}",
-                    session_data.user_id
-                );
-                format!("Bearer {}", session_data.jwt_token)
-            })
+
+            // Check if session exists and is valid
+            let result = if let Some(session_data) = sessions_guard.get(sid) {
+                // Check if session is still valid (not expired)
+                if session_data.expires_at > std::time::Instant::now() {
+                    let user_id = session_data.user_id;
+                    let jwt_token = session_data.jwt_token.clone();
+                    drop(sessions_guard);
+                    tracing::info!("Using stored session auth for user {}", user_id);
+                    Some(format!("Bearer {jwt_token}"))
+                } else {
+                    // Session expired - remove it
+                    sessions_guard.pop(sid);
+                    drop(sessions_guard);
+                    tracing::debug!("Removed expired MCP session: {}", sid);
+                    None
+                }
+            } else {
+                drop(sessions_guard);
+                None
+            };
+
+            result
         } else {
             None
         }
@@ -2142,13 +2162,20 @@ impl MultiTenantMcpServer {
             return;
         };
 
-        // Store session
+        // Store session with TTL
+        let session_ttl = std::time::Duration::from_secs(
+            std::env::var("MCP_SESSION_TTL_SECS")
+                .ok()
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(Self::DEFAULT_SESSION_TTL_SECS),
+        );
         let mut sessions_guard = sessions.lock().await;
         sessions_guard.put(
             session_id.to_owned(),
             SessionData {
                 jwt_token: token.to_owned(),
                 user_id: jwt_result.user_id,
+                expires_at: std::time::Instant::now() + session_ttl,
             },
         );
         drop(sessions_guard);

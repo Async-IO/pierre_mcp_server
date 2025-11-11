@@ -222,11 +222,13 @@ impl TenantEncryptionManager {
             }
         }
 
-        // Derive new key using HKDF
+        // Derive new key using HKDF with version binding
         let salt = Salt::new(HKDF_SHA256, &[]);
         let prk = salt.extract(&self.master_key);
 
-        let info = format!("tenant:{tenant_id}");
+        // Include version in HKDF info to ensure key rotation changes derived keys
+        let version = self.get_current_version()?;
+        let info = format!("tenant:{tenant_id}:v{version}");
         let info_bytes = [info.as_bytes()];
         let okm = prk
             .expand(&info_bytes, HKDF_SHA256)
