@@ -303,9 +303,10 @@ echo -e "${BLUE}Total tests to run: $TOTAL_TESTS${NC}"
 # Use 2048-bit RSA for faster test execution
 export PIERRE_RSA_KEY_SIZE=2048
 
-# Run tests (reuses build artifacts from clippy step)
+# Run all tests (reuses build artifacts from clippy step)
+# Note: --all-targets includes all test binaries (unit, integration, etc.)
 if [ "$ENABLE_COVERAGE" = true ]; then
-    echo -e "${BLUE}Running tests with coverage...${NC}"
+    echo -e "${BLUE}Running all tests with coverage...${NC}"
     if command_exists cargo-llvm-cov; then
         if cargo llvm-cov --all-targets --summary-only; then
             echo -e "${GREEN}[OK] All $TOTAL_TESTS tests passed with coverage${NC}"
@@ -330,24 +331,6 @@ else
         echo -e "${RED}[FAIL] Some tests failed${NC}"
         ALL_PASSED=false
     fi
-fi
-
-# HTTP API integration tests
-echo -e "${BLUE}Running HTTP API integration tests...${NC}"
-if cargo test --test http_api_integration_test --quiet; then
-    echo -e "${GREEN}[OK] HTTP API integration tests passed${NC}"
-else
-    echo -e "${RED}[FAIL] HTTP API integration tests failed${NC}"
-    ALL_PASSED=false
-fi
-
-# A2A compliance tests
-echo -e "${BLUE}Running A2A compliance tests...${NC}"
-if cargo test --test a2a_compliance_test --quiet; then
-    echo -e "${GREEN}[OK] A2A compliance tests passed${NC}"
-else
-    echo -e "${RED}[FAIL] A2A compliance tests failed${NC}"
-    ALL_PASSED=false
 fi
 
 # Bridge test suite (SDK tests - uses debug binary)
@@ -511,9 +494,7 @@ if [ "$ALL_PASSED" = true ]; then
     echo "[OK] No disabled test files (.disabled/.warp-backup extensions)"
     echo "[OK] No ignored tests (#[ignore] attributes - 100% test execution)"
     echo "[OK] Architectural validation (custom)"
-    echo "[OK] Rust tests (cargo test - reused debug build)"
-    echo "[OK] HTTP API integration tests"
-    echo "[OK] A2A compliance tests"
+    echo "[OK] All Rust tests (cargo test --all-targets includes unit, integration, HTTP API, A2A)"
     if [ -d "frontend" ]; then
         echo "[OK] Frontend linting"
         echo "[OK] TypeScript type checking"

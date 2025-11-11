@@ -77,7 +77,10 @@ jobs:
       - name: Architectural Validation (Custom Patterns)
         run: ./scripts/architectural-validation.sh
 
-      - name: Run backend tests with coverage (SQLite)
+      - name: Secret Pattern Validation
+        run: ./scripts/validate-no-secrets.sh
+
+      - name: Run all backend tests with coverage (SQLite)
         run: cargo llvm-cov --all-targets --lcov --output-path lcov-sqlite.info -- --test-threads=1
         env:
           DATABASE_URL: "sqlite::memory:"
