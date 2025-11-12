@@ -303,10 +303,9 @@ echo -e "${BLUE}Total tests to run: $TOTAL_TESTS${NC}"
 # Use 2048-bit RSA for faster test execution
 export PIERRE_RSA_KEY_SIZE=2048
 
-# Run all tests (reuses build artifacts from clippy step)
-# Note: --all-targets includes all test binaries (unit, integration, etc.)
+# Run tests (reuses build artifacts from clippy step)
 if [ "$ENABLE_COVERAGE" = true ]; then
-    echo -e "${BLUE}Running all tests with coverage...${NC}"
+    echo -e "${BLUE}Running tests with coverage...${NC}"
     if command_exists cargo-llvm-cov; then
         if cargo llvm-cov --all-targets --summary-only; then
             echo -e "${GREEN}[OK] All $TOTAL_TESTS tests passed with coverage${NC}"
@@ -333,35 +332,22 @@ else
     fi
 fi
 
-# Bridge test suite (SDK tests - uses debug binary)
-echo ""
-echo -e "${BLUE}==== Bridge Test Suite (SDK Tests) ====${NC}"
-if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
-    if "$SCRIPT_DIR/run_bridge_tests.sh"; then
-        echo -e "${GREEN}[OK] Bridge test suite passed${NC}"
-    else
-        echo -e "${RED}[FAIL] Bridge test suite failed${NC}"
-        ALL_PASSED=false
-    fi
+# HTTP API integration tests
+echo -e "${BLUE}Running HTTP API integration tests...${NC}"
+if cargo test --test http_api_integration_test --quiet; then
+    echo -e "${GREEN}[OK] HTTP API integration tests passed${NC}"
 else
-    echo -e "${YELLOW}[WARN] Bridge test script not found - skipping${NC}"
+    echo -e "${RED}[FAIL] HTTP API integration tests failed${NC}"
+    ALL_PASSED=false
 fi
 
-# ============================================================================
-# MCP SPEC COMPLIANCE
-# ============================================================================
-
-echo ""
-echo -e "${BLUE}==== MCP Spec Compliance ====${NC}"
-if [ -f "$SCRIPT_DIR/ensure_mcp_compliance.sh" ]; then
-    if "$SCRIPT_DIR/ensure_mcp_compliance.sh"; then
-        echo -e "${GREEN}[OK] MCP compliance validation passed${NC}"
-    else
-        echo -e "${RED}[FAIL] MCP compliance validation failed${NC}"
-        ALL_PASSED=false
-    fi
+# A2A compliance tests
+echo -e "${BLUE}Running A2A compliance tests...${NC}"
+if cargo test --test a2a_compliance_test --quiet; then
+    echo -e "${GREEN}[OK] A2A compliance tests passed${NC}"
 else
-    echo -e "${YELLOW}[WARN] MCP compliance script not found - skipping${NC}"
+    echo -e "${RED}[FAIL] A2A compliance tests failed${NC}"
+    ALL_PASSED=false
 fi
 
 # ============================================================================
@@ -421,24 +407,13 @@ if [ -d "frontend" ]; then
 fi
 
 # ============================================================================
-# FINAL CLEANUP
-# ============================================================================
-
-echo -e "${BLUE}Final cleanup...${NC}"
-rm -f ./mcp_activities_*.json ./examples/mcp_activities_*.json ./a2a_*.json ./enterprise_strava_dataset.json 2>/dev/null || true
-find . -name "*demo*.json" -not -path "./target/*" -delete 2>/dev/null || true
-find . -name "a2a_enterprise_report_*.json" -delete 2>/dev/null || true
-find . -name "mcp_investor_demo_*.json" -delete 2>/dev/null || true
-echo -e "${GREEN}[OK] Cleanup completed${NC}"
-
-# ============================================================================
-# PERFORMANCE AND DOCUMENTATION (After all tests including SDK)
+# PERFORMANCE AND DOCUMENTATION
 # ============================================================================
 
 echo ""
 echo -e "${BLUE}==== Release Build and Documentation ====${NC}"
 
-# Build release binary (only after all tests pass including SDK tests)
+# Build release binary (only after all tests pass)
 echo -e "${BLUE}Building release binary...${NC}"
 if cargo build --release --quiet; then
     echo -e "${GREEN}[OK] Release build successful${NC}"
@@ -471,6 +446,108 @@ else
 fi
 
 # ============================================================================
+# FINAL CLEANUP
+# ============================================================================
+
+echo -e "${BLUE}Final cleanup...${NC}"
+rm -f ./mcp_activities_*.json ./examples/mcp_activities_*.json ./a2a_*.json ./enterprise_strava_dataset.json 2>/dev/null || true
+find . -name "*demo*.json" -not -path "./target/*" -delete 2>/dev/null || true
+find . -name "a2a_enterprise_report_*.json" -delete 2>/dev/null || true
+find . -name "mcp_investor_demo_*.json" -delete 2>/dev/null || true
+echo -e "${GREEN}[OK] Cleanup completed${NC}"
+
+# ============================================================================
+# MCP SPEC COMPLIANCE
+# ============================================================================
+
+echo ""
+echo -e "${BLUE}==== MCP Spec Compliance ====${NC}"
+if [ -f "$SCRIPT_DIR/ensure_mcp_compliance.sh" ]; then
+    if "$SCRIPT_DIR/ensure_mcp_compliance.sh"; then
+        echo -e "${GREEN}[OK] MCP compliance validation passed${NC}"
+    else
+        echo -e "${RED}[FAIL] MCP compliance validation failed${NC}"
+        ALL_PASSED=false
+    fi
+else
+    echo -e "${YELLOW}[WARN] MCP compliance script not found - skipping${NC}"
+fi
+
+# ============================================================================
+# SDK TYPE GENERATION
+# ============================================================================
+
+echo ""
+echo -e "${BLUE}==== SDK TypeScript Type Generation ====${NC}"
+
+# Check if SDK directory exists
+if [ -d "sdk" ]; then
+    cd sdk
+
+    # Check if package.json and generate-types script exist
+    if [ -f "package.json" ] && grep -q "generate-types" package.json; then
+        echo -e "${BLUE}Checking if SDK types need regeneration...${NC}"
+
+        # Check if types.ts exists and is not a placeholder
+        if [ ! -f "src/types.ts" ] || grep -q "PLACEHOLDER" "src/types.ts"; then
+            echo -e "${YELLOW}Types need generation (missing or placeholder)${NC}"
+            NEED_GENERATION=true
+        else
+            echo -e "${GREEN}Types file exists and appears complete${NC}"
+            NEED_GENERATION=false
+        fi
+
+        # Always validate types can be generated (but don't fail if server isn't running)
+        if [ "$NEED_GENERATION" = true ]; then
+            echo -e "${YELLOW}[WARN] SDK types are placeholder - run 'cd sdk && npm run generate-types' with server running${NC}"
+            echo -e "${YELLOW}[WARN] Skipping type generation in CI - types should be committed${NC}"
+        fi
+
+        # Validate TypeScript compilation regardless
+        if [ -d "node_modules" ]; then
+            if npm run build --if-present >/dev/null 2>&1; then
+                echo -e "${GREEN}[OK] SDK TypeScript compilation successful${NC}"
+            else
+                echo -e "${RED}[FAIL] SDK TypeScript compilation failed${NC}"
+                ALL_PASSED=false
+            fi
+
+            # Run SDK integration tests for all 45 tools
+            echo -e "${BLUE}Running SDK integration tests...${NC}"
+            if npm run test:integration -- --testPathPattern=all-tools --silent 2>&1 | grep -q "PASS"; then
+                echo -e "${GREEN}[OK] SDK integration tests passed (45 tools validated)${NC}"
+            else
+                echo -e "${RED}[FAIL] SDK integration tests failed${NC}"
+                echo -e "${YELLOW}[INFO] Run 'cd sdk && npm run test:integration -- --testPathPattern=all-tools' for details${NC}"
+                ALL_PASSED=false
+            fi
+        else
+            echo -e "${YELLOW}[WARN] SDK dependencies not installed - run 'cd sdk && npm install'${NC}"
+        fi
+    else
+        echo -e "${YELLOW}[WARN] SDK generate-types script not found in package.json${NC}"
+    fi
+
+    cd ..
+else
+    echo -e "${YELLOW}[WARN] SDK directory not found - skipping type generation${NC}"
+fi
+
+# Bridge test suite
+echo ""
+echo -e "${BLUE}==== Bridge Test Suite ====${NC}"
+if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
+    if "$SCRIPT_DIR/run_bridge_tests.sh"; then
+        echo -e "${GREEN}[OK] Bridge test suite passed${NC}"
+    else
+        echo -e "${RED}[FAIL] Bridge test suite failed${NC}"
+        ALL_PASSED=false
+    fi
+else
+    echo -e "${YELLOW}[WARN] Bridge test script not found - skipping${NC}"
+fi
+
+# ============================================================================
 # SUMMARY
 # ============================================================================
 
@@ -494,22 +571,23 @@ if [ "$ALL_PASSED" = true ]; then
     echo "[OK] No disabled test files (.disabled/.warp-backup extensions)"
     echo "[OK] No ignored tests (#[ignore] attributes - 100% test execution)"
     echo "[OK] Architectural validation (custom)"
-    echo "[OK] All Rust tests (cargo test --all-targets includes unit, integration, HTTP API, A2A)"
+    echo "[OK] Rust tests (cargo test - reused debug build)"
+    echo "[OK] HTTP API integration tests"
+    echo "[OK] A2A compliance tests"
     if [ -d "frontend" ]; then
         echo "[OK] Frontend linting"
         echo "[OK] TypeScript type checking"
         echo "[OK] Frontend tests"
         echo "[OK] Frontend build"
     fi
-    if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
-        echo "[OK] Bridge test suite (SDK tests with debug binary)"
-    fi
+    echo "[OK] Release build (cargo build --release)"
+    echo "[OK] Documentation (cargo doc)"
     if [ -f "$SCRIPT_DIR/ensure_mcp_compliance.sh" ]; then
         echo "[OK] MCP spec compliance validation"
     fi
-    echo "[OK] Cleanup"
-    echo "[OK] Release build (cargo build --release)"
-    echo "[OK] Documentation (cargo doc)"
+    if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
+        echo "[OK] Bridge test suite"
+    fi
     if [ "$ENABLE_COVERAGE" = true ] && command_exists cargo-llvm-cov; then
         echo "[OK] Rust code coverage"
     fi

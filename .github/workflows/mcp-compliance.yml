@@ -67,6 +67,30 @@ jobs:
         working-directory: sdk
         run: npm run build
 
+      - name: Validate SDK types exist
+        working-directory: sdk
+        run: |
+          echo "🔍 Validating SDK TypeScript types..."
+          if [ ! -f "src/types.ts" ]; then
+            echo "❌ ERROR: src/types.ts not found"
+            echo "📝 Run 'npm run generate-types' locally and commit the generated types"
+            exit 1
+          fi
+          if grep -q "PLACEHOLDER" "src/types.ts"; then
+            echo "⚠️  WARNING: types.ts contains placeholder content"
+            echo "📝 Run 'npm run generate-types' with a running server and commit the real types"
+            echo "   For CI: Types should be pre-generated and committed to the repository"
+            exit 1
+          fi
+          echo "✅ SDK types validated successfully"
+
+      - name: Run SDK integration tests
+        working-directory: sdk
+        run: |
+          echo "🧪 Running SDK integration tests for all 45 tools..."
+          npm run test:integration -- --testPathPattern=all-tools
+          echo "✅ SDK integration tests passed"
+
       - name: Check disk space before validation
         run: |
           echo "Disk space before validation:"

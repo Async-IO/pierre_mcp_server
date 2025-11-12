@@ -1,6 +1,6 @@
 {
   "name": "pierre-mcp-client",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "MCP client for Pierre Fitness MCP Server - works with Claude Desktop, ChatGPT, and any MCP host",
   "main": "dist/index.js",
   "bin": {
@@ -11,6 +11,7 @@
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
     "prepare": "npm run build",
+    "generate-types": "node ../scripts/generate-sdk-types.js",
     "test": "jest",
     "test:unit": "jest --testPathPattern=test/unit",
     "test:integration": "jest --testPathPattern=test/integration --runInBand",

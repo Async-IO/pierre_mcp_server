@@ -1,0 +1,500 @@
+#!/usr/bin/env node
+// ABOUTME: Auto-generates TypeScript type definitions from Pierre server tool schemas
+// ABOUTME: Fetches MCP tool schemas and converts them to TypeScript interfaces for SDK usage
+
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Configuration
+ */
+const SERVER_URL = process.env.PIERRE_SERVER_URL || 'http://localhost:8081';
+const SERVER_PORT = process.env.HTTP_PORT || '8081';
+const OUTPUT_FILE = path.join(__dirname, '../sdk/src/types.ts');
+const JWT_TOKEN = process.env.PIERRE_JWT_TOKEN || null;
+
+/**
+ * Fetch tool schemas from Pierre server
+ */
+async function fetchToolSchemas() {
+  return new Promise((resolve, reject) => {
+    const requestData = JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/list',
+      params: {}
+    });
+
+    const options = {
+      hostname: 'localhost',
+      port: SERVER_PORT,
+      path: '/mcp',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(requestData),
+        ...(JWT_TOKEN ? { 'Authorization': `Bearer ${JWT_TOKEN}` } : {})
+      }
+    };
+
+    const req = http.request(options, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`Server returned ${res.statusCode}: ${data}`));
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.error) {
+            reject(new Error(`MCP error: ${JSON.stringify(parsed.error)}`));
+            return;
+          }
+          resolve(parsed.result.tools || []);
+        } catch (err) {
+          reject(new Error(`Failed to parse response: ${err.message}`));
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      reject(new Error(`Failed to connect to server: ${err.message}`));
+    });
+
+    req.write(requestData);
+    req.end();
+  });
+}
+
+/**
+ * Convert JSON schema property to TypeScript type
+ */
+function jsonSchemaToTypeScript(property, propertyName, required = false) {
+  if (!property) {
+    return 'any';
+  }
+
+  const isOptional = !required;
+  const optionalMarker = isOptional ? '?' : '';
+
+  // Handle type arrays (e.g., ["string", "null"])
+  if (Array.isArray(property.type)) {
+    const types = property.type
+      .filter(t => t !== 'null')
+      .map(t => jsonSchemaToTypeScript({ type: t }, propertyName, true));
+    const typeStr = types.length > 1 ? types.join(' | ') : types[0];
+    return property.type.includes('null') ? `${typeStr} | null` : typeStr;
+  }
+
+  switch (property.type) {
+    case 'string':
+      if (property.enum) {
+        return property.enum.map(e => `"${e}"`).join(' | ');
+      }
+      return 'string';
+    case 'number':
+    case 'integer':
+      return 'number';
+    case 'boolean':
+      return 'boolean';
+    case 'array':
+      if (property.items) {
+        const itemType = jsonSchemaToTypeScript(property.items, propertyName, true);
+        return `${itemType}[]`;
+      }
+      return 'any[]';
+    case 'object':
+      if (property.properties) {
+        return generateInterfaceFromProperties(property.properties, property.required || []);
+      }
+      if (property.additionalProperties) {
+        const valueType = jsonSchemaToTypeScript(property.additionalProperties, propertyName, true);
+        return `Record<string, ${valueType}>`;
+      }
+      return 'Record<string, any>';
+    case 'null':
+      return 'null';
+    default:
+      return 'any';
+  }
+}
+
+/**
+ * Generate inline interface from properties
+ */
+function generateInterfaceFromProperties(properties, requiredFields = []) {
+  if (!properties || Object.keys(properties).length === 0) {
+    return '{}';
+  }
+
+  const fields = Object.entries(properties).map(([name, prop]) => {
+    const isRequired = requiredFields.includes(name);
+    const tsType = jsonSchemaToTypeScript(prop, name, isRequired);
+    const optional = isRequired ? '' : '?';
+    const description = prop.description ? `\n  /** ${prop.description} */` : '';
+    return `${description}\n  ${name}${optional}: ${tsType};`;
+  });
+
+  return `{\n${fields.join('\n')}\n}`;
+}
+
+/**
+ * Convert tool name to PascalCase for interface names
+ */
+function toPascalCase(str) {
+  return str
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
+}
+
+/**
+ * Generate TypeScript types from tool schemas
+ */
+function generateTypeScript(tools) {
+  const header = `// ABOUTME: Auto-generated TypeScript type definitions for Pierre MCP tools
+// ABOUTME: Generated from server tool schemas - DO NOT EDIT MANUALLY
+//
+// Generated: ${new Date().toISOString()}
+// Tool count: ${tools.length}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+/**
+ * Pierre MCP Tool Type Definitions
+ *
+ * This file contains TypeScript interfaces for all ${tools.length} Pierre MCP tools.
+ * These types are auto-generated from the server's JSON schemas.
+ *
+ * To regenerate: npm run generate-types
+ */
+
+// ============================================================================
+// TOOL PARAMETER TYPES
+// ============================================================================
+
+`;
+
+  const paramTypes = tools.map(tool => {
+    const interfaceName = `${toPascalCase(tool.name)}Params`;
+    const description = tool.description ? `\n/**\n * ${tool.description}\n */` : '';
+
+    if (!tool.inputSchema || !tool.inputSchema.properties || Object.keys(tool.inputSchema.properties).length === 0) {
+      return `${description}\nexport interface ${interfaceName} {}\n`;
+    }
+
+    const properties = tool.inputSchema.properties;
+    const required = tool.inputSchema.required || [];
+
+    const fields = Object.entries(properties).map(([name, prop]) => {
+      const isRequired = required.includes(name);
+      const tsType = jsonSchemaToTypeScript(prop, name, isRequired);
+      const optional = isRequired ? '' : '?';
+      const propDescription = prop.description ? `\n  /** ${prop.description} */` : '';
+      return `${propDescription}\n  ${name}${optional}: ${tsType};`;
+    });
+
+    return `${description}\nexport interface ${interfaceName} {\n${fields.join('\n')}\n}\n`;
+  }).join('\n');
+
+  const responseTypesHeader = `
+// ============================================================================
+// TOOL RESPONSE TYPES
+// ============================================================================
+
+/**
+ * Generic MCP tool response wrapper
+ */
+export interface McpToolResponse<T = any> {
+  content?: Array<{
+    type: string;
+    text?: string;
+    [key: string]: any;
+  }>;
+  isError?: boolean;
+  [key: string]: any;
+}
+
+/**
+ * MCP error response
+ */
+export interface McpErrorResponse {
+  code: number;
+  message: string;
+  data?: any;
+}
+
+`;
+
+  // Generate a union type of all tool names
+  const toolNamesUnion = `
+// ============================================================================
+// TOOL NAME TYPES
+// ============================================================================
+
+/**
+ * Union type of all available tool names
+ */
+export type ToolName = ${tools.map(t => `"${t.name}"`).join(' | ')};
+
+/**
+ * Map of tool names to their parameter types
+ */
+export interface ToolParamsMap {
+${tools.map(t => `  "${t.name}": ${toPascalCase(t.name)}Params;`).join('\n')}
+}
+
+`;
+
+  // Generate activity and common data types
+  const commonTypes = `
+// ============================================================================
+// COMMON DATA TYPES
+// ============================================================================
+
+/**
+ * Fitness activity data structure
+ */
+export interface Activity {
+  id: string;
+  name: string;
+  type: string;
+  distance?: number;
+  duration?: number;
+  moving_time?: number;
+  elapsed_time?: number;
+  total_elevation_gain?: number;
+  start_date?: string;
+  start_date_local?: string;
+  timezone?: string;
+  average_speed?: number;
+  max_speed?: number;
+  average_cadence?: number;
+  average_heartrate?: number;
+  max_heartrate?: number;
+  average_watts?: number;
+  kilojoules?: number;
+  device_watts?: boolean;
+  has_heartrate?: boolean;
+  calories?: number;
+  description?: string;
+  trainer?: boolean;
+  commute?: boolean;
+  manual?: boolean;
+  private?: boolean;
+  visibility?: string;
+  flagged?: boolean;
+  gear_id?: string;
+  from_accepted_tag?: boolean;
+  upload_id?: number;
+  external_id?: string;
+  achievement_count?: number;
+  kudos_count?: number;
+  comment_count?: number;
+  athlete_count?: number;
+  photo_count?: number;
+  map?: {
+    id?: string;
+    summary_polyline?: string;
+    polyline?: string;
+  };
+  [key: string]: any;
+}
+
+/**
+ * Athlete profile data structure
+ */
+export interface Athlete {
+  id: string;
+  username?: string;
+  resource_state?: number;
+  firstname?: string;
+  lastname?: string;
+  bio?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  sex?: string;
+  premium?: boolean;
+  summit?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  badge_type_id?: number;
+  weight?: number;
+  profile_medium?: string;
+  profile?: string;
+  friend?: any;
+  follower?: any;
+  ftp?: number;
+  [key: string]: any;
+}
+
+/**
+ * Athlete statistics data structure
+ */
+export interface Stats {
+  biggest_ride_distance?: number;
+  biggest_climb_elevation_gain?: number;
+  recent_ride_totals?: ActivityTotals;
+  recent_run_totals?: ActivityTotals;
+  recent_swim_totals?: ActivityTotals;
+  ytd_ride_totals?: ActivityTotals;
+  ytd_run_totals?: ActivityTotals;
+  ytd_swim_totals?: ActivityTotals;
+  all_ride_totals?: ActivityTotals;
+  all_run_totals?: ActivityTotals;
+  all_swim_totals?: ActivityTotals;
+  [key: string]: any;
+}
+
+/**
+ * Activity totals for statistics
+ */
+export interface ActivityTotals {
+  count?: number;
+  distance?: number;
+  moving_time?: number;
+  elapsed_time?: number;
+  elevation_gain?: number;
+  achievement_count?: number;
+}
+
+/**
+ * Fitness configuration profile
+ */
+export interface FitnessConfig {
+  athlete_info?: {
+    age?: number;
+    weight?: number;
+    height?: number;
+    sex?: string;
+    ftp?: number;
+    max_heart_rate?: number;
+    resting_heart_rate?: number;
+    vo2_max?: number;
+  };
+  training_zones?: {
+    heart_rate?: Zone[];
+    power?: Zone[];
+    pace?: Zone[];
+  };
+  goals?: Goal[];
+  preferences?: {
+    distance_unit?: string;
+    weight_unit?: string;
+    [key: string]: any;
+  };
+  [key: string]: any;
+}
+
+/**
+ * Training zone definition
+ */
+export interface Zone {
+  zone: number;
+  name: string;
+  min: number;
+  max: number;
+  description?: string;
+}
+
+/**
+ * Fitness goal definition
+ */
+export interface Goal {
+  id?: string;
+  type: string;
+  target_value: number;
+  target_date: string;
+  activity_type?: string;
+  description?: string;
+  progress?: number;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * Provider connection status
+ */
+export interface ConnectionStatus {
+  provider: string;
+  connected: boolean;
+  last_sync?: string;
+  expires_at?: string;
+  scopes?: string[];
+  [key: string]: any;
+}
+
+/**
+ * Notification data structure
+ */
+export interface Notification {
+  id: string;
+  type: string;
+  message: string;
+  provider?: string;
+  success?: boolean;
+  created_at: string;
+  read: boolean;
+  [key: string]: any;
+}
+
+`;
+
+  return header + paramTypes + responseTypesHeader + toolNamesUnion + commonTypes;
+}
+
+/**
+ * Main execution
+ */
+async function main() {
+  console.log('🔧 Pierre SDK Type Generator');
+  console.log('==============================\n');
+
+  console.log(`📡 Fetching tool schemas from ${SERVER_URL}:${SERVER_PORT}/mcp...`);
+
+  try {
+    const tools = await fetchToolSchemas();
+    console.log(`✅ Fetched ${tools.length} tool schemas\n`);
+
+    console.log('🔨 Generating TypeScript definitions...');
+    const typescript = generateTypeScript(tools);
+
+    console.log(`💾 Writing to ${OUTPUT_FILE}...`);
+    fs.writeFileSync(OUTPUT_FILE, typescript, 'utf8');
+
+    console.log(`✅ Successfully generated types for ${tools.length} tools!\n`);
+    console.log('📋 Generated interfaces:');
+    tools.forEach(tool => {
+      console.log(`   - ${toPascalCase(tool.name)}Params`);
+    });
+
+    console.log('\n✨ Type generation complete!');
+    console.log(`\n💡 Import types in your code:`);
+    console.log(`   import { GetActivitiesParams, Activity } from './types';\n`);
+
+  } catch (error) {
+    console.error('❌ Error generating types:', error.message);
+    console.error('\n🔍 Troubleshooting:');
+    console.error('   1. Ensure Pierre server is running on port', SERVER_PORT);
+    console.error('   2. Check if JWT token is valid (set PIERRE_JWT_TOKEN env var)');
+    console.error('   3. Verify server is accessible at', `${SERVER_URL}:${SERVER_PORT}/mcp`);
+    console.error('\n💡 Start server with: cargo run --bin pierre-mcp-server');
+    process.exit(1);
+  }
+}
+
+// Run if called directly
+if (require.main === module) {
+  main();
+}
+
+module.exports = { fetchToolSchemas, generateTypeScript };
