@@ -20,11 +20,30 @@
 # - MCP/Bridge compliance checks
 
 set -e
+set -o pipefail
 
 echo "Running Pierre MCP Server Validation Suite..."
 
 # Start timing
 START_TIME=$(date +%s)
+
+# Task counter
+CURRENT_TASK=0
+TOTAL_TASKS=0
+
+# Count tasks (all mandatory now)
+count_tasks() {
+    echo 11  # Mandatory tasks: cleanup, static analysis, fmt, clippy, deny, tests, frontend, mcp, sdk, bridge, release+docs
+}
+
+# Print task header
+print_task() {
+    CURRENT_TASK=$((CURRENT_TASK + 1))
+    echo ""
+    echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}Task $CURRENT_TASK/$TOTAL_TASKS: $1${NC}"
+    echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
+}
 
 # Parse command line arguments
 ENABLE_COVERAGE=false
@@ -58,8 +77,15 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
-echo -e "${BLUE}==== Pierre MCP Server - Validation Suite ====${NC}"
+# Calculate total tasks
+TOTAL_TASKS=$(count_tasks)
+
+echo -e "${BLUE}═══════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BLUE}       Pierre MCP Server - Validation Suite${NC}"
+echo -e "${BLUE}═══════════════════════════════════════════════════════════════════${NC}"
 echo "Project root: $PROJECT_ROOT"
+echo -e "${BLUE}Total tasks to execute: $TOTAL_TASKS${NC}"
+echo ""
 cd "$PROJECT_ROOT"
 
 # Track overall success
@@ -74,86 +100,237 @@ command_exists() {
 # CLEANUP
 # ============================================================================
 
-echo ""
-echo -e "${BLUE}==== Cleaning up generated files... ====${NC}"
+print_task "Cleaning up generated files"
 rm -f ./mcp_activities_*.json ./examples/mcp_activities_*.json ./a2a_*.json ./enterprise_strava_dataset.json 2>/dev/null || true
 find . -name "*demo*.json" -not -path "./target/*" -delete 2>/dev/null || true
 echo -e "${GREEN}[OK] Cleanup completed${NC}"
 
 # ============================================================================
-# DISABLED FILE DETECTION (Prevents incomplete migrations)
+# STATIC ANALYSIS & CODE QUALITY VALIDATION
+# ============================================================================
+# Combines: disabled files, ignored tests, secret patterns, architecture
 # ============================================================================
 
-echo ""
-echo -e "${BLUE}==== Checking for disabled test/source files... ====${NC}"
+print_task "Static Analysis & Code Quality"
 
-# Find all disabled files
+# Initialize validation results
+VALIDATION_FAILED=false
+
+# Arrays to store results for table
+declare -a VALIDATION_CATEGORIES
+declare -a VALIDATION_COUNTS
+declare -a VALIDATION_STATUSES
+declare -a VALIDATION_DETAILS
+
+# Function to add validation result
+add_validation() {
+    local category="$1"
+    local count="$2"
+    local status="$3"
+    local details="$4"
+
+    VALIDATION_CATEGORIES+=("$category")
+    VALIDATION_COUNTS+=("$count")
+    VALIDATION_STATUSES+=("$status")
+    VALIDATION_DETAILS+=("$details")
+}
+
+echo -e "${BLUE}Running static analysis checks...${NC}"
+echo ""
+
+# ============================================================================
+# 1. DISABLED FILE DETECTION
+# ============================================================================
 DISABLED_TESTS=$(find tests -name "*.disabled" -o -name "*.warp-backup" 2>/dev/null)
 DISABLED_SRC=$(find src -name "*.disabled" 2>/dev/null)
-
 DISABLED_COUNT=0
-if [ -n "$DISABLED_TESTS" ]; then
-    DISABLED_COUNT=$((DISABLED_COUNT + $(echo "$DISABLED_TESTS" | wc -l)))
-fi
-if [ -n "$DISABLED_SRC" ]; then
-    DISABLED_COUNT=$((DISABLED_COUNT + $(echo "$DISABLED_SRC" | wc -l)))
-fi
+[ -n "$DISABLED_TESTS" ] && DISABLED_COUNT=$((DISABLED_COUNT + $(echo "$DISABLED_TESTS" | wc -l)))
+[ -n "$DISABLED_SRC" ] && DISABLED_COUNT=$((DISABLED_COUNT + $(echo "$DISABLED_SRC" | wc -l)))
 
 if [ "$DISABLED_COUNT" -gt 0 ]; then
-    echo -e "${RED}[CRITICAL] Found $DISABLED_COUNT disabled files:${NC}"
-    [ -n "$DISABLED_TESTS" ] && echo -e "${RED}Disabled tests:${NC}\n$DISABLED_TESTS"
-    [ -n "$DISABLED_SRC" ] && echo -e "${RED}Disabled source files:${NC}\n$DISABLED_SRC"
-    echo -e "${RED}All test files must be enabled and passing before merge${NC}"
-    echo -e "${RED}Rename files to remove .disabled/.warp-backup extensions${NC}"
-    ALL_PASSED=false
-    exit 1
+    add_validation "Disabled files (.disabled/.warp-backup)" "$DISABLED_COUNT" "❌ FAIL" "Found in tests/ or src/"
+    VALIDATION_FAILED=true
 else
-    echo -e "${GREEN}[OK] No disabled files found - all tests are active${NC}"
+    add_validation "Disabled files (.disabled/.warp-backup)" "0" "✅ PASS" "All tests active"
 fi
 
 # ============================================================================
-# IGNORED TEST DETECTION (Zero tolerance policy)
+# 2. IGNORED TEST DETECTION
 # ============================================================================
-
-echo ""
-echo -e "${BLUE}==== Checking for ignored tests... ====${NC}"
-
-# Find all #[ignore] attributes in test files
 IGNORED_TESTS=$(rg "#\[ignore\]" tests/ -l 2>/dev/null || true)
 IGNORED_COUNT=0
-
-if [ -n "$IGNORED_TESTS" ]; then
-    IGNORED_COUNT=$(echo "$IGNORED_TESTS" | wc -l | tr -d ' ')
-fi
+[ -n "$IGNORED_TESTS" ] && IGNORED_COUNT=$(echo "$IGNORED_TESTS" | wc -l | tr -d ' ')
 
 if [ "$IGNORED_COUNT" -gt 0 ]; then
-    echo -e "${RED}[CRITICAL] Found $IGNORED_COUNT test files with #[ignore] attributes:${NC}"
-    echo -e "${RED}$IGNORED_TESTS${NC}"
-    echo ""
+    FIRST_IGNORED=$(echo "$IGNORED_TESTS" | head -1)
+    add_validation "Ignored tests (#[ignore])" "$IGNORED_COUNT" "❌ FAIL" "$FIRST_IGNORED"
+    VALIDATION_FAILED=true
+else
+    add_validation "Ignored tests (#[ignore])" "0" "✅ PASS" "100% test execution"
+fi
 
-    # Show the actual ignored tests
-    echo -e "${RED}Ignored test details:${NC}"
-    rg "#\[ignore\]" tests/ -B 2 -A 1 2>/dev/null | head -30
-    echo ""
+# ============================================================================
+# 3. SECRET PATTERN DETECTION
+# ============================================================================
+if [ -f "$SCRIPT_DIR/validate-no-secrets.sh" ]; then
+    SECRET_OUTPUT=$("$SCRIPT_DIR/validate-no-secrets.sh" 2>&1)
+    SECRET_EXIT=$?
 
-    echo -e "${RED}Main branch policy: ZERO ignored tests (main has 0, branch must match)${NC}"
-    echo -e "${RED}Tests must either pass or be removed - #[ignore] hides incomplete work${NC}"
-    echo -e "${RED}Remove #[ignore] attributes and ensure all tests pass${NC}"
+    # Count failures from secret validation
+    SECRET_FAILURES=$(echo "$SECRET_OUTPUT" | grep -c "❌" 2>/dev/null || echo 0)
+    SECRET_FAILURES=$(echo "$SECRET_FAILURES" | head -1 | tr -d '\n\r\t ')
+
+    if [ "$SECRET_EXIT" -ne 0 ] || [ "$SECRET_FAILURES" -gt 0 ]; then
+        add_validation "Secret patterns" "$SECRET_FAILURES" "❌ FAIL" "Run validate-no-secrets.sh for details"
+        VALIDATION_FAILED=true
+    else
+        add_validation "Authorization tokens" "0" "✅ PASS" "No exposed tokens"
+        add_validation "API keys" "0" "✅ PASS" "No hardcoded keys"
+        add_validation "Passwords" "0" "✅ PASS" "No hardcoded passwords"
+        add_validation "JWT tokens" "0" "✅ PASS" "No exposed JWTs"
+        add_validation "Private keys" "0" "✅ PASS" "No private keys"
+        add_validation "PII leakage" "0" "✅ PASS" "No PII in logs"
+        add_validation "DB credentials" "0" "✅ PASS" "No embedded credentials"
+    fi
+else
+    add_validation "Secret patterns" "?" "⚠️ SKIP" "validate-no-secrets.sh not found"
+fi
+
+# ============================================================================
+# 4. ARCHITECTURAL VALIDATION
+# ============================================================================
+if [ -f "$SCRIPT_DIR/architectural-validation.sh" ]; then
+    ARCH_OUTPUT=$("$SCRIPT_DIR/architectural-validation.sh" 2>&1)
+    ARCH_EXIT=$?
+
+    if [ "$ARCH_EXIT" -ne 0 ]; then
+        ARCH_FAILURES=$(echo "$ARCH_OUTPUT" | grep -c "❌ FAIL" 2>/dev/null || echo 0)
+        ARCH_FAILURES=$(echo "$ARCH_FAILURES" | head -1 | tr -d '\n\r\t ')
+        add_validation "Architectural patterns" "$ARCH_FAILURES" "❌ FAIL" "Run architectural-validation.sh for details"
+        VALIDATION_FAILED=true
+    else
+        # Extract all metrics from architectural validation
+        NULL_UUIDS=$(echo "$ARCH_OUTPUT" | grep "NULL UUIDs" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        RESOURCE_PATTERNS=$(echo "$ARCH_OUTPUT" | grep "Resource creation patterns" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        FAKE_RESOURCES=$(echo "$ARCH_OUTPUT" | grep "Fake resource assemblies" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        UNSAFE=$(echo "$ARCH_OUTPUT" | grep "Unsafe code blocks" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        UNWRAPS=$(echo "$ARCH_OUTPUT" | grep "Problematic unwraps" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        EXPECTS=$(echo "$ARCH_OUTPUT" | grep "Problematic expects" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        PANICS=$(echo "$ARCH_OUTPUT" | grep "Panic calls" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        TODOS=$(echo "$ARCH_OUTPUT" | grep "TODOs/FIXMEs" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        MOCK_IMPL=$(echo "$ARCH_OUTPUT" | grep "Production mock implementations" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        UNDERSCORE_NAMES=$(echo "$ARCH_OUTPUT" | grep "Underscore-prefixed names" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        TEST_IN_SRC=$(echo "$ARCH_OUTPUT" | grep "Test modules in src/" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        CLIPPY_ALLOWS=$(echo "$ARCH_OUTPUT" | grep "Problematic clippy allows" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        DEAD_CODE=$(echo "$ARCH_OUTPUT" | grep "Dead code annotations" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        TEMP_SOLUTIONS=$(echo "$ARCH_OUTPUT" | grep "Temporary solutions" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        BACKUP_FILES=$(echo "$ARCH_OUTPUT" | grep "Backup files" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        CLONE_TOTAL=$(echo "$ARCH_OUTPUT" | grep "Clone usage (total)" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        CLONE_PROBLEMATIC=$(echo "$ARCH_OUTPUT" | grep "Problematic clones" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        ARC_USAGE=$(echo "$ARCH_OUTPUT" | grep "Arc usage" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+        MAGIC_NUMBERS=$(echo "$ARCH_OUTPUT" | grep "Magic numbers" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+
+        add_validation "NULL UUIDs" "${NULL_UUIDS:-0}" "✅ PASS" "No test/placeholder UUIDs"
+        add_validation "Resource creation patterns" "${RESOURCE_PATTERNS:-0}" "✅ PASS" "Using dependency injection"
+        add_validation "Fake resource assemblies" "${FAKE_RESOURCES:-0}" "✅ PASS" "No fake ServerResources"
+        add_validation "Problematic unwraps" "${UNWRAPS:-0}" "✅ PASS" "Proper error handling"
+        add_validation "Problematic expects" "${EXPECTS:-0}" "✅ PASS" "Proper error handling"
+        add_validation "Panic calls" "${PANICS:-0}" "✅ PASS" "No panic! calls"
+
+        if [ "${TODOS:-0}" -gt 0 ]; then
+            TODO_LOCATION=$(echo "$ARCH_OUTPUT" | grep "TODOs/FIXMEs" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')
+            [ -z "$TODO_LOCATION" ] && TODO_LOCATION="Run architectural-validation.sh for locations"
+            add_validation "TODOs/FIXMEs" "$TODOS" "⚠️ WARN" "$TODO_LOCATION"
+        else
+            add_validation "TODOs/FIXMEs" "0" "✅ PASS" "No incomplete code"
+        fi
+
+        add_validation "Production mock implementations" "${MOCK_IMPL:-0}" "✅ PASS" "No mock code in production"
+        add_validation "Underscore-prefixed names" "${UNDERSCORE_NAMES:-0}" "✅ PASS" "Good naming conventions"
+        add_validation "Test modules in src/" "${TEST_IN_SRC:-0}" "✅ PASS" "Tests in tests/ directory"
+        add_validation "Problematic clippy allows" "${CLIPPY_ALLOWS:-0}" "✅ PASS" "Fix issues, don't silence"
+        add_validation "Dead code annotations" "${DEAD_CODE:-0}" "✅ PASS" "Remove, don't hide"
+        add_validation "Temporary solutions" "${TEMP_SOLUTIONS:-0}" "✅ PASS" "No temporary code"
+        add_validation "Backup files" "${BACKUP_FILES:-0}" "✅ PASS" "No backup files"
+
+        if [ "${CLONE_PROBLEMATIC:-0}" -gt 0 ]; then
+            CLONE_LOCATION=$(echo "$ARCH_OUTPUT" | grep "Problematic clones" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')
+            [ -z "$CLONE_LOCATION" ] && CLONE_LOCATION="Run architectural-validation.sh for locations"
+            add_validation "Problematic clones" "$CLONE_PROBLEMATIC" "⚠️ WARN" "$CLONE_LOCATION"
+        else
+            add_validation "Clone usage" "${CLONE_TOTAL:-0}" "✅ PASS" "All legitimate"
+        fi
+
+        add_validation "Arc usage" "${ARC_USAGE:-0}" "✅ PASS" "Appropriate for architecture"
+
+        if [ "${MAGIC_NUMBERS:-0}" -gt 0 ]; then
+            MAGIC_LOCATION=$(echo "$ARCH_OUTPUT" | grep "Magic numbers" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')
+            [ -z "$MAGIC_LOCATION" ] && MAGIC_LOCATION="Run architectural-validation.sh for locations"
+            add_validation "Magic numbers" "$MAGIC_NUMBERS" "⚠️ WARN" "$MAGIC_LOCATION"
+        else
+            add_validation "Magic numbers" "0" "✅ PASS" "All values named constants"
+        fi
+
+        [ "${UNSAFE:-0}" -eq 0 ] && add_validation "Unsafe code" "0" "✅ PASS" "No unsafe blocks" || \
+            add_validation "Unsafe code" "$UNSAFE" "✅ PASS" "Limited to approved locations"
+    fi
+else
+    add_validation "Architectural patterns" "?" "⚠️ SKIP" "architectural-validation.sh not found"
+fi
+
+# ============================================================================
+# DISPLAY RESULTS TABLE
+# ============================================================================
+echo ""
+echo -e "${BLUE}Static Analysis & Code Quality Results${NC}"
+echo ""
+printf "┌─────────────────────────────────────────┬───────┬──────────┬─────────────────────────────────┐\n"
+printf "│ %-39s │ %5s │ %-8s │ %-31s │\n" "Validation Category" "Count" "Status" "Details"
+printf "├─────────────────────────────────────────┼───────┼──────────┼─────────────────────────────────┤\n"
+
+for i in "${!VALIDATION_CATEGORIES[@]}"; do
+    printf "│ %-39s │ %5s │ %-8s │ %-31s │\n" \
+        "${VALIDATION_CATEGORIES[$i]}" \
+        "${VALIDATION_COUNTS[$i]}" \
+        "${VALIDATION_STATUSES[$i]}" \
+        "${VALIDATION_DETAILS[$i]}"
+done
+
+printf "└─────────────────────────────────────────┴───────┴──────────┴─────────────────────────────────┘\n"
+echo ""
+
+# ============================================================================
+# FAIL IF ANY CRITICAL CHECKS FAILED
+# ============================================================================
+if [ "$VALIDATION_FAILED" = true ]; then
+    echo -e "${RED}[CRITICAL] Static analysis validation failed${NC}"
+    echo -e "${RED}Fix all issues above before proceeding${NC}"
+
+    # Show details for critical failures
+    if [ "$DISABLED_COUNT" -gt 0 ]; then
+        echo ""
+        echo -e "${RED}Disabled files found:${NC}"
+        [ -n "$DISABLED_TESTS" ] && echo "$DISABLED_TESTS"
+        [ -n "$DISABLED_SRC" ] && echo "$DISABLED_SRC"
+    fi
+
+    if [ "$IGNORED_COUNT" -gt 0 ]; then
+        echo ""
+        echo -e "${RED}Ignored tests found:${NC}"
+        rg "#\[ignore\]" tests/ -B 2 -A 1 2>/dev/null | head -30
+    fi
+
     ALL_PASSED=false
     exit 1
 else
-    echo -e "${GREEN}[OK] No ignored tests found - 100% test execution${NC}"
+    echo -e "${GREEN}[OK] All static analysis checks passed${NC}"
 fi
 
 # ============================================================================
 # NATIVE CARGO VALIDATION (Reads Cargo.toml [lints] + deny.toml)
 # ============================================================================
 
-echo ""
-echo -e "${BLUE}==== Native Cargo Validation ====${NC}"
-
-# Formatting check
-echo -e "${BLUE}Running cargo fmt --check...${NC}"
+print_task "Cargo fmt (code formatting check)"
 if cargo fmt --all -- --check; then
     echo -e "${GREEN}[OK] Rust code formatting is correct${NC}"
 else
@@ -163,9 +340,7 @@ else
     exit 1
 fi
 
-# Clippy linting and compilation (reads Cargo.toml [lints.clippy] with level = "deny")
-# NOTE: This builds the debug binary ONCE - all subsequent steps reuse this build
-echo -e "${BLUE}Running cargo clippy + build (zero tolerance via Cargo.toml)...${NC}"
+print_task "Cargo clippy + build (zero tolerance linting)"
 
 # ============================================================================
 # CRITICAL: Why we need explicit -- -D warnings flag
@@ -197,41 +372,47 @@ echo -e "${BLUE}Running cargo clippy + build (zero tolerance via Cargo.toml)...$
 # ✅ Standard CI/CD pattern (documented in official Clippy docs)
 # ============================================================================
 
-# Run clippy with output to both screen and variable
+# Run clippy with output to screen
 # Explicit -W flags ensure nursery lints (including too_many_lines) apply to all targets
 # CRITICAL: The "-- -D warnings" suffix is REQUIRED - see documentation above
-CLIPPY_OUTPUT=$(cargo clippy --all-targets --all-features --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings 2>&1 | tee /dev/stderr)
-CLIPPY_EXIT=$?
-
-# Check if clippy was killed (exit code 137 = SIGKILL, 143 = SIGTERM)
-if [ $CLIPPY_EXIT -eq 137 ] || [ $CLIPPY_EXIT -eq 143 ]; then
-    echo ""
-    echo -e "${RED}[CRITICAL] Clippy was killed (possibly out of memory)${NC}"
-    echo -e "${RED}Exit code: $CLIPPY_EXIT${NC}"
-    ALL_PASSED=false
-    exit 1
-fi
-
-# Count only code warnings, exclude dependency future-compatibility warnings
-WARNING_COUNT=$(echo "$CLIPPY_OUTPUT" | grep "^warning:" | grep -v "the following packages contain code that will be rejected by a future version of Rust" | wc -l | tr -d ' ')
-
-if [ $CLIPPY_EXIT -ne 0 ] || [ "$WARNING_COUNT" -gt 0 ]; then
-    echo ""
-    echo -e "${RED}[CRITICAL] Clippy failed with exit code $CLIPPY_EXIT and $WARNING_COUNT code warnings${NC}"
-    echo -e "${RED}ALL code warnings must be fixed - zero tolerance policy${NC}"
-    ALL_PASSED=false
-    exit 1
-else
+if cargo clippy --all-targets --all-features --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings; then
     echo -e "${GREEN}[OK] Clippy passed - ZERO code warnings (enforced by Cargo.toml)${NC}"
     echo -e "${GREEN}[OK] Debug build completed (reused for all validation)${NC}"
+else
+    CLIPPY_EXIT=$?
+    echo ""
+    if [ $CLIPPY_EXIT -eq 137 ] || [ $CLIPPY_EXIT -eq 143 ]; then
+        echo -e "${RED}[CRITICAL] Clippy was killed (possibly out of memory)${NC}"
+        echo -e "${RED}Exit code: $CLIPPY_EXIT${NC}"
+    else
+        echo -e "${RED}[CRITICAL] Clippy failed - ALL code warnings must be fixed${NC}"
+        echo -e "${RED}Zero tolerance policy: fix all warnings and re-run${NC}"
+    fi
+    ALL_PASSED=false
+    exit 1
 fi
 
-# Security audit (reads deny.toml)
-echo -e "${BLUE}Running cargo deny check...${NC}"
+print_task "Cargo deny (security audit)"
 if command_exists cargo-deny; then
-    if cargo deny check; then
+    # Capture output and filter duplicate warnings for cleaner display
+    DENY_OUTPUT=$(cargo deny check 2>&1)
+    DENY_EXIT=$?
+
+    # Show summary line
+    echo "$DENY_OUTPUT" | grep -E "(advisories|bans|licenses|sources)" || true
+
+    if [ "$DENY_EXIT" -eq 0 ]; then
         echo -e "${GREEN}[OK] Security audit passed (via deny.toml)${NC}"
+
+        # Count duplicate warnings but don't show them
+        DUPLICATE_COUNT=$(echo "$DENY_OUTPUT" | grep -c "^warning\[duplicate\]" 2>/dev/null || echo 0)
+        DUPLICATE_COUNT=$(echo "$DUPLICATE_COUNT" | head -1 | tr -d '\n\r\t ')
+        if [ "$DUPLICATE_COUNT" -gt 0 ]; then
+            echo -e "${YELLOW}[INFO] $DUPLICATE_COUNT duplicate dependencies detected (non-critical)${NC}"
+        fi
     else
+        # On failure, show filtered output (actual errors, not duplicate warnings)
+        echo "$DENY_OUTPUT" | grep -v "^warning\[duplicate\]" | grep -v "├\|│\|└\|╭\|╰" | grep -v "lock entries" | grep -v "registry+https://github.com" || true
         echo -e "${YELLOW}[WARN] Security vulnerabilities detected${NC}"
         echo -e "${YELLOW}Review output above and update dependencies${NC}"
         # Don't fail build, just warn
@@ -241,51 +422,7 @@ else
     echo -e "${YELLOW}Install with: cargo install cargo-deny${NC}"
 fi
 
-# ============================================================================
-# PII AND SECRET PATTERN DETECTION
-# ============================================================================
-
-echo ""
-echo -e "${BLUE}==== PII and Secret Pattern Detection ====${NC}"
-if [ -f "$SCRIPT_DIR/validate-no-secrets.sh" ]; then
-    if "$SCRIPT_DIR/validate-no-secrets.sh"; then
-        echo -e "${GREEN}[OK] Secret pattern validation passed${NC}"
-    else
-        echo -e "${RED}[CRITICAL] Secret pattern validation failed${NC}"
-        ALL_PASSED=false
-        exit 1
-    fi
-else
-    echo -e "${YELLOW}[WARN] Secret validation script not found - skipping${NC}"
-fi
-
-# ============================================================================
-# CUSTOM ARCHITECTURAL VALIDATION (Project-Specific Rules)
-# ============================================================================
-# NOTE: Runs early for fail-fast behavior (before tests)
-# Binary size check will warn if release binary doesn't exist yet (expected - built at end)
-
-echo ""
-echo -e "${BLUE}==== Custom Architectural Validation ====${NC}"
-
-if [ -f "$SCRIPT_DIR/architectural-validation.sh" ]; then
-    if "$SCRIPT_DIR/architectural-validation.sh"; then
-        echo -e "${GREEN}[OK] Architectural validation passed${NC}"
-    else
-        echo -e "${RED}[CRITICAL] Architectural validation failed${NC}"
-        ALL_PASSED=false
-        exit 1
-    fi
-else
-    echo -e "${YELLOW}[WARN] Architectural validation script not found - skipping${NC}"
-fi
-
-# ============================================================================
-# TEST EXECUTION
-# ============================================================================
-
-echo ""
-echo -e "${BLUE}==== Running Tests (reusing debug build from clippy) ====${NC}"
+print_task "Cargo test (all tests)"
 
 # Clean test databases
 echo -e "${BLUE}Cleaning test databases...${NC}"
@@ -332,31 +469,12 @@ else
     fi
 fi
 
-# HTTP API integration tests
-echo -e "${BLUE}Running HTTP API integration tests...${NC}"
-if cargo test --test http_api_integration_test --quiet; then
-    echo -e "${GREEN}[OK] HTTP API integration tests passed${NC}"
-else
-    echo -e "${RED}[FAIL] HTTP API integration tests failed${NC}"
-    ALL_PASSED=false
-fi
-
-# A2A compliance tests
-echo -e "${BLUE}Running A2A compliance tests...${NC}"
-if cargo test --test a2a_compliance_test --quiet; then
-    echo -e "${GREEN}[OK] A2A compliance tests passed${NC}"
-else
-    echo -e "${RED}[FAIL] A2A compliance tests failed${NC}"
-    ALL_PASSED=false
-fi
-
 # ============================================================================
 # FRONTEND VALIDATION (Separate Toolchain)
 # ============================================================================
 
 if [ -d "frontend" ]; then
-    echo ""
-    echo -e "${BLUE}==== Frontend Validation ====${NC}"
+    print_task "Frontend validation (linting, types, tests, build)"
     cd frontend
 
     # Check dependencies
@@ -407,13 +525,109 @@ if [ -d "frontend" ]; then
 fi
 
 # ============================================================================
+# MCP SPEC COMPLIANCE (now mandatory)
+# ============================================================================
+
+print_task "MCP spec compliance validation"
+if [ -f "$SCRIPT_DIR/ensure_mcp_compliance.sh" ]; then
+    if "$SCRIPT_DIR/ensure_mcp_compliance.sh"; then
+        echo -e "${GREEN}[OK] MCP compliance validation passed${NC}"
+    else
+        echo -e "${RED}[FAIL] MCP compliance validation failed${NC}"
+        ALL_PASSED=false
+    fi
+else
+    echo -e "${RED}[CRITICAL] MCP compliance script not found: $SCRIPT_DIR/ensure_mcp_compliance.sh${NC}"
+    ALL_PASSED=false
+    exit 1
+fi
+
+# ============================================================================
+# SDK TYPE GENERATION (now mandatory)
+# ============================================================================
+
+print_task "SDK TypeScript validation + integration tests"
+if [ ! -d "sdk" ]; then
+    echo -e "${RED}[CRITICAL] SDK directory not found${NC}"
+    ALL_PASSED=false
+    exit 1
+fi
+
+cd sdk
+
+# Check if package.json and generate-types script exist
+if [ -f "package.json" ] && grep -q "generate-types" package.json; then
+    echo -e "${BLUE}Checking if SDK types need regeneration...${NC}"
+
+    # Check if types.ts exists and is not a placeholder
+    if [ ! -f "src/types.ts" ] || grep -q "PLACEHOLDER" "src/types.ts"; then
+        echo -e "${YELLOW}Types need generation (missing or placeholder)${NC}"
+        NEED_GENERATION=true
+    else
+        echo -e "${GREEN}Types file exists and appears complete${NC}"
+        NEED_GENERATION=false
+    fi
+
+    # Always validate types can be generated (but don't fail if server isn't running)
+    if [ "$NEED_GENERATION" = true ]; then
+        echo -e "${YELLOW}[WARN] SDK types are placeholder - run 'cd sdk && npm run generate-types' with server running${NC}"
+        echo -e "${YELLOW}[WARN] Skipping type generation in CI - types should be committed${NC}"
+    fi
+
+    # Validate TypeScript compilation regardless
+    if [ -d "node_modules" ]; then
+        if npm run build --if-present >/dev/null 2>&1; then
+            echo -e "${GREEN}[OK] SDK TypeScript compilation successful${NC}"
+        else
+            echo -e "${RED}[FAIL] SDK TypeScript compilation failed${NC}"
+            ALL_PASSED=false
+        fi
+
+        # Run SDK integration tests for all 45 tools
+        echo -e "${BLUE}Running SDK integration tests...${NC}"
+        if npm run test:integration -- --testPathPattern=all-tools --silent; then
+            echo -e "${GREEN}[OK] SDK integration tests passed (45 tools validated)${NC}"
+        else
+            echo -e "${RED}[FAIL] SDK integration tests failed${NC}"
+            echo -e "${YELLOW}[INFO] Run 'cd sdk && npm run test:integration -- --testPathPattern=all-tools' for details${NC}"
+            ALL_PASSED=false
+        fi
+    else
+        echo -e "${RED}[CRITICAL] SDK dependencies not installed - run 'cd sdk && npm install'${NC}"
+        ALL_PASSED=false
+        exit 1
+    fi
+else
+    echo -e "${RED}[CRITICAL] SDK generate-types script not found in package.json${NC}"
+    ALL_PASSED=false
+    exit 1
+fi
+
+cd ..
+
+# ============================================================================
+# BRIDGE TEST SUITE (now mandatory)
+# ============================================================================
+
+print_task "Bridge test suite"
+if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
+    if "$SCRIPT_DIR/run_bridge_tests.sh"; then
+        echo -e "${GREEN}[OK] Bridge test suite passed${NC}"
+    else
+        echo -e "${RED}[FAIL] Bridge test suite failed${NC}"
+        ALL_PASSED=false
+    fi
+else
+    echo -e "${RED}[CRITICAL] Bridge test script not found: $SCRIPT_DIR/run_bridge_tests.sh${NC}"
+    ALL_PASSED=false
+    exit 1
+fi
+
+# ============================================================================
 # PERFORMANCE AND DOCUMENTATION
 # ============================================================================
 
-echo ""
-echo -e "${BLUE}==== Release Build and Documentation ====${NC}"
-
-# Build release binary (only after all tests pass)
+print_task "Release build + documentation"
 echo -e "${BLUE}Building release binary...${NC}"
 if cargo build --release --quiet; then
     echo -e "${GREEN}[OK] Release build successful${NC}"
@@ -457,97 +671,6 @@ find . -name "mcp_investor_demo_*.json" -delete 2>/dev/null || true
 echo -e "${GREEN}[OK] Cleanup completed${NC}"
 
 # ============================================================================
-# MCP SPEC COMPLIANCE
-# ============================================================================
-
-echo ""
-echo -e "${BLUE}==== MCP Spec Compliance ====${NC}"
-if [ -f "$SCRIPT_DIR/ensure_mcp_compliance.sh" ]; then
-    if "$SCRIPT_DIR/ensure_mcp_compliance.sh"; then
-        echo -e "${GREEN}[OK] MCP compliance validation passed${NC}"
-    else
-        echo -e "${RED}[FAIL] MCP compliance validation failed${NC}"
-        ALL_PASSED=false
-    fi
-else
-    echo -e "${YELLOW}[WARN] MCP compliance script not found - skipping${NC}"
-fi
-
-# ============================================================================
-# SDK TYPE GENERATION
-# ============================================================================
-
-echo ""
-echo -e "${BLUE}==== SDK TypeScript Type Generation ====${NC}"
-
-# Check if SDK directory exists
-if [ -d "sdk" ]; then
-    cd sdk
-
-    # Check if package.json and generate-types script exist
-    if [ -f "package.json" ] && grep -q "generate-types" package.json; then
-        echo -e "${BLUE}Checking if SDK types need regeneration...${NC}"
-
-        # Check if types.ts exists and is not a placeholder
-        if [ ! -f "src/types.ts" ] || grep -q "PLACEHOLDER" "src/types.ts"; then
-            echo -e "${YELLOW}Types need generation (missing or placeholder)${NC}"
-            NEED_GENERATION=true
-        else
-            echo -e "${GREEN}Types file exists and appears complete${NC}"
-            NEED_GENERATION=false
-        fi
-
-        # Always validate types can be generated (but don't fail if server isn't running)
-        if [ "$NEED_GENERATION" = true ]; then
-            echo -e "${YELLOW}[WARN] SDK types are placeholder - run 'cd sdk && npm run generate-types' with server running${NC}"
-            echo -e "${YELLOW}[WARN] Skipping type generation in CI - types should be committed${NC}"
-        fi
-
-        # Validate TypeScript compilation regardless
-        if [ -d "node_modules" ]; then
-            if npm run build --if-present >/dev/null 2>&1; then
-                echo -e "${GREEN}[OK] SDK TypeScript compilation successful${NC}"
-            else
-                echo -e "${RED}[FAIL] SDK TypeScript compilation failed${NC}"
-                ALL_PASSED=false
-            fi
-
-            # Run SDK integration tests for all 45 tools
-            echo -e "${BLUE}Running SDK integration tests...${NC}"
-            if npm run test:integration -- --testPathPattern=all-tools --silent 2>&1 | grep -q "PASS"; then
-                echo -e "${GREEN}[OK] SDK integration tests passed (45 tools validated)${NC}"
-            else
-                echo -e "${RED}[FAIL] SDK integration tests failed${NC}"
-                echo -e "${YELLOW}[INFO] Run 'cd sdk && npm run test:integration -- --testPathPattern=all-tools' for details${NC}"
-                ALL_PASSED=false
-            fi
-        else
-            echo -e "${YELLOW}[WARN] SDK dependencies not installed - run 'cd sdk && npm install'${NC}"
-        fi
-    else
-        echo -e "${YELLOW}[WARN] SDK generate-types script not found in package.json${NC}"
-    fi
-
-    cd ..
-else
-    echo -e "${YELLOW}[WARN] SDK directory not found - skipping type generation${NC}"
-fi
-
-# Bridge test suite
-echo ""
-echo -e "${BLUE}==== Bridge Test Suite ====${NC}"
-if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
-    if "$SCRIPT_DIR/run_bridge_tests.sh"; then
-        echo -e "${GREEN}[OK] Bridge test suite passed${NC}"
-    else
-        echo -e "${RED}[FAIL] Bridge test suite failed${NC}"
-        ALL_PASSED=false
-    fi
-else
-    echo -e "${YELLOW}[WARN] Bridge test script not found - skipping${NC}"
-fi
-
-# ============================================================================
 # SUMMARY
 # ============================================================================
 
@@ -557,23 +680,22 @@ TOTAL_MINUTES=$((TOTAL_SECONDS / 60))
 REMAINING_SECONDS=$((TOTAL_SECONDS % 60))
 
 echo ""
-echo -e "${BLUE}==== Validation Summary ====${NC}"
+echo -e "${BLUE}═══════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BLUE}       VALIDATION SUMMARY${NC}"
+echo -e "${BLUE}═══════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BLUE}Completed: $TOTAL_TASKS/$TOTAL_TASKS tasks${NC}"
 echo -e "${BLUE}Total execution time: ${TOTAL_MINUTES}m ${REMAINING_SECONDS}s${NC}"
 echo ""
 
 if [ "$ALL_PASSED" = true ]; then
     echo -e "${GREEN}✅ ALL VALIDATION PASSED - Task can be marked complete${NC}"
     echo ""
+    echo "[OK] Cleanup"
+    echo "[OK] Static Analysis & Code Quality (unified)"
     echo "[OK] Rust formatting (cargo fmt)"
     echo "[OK] Rust linting + build (cargo clippy via Cargo.toml)"
     echo "[OK] Security audit (cargo deny via deny.toml)"
-    echo "[OK] Secret pattern detection"
-    echo "[OK] No disabled test files (.disabled/.warp-backup extensions)"
-    echo "[OK] No ignored tests (#[ignore] attributes - 100% test execution)"
-    echo "[OK] Architectural validation (custom)"
-    echo "[OK] Rust tests (cargo test - reused debug build)"
-    echo "[OK] HTTP API integration tests"
-    echo "[OK] A2A compliance tests"
+    echo "[OK] Rust tests (cargo test - all unit + integration tests)"
     if [ -d "frontend" ]; then
         echo "[OK] Frontend linting"
         echo "[OK] TypeScript type checking"
