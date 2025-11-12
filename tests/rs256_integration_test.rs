@@ -461,28 +461,29 @@ async fn test_key_lifecycle_rollover() -> Result<()> {
     let mut jwks_manager = JwksManager::new();
     jwks_manager.generate_rsa_key_pair_with_size("lifecycle_key_1", 2048)?;
 
+    // Sleep to ensure initial key has a distinct timestamp
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
     let initial_kid = jwks_manager.get_active_key()?.kid.clone();
 
     // Rotate keys multiple times to exceed retention limit (MAX_HISTORICAL_KEYS = 3)
     // Key lifecycle: initial_kid -> rotated1 -> rotated2 -> rotated3 -> rotated4
     // After 4 rotations, initial_kid should be pruned
-    // Note: On Windows, sleep between rotations to ensure unique timestamps (kid format uses second precision)
+    // Note: Sleep between rotations to ensure unique timestamps across all platforms
+    // (kid format uses second precision, and cleanup relies on timestamp ordering)
     let rotated_kids = [
         {
             let kid = jwks_manager.rotate_keys_with_size(2048)?;
-            #[cfg(windows)]
             std::thread::sleep(std::time::Duration::from_secs(1));
             kid
         },
         {
             let kid = jwks_manager.rotate_keys_with_size(2048)?;
-            #[cfg(windows)]
             std::thread::sleep(std::time::Duration::from_secs(1));
             kid
         },
         {
             let kid = jwks_manager.rotate_keys_with_size(2048)?;
-            #[cfg(windows)]
             std::thread::sleep(std::time::Duration::from_secs(1));
             kid
         },
