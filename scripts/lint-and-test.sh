@@ -173,8 +173,11 @@ fi
 # 3. SECRET PATTERN DETECTION
 # ============================================================================
 if [ -f "$SCRIPT_DIR/validate-no-secrets.sh" ]; then
+    # Temporarily disable set -e to capture output even if script fails
+    set +e
     SECRET_OUTPUT=$("$SCRIPT_DIR/validate-no-secrets.sh" 2>&1)
     SECRET_EXIT=$?
+    set -e
 
     # Count failures from secret validation
     SECRET_FAILURES=$(echo "$SECRET_OUTPUT" | grep -c "❌" 2>/dev/null || echo 0)
@@ -200,8 +203,11 @@ fi
 # 4. ARCHITECTURAL VALIDATION
 # ============================================================================
 if [ -f "$SCRIPT_DIR/architectural-validation.sh" ]; then
+    # Temporarily disable set -e to capture output even if script fails
+    set +e
     ARCH_OUTPUT=$("$SCRIPT_DIR/architectural-validation.sh" 2>&1)
     ARCH_EXIT=$?
+    set -e
 
     if [ "$ARCH_EXIT" -ne 0 ]; then
         ARCH_FAILURES=$(echo "$ARCH_OUTPUT" | grep -c "❌ FAIL" 2>/dev/null || echo 0)
@@ -318,6 +324,20 @@ if [ "$VALIDATION_FAILED" = true ]; then
         echo ""
         echo -e "${RED}Ignored tests found:${NC}"
         rg "#\[ignore\]" tests/ -B 2 -A 1 2>/dev/null | head -30
+    fi
+
+    # Show secret validation failures if any
+    if [ -n "$SECRET_OUTPUT" ] && ([ "$SECRET_EXIT" -ne 0 ] || [ "${SECRET_FAILURES:-0}" -gt 0 ]); then
+        echo ""
+        echo -e "${RED}Secret pattern validation output:${NC}"
+        echo "$SECRET_OUTPUT" | grep -E "❌|FAIL|Error" | head -20
+    fi
+
+    # Show architectural validation failures if any
+    if [ -n "$ARCH_OUTPUT" ] && [ "$ARCH_EXIT" -ne 0 ]; then
+        echo ""
+        echo -e "${RED}Architectural validation output:${NC}"
+        echo "$ARCH_OUTPUT" | grep -E "❌|FAIL|Error" | head -20
     fi
 
     ALL_PASSED=false
@@ -449,6 +469,7 @@ if [ "$ENABLE_COVERAGE" = true ]; then
         else
             echo -e "${RED}[FAIL] Some tests failed${NC}"
             ALL_PASSED=false
+            exit 1
         fi
     else
         echo -e "${YELLOW}[WARN] cargo-llvm-cov not installed${NC}"
@@ -458,6 +479,7 @@ if [ "$ENABLE_COVERAGE" = true ]; then
         else
             echo -e "${RED}[FAIL] Some tests failed${NC}"
             ALL_PASSED=false
+            exit 1
         fi
     fi
 else
@@ -466,6 +488,7 @@ else
     else
         echo -e "${RED}[FAIL] Some tests failed${NC}"
         ALL_PASSED=false
+        exit 1
     fi
 fi
 
