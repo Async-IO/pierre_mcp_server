@@ -53,7 +53,7 @@ program
         userEmail: options.userEmail,
         userPassword: options.userPassword,
         callbackPort: parseInt(options.callbackPort, 10),
-        disableBrowser: options.noBrowser || false,
+        disableBrowser: !options.browser,
         tokenValidationTimeoutMs: parseInt(options.tokenValidationTimeout, 10),
         proactiveConnectionTimeoutMs: parseInt(options.proactiveConnectionTimeout, 10),
         proactiveToolsListTimeoutMs: parseInt(options.proactiveToolsListTimeout, 10),
