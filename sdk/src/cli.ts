@@ -38,6 +38,7 @@ program
   .option('--user-email <email>', 'User email for automated login', process.env.PIERRE_USER_EMAIL)
   .option('--user-password <password>', 'User password for automated login', process.env.PIERRE_USER_PASSWORD)
   .option('--callback-port <port>', 'OAuth callback server port', process.env.PIERRE_CALLBACK_PORT || '35535')
+  .option('--no-browser', 'Disable automatic browser opening for OAuth (testing mode)')
   .option('--token-validation-timeout <ms>', 'Token validation timeout in milliseconds (default: 3000)', process.env.PIERRE_TOKEN_VALIDATION_TIMEOUT_MS || '3000')
   .option('--proactive-connection-timeout <ms>', 'Proactive connection timeout in milliseconds (default: 5000)', process.env.PIERRE_PROACTIVE_CONNECTION_TIMEOUT_MS || '5000')
   .option('--proactive-tools-list-timeout <ms>', 'Proactive tools list timeout in milliseconds (default: 3000)', process.env.PIERRE_PROACTIVE_TOOLS_LIST_TIMEOUT_MS || '3000')
@@ -52,6 +53,7 @@ program
         userEmail: options.userEmail,
         userPassword: options.userPassword,
         callbackPort: parseInt(options.callbackPort, 10),
+        disableBrowser: options.noBrowser || false,
         tokenValidationTimeoutMs: parseInt(options.tokenValidationTimeout, 10),
         proactiveConnectionTimeoutMs: parseInt(options.proactiveConnectionTimeout, 10),
         proactiveToolsListTimeoutMs: parseInt(options.proactiveToolsListTimeout, 10),

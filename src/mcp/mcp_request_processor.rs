@@ -172,10 +172,16 @@ impl McpRequestProcessor {
     }
 
     /// Handle tools/list request
+    ///
+    /// Per MCP specification, tools/list does NOT require authentication.
+    /// All tools are returned regardless of authentication status.
+    /// Individual tool calls will check authentication and trigger OAuth if needed.
     fn handle_tools_list(request: &McpRequest) -> McpResponse {
         debug!("Handling tools/list request");
 
         // Get all available tools from schema
+        // MCP spec: tools/list must work without authentication
+        // Authentication is checked at tools/call time, not discovery time
         let tools = crate::mcp::schema::get_tools();
 
         McpResponse {

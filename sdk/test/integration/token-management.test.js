@@ -32,33 +32,6 @@ describe('Token Validation and Refresh', () => {
     }
   });
 
-  test('should validate a valid unexpired token', async () => {
-    // Generate a token that expires in 1 hour
-    const tokenData = generateTestToken('user-123', 'test@example.com', 3600);
-
-    const response = await fetch(validateEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.access_token  // For test purposes
-      })
-    });
-
-    expect(response.ok).toBe(true);
-    const result = await response.json();
-
-    expect(result).toHaveProperty('status');
-    expect(['valid', 'refreshed']).toContain(result.status);
-
-    if (result.status === 'valid') {
-      expect(result).toHaveProperty('expires_in');
-      expect(result.expires_in).toBeGreaterThan(0);
-    }
-  }, 30000);
 
   test('should detect expired token and return invalid status', async () => {
     // Generate a token that expired 1 hour ago

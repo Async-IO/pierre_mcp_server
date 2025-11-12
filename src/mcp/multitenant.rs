@@ -2236,10 +2236,26 @@ impl MultiTenantMcpServer {
     ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
         match serde_json::from_value::<McpRequest>(body.clone()) {
             Ok(mut request) => {
+                // DEBUG: Log auth state before injection
+                tracing::debug!(
+                    "Auth injection: request.auth_token (from body)={:?}, authorization (from header)={:?}",
+                    request.auth_token.as_ref().map(|t| format!("present: {}...", &t[..std::cmp::min(10, t.len())])),
+                    authorization.as_ref().map(|t| format!("present: {}...", &t[..std::cmp::min(10, t.len())]))
+                );
+
                 // If no auth_token in the request body, use the Authorization header
                 if request.auth_token.is_none() {
-                    request.auth_token = authorization;
+                    request.auth_token.clone_from(&authorization);
                 }
+
+                // DEBUG: Log auth state after injection
+                tracing::debug!(
+                    "After auth injection: request.auth_token={:?}",
+                    request
+                        .auth_token
+                        .as_ref()
+                        .map(|t| format!("present: {}...", &t[..std::cmp::min(10, t.len())]))
+                );
 
                 tracing::debug!(
                     transport = "http",

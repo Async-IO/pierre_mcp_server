@@ -12,7 +12,7 @@
     "start": "node dist/cli.js",
     "prepare": "npm run build",
     "generate-types": "node ../scripts/generate-sdk-types.js",
-    "test": "jest",
+    "test": "jest --runInBand --forceExit",
     "test:unit": "jest --testPathPattern=test/unit",
     "test:integration": "jest --testPathPattern=test/integration --runInBand",
     "test:e2e": "jest --testPathPattern=test/e2e --runInBand",

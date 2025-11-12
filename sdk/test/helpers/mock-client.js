@@ -15,7 +15,8 @@ class MockMCPClient extends EventEmitter {
   constructor(command, args = []) {
     super();
     this.command = command;
-    this.args = args;
+    // ALWAYS add --no-browser to prevent 100+ Chrome tabs opening during tests
+    this.args = args.includes('--no-browser') ? args : [...args, '--no-browser'];
     this.process = null;
     this.buffer = '';
     this.pendingRequests = new Map();

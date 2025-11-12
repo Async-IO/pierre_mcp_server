@@ -293,8 +293,10 @@ describe('OAuth 2.0 Flow - Authorization URL Generation', () => {
   });
 
   test('should generate unique state parameter for CSRF protection', () => {
-    const state1 = Math.random().toString(36).substring(2, 34);
-    const state2 = Math.random().toString(36).substring(2, 34);
+    const crypto = require('crypto');
+    // Use crypto.randomBytes to match actual implementation (32 chars)
+    const state1 = crypto.randomBytes(16).toString('hex');
+    const state2 = crypto.randomBytes(16).toString('hex');
 
     expect(state1).not.toBe(state2);
     expect(state1.length).toBeGreaterThan(20);

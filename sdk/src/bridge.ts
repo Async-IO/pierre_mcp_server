@@ -76,6 +76,7 @@ export interface BridgeConfig {
   userEmail?: string;
   userPassword?: string;
   callbackPort?: number;
+  disableBrowser?: boolean;  // Disable browser auto-opening for OAuth (testing mode)
   tokenValidationTimeoutMs?: number;  // Default: 3000ms
   proactiveConnectionTimeoutMs?: number;  // Default: 5000ms
   proactiveToolsListTimeoutMs?: number;  // Default: 3000ms
@@ -154,6 +155,22 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       this.secureStorage = await createSecureStorage(this.log.bind(this));
       // Load existing tokens from keychain
       await this.loadStoredTokens();
+
+      // If JWT token was provided via --token parameter, use it for authentication
+      // This is used in testing scenarios where tokens are passed directly
+      // CRITICAL: CLI token ALWAYS takes precedence over keychain tokens (for testing)
+      if (this.config.jwtToken) {
+        this.log('Using JWT token from --token parameter for authentication (overrides keychain)');
+        this.savedTokens = {
+          access_token: this.config.jwtToken,
+          token_type: 'Bearer',
+          expires_in: 3600, // Default 1 hour, actual expiry is in the JWT itself
+          scope: 'read:fitness write:fitness'
+          // Note: No refresh_token when using direct JWT
+        };
+        this.log('JWT token loaded from configuration');
+      }
+
       this.log('Secure storage initialized with OS keychain');
     } catch (error) {
       this.log(`Failed to initialize secure storage: ${error}`);
@@ -696,6 +713,13 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   }
 
   private async openUrlInBrowserWithFocus(url: string): Promise<void> {
+    // Check if browser opening is disabled (testing mode)
+    if (this.config.disableBrowser) {
+      this.log('Browser opening disabled - OAuth URL available at callback server');
+      this.log(`OAuth URL: ${url}`);
+      return;
+    }
+
     const { exec } = await import('child_process');
     const platform = process.platform;
 
@@ -947,6 +971,13 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       return;
     }
 
+    // Skip validation when using JWT token from --token parameter (testing mode)
+    // These tokens are validated by the server on each request, not pre-validated
+    if (this.config.jwtToken) {
+      this.log('Skipping credential validation (using JWT token from --token parameter)');
+      return;
+    }
+
     const timeoutMs = this.config.tokenValidationTimeoutMs || 3000;
     this.log(`Validating cached credentials with server (timeout: ${timeoutMs}ms)...`);
 
@@ -1194,7 +1225,16 @@ export class PierreMcpClient {
 
         // Check if we have authentication tokens BEFORE creating transport
         // This prevents the SDK from triggering interactive OAuth flow
-        const hasTokens = !!(this.oauthProvider as any).savedTokens;
+        // IMPORTANT: Must await tokens() to ensure async token loading completes
+        // Using synchronous savedTokens check causes race condition (tokens may not be loaded yet)
+        const existingTokens = await this.oauthProvider.tokens();
+        const hasTokens = !!existingTokens;
+
+        if (hasTokens) {
+          this.log('Creating authenticated MCP transport (tokens available)');
+        } else {
+          this.log('Creating unauthenticated MCP transport (no tokens) - tools/list will work per MCP spec');
+        }
 
         // Create fresh transport for each attempt
         const baseUrl = new URL(this.mcpUrl);
@@ -1448,31 +1488,54 @@ export class PierreMcpClient {
           return this.cachedTools;
         }
 
+        // Per MCP spec: tools/list MUST return ALL tools regardless of connection/auth status
+        // If not connected yet, establish connection now (without auth is OK - server allows this)
+        if (!this.pierreClient) {
+          this.log('Not connected - establishing connection to fetch tools (per MCP spec)');
+          try {
+            await this.initializePierreConnection();
+          } catch (error: any) {
+            this.log(`Failed to connect to fetch tools: ${error.message}`);
+            // Even if connection fails, we must return something
+            // Return connect_to_pierre tool as fallback
+            return {
+              tools: [{
+                name: 'connect_to_pierre',
+                description: 'Connect to Pierre - Authenticate with Pierre Fitness Server to access your fitness data. This will open a browser window for secure login. Use this when you\'re not connected or need to reconnect.',
+                inputSchema: {
+                  type: 'object',
+                  properties: {},
+                  required: []
+                }
+              }]
+            };
+          }
+        }
+
+        // Now we should have a connection - fetch tools from server
         if (this.pierreClient) {
-          // If connected, forward the request through the pierreClient
-          // The client already has OAuth authentication built into its transport
-          this.log('Fetching tools from Pierre server via authenticated client');
+          this.log('Fetching tools from Pierre server');
           const client = this.pierreClient;
           const result = await client.listTools();
           this.log(`Received ${result.tools.length} tools from Pierre`);
           // Cache the result for next time
           this.cachedTools = result;
           return result;
-        } else {
-          // If not connected, provide minimal tool list with connect_to_pierre
-          this.log('Not connected to Pierre - offering connect_to_pierre tool only');
-          return {
-            tools: [{
-              name: 'connect_to_pierre',
-              description: 'Connect to Pierre - Authenticate with Pierre Fitness Server to access your fitness data. This will open a browser window for secure login. Use this when you\'re not connected or need to reconnect.',
-              inputSchema: {
-                type: 'object',
-                properties: {},
-                required: []
-              }
-            }]
-          };
         }
+
+        // Should not reach here, but safety fallback
+        this.log('Unexpected: no Pierre client after connection attempt');
+        return {
+          tools: [{
+            name: 'connect_to_pierre',
+            description: 'Connect to Pierre - Authenticate with Pierre Fitness Server to access your fitness data. This will open a browser window for secure login. Use this when you\'re not connected or need to reconnect.',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+              required: []
+            }
+          }]
+        };
       } catch (error: any) {
         this.log(`Error getting tools list: ${error.message || error}`);
         this.log('Providing connect tool only');
@@ -1507,9 +1570,10 @@ export class PierreMcpClient {
       // CRITICAL: Check for authentication tokens BEFORE attempting to connect
       // This prevents the SDK from triggering interactive OAuth flow during connection attempts
       if (this.oauthProvider) {
-        // Check saved tokens directly without triggering validation
-        const hasTokens = !!(this.oauthProvider as any).savedTokens;
-        if (!hasTokens) {
+        // IMPORTANT: Must await tokens() to ensure async token loading completes
+        // Using synchronous savedTokens check causes race condition (tokens may not be loaded yet)
+        const existingTokens = await this.oauthProvider.tokens();
+        if (!existingTokens) {
           this.log(`No authentication tokens available - rejecting tool call ${request.params.name}`);
           return {
             content: [{
@@ -1734,8 +1798,10 @@ export class PierreMcpClient {
 
       // Check if already authenticated
       // Credentials were validated at startup, so if they exist they're valid
-      const hasTokens = !!(this.oauthProvider as any).savedTokens;
-      if (hasTokens && this.pierreClient) {
+      // IMPORTANT: Must await tokens() to ensure async token loading completes
+      // Using synchronous savedTokens check causes race condition (tokens may not be loaded yet)
+      const existingTokens = await this.oauthProvider.tokens();
+      if (existingTokens && this.pierreClient) {
         return {
           content: [{
             type: 'text',
@@ -1753,7 +1819,7 @@ export class PierreMcpClient {
       const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
       const hasTTY = process.stdin.isTTY;
 
-      if (!hasTokens && !hasTTY && isCI) {
+      if (!existingTokens && !hasTTY && isCI) {
         this.log('Refusing to start interactive OAuth flow in CI/CD environment (would hang automated tests)');
         this.log('Hint: In CI/CD, pre-authenticate using credentials or skip OAuth-requiring tests');
         return {
@@ -1958,6 +2024,13 @@ export class PierreMcpClient {
   }
 
   private async openUrlInBrowserWithFocus(url: string): Promise<void> {
+    // Check if browser opening is disabled (testing mode)
+    if (this.config.disableBrowser) {
+      this.log('Browser opening disabled - OAuth URL available at callback server');
+      this.log(`OAuth URL: ${url}`);
+      return;
+    }
+
     const { exec } = await import('child_process');
     const platform = process.platform;
 
