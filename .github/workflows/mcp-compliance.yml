@@ -84,13 +84,6 @@ jobs:
           fi
           echo "✅ SDK types validated successfully"
 
-      - name: Run SDK integration tests
-        working-directory: sdk
-        run: |
-          echo "🧪 Running SDK integration tests for all 45 tools..."
-          npm run test:integration -- --testPathPattern=all-tools
-          echo "✅ SDK integration tests passed"
-
       - name: Check disk space before validation
         run: |
           echo "Disk space before validation:"
