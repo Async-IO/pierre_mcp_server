@@ -238,7 +238,7 @@ echo -e "${BLUE}     Timeout: ${TIMEOUT_CMD:-none}${NC}"
 
 # Run validator in background to capture PID for signal handling
 $TIMEOUT_CMD $PYTHON_CMD -m mcp_testing.scripts.compliance_report \
-    --server-command "node $BRIDGE_PATH" \
+    --server-command "node $BRIDGE_PATH --no-browser" \
     --protocol-version 2025-06-18 \
     --test-timeout 30 \
     --verbose &
