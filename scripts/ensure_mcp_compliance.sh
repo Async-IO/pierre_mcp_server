@@ -169,6 +169,7 @@ else
         HTTP_PORT=8080 \
         DATABASE_URL=sqlite::memory: \
         PIERRE_MASTER_ENCRYPTION_KEY=rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo= \
+        PIERRE_ALLOW_INTERACTIVE_OAUTH=false \
         "$SERVER_BINARY" >"$SERVER_LOG" 2>&1 &
         MCP_SERVER_PID=$!
 
