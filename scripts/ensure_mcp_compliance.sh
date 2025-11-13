@@ -166,10 +166,12 @@ else
         # Start server with minimal environment (using CI test key)
         # Redirect to temp log file for debugging startup issues
         SERVER_LOG="/tmp/pierre-mcp-server-$$.log"
+        CI=true \
         HTTP_PORT=8080 \
         DATABASE_URL=sqlite::memory: \
         PIERRE_MASTER_ENCRYPTION_KEY=rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo= \
         PIERRE_ALLOW_INTERACTIVE_OAUTH=false \
+        PIERRE_RSA_KEY_SIZE=2048 \
         "$SERVER_BINARY" >"$SERVER_LOG" 2>&1 &
         MCP_SERVER_PID=$!
 
@@ -239,7 +241,8 @@ fi
 echo -e "${BLUE}     Timeout: ${TIMEOUT_CMD:-none}${NC}"
 
 # Run validator in background to capture PID for signal handling
-$TIMEOUT_CMD $PYTHON_CMD -m mcp_testing.scripts.compliance_report \
+# Set CI=true so SDK bridge uses encrypted file storage instead of keytar (prevents hang)
+CI=true $TIMEOUT_CMD $PYTHON_CMD -m mcp_testing.scripts.compliance_report \
     --server-command "node $BRIDGE_PATH --no-browser" \
     --protocol-version 2025-06-18 \
     --test-timeout 30 \
