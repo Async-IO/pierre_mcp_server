@@ -683,6 +683,14 @@ async fn handle_token_validate(
 /// Loaded with `include_str`!() to avoid blocking filesystem IO at runtime
 const OAUTH_ERROR_TEMPLATE: &str = include_str!("../../templates/oauth_error.html");
 
+/// OAuth login page template embedded at compile-time
+/// Loaded with `include_str`!() to avoid blocking filesystem IO at runtime
+const OAUTH_LOGIN_TEMPLATE: &str = include_str!("../../templates/oauth_login.html");
+
+/// OAuth login error template embedded at compile-time
+/// Loaded with `include_str`!() to avoid blocking filesystem IO at runtime
+const OAUTH_LOGIN_ERROR_TEMPLATE: &str = include_str!("../../templates/oauth_login_error.html");
+
 /// Render HTML error page for OAuth errors shown in browser
 /// Uses compile-time embedded template to avoid blocking async executor on IO
 fn render_oauth_error_html(error: &OAuth2Error) -> String {
@@ -873,70 +881,23 @@ async fn handle_oauth_login_page(
         .as_deref()
         .unwrap_or_default();
 
-    // Simple HTML login form that preserves OAuth parameters
-    let html = format!(
-        r#"
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Pierre MCP Server - OAuth Login</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 40px; }}
-        .login-form {{ max-width: 400px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }}
-        .form-group {{ margin-bottom: 15px; }}
-        label {{ display: block; margin-bottom: 5px; font-weight: bold; }}
-        input {{ width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }}
-        button {{ background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }}
-        button:hover {{ background-color: #0056b3; }}
-        .oauth-info {{ background-color: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 20px; }}
-    </style>
-</head>
-<body>
-    <div class="login-form">
-        <h2>OAuth Login Required</h2>
-        <div class="oauth-info">
-            <strong>Application:</strong> {client_id}<br>
-            <strong>Requested Permissions:</strong> {scope}
-        </div>
-        <form method="post" action="/oauth2/login">
-            <input type="hidden" name="client_id" value="{client_id}">
-            <input type="hidden" name="redirect_uri" value="{redirect_uri}">
-            <input type="hidden" name="response_type" value="{response_type}">
-            <input type="hidden" name="state" value="{state}">
-            <input type="hidden" name="scope" value="{scope}">
-            <input type="hidden" name="code_challenge" value="{code_challenge}">
-            <input type="hidden" name="code_challenge_method" value="{code_challenge_method}">
+    // Use embedded template - zero filesystem IO, guaranteed to exist at compile-time
+    let displayed_scope = if scope.is_empty() {
+        "fitness:read activities:read profile:read"
+    } else {
+        scope
+    };
 
-            <div class="form-group">
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email" value="{default_email}" required>
-            </div>
-
-            <div class="form-group">
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password" value="{default_password}" required>
-            </div>
-
-            <button type="submit">Login and Authorize</button>
-        </form>
-    </div>
-</body>
-</html>
-    "#,
-        client_id = client_id,
-        redirect_uri = redirect_uri,
-        response_type = response_type,
-        state = state,
-        scope = if scope.is_empty() {
-            "fitness:read activities:read profile:read"
-        } else {
-            scope
-        },
-        code_challenge = code_challenge,
-        code_challenge_method = code_challenge_method,
-        default_email = default_email,
-        default_password = default_password
-    );
+    let html = OAUTH_LOGIN_TEMPLATE
+        .replace("{{CLIENT_ID}}", client_id)
+        .replace("{{REDIRECT_URI}}", redirect_uri)
+        .replace("{{RESPONSE_TYPE}}", response_type)
+        .replace("{{STATE}}", state)
+        .replace("{{SCOPE}}", displayed_scope)
+        .replace("{{CODE_CHALLENGE}}", code_challenge)
+        .replace("{{CODE_CHALLENGE_METHOD}}", code_challenge_method)
+        .replace("{{DEFAULT_EMAIL}}", default_email)
+        .replace("{{DEFAULT_PASSWORD}}", default_password);
 
     Ok(warp::reply::with_header(
         html,
@@ -1021,34 +982,34 @@ async fn handle_oauth_login_submit(
         Err(e) => {
             tracing::warn!("Authentication failed for OAuth login: {}", e);
 
-            // Return to login page with error message
-            let error_html = format!(
-                r#"
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Pierre MCP Server - Login Error</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 40px; }}
-        .error {{ color: red; background-color: #ffe6e6; padding: 15px; border-radius: 4px; margin-bottom: 20px; }}
-    </style>
-</head>
-<body>
-    <div class="error">
-        <strong>Authentication Failed:</strong> Invalid email or password. Please try again.
-    </div>
-    <a href="/oauth2/login?client_id={}&redirect_uri={}&response_type={}&state={}&scope={}&code_challenge={}&code_challenge_method={}">← Back to Login</a>
-</body>
-</html>
-            "#,
-                form.get("client_id").map_or("", |v| v),
-                urlencoding::encode(form.get("redirect_uri").map_or("", |v| v)),
-                form.get("response_type").map_or("", |v| v),
-                form.get("state").map_or("", |v| v),
-                urlencoding::encode(form.get("scope").map_or("", |v| v)),
-                urlencoding::encode(form.get("code_challenge").map_or("", |v| v)),
-                form.get("code_challenge_method").map_or("", |v| v)
-            );
+            // Use embedded template - zero filesystem IO, guaranteed to exist at compile-time
+            let error_html = OAUTH_LOGIN_ERROR_TEMPLATE
+                .replace(
+                    "{{ERROR_MESSAGE}}",
+                    "Authentication Failed: Invalid email or password. Please try again.",
+                )
+                .replace("{{CLIENT_ID}}", form.get("client_id").map_or("", |v| v))
+                .replace(
+                    "{{REDIRECT_URI}}",
+                    urlencoding::encode(form.get("redirect_uri").map_or("", |v| v)).as_ref(),
+                )
+                .replace(
+                    "{{RESPONSE_TYPE}}",
+                    form.get("response_type").map_or("", |v| v),
+                )
+                .replace("{{STATE}}", form.get("state").map_or("", |v| v))
+                .replace(
+                    "{{SCOPE}}",
+                    urlencoding::encode(form.get("scope").map_or("", |v| v)).as_ref(),
+                )
+                .replace(
+                    "{{CODE_CHALLENGE}}",
+                    urlencoding::encode(form.get("code_challenge").map_or("", |v| v)).as_ref(),
+                )
+                .replace(
+                    "{{CODE_CHALLENGE_METHOD}}",
+                    form.get("code_challenge_method").map_or("", |v| v),
+                );
 
             Ok(Box::new(warp::reply::with_header(
                 warp::reply::with_status(error_html, warp::http::StatusCode::UNAUTHORIZED),
