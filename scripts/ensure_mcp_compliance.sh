@@ -142,13 +142,14 @@ else
     echo -e "${BLUE}==== Starting Pierre MCP server for testing... ====${NC}"
 
     # Check if we have a debug or release binary already (use absolute paths since we're in sdk/)
+    # Prioritize debug binary to ensure latest code is tested
     SERVER_BINARY=""
-    if [ -f "$PROJECT_ROOT/target/release/pierre-mcp-server" ]; then
-        SERVER_BINARY="$PROJECT_ROOT/target/release/pierre-mcp-server"
-        echo -e "${GREEN}[OK] Using existing release binary${NC}"
-    elif [ -f "$PROJECT_ROOT/target/debug/pierre-mcp-server" ]; then
+    if [ -f "$PROJECT_ROOT/target/debug/pierre-mcp-server" ]; then
         SERVER_BINARY="$PROJECT_ROOT/target/debug/pierre-mcp-server"
         echo -e "${GREEN}[OK] Using existing debug binary${NC}"
+    elif [ -f "$PROJECT_ROOT/target/release/pierre-mcp-server" ]; then
+        SERVER_BINARY="$PROJECT_ROOT/target/release/pierre-mcp-server"
+        echo -e "${GREEN}[OK] Using existing release binary${NC}"
     else
         echo -e "${BLUE}Building pierre-mcp-server (this may take a moment)...${NC}"
         # Build from project root, not from sdk/
