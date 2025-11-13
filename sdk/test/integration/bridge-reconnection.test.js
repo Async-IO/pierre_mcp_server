@@ -4,7 +4,7 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-const { ensureServerRunning } = require('../helpers/server');
+const { ensureServerRunning, startServer } = require('../helpers/server');
 const { MockMCPClient } = require('../helpers/mock-client');
 const { MCPMessages, TestConfig } = require('../helpers/fixtures');
 const path = require('path');
@@ -18,7 +18,8 @@ describe('Bridge Reconnection - Connection Loss Recovery', () => {
   const serverUrl = `http://localhost:${TestConfig.defaultServerPort}`;
 
   beforeAll(async () => {
-    serverHandle = await ensureServerRunning({
+    // These tests need server lifecycle control, so always start fresh
+    serverHandle = await startServer({
       port: TestConfig.defaultServerPort,
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey
@@ -81,7 +82,7 @@ describe('Bridge Reconnection - Connection Loss Recovery', () => {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Restart server
-    serverHandle = await ensureServerRunning({
+    serverHandle = await startServer({
       port: TestConfig.defaultServerPort,
       database: TestConfig.testDatabase,
       encryptionKey: TestConfig.testEncryptionKey

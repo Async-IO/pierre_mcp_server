@@ -1109,8 +1109,8 @@ export class PierreMcpClient {
     // ALWAYS connect proactively to cache tools for MCP host
     // Server allows tools/list without authentication - only tool calls require auth
     // This ensures all tools are visible immediately in MCP host (tools/list_changed doesn't work)
-    const connectionTimeoutMs = this.config.proactiveConnectionTimeoutMs || 5000;
-    const toolsListTimeoutMs = this.config.proactiveToolsListTimeoutMs || 3000;
+    const connectionTimeoutMs = this.config.proactiveConnectionTimeoutMs || 15000;
+    const toolsListTimeoutMs = this.config.proactiveToolsListTimeoutMs || 10000;
 
     try {
       this.log(`Connecting to Pierre proactively to cache all tools for MCP host (timeout: ${connectionTimeoutMs}ms)`);
