@@ -174,27 +174,91 @@ pub async fn create_test_cache() -> Result<pierre_mcp_server::cache::factory::Ca
 
 /// Create a standard test user
 pub async fn create_test_user(database: &Database) -> Result<(Uuid, User)> {
-    let user = User::new(
+    // Create a proper bcrypt hash for the default test password "password123"
+    let password_hash = bcrypt::hash("password123", bcrypt::DEFAULT_COST)?;
+
+    let mut user = User::new(
         "test@example.com".to_owned(),
-        "test_hash".to_owned(),
+        password_hash,
         Some("Test User".to_owned()),
     );
-    let user_id = user.id;
 
+    // Activate the user for testing (bypass admin approval)
+    user.user_status = pierre_mcp_server::models::UserStatus::Active;
+    user.approved_by = Some(user.id); // Self-approved for testing
+    user.approved_at = Some(chrono::Utc::now());
+
+    // Create user first without tenant_id (will be set later)
+    user.tenant_id = None;
+
+    let user_id = user.id;
     database.create_user(&user).await?;
+
+    // Now create the tenant with this user as owner
+    let tenant_id = Uuid::new_v4();
+    let tenant = pierre_mcp_server::models::Tenant {
+        id: tenant_id,
+        name: "Test Tenant".to_owned(),
+        slug: format!("test-tenant-{}", tenant_id),
+        domain: None,
+        plan: "starter".to_owned(),
+        owner_user_id: user_id,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    database.create_tenant(&tenant).await?;
+
+    // Update the user with the tenant_id
+    user.tenant_id = Some(tenant_id.to_string());
+    database
+        .update_user_tenant_id(user_id, &tenant_id.to_string())
+        .await?;
+
     Ok((user_id, user))
 }
 
 /// Create a test user with custom email
 pub async fn create_test_user_with_email(database: &Database, email: &str) -> Result<(Uuid, User)> {
-    let user = User::new(
+    // Create a proper bcrypt hash for the default test password "password123"
+    let password_hash = bcrypt::hash("password123", bcrypt::DEFAULT_COST)?;
+
+    let mut user = User::new(
         email.to_owned(),
-        "test_hash".to_owned(),
+        password_hash,
         Some("Test User".to_owned()),
     );
-    let user_id = user.id;
 
+    // Activate the user for testing (bypass admin approval)
+    user.user_status = pierre_mcp_server::models::UserStatus::Active;
+    user.approved_by = Some(user.id); // Self-approved for testing
+    user.approved_at = Some(chrono::Utc::now());
+
+    // Create user first without tenant_id (will be set later)
+    user.tenant_id = None;
+
+    let user_id = user.id;
     database.create_user(&user).await?;
+
+    // Now create the tenant with this user as owner
+    let tenant_id = Uuid::new_v4();
+    let tenant = pierre_mcp_server::models::Tenant {
+        id: tenant_id,
+        name: format!("Test Tenant for {}", email),
+        slug: format!("test-tenant-{}", tenant_id),
+        domain: None,
+        plan: "starter".to_owned(),
+        owner_user_id: user_id,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    database.create_tenant(&tenant).await?;
+
+    // Update the user with the tenant_id
+    user.tenant_id = Some(tenant_id.to_string());
+    database
+        .update_user_tenant_id(user_id, &tenant_id.to_string())
+        .await?;
+
     Ok((user_id, user))
 }
 

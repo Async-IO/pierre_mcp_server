@@ -125,7 +125,7 @@ pub mod headers {
             }
         }
 
-        /// Get headers as `HashMap` for warp integration
+        /// Get headers as `HashMap` for HTTP integration
         #[must_use]
         pub const fn to_headers(&self) -> &HashMap<String, String> {
             &self.headers

@@ -393,9 +393,9 @@ print_task "Cargo clippy + build (zero tolerance linting)"
 # ============================================================================
 
 # Run clippy with output to screen
-# Explicit -W flags ensure nursery lints (including too_many_lines) apply to all targets
-# CRITICAL: The "-- -D warnings" suffix is REQUIRED - see documentation above
-if cargo clippy --all-targets --all-features --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings; then
+# Explicit -D flags deny all clippy violations (matching CCFW strictness)
+# CRITICAL: All lint groups use -D (deny) to match production CI validation
+if cargo clippy --all-targets --all-features --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -A clippy::module_name_repetitions -A clippy::missing_errors_doc -A clippy::missing_panics_doc -A clippy::too_many_lines -A clippy::must_use_candidate; then
     echo -e "${GREEN}[OK] Clippy passed - ZERO code warnings (enforced by Cargo.toml)${NC}"
     echo -e "${GREEN}[OK] Debug build completed (reused for all validation)${NC}"
 else

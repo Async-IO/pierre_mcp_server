@@ -6,7 +6,6 @@
 
 use crate::database::oauth_notifications::OAuthNotification;
 use crate::errors::AppError;
-use anyhow::Result;
 use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
@@ -49,12 +48,15 @@ impl NotificationStream {
     /// # Errors
     ///
     /// Returns an error if no active sender is available for this stream
-    pub async fn send_notification(&self, notification: &OAuthNotification) -> Result<()> {
+    pub async fn send_notification(
+        &self,
+        notification: &OAuthNotification,
+    ) -> Result<(), AppError> {
         let sender_guard = self.sender.read().await;
 
         if let Some(sender) = sender_guard.as_ref() {
             let sse_message = format!(
-                "data: {}\\n\\n",
+                "data: {}\n\n",
                 json!({
                     "type": "oauth_notification",
                     "id": notification.id,
@@ -71,7 +73,9 @@ impl NotificationStream {
 
             Ok(())
         } else {
-            Err(AppError::internal("No active sender for notification stream").into())
+            Err(AppError::internal(
+                "No active sender for notification stream",
+            ))
         }
     }
 

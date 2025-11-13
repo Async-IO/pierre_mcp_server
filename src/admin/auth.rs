@@ -72,6 +72,46 @@ impl AdminAuthService {
         required_permission: AdminPermission,
         ip_address: Option<&str>,
     ) -> Result<ValidatedAdminToken> {
+        self.authenticate(token, ip_address)
+            .await
+            .and_then(|validated_token| {
+                // Check permissions
+                let stored_token = validated_token.clone();
+                if stored_token
+                    .permissions
+                    .has_permission(&required_permission)
+                {
+                    Ok(validated_token)
+                } else {
+                    Err(AppError::new(
+                        crate::errors::ErrorCode::PermissionDenied,
+                        format!(
+                            "Required permission: {:?}, token has: {:?}",
+                            required_permission, stored_token.permissions
+                        ),
+                    )
+                    .into())
+                }
+            })
+    }
+
+    /// Authenticate admin token without checking permissions
+    ///
+    /// Validates the JWT token and checks if it exists in the database,
+    /// but does NOT enforce any permission requirements. Handlers should
+    /// check permissions themselves using `has_permission()` on the validated token.
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - JWT validation fails
+    /// - Token not found in database
+    /// - Token is inactive or expired
+    /// - Token hash verification fails
+    pub async fn authenticate(
+        &self,
+        token: &str,
+        ip_address: Option<&str>,
+    ) -> Result<ValidatedAdminToken> {
         // Step 1: Validate JWT structure and extract token ID using RS256
         let validated_token = self.jwt_manager.validate_token(token, &self.jwks_manager)?;
 
@@ -105,33 +145,11 @@ impl AdminAuthService {
             }
         }
 
-        // Step 5: Check permissions
-        if !stored_token
-            .permissions
-            .has_permission(&required_permission)
-        {
-            return Err(AppError::new(
-                crate::errors::ErrorCode::PermissionDenied,
-                format!(
-                    "Required permission: {:?}, token has: {:?}",
-                    required_permission, stored_token.permissions
-                ),
-            )
-            .into());
-        }
+        // Step 5: Log usage (no permission check)
+        self.log_token_usage(&stored_token.id, "auth_check", None, ip_address, true, None)
+            .await?;
 
-        // Step 6: Log usage
-        self.log_token_usage(
-            &stored_token.id,
-            &format!("auth_check_{required_permission:?}"),
-            None,
-            ip_address,
-            true,
-            None,
-        )
-        .await?;
-
-        // Step 7: Update cache
+        // Step 6: Update cache
         {
             let mut cache = self.token_cache.write().await;
             cache.insert(
@@ -141,8 +159,8 @@ impl AdminAuthService {
         }
 
         info!(
-            "Admin authentication successful: service={}, permission={:?}",
-            validated_token.service_name, required_permission
+            "Admin authentication successful: service={}",
+            validated_token.service_name
         );
 
         Ok(validated_token)
@@ -251,78 +269,81 @@ impl AdminAuthService {
     }
 }
 
-/// Admin authentication middleware for HTTP requests
+/// Admin authentication middleware for Axum
 pub mod middleware {
-    use super::{AdminAuthService, AdminPermission, ValidatedAdminToken};
+    use super::AdminAuthService;
     use crate::utils::auth::extract_bearer_token_owned;
+    use axum::{
+        body::Body,
+        extract::State,
+        http::{Request, StatusCode},
+        middleware::Next,
+        response::{IntoResponse, Response},
+        Json,
+    };
+    use serde_json::json;
     use tracing::warn;
-    use warp::{Filter, Rejection};
 
-    /// Create admin authentication filter
-    #[must_use]
-    pub fn admin_auth(
-        auth_service: AdminAuthService,
-        required_permission: AdminPermission,
-    ) -> impl Filter<Extract = (ValidatedAdminToken,), Error = Rejection> + Clone {
-        warp::header::<String>("authorization").and_then(move |auth_header: String| {
-            let auth_service = auth_service.clone(); // Safe: Arc clone for async closure
-            let required_permission = required_permission.clone(); // Safe: AdminPermission clone for async closure
-
-            async move {
-                // Extract Bearer token
-                let token = extract_bearer_token_owned(&auth_header)
-                    .map_err(|e| {
-                        tracing::warn!(error = %e, "Failed to extract bearer token from admin auth header");
-                        warp::reject::custom(AdminAuthError::InvalidAuthHeader)
-                    })?;
-
-                // Authenticate and authorize
-                auth_service
-                    .authenticate_and_authorize(&token, required_permission, None)
-                    .await
-                    .map_err(|e| {
-                        warn!("Admin authentication failed: {}", e);
-                        warp::reject::custom(AdminAuthError::AuthenticationFailed(e.to_string()))
-                    })
-            }
-        })
-    }
-
-    /// Admin authentication errors
-    #[derive(Debug, thiserror::Error)]
-    pub enum AdminAuthError {
-        /// Authentication header is missing or malformed
-        #[error("Invalid authentication header")]
-        InvalidAuthHeader,
-        /// Authentication credentials are invalid
-        #[error("Authentication failed: {0}")]
-        AuthenticationFailed(String),
-    }
-
-    impl warp::reject::Reject for AdminAuthError {}
-
-    /// Convert admin auth errors to HTTP responses
+    /// Axum middleware for admin authentication
+    ///
+    /// Extracts Bearer token from Authorization header, validates it,
+    /// and adds `ValidatedAdminToken` as a request extension.
     ///
     /// # Errors
-    /// This function is infallible and always returns `Ok`
-    pub fn handle_admin_auth_rejection(
-        err: &Rejection,
-    ) -> Result<impl warp::Reply, std::convert::Infallible> {
-        if matches!(err.find(), Some(AdminAuthError::InvalidAuthHeader)) {
-            Ok(warp::reply::with_status(
-                "Invalid Authorization header".into(),
-                warp::http::StatusCode::BAD_REQUEST,
-            ))
-        } else if let Some(AdminAuthError::AuthenticationFailed(msg)) = err.find() {
-            Ok(warp::reply::with_status(
-                format!("Authentication failed: {msg}"),
-                warp::http::StatusCode::UNAUTHORIZED,
-            ))
-        } else {
-            Ok(warp::reply::with_status(
-                "Internal server error".into(),
-                warp::http::StatusCode::INTERNAL_SERVER_ERROR,
-            ))
-        }
+    /// Returns error if authorization header is missing, malformed, or token is invalid
+    pub async fn admin_auth_middleware(
+        State(auth_service): State<AdminAuthService>,
+        mut request: Request<Body>,
+        next: Next,
+    ) -> Result<Response, Response> {
+        // Extract authorization header
+        let auth_header = request
+            .headers()
+            .get("authorization")
+            .and_then(|h| h.to_str().ok())
+            .ok_or_else(|| {
+                warn!("Missing Authorization header in admin request");
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({
+                        "success": false,
+                        "message": "Missing Authorization header"
+                    })),
+                )
+                    .into_response()
+            })?;
+
+        // Extract Bearer token
+        let token = extract_bearer_token_owned(auth_header).map_err(|e| {
+            warn!(error = %e, "Failed to extract bearer token from admin auth header");
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "success": false,
+                    "message": "Invalid Authorization header format"
+                })),
+            )
+                .into_response()
+        })?;
+
+        // Authenticate token without checking permissions
+        // Each handler will check its own required permissions
+        let validated_token = auth_service.authenticate(&token, None).await.map_err(|e| {
+            warn!(error = %e, "Admin authentication failed");
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({
+                    "success": false,
+                    "message": format!("Authentication failed: {}", e)
+                })),
+            )
+                .into_response()
+        })?;
+
+        // Insert validated token as extension
+        request.extensions_mut().insert(validated_token);
+
+        // Continue to next middleware/handler
+        Ok(next.run(request).await)
     }
 }

@@ -22,7 +22,7 @@ use pierre_mcp_server::{
     },
     database_plugins::factory::Database,
     mcp::resources::ServerResources,
-    routes::{AuthRoutes, RegisterRequest},
+    routes::{auth::AuthService, RegisterRequest},
 };
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -54,20 +54,20 @@ async fn test_email_validation() {
         std::ptr::addr_of!(auth_manager)
     );
     // Email and password validation functions are now static, no need for routes instance
-    assert!(AuthRoutes::is_valid_email("test@example.com"));
-    assert!(AuthRoutes::is_valid_email("user.name+tag@domain.co.uk"));
-    assert!(!AuthRoutes::is_valid_email("invalid-email"));
-    assert!(!AuthRoutes::is_valid_email("@domain.com"));
-    assert!(!AuthRoutes::is_valid_email("user@"));
+    assert!(AuthService::is_valid_email("test@example.com"));
+    assert!(AuthService::is_valid_email("user.name+tag@domain.co.uk"));
+    assert!(!AuthService::is_valid_email("invalid-email"));
+    assert!(!AuthService::is_valid_email("@domain.com"));
+    assert!(!AuthService::is_valid_email("user@"));
 }
 
 #[tokio::test]
 async fn test_password_validation() {
     // Password validation function is now static, no need for database setup
-    assert!(AuthRoutes::is_valid_password("password123"));
-    assert!(AuthRoutes::is_valid_password("verylongpassword"));
-    assert!(!AuthRoutes::is_valid_password("short"));
-    assert!(!AuthRoutes::is_valid_password("1234567"));
+    assert!(AuthService::is_valid_password("password123"));
+    assert!(AuthService::is_valid_password("verylongpassword"));
+    assert!(!AuthService::is_valid_password("short"));
+    assert!(!AuthService::is_valid_password("1234567"));
 }
 
 #[tokio::test]
@@ -215,7 +215,7 @@ async fn test_register_user() {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
+    let routes = AuthService::new(server_context.auth().clone(), server_context.data().clone());
 
     let request = RegisterRequest {
         email: "test@example.com".into(),
@@ -376,7 +376,7 @@ async fn test_register_duplicate_user() {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
+    let routes = AuthService::new(server_context.auth().clone(), server_context.data().clone());
 
     let request = RegisterRequest {
         email: "test@example.com".into(),

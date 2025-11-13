@@ -9,7 +9,7 @@
 //! Admin services can authenticate using JWT tokens to provision, revoke, and
 //! manage API keys for users.
 
-/// Admin authentication service and middleware
+/// Admin authentication service
 pub mod auth;
 /// JWKS (JSON Web Key Set) management for RS256 JWT
 pub mod jwks;
@@ -18,8 +18,10 @@ pub mod jwt;
 /// Admin system data models and permissions
 pub mod models;
 
-// Admin authentication service and middleware
-pub use auth::{middleware, AdminAuthService};
+// Admin authentication service
+/// Admin authentication middleware for Axum
+pub use auth::middleware;
+pub use auth::AdminAuthService;
 
 // JWT token management for admin authentication
 

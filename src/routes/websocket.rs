@@ -4,29 +4,58 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-//! `WebSocket` routes for real-time communication
+use crate::websocket::WebSocketManager;
+use axum::{
+    extract::{
+        ws::{WebSocket, WebSocketUpgrade},
+        State,
+    },
+    response::IntoResponse,
+    Router,
+};
+use std::sync::Arc;
 
-use warp::{Filter, Rejection, Reply};
-
-/// `WebSocket` routes implementation
+/// WebSocket routes implementation
 pub struct WebSocketRoutes;
 
 impl WebSocketRoutes {
-    /// Create all `WebSocket` routes
-    pub fn routes() -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        warp::path("ws")
-            .and(warp::path::end())
-            .and(warp::get())
-            .and_then(Self::handle_websocket)
+    /// Create all WebSocket routes with injected `WebSocketManager`
+    ///
+    /// # Arguments
+    /// * `manager` - Shared `WebSocketManager` for handling connections
+    ///
+    /// # Returns
+    /// Configured Axum Router with WebSocket endpoint
+    pub fn routes(manager: Arc<WebSocketManager>) -> Router {
+        Router::new()
+            .route("/ws", axum::routing::get(Self::handle_websocket))
+            .with_state(manager)
     }
 
-    /// Handle `WebSocket` connection
-    async fn handle_websocket() -> Result<impl Reply, Rejection> {
-        // Use async block to satisfy clippy
+    /// Handle WebSocket upgrade and connection
+    ///
+    /// Upgrades HTTP connection to WebSocket protocol and delegates
+    /// to `WebSocketManager` for authentication, subscriptions, and broadcasting.
+    ///
+    /// # Arguments
+    /// * `ws` - `WebSocketUpgrade` extractor from Axum
+    /// * `manager` - `WebSocketManager` state injected via Router
+    ///
+    /// # Returns
+    /// Response that upgrades the connection to WebSocket
+    async fn handle_websocket(
+        ws: WebSocketUpgrade,
+        State(manager): State<Arc<WebSocketManager>>,
+    ) -> impl IntoResponse {
+        tracing::info!("New WebSocket connection request");
+
+        // Yield to scheduler to allow other tasks to progress during upgrade
         tokio::task::yield_now().await;
-        Ok(warp::reply::with_status(
-            "`WebSocket` endpoint",
-            warp::http::StatusCode::OK,
-        ))
+
+        // Upgrade HTTP connection to WebSocket
+        ws.on_upgrade(move |socket: WebSocket| async move {
+            tracing::debug!("WebSocket upgraded, delegating to manager");
+            manager.handle_connection(socket).await;
+        })
     }
 }

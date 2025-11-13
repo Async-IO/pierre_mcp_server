@@ -11,9 +11,8 @@
 
 use crate::auth::AuthResult;
 use crate::database_plugins::DatabaseProvider;
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::mcp::resources::ServerResources;
-use anyhow::Result;
 use chrono::{Datelike, Duration, TimeZone, Utc};
 use serde::Serialize;
 use uuid::Uuid;
@@ -187,14 +186,14 @@ impl DashboardRoutes {
     ///
     /// # Panics
     /// Panics if date construction fails with invalid values
-    pub async fn get_dashboard_overview(&self, auth: AuthResult) -> Result<DashboardOverview> {
+    pub async fn get_dashboard_overview(&self, auth: AuthResult) -> AppResult<DashboardOverview> {
         tracing::debug!("Dashboard overview request received");
 
         let user_id = auth.user_id;
 
         // Validate user_id is not nil
         if user_id.is_nil() {
-            return Err(AppError::invalid_input("Invalid user ID").into());
+            return Err(AppError::invalid_input("Invalid user ID"));
         }
 
         tracing::info!(
@@ -294,14 +293,18 @@ impl DashboardRoutes {
     ///
     /// # Errors
     /// Returns an error if authentication fails or database queries fail
-    pub async fn get_usage_analytics(&self, auth: AuthResult, days: u32) -> Result<UsageAnalytics> {
+    pub async fn get_usage_analytics(
+        &self,
+        auth: AuthResult,
+        days: u32,
+    ) -> AppResult<UsageAnalytics> {
         tracing::debug!("Dashboard analytics request received for {} days", days);
 
         let user_id = auth.user_id;
 
         // Validate user_id is not nil
         if user_id.is_nil() {
-            return Err(AppError::invalid_input("Invalid user ID").into());
+            return Err(AppError::invalid_input("Invalid user ID"));
         }
 
         tracing::info!(
@@ -400,14 +403,14 @@ impl DashboardRoutes {
     pub async fn get_rate_limit_overview(
         &self,
         auth: AuthResult,
-    ) -> Result<Vec<RateLimitOverview>> {
+    ) -> AppResult<Vec<RateLimitOverview>> {
         tracing::debug!("Dashboard rate limit overview request received");
 
         let user_id = auth.user_id;
 
         // Validate user_id is not nil
         if user_id.is_nil() {
-            return Err(AppError::invalid_input("Invalid user ID").into());
+            return Err(AppError::invalid_input("Invalid user ID"));
         }
 
         tracing::info!(
@@ -471,7 +474,11 @@ impl DashboardRoutes {
     }
 
     /// Get recent activity for user
-    async fn get_recent_activity(&self, user_id: Uuid, limit: u32) -> Result<Vec<RecentActivity>> {
+    async fn get_recent_activity(
+        &self,
+        user_id: Uuid,
+        limit: u32,
+    ) -> AppResult<Vec<RecentActivity>> {
         let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
         let mut recent_activity = Vec::new();
 
@@ -514,7 +521,7 @@ impl DashboardRoutes {
         user_id: Uuid,
         start_date: chrono::DateTime<Utc>,
         end_date: chrono::DateTime<Utc>,
-    ) -> Result<Vec<ToolUsage>> {
+    ) -> AppResult<Vec<ToolUsage>> {
         let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
         let mut tool_stats: std::collections::HashMap<String, (u64, u64, u64)> =
             std::collections::HashMap::new();
@@ -588,14 +595,14 @@ impl DashboardRoutes {
         time_range: Option<&str>,
         status: Option<&str>,
         tool: Option<&str>,
-    ) -> Result<Vec<RequestLog>> {
+    ) -> AppResult<Vec<RequestLog>> {
         tracing::debug!("Dashboard request logs request received");
 
         let user_id = auth.user_id;
 
         // Validate user_id is not nil
         if user_id.is_nil() {
-            return Err(AppError::invalid_input("Invalid user ID").into());
+            return Err(AppError::invalid_input("Invalid user ID"));
         }
 
         tracing::info!(
@@ -609,7 +616,7 @@ impl DashboardRoutes {
         // If specific API key is requested, verify user owns it
         if let Some(key_id) = api_key_id {
             if !api_keys.iter().any(|k| k.id == key_id) {
-                return Err(AppError::auth_invalid("API key not found or access denied").into());
+                return Err(AppError::not_found("API key not found or access denied"));
             }
         }
 
@@ -640,14 +647,14 @@ impl DashboardRoutes {
         auth: AuthResult,
         api_key_id: Option<&str>,
         time_range: Option<&str>,
-    ) -> Result<RequestStats> {
+    ) -> AppResult<RequestStats> {
         tracing::debug!("Dashboard request stats request received");
 
         let user_id = auth.user_id;
 
         // Validate user_id is not nil
         if user_id.is_nil() {
-            return Err(AppError::invalid_input("Invalid user ID").into());
+            return Err(AppError::invalid_input("Invalid user ID"));
         }
 
         tracing::info!(
@@ -661,7 +668,7 @@ impl DashboardRoutes {
         // If specific API key is requested, verify user owns it
         if let Some(key_id) = api_key_id {
             if !api_keys.iter().any(|k| k.id == key_id) {
-                return Err(AppError::auth_invalid("API key not found or access denied").into());
+                return Err(AppError::not_found("API key not found or access denied"));
             }
         }
 
@@ -737,14 +744,14 @@ impl DashboardRoutes {
         auth: AuthResult,
         _api_key_id: Option<&str>,
         time_range: Option<&str>,
-    ) -> Result<Vec<ToolUsage>> {
+    ) -> AppResult<Vec<ToolUsage>> {
         tracing::debug!("Dashboard tool usage breakdown request received");
 
         let user_id = auth.user_id;
 
         // Validate user_id is not nil
         if user_id.is_nil() {
-            return Err(AppError::invalid_input("Invalid user ID").into());
+            return Err(AppError::invalid_input("Invalid user ID"));
         }
 
         tracing::info!(

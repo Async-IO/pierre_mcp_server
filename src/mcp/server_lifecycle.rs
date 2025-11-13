@@ -59,7 +59,9 @@ impl ServerLifecycle {
         // Delegate to the existing comprehensive HTTP server implementation
         // This ensures we don't lose any existing functionality
         let server = super::multitenant::MultiTenantMcpServer::new(resources.clone());
-        server.run_http_server_with_resources(port, resources).await
+        server
+            .run_http_server_with_resources_axum(port, resources)
+            .await
     }
 
     /// Run stdio transport for MCP communication
@@ -200,8 +202,6 @@ pub enum ServerError {
     /// JSON serialization/deserialization failed
     SerializationError(serde_json::Error),
 }
-
-impl warp::reject::Reject for ServerError {}
 
 impl std::fmt::Display for ServerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

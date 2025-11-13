@@ -475,7 +475,7 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
         tokio::select! {
-            result = server.run_http_only(server_port) => {
+            result = server.run(server_port) => {
                 if let Err(e) = result {
                     eprintln!("Server failed to start: {e}");
                 }
@@ -651,7 +651,7 @@ async fn test_mcp_authentication_required() -> Result<()> {
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
         tokio::select! {
-            result = server.run_http_only(server_port) => {
+            result = server.run(server_port) => {
                 if let Err(e) = result {
                     eprintln!("Server failed to start: {e}");
                 }
@@ -742,7 +742,7 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
         tokio::select! {
-            result = server.run_http_only(server_port) => {
+            result = server.run(server_port) => {
                 if let Err(e) = result {
                     eprintln!("Server failed to start: {e}");
                 }
@@ -824,7 +824,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
         tokio::select! {
-            result = server.run_http_only(server_port) => {
+            result = server.run(server_port) => {
                 if let Err(e) = result {
                     eprintln!("Server failed to start: {e}");
                 }

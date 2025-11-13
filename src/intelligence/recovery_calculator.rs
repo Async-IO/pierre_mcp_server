@@ -48,6 +48,13 @@ pub mod recovery_thresholds {}
 )]
 pub mod tsb_thresholds {}
 
+/// Recovery recommendations and reasoning
+#[derive(Debug, Clone)]
+struct RecoveryRecommendations {
+    recommendations: Vec<String>,
+    reasoning: Vec<String>,
+}
+
 /// Holistic recovery score combining multiple factors
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecoveryScore {
@@ -202,13 +209,15 @@ impl RecoveryCalculator {
         );
 
         // Generate recommendations
-        let (recommendations, reasoning) = Self::generate_recovery_recommendations(
+        let recovery_recommendations = Self::generate_recovery_recommendations(
             training_readiness,
             training_load,
             sleep_quality,
             hrv_analysis,
             config,
         );
+        let recommendations = recovery_recommendations.recommendations;
+        let reasoning = recovery_recommendations.reasoning;
 
         Ok(RecoveryScore {
             overall_score,
@@ -374,14 +383,13 @@ impl RecoveryCalculator {
     }
 
     /// Generate recovery recommendations and reasoning
-    #[allow(clippy::type_complexity)]
     fn generate_recovery_recommendations(
         training_readiness: TrainingReadiness,
         training_load: &TrainingLoad,
         sleep_quality: &SleepQualityScore,
         hrv_analysis: Option<&HrvTrendAnalysis>,
         config: &crate::config::intelligence_config::SleepRecoveryConfig,
-    ) -> (Vec<String>, Vec<String>) {
+    ) -> RecoveryRecommendations {
         let mut recommendations = Vec::new();
         let mut reasoning = Vec::new();
         let highly_fatigued_tsb = config.training_stress_balance.highly_fatigued_tsb;
@@ -447,7 +455,10 @@ impl RecoveryCalculator {
                 .push("Consider a recovery week to allow fitness gains to consolidate".to_owned());
         }
 
-        (recommendations, reasoning)
+        RecoveryRecommendations {
+            recommendations,
+            reasoning,
+        }
     }
 
     /// Generate detailed rest day recommendation

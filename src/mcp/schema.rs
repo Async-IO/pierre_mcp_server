@@ -691,7 +691,8 @@ fn create_get_activity_intelligence_tool() -> ToolSchema {
 }
 
 /// Create the `connect_to_pierre` tool schema
-fn create_connect_to_pierre_tool() -> ToolSchema {
+#[must_use]
+pub fn create_connect_to_pierre_tool() -> ToolSchema {
     let properties = HashMap::new(); // No parameters needed for this tool
 
     ToolSchema {

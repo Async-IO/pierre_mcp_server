@@ -152,7 +152,7 @@ use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::ServerResources,
     models::UserOAuthToken,
-    routes::{AuthRoutes, LoginRequest, RegisterRequest},
+    routes::{auth::AuthService, LoginRequest, RegisterRequest},
 };
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -323,7 +323,8 @@ async fn test_multitenant_auth_flow() -> Result<()> {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
+    let auth_routes =
+        AuthService::new(server_context.auth().clone(), server_context.data().clone());
 
     // Test user registration
     let register_request = RegisterRequest {
@@ -778,7 +779,8 @@ async fn test_input_validation() -> Result<()> {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
+    let auth_routes =
+        AuthService::new(server_context.auth().clone(), server_context.data().clone());
 
     // Test invalid email formats
     let invalid_emails = vec!["not-an-email", "@domain.com", "user@", "user", "a@b", ""];

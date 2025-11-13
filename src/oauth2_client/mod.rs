@@ -26,5 +26,5 @@ pub use client::{OAuth2Client, OAuth2Config, OAuth2Token, PkceParams};
 /// Re-export tenant-aware OAuth client types
 pub use tenant_client::{StoreCredentialsRequest, TenantOAuthClient};
 
-/// Re-export OAuth flow manager for handling authorization flows
-pub use flow_manager::OAuthFlowManager;
+/// Re-export OAuth template renderer for HTML responses
+pub use flow_manager::OAuthTemplateRenderer;

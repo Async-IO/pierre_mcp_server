@@ -74,8 +74,6 @@ impl SyntheticDataBuilder {
             TrainingPattern::ExperiencedCyclistConsistent => self.experienced_cyclist_consistent(),
             TrainingPattern::Overtraining => self.overtraining_scenario(),
             TrainingPattern::InjuryRecovery => self.injury_recovery(),
-            TrainingPattern::PeakingForRace => self.peaking_for_race(),
-            TrainingPattern::BaseBuilding => self.base_building(),
         }
     }
 
@@ -272,87 +270,6 @@ impl SyntheticDataBuilder {
 
         activities
     }
-
-    /// Peaking for race - structured taper with intensity maintenance
-    fn peaking_for_race(&mut self) -> Vec<Activity> {
-        let mut activities = Vec::new();
-        let base_date = Utc::now() - Duration::days(21); // 3 weeks ago
-
-        // Week 1: High volume, moderate intensity
-        for day in 0..7 {
-            if day % 2 == 0 {
-                let date = base_date + Duration::days(day);
-                let activity = self
-                    .generate_run()
-                    .duration_minutes(60)
-                    .pace_min_per_km(5.0)
-                    .start_date(date)
-                    .heart_rate(145, 160)
-                    .build();
-                activities.push(activity);
-            }
-        }
-
-        // Week 2: Reduced volume, maintained intensity
-        for day in 7..14 {
-            if day % 2 == 0 {
-                let date = base_date + Duration::days(day);
-                let activity = self
-                    .generate_run()
-                    .duration_minutes(40)
-                    .pace_min_per_km(4.8) // Slightly faster
-                    .start_date(date)
-                    .heart_rate(150, 165)
-                    .build();
-                activities.push(activity);
-            }
-        }
-
-        // Week 3: Taper week, very low volume, high intensity
-        for day in 14..21 {
-            if day % 3 == 0 {
-                let date = base_date + Duration::days(day);
-                let activity = self
-                    .generate_run()
-                    .duration_minutes(25)
-                    .pace_min_per_km(4.5) // Fast
-                    .start_date(date)
-                    .heart_rate(155, 170)
-                    .build();
-                activities.push(activity);
-            }
-        }
-
-        activities
-    }
-
-    /// Base building - aerobic foundation with low intensity, high volume
-    fn base_building(&mut self) -> Vec<Activity> {
-        let mut activities = Vec::new();
-        let base_date = Utc::now() - Duration::days(28); // 4 weeks ago
-
-        // 6 days per week, easy pace, building duration
-        for week in 0..4 {
-            for day in 0..6 {
-                let date = base_date + Duration::days(week * 7 + day);
-                let duration = 45 + (week * 10); // Gradually increasing
-                                                 // Duration is always positive from week calculation
-                #[allow(clippy::cast_sign_loss)]
-                let duration_u64 = duration as u64;
-
-                let activity = self
-                    .generate_run()
-                    .duration_minutes(duration_u64)
-                    .pace_min_per_km(6.0) // Easy aerobic pace
-                    .start_date(date)
-                    .heart_rate(130, 145) // Low HR zone
-                    .build();
-                activities.push(activity);
-            }
-        }
-
-        activities
-    }
 }
 
 /// Training patterns for different scenarios
@@ -366,10 +283,6 @@ pub enum TrainingPattern {
     Overtraining,
     /// Return from injury with gradual progression
     InjuryRecovery,
-    /// Pre-race taper with volume reduction
-    PeakingForRace,
-    /// Aerobic base building phase
-    BaseBuilding,
 }
 
 /// Builder for individual activity construction

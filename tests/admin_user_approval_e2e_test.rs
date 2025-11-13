@@ -8,16 +8,17 @@
 #![allow(missing_docs)]
 
 mod common;
+mod helpers;
 
 use anyhow::Result;
+use helpers::axum_test::AxumTestRequest;
 use pierre_mcp_server::{
-    admin_routes::AdminApiContext,
     auth::AuthManager,
     database_plugins::{factory::Database, DatabaseProvider},
+    routes::admin::AdminApiContext,
 };
 use serde_json::Value;
 use std::sync::Arc;
-use warp::test::request;
 
 /// Complete end-to-end test for admin setup and user approval workflow
 // Long function: Comprehensive test covering admin setup, user creation, approval, and cleanup
@@ -63,27 +64,25 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     );
 
     // Create admin routes
-    let admin_routes =
-        pierre_mcp_server::admin_routes::admin_routes_with_scoped_recovery(admin_context);
+    let admin_routes = pierre_mcp_server::routes::admin::AdminRoutes::routes(admin_context);
 
     println!("Starting complete admin user approval workflow test");
 
     // Step 1: Create admin user via server-first setup endpoint
     println!("1️⃣ Testing admin setup endpoint...");
-    let admin_setup_response = request()
-        .method("POST")
-        .path("/admin/setup")
+    let admin_setup_response = AxumTestRequest::post("/admin/setup")
         .json(&serde_json::json!({
             "email": "test_admin@example.com",
             "password": "admin_password_123",
             "display_name": "Test Admin"
         }))
-        .reply(&admin_routes)
+        .send(admin_routes.clone())
         .await;
 
     assert_eq!(admin_setup_response.status(), 201);
-    let admin_body: Value = serde_json::from_slice(admin_setup_response.body())?;
-    let admin_token = admin_body["admin_token"]
+    let response_bytes = admin_setup_response.bytes();
+    let admin_body: Value = serde_json::from_slice(&response_bytes)?;
+    let admin_token = admin_body["data"]["admin_token"]
         .as_str()
         .expect("Admin token should be present")
         .to_owned();
@@ -118,54 +117,59 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
 
     // Step 3: Verify user is in pending status
     println!("3️⃣ Verifying user is in pending status...");
-    let pending_users_response = request()
-        .method("GET")
-        .path("/admin/pending-users")
-        .header("Authorization", format!("Bearer {admin_token}"))
-        .reply(&admin_routes)
+    let pending_users_response = AxumTestRequest::get("/admin/pending-users")
+        .header("Authorization", &format!("Bearer {admin_token}"))
+        .send(admin_routes.clone())
         .await;
 
-    assert_eq!(pending_users_response.status(), 200);
-    let pending_body: Value = serde_json::from_slice(pending_users_response.body())?;
+    let status = pending_users_response.status();
+    println!("Pending users response status: {status}");
+    let response_bytes = pending_users_response.bytes();
+    if status != 200 {
+        println!(
+            "Response body: {}",
+            String::from_utf8_lossy(&response_bytes)
+        );
+    }
+    assert_eq!(status, 200);
+    let pending_body: Value = serde_json::from_slice(&response_bytes)?;
     assert_eq!(pending_body["success"], true);
-    assert!(pending_body["count"].as_u64().unwrap() > 0);
+    assert!(pending_body["data"]["count"].as_u64().unwrap() > 0);
     println!(" User found in pending users list");
 
     // Step 4: Approve the user using admin token
     println!("4️⃣ Testing user approval...");
-    let approval_response = request()
-        .method("POST")
-        .path(&format!("/admin/approve-user/{user_id}"))
-        .header("Authorization", format!("Bearer {admin_token}"))
+    let approval_response = AxumTestRequest::post(&format!("/admin/approve-user/{user_id}"))
+        .header("Authorization", &format!("Bearer {admin_token}"))
         .json(&serde_json::json!({
             "reason": "End-to-end test approval"
         }))
-        .reply(&admin_routes)
+        .send(admin_routes.clone())
         .await;
 
     assert_eq!(approval_response.status(), 200);
-    let approval_body: Value = serde_json::from_slice(approval_response.body())?;
+    let response_bytes = approval_response.bytes();
+    let approval_body: Value = serde_json::from_slice(&response_bytes)?;
     assert_eq!(approval_body["success"], true);
-    assert_eq!(approval_body["user"]["user_status"], "active");
-    assert!(approval_body["user"]["approved_at"].is_string());
+    assert_eq!(approval_body["data"]["user"]["user_status"], "active");
+    assert!(approval_body["data"]["user"]["approved_at"].is_string());
 
     println!(" User approved successfully");
 
     // Step 5: Verify user is no longer in pending list
     println!("5️⃣ Verifying user is no longer pending...");
-    let pending_users_response_after = request()
-        .method("GET")
-        .path("/admin/pending-users")
-        .header("Authorization", format!("Bearer {admin_token}"))
-        .reply(&admin_routes)
+    let pending_users_response_after = AxumTestRequest::get("/admin/pending-users")
+        .header("Authorization", &format!("Bearer {admin_token}"))
+        .send(admin_routes.clone())
         .await;
 
     assert_eq!(pending_users_response_after.status(), 200);
-    let pending_body_after: Value = serde_json::from_slice(pending_users_response_after.body())?;
+    let response_bytes = pending_users_response_after.bytes();
+    let pending_body_after: Value = serde_json::from_slice(&response_bytes)?;
     assert_eq!(pending_body_after["success"], true);
 
     // The user should no longer be in pending status
-    let remaining_pending_count = pending_body_after["count"].as_u64().unwrap();
+    let remaining_pending_count = pending_body_after["data"]["count"].as_u64().unwrap();
     assert_eq!(
         remaining_pending_count, 0,
         "No users should be pending after approval"
@@ -175,19 +179,18 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
 
     // Step 6: Test that we can't create another admin (conflict handling)
     println!("6️⃣ Testing admin conflict prevention...");
-    let duplicate_admin_response = request()
-        .method("POST")
-        .path("/admin/setup")
+    let duplicate_admin_response = AxumTestRequest::post("/admin/setup")
         .json(&serde_json::json!({
             "email": "another_admin@example.com",
             "password": "another_password",
             "display_name": "Another Admin"
         }))
-        .reply(&admin_routes)
+        .send(admin_routes.clone())
         .await;
 
     assert_eq!(duplicate_admin_response.status(), 409); // Conflict
-    let duplicate_body: Value = serde_json::from_slice(duplicate_admin_response.body())?;
+    let response_bytes = duplicate_admin_response.bytes();
+    let duplicate_body: Value = serde_json::from_slice(&response_bytes)?;
     assert_eq!(duplicate_body["success"], false);
     assert!(duplicate_body["message"]
         .as_str()
@@ -252,32 +255,31 @@ async fn test_admin_token_management_workflow() -> Result<()> {
         jwks_manager.clone(),
         admin_api_key_monthly_limit,
     );
-    let admin_routes =
-        pierre_mcp_server::admin_routes::admin_routes_with_scoped_recovery(admin_context);
+    let admin_routes = pierre_mcp_server::routes::admin::AdminRoutes::routes(admin_context);
 
     println!("Starting admin token management workflow test");
 
     // Step 1: Create initial admin
-    let admin_setup_response = request()
-        .method("POST")
-        .path("/admin/setup")
+    let admin_setup_response = AxumTestRequest::post("/admin/setup")
         .json(&serde_json::json!({
             "email": "token_admin@example.com",
             "password": "admin_pass_123",
             "display_name": "Token Admin"
         }))
-        .reply(&admin_routes)
+        .send(admin_routes.clone())
         .await;
 
     assert_eq!(admin_setup_response.status(), 201);
-    let admin_body: Value = serde_json::from_slice(admin_setup_response.body())?;
-    let admin_token = admin_body["admin_token"].as_str().unwrap().to_owned();
+    let response_bytes = admin_setup_response.bytes();
+    let admin_body: Value = serde_json::from_slice(&response_bytes)?;
+    let admin_token = admin_body["data"]["admin_token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
 
     // Step 2: Create additional admin token
-    let create_token_response = request()
-        .method("POST")
-        .path("/admin/tokens")
-        .header("Authorization", format!("Bearer {admin_token}"))
+    let create_token_response = AxumTestRequest::post("/admin/tokens")
+        .header("Authorization", &format!("Bearer {admin_token}"))
         .json(&serde_json::json!({
             "service_name": "test_service_token",
             "service_description": "Test service token",
@@ -285,56 +287,55 @@ async fn test_admin_token_management_workflow() -> Result<()> {
             "expires_in_days": 30,
             "permissions": ["manage_users"]
         }))
-        .reply(&admin_routes)
+        .send(admin_routes.clone())
         .await;
 
     assert_eq!(create_token_response.status(), 201);
-    let create_body: Value = serde_json::from_slice(create_token_response.body())?;
+    let response_bytes = create_token_response.bytes();
+    let create_body: Value = serde_json::from_slice(&response_bytes)?;
     assert_eq!(create_body["success"], true);
 
     let service_token_id = create_body["data"]["token_id"].as_str().unwrap();
     println!(" Service token created: {service_token_id}");
 
     // Step 3: List admin tokens
-    let list_tokens_response = request()
-        .method("GET")
-        .path("/admin/tokens")
-        .header("Authorization", format!("Bearer {admin_token}"))
-        .reply(&admin_routes)
+    let list_tokens_response = AxumTestRequest::get("/admin/tokens")
+        .header("Authorization", &format!("Bearer {admin_token}"))
+        .send(admin_routes.clone())
         .await;
 
     assert_eq!(list_tokens_response.status(), 200);
-    let list_body: Value = serde_json::from_slice(list_tokens_response.body())?;
+    let response_bytes = list_tokens_response.bytes();
+    let list_body: Value = serde_json::from_slice(&response_bytes)?;
     assert_eq!(list_body["success"], true);
     assert!(list_body["data"]["count"].as_u64().unwrap() >= 2); // At least initial + service token
 
     println!(" Token listing working");
 
     // Step 4: Get token details
-    let token_details_response = request()
-        .method("GET")
-        .path(&format!("/admin/tokens/{service_token_id}"))
-        .header("Authorization", format!("Bearer {admin_token}"))
-        .reply(&admin_routes)
+    let token_details_response = AxumTestRequest::get(&format!("/admin/tokens/{service_token_id}"))
+        .header("Authorization", &format!("Bearer {admin_token}"))
+        .send(admin_routes.clone())
         .await;
 
     assert_eq!(token_details_response.status(), 200);
-    let details_body: Value = serde_json::from_slice(token_details_response.body())?;
+    let response_bytes = token_details_response.bytes();
+    let details_body: Value = serde_json::from_slice(&response_bytes)?;
     assert_eq!(details_body["success"], true);
     assert_eq!(details_body["data"]["service_name"], "test_service_token");
 
     println!(" Token details retrieval working");
 
     // Step 5: Revoke the service token
-    let revoke_response = request()
-        .method("POST")
-        .path(&format!("/admin/tokens/{service_token_id}/revoke"))
-        .header("Authorization", format!("Bearer {admin_token}"))
-        .reply(&admin_routes)
-        .await;
+    let revoke_response =
+        AxumTestRequest::post(&format!("/admin/tokens/{service_token_id}/revoke"))
+            .header("Authorization", &format!("Bearer {admin_token}"))
+            .send(admin_routes.clone())
+            .await;
 
     assert_eq!(revoke_response.status(), 200);
-    let revoke_body: Value = serde_json::from_slice(revoke_response.body())?;
+    let response_bytes = revoke_response.bytes();
+    let revoke_body: Value = serde_json::from_slice(&response_bytes)?;
     assert_eq!(revoke_body["success"], true);
 
     println!(" Token revocation working");
@@ -386,8 +387,7 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
         jwks_manager,
         admin_api_key_monthly_limit,
     );
-    let admin_routes =
-        pierre_mcp_server::admin_routes::admin_routes_with_scoped_recovery(admin_context);
+    let admin_routes = pierre_mcp_server::routes::admin::AdminRoutes::routes(admin_context);
 
     println!("Starting admin workflow error handling test");
 
@@ -395,49 +395,43 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
     let fake_admin_token = "fake_token_12345";
     let fake_user_id = uuid::Uuid::new_v4();
 
-    let approve_fake_user_response = request()
-        .method("POST")
-        .path(&format!("/admin/approve-user/{fake_user_id}"))
-        .header("Authorization", format!("Bearer {fake_admin_token}"))
-        .json(&serde_json::json!({"reason": "Test"}))
-        .reply(&admin_routes)
-        .await;
+    let approve_fake_user_response =
+        AxumTestRequest::post(&format!("/admin/approve-user/{fake_user_id}"))
+            .header("Authorization", &format!("Bearer {fake_admin_token}"))
+            .json(&serde_json::json!({"reason": "Test"}))
+            .send(admin_routes.clone())
+            .await;
 
     // Should fail with unauthorized due to invalid token
     assert_eq!(approve_fake_user_response.status(), 401);
     println!(" Invalid token properly rejected");
 
     // Test 2: Try to access admin endpoints without token
-    let no_auth_response = request()
-        .method("GET")
-        .path("/admin/pending-users")
-        .reply(&admin_routes)
+    let no_auth_response = AxumTestRequest::get("/admin/pending-users")
+        .send(admin_routes.clone())
         .await;
 
     assert_eq!(no_auth_response.status(), 400); // Missing auth header
     println!(" Missing authorization properly rejected");
 
     // Test 3: Try to approve with malformed user ID
-    let admin_setup_response = request()
-        .method("POST")
-        .path("/admin/setup")
+    let admin_setup_response = AxumTestRequest::post("/admin/setup")
         .json(&serde_json::json!({
             "email": "error_admin@example.com",
             "password": "admin_pass_123",
             "display_name": "Error Test Admin"
         }))
-        .reply(&admin_routes)
+        .send(admin_routes.clone())
         .await;
 
-    let admin_body: Value = serde_json::from_slice(admin_setup_response.body())?;
-    let admin_token = admin_body["admin_token"].as_str().unwrap();
+    let response_bytes = admin_setup_response.bytes();
+    let admin_body: Value = serde_json::from_slice(&response_bytes)?;
+    let admin_token = admin_body["data"]["admin_token"].as_str().unwrap();
 
-    let malformed_id_response = request()
-        .method("POST")
-        .path("/admin/approve-user/not-a-uuid")
-        .header("Authorization", format!("Bearer {admin_token}"))
+    let malformed_id_response = AxumTestRequest::post("/admin/approve-user/not-a-uuid")
+        .header("Authorization", &format!("Bearer {admin_token}"))
         .json(&serde_json::json!({"reason": "Test"}))
-        .reply(&admin_routes)
+        .send(admin_routes.clone())
         .await;
 
     assert_eq!(malformed_id_response.status(), 400); // Bad request for malformed UUID

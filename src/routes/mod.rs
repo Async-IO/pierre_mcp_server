@@ -14,16 +14,24 @@
 pub mod a2a;
 /// Admin API routes for user management and configuration
 pub mod admin;
+/// API key management routes
+pub mod api_keys;
 /// Authentication and authorization routes
 pub mod auth;
+/// Configuration management routes
+pub mod configuration;
+/// Dashboard and monitoring routes
+pub mod dashboard;
+/// Fitness configuration routes
+pub mod fitness;
 /// Health check and system status routes
 pub mod health;
 /// Model Context Protocol (MCP) server routes
 pub mod mcp;
 /// OAuth 2.0 server implementation routes
 pub mod oauth2;
-/// Server-Sent Events (SSE) routes for notifications
-pub mod sse;
+/// Tenant management routes
+pub mod tenants;
 /// WebSocket routes for real-time communication
 pub mod websocket;
 
@@ -69,8 +77,6 @@ pub use health::HealthRoutes;
 pub use mcp::McpRoutes;
 /// OAuth 2.0 server route handlers
 pub use oauth2::OAuth2Routes;
-/// Server-Sent Events route handlers
-pub use sse::SseRoutes;
 /// WebSocket route handlers
 pub use websocket::WebSocketRoutes;
 
@@ -78,3 +84,15 @@ pub use websocket::WebSocketRoutes;
 
 /// OAuth routes (alias for `OAuthService`)
 pub type OAuthRoutes = OAuthService;
+
+// Re-export new route handlers
+/// API key route handlers
+pub use api_keys::ApiKeyRoutes;
+/// Configuration route handlers
+pub use configuration::ConfigurationRoutes;
+/// Dashboard route handlers
+pub use dashboard::DashboardRoutes;
+/// Fitness configuration route handlers
+pub use fitness::FitnessConfigurationRoutes;
+/// Tenant route handlers
+pub use tenants::TenantRoutes;

@@ -1084,213 +1084,169 @@ impl IntelligenceConfig<true> {
         Ok(())
     }
 
+    /// Helper function to parse and apply an environment variable override
+    ///
+    /// Reduces cognitive complexity by extracting the common pattern of:
+    /// 1. Check if env var exists
+    /// 2. Parse it
+    /// 3. Apply to target field
+    fn apply_env_var<T: std::str::FromStr>(
+        env_var_name: &str,
+        target: &mut T,
+    ) -> Result<(), ConfigError> {
+        if let Ok(val) = std::env::var(env_var_name) {
+            *target = val
+                .parse()
+                .map_err(|_| ConfigError::Parse(format!("Invalid {env_var_name}")))?;
+        }
+        Ok(())
+    }
+
     /// Apply environment variable overrides
     // Long function: Systematic env var parsing for all intelligence subsystems (recommendation, weather, sleep/recovery with 24+ variables)
     #[allow(clippy::too_many_lines)]
-    #[allow(clippy::cognitive_complexity)]
     fn apply_env_overrides(mut self) -> Result<Self, ConfigError> {
         // Recommendation engine overrides
-        if let Ok(val) = std::env::var("INTELLIGENCE_RECOMMENDATION_LOW_DISTANCE") {
-            self.recommendation_engine.thresholds.low_weekly_distance_km =
-                val.parse().map_err(|_| {
-                    ConfigError::Parse("Invalid INTELLIGENCE_RECOMMENDATION_LOW_DISTANCE".into())
-                })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_RECOMMENDATION_HIGH_DISTANCE") {
-            self.recommendation_engine
+        Self::apply_env_var(
+            "INTELLIGENCE_RECOMMENDATION_LOW_DISTANCE",
+            &mut self.recommendation_engine.thresholds.low_weekly_distance_km,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_RECOMMENDATION_HIGH_DISTANCE",
+            &mut self
+                .recommendation_engine
                 .thresholds
-                .high_weekly_distance_km = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_RECOMMENDATION_HIGH_DISTANCE".into())
-            })?;
-        }
+                .high_weekly_distance_km,
+        )?;
 
         // Weather analysis overrides
-        if let Ok(val) = std::env::var("INTELLIGENCE_WEATHER_IDEAL_MIN_TEMP") {
-            self.weather_analysis.temperature.ideal_min_celsius = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_WEATHER_IDEAL_MIN_TEMP".into())
-            })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_WEATHER_IDEAL_MAX_TEMP") {
-            self.weather_analysis.temperature.ideal_max_celsius = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_WEATHER_IDEAL_MAX_TEMP".into())
-            })?;
-        }
+        Self::apply_env_var(
+            "INTELLIGENCE_WEATHER_IDEAL_MIN_TEMP",
+            &mut self.weather_analysis.temperature.ideal_min_celsius,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_WEATHER_IDEAL_MAX_TEMP",
+            &mut self.weather_analysis.temperature.ideal_max_celsius,
+        )?;
 
         // Sleep duration overrides
-        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_ADULT_MIN_HOURS") {
-            self.sleep_recovery.sleep_duration.adult_min_hours = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_ADULT_MIN_HOURS".into())
-            })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_ADULT_MAX_HOURS") {
-            self.sleep_recovery.sleep_duration.adult_max_hours = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_ADULT_MAX_HOURS".into())
-            })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_ATHLETE_OPTIMAL_HOURS") {
-            self.sleep_recovery.sleep_duration.athlete_optimal_hours =
-                val.parse().map_err(|_| {
-                    ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_ATHLETE_OPTIMAL_HOURS".into())
-                })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_ATHLETE_MIN_HOURS") {
-            self.sleep_recovery.sleep_duration.athlete_min_hours = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_ATHLETE_MIN_HOURS".into())
-            })?;
-        }
+        Self::apply_env_var(
+            "INTELLIGENCE_SLEEP_ADULT_MIN_HOURS",
+            &mut self.sleep_recovery.sleep_duration.adult_min_hours,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_SLEEP_ADULT_MAX_HOURS",
+            &mut self.sleep_recovery.sleep_duration.adult_max_hours,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_SLEEP_ATHLETE_OPTIMAL_HOURS",
+            &mut self.sleep_recovery.sleep_duration.athlete_optimal_hours,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_SLEEP_ATHLETE_MIN_HOURS",
+            &mut self.sleep_recovery.sleep_duration.athlete_min_hours,
+        )?;
 
         // Sleep stages overrides
-        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_DEEP_MIN_PERCENT") {
-            self.sleep_recovery.sleep_stages.deep_sleep_min_percent =
-                val.parse().map_err(|_| {
-                    ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_DEEP_MIN_PERCENT".into())
-                })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_DEEP_MAX_PERCENT") {
-            self.sleep_recovery.sleep_stages.deep_sleep_max_percent =
-                val.parse().map_err(|_| {
-                    ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_DEEP_MAX_PERCENT".into())
-                })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_REM_MIN_PERCENT") {
-            self.sleep_recovery.sleep_stages.rem_sleep_min_percent = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_REM_MIN_PERCENT".into())
-            })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_REM_MAX_PERCENT") {
-            self.sleep_recovery.sleep_stages.rem_sleep_max_percent = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_REM_MAX_PERCENT".into())
-            })?;
-        }
+        Self::apply_env_var(
+            "INTELLIGENCE_SLEEP_DEEP_MIN_PERCENT",
+            &mut self.sleep_recovery.sleep_stages.deep_sleep_min_percent,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_SLEEP_DEEP_MAX_PERCENT",
+            &mut self.sleep_recovery.sleep_stages.deep_sleep_max_percent,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_SLEEP_REM_MIN_PERCENT",
+            &mut self.sleep_recovery.sleep_stages.rem_sleep_min_percent,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_SLEEP_REM_MAX_PERCENT",
+            &mut self.sleep_recovery.sleep_stages.rem_sleep_max_percent,
+        )?;
 
         // Sleep efficiency overrides
-        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_EFFICIENCY_EXCELLENT") {
-            self.sleep_recovery.sleep_efficiency.excellent_threshold =
-                val.parse().map_err(|_| {
-                    ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_EFFICIENCY_EXCELLENT".into())
-                })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_EFFICIENCY_GOOD") {
-            self.sleep_recovery.sleep_efficiency.good_threshold = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_EFFICIENCY_GOOD".into())
-            })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_SLEEP_EFFICIENCY_POOR") {
-            self.sleep_recovery.sleep_efficiency.poor_threshold = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_SLEEP_EFFICIENCY_POOR".into())
-            })?;
-        }
+        Self::apply_env_var(
+            "INTELLIGENCE_SLEEP_EFFICIENCY_EXCELLENT",
+            &mut self.sleep_recovery.sleep_efficiency.excellent_threshold,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_SLEEP_EFFICIENCY_GOOD",
+            &mut self.sleep_recovery.sleep_efficiency.good_threshold,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_SLEEP_EFFICIENCY_POOR",
+            &mut self.sleep_recovery.sleep_efficiency.poor_threshold,
+        )?;
 
         // HRV overrides
-        if let Ok(val) = std::env::var("INTELLIGENCE_HRV_RMSSD_DECREASE_CONCERN") {
-            self.sleep_recovery.hrv.rmssd_decrease_concern_threshold =
-                val.parse().map_err(|_| {
-                    ConfigError::Parse("Invalid INTELLIGENCE_HRV_RMSSD_DECREASE_CONCERN".into())
-                })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_HRV_RMSSD_INCREASE_GOOD") {
-            self.sleep_recovery.hrv.rmssd_increase_good_threshold = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_HRV_RMSSD_INCREASE_GOOD".into())
-            })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_HRV_BASELINE_DEVIATION_CONCERN") {
-            self.sleep_recovery.hrv.baseline_deviation_concern_percent =
-                val.parse().map_err(|_| {
-                    ConfigError::Parse("Invalid INTELLIGENCE_HRV_BASELINE_DEVIATION_CONCERN".into())
-                })?;
-        }
+        Self::apply_env_var(
+            "INTELLIGENCE_HRV_RMSSD_DECREASE_CONCERN",
+            &mut self.sleep_recovery.hrv.rmssd_decrease_concern_threshold,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_HRV_RMSSD_INCREASE_GOOD",
+            &mut self.sleep_recovery.hrv.rmssd_increase_good_threshold,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_HRV_BASELINE_DEVIATION_CONCERN",
+            &mut self.sleep_recovery.hrv.baseline_deviation_concern_percent,
+        )?;
 
         // TSB (Training Stress Balance) overrides
-        if let Ok(val) = std::env::var("INTELLIGENCE_TSB_HIGHLY_FATIGUED") {
-            self.sleep_recovery
+        Self::apply_env_var(
+            "INTELLIGENCE_TSB_HIGHLY_FATIGUED",
+            &mut self
+                .sleep_recovery
                 .training_stress_balance
-                .highly_fatigued_tsb = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_TSB_HIGHLY_FATIGUED".into())
-            })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_TSB_FATIGUED") {
-            self.sleep_recovery.training_stress_balance.fatigued_tsb = val
-                .parse()
-                .map_err(|_| ConfigError::Parse("Invalid INTELLIGENCE_TSB_FATIGUED".into()))?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_TSB_FRESH_MIN") {
-            self.sleep_recovery.training_stress_balance.fresh_tsb_min = val
-                .parse()
-                .map_err(|_| ConfigError::Parse("Invalid INTELLIGENCE_TSB_FRESH_MIN".into()))?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_TSB_FRESH_MAX") {
-            self.sleep_recovery.training_stress_balance.fresh_tsb_max = val
-                .parse()
-                .map_err(|_| ConfigError::Parse("Invalid INTELLIGENCE_TSB_FRESH_MAX".into()))?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_TSB_DETRAINING") {
-            self.sleep_recovery.training_stress_balance.detraining_tsb = val
-                .parse()
-                .map_err(|_| ConfigError::Parse("Invalid INTELLIGENCE_TSB_DETRAINING".into()))?;
-        }
+                .highly_fatigued_tsb,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_TSB_FATIGUED",
+            &mut self.sleep_recovery.training_stress_balance.fatigued_tsb,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_TSB_FRESH_MIN",
+            &mut self.sleep_recovery.training_stress_balance.fresh_tsb_min,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_TSB_FRESH_MAX",
+            &mut self.sleep_recovery.training_stress_balance.fresh_tsb_max,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_TSB_DETRAINING",
+            &mut self.sleep_recovery.training_stress_balance.detraining_tsb,
+        )?;
 
         // Recovery scoring overrides
-        if let Ok(val) = std::env::var("INTELLIGENCE_RECOVERY_EXCELLENT_THRESHOLD") {
-            self.sleep_recovery.recovery_scoring.excellent_threshold =
-                val.parse().map_err(|_| {
-                    ConfigError::Parse("Invalid INTELLIGENCE_RECOVERY_EXCELLENT_THRESHOLD".into())
-                })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_RECOVERY_GOOD_THRESHOLD") {
-            self.sleep_recovery.recovery_scoring.good_threshold = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_RECOVERY_GOOD_THRESHOLD".into())
-            })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_RECOVERY_FAIR_THRESHOLD") {
-            self.sleep_recovery.recovery_scoring.fair_threshold = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_RECOVERY_FAIR_THRESHOLD".into())
-            })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_RECOVERY_TSB_WEIGHT_FULL") {
-            self.sleep_recovery.recovery_scoring.tsb_weight_full = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_RECOVERY_TSB_WEIGHT_FULL".into())
-            })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_RECOVERY_SLEEP_WEIGHT_FULL") {
-            self.sleep_recovery.recovery_scoring.sleep_weight_full = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_RECOVERY_SLEEP_WEIGHT_FULL".into())
-            })?;
-        }
-
-        if let Ok(val) = std::env::var("INTELLIGENCE_RECOVERY_HRV_WEIGHT_FULL") {
-            self.sleep_recovery.recovery_scoring.hrv_weight_full = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_RECOVERY_HRV_WEIGHT_FULL".into())
-            })?;
-        }
+        Self::apply_env_var(
+            "INTELLIGENCE_RECOVERY_EXCELLENT_THRESHOLD",
+            &mut self.sleep_recovery.recovery_scoring.excellent_threshold,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_RECOVERY_GOOD_THRESHOLD",
+            &mut self.sleep_recovery.recovery_scoring.good_threshold,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_RECOVERY_FAIR_THRESHOLD",
+            &mut self.sleep_recovery.recovery_scoring.fair_threshold,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_RECOVERY_TSB_WEIGHT_FULL",
+            &mut self.sleep_recovery.recovery_scoring.tsb_weight_full,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_RECOVERY_SLEEP_WEIGHT_FULL",
+            &mut self.sleep_recovery.recovery_scoring.sleep_weight_full,
+        )?;
+        Self::apply_env_var(
+            "INTELLIGENCE_RECOVERY_HRV_WEIGHT_FULL",
+            &mut self.sleep_recovery.recovery_scoring.hrv_weight_full,
+        )?;
 
         // Algorithm selection overrides
-        if let Ok(val) = std::env::var("PIERRE_TSS_ALGORITHM") {
-            self.algorithms.tss = val;
-        }
-
-        if let Ok(val) = std::env::var("PIERRE_MAXHR_ALGORITHM") {
-            self.algorithms.maxhr = val;
-        }
+        Self::apply_env_var("PIERRE_TSS_ALGORITHM", &mut self.algorithms.tss)?;
+        Self::apply_env_var("PIERRE_MAXHR_ALGORITHM", &mut self.algorithms.maxhr)?;
 
         Ok(self)
     }

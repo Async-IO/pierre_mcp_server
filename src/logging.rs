@@ -175,7 +175,7 @@ impl LoggingConfig {
                     .unwrap_or_else(|_| tracing::Level::INFO.into()),
             )
             .add_directive(
-                "warp::server=info"
+                "axum::rejection=info"
                     .parse()
                     .unwrap_or_else(|_| tracing::Level::INFO.into()),
             )

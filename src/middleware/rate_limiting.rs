@@ -11,8 +11,7 @@
 
 use crate::errors::{AppError, ErrorCode};
 use crate::rate_limiting::UnifiedRateLimitInfo;
-use warp::http::{HeaderMap, HeaderValue, StatusCode};
-use warp::Reply;
+use http::{HeaderMap, HeaderValue};
 
 /// HTTP header names for rate limiting
 pub mod headers {
@@ -93,17 +92,6 @@ pub fn create_rate_limit_error(rate_limit_info: &UnifiedRateLimitInfo) -> AppErr
             "Rate limit exceeded. You have reached your limit of {} requests for the {} tier",
             limit, rate_limit_info.tier
         ),
-    )
-}
-
-/// Create a 429 Too Many Requests JSON error response
-#[must_use]
-pub fn create_rate_limit_error_json(rate_limit_info: &UnifiedRateLimitInfo) -> impl Reply {
-    let error = create_rate_limit_error(rate_limit_info);
-    let error_response = crate::errors::ErrorResponse::from(error);
-    warp::reply::with_status(
-        warp::reply::json(&error_response),
-        StatusCode::TOO_MANY_REQUESTS,
     )
 }
 

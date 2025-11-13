@@ -10,7 +10,6 @@ use crate::mcp::{
     resources::ServerResources,
     tool_handlers::ToolHandlers,
 };
-use anyhow::Result;
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
@@ -63,7 +62,7 @@ impl McpProtocolStream {
     /// # Errors
     ///
     /// Returns an error if no active sender is available for this stream
-    pub async fn handle_request(&self, request: McpRequest) -> Result<()> {
+    pub async fn handle_request(&self, request: McpRequest) -> Result<(), AppError> {
         // Process the MCP request using existing handlers
         let response =
             ToolHandlers::handle_tools_call_with_resources(request, &self.resources).await;
@@ -75,12 +74,13 @@ impl McpProtocolStream {
     }
 
     /// Send MCP response through SSE stream
-    async fn send_response(&self, response: McpResponse) -> Result<()> {
+    async fn send_response(&self, response: McpResponse) -> Result<(), AppError> {
         let sender_guard = self.sender.read().await;
 
         if let Some(sender) = sender_guard.as_ref() {
-            // Send only the JSON data - Warp will handle SSE formatting
-            let json_data = serde_json::to_string(&response)?;
+            // Send only the JSON data - SSE formatting handled by Axum SSE helper
+            let json_data = serde_json::to_string(&response)
+                .map_err(|e| AppError::internal(format!("Failed to serialize response: {e}")))?;
 
             sender
                 .send(json_data)
@@ -88,7 +88,7 @@ impl McpProtocolStream {
 
             Ok(())
         } else {
-            Err(AppError::internal("No active sender for protocol stream").into())
+            Err(AppError::internal("No active sender for protocol stream"))
         }
     }
 
@@ -100,15 +100,16 @@ impl McpProtocolStream {
     /// - No active sender is available for this stream
     /// - JSON serialization fails
     /// - Sending the error event fails
-    pub async fn send_error(&self, error_message: &str) -> Result<()> {
+    pub async fn send_error(&self, error_message: &str) -> Result<(), AppError> {
         let error_response =
             McpResponse::error(Some(Value::Null), -32603, error_message.to_owned());
 
         let sender_guard = self.sender.read().await;
 
         if let Some(sender) = sender_guard.as_ref() {
-            // Send only the JSON data - Warp will handle SSE formatting
-            let json_data = serde_json::to_string(&error_response)?;
+            // Send only the JSON data - SSE formatting handled by Axum SSE helper
+            let json_data = serde_json::to_string(&error_response)
+                .map_err(|e| AppError::internal(format!("Failed to serialize error: {e}")))?;
 
             sender
                 .send(json_data)
@@ -116,7 +117,7 @@ impl McpProtocolStream {
 
             Ok(())
         } else {
-            Err(AppError::internal("No active sender for protocol stream").into())
+            Err(AppError::internal("No active sender for protocol stream"))
         }
     }
 
@@ -150,7 +151,7 @@ impl McpProtocolStream {
     pub async fn send_oauth_notification(
         &self,
         notification: &crate::database::oauth_notifications::OAuthNotification,
-    ) -> Result<()> {
+    ) -> Result<(), AppError> {
         tracing::debug!(
             "send_oauth_notification called for provider: {}",
             notification.provider
@@ -174,8 +175,10 @@ impl McpProtocolStream {
                 }
             });
 
-            // Send only the JSON data - Warp will handle SSE formatting
-            let json_data = serde_json::to_string(&mcp_notification)?;
+            // Send only the JSON data - SSE formatting handled by Axum SSE helper
+            let json_data = serde_json::to_string(&mcp_notification).map_err(|e| {
+                AppError::internal(format!("Failed to serialize notification: {e}"))
+            })?;
 
             tracing::debug!("JSON data to send: {}", json_data);
 
@@ -189,15 +192,14 @@ impl McpProtocolStream {
                     tracing::error!("OAuth notification broadcast FAILED: {}", e);
                     return Err(AppError::internal(format!(
                         "Failed to send OAuth notification: {e}"
-                    ))
-                    .into());
+                    )));
                 }
             }
 
             Ok(())
         } else {
             tracing::error!("No active sender for protocol stream");
-            Err(AppError::internal("No active sender for protocol stream").into())
+            Err(AppError::internal("No active sender for protocol stream"))
         }
     }
 }

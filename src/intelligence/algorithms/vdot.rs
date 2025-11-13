@@ -89,9 +89,14 @@ impl VdotAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```rust
+    /// use pierre_mcp_server::intelligence::algorithms::VdotAlgorithm;
+    /// # use pierre_mcp_server::errors::AppError;
+    /// # fn example() -> Result<(), AppError> {
     /// let algorithm = VdotAlgorithm::Daniels;
     /// let vdot = algorithm.calculate_vdot(5000.0, 1200.0)?; // 5K in 20:00
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn calculate_vdot(&self, distance_meters: f64, time_seconds: f64) -> Result<f64, AppError> {
         if time_seconds <= 0.0 {

@@ -23,7 +23,10 @@ use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::ServerResources,
     models::{Tenant, User, UserStatus},
-    routes::{AuthRoutes, OAuthRoutes, RegisterRequest},
+    routes::{
+        auth::{AuthService, OAuthService},
+        RegisterRequest,
+    },
     tenant::TenantOAuthCredentials,
 };
 use std::sync::Arc;
@@ -177,8 +180,9 @@ async fn test_oauth_authorization_url_generation() {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
-    let oauth_routes = OAuthRoutes::new(
+    let auth_routes =
+        AuthService::new(server_context.auth().clone(), server_context.data().clone());
+    let oauth_routes = OAuthService::new(
         server_context.data().clone(),
         server_context.config().clone(),
         server_context.notification().clone(),
@@ -435,7 +439,7 @@ async fn test_oauth_state_validation() {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let _oauth_routes = OAuthRoutes::new(
+    let _oauth_routes = OAuthService::new(
         server_context.data().clone(),
         server_context.config().clone(),
         server_context.notification().clone(),
@@ -621,7 +625,7 @@ async fn test_connection_status_no_providers() {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let oauth_routes = OAuthRoutes::new(
+    let oauth_routes = OAuthService::new(
         server_context.data().clone(),
         server_context.config().clone(),
         server_context.notification().clone(),
@@ -784,7 +788,7 @@ async fn test_invalid_provider_error() {
         Some(common::get_shared_test_jwks()),
     ));
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let oauth_routes = OAuthRoutes::new(
+    let oauth_routes = OAuthService::new(
         server_context.data().clone(),
         server_context.config().clone(),
         server_context.notification().clone(),
@@ -942,7 +946,7 @@ async fn test_disconnect_provider() {
         Some(common::get_shared_test_jwks()),
     ));
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let oauth_routes = OAuthRoutes::new(
+    let oauth_routes = OAuthService::new(
         server_context.data().clone(),
         server_context.config().clone(),
         server_context.notification().clone(),
@@ -1194,7 +1198,7 @@ async fn test_oauth_urls_contain_required_parameters() {
         Some(common::get_shared_test_jwks()),
     ));
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let oauth_routes = OAuthRoutes::new(
+    let oauth_routes = OAuthService::new(
         server_context.data().clone(),
         server_context.config().clone(),
         server_context.notification().clone(),

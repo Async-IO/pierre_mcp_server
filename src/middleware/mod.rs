@@ -6,7 +6,7 @@
 
 /// Authentication middleware for MCP and API requests
 pub mod auth;
-/// CORS (Cross-Origin Resource Sharing) configuration
+/// CORS middleware configuration
 pub mod cors;
 /// Rate limiting middleware and utilities
 pub mod rate_limiting;
@@ -20,9 +20,9 @@ pub mod tracing;
 /// MCP authentication middleware
 pub use auth::McpAuthMiddleware;
 
-// CORS configuration
+// CORS middleware
 
-/// Setup CORS middleware
+/// Setup CORS layer for HTTP endpoints
 pub use cors::setup_cors;
 
 // Rate limiting middleware and utilities
@@ -31,8 +31,6 @@ pub use cors::setup_cors;
 pub use rate_limiting::check_rate_limit_and_respond;
 /// Create rate limit error
 pub use rate_limiting::create_rate_limit_error;
-/// Create rate limit error as JSON
-pub use rate_limiting::create_rate_limit_error_json;
 /// Create rate limit headers
 pub use rate_limiting::create_rate_limit_headers;
 /// Rate limit headers module
@@ -65,7 +63,5 @@ pub use tracing::create_database_span;
 pub use tracing::create_mcp_span;
 /// Create HTTP request span
 pub use tracing::create_request_span;
-/// Add request tracing middleware
-pub use tracing::with_request_tracing;
 /// Request context for tracing
 pub use tracing::RequestContext;

@@ -144,14 +144,14 @@ pub mod dashboard_routes;
 /// WebSocket support for real-time updates
 pub mod websocket;
 
+/// Server-Sent Events (SSE) for real-time streaming
+pub mod sse;
+
 /// Security headers and protection middleware
 pub mod security;
 
 /// Admin token authentication and `API` key provisioning
 pub mod admin;
-
-/// Admin REST `API` routes for external services
-pub mod admin_routes;
 
 /// Universal protocol support for MCP and A2A
 pub mod protocols;
@@ -171,14 +171,8 @@ pub mod plugins;
 /// Two-tier key management system for secure database encryption
 pub mod key_management;
 
-/// Real-time notification system with SSE support
-pub mod notifications;
-
 /// Plugin lifecycle management for deterministic initialization
 pub mod lifecycle;
-
-/// Unified Server-Sent Events system for OAuth notifications and MCP protocol streaming
-pub mod sse;
 
 /// OAuth 2.0 authorization server (Pierre as provider for MCP clients)
 pub mod oauth2_server;

@@ -11,7 +11,7 @@
 #![allow(missing_docs)]
 
 use pierre_mcp_server::{
-    admin_routes::ProvisionApiKeyRequest, utils::auth::extract_bearer_token_owned,
+    routes::admin::ProvisionApiKeyRequest, utils::auth::extract_bearer_token_owned,
 };
 
 #[test]

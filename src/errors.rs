@@ -13,7 +13,6 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
-use warp::reject::Reject;
 
 /// Standard error codes used throughout the application
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -287,19 +286,15 @@ impl fmt::Display for AppError {
     }
 }
 
-/// Implement Reject for Warp framework integration
-impl Reject for AppError {}
-
-/// Convert `AppError` to warp `Reply` for `HTTP` responses
-impl warp::Reply for AppError {
-    fn into_response(self) -> warp::reply::Response {
-        let status = warp::http::StatusCode::from_u16(self.code.http_status())
-            .unwrap_or(warp::http::StatusCode::INTERNAL_SERVER_ERROR);
+/// Convert `AppError` to Axum `Response` for `HTTP` responses
+impl axum::response::IntoResponse for AppError {
+    fn into_response(self) -> axum::response::Response {
+        let status = axum::http::StatusCode::from_u16(self.code.http_status())
+            .unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
 
         let response = ErrorResponse::from(self);
-        let json = warp::reply::json(&response);
 
-        warp::reply::with_status(json, status).into_response()
+        (status, axum::Json(response)).into_response()
     }
 }
 

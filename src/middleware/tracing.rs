@@ -6,7 +6,6 @@
 
 use tracing::Span;
 use uuid::Uuid;
-use warp::Filter;
 
 /// Request context that flows through the entire request lifecycle
 #[derive(Debug, Clone)]
@@ -65,27 +64,6 @@ impl Default for RequestContext {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Create request tracing middleware that generates request IDs and creates spans
-#[must_use]
-pub fn with_request_tracing(
-) -> impl Filter<Extract = (RequestContext,), Error = warp::Rejection> + Copy {
-    warp::header::optional::<String>("x-request-id").map(|request_id: Option<String>| {
-        let request_id = request_id.unwrap_or_else(|| format!("req_{}", Uuid::new_v4().simple()));
-
-        let context = RequestContext {
-            request_id,
-            user_id: None,
-            tenant_id: None,
-            auth_method: None,
-        };
-
-        // Record request ID in current span immediately
-        Span::current().record("request_id", &context.request_id);
-
-        context
-    })
 }
 
 /// Create a tracing span for HTTP requests

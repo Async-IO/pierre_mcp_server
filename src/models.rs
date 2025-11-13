@@ -299,6 +299,9 @@ impl std::str::FromStr for UserTier {
 ///     country: Some("Canada".into()),
 ///     trail_name: Some("Mount Royal Trail".into()),
 ///     provider: "strava".into(),
+///     workout_type: None,
+///     sport_type_detail: None,
+///     segment_efforts: None,
 /// };
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]

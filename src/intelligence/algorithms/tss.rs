@@ -72,7 +72,9 @@ impl TssAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
+    /// use pierre_mcp_server::intelligence::algorithms::TssAlgorithm;
+    /// // Requires activity with power data
     /// let algorithm = TssAlgorithm::NormalizedPower { window_seconds: 30 };
     /// let tss = algorithm.calculate(&activity, 250.0, 1.5)?;
     /// ```

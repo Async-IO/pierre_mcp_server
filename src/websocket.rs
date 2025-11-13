@@ -25,8 +25,9 @@ use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 use tokio::time::{interval, Duration};
 use uuid::Uuid;
-use warp::ws::{Message, WebSocket, Ws};
-use warp::Filter;
+
+// WebSocket message type alias for Axum
+type Message = axum::extract::ws::Message;
 
 /// WebSocket message types for real-time communication
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,20 +123,6 @@ impl WebSocketManager {
         }
     }
 
-    /// Get `WebSocket` filter for warp
-    #[must_use]
-    pub fn websocket_filter(
-        &self,
-    ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-        let manager = self.clone(); // Safe: Arc clone for HTTP filter
-
-        warp::path("ws").and(warp::ws()).map(move |ws: Ws| {
-            let manager = manager.clone(); // Safe: Arc clone for websocket upgrade closure
-            ws.on_upgrade(move |socket| async move { manager.handle_connection(socket).await })
-        })
-    }
-
-    /// Handle new `WebSocket` connection
     /// Handle authentication message and return authenticated user ID
     async fn handle_auth_message(
         &self,
@@ -148,7 +135,7 @@ impl WebSocketManager {
                     message: "Authentication successful".into(),
                 };
                 if let Ok(json) = serde_json::to_string(&success_msg) {
-                    if let Err(e) = tx.send(Message::text(json)) {
+                    if let Err(e) = tx.send(Message::Text(json)) {
                         tracing::warn!(
                             user_id = %auth_result.user_id,
                             error = ?e,
@@ -163,7 +150,7 @@ impl WebSocketManager {
                     message: format!("Authentication failed: {e}"),
                 };
                 if let Ok(json) = serde_json::to_string(&error_msg) {
-                    if let Err(send_err) = tx.send(Message::text(json)) {
+                    if let Err(send_err) = tx.send(Message::Text(json)) {
                         tracing::warn!(
                             auth_error = %e,
                             send_error = ?send_err,
@@ -187,7 +174,7 @@ impl WebSocketManager {
                 message: format!("Subscribed to {} topics", topics.len()),
             };
             if let Ok(json) = serde_json::to_string(&success_msg) {
-                if let Err(e) = tx.send(Message::text(json)) {
+                if let Err(e) = tx.send(Message::Text(json)) {
                     tracing::warn!(
                         user_id = ?authenticated_user,
                         topic_count = topics.len(),
@@ -202,7 +189,7 @@ impl WebSocketManager {
                 message: "Authentication required".into(),
             };
             if let Ok(json) = serde_json::to_string(&error_msg) {
-                if let Err(e) = tx.send(Message::text(json)) {
+                if let Err(e) = tx.send(Message::Text(json)) {
                     tracing::warn!(
                         error = ?e,
                         "Failed to send authentication required error message over WebSocket"
@@ -213,7 +200,8 @@ impl WebSocketManager {
         }
     }
 
-    async fn handle_connection(&self, ws: WebSocket) {
+    /// Handle incoming WebSocket connection
+    pub async fn handle_connection(&self, ws: axum::extract::ws::WebSocket) {
         let (mut ws_tx, mut ws_rx) = ws.split();
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
@@ -233,40 +221,31 @@ impl WebSocketManager {
         // Handle incoming messages
         while let Some(msg) = ws_rx.next().await {
             match msg {
-                Ok(msg) if msg.is_text() => {
-                    let text = msg.to_str().unwrap_or_else(|()| {
-                        tracing::warn!(
-                            "Failed to extract text from WebSocket message, using empty string"
-                        );
-                        ""
-                    });
-                    match serde_json::from_str::<WebSocketMessage>(text) {
-                        Ok(WebSocketMessage::Authentication { token }) => {
-                            authenticated_user = self.handle_auth_message(&token, &tx).await;
-                        }
-                        Ok(WebSocketMessage::Subscribe { topics }) => {
-                            subscriptions =
-                                Self::handle_subscribe_message(topics, authenticated_user, &tx);
-                        }
-                        Err(e) => {
-                            let error_msg = WebSocketMessage::Error {
-                                message: format!("Invalid message format: {e}"),
-                            };
-                            if let Ok(json) = serde_json::to_string(&error_msg) {
-                                if let Err(send_err) = tx.send(Message::text(json)) {
-                                    tracing::warn!(
-                                        parse_error = %e,
-                                        send_error = ?send_err,
-                                        "Failed to send invalid message format error over WebSocket"
-                                    );
-                                }
+                Ok(Message::Text(text)) => match serde_json::from_str::<WebSocketMessage>(&text) {
+                    Ok(WebSocketMessage::Authentication { token }) => {
+                        authenticated_user = self.handle_auth_message(&token, &tx).await;
+                    }
+                    Ok(WebSocketMessage::Subscribe { topics }) => {
+                        subscriptions =
+                            Self::handle_subscribe_message(topics, authenticated_user, &tx);
+                    }
+                    Err(e) => {
+                        let error_msg = WebSocketMessage::Error {
+                            message: format!("Invalid message format: {e}"),
+                        };
+                        if let Ok(json) = serde_json::to_string(&error_msg) {
+                            if let Err(send_err) = tx.send(Message::Text(json)) {
+                                tracing::warn!(
+                                    parse_error = %e,
+                                    send_error = ?send_err,
+                                    "Failed to send invalid message format error over WebSocket"
+                                );
                             }
                         }
-                        _ => {}
                     }
-                }
-                Ok(msg) if msg.is_close() => break,
-                Err(_) => break,
+                    _ => {}
+                },
+                Ok(Message::Close(_)) | Err(_) => break,
                 _ => {}
             }
         }
@@ -347,7 +326,7 @@ impl WebSocketManager {
         for (_, client) in clients.iter() {
             if client.user_id == *user_id && client.subscriptions.contains(&topic.to_owned()) {
                 if let Ok(msg_text) = serde_json::to_string(message) {
-                    if let Err(e) = client.tx.send(Message::text(msg_text)) {
+                    if let Err(e) = client.tx.send(Message::Text(msg_text)) {
                         tracing::warn!(
                             user_id = %user_id,
                             topic = %topic,
@@ -373,7 +352,7 @@ impl WebSocketManager {
         for (_, client) in clients.iter() {
             if client.subscriptions.contains(&topic.to_owned()) {
                 if let Ok(msg_text) = serde_json::to_string(message) {
-                    if let Err(e) = client.tx.send(Message::text(msg_text)) {
+                    if let Err(e) = client.tx.send(Message::Text(msg_text)) {
                         tracing::warn!(
                             topic = %topic,
                             error = ?e,

@@ -7,8 +7,7 @@
 use crate::auth::AuthResult;
 use crate::config::fitness_config::FitnessConfig;
 use crate::database_plugins::DatabaseProvider;
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -113,7 +112,7 @@ impl FitnessConfigurationRoutes {
     /// Returns an error if:
     /// - User is not found in database
     /// - User has no tenant assigned
-    async fn get_user_tenant(&self, user_id: Uuid) -> Result<Uuid> {
+    async fn get_user_tenant(&self, user_id: Uuid) -> AppResult<Uuid> {
         let user = self
             .resources
             .database
@@ -155,7 +154,7 @@ impl FitnessConfigurationRoutes {
     pub async fn list_configurations(
         &self,
         auth: &AuthResult,
-    ) -> Result<FitnessConfigurationListResponse> {
+    ) -> AppResult<FitnessConfigurationListResponse> {
         let processing_start = std::time::Instant::now();
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
@@ -201,7 +200,7 @@ impl FitnessConfigurationRoutes {
         &self,
         auth: &AuthResult,
         configuration_name: &str,
-    ) -> Result<FitnessConfigurationResponse> {
+    ) -> AppResult<FitnessConfigurationResponse> {
         let processing_start = std::time::Instant::now();
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
@@ -210,7 +209,7 @@ impl FitnessConfigurationRoutes {
         let tenant_id_str = tenant_id.to_string();
         let user_id_str = user_id.to_string();
 
-        // Try user-specific first, then tenant-level
+        // Try user-specific first, then tenant-level, then default
         let config = match self
             .resources
             .database
@@ -224,9 +223,7 @@ impl FitnessConfigurationRoutes {
                     .database
                     .get_tenant_fitness_config(&tenant_id_str, configuration_name)
                     .await?
-                    .ok_or_else(|| {
-                        AppError::not_found(format!("Configuration {configuration_name}"))
-                    })?
+                    .unwrap_or_default()
             }
         };
 
@@ -255,7 +252,7 @@ impl FitnessConfigurationRoutes {
         &self,
         auth: &AuthResult,
         request: SaveFitnessConfigRequest,
-    ) -> Result<FitnessConfigurationSaveResponse> {
+    ) -> AppResult<FitnessConfigurationSaveResponse> {
         let processing_start = std::time::Instant::now();
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
@@ -299,7 +296,7 @@ impl FitnessConfigurationRoutes {
         &self,
         auth: &AuthResult,
         request: SaveFitnessConfigRequest,
-    ) -> Result<FitnessConfigurationSaveResponse> {
+    ) -> AppResult<FitnessConfigurationSaveResponse> {
         let processing_start = std::time::Instant::now();
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
@@ -313,7 +310,7 @@ impl FitnessConfigurationRoutes {
             .ok_or_else(|| AppError::not_found("User"))?;
 
         if !user.is_admin {
-            return Err(AppError::auth_invalid("Admin access required").into());
+            return Err(AppError::auth_invalid("Admin access required"));
         }
 
         let configuration_name = request
@@ -347,7 +344,7 @@ impl FitnessConfigurationRoutes {
         &self,
         auth: &AuthResult,
         configuration_name: &str,
-    ) -> Result<FitnessConfigurationSaveResponse> {
+    ) -> AppResult<FitnessConfigurationSaveResponse> {
         let processing_start = std::time::Instant::now();
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
@@ -363,7 +360,9 @@ impl FitnessConfigurationRoutes {
             .await?;
 
         if !deleted {
-            return Err(AppError::not_found(format!("Configuration {configuration_name}")).into());
+            return Err(AppError::not_found(format!(
+                "Configuration {configuration_name}"
+            )));
         }
 
         Ok(FitnessConfigurationSaveResponse {
@@ -385,7 +384,7 @@ impl FitnessConfigurationRoutes {
         &self,
         auth: &AuthResult,
         configuration_name: &str,
-    ) -> Result<FitnessConfigurationSaveResponse> {
+    ) -> AppResult<FitnessConfigurationSaveResponse> {
         let processing_start = std::time::Instant::now();
         let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
@@ -399,7 +398,7 @@ impl FitnessConfigurationRoutes {
             .ok_or_else(|| AppError::not_found("User"))?;
 
         if !user.is_admin {
-            return Err(AppError::auth_invalid("Admin access required").into());
+            return Err(AppError::auth_invalid("Admin access required"));
         }
 
         // Convert UUID to string for database query
@@ -412,7 +411,9 @@ impl FitnessConfigurationRoutes {
             .await?;
 
         if !deleted {
-            return Err(AppError::not_found(format!("Configuration {configuration_name}")).into());
+            return Err(AppError::not_found(format!(
+                "Configuration {configuration_name}"
+            )));
         }
 
         Ok(FitnessConfigurationSaveResponse {

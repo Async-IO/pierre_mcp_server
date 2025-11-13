@@ -3,6 +3,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+pub mod axum_test;
 pub mod synthetic_data;
 pub mod synthetic_provider;
 pub mod test_utils;

@@ -10,6 +10,7 @@ use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::AppError;
 use crate::tenant::{TenantContext, TenantRole};
 use anyhow::Result;
+use http::HeaderMap;
 use std::sync::Arc;
 use tracing::warn;
 use uuid::Uuid;
@@ -149,7 +150,7 @@ impl TenantIsolation {
     /// Returns an error if header parsing fails
     pub async fn extract_tenant_from_header(
         &self,
-        headers: &warp::http::HeaderMap,
+        headers: &HeaderMap,
     ) -> Result<Option<TenantContext>> {
         // Look for tenant ID in headers
         if let Some(tenant_id_header) = headers.get("x-tenant-id") {
@@ -435,7 +436,7 @@ pub async fn extract_tenant_context_internal(
     database: &Arc<Database>,
     user_id: Option<Uuid>,
     tenant_id: Option<Uuid>,
-    headers: Option<&warp::http::HeaderMap>,
+    headers: Option<&HeaderMap>,
 ) -> Result<Option<TenantContext>> {
     // Try to extract from user ID first
     if let Some(user_id) = user_id {

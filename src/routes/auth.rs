@@ -14,16 +14,15 @@ use crate::{
     constants::{error_messages, limits},
     context::{AuthContext, ConfigContext, DataContext, NotificationContext},
     database_plugins::DatabaseProvider,
-    errors::AppError,
+    errors::{AppError, AppResult},
     mcp::resources::ServerResources,
     models::User,
     utils::errors::{auth_error, user_state_error, validation_error},
 };
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing;
-use warp::{Filter, Rejection, Reply};
+use urlencoding::encode;
 
 /// User registration request
 #[derive(Debug, Clone, Deserialize)]
@@ -97,7 +96,7 @@ pub struct OAuthStatus {
 }
 
 /// Setup status response for admin setup endpoint
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SetupStatusResponse {
     /// Whether the system needs initial setup
     pub needs_setup: bool,
@@ -154,17 +153,17 @@ impl AuthService {
     ///
     /// # Errors
     /// Returns error if user validation fails or database operation fails
-    pub async fn register(&self, request: RegisterRequest) -> Result<RegisterResponse> {
+    pub async fn register(&self, request: RegisterRequest) -> AppResult<RegisterResponse> {
         tracing::info!("User registration attempt for email: {}", request.email);
 
         // Validate email format
         if !Self::is_valid_email(&request.email) {
-            return Err(validation_error(error_messages::INVALID_EMAIL_FORMAT).into());
+            return Err(validation_error(error_messages::INVALID_EMAIL_FORMAT));
         }
 
         // Validate password strength
         if !Self::is_valid_password(&request.password) {
-            return Err(validation_error(error_messages::PASSWORD_TOO_WEAK).into());
+            return Err(validation_error(error_messages::PASSWORD_TOO_WEAK));
         }
 
         // Check if user already exists
@@ -174,11 +173,12 @@ impl AuthService {
             .get_user_by_email(&request.email)
             .await
         {
-            return Err(user_state_error(error_messages::USER_ALREADY_EXISTS).into());
+            return Err(user_state_error(error_messages::USER_ALREADY_EXISTS));
         }
 
         // Hash password
-        let password_hash = bcrypt::hash(&request.password, bcrypt::DEFAULT_COST)?;
+        let password_hash = bcrypt::hash(&request.password, bcrypt::DEFAULT_COST)
+            .map_err(|e| AppError::internal(format!("Password hashing failed: {e}")))?;
 
         // Create user
         let user = User::new(request.email.clone(), password_hash, request.display_name); // Safe: String ownership needed for user model
@@ -202,7 +202,7 @@ impl AuthService {
     ///
     /// # Errors
     /// Returns error if authentication fails or token generation fails
-    pub async fn login(&self, request: LoginRequest) -> Result<LoginResponse> {
+    pub async fn login(&self, request: LoginRequest) -> AppResult<LoginResponse> {
         tracing::info!("User login attempt for email: {}", request.email);
 
         // Get user from database
@@ -223,11 +223,11 @@ impl AuthService {
             tokio::task::spawn_blocking(move || bcrypt::verify(&password, &password_hash))
                 .await
                 .map_err(|e| AppError::internal(format!("Password verification task failed: {e}")))?
-                .map_err(|e| AppError::internal(format!("Password verification error: {e}")))?;
+                .map_err(|_| AppError::auth_invalid("Invalid email or password"))?;
 
         if !is_valid {
             tracing::error!("Invalid password for user: {}", request.email);
-            return Err(auth_error(error_messages::INVALID_CREDENTIALS).into());
+            return Err(auth_error(error_messages::INVALID_CREDENTIALS));
         }
 
         // Check if user is approved to login
@@ -237,7 +237,7 @@ impl AuthService {
                 request.email,
                 user.user_status
             );
-            return Err(user_state_error(user.user_status.to_message()).into());
+            return Err(user_state_error(user.user_status.to_message()));
         }
 
         // Update last active timestamp
@@ -275,20 +275,22 @@ impl AuthService {
     ///
     /// # Errors
     /// Returns error if refresh token is invalid or token generation fails
-    pub async fn refresh_token(&self, request: RefreshTokenRequest) -> Result<LoginResponse> {
+    pub async fn refresh_token(&self, request: RefreshTokenRequest) -> AppResult<LoginResponse> {
         tracing::info!("Token refresh attempt for user with refresh token");
 
         // Extract user from refresh token using RS256 validation
         let token_claims = self
             .auth_context
             .auth_manager()
-            .validate_token(&request.token, self.auth_context.jwks_manager())?;
-        let user_id = uuid::Uuid::parse_str(&token_claims.sub)?;
+            .validate_token(&request.token, self.auth_context.jwks_manager())
+            .map_err(|_| AppError::auth_invalid("Invalid or expired token"))?;
+        let user_id = uuid::Uuid::parse_str(&token_claims.sub)
+            .map_err(|e| AppError::auth_invalid(format!("Invalid token format: {e}")))?;
 
         // Validate that the user_id matches the one in the request
         let request_user_id = uuid::Uuid::parse_str(&request.user_id)?;
         if user_id != request_user_id {
-            return Err(AppError::auth_invalid("User ID mismatch").into());
+            return Err(AppError::auth_invalid("User ID mismatch"));
         }
 
         // Get user from database
@@ -355,7 +357,7 @@ impl AuthService {
 pub struct OAuthService {
     data: DataContext,
     config: ConfigContext,
-    notifications: NotificationContext,
+    _notifications: NotificationContext,
 }
 
 impl OAuthService {
@@ -369,7 +371,7 @@ impl OAuthService {
         Self {
             data: data_context,
             config: config_context,
-            notifications: notification_context,
+            _notifications: notification_context,
         }
     }
 
@@ -388,7 +390,7 @@ impl OAuthService {
         code: &str,
         state: &str,
         provider: &str,
-    ) -> Result<OAuthCallbackResponse> {
+    ) -> AppResult<OAuthCallbackResponse> {
         // Use async block to satisfy clippy
         tokio::task::yield_now().await;
 
@@ -436,7 +438,7 @@ impl OAuthService {
     }
 
     /// Validate OAuth state parameter and extract user ID
-    fn validate_oauth_state(state: &str) -> Result<uuid::Uuid> {
+    fn validate_oauth_state(state: &str) -> AppResult<uuid::Uuid> {
         let mut parts = state.splitn(2, ':');
         let user_id_str = parts
             .next()
@@ -451,18 +453,21 @@ impl OAuthService {
                 .chars()
                 .all(|c| c.is_ascii_alphanumeric() || c == '-')
         {
-            return Err(AppError::invalid_input("Invalid OAuth state parameter").into());
+            return Err(AppError::invalid_input("Invalid OAuth state parameter"));
         }
 
         crate::utils::uuid::parse_user_id(user_id_str)
+            .map_err(|e| AppError::invalid_input(format!("Invalid user ID in state: {e}")))
     }
 
     /// Validate that provider is supported
-    fn validate_provider(provider: &str) -> Result<()> {
+    fn validate_provider(provider: &str) -> AppResult<()> {
         use crate::constants::oauth_providers;
         match provider {
             oauth_providers::STRAVA | oauth_providers::FITBIT => Ok(()),
-            _ => Err(AppError::invalid_input(format!("Unsupported provider: {provider}")).into()),
+            _ => Err(AppError::invalid_input(format!(
+                "Unsupported provider: {provider}"
+            ))),
         }
     }
 
@@ -471,7 +476,7 @@ impl OAuthService {
         &self,
         user_id: uuid::Uuid,
         provider: &str,
-    ) -> Result<(crate::models::User, String)> {
+    ) -> AppResult<(crate::models::User, String)> {
         let database = self.data.database();
         let user = database.get_user(user_id).await?.ok_or_else(|| {
             tracing::error!(
@@ -504,7 +509,7 @@ impl OAuthService {
         provider: &str,
         user_id: uuid::Uuid,
         user: &crate::models::User,
-    ) -> Result<crate::oauth2_client::OAuth2Token> {
+    ) -> AppResult<crate::oauth2_client::OAuth2Token> {
         let oauth_config = self.create_oauth_config(provider)?;
         let oauth_client = crate::oauth2_client::OAuth2Client::new(oauth_config.clone());
 
@@ -520,7 +525,7 @@ impl OAuthService {
     }
 
     /// Create `OAuth2` config for provider using injected configuration
-    fn create_oauth_config(&self, provider: &str) -> Result<crate::oauth2_client::OAuth2Config> {
+    fn create_oauth_config(&self, provider: &str) -> AppResult<crate::oauth2_client::OAuth2Config> {
         let server_config = self.config.config();
         match provider {
             "strava" => {
@@ -545,7 +550,9 @@ impl OAuthService {
                     use_pkce: true,
                 })
             }
-            _ => Err(AppError::invalid_input(format!("Unsupported provider: {provider}")).into()),
+            _ => Err(AppError::invalid_input(format!(
+                "Unsupported provider: {provider}"
+            ))),
         }
     }
 
@@ -556,7 +563,7 @@ impl OAuthService {
         tenant_id: String,
         provider: &str,
         token: &crate::oauth2_client::OAuth2Token,
-    ) -> Result<chrono::DateTime<chrono::Utc>> {
+    ) -> AppResult<chrono::DateTime<chrono::Utc>> {
         let expires_at = token
             .expires_at
             .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::hours(1));
@@ -588,7 +595,7 @@ impl OAuthService {
         user_id: uuid::Uuid,
         provider: &str,
         expires_at: &chrono::DateTime<chrono::Utc>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         // Store notification in database
         let notification_id = self
             .data
@@ -609,39 +616,13 @@ impl OAuthService {
             provider
         );
 
-        // Send OAuth notification to all active MCP protocol streams for this user
-        let oauth_notification = crate::database::oauth_notifications::OAuthNotification {
-            id: notification_id,
-            user_id: user_id.to_string(),
-            provider: provider.to_owned(),
-            success: true,
-            message: format!(
-                "{provider} account connected successfully! You can now use fitness tools."
-            ),
-            expires_at: Some(expires_at.to_rfc3339()),
-            created_at: chrono::Utc::now(),
-            read_at: None,
-        };
-
-        if let Err(e) = self
-            .notifications
-            .sse_manager()
-            .send_oauth_notification_to_protocol_streams(user_id, &oauth_notification)
-            .await
-        {
-            tracing::warn!(
-                "Failed to send OAuth notification to MCP streams for user {} provider {}: {}",
-                user_id,
-                provider,
-                e
-            );
-        } else {
-            tracing::info!(
-                "Successfully sent OAuth notification to MCP protocol streams for user {} provider {}",
-                user_id,
-                provider
-            );
-        }
+        // OAuth notification - SSE notification sending disabled
+        tracing::info!(
+            notification_id = %notification_id,
+            user_id = %user_id,
+            provider = %provider,
+            "OAuth notification processed (SSE disabled)"
+        );
 
         Ok(())
     }
@@ -714,7 +695,7 @@ impl OAuthService {
     ///
     /// # Errors
     /// Returns error if provider is unsupported or disconnection fails
-    pub async fn disconnect_provider(&self, user_id: uuid::Uuid, provider: &str) -> Result<()> {
+    pub async fn disconnect_provider(&self, user_id: uuid::Uuid, provider: &str) -> AppResult<()> {
         use crate::constants::oauth_providers;
 
         tracing::debug!(
@@ -744,7 +725,9 @@ impl OAuthService {
 
                 Ok(())
             }
-            _ => Err(AppError::invalid_input(format!("Unsupported provider: {provider}")).into()),
+            _ => Err(AppError::invalid_input(format!(
+                "Unsupported provider: {provider}"
+            ))),
         }
     }
 
@@ -757,30 +740,34 @@ impl OAuthService {
         user_id: uuid::Uuid,
         tenant_id: uuid::Uuid,
         provider: &str,
-    ) -> Result<OAuthAuthorizationResponse> {
+    ) -> AppResult<OAuthAuthorizationResponse> {
         use crate::constants::oauth_providers;
 
         let state = format!("{}:{}", user_id, uuid::Uuid::new_v4());
         let base_url = format!("http://localhost:{}", self.config.config().http_port);
         let redirect_uri = format!("{base_url}/api/oauth/callback/{provider}");
 
+        // URL-encode parameters for OAuth URLs
+        let encoded_state = encode(&state);
+        let encoded_redirect_uri = encode(&redirect_uri);
+
         let authorization_url = match provider {
             oauth_providers::STRAVA => {
                 let client_id = "test_client_id";
                 format!(
-                    "https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={redirect_uri}&approval_prompt=force&scope=read%2Cactivity%3Aread_all&state={state}"
+                    "https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={encoded_redirect_uri}&approval_prompt=force&scope=read%2Cactivity%3Aread_all&state={encoded_state}"
                 )
             }
             oauth_providers::FITBIT => {
                 let client_id = "test_client_id";
                 format!(
-                    "https://www.fitbit.com/oauth2/authorize?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&scope=activity%20profile&state={state}"
+                    "https://www.fitbit.com/oauth2/authorize?response_type=code&client_id={client_id}&redirect_uri={encoded_redirect_uri}&scope=activity%20profile&state={encoded_state}"
                 )
             }
             _ => {
-                return Err(
-                    AppError::invalid_input(format!("Unsupported provider: {provider}")).into(),
-                )
+                return Err(AppError::invalid_input(format!(
+                    "Unsupported provider: {provider}"
+                )))
             }
         };
 
@@ -806,7 +793,7 @@ impl OAuthService {
     pub async fn get_connection_status(
         &self,
         user_id: uuid::Uuid,
-    ) -> Result<Vec<ConnectionStatus>> {
+    ) -> AppResult<Vec<ConnectionStatus>> {
         use crate::constants::oauth_providers;
 
         tracing::debug!("Getting OAuth connection status for user {}", user_id);
@@ -864,227 +851,108 @@ pub struct OAuthCallbackResponse {
 
 /// Authentication routes implementation
 #[derive(Clone)]
-pub struct AuthRoutes {
-    auth_service: AuthService,
-}
+
+/// Authentication routes implementation (Axum)
+///
+/// Provides user registration, login, logout, and OAuth client authentication endpoints.
+pub struct AuthRoutes;
 
 impl AuthRoutes {
-    /// Create new `AuthRoutes` with embedded service
-    #[must_use]
-    pub const fn new(auth_context: AuthContext, data_context: DataContext) -> Self {
-        Self {
-            auth_service: AuthService::new(auth_context, data_context),
-        }
+    /// Create all authentication routes (Axum)
+    pub fn routes(resources: Arc<ServerResources>) -> axum::Router {
+        use axum::{
+            routing::{get, post},
+            Router,
+        };
+
+        Router::new()
+            .route("/api/auth/register", post(Self::handle_register))
+            .route("/api/auth/login", post(Self::handle_login))
+            .route("/api/auth/refresh", post(Self::handle_refresh))
+            .route(
+                "/api/oauth/callback/:provider",
+                get(Self::handle_oauth_callback),
+            )
+            .route("/api/oauth/status", get(Self::handle_oauth_status))
+            .route(
+                "/api/oauth/auth/:provider/:user_id",
+                get(Self::handle_oauth_auth_initiate),
+            )
+            .with_state(resources)
     }
 
-    /// Delegate to auth service for registration
-    ///
-    /// # Errors
-    /// Returns error if user validation fails or database operation fails
-    pub async fn register(&self, request: RegisterRequest) -> Result<RegisterResponse> {
-        self.auth_service.register(request).await
-    }
-
-    /// Delegate to auth service for login
-    ///
-    /// # Errors
-    /// Returns error if authentication fails or token generation fails
-    pub async fn login(&self, request: LoginRequest) -> Result<LoginResponse> {
-        self.auth_service.login(request).await
-    }
-
-    /// Delegate to auth service for token refresh
-    ///
-    /// # Errors
-    /// Returns error if refresh token is invalid or token generation fails
-    pub async fn refresh_token(&self, request: RefreshTokenRequest) -> Result<LoginResponse> {
-        self.auth_service.refresh_token(request).await
-    }
-
-    /// Validate email format
-    #[must_use]
-    pub fn is_valid_email(email: &str) -> bool {
-        AuthService::is_valid_email(email)
-    }
-
-    /// Validate password strength
-    #[must_use]
-    pub const fn is_valid_password(password: &str) -> bool {
-        AuthService::is_valid_password(password)
-    }
-    /// Create all authentication routes
-    #[must_use]
-    pub fn routes(
-        resources: Arc<ServerResources>,
-    ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        let register = Self::register_route(resources.clone());
-        let login = Self::login_route(resources.clone());
-        let refresh = Self::refresh_route(resources.clone());
-        let oauth_callback = Self::oauth_callback_route(resources.clone());
-        let oauth_status = Self::oauth_status_route(resources.clone());
-        let oauth_auth = Self::oauth_auth_route(resources);
-
-        register
-            .or(login)
-            .or(refresh)
-            .or(oauth_callback)
-            .or(oauth_status)
-            .or(oauth_auth)
-            .boxed()
-    }
-
-    /// User registration endpoint
-    fn register_route(
-        resources: Arc<ServerResources>,
-    ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        warp::path("api")
-            .and(warp::path("auth"))
-            .and(warp::path("register"))
-            .and(warp::path::end())
-            .and(warp::post())
-            .and(warp::body::json())
-            .and(with_resources(resources))
-            .and_then(Self::handle_register)
-    }
-
-    /// User login endpoint
-    fn login_route(
-        resources: Arc<ServerResources>,
-    ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        warp::path("api")
-            .and(warp::path("auth"))
-            .and(warp::path("login"))
-            .and(warp::path::end())
-            .and(warp::post())
-            .and(warp::body::json())
-            .and(with_resources(resources))
-            .and_then(Self::handle_login)
-    }
-
-    /// Token refresh endpoint
-    fn refresh_route(
-        resources: Arc<ServerResources>,
-    ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        warp::path("api")
-            .and(warp::path("auth"))
-            .and(warp::path("refresh"))
-            .and(warp::path::end())
-            .and(warp::post())
-            .and(warp::body::json())
-            .and(with_resources(resources))
-            .and_then(Self::handle_refresh)
-    }
-
-    /// OAuth callback endpoint
-    fn oauth_callback_route(
-        resources: Arc<ServerResources>,
-    ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        warp::path("api")
-            .and(warp::path("oauth"))
-            .and(warp::path("callback"))
-            .and(warp::path::param::<String>())
-            .and(warp::path::end())
-            .and(warp::get())
-            .and(warp::query::query())
-            .and(with_resources(resources))
-            .and_then(Self::handle_oauth_callback)
-    }
-
-    /// OAuth status endpoint
-    fn oauth_status_route(
-        resources: Arc<ServerResources>,
-    ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        warp::path("api")
-            .and(warp::path("oauth"))
-            .and(warp::path("status"))
-            .and(warp::path::end())
-            .and(warp::get())
-            .and(warp::header::optional::<String>("authorization"))
-            .and(with_resources(resources))
-            .and_then(Self::handle_oauth_status)
-    }
-
-    /// OAuth authorization initiation endpoint
-    fn oauth_auth_route(
-        resources: Arc<ServerResources>,
-    ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        warp::path("api")
-            .and(warp::path("oauth"))
-            .and(warp::path("auth"))
-            .and(warp::path::param::<String>()) // provider
-            .and(warp::path::param::<String>()) // user_id
-            .and(warp::path::end())
-            .and(warp::get())
-            .and(with_resources(resources))
-            .and_then(Self::handle_oauth_auth_initiate)
-    }
-
-    /// Handle user registration
+    /// Handle user registration (Axum)
     async fn handle_register(
-        request: RegisterRequest,
-        resources: Arc<ServerResources>,
-    ) -> Result<impl Reply, Rejection> {
+        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
+        axum::Json(request): axum::Json<RegisterRequest>,
+    ) -> Result<axum::response::Response, AppError> {
+        use axum::response::IntoResponse;
+
         let server_context = crate::context::ServerContext::from(resources.as_ref());
         let auth_routes =
             AuthService::new(server_context.auth().clone(), server_context.data().clone());
+
         match auth_routes.register(request).await {
-            Ok(response) => Ok(warp::reply::with_status(
-                warp::reply::json(&response),
-                warp::http::StatusCode::CREATED,
-            )),
+            Ok(response) => {
+                Ok((axum::http::StatusCode::CREATED, axum::Json(response)).into_response())
+            }
             Err(e) => {
                 tracing::error!("Registration failed: {}", e);
-                Err(warp::reject::custom(AppError::from(e)))
+                Err(e)
             }
         }
     }
 
-    /// Handle user login
+    /// Handle user login (Axum)
     async fn handle_login(
-        request: LoginRequest,
-        resources: Arc<ServerResources>,
-    ) -> Result<impl Reply, Rejection> {
+        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
+        axum::Json(request): axum::Json<LoginRequest>,
+    ) -> Result<axum::response::Response, AppError> {
+        use axum::response::IntoResponse;
+
         let server_context = crate::context::ServerContext::from(resources.as_ref());
         let auth_routes =
             AuthService::new(server_context.auth().clone(), server_context.data().clone());
+
         match auth_routes.login(request).await {
-            Ok(response) => Ok(warp::reply::with_status(
-                warp::reply::json(&response),
-                warp::http::StatusCode::OK,
-            )),
+            Ok(response) => Ok((axum::http::StatusCode::OK, axum::Json(response)).into_response()),
             Err(e) => {
                 tracing::error!("Login failed: {}", e);
-                Err(warp::reject::custom(AppError::from(e)))
+                Err(e)
             }
         }
     }
 
-    /// Handle token refresh
+    /// Handle token refresh (Axum)
     async fn handle_refresh(
-        request: RefreshTokenRequest,
-        resources: Arc<ServerResources>,
-    ) -> Result<impl Reply, Rejection> {
+        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
+        axum::Json(request): axum::Json<RefreshTokenRequest>,
+    ) -> Result<axum::response::Response, AppError> {
+        use axum::response::IntoResponse;
+
         let server_context = crate::context::ServerContext::from(resources.as_ref());
         let auth_routes =
             AuthService::new(server_context.auth().clone(), server_context.data().clone());
+
         match auth_routes.refresh_token(request).await {
-            Ok(response) => Ok(warp::reply::with_status(
-                warp::reply::json(&response),
-                warp::http::StatusCode::OK,
-            )),
+            Ok(response) => Ok((axum::http::StatusCode::OK, axum::Json(response)).into_response()),
             Err(e) => {
                 tracing::error!("Token refresh failed: {}", e);
-                Err(warp::reject::custom(AppError::from(e)))
+                Err(e)
             }
         }
     }
 
-    /// Handle OAuth provider callback
+    /// Handle OAuth callback (Axum)
     async fn handle_oauth_callback(
-        provider: String,
-        params: std::collections::HashMap<String, String>,
-        resources: Arc<ServerResources>,
-    ) -> Result<impl Reply, Rejection> {
+        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
+        axum::extract::Path(provider): axum::extract::Path<String>,
+        axum::extract::Query(params): axum::extract::Query<
+            std::collections::HashMap<String, String>,
+        >,
+    ) -> Result<axum::response::Response, AppError> {
+        use axum::response::IntoResponse;
+
         let server_context = crate::context::ServerContext::from(resources.as_ref());
         let oauth_routes = OAuthService::new(
             server_context.data().clone(),
@@ -1092,13 +960,13 @@ impl AuthRoutes {
             server_context.notification().clone(),
         );
 
-        let code = params.get("code").ok_or_else(|| {
-            warp::reject::custom(AppError::auth_invalid("Missing OAuth code parameter"))
-        })?;
+        let code = params
+            .get("code")
+            .ok_or_else(|| AppError::auth_invalid("Missing OAuth code parameter"))?;
 
-        let state = params.get("state").ok_or_else(|| {
-            warp::reject::custom(AppError::auth_invalid("Missing OAuth state parameter"))
-        })?;
+        let state = params
+            .get("state")
+            .ok_or_else(|| AppError::auth_invalid("Missing OAuth state parameter"))?;
 
         match oauth_routes.handle_callback(code, state, &provider).await {
             Ok(response) => {
@@ -1108,13 +976,15 @@ impl AuthRoutes {
                     )
                     .map_err(|e| {
                         tracing::error!("Failed to render OAuth success template: {}", e);
-                        warp::reject::custom(AppError::internal("Template rendering failed"))
+                        AppError::internal("Template rendering failed")
                     })?;
 
-                Ok(warp::reply::with_status(
-                    warp::reply::html(html),
-                    warp::http::StatusCode::OK,
-                ))
+                Ok((
+                    axum::http::StatusCode::OK,
+                    [(axum::http::header::CONTENT_TYPE, "text/html")],
+                    html,
+                )
+                    .into_response())
             }
             Err(e) => {
                 tracing::error!("OAuth callback failed: {}", e);
@@ -1133,25 +1003,32 @@ impl AuthRoutes {
                             "Critical: Failed to render OAuth error template: {}",
                             template_err
                         );
-                        warp::reject::custom(AppError::internal("Template rendering failed"))
+                        AppError::internal("Template rendering failed")
                     })?;
 
-                Ok(warp::reply::with_status(
-                    warp::reply::html(html),
-                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
-                ))
+                Ok((
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    [(axum::http::header::CONTENT_TYPE, "text/html")],
+                    html,
+                )
+                    .into_response())
             }
         }
     }
 
-    /// Handle OAuth status check
+    /// Handle OAuth status check (Axum)
     async fn handle_oauth_status(
-        auth_header: Option<String>,
-        resources: Arc<ServerResources>,
-    ) -> Result<impl Reply, Rejection> {
-        // Use async block to satisfy clippy
-        tokio::task::yield_now().await;
+        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
+        headers: axum::http::HeaderMap,
+    ) -> Result<axum::response::Response, AppError> {
+        use axum::response::IntoResponse;
+
         // Extract user from auth header
+        let auth_header = headers
+            .get("authorization")
+            .and_then(|h| h.to_str().ok())
+            .map(String::from);
+
         let user_id = match auth_header {
             Some(header) => {
                 // Extract JWT and get user ID
@@ -1159,12 +1036,12 @@ impl AuthRoutes {
                 let claims = resources
                     .auth_manager
                     .validate_token(token, &resources.jwks_manager)
-                    .map_err(|e| warp::reject::custom(AppError::from(e)))?;
+                    .map_err(|_| AppError::auth_invalid("Invalid or expired token"))?;
                 uuid::Uuid::parse_str(&claims.sub)
-                    .map_err(|e| warp::reject::custom(AppError::auth_invalid(e.to_string())))?
+                    .map_err(|e| AppError::auth_invalid(e.to_string()))?
             }
             None => {
-                return Err(warp::reject::custom(AppError::auth_required()));
+                return Err(AppError::auth_required());
             }
         };
 
@@ -1218,82 +1095,108 @@ impl AuthRoutes {
                 },
             );
 
-        Ok(warp::reply::with_status(
-            warp::reply::json(&provider_statuses),
-            warp::http::StatusCode::OK,
-        ))
+        Ok((axum::http::StatusCode::OK, axum::Json(provider_statuses)).into_response())
     }
 
-    /// Render HTML error response for OAuth failures
-    fn render_oauth_html_error(
-        provider: &str,
-        error: &str,
-        description: Option<&str>,
-        status: warp::http::StatusCode,
-    ) -> Result<Box<dyn warp::Reply>, Rejection> {
-        let error_html =
-            crate::mcp::oauth_flow_manager::OAuthTemplateRenderer::render_error_template(
-                provider,
-                error,
-                description,
-            )
-            .map_err(|template_err| {
-                tracing::error!(
-                    "Critical: Failed to render OAuth error template: {}",
-                    template_err
-                );
-                warp::reject::custom(AppError::internal("Template rendering failed"))
-            })?;
-        let error_response = warp::reply::with_status(warp::reply::html(error_html), status);
-        Ok(Box::new(error_response) as Box<dyn warp::Reply>)
-    }
+    /// Handle OAuth authorization initiation (Axum)
+    async fn handle_oauth_auth_initiate(
+        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
+        axum::extract::Path((provider, user_id_str)): axum::extract::Path<(String, String)>,
+    ) -> Result<axum::response::Response, AppError> {
+        use axum::response::IntoResponse;
 
-    /// Validate and retrieve user for OAuth flow
-    ///
-    /// Returns error tuple: (`error_message`, `description`, `status_code`)
-    async fn validate_user_for_oauth(
-        user_id_str: &str,
-        resources: &Arc<ServerResources>,
-    ) -> Result<
-        (uuid::Uuid, crate::models::User),
-        (&'static str, Option<&'static str>, warp::http::StatusCode),
-    > {
-        let user_id = uuid::Uuid::parse_str(user_id_str).map_err(|_| {
+        tracing::info!(
+            "OAuth authorization initiation for provider: {} user: {}",
+            provider,
+            user_id_str
+        );
+
+        // Parse and validate user UUID
+        let user_id = uuid::Uuid::parse_str(&user_id_str).map_err(|_| {
             tracing::error!("Invalid user_id format: {}", user_id_str);
-            (
-                "Invalid user ID format",
-                Some("The user ID provided in the URL is not a valid UUID format."),
-                warp::http::StatusCode::BAD_REQUEST,
-            )
+            AppError::invalid_input("Invalid user ID format")
         })?;
 
+        // Retrieve user from database
         let user = match resources.database.get_user(user_id).await {
             Ok(Some(user)) => user,
             Ok(None) => {
                 tracing::error!("User {} not found in database", user_id);
-                return Err((
-                    "User account not found",
-                    Some("The user account associated with this OAuth request could not be found in the database."),
-                    warp::http::StatusCode::NOT_FOUND,
-                ));
+                return Err(AppError::not_found("User account not found"));
             }
             Err(e) => {
                 tracing::error!("Failed to get user {} for OAuth: {}", user_id, e);
-                return Err((
-                    "Database error",
-                    Some("Failed to retrieve user information from the database. Please try again later."),
-                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
-                ));
+                return Err(AppError::database(format!(
+                    "Failed to retrieve user information: {e}"
+                )));
             }
         };
 
-        Ok((user_id, user))
+        // Get tenant_id from user - CRITICAL: must parse correctly for tenant isolation
+        let tenant_id = if let Some(tid) = &user.tenant_id {
+            match uuid::Uuid::parse_str(tid.as_str()) {
+                Ok(parsed_tid) => parsed_tid,
+                Err(e) => {
+                    tracing::error!(
+                        user_id = %user_id,
+                        tenant_id_str = %tid,
+                        error = ?e,
+                        "Invalid tenant_id format in database - tenant isolation compromised"
+                    );
+                    return Err(AppError::internal(
+                        "User tenant configuration is invalid - please contact support",
+                    ));
+                }
+            }
+        } else {
+            // User has no tenant - use user_id as single-tenant fallback
+            tracing::debug!(user_id = %user_id, "User has no tenant_id - using user_id as tenant");
+            user_id
+        };
+
+        // Get OAuth authorization URL
+        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let oauth_service = OAuthService::new(
+            server_context.data().clone(),
+            server_context.config().clone(),
+            server_context.notification().clone(),
+        );
+
+        match oauth_service.get_auth_url(user_id, tenant_id, &provider) {
+            Ok(auth_response) => {
+                tracing::info!(
+                    "Generated OAuth URL for {} user {}: {}",
+                    provider,
+                    user_id,
+                    auth_response.authorization_url
+                );
+                // Redirect to the provider's OAuth authorization page
+                // Use 302 Found (not 307) for OAuth redirects (standard HTTP temporary redirect)
+                Ok((
+                    axum::http::StatusCode::FOUND,
+                    [(
+                        axum::http::header::LOCATION,
+                        auth_response.authorization_url,
+                    )],
+                )
+                    .into_response())
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to generate OAuth URL for {} user {}: {}",
+                    provider,
+                    user_id,
+                    e
+                );
+                Err(AppError::internal(format!(
+                    "Failed to generate OAuth URL for {provider}: {e}"
+                )))
+            }
+        }
     }
 
-    /// Categorize OAuth errors into user-friendly messages
-    ///
-    /// Returns tuple of (`error_message`, `optional_description`)
-    fn categorize_oauth_error(error: &anyhow::Error) -> (&'static str, Option<&'static str>) {
+    /// Categorize OAuth errors for better user messaging
+    fn categorize_oauth_error(error: &AppError) -> (&'static str, Option<&'static str>) {
         let error_str = error.to_string().to_lowercase();
 
         if error_str.contains("jwt") && error_str.contains("expired") {
@@ -1345,113 +1248,4 @@ impl AuthRoutes {
             )
         }
     }
-
-    /// Handle OAuth authorization initiation - redirects to provider OAuth page
-    ///
-    /// This function validates the user and tenant, processes optional OAuth credentials
-    /// from headers, and generates an authorization redirect URL for the specified provider.
-    /// All errors return HTML templates instead of JSON for better user experience.
-    ///
-    /// # Flow
-    /// 1. Parse and validate user UUID
-    /// 2. Retrieve user from database and validate tenant
-    /// 3. Generate OAuth authorization URL
-    /// 4. Redirect user to provider's OAuth page
-    ///
-    /// # Errors
-    /// Returns HTML error pages for: invalid user ID, user not found, database errors,
-    /// or OAuth URL generation failures
-    async fn handle_oauth_auth_initiate(
-        provider: String,
-        user_id_str: String,
-        resources: Arc<ServerResources>,
-    ) -> Result<Box<dyn warp::Reply>, Rejection> {
-        tracing::info!(
-            "OAuth authorization initiation for provider: {} user: {}",
-            provider,
-            user_id_str
-        );
-
-        // Validate user and get user data
-        let (user_id, user) = match Self::validate_user_for_oauth(&user_id_str, &resources).await {
-            Ok(result) => result,
-            Err((error, description, status)) => {
-                return Self::render_oauth_html_error(&provider, error, description, status);
-            }
-        };
-
-        // Get tenant_id from user - CRITICAL: must parse correctly for tenant isolation
-        let tenant_id = if let Some(tid) = &user.tenant_id {
-            match uuid::Uuid::parse_str(tid.as_str()) {
-                Ok(parsed_tid) => parsed_tid,
-                Err(e) => {
-                    tracing::error!(
-                        user_id = %user_id,
-                        tenant_id_str = %tid,
-                        error = ?e,
-                        "Invalid tenant_id format in database - tenant isolation compromised"
-                    );
-                    return Self::render_oauth_html_error(
-                        &provider,
-                        "invalid_tenant",
-                        Some("User tenant configuration is invalid - please contact support"),
-                        warp::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    );
-                }
-            }
-        } else {
-            // User has no tenant - use user_id as single-tenant fallback
-            tracing::debug!(user_id = %user_id, "User has no tenant_id - using user_id as tenant");
-            user_id
-        };
-
-        // Get OAuth authorization URL
-        let server_context = crate::context::ServerContext::from(resources.as_ref());
-        let oauth_service = OAuthService::new(
-            server_context.data().clone(),
-            server_context.config().clone(),
-            server_context.notification().clone(),
-        );
-
-        match oauth_service.get_auth_url(user_id, tenant_id, &provider) {
-            Ok(auth_response) => {
-                tracing::info!(
-                    "Generated OAuth URL for {} user {}: {}",
-                    provider,
-                    user_id,
-                    auth_response.authorization_url
-                );
-                // Redirect to the provider's OAuth authorization page
-                let redirect_response = warp::reply::with_header(
-                    warp::reply::with_status(warp::reply::html(""), warp::http::StatusCode::FOUND),
-                    "Location",
-                    auth_response.authorization_url,
-                );
-                Ok(Box::new(redirect_response) as Box<dyn warp::Reply>)
-            }
-            Err(e) => {
-                tracing::error!(
-                    "Failed to generate OAuth URL for {} user {}: {}",
-                    provider,
-                    user_id,
-                    e
-                );
-                Self::render_oauth_html_error(
-                    &provider,
-                    "Failed to generate OAuth URL",
-                    Some(
-                        "Could not generate the authorization URL. Please check your OAuth configuration.",
-                    ),
-                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
-                )
-            }
-        }
-    }
-}
-
-/// Helper to inject resources into route handlers
-fn with_resources(
-    resources: Arc<ServerResources>,
-) -> impl Filter<Extract = (Arc<ServerResources>,), Error = std::convert::Infallible> + Clone {
-    warp::any().map(move || resources.clone())
 }

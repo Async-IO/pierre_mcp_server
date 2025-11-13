@@ -2,7 +2,7 @@ name: MCP Compliance
 
 on:
   push:
-    branches: [ "main", "debug/*", "feature/*" ]
+    branches: [ "main", "debug/*", "feature/*", "claude/*" ]
   pull_request:
     branches: [ main ]
 

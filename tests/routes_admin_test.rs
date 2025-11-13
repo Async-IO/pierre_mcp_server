@@ -154,15 +154,15 @@ mod common;
 use anyhow::Result;
 use pierre_mcp_server::{
     admin::models::{AdminPermission, CreateAdminTokenRequest, GeneratedAdminToken},
-    admin_routes::AdminApiContext,
     database_plugins::DatabaseProvider,
     models::User,
+    routes::admin::AdminApiContext,
 };
 use serde_json::{json, Value};
 use std::sync::Arc;
 use uuid::Uuid;
-use warp::test::request;
-use warp::Filter;
+mod helpers;
+use helpers::axum_test::AxumTestRequest;
 
 const TEST_JWT_SECRET: &str = "test_jwt_secret_for_admin_routes_tests";
 
@@ -303,10 +303,8 @@ impl AdminTestSetup {
     }
 
     /// Create admin routes filter for testing
-    fn routes(
-        &self,
-    ) -> impl Filter<Extract = impl warp::Reply, Error = std::convert::Infallible> + Clone {
-        pierre_mcp_server::admin_routes::admin_routes(self.context.clone())
+    fn routes(&self) -> axum::Router {
+        pierre_mcp_server::routes::admin::AdminRoutes::routes(self.context.clone())
     }
 
     /// Helper method to manually insert admin token into database
@@ -387,15 +385,13 @@ async fn test_admin_health_endpoint() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
-    let response = request()
-        .method("GET")
-        .path("/admin/health")
-        .reply(&routes)
+    let response = AxumTestRequest::get("/admin/health")
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 200);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["status"], "healthy");
     assert_eq!(body["service"], "pierre-mcp-admin-api");
     assert!(body["timestamp"].is_string());
@@ -409,15 +405,13 @@ async fn test_setup_status_endpoint() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
-    let response = request()
-        .method("GET")
-        .path("/admin/setup-status")
-        .reply(&routes)
+    let response = AxumTestRequest::get("/admin/setup/status")
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 200);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert!(body["needs_setup"].is_boolean());
     assert!(body["admin_user_exists"].is_boolean());
 
@@ -433,19 +427,17 @@ async fn test_admin_auth_valid_token() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
-    let response = request()
-        .method("GET")
-        .path("/admin/token-info")
+    let response = AxumTestRequest::get("/admin/token-info")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 200);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["token_id"], setup.admin_token.token_id);
     assert_eq!(body["service_name"], "test_admin_service");
     assert!(!body["is_super_admin"].as_bool().unwrap());
@@ -458,16 +450,14 @@ async fn test_admin_auth_invalid_token() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
-    let response = request()
-        .method("GET")
-        .path("/admin/token-info")
-        .header("authorization", setup.auth_header(&setup.invalid_token))
-        .reply(&routes)
+    let response = AxumTestRequest::get("/admin/token-info")
+        .header("authorization", &setup.auth_header(&setup.invalid_token))
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 401);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], false);
     // RS256 error message format: "RS256 admin JWT validation failed: Failed to decode JWT header: InvalidToken"
     assert!(
@@ -486,16 +476,14 @@ async fn test_admin_auth_expired_token() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
-    let response = request()
-        .method("GET")
-        .path("/admin/token-info")
-        .header("authorization", setup.auth_header(&setup.expired_token))
-        .reply(&routes)
+    let response = AxumTestRequest::get("/admin/token-info")
+        .header("authorization", &setup.auth_header(&setup.expired_token))
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 401);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], false);
     assert!(body["message"]
         .as_str()
@@ -510,10 +498,8 @@ async fn test_admin_auth_missing_header() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
-    let response = request()
-        .method("GET")
-        .path("/admin/token-info")
-        .reply(&routes)
+    let response = AxumTestRequest::get("/admin/token-info")
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 400);
@@ -526,11 +512,9 @@ async fn test_admin_auth_malformed_header() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
-    let response = request()
-        .method("GET")
-        .path("/admin/token-info")
+    let response = AxumTestRequest::get("/admin/token-info")
         .header("authorization", "InvalidFormat token")
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 400);
@@ -544,14 +528,12 @@ async fn test_admin_auth_insufficient_permissions() -> Result<()> {
     let routes = setup.routes();
 
     // Try to access admin token management with regular admin token (should fail)
-    let response = request()
-        .method("GET")
-        .path("/admin/tokens")
+    let response = AxumTestRequest::get("/admin/tokens")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     // Regular admin should have access to list tokens (ProvisionKeys permission)
@@ -578,28 +560,29 @@ async fn test_provision_api_key_success() -> Result<()> {
         "rate_limit_period": "day"
     });
 
-    let response = request()
-        .method("POST")
-        .path("/admin/provision-api-key")
+    let response = AxumTestRequest::post("/admin/provision")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
         .header("content-type", "application/json")
         .json(&request_body)
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 201);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], true);
-    assert!(body["api_key"].as_str().unwrap().starts_with("pk_live_"));
-    assert_eq!(body["tier"], "starter");
-    assert_eq!(body["user_id"], setup.user_id.to_string());
-    assert!(body["expires_at"].is_string());
-    assert_eq!(body["rate_limit"]["requests"], 1000);
-    assert_eq!(body["rate_limit"]["period"], "day");
+    assert!(body["data"]["api_key"]
+        .as_str()
+        .unwrap()
+        .starts_with("pk_live_"));
+    assert_eq!(body["data"]["tier"], "starter");
+    assert_eq!(body["data"]["user_id"], setup.user_id.to_string());
+    assert!(body["data"]["expires_at"].is_string());
+    assert_eq!(body["data"]["rate_limit"]["requests"], 1000);
+    assert_eq!(body["data"]["rate_limit"]["period"], "day");
 
     Ok(())
 }
@@ -622,26 +605,24 @@ async fn test_provision_api_key_new_user() -> Result<()> {
         "rate_limit_period": "month"
     });
 
-    let response = request()
-        .method("POST")
-        .path("/admin/provision-api-key")
+    let response = AxumTestRequest::post("/admin/provision")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
         .header("content-type", "application/json")
         .json(&request_body)
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 201);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], true);
-    assert_eq!(body["tier"], "professional");
-    assert!(body["expires_at"].is_null());
-    assert_eq!(body["rate_limit"]["requests"], 5000);
-    assert_eq!(body["rate_limit"]["period"], "month");
+    assert_eq!(body["data"]["tier"], "professional");
+    assert!(body["data"]["expires_at"].is_null());
+    assert_eq!(body["data"]["rate_limit"]["requests"], 5000);
+    assert_eq!(body["data"]["rate_limit"]["period"], "month");
 
     Ok(())
 }
@@ -660,21 +641,19 @@ async fn test_provision_api_key_invalid_tier() -> Result<()> {
         "rate_limit_period": "day"
     });
 
-    let response = request()
-        .method("POST")
-        .path("/admin/provision-api-key")
+    let response = AxumTestRequest::post("/admin/provision")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
         .header("content-type", "application/json")
         .json(&request_body)
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 400);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], false);
     assert!(body["message"].as_str().unwrap().contains("Invalid tier"));
 
@@ -695,21 +674,19 @@ async fn test_provision_api_key_invalid_rate_limit_period() -> Result<()> {
         "rate_limit_period": "invalid_period"
     });
 
-    let response = request()
-        .method("POST")
-        .path("/admin/provision-api-key")
+    let response = AxumTestRequest::post("/admin/provision")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
         .header("content-type", "application/json")
         .json(&request_body)
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 400);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], false);
     assert!(body["message"]
         .as_str()
@@ -724,21 +701,18 @@ async fn test_provision_api_key_malformed_json() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
-    let response = request()
-        .method("POST")
-        .path("/admin/provision-api-key")
+    let response = AxumTestRequest::post("/admin/provision")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
         .header("content-type", "application/json")
-        .body("{invalid json}")
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 400);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], false);
     assert!(body["message"]
         .as_str()
@@ -770,21 +744,19 @@ async fn test_revoke_api_key_success() -> Result<()> {
         "reason": "Testing revocation"
     });
 
-    let response = request()
-        .method("POST")
-        .path("/admin/revoke-api-key")
+    let response = AxumTestRequest::post("/admin/revoke")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
         .header("content-type", "application/json")
         .json(&request_body)
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 200);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], true);
     assert!(body["message"]
         .as_str()
@@ -806,21 +778,19 @@ async fn test_revoke_api_key_not_found() -> Result<()> {
         "reason": "Testing not found"
     });
 
-    let response = request()
-        .method("POST")
-        .path("/admin/revoke-api-key")
+    let response = AxumTestRequest::post("/admin/revoke")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
         .header("content-type", "application/json")
         .json(&request_body)
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 404);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], false);
     assert!(body["message"].as_str().unwrap().contains("not found"));
 
@@ -845,19 +815,17 @@ async fn test_list_api_keys_success() -> Result<()> {
         common::create_and_store_test_api_key(&setup.context.database, setup.user_id, "Test Key 2")
             .await?;
 
-    let response = request()
-        .method("GET")
-        .path("/admin/list-api-keys")
+    let response = AxumTestRequest::get("/admin/list")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 200);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], true);
     assert!(body["data"]["keys"].as_array().unwrap().len() >= 2);
     assert_eq!(
@@ -881,19 +849,19 @@ async fn test_list_api_keys_with_filters() -> Result<()> {
     )
     .await?;
 
-    let response = request()
-        .method("GET")
-        .path("/admin/list-api-keys?user_email=test@example.com&active_only=true&limit=10&offset=0")
-        .header(
-            "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
-        )
-        .reply(&routes)
-        .await;
+    let response = AxumTestRequest::get(
+        "/admin/list?user_email=test@example.com&active_only=true&limit=10&offset=0",
+    )
+    .header(
+        "authorization",
+        &setup.auth_header(&setup.admin_token.jwt_token),
+    )
+    .send(routes.clone())
+    .await;
 
     assert_eq!(response.status(), 200);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], true);
     assert_eq!(body["data"]["filters"]["user_email"], "test@example.com");
     assert_eq!(body["data"]["filters"]["active_only"], true);
@@ -908,19 +876,17 @@ async fn test_list_api_keys_invalid_filters() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
-    let response = request()
-        .method("GET")
-        .path("/admin/list-api-keys?limit=invalid&offset=negative")
+    let response = AxumTestRequest::get("/admin/list?limit=invalid&offset=negative")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 200); // Should still work with default values
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], true);
     assert!(body["data"]["filters"]["limit"].is_null());
 
@@ -936,19 +902,17 @@ async fn test_list_admin_tokens() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
-    let response = request()
-        .method("GET")
-        .path("/admin/tokens")
+    let response = AxumTestRequest::get("/admin/tokens")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 200);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], true);
     assert!(body["data"]["tokens"].as_array().unwrap().len() >= 2); // At least our test tokens
 
@@ -968,21 +932,19 @@ async fn test_create_admin_token() -> Result<()> {
         "permissions": ["provision_keys", "list_keys"]
     });
 
-    let response = request()
-        .method("POST")
-        .path("/admin/tokens")
+    let response = AxumTestRequest::post("/admin/tokens")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
         .header("content-type", "application/json")
         .json(&request_body)
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 201);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], true);
     assert_eq!(body["data"]["service_name"], "new_admin_service");
     assert!(!body["data"]["is_super_admin"].as_bool().unwrap());
@@ -1003,21 +965,19 @@ async fn test_create_super_admin_token() -> Result<()> {
         "expires_in_days": 0  // Never expires
     });
 
-    let response = request()
-        .method("POST")
-        .path("/admin/tokens")
+    let response = AxumTestRequest::post("/admin/tokens")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
         .header("content-type", "application/json")
         .json(&request_body)
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 201);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], true);
     assert_eq!(body["data"]["service_name"], "super_admin_service");
     assert!(body["data"]["is_super_admin"].as_bool().unwrap());
@@ -1036,21 +996,19 @@ async fn test_create_admin_token_invalid_permissions() -> Result<()> {
         "permissions": ["invalid_permission"]
     });
 
-    let response = request()
-        .method("POST")
-        .path("/admin/tokens")
+    let response = AxumTestRequest::post("/admin/tokens")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
         .header("content-type", "application/json")
         .json(&request_body)
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 400);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], false);
     assert!(body["message"]
         .as_str()
@@ -1067,19 +1025,17 @@ async fn test_get_admin_token_details() -> Result<()> {
 
     let path = format!("/admin/tokens/{}", setup.admin_token.token_id);
 
-    let response = request()
-        .method("GET")
-        .path(&path)
+    let response = AxumTestRequest::get(&path)
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 200);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], true);
     assert_eq!(body["data"]["id"], setup.admin_token.token_id);
     assert_eq!(body["data"]["service_name"], "test_admin_service");
@@ -1092,19 +1048,17 @@ async fn test_get_admin_token_details_not_found() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
-    let response = request()
-        .method("GET")
-        .path("/admin/tokens/nonexistent_token_id")
+    let response = AxumTestRequest::get("/admin/tokens/nonexistent_token_id")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 404);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], false);
     assert!(body["message"].as_str().unwrap().contains("not found"));
 
@@ -1137,19 +1091,17 @@ async fn test_revoke_admin_token() -> Result<()> {
 
     let path = format!("/admin/tokens/{}/revoke", token_to_revoke.token_id);
 
-    let response = request()
-        .method("POST")
-        .path(&path)
+    let response = AxumTestRequest::post(&path)
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 200);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], true);
     assert!(body["message"]
         .as_str()
@@ -1189,21 +1141,19 @@ async fn test_rotate_admin_token() -> Result<()> {
         "expires_in_days": 60
     });
 
-    let response = request()
-        .method("POST")
-        .path(&path)
+    let response = AxumTestRequest::post(&path)
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
         .header("content-type", "application/json")
         .json(&request_body)
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 200);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], true);
     assert!(body["message"]
         .as_str()
@@ -1224,14 +1174,12 @@ async fn test_endpoint_not_found() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
-    let response = request()
-        .method("GET")
-        .path("/admin/nonexistent-endpoint")
+    let response = AxumTestRequest::get("/admin/nonexistent-endpoint")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 404);
@@ -1245,10 +1193,8 @@ async fn test_method_not_allowed() -> Result<()> {
     let routes = setup.routes();
 
     // Try POST on GET-only endpoint
-    let response = request()
-        .method("POST")
-        .path("/admin/health")
-        .reply(&routes)
+    let response = AxumTestRequest::post("/admin/health")
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 405);
@@ -1273,16 +1219,14 @@ async fn test_large_request_body() -> Result<()> {
         "rate_limit_period": "day"
     });
 
-    let response = request()
-        .method("POST")
-        .path("/admin/provision-api-key")
+    let response = AxumTestRequest::post("/admin/provision")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
         .header("content-type", "application/json")
         .json(&request_body)
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     // Should still work, just with a large description
@@ -1310,21 +1254,19 @@ async fn test_special_characters_in_requests() -> Result<()> {
         "rate_limit_period": "day"
     });
 
-    let response = request()
-        .method("POST")
-        .path("/admin/provision-api-key")
+    let response = AxumTestRequest::post("/admin/provision")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
         .header("content-type", "application/json")
         .json(&request_body)
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 201);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], true);
 
     Ok(())
@@ -1365,13 +1307,11 @@ async fn test_concurrent_requests() -> Result<()> {
                 "rate_limit_period": "day"
             });
 
-            request()
-                .method("POST")
-                .path("/admin/provision-api-key")
-                .header("authorization", format!("Bearer {token}"))
+            AxumTestRequest::post("/admin/provision")
+                .header("authorization", &format!("Bearer {token}"))
                 .header("content-type", "application/json")
                 .json(&request_body)
-                .reply(&routes_clone)
+                .send(routes_clone)
                 .await
         });
 
@@ -1384,17 +1324,15 @@ async fn test_concurrent_requests() -> Result<()> {
 
     for handle in handles {
         let response = handle.await?;
-        if response.status() == 201 {
+        let status = response.status();
+        if status == 201 {
             successful_count += 1;
         } else {
-            failed_statuses.push(response.status());
+            failed_statuses.push(status);
             // Also capture response body for debugging
-            let body = std::str::from_utf8(response.body()).unwrap_or("<invalid utf8>");
-            eprintln!(
-                "Failed request - Status: {}, Body: {}",
-                response.status(),
-                body
-            );
+            let body_bytes = response.bytes();
+            let body = std::str::from_utf8(&body_bytes).unwrap_or("<invalid utf8>");
+            eprintln!("Failed request - Status: {}, Body: {}", status, body);
         }
     }
 
@@ -1426,16 +1364,14 @@ async fn test_ip_address_extraction() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
-    let response = request()
-        .method("GET")
-        .path("/admin/token-info")
+    let response = AxumTestRequest::get("/admin/token-info")
         .header(
             "authorization",
-            setup.auth_header(&setup.admin_token.jwt_token),
+            &setup.auth_header(&setup.admin_token.jwt_token),
         )
         .header("x-forwarded-for", "192.168.1.100, 10.0.0.1")
         .header("x-real-ip", "172.16.0.1")
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 200);
@@ -1472,23 +1408,21 @@ async fn test_all_api_key_tiers() -> Result<()> {
             "rate_limit_period": "day"
         });
 
-        let response = request()
-            .method("POST")
-            .path("/admin/provision-api-key")
+        let response = AxumTestRequest::post("/admin/provision")
             .header(
                 "authorization",
-                setup.auth_header(&setup.admin_token.jwt_token),
+                &setup.auth_header(&setup.admin_token.jwt_token),
             )
             .header("content-type", "application/json")
             .json(&request_body)
-            .reply(&routes)
+            .send(routes.clone())
             .await;
 
         assert_eq!(response.status(), 201);
 
-        let body: Value = serde_json::from_slice(response.body())?;
+        let body: Value = serde_json::from_slice(&response.bytes())?;
         assert_eq!(body["success"], true);
-        assert_eq!(body["tier"], tier);
+        assert_eq!(body["data"]["tier"], tier);
     }
 
     Ok(())
@@ -1516,23 +1450,21 @@ async fn test_rate_limit_periods() -> Result<()> {
             "rate_limit_period": period
         });
 
-        let response = request()
-            .method("POST")
-            .path("/admin/provision-api-key")
+        let response = AxumTestRequest::post("/admin/provision")
             .header(
                 "authorization",
-                setup.auth_header(&setup.admin_token.jwt_token),
+                &setup.auth_header(&setup.admin_token.jwt_token),
             )
             .header("content-type", "application/json")
             .json(&request_body)
-            .reply(&routes)
+            .send(routes.clone())
             .await;
 
         assert_eq!(response.status(), 201);
 
-        let body: Value = serde_json::from_slice(response.body())?;
+        let body: Value = serde_json::from_slice(&response.bytes())?;
         assert_eq!(body["success"], true);
-        assert_eq!(body["rate_limit"]["period"], period);
+        assert_eq!(body["data"]["rate_limit"]["period"], period);
     }
 
     Ok(())
@@ -1548,19 +1480,17 @@ async fn test_super_admin_privileges() -> Result<()> {
     let routes = setup.routes();
 
     // Super admin should be able to access token management
-    let response = request()
-        .method("GET")
-        .path("/admin/tokens")
+    let response = AxumTestRequest::get("/admin/tokens")
         .header(
             "authorization",
-            setup.auth_header(&setup.super_admin_token.jwt_token),
+            &setup.auth_header(&setup.super_admin_token.jwt_token),
         )
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 200);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["success"], true);
 
     Ok(())
@@ -1571,19 +1501,17 @@ async fn test_super_admin_token_info() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
-    let response = request()
-        .method("GET")
-        .path("/admin/token-info")
+    let response = AxumTestRequest::get("/admin/token-info")
         .header(
             "authorization",
-            setup.auth_header(&setup.super_admin_token.jwt_token),
+            &setup.auth_header(&setup.super_admin_token.jwt_token),
         )
-        .reply(&routes)
+        .send(routes.clone())
         .await;
 
     assert_eq!(response.status(), 200);
 
-    let body: Value = serde_json::from_slice(response.body())?;
+    let body: Value = serde_json::from_slice(&response.bytes())?;
     assert_eq!(body["token_id"], setup.super_admin_token.token_id);
     assert_eq!(body["service_name"], "test_super_admin_service");
     assert!(body["is_super_admin"].as_bool().unwrap());

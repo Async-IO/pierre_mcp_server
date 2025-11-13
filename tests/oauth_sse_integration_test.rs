@@ -8,9 +8,7 @@
 #![allow(missing_docs)]
 
 use anyhow::Result;
-use pierre_mcp_server::{
-    database_plugins::DatabaseProvider, notifications::sse::SseConnectionManager,
-};
+use pierre_mcp_server::{database_plugins::DatabaseProvider, sse::manager::SseManager};
 use reqwest::Client;
 use serde_json::json;
 use std::sync::Arc;
@@ -28,22 +26,19 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
     let (user_id, user) = common::create_test_user(&resources.database).await?;
 
-    // Create SSE connection manager
-    let sse_manager = Arc::new(SseConnectionManager::new());
+    // Create SSE manager
+    let sse_manager = Arc::new(SseManager::new(100));
 
     // Simulate SSE connection registration (MCP client connects)
-    let mut sse_receiver = sse_manager
-        .register_connection(user_id.to_string())
-        .await
-        .expect("failed to register SSE connection");
-    println!(" SSE connection registered for user: {user_id}");
+    let mut sse_receiver = sse_manager.register_notification_stream(user_id).await;
+    println!("✅ SSE connection registered for user: {user_id}");
 
     // Generate JWT token for user
     let jwks_manager = common::get_shared_test_jwks();
     let jwt_token = resources
         .auth_manager
         .generate_token(&user, &jwks_manager)?;
-    println!(" JWT token generated for user");
+    println!("✅ JWT token generated for user");
 
     // Simulate OAuth authorization request (user clicks "Connect to Strava")
     let client = Client::new();
@@ -61,7 +56,7 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
 
     match auth_response {
         Ok(resp) => {
-            println!(" OAuth authorization URL generated: {}", resp.status());
+            println!("✅ OAuth authorization URL generated: {}", resp.status());
             if resp.status().is_redirection() {
                 if let Some(location) = resp.headers().get("location") {
                     println!("   Redirect location: {location:?}");
@@ -100,11 +95,11 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
             None, // expires_at
         )
         .await?;
-    println!(" OAuth notification saved to database");
+    println!("✅ OAuth notification saved to database");
 
     // Send notification via SSE
     let notification_result = sse_manager
-        .send_notification(&user_id.to_string(), &oauth_notification)
+        .send_notification(user_id, &oauth_notification)
         .await;
     println!(
         "📤 SSE notification sent: {:?}",
@@ -117,7 +112,7 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
 
     match sse_timeout {
         Ok(Ok(message)) => {
-            println!(" SSE notification received: {message}");
+            println!("✅ SSE notification received: {message}");
 
             // Verify message content
             assert!(message.contains("oauth_notification"));
@@ -125,7 +120,7 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
             assert!(message.contains("Successfully connected"));
         }
         Ok(Err(e)) => {
-            println!(" SSE receiver error: {e:?}");
+            println!("⚠️ SSE receiver error: {e:?}");
         }
         Err(_) => {
             println!("⏰ SSE message reception timeout (expected in unit test)");
@@ -133,13 +128,11 @@ async fn test_oauth_strava_with_sse_notifications() -> Result<()> {
     }
 
     // Test cleanup
-    sse_manager
-        .unregister_connection(&user_id.to_string())
-        .await;
-    assert_eq!(sse_manager.active_connections().await, 0);
-    println!(" SSE connection cleanup successful");
+    sse_manager.unregister_notification_stream(user_id).await;
+    assert_eq!(sse_manager.active_notification_streams().await, 0);
+    println!("✅ SSE connection cleanup successful");
 
-    println!(" OAuth+SSE integration test completed successfully!");
+    println!("✅ OAuth+SSE integration test completed successfully!");
     Ok(())
 }
 
@@ -152,14 +145,14 @@ async fn test_mcp_client_oauth_notification_flow() -> Result<()> {
     let (user_id, user) = common::create_test_user(&resources.database).await?;
 
     // Create SSE manager
-    let sse_manager = Arc::new(SseConnectionManager::new());
+    let sse_manager = Arc::new(SseManager::new(100));
 
     // Test token refresh endpoint (simulates MCP client auto-refresh)
     let jwks_manager = common::get_shared_test_jwks();
     let initial_token = resources
         .auth_manager
         .generate_token(&user, &jwks_manager)?;
-    println!(" Initial JWT token generated");
+    println!("✅ Initial JWT token generated");
 
     let client = Client::new();
     let refresh_request = json!({
@@ -175,7 +168,7 @@ async fn test_mcp_client_oauth_notification_flow() -> Result<()> {
 
     match refresh_response {
         Ok(resp) if resp.status().is_success() => {
-            println!(" Token refresh successful for MCP client");
+            println!("✅ Token refresh successful for MCP client");
         }
         Ok(resp) => {
             println!(
@@ -189,11 +182,8 @@ async fn test_mcp_client_oauth_notification_flow() -> Result<()> {
     }
 
     // Test SSE connection for real-time notifications
-    let mut receiver = sse_manager
-        .register_connection(user_id.to_string())
-        .await
-        .expect("failed to register SSE connection");
-    println!(" MCP client SSE connection established");
+    let mut receiver = sse_manager.register_notification_stream(user_id).await;
+    println!("✅ MCP client SSE connection established");
 
     // Simulate OAuth completion notification
     let notification = pierre_mcp_server::database::oauth_notifications::OAuthNotification {
@@ -209,14 +199,14 @@ async fn test_mcp_client_oauth_notification_flow() -> Result<()> {
 
     // Send notification
     sse_manager
-        .send_notification(&user_id.to_string(), &notification)
+        .send_notification(user_id, &notification)
         .await?;
 
     // Test notification delivery to MCP client
     let msg_result = timeout(Duration::from_millis(50), receiver.recv()).await;
     match msg_result {
         Ok(Ok(msg)) => {
-            println!(" MCP client received OAuth notification: {msg}");
+            println!("✅ MCP client received OAuth notification: {msg}");
             assert!(msg.contains("data ready for MCP tools"));
         }
         _ => {
@@ -224,12 +214,10 @@ async fn test_mcp_client_oauth_notification_flow() -> Result<()> {
         }
     }
 
-    sse_manager
-        .unregister_connection(&user_id.to_string())
-        .await;
-    println!(" MCP client disconnected");
+    sse_manager.unregister_notification_stream(user_id).await;
+    println!("✅ MCP client disconnected");
 
-    println!(" MCP client OAuth notification flow test completed!");
+    println!("✅ MCP client OAuth notification flow test completed!");
     Ok(())
 }
 
@@ -241,7 +229,7 @@ async fn test_oauth_sse_error_scenarios() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
     let (user_id, _user) = common::create_test_user(&resources.database).await?;
 
-    let sse_manager = Arc::new(SseConnectionManager::new());
+    let sse_manager = Arc::new(SseManager::new(100));
 
     // Test notification to non-existent SSE connection
     let notification = pierre_mcp_server::database::oauth_notifications::OAuthNotification {
@@ -255,26 +243,28 @@ async fn test_oauth_sse_error_scenarios() -> Result<()> {
         read_at: None,
     };
 
+    // Create a random user ID that doesn't have a connection
+    let non_existent_user = uuid::Uuid::new_v4();
     let result = sse_manager
-        .send_notification("non-existent-user", &notification)
+        .send_notification(non_existent_user, &notification)
         .await;
     assert!(result.is_err());
-    println!(" Error handling for non-existent SSE connection");
+    println!("✅ Error handling for non-existent SSE connection");
 
     // Test connection cleanup
-    let receiver = sse_manager
-        .register_connection("test-user".to_owned())
-        .await
-        .expect("failed to register SSE connection");
-    assert_eq!(sse_manager.active_connections().await, 1);
+    let test_user_id = uuid::Uuid::new_v4();
+    let receiver = sse_manager.register_notification_stream(test_user_id).await;
+    assert_eq!(sse_manager.active_notification_streams().await, 1);
 
     drop(receiver); // Simulate client disconnect
 
     // Connection should still exist until explicitly cleaned up
-    sse_manager.unregister_connection("test-user").await;
-    assert_eq!(sse_manager.active_connections().await, 0);
-    println!(" SSE connection cleanup on client disconnect");
+    sse_manager
+        .unregister_notification_stream(test_user_id)
+        .await;
+    assert_eq!(sse_manager.active_notification_streams().await, 0);
+    println!("✅ SSE connection cleanup on client disconnect");
 
-    println!(" Error scenario tests completed!");
+    println!("✅ Error scenario tests completed!");
     Ok(())
 }

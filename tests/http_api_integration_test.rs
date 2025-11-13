@@ -16,7 +16,7 @@ use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::ServerResources,
     models::{Tenant, User, UserStatus},
-    routes::{AuthRoutes, OAuthRoutes},
+    routes::auth::{AuthService, OAuthService},
     tenant::TenantOAuthCredentials,
 };
 use serde_json::json;
@@ -25,7 +25,8 @@ use std::sync::Arc;
 /// Test setup for SDK integration tests
 // Long function: Defines complete test environment setup including database, auth, config, and test data
 #[allow(clippy::too_many_lines)]
-async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRoutes, uuid::Uuid)> {
+async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthService, uuid::Uuid)>
+{
     // Initialize server config for tests
     common::init_server_config();
 
@@ -249,8 +250,9 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
-    let oauth_routes = OAuthRoutes::new(
+    let auth_routes =
+        AuthService::new(server_context.auth().clone(), server_context.data().clone());
+    let oauth_routes = OAuthService::new(
         server_context.data().clone(),
         server_context.config().clone(),
         server_context.notification().clone(),

@@ -5,6 +5,16 @@ use crate::errors::AppError;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
+/// Weight configuration for recovery score aggregation
+#[derive(Debug, Clone, Copy)]
+struct WeightConfig {
+    tsb_weight_full: f64,
+    sleep_weight_full: f64,
+    hrv_weight_full: f64,
+    tsb_weight_no_hrv: f64,
+    sleep_weight_no_hrv: f64,
+}
+
 /// Recovery score aggregation algorithm selection
 ///
 /// Different algorithms for combining TSB (Training Stress Balance), sleep quality,
@@ -162,11 +172,13 @@ impl RecoveryAggregationAlgorithm {
                 tsb_score,
                 sleep_score,
                 hrv_score,
-                *tsb_weight_full,
-                *sleep_weight_full,
-                *hrv_weight_full,
-                *tsb_weight_no_hrv,
-                *sleep_weight_no_hrv,
+                WeightConfig {
+                    tsb_weight_full: *tsb_weight_full,
+                    sleep_weight_full: *sleep_weight_full,
+                    hrv_weight_full: *hrv_weight_full,
+                    tsb_weight_no_hrv: *tsb_weight_no_hrv,
+                    sleep_weight_no_hrv: *sleep_weight_no_hrv,
+                },
             ),
             Self::GeometricMean => {
                 Self::calculate_geometric_mean(tsb_score, sleep_score, hrv_score)
@@ -195,39 +207,41 @@ impl RecoveryAggregationAlgorithm {
     }
 
     /// Calculate weighted average
-    #[allow(clippy::too_many_arguments)]
     fn calculate_weighted_average(
         tsb_score: f64,
         sleep_score: f64,
         hrv_score: Option<f64>,
-        tsb_weight_full: f64,
-        sleep_weight_full: f64,
-        hrv_weight_full: f64,
-        tsb_weight_no_hrv: f64,
-        sleep_weight_no_hrv: f64,
+        weights: WeightConfig,
     ) -> Result<f64, AppError> {
         let recovery_score = hrv_score.map_or_else(
             || {
                 // No HRV: use 2-component weights
-                let weight_sum = tsb_weight_no_hrv + sleep_weight_no_hrv;
+                let weight_sum = weights.tsb_weight_no_hrv + weights.sleep_weight_no_hrv;
                 if (weight_sum - 1.0).abs() > 0.01 {
                     return Err(AppError::invalid_input(format!(
                         "Weights without HRV must sum to 1.0, got {weight_sum:.3}"
                     )));
                 }
-                Ok(tsb_score.mul_add(tsb_weight_no_hrv, sleep_score * sleep_weight_no_hrv))
+                Ok(tsb_score.mul_add(
+                    weights.tsb_weight_no_hrv,
+                    sleep_score * weights.sleep_weight_no_hrv,
+                ))
             },
             |hrv| {
                 // HRV available: use 3-component weights
-                let weight_sum = tsb_weight_full + sleep_weight_full + hrv_weight_full;
+                let weight_sum =
+                    weights.tsb_weight_full + weights.sleep_weight_full + weights.hrv_weight_full;
                 if (weight_sum - 1.0).abs() > 0.01 {
                     return Err(AppError::invalid_input(format!(
                         "Weights with HRV must sum to 1.0, got {weight_sum:.3}"
                     )));
                 }
                 Ok(hrv.mul_add(
-                    hrv_weight_full,
-                    tsb_score.mul_add(tsb_weight_full, sleep_score * sleep_weight_full),
+                    weights.hrv_weight_full,
+                    tsb_score.mul_add(
+                        weights.tsb_weight_full,
+                        sleep_score * weights.sleep_weight_full,
+                    ),
                 ))
             },
         )?;

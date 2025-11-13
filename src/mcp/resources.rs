@@ -48,6 +48,8 @@ pub struct ServerResources {
     pub auth_middleware: Arc<McpAuthMiddleware>,
     /// WebSocket connection manager for real-time updates
     pub websocket_manager: Arc<WebSocketManager>,
+    /// Server-Sent Events manager for streaming notifications and MCP protocol
+    pub sse_manager: Arc<crate::sse::SseManager>,
     /// OAuth client for multi-tenant authentication flows
     pub tenant_oauth_client: Arc<TenantOAuthClient>,
     /// Registry of fitness data providers (Strava, Fitbit, Garmin)
@@ -64,8 +66,6 @@ pub struct ServerResources {
     pub a2a_system_user_service: Arc<A2ASystemUserService>,
     /// Broadcast channel for OAuth completion notifications
     pub oauth_notification_sender: Option<broadcast::Sender<OAuthCompletedNotification>>,
-    /// Server-Sent Events manager for real-time notifications
-    pub sse_manager: Arc<crate::sse::SseManager>,
     /// Cache layer for performance optimization
     pub cache: Arc<Cache>,
     /// Optional plugin executor for custom tool implementations
@@ -111,12 +111,6 @@ impl ServerResources {
             database_arc.clone(),
             a2a_system_user_service.clone(),
         ));
-
-        // Create unified SSE manager for both notifications and MCP protocol
-        let sse_manager = Arc::new(crate::sse::SseManager::new(config.sse.max_buffer_size));
-
-        // Spawn background task to cleanup inactive SSE connections
-        Self::spawn_sse_cleanup_task(&sse_manager, &config);
 
         // Wrap cache in Arc for shared access across handlers
         let cache_arc = Arc::new(cache);
@@ -164,6 +158,9 @@ impl ServerResources {
             config.rate_limiting.clone(),
         ));
 
+        // Create SSE manager with configured buffer size
+        let sse_manager = Arc::new(crate::sse::SseManager::new(config.sse.max_buffer_size));
+
         // Create auth middleware after jwks_manager is initialized
         let auth_middleware = Arc::new(McpAuthMiddleware::new(
             (*auth_manager_arc).clone(),
@@ -185,6 +182,7 @@ impl ServerResources {
             jwks_manager: jwks_manager_arc,
             auth_middleware,
             websocket_manager,
+            sse_manager,
             tenant_oauth_client,
             provider_registry,
             admin_jwt_secret: admin_jwt_secret.into(),
@@ -193,7 +191,6 @@ impl ServerResources {
             a2a_client_manager,
             a2a_system_user_service,
             oauth_notification_sender: None,
-            sse_manager,
             cache: cache_arc,
             plugin_executor: None,
             redaction_config,
@@ -284,31 +281,6 @@ impl ServerResources {
         }
 
         Ok(jwks_manager)
-    }
-
-    /// Spawn background task to cleanup inactive SSE connections
-    fn spawn_sse_cleanup_task(
-        sse_manager: &Arc<crate::sse::SseManager>,
-        config: &Arc<crate::config::environment::ServerConfig>,
-    ) {
-        let manager_for_cleanup = sse_manager.clone();
-        let cleanup_interval_secs = config.sse.cleanup_interval_secs;
-        let connection_timeout_secs = config.sse.connection_timeout_secs;
-
-        tokio::spawn(async move {
-            let mut interval =
-                tokio::time::interval(std::time::Duration::from_secs(cleanup_interval_secs));
-            loop {
-                interval.tick().await;
-                tracing::debug!(
-                    "Running SSE connection cleanup task (timeout={}s)",
-                    connection_timeout_secs
-                );
-                manager_for_cleanup
-                    .cleanup_inactive_connections(connection_timeout_secs)
-                    .await;
-            }
-        });
     }
 
     /// Set the OAuth notification sender for push notifications

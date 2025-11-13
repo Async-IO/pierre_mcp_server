@@ -248,6 +248,6 @@ async fn test_sse_stream_format_compliance() {
         let parsed: Value = serde_json::from_str(extracted_data).unwrap();
         assert_eq!(parsed, data);
 
-        println!(" SSE format test passed: {description}");
+        println!("✅ SSE format test passed: {description}");
     }
 }

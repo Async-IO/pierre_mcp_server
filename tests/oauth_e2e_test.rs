@@ -159,7 +159,7 @@ use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
     models::{Tenant, User, UserStatus},
-    routes::{AuthRoutes, OAuthRoutes},
+    routes::auth::{AuthService, OAuthService},
     tenant::TenantOAuthCredentials,
 };
 use serde_json::json;
@@ -592,7 +592,7 @@ async fn test_oauth_callback_error_handling() {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let oauth_routes = OAuthRoutes::new(
+    let oauth_routes = OAuthService::new(
         server_context.data().clone(),
         server_context.config().clone(),
         server_context.notification().clone(),
@@ -832,7 +832,7 @@ async fn test_oauth_state_csrf_protection() {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let oauth_routes = OAuthRoutes::new(
+    let oauth_routes = OAuthService::new(
         server_context.data().clone(),
         server_context.config().clone(),
         server_context.notification().clone(),
@@ -1005,7 +1005,8 @@ async fn test_connection_status_tracking() {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
+    let auth_routes =
+        AuthService::new(server_context.auth().clone(), server_context.data().clone());
     let register_request = pierre_mcp_server::routes::RegisterRequest {
         email: "status_test@example.com".to_owned(),
         password: "password123".to_owned(),
@@ -1016,7 +1017,7 @@ async fn test_connection_status_tracking() {
     let user_id = uuid::Uuid::parse_str(&register_response.user_id).unwrap();
 
     // Check initial connection status
-    let oauth_routes = OAuthRoutes::new(
+    let oauth_routes = OAuthService::new(
         server_context.data().clone(),
         server_context.config().clone(),
         server_context.notification().clone(),

@@ -16,7 +16,10 @@ use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::ServerResources,
     models::{Tenant, User, UserStatus},
-    routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest},
+    routes::{
+        auth::{AuthService, OAuthService},
+        LoginRequest, RefreshTokenRequest, RegisterRequest,
+    },
     tenant::TenantOAuthCredentials,
 };
 use std::sync::Arc;
@@ -53,7 +56,7 @@ fn create_minimal_test_config(
     })
 }
 
-async fn create_test_auth_routes() -> Result<AuthRoutes> {
+async fn create_test_auth_routes() -> Result<AuthService> {
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
     let temp_dir = tempfile::tempdir()?;
@@ -71,14 +74,14 @@ async fn create_test_auth_routes() -> Result<AuthRoutes> {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    Ok(AuthRoutes::new(
+    Ok(AuthService::new(
         server_context.auth().clone(),
         server_context.data().clone(),
     ))
 }
 
 #[allow(clippy::too_many_lines)] // Long function: Complex test setup with full configuration
-async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)> {
+async fn create_test_oauth_routes() -> Result<(OAuthService, Uuid, Arc<Database>)> {
     let database = common::create_test_database().await?;
 
     // Create admin user first
@@ -278,7 +281,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     Ok((
-        OAuthRoutes::new(
+        OAuthService::new(
             server_context.data().clone(),
             server_context.config().clone(),
             server_context.notification().clone(),
@@ -288,7 +291,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
     ))
 }
 
-// === AuthRoutes Registration Tests ===
+// === AuthService Registration Tests ===
 
 #[tokio::test]
 async fn test_user_registration_success() -> Result<()> {
@@ -401,7 +404,7 @@ async fn test_user_registration_edge_cases() -> Result<()> {
     Ok(())
 }
 
-// === AuthRoutes Login Tests ===
+// === AuthService Login Tests ===
 
 #[tokio::test]
 #[allow(clippy::too_many_lines)] // Long function: Complex test with full setup
@@ -543,7 +546,7 @@ async fn test_user_login_success() -> Result<()> {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(
+    let auth_routes = pierre_mcp_server::routes::AuthService::new(
         server_context.auth().clone(),
         server_context.data().clone(),
     );
@@ -663,7 +666,7 @@ async fn test_user_login_case_sensitivity() -> Result<()> {
     Ok(())
 }
 
-// === AuthRoutes Token Refresh Tests ===
+// === AuthService Token Refresh Tests ===
 
 #[tokio::test]
 #[allow(clippy::too_many_lines)] // Long function: Complex test with full setup
@@ -805,7 +808,7 @@ async fn test_token_refresh_success() -> Result<()> {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(
+    let auth_routes = pierre_mcp_server::routes::AuthService::new(
         server_context.auth().clone(),
         server_context.data().clone(),
     );
@@ -1010,7 +1013,7 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(
+    let auth_routes = pierre_mcp_server::routes::AuthService::new(
         server_context.auth().clone(),
         server_context.data().clone(),
     );
@@ -1054,7 +1057,7 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
     Ok(())
 }
 
-// === OAuthRoutes Tests ===
+// === OAuthService Tests ===
 
 #[tokio::test]
 async fn test_oauth_get_auth_url_strava() -> Result<()> {
@@ -1458,11 +1461,11 @@ async fn test_complete_auth_flow() -> Result<()> {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(
+    let auth_routes = pierre_mcp_server::routes::AuthService::new(
         server_context.auth().clone(),
         server_context.data().clone(),
     );
-    let oauth_routes = pierre_mcp_server::routes::OAuthRoutes::new(
+    let oauth_routes = pierre_mcp_server::routes::OAuthService::new(
         server_context.data().clone(),
         server_context.config().clone(),
         server_context.notification().clone(),
@@ -1735,7 +1738,7 @@ async fn test_concurrent_logins() -> Result<()> {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(
+    let auth_routes = pierre_mcp_server::routes::AuthService::new(
         server_context.auth().clone(),
         server_context.data().clone(),
     );

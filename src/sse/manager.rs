@@ -10,7 +10,6 @@ use crate::{
     errors::AppError,
     mcp::{protocol::McpRequest, resources::ServerResources},
 };
-use anyhow::Result;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{broadcast, RwLock};
 use uuid::Uuid;
@@ -183,7 +182,7 @@ impl SseManager {
         &self,
         user_id: Uuid,
         notification: &OAuthNotification,
-    ) -> Result<()> {
+    ) -> Result<(), AppError> {
         let streams = self.notification_streams.read().await;
 
         if let Some(stream) = streams.get(&user_id) {
@@ -200,7 +199,9 @@ impl SseManager {
 
             Ok(())
         } else {
-            Err(AppError::not_found(format!("Notification stream for user {user_id}")).into())
+            Err(AppError::not_found(format!(
+                "Notification stream for user {user_id}"
+            )))
         }
     }
 
@@ -213,7 +214,7 @@ impl SseManager {
         &self,
         user_id: Uuid,
         notification: &OAuthNotification,
-    ) -> Result<()> {
+    ) -> Result<(), AppError> {
         let user_sessions = self.user_sessions.read().await;
         let session_ids = user_sessions.get(&user_id).cloned();
         drop(user_sessions);
@@ -244,13 +245,14 @@ impl SseManager {
                 );
                 Ok(())
             } else {
-                Err(
-                    AppError::not_found(format!("Active protocol streams for user {user_id}"))
-                        .into(),
-                )
+                Err(AppError::not_found(format!(
+                    "Active protocol streams for user {user_id}"
+                )))
             }
         } else {
-            Err(AppError::not_found(format!("Protocol streams for user {user_id}")).into())
+            Err(AppError::not_found(format!(
+                "Protocol streams for user {user_id}"
+            )))
         }
     }
 
@@ -261,7 +263,11 @@ impl SseManager {
     /// Returns an error if:
     /// - No protocol stream is found for the specified session ID
     /// - The underlying stream fails to handle the request
-    pub async fn send_mcp_request(&self, session_id: &str, request: McpRequest) -> Result<()> {
+    pub async fn send_mcp_request(
+        &self,
+        session_id: &str,
+        request: McpRequest,
+    ) -> Result<(), AppError> {
         let streams = self.protocol_streams.read().await;
 
         if let Some(stream) = streams.get(session_id) {
@@ -278,7 +284,9 @@ impl SseManager {
 
             Ok(())
         } else {
-            Err(AppError::not_found(format!("Protocol stream for session {session_id}")).into())
+            Err(AppError::not_found(format!(
+                "Protocol stream for session {session_id}"
+            )))
         }
     }
 

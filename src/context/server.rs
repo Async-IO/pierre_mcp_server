@@ -92,7 +92,6 @@ impl From<&ServerResources> for ServerContext {
 
         let notification = NotificationContext::new(
             resources.websocket_manager.clone(),
-            resources.sse_manager.clone(),
             resources.oauth_notification_sender.clone(),
         );
 

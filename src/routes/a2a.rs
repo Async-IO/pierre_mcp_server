@@ -6,27 +6,22 @@
 
 //! A2A protocol routes for agent-to-agent communication
 
-use warp::{Filter, Rejection, Reply};
-
 /// A2A routes implementation
 pub struct A2ARoutes;
 
 impl A2ARoutes {
     /// Create all A2A routes
-    pub fn routes() -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        warp::path("a2a")
-            .and(warp::path("status"))
-            .and(warp::path::end())
-            .and(warp::get())
-            .and_then(Self::handle_status)
+    pub fn routes() -> axum::Router {
+        use axum::{routing::get, Router};
+
+        Router::new().route("/a2a/status", get(Self::handle_status))
     }
 
     /// Handle A2A status
-    async fn handle_status() -> Result<impl Reply, Rejection> {
-        // Use async block to satisfy clippy
-        tokio::task::yield_now().await;
-        Ok(warp::reply::json(&serde_json::json!({
+    async fn handle_status() -> axum::Json<serde_json::Value> {
+        std::future::ready(axum::Json(serde_json::json!({
             "status": "active"
         })))
+        .await
     }
 }

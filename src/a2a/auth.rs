@@ -15,7 +15,6 @@ use crate::errors::AppError;
 use crate::providers::errors::ProviderError;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use warp::Filter;
 
 /// A2A Authentication token
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -350,44 +349,4 @@ impl A2AAuthenticator {
     pub fn check_scope(&self, token: &A2AToken, required_scope: &str) -> bool {
         token.scopes.contains(&required_scope.to_owned()) || token.scopes.contains(&"*".into())
     }
-}
-
-/// A2A Authentication middleware for warp
-#[must_use]
-pub fn with_a2a_auth(
-    authenticator: Arc<A2AAuthenticator>,
-) -> impl warp::Filter<Extract = (AuthResult,), Error = warp::Rejection> + Clone {
-    warp::header::optional::<String>("authorization").and_then(
-        move |auth_header: Option<String>| {
-            let authenticator = authenticator.clone(); // Safe: Arc clone for async closure
-            async move {
-                match auth_header {
-                    Some(header) => {
-                        if let Some(token) = header.strip_prefix("Bearer ") {
-                            match authenticator.authenticate_api_key(token).await {
-                                Ok(auth_result) => Ok(auth_result),
-                                Err(e) => {
-                                    tracing::warn!("A2A authentication failed: {}", e);
-                                    Err(warp::reject::custom(
-                                        crate::a2a::A2AError::AuthenticationFailed(e.to_string()),
-                                    ))
-                                }
-                            }
-                        } else {
-                            Err(warp::reject::custom(
-                                crate::a2a::A2AError::AuthenticationFailed(
-                                    "Invalid authorization header format".into(),
-                                ),
-                            ))
-                        }
-                    }
-                    None => Err(warp::reject::custom(
-                        crate::a2a::A2AError::AuthenticationFailed(
-                            "No authorization header provided".into(),
-                        ),
-                    )),
-                }
-            }
-        },
-    )
 }

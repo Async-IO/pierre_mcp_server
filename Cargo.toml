@@ -28,9 +28,10 @@ path = "src/bin/admin_setup.rs"
 name = "diagnose-weather-api"
 path = "src/bin/diagnose_weather_api.rs"
 
-[[bin]]
-name = "serve-docs"
-path = "src/bin/serve_docs.rs"
+# [[bin]]
+# name = "serve-docs"
+# path = "src/bin/serve_docs.rs"
+# NOTE: Temporarily disabled during Warp-to-Axum migration
 
 
 
@@ -67,7 +68,6 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
 reqwest-middleware = "0.3"
-reqwest-retry = "0.6"
 anyhow = "1.0"
 async-stream = "0.3"
 thiserror = "2.0"
@@ -77,10 +77,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "std", 
 tracing-opentelemetry = "0.23"
 opentelemetry = { version = "0.22", features = ["trace"] }
 opentelemetry_sdk = { version = "0.22", features = ["trace", "rt-tokio"] }
-opentelemetry-stdout = { version = "0.1", features = ["trace"] }
 # HTTP tracing middleware
-tower = { version = "0.4", features = ["util"] }
-tower-http = { version = "0.5", features = ["trace", "request-id"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["trace", "request-id", "cors", "timeout", "limit", "set-header"] }
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 base64 = "0.22"
@@ -95,7 +94,7 @@ dashmap = "5.5"
 urlencoding = "2.1"
 sha2 = "0.10"
 rand = "0.8"
-aes-gcm = "0.11.0-pre.2"
+aes-gcm = "0.10"
 # Encryption and database support for multi-tenant
 ring = "0.17"
 ed25519-dalek = "2.1"
@@ -106,7 +105,10 @@ jsonwebtoken = "9.3"
 subtle = "2.6"
 zeroize = { version = "1.8", features = ["alloc"] }
 hex = "0.4"
-warp = { version = "0.3", features = ["websocket"], default-features = false }
+# HTTP framework: Axum (migrated from Warp)
+axum = { version = "0.7", features = ["ws", "json", "query", "macros", "tokio", "http2", "form"], default-features = false }
+axum-extra = { version = "0.9", features = ["typed-header"] }
+http = "1.0"
 futures-util = "0.3"
 eventsource-stream = "0.2"
 # Pin to compatible version to avoid edition2024 requirement
@@ -124,7 +126,7 @@ bitflags = "2.6"
 # Cross-platform system information without unsafe FFI
 sysinfo = "0.31"
 # Redis client with connection pooling and async support
-redis = { version = "0.27", features = ["tokio-comp", "connection-manager", "aio"] }
+redis = { version = "0.28", features = ["tokio-comp", "connection-manager", "aio"] }
 
 num-traits = "0.2"
 rsa = "0.9"
@@ -132,6 +134,7 @@ rsa = "0.9"
 tempfile = "3.20"
 serial_test = "3.1"
 rand_chacha = "0.3"
+tokio-tungstenite = "0.24"
 
 # ============================================================================
 # Linting Configuration (Replaces bash script clippy invocation)

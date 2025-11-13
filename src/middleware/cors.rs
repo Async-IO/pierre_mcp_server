@@ -4,53 +4,93 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+use http::{header::HeaderName, HeaderValue, Method};
+use tower_http::cors::{AllowOrigin, CorsLayer};
+
 /// Configure CORS settings for the MCP server
 ///
-/// Allows cross-origin requests with configurable allowed origins.
-/// Set `CORS_ALLOWED_ORIGINS` environment variable (comma-separated URLs) to restrict origins.
-/// If not set, allows any origin (development mode).
-#[must_use]
-pub fn setup_cors() -> warp::cors::Builder {
-    let mut cors = warp::cors();
-
-    // Configure allowed origins from environment variable
-    if let Ok(origins_str) = std::env::var("CORS_ALLOWED_ORIGINS") {
-        let origins: Vec<String> = origins_str
-            .split(',')
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(String::from)
-            .collect();
-
-        if origins.is_empty() {
-            // Empty list defaults to any origin
-            cors = cors.allow_any_origin();
+/// Configures cross-origin requests based on `CORS_ALLOWED_ORIGINS` environment variable.
+/// Supports both wildcard ("*") for development and specific origin lists for production.
+///
+/// # Security Considerations
+///
+/// - Uses `CORS_ALLOWED_ORIGINS` environment variable for origin control
+/// - Falls back to wildcard (*) if env var is empty or "*"
+/// - Permits standard HTTP methods (GET, POST, PUT, DELETE, OPTIONS, PATCH)
+/// - Includes custom headers for fitness provider authentication
+/// - Includes tenant identification headers for multi-tenancy
+///
+/// # Allowed Headers
+///
+/// - Standard headers: content-type, authorization, accept, origin
+/// - CORS headers: x-requested-with, access-control-request-*
+/// - Provider headers: x-strava-client-id, x-fitbit-client-id, etc.
+/// - Tenant headers: x-tenant-name, x-tenant-id
+/// - API key header: x-pierre-api-key
+///
+/// # Examples
+///
+/// ```bash
+/// # Allow all origins (development)
+/// export CORS_ALLOWED_ORIGINS="*"
+///
+/// # Allow specific origins (production)
+/// export CORS_ALLOWED_ORIGINS="https://app.example.com,https://admin.example.com"
+/// ```
+pub fn setup_cors(config: &crate::config::environment::ServerConfig) -> CorsLayer {
+    // Parse allowed origins from configuration
+    let allow_origin =
+        if config.cors.allowed_origins.is_empty() || config.cors.allowed_origins == "*" {
+            // Development mode: allow any origin
+            AllowOrigin::any()
         } else {
-            // Parse and set specific origins
-            for origin in origins {
-                cors = cors.allow_origin(origin.as_str());
-            }
-        }
-    } else {
-        // No environment variable - default to any origin (development mode)
-        cors = cors.allow_any_origin();
-    }
+            // Production mode: parse comma-separated origin list
+            let origins: Vec<HeaderValue> = config
+                .cors
+                .allowed_origins
+                .split(',')
+                .filter_map(|s| {
+                    let trimmed = s.trim();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        HeaderValue::from_str(trimmed).ok()
+                    }
+                })
+                .collect();
 
-    cors.allow_headers(vec![
-        "content-type",
-        "authorization",
-        "x-requested-with",
-        "accept",
-        "origin",
-        "access-control-request-method",
-        "access-control-request-headers",
-        "x-strava-client-id",
-        "x-strava-client-secret",
-        "x-fitbit-client-id",
-        "x-fitbit-client-secret",
-        "x-pierre-api-key",
-        "x-tenant-name",
-        "x-tenant-id",
-    ])
-    .allow_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
+            if origins.is_empty() {
+                // Fallback to any if parsing failed
+                AllowOrigin::any()
+            } else {
+                AllowOrigin::list(origins)
+            }
+        };
+
+    CorsLayer::new()
+        .allow_origin(allow_origin)
+        .allow_headers([
+            HeaderName::from_static("content-type"),
+            HeaderName::from_static("authorization"),
+            HeaderName::from_static("x-requested-with"),
+            HeaderName::from_static("accept"),
+            HeaderName::from_static("origin"),
+            HeaderName::from_static("access-control-request-method"),
+            HeaderName::from_static("access-control-request-headers"),
+            HeaderName::from_static("x-strava-client-id"),
+            HeaderName::from_static("x-strava-client-secret"),
+            HeaderName::from_static("x-fitbit-client-id"),
+            HeaderName::from_static("x-fitbit-client-secret"),
+            HeaderName::from_static("x-pierre-api-key"),
+            HeaderName::from_static("x-tenant-name"),
+            HeaderName::from_static("x-tenant-id"),
+        ])
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+            Method::PATCH,
+        ])
 }

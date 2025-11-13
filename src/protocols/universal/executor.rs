@@ -27,17 +27,13 @@ use std::sync::Arc;
 
 /// Intelligence service interface for analysis operations
 /// Provides abstraction layer for future intelligence module integration
-pub struct IntelligenceService {
-    _resources: Arc<ServerResources>,
-}
+pub struct IntelligenceService;
 
 impl IntelligenceService {
     /// Creates a new intelligence service instance
     #[must_use]
-    pub const fn new(resources: Arc<ServerResources>) -> Self {
-        Self {
-            _resources: resources,
-        }
+    pub fn new(_resources: Arc<ServerResources>) -> Self {
+        Self
     }
 
     /// Analyze activity data with intelligence engine

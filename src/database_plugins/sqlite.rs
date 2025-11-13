@@ -611,18 +611,23 @@ impl DatabaseProvider for SqliteDatabase {
         );
 
         // Calculate expiration
+        // If expires_in_days is 0 or None, token never expires (expires_at = None)
         let expires_at = request.expires_in_days.and_then(|days| {
-            i64::try_from(days)
-                .inspect_err(|e| {
-                    tracing::error!(
-                        service_name = %request.service_name,
-                        expires_in_days = days,
-                        error = %e,
-                        "Failed to convert admin token expiration days - token will not expire (security risk)"
-                    );
-                })
-                .ok()
-                .map(|d| chrono::Utc::now() + chrono::Duration::days(d))
+            if days == 0 {
+                None // Never expires
+            } else {
+                i64::try_from(days)
+                    .inspect_err(|e| {
+                        tracing::error!(
+                            service_name = %request.service_name,
+                            expires_in_days = days,
+                            error = %e,
+                            "Failed to convert admin token expiration days - token will not expire (security risk)"
+                        );
+                    })
+                    .ok()
+                    .map(|d| chrono::Utc::now() + chrono::Duration::days(d))
+            }
         });
 
         // Generate JWT token using RS256 (asymmetric signing)

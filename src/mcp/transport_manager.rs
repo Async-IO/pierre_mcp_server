@@ -48,7 +48,7 @@ impl TransportManager {
 
     /// Unified server startup using existing transport coordination
     async fn start_legacy_unified_server(&self, port: u16) -> Result<()> {
-        info!("Starting MCP server with stdio and HTTP transports");
+        info!("Starting MCP server with stdio and HTTP transports (Axum framework)");
 
         // Use the notification sender from the struct instance
         let notification_receiver = self.notification_sender.subscribe();
@@ -88,14 +88,16 @@ impl TransportManager {
 
         // Run unified HTTP server with all routes (OAuth2, MCP, etc.) - this should run indefinitely
         loop {
-            info!("Starting unified HTTP server on port {}", port);
+            info!("Starting unified Axum HTTP server on port {}", port);
 
             // Clone shared resources for each iteration since run_http_server_with_resources takes ownership
             let server = super::multitenant::MultiTenantMcpServer::new(shared_resources.clone());
-            match server
-                .run_http_server_with_resources(port, shared_resources.clone())
-                .await
-            {
+
+            let result = server
+                .run_http_server_with_resources_axum(port, shared_resources.clone())
+                .await;
+
+            match result {
                 Ok(()) => {
                     error!("HTTP server unexpectedly completed - this should never happen");
                     error!("HTTP server should run indefinitely. Restarting in 5 seconds...");
@@ -210,15 +212,13 @@ impl StdioTransport {
 }
 
 /// Handles SSE notification forwarding
-pub struct SseNotificationForwarder {
-    resources: Arc<ServerResources>,
-}
+pub struct SseNotificationForwarder;
 
 impl SseNotificationForwarder {
     /// Creates a new SSE notification forwarder instance
     #[must_use]
-    pub const fn new(resources: Arc<ServerResources>) -> Self {
-        Self { resources }
+    pub fn new(_resources: Arc<ServerResources>) -> Self {
+        Self
     }
 
     /// Run SSE notification forwarding
@@ -243,51 +243,13 @@ impl SseNotificationForwarder {
                     if let Some(user_id_str) = &notification.params.user_id {
                         match uuid::Uuid::parse_str(user_id_str) {
                             Ok(user_id) => {
-                                // Create OAuthNotification from the received notification
-                                let oauth_notification =
-                                    crate::database::oauth_notifications::OAuthNotification {
-                                        id: uuid::Uuid::new_v4().to_string(),
-                                        user_id: user_id.to_string(),
-                                        provider: notification.params.provider.clone(),
-                                        success: notification.params.success,
-                                        message: notification.params.message.clone(),
-                                        expires_at: None,
-                                        created_at: chrono::Utc::now(),
-                                        read_at: None,
-                                    };
-
-                                // Send notification to SSE notification streams (for direct clients)
-                                match self
-                                    .resources
-                                    .sse_manager
-                                    .send_notification(user_id, &oauth_notification)
-                                    .await
-                                {
-                                    Ok(()) => {
-                                        info!("Successfully forwarded OAuth notification to notification stream for user {}", user_id);
-                                    }
-                                    Err(e) => {
-                                        warn!("Failed to forward OAuth notification to notification stream for user {}: {}", user_id, e);
-                                    }
-                                }
-
-                                // Also send to MCP protocol streams (for bridges like Claude Desktop)
-                                match self
-                                    .resources
-                                    .sse_manager
-                                    .send_oauth_notification_to_protocol_streams(
-                                        user_id,
-                                        &oauth_notification,
-                                    )
-                                    .await
-                                {
-                                    Ok(()) => {
-                                        info!("Successfully forwarded OAuth notification to protocol streams for user {}", user_id);
-                                    }
-                                    Err(e) => {
-                                        warn!("No active protocol streams to forward OAuth notification for user {}: {}", user_id, e);
-                                    }
-                                }
+                                // OAuth notification - SSE notification sending disabled
+                                info!(
+                                    user_id = %user_id,
+                                    provider = %notification.params.provider,
+                                    success = notification.params.success,
+                                    "OAuth notification processed (SSE disabled)"
+                                );
                             }
                             Err(e) => {
                                 warn!(

@@ -7,10 +7,7 @@
 mod helpers;
 
 use helpers::synthetic_data::{SyntheticDataBuilder, TrainingPattern};
-use helpers::test_utils::{
-    assert_pace_within_range, assert_vdot_accurate, create_synthetic_provider_with_scenario,
-    TestScenario,
-};
+use helpers::test_utils::{create_synthetic_provider_with_scenario, TestScenario};
 use pierre_mcp_server::providers::core::FitnessProvider;
 
 #[test]
@@ -31,25 +28,26 @@ fn test_helpers_module_structure() {
 }
 
 #[test]
-fn test_validation_helpers() {
-    // Verify validation helpers work correctly
-    assert_pace_within_range(10.0, 10.0, 0.05);
-    assert_pace_within_range(10.2, 10.0, 0.05);
-    assert_pace_within_range(9.8, 10.0, 0.05);
+fn test_all_test_scenarios() {
+    // Test all TestScenario variants to ensure they work correctly
+    let scenarios = [
+        TestScenario::BeginnerRunnerImproving,
+        TestScenario::ExperiencedCyclistConsistent,
+        TestScenario::OvertrainingRisk,
+        TestScenario::InjuryRecovery,
+    ];
 
-    assert_vdot_accurate(50.0, 50.0, 0.06);
-    assert_vdot_accurate(51.0, 50.0, 0.06);
-    assert_vdot_accurate(49.0, 50.0, 0.06);
-}
+    for scenario in scenarios {
+        let provider = create_synthetic_provider_with_scenario(scenario);
+        assert_eq!(provider.name(), "synthetic");
 
-#[test]
-#[should_panic(expected = "Pace out of tolerance")]
-fn test_pace_validation_fails_outside_tolerance() {
-    assert_pace_within_range(11.0, 10.0, 0.05);
-}
-
-#[test]
-#[should_panic(expected = "VDOT out of tolerance")]
-fn test_vdot_validation_fails_outside_tolerance() {
-    assert_vdot_accurate(60.0, 50.0, 0.06);
+        // Verify the pattern conversion works
+        let pattern = scenario.to_training_pattern();
+        let mut builder = SyntheticDataBuilder::new(42);
+        let activities = builder.generate_pattern(pattern);
+        assert!(
+            !activities.is_empty(),
+            "Scenario should generate activities"
+        );
+    }
 }

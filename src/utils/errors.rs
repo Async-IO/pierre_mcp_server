@@ -30,7 +30,7 @@ pub fn auth_error(message: &str) -> AppError {
 #[must_use]
 pub fn user_state_error(message: &str) -> AppError {
     AppError::new(
-        ErrorCode::InternalError,
+        ErrorCode::PermissionDenied,
         format!("User state error: {message}"),
     )
 }

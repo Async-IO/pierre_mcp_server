@@ -12,8 +12,6 @@ pub mod endpoints;
 pub mod models;
 /// Rate limiting for OAuth 2.0 endpoints
 pub mod rate_limiting;
-/// HTTP route handlers for OAuth 2.0
-pub mod routes;
 
 // RFC 7591 client registration management
 pub use client_registration::ClientRegistrationManager;
@@ -46,13 +44,5 @@ pub use models::TokenRequest;
 /// Token exchange response
 pub use models::TokenResponse;
 
-// OAuth 2.0 HTTP route handlers
-
-/// OAuth 2.0 route configuration function
-pub use routes::oauth2_routes;
-
 // OAuth 2.0 rate limiting
-pub use rate_limiting::{
-    handle_rate_limit_rejection, with_rate_limit_headers, OAuth2RateLimitExceeded,
-    OAuth2RateLimiter,
-};
+pub use rate_limiting::OAuth2RateLimiter;

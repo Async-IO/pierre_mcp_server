@@ -5,6 +5,16 @@ use crate::errors::AppError;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
+/// Rockport 1-mile walk test data
+#[derive(Debug, Clone, Copy)]
+struct RockportTestData {
+    weight_kg: f64,
+    age: u8,
+    gender: u8,
+    time_seconds: f64,
+    heart_rate: f64,
+}
+
 /// `VO2max` estimation algorithm selection
 ///
 /// Different algorithms for estimating maximal oxygen uptake (`VO2max`) from various tests:
@@ -166,7 +176,13 @@ impl Vo2maxAlgorithm {
                 gender,
                 time_seconds,
                 heart_rate,
-            } => Self::calculate_rockport(*weight_kg, *age, *gender, *time_seconds, *heart_rate),
+            } => Self::calculate_rockport(RockportTestData {
+                weight_kg: *weight_kg,
+                age: *age,
+                gender: *gender,
+                time_seconds: *time_seconds,
+                heart_rate: *heart_rate,
+            }),
             Self::AstrandRyhming {
                 gender,
                 heart_rate,
@@ -223,55 +239,52 @@ impl Vo2maxAlgorithm {
     }
 
     /// Calculate `VO2max` from Rockport 1-mile walk test
-    #[allow(clippy::too_many_arguments)]
-    fn calculate_rockport(
-        weight_kg: f64,
-        age: u8,
-        gender: u8,
-        time_seconds: f64,
-        heart_rate: f64,
-    ) -> Result<f64, AppError> {
-        Self::validate_gender(gender)?;
+    fn calculate_rockport(data: RockportTestData) -> Result<f64, AppError> {
+        Self::validate_gender(data.gender)?;
 
-        if !(40.0..=150.0).contains(&weight_kg) {
+        if !(40.0..=150.0).contains(&data.weight_kg) {
             return Err(AppError::invalid_input(format!(
-                "Weight {weight_kg:.1}kg is outside typical range (40-150 kg)"
+                "Weight {:.1}kg is outside typical range (40-150 kg)",
+                data.weight_kg
             )));
         }
 
-        if !(20..=80).contains(&age) {
+        if !(20..=80).contains(&data.age) {
             return Err(AppError::invalid_input(format!(
-                "Age {age} is outside validated range (20-80 years)"
+                "Age {} is outside validated range (20-80 years)",
+                data.age
             )));
         }
 
-        if !(300.0..=1800.0).contains(&time_seconds) {
+        if !(300.0..=1800.0).contains(&data.time_seconds) {
             return Err(AppError::invalid_input(format!(
-                "1-mile walk time {time_seconds:.0}s is outside typical range (5-30 minutes)"
+                "1-mile walk time {:.0}s is outside typical range (5-30 minutes)",
+                data.time_seconds
             )));
         }
 
-        if !(60.0..=200.0).contains(&heart_rate) {
+        if !(60.0..=200.0).contains(&data.heart_rate) {
             return Err(AppError::invalid_input(format!(
-                "Heart rate {heart_rate:.0} bpm is outside physiological range (60-200 bpm)"
+                "Heart rate {:.0} bpm is outside physiological range (60-200 bpm)",
+                data.heart_rate
             )));
         }
 
         // Rockport formula
-        let time_minutes = time_seconds / 60.0;
+        let time_minutes = data.time_seconds / 60.0;
         #[allow(clippy::cast_precision_loss)]
-        let age_f64 = f64::from(age);
+        let age_f64 = f64::from(data.age);
         #[allow(clippy::cast_precision_loss)]
-        let gender_f64 = f64::from(gender);
+        let gender_f64 = f64::from(data.gender);
 
         let vo2max = 132.853
             - 0.0769_f64.mul_add(
-                weight_kg,
+                data.weight_kg,
                 0.3877_f64.mul_add(
                     age_f64,
                     -(6.315_f64.mul_add(
                         gender_f64,
-                        3.2649_f64.mul_add(time_minutes, 0.1565 * heart_rate),
+                        3.2649_f64.mul_add(time_minutes, 0.1565 * data.heart_rate),
                     )),
                 ),
             );

@@ -7,7 +7,6 @@
 use crate::config::environment::HttpClientConfig;
 use reqwest::{Client, ClientBuilder};
 use reqwest_middleware::{ClientBuilder as MiddlewareClientBuilder, ClientWithMiddleware};
-use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use std::sync::OnceLock;
 use std::time::Duration;
 
@@ -44,21 +43,9 @@ pub fn initialize_http_clients(config: HttpClientConfig) {
     );
 }
 
-/// Create an exponential backoff retry policy from configuration
-///
-/// # Arguments
-/// * `config` - HTTP client configuration with retry settings
-///
-/// # Returns
-/// A configured `ExponentialBackoff` policy with jitter
-fn create_retry_policy(config: &HttpClientConfig) -> ExponentialBackoff {
-    let base_delay = Duration::from_millis(config.retry_base_delay_ms);
-    let max_delay = Duration::from_millis(config.retry_max_delay_ms);
-
-    ExponentialBackoff::builder()
-        .retry_bounds(base_delay, max_delay)
-        .build_with_max_retries(config.max_retries)
-}
+// NOTE: Retry middleware removed to eliminate reqwest-retry dependency
+// and reduce duplicate dependencies. Tower-based retry can be added if needed.
+// For now, clients are created without retry middleware for simplicity.
 
 /// Get or create the shared HTTP client with configured timeout settings
 ///
@@ -86,10 +73,10 @@ pub fn shared_client() -> &'static Client {
     })
 }
 
-/// Get or create the shared HTTP client with retry middleware
+/// Get or create the shared HTTP client with middleware support
 ///
-/// This client includes exponential backoff with jitter for transient errors.
-/// Use this for external API calls that may experience temporary failures.
+/// This client supports middleware extensions. Use this when you need
+/// request/response middleware capabilities.
 ///
 /// Configuration must be initialized via `initialize_http_clients()` at server startup.
 ///
@@ -110,14 +97,8 @@ pub fn shared_client_with_retry() -> &'static ClientWithMiddleware {
             .build()
             .unwrap_or_else(|_| Client::new());
 
-        if config.enable_retries {
-            let retry_policy = create_retry_policy(config);
-            MiddlewareClientBuilder::new(base_client)
-                .with(RetryTransientMiddleware::new_with_policy(retry_policy))
-                .build()
-        } else {
-            MiddlewareClientBuilder::new(base_client).build()
-        }
+        // NOTE: Retry middleware removed - add tower-based retry if needed
+        MiddlewareClientBuilder::new(base_client).build()
     })
 }
 
@@ -185,9 +166,9 @@ pub fn oauth_client() -> Client {
     )
 }
 
-/// Create a new HTTP client optimized for OAuth flows with retry middleware
+/// Create a new HTTP client optimized for OAuth flows with middleware support
 ///
-/// This client includes exponential backoff with jitter for handling transient OAuth server errors.
+/// This client supports middleware extensions for OAuth operations.
 /// Configuration must be initialized via `initialize_http_clients()` at server startup.
 ///
 /// # Returns
@@ -204,14 +185,8 @@ pub fn oauth_client_with_retry() -> ClientWithMiddleware {
         config.oauth_client_connect_timeout_secs,
     );
 
-    if config.enable_retries {
-        let retry_policy = create_retry_policy(config);
-        MiddlewareClientBuilder::new(base_client)
-            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
-            .build()
-    } else {
-        MiddlewareClientBuilder::new(base_client).build()
-    }
+    // NOTE: Retry middleware removed - add tower-based retry if needed
+    MiddlewareClientBuilder::new(base_client).build()
 }
 
 /// Create a new HTTP client optimized for API calls
@@ -234,10 +209,10 @@ pub fn api_client() -> Client {
     )
 }
 
-/// Create a new HTTP client optimized for API calls with retry middleware
+/// Create a new HTTP client optimized for API calls with middleware support
 ///
-/// This client includes exponential backoff with jitter for handling transient API failures.
-/// Use this for calls to external provider APIs (Strava, Garmin, etc.) that may rate limit or have temporary issues.
+/// This client supports middleware extensions for API operations.
+/// Use this for calls to external provider APIs (Strava, Garmin, etc.).
 /// Configuration must be initialized via `initialize_http_clients()` at server startup.
 ///
 /// # Returns
@@ -254,14 +229,8 @@ pub fn api_client_with_retry() -> ClientWithMiddleware {
         config.api_client_connect_timeout_secs,
     );
 
-    if config.enable_retries {
-        let retry_policy = create_retry_policy(config);
-        MiddlewareClientBuilder::new(base_client)
-            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
-            .build()
-    } else {
-        MiddlewareClientBuilder::new(base_client).build()
-    }
+    // NOTE: Retry middleware removed - add tower-based retry if needed
+    MiddlewareClientBuilder::new(base_client).build()
 }
 
 /// Get health check timeout configuration

@@ -135,7 +135,7 @@ impl ToolHandlers {
                     &resources.database,
                     Some(auth_result.user_id),
                     None,
-                    None, // MCP headers are not warp headers, pass None for now
+                    None, // MCP transport headers not applicable here
                 )
                 .await
                 .inspect_err(|e| {

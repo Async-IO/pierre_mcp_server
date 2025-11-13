@@ -142,12 +142,11 @@ impl MasterEncryptionKey {
         // Generate random nonce
         let mut nonce_bytes = [0u8; 12];
         rand::thread_rng().fill_bytes(&mut nonce_bytes);
-        let nonce = Nonce::try_from(nonce_bytes.as_slice())
-            .map_err(|e| AppError::internal(format!("Invalid nonce length: {e}")))?;
+        let nonce = Nonce::from_slice(&nonce_bytes);
 
         // Encrypt the data
         let ciphertext = cipher
-            .encrypt(&nonce, plaintext)
+            .encrypt(nonce, plaintext)
             .map_err(|e| AppError::internal(format!("Encryption failed: {e}")))?;
 
         // Prepend nonce to ciphertext
@@ -176,13 +175,12 @@ impl MasterEncryptionKey {
             .map_err(|e| AppError::internal(format!("Invalid key length: {e}")))?;
 
         // Extract nonce and ciphertext
-        let nonce = Nonce::try_from(&encrypted_data[..12])
-            .map_err(|e| AppError::internal(format!("Invalid nonce length: {e}")))?;
+        let nonce = Nonce::from_slice(&encrypted_data[..12]);
         let ciphertext = &encrypted_data[12..];
 
         // Decrypt the data
         let plaintext = cipher
-            .decrypt(&nonce, ciphertext)
+            .decrypt(nonce, ciphertext)
             .map_err(|e| AppError::internal(format!("Decryption failed: {e}")))?;
 
         Ok(plaintext)

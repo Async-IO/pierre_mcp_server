@@ -27,8 +27,6 @@ pub use protocol::{A2AError, A2AErrorResponse, A2ARequest, A2AResponse, A2AServe
 /// A2A Protocol Version
 pub const A2A_VERSION: &str = "1.0.0";
 
-impl warp::reject::Reject for A2AError {}
-
 /// Helper function for mapping database errors to A2A errors
 pub fn map_db_error(context: &str) -> impl Fn(anyhow::Error) -> A2AError + '_ {
     move |e| A2AError::InternalError(format!("{context}: {e}"))
