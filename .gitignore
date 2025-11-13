@@ -26,6 +26,12 @@ test_data/*.db
 test_data/*.db-shm
 test_data/*.db-wal
 
+# SDK test artifacts (accidental database files from test setup)
+sdk/rEFe*
+sdk/*.db
+sdk/*.db-shm
+sdk/*.db-wal
+
 # Python
 __pycache__/
 *.py[cod]
