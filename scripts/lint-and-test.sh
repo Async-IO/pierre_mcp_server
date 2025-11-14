@@ -209,77 +209,95 @@ if [ -f "$SCRIPT_DIR/architectural-validation.sh" ]; then
     ARCH_EXIT=$?
     set -e
 
-    if [ "$ARCH_EXIT" -ne 0 ]; then
-        ARCH_FAILURES=$(echo "$ARCH_OUTPUT" | grep -c "❌ FAIL" 2>/dev/null || echo 0)
-        ARCH_FAILURES=$(echo "$ARCH_FAILURES" | head -1 | tr -d '\n\r\t ')
-        add_validation "Architectural patterns" "$ARCH_FAILURES" "❌ FAIL" "Run architectural-validation.sh for details"
-        VALIDATION_FAILED=true
+    # Always extract all metrics from architectural validation (regardless of pass/fail)
+    NULL_UUIDS=$(echo "$ARCH_OUTPUT" | grep "NULL UUIDs" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    RESOURCE_PATTERNS=$(echo "$ARCH_OUTPUT" | grep "Resource creation patterns" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    FAKE_RESOURCES=$(echo "$ARCH_OUTPUT" | grep "Fake resource assemblies" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    UNSAFE=$(echo "$ARCH_OUTPUT" | grep "Unsafe code blocks" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    UNWRAPS=$(echo "$ARCH_OUTPUT" | grep "Problematic unwraps" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    EXPECTS=$(echo "$ARCH_OUTPUT" | grep "Problematic expects" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    PANICS=$(echo "$ARCH_OUTPUT" | grep "Panic calls" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    TODOS=$(echo "$ARCH_OUTPUT" | grep "TODOs/FIXMEs" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    MOCK_IMPL=$(echo "$ARCH_OUTPUT" | grep "Production mock implementations" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    UNDERSCORE_NAMES=$(echo "$ARCH_OUTPUT" | grep "Underscore-prefixed names" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    TEST_IN_SRC=$(echo "$ARCH_OUTPUT" | grep "Test modules in src/" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    CLIPPY_ALLOWS=$(echo "$ARCH_OUTPUT" | grep "Problematic clippy allows" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    DEAD_CODE=$(echo "$ARCH_OUTPUT" | grep "Dead code annotations" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    TEMP_SOLUTIONS=$(echo "$ARCH_OUTPUT" | grep "Temporary solutions" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    BACKUP_FILES=$(echo "$ARCH_OUTPUT" | grep "Backup files" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    CLONE_TOTAL=$(echo "$ARCH_OUTPUT" | grep "Clone usage (total)" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    CLONE_PROBLEMATIC=$(echo "$ARCH_OUTPUT" | grep "Problematic clones" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    ARC_USAGE=$(echo "$ARCH_OUTPUT" | grep "Arc usage" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    MAGIC_NUMBERS=$(echo "$ARCH_OUTPUT" | grep "Magic numbers" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+
+    # Add validation entries with correct status based on counts
+    [ "${NULL_UUIDS:-0}" -eq 0 ] && add_validation "NULL UUIDs" "0" "✅ PASS" "No test/placeholder UUIDs" || \
+        { add_validation "NULL UUIDs" "$NULL_UUIDS" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "NULL UUIDs" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    [ "${RESOURCE_PATTERNS:-0}" -eq 0 ] && add_validation "Resource creation patterns" "0" "✅ PASS" "Using dependency injection" || \
+        { add_validation "Resource creation patterns" "$RESOURCE_PATTERNS" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Resource creation patterns" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    [ "${FAKE_RESOURCES:-0}" -eq 0 ] && add_validation "Fake resource assemblies" "0" "✅ PASS" "No fake ServerResources" || \
+        { add_validation "Fake resource assemblies" "$FAKE_RESOURCES" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Fake resource assemblies" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    [ "${UNWRAPS:-0}" -eq 0 ] && add_validation "Problematic unwraps" "0" "✅ PASS" "Proper error handling" || \
+        { add_validation "Problematic unwraps" "$UNWRAPS" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Problematic unwraps" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    [ "${EXPECTS:-0}" -eq 0 ] && add_validation "Problematic expects" "0" "✅ PASS" "Proper error handling" || \
+        { add_validation "Problematic expects" "$EXPECTS" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Problematic expects" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    [ "${PANICS:-0}" -eq 0 ] && add_validation "Panic calls" "0" "✅ PASS" "No panic! calls" || \
+        { add_validation "Panic calls" "$PANICS" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Panic calls" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    if [ "${TODOS:-0}" -gt 0 ]; then
+        TODO_LOCATION=$(echo "$ARCH_OUTPUT" | grep "TODOs/FIXMEs" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')
+        [ -z "$TODO_LOCATION" ] && TODO_LOCATION="Run architectural-validation.sh for locations"
+        add_validation "TODOs/FIXMEs" "$TODOS" "⚠️ WARN" "$TODO_LOCATION"
     else
-        # Extract all metrics from architectural validation
-        NULL_UUIDS=$(echo "$ARCH_OUTPUT" | grep "NULL UUIDs" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        RESOURCE_PATTERNS=$(echo "$ARCH_OUTPUT" | grep "Resource creation patterns" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        FAKE_RESOURCES=$(echo "$ARCH_OUTPUT" | grep "Fake resource assemblies" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        UNSAFE=$(echo "$ARCH_OUTPUT" | grep "Unsafe code blocks" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        UNWRAPS=$(echo "$ARCH_OUTPUT" | grep "Problematic unwraps" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        EXPECTS=$(echo "$ARCH_OUTPUT" | grep "Problematic expects" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        PANICS=$(echo "$ARCH_OUTPUT" | grep "Panic calls" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        TODOS=$(echo "$ARCH_OUTPUT" | grep "TODOs/FIXMEs" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        MOCK_IMPL=$(echo "$ARCH_OUTPUT" | grep "Production mock implementations" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        UNDERSCORE_NAMES=$(echo "$ARCH_OUTPUT" | grep "Underscore-prefixed names" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        TEST_IN_SRC=$(echo "$ARCH_OUTPUT" | grep "Test modules in src/" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        CLIPPY_ALLOWS=$(echo "$ARCH_OUTPUT" | grep "Problematic clippy allows" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        DEAD_CODE=$(echo "$ARCH_OUTPUT" | grep "Dead code annotations" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        TEMP_SOLUTIONS=$(echo "$ARCH_OUTPUT" | grep "Temporary solutions" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        BACKUP_FILES=$(echo "$ARCH_OUTPUT" | grep "Backup files" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        CLONE_TOTAL=$(echo "$ARCH_OUTPUT" | grep "Clone usage (total)" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        CLONE_PROBLEMATIC=$(echo "$ARCH_OUTPUT" | grep "Problematic clones" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        ARC_USAGE=$(echo "$ARCH_OUTPUT" | grep "Arc usage" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-        MAGIC_NUMBERS=$(echo "$ARCH_OUTPUT" | grep "Magic numbers" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
-
-        add_validation "NULL UUIDs" "${NULL_UUIDS:-0}" "✅ PASS" "No test/placeholder UUIDs"
-        add_validation "Resource creation patterns" "${RESOURCE_PATTERNS:-0}" "✅ PASS" "Using dependency injection"
-        add_validation "Fake resource assemblies" "${FAKE_RESOURCES:-0}" "✅ PASS" "No fake ServerResources"
-        add_validation "Problematic unwraps" "${UNWRAPS:-0}" "✅ PASS" "Proper error handling"
-        add_validation "Problematic expects" "${EXPECTS:-0}" "✅ PASS" "Proper error handling"
-        add_validation "Panic calls" "${PANICS:-0}" "✅ PASS" "No panic! calls"
-
-        if [ "${TODOS:-0}" -gt 0 ]; then
-            TODO_LOCATION=$(echo "$ARCH_OUTPUT" | grep "TODOs/FIXMEs" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')
-            [ -z "$TODO_LOCATION" ] && TODO_LOCATION="Run architectural-validation.sh for locations"
-            add_validation "TODOs/FIXMEs" "$TODOS" "⚠️ WARN" "$TODO_LOCATION"
-        else
-            add_validation "TODOs/FIXMEs" "0" "✅ PASS" "No incomplete code"
-        fi
-
-        add_validation "Production mock implementations" "${MOCK_IMPL:-0}" "✅ PASS" "No mock code in production"
-        add_validation "Underscore-prefixed names" "${UNDERSCORE_NAMES:-0}" "✅ PASS" "Good naming conventions"
-        add_validation "Test modules in src/" "${TEST_IN_SRC:-0}" "✅ PASS" "Tests in tests/ directory"
-        add_validation "Problematic clippy allows" "${CLIPPY_ALLOWS:-0}" "✅ PASS" "Fix issues, don't silence"
-        add_validation "Dead code annotations" "${DEAD_CODE:-0}" "✅ PASS" "Remove, don't hide"
-        add_validation "Temporary solutions" "${TEMP_SOLUTIONS:-0}" "✅ PASS" "No temporary code"
-        add_validation "Backup files" "${BACKUP_FILES:-0}" "✅ PASS" "No backup files"
-
-        if [ "${CLONE_PROBLEMATIC:-0}" -gt 0 ]; then
-            CLONE_LOCATION=$(echo "$ARCH_OUTPUT" | grep "Problematic clones" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')
-            [ -z "$CLONE_LOCATION" ] && CLONE_LOCATION="Run architectural-validation.sh for locations"
-            add_validation "Problematic clones" "$CLONE_PROBLEMATIC" "⚠️ WARN" "$CLONE_LOCATION"
-        else
-            add_validation "Clone usage" "${CLONE_TOTAL:-0}" "✅ PASS" "All legitimate"
-        fi
-
-        add_validation "Arc usage" "${ARC_USAGE:-0}" "✅ PASS" "Appropriate for architecture"
-
-        if [ "${MAGIC_NUMBERS:-0}" -gt 0 ]; then
-            MAGIC_LOCATION=$(echo "$ARCH_OUTPUT" | grep "Magic numbers" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')
-            [ -z "$MAGIC_LOCATION" ] && MAGIC_LOCATION="Run architectural-validation.sh for locations"
-            add_validation "Magic numbers" "$MAGIC_NUMBERS" "⚠️ WARN" "$MAGIC_LOCATION"
-        else
-            add_validation "Magic numbers" "0" "✅ PASS" "All values named constants"
-        fi
-
-        [ "${UNSAFE:-0}" -eq 0 ] && add_validation "Unsafe code" "0" "✅ PASS" "No unsafe blocks" || \
-            add_validation "Unsafe code" "$UNSAFE" "✅ PASS" "Limited to approved locations"
+        add_validation "TODOs/FIXMEs" "0" "✅ PASS" "No incomplete code"
     fi
+
+    [ "${MOCK_IMPL:-0}" -eq 0 ] && add_validation "Production mock implementations" "0" "✅ PASS" "No mock code in production" || \
+        { add_validation "Production mock implementations" "$MOCK_IMPL" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Production mock implementations" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    [ "${UNDERSCORE_NAMES:-0}" -eq 0 ] && add_validation "Underscore-prefixed names" "0" "✅ PASS" "Good naming conventions" || \
+        { add_validation "Underscore-prefixed names" "$UNDERSCORE_NAMES" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Underscore-prefixed names" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    [ "${TEST_IN_SRC:-0}" -eq 0 ] && add_validation "Test modules in src/" "0" "✅ PASS" "Tests in tests/ directory" || \
+        { add_validation "Test modules in src/" "$TEST_IN_SRC" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Test modules in src/" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    [ "${CLIPPY_ALLOWS:-0}" -eq 0 ] && add_validation "Problematic clippy allows" "0" "✅ PASS" "Fix issues, don't silence" || \
+        { add_validation "Problematic clippy allows" "$CLIPPY_ALLOWS" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Problematic clippy allows" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    [ "${DEAD_CODE:-0}" -eq 0 ] && add_validation "Dead code annotations" "0" "✅ PASS" "Remove, don't hide" || \
+        { add_validation "Dead code annotations" "$DEAD_CODE" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Dead code annotations" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    [ "${TEMP_SOLUTIONS:-0}" -eq 0 ] && add_validation "Temporary solutions" "0" "✅ PASS" "No temporary code" || \
+        { add_validation "Temporary solutions" "$TEMP_SOLUTIONS" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Temporary solutions" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    [ "${BACKUP_FILES:-0}" -eq 0 ] && add_validation "Backup files" "0" "✅ PASS" "No backup files" || \
+        { add_validation "Backup files" "$BACKUP_FILES" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Backup files" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    if [ "${CLONE_PROBLEMATIC:-0}" -gt 0 ]; then
+        CLONE_LOCATION=$(echo "$ARCH_OUTPUT" | grep "Problematic clones" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')
+        [ -z "$CLONE_LOCATION" ] && CLONE_LOCATION="Run architectural-validation.sh for locations"
+        add_validation "Problematic clones" "$CLONE_PROBLEMATIC" "⚠️ WARN" "$CLONE_LOCATION"
+    else
+        add_validation "Clone usage" "${CLONE_TOTAL:-0}" "✅ PASS" "All legitimate"
+    fi
+
+    add_validation "Arc usage" "${ARC_USAGE:-0}" "✅ PASS" "Appropriate for architecture"
+
+    if [ "${MAGIC_NUMBERS:-0}" -gt 0 ]; then
+        MAGIC_LOCATION=$(echo "$ARCH_OUTPUT" | grep "Magic numbers" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')
+        [ -z "$MAGIC_LOCATION" ] && MAGIC_LOCATION="Run architectural-validation.sh for locations"
+        add_validation "Magic numbers" "$MAGIC_NUMBERS" "⚠️ WARN" "$MAGIC_LOCATION"
+    else
+        add_validation "Magic numbers" "0" "✅ PASS" "All values named constants"
+    fi
+
+    [ "${UNSAFE:-0}" -eq 0 ] && add_validation "Unsafe code" "0" "✅ PASS" "No unsafe blocks" || \
+        add_validation "Unsafe code" "$UNSAFE" "✅ PASS" "Limited to approved locations"
 else
     add_validation "Architectural patterns" "?" "⚠️ SKIP" "architectural-validation.sh not found"
 fi
