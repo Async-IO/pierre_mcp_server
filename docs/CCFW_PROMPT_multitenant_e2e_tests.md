@@ -25,7 +25,7 @@ Save this as reference and follow ALL rules throughout this implementation.
 
 Implement comprehensive **MCP Protocol HTTP + Multi-Tenant + SDK end-to-end tests** without duplicating existing test framework. Follow the plan documented in:
 
-**`claude_docs/mcp-multitenant-sdk-e2e-test-plan.md`**
+**`docs/mcp-multitenant-sdk-e2e-test-plan.md`**
 
 Read this plan thoroughly before starting. It contains:
 - Architecture analysis
@@ -539,7 +539,7 @@ All tests pass:
 
 ### Working Style
 
-1. **Read the plan first**: Thoroughly review `claude_docs/mcp-multitenant-sdk-e2e-test-plan.md`
+1. **Read the plan first**: Thoroughly review `docs/mcp-multitenant-sdk-e2e-test-plan.md`
 
 2. **Work incrementally**:
    - Implement one phase at a time
@@ -611,7 +611,7 @@ All tests pass:
 
 If you encounter issues:
 
-1. **Review the plan**: `claude_docs/mcp-multitenant-sdk-e2e-test-plan.md`
+1. **Review the plan**: `docs/mcp-multitenant-sdk-e2e-test-plan.md`
 2. **Check existing tests**: Study similar patterns in `tests/` and `sdk/test/`
 3. **Ask ChefFamille**: Report blockers clearly with context
 
@@ -619,7 +619,7 @@ If you encounter issues:
 
 Confirm you:
 1. ✅ Fetched and read https://gist.githubusercontent.com/jfarcand/82f32197bac97516261274edd818a4fc/raw/CLAUDE.md
-2. ✅ Read the implementation plan: `claude_docs/mcp-multitenant-sdk-e2e-test-plan.md`
+2. ✅ Read the implementation plan: `docs/mcp-multitenant-sdk-e2e-test-plan.md`
 3. ✅ Understand the validation requirements (fmt, clippy strict, tests)
 4. ✅ Ready to work on current branch (ChefFamille manages branching)
 
