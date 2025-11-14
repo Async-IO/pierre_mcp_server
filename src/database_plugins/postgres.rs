@@ -8,7 +8,7 @@
 //! This module provides `PostgreSQL` support for cloud deployments,
 //! implementing the same interface as the `SQLite` version.
 
-use super::DatabaseProvider;
+use super::{shared, DatabaseProvider};
 use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
@@ -46,25 +46,17 @@ impl PostgresDatabase {
         use sqlx::Row;
 
         let user_status_str: String = row.get("user_status");
-        let user_status = match user_status_str.as_str() {
-            "pending" => crate::models::UserStatus::Pending,
-            "suspended" => crate::models::UserStatus::Suspended,
-            _ => crate::models::UserStatus::Active,
-        };
+        let user_status = shared::enums::str_to_user_status(&user_status_str);
+
+        let tier_str: String = row.get("tier");
+        let tier = shared::enums::str_to_user_tier(&tier_str);
 
         User {
             id: row.get("id"),
             email: row.get("email"),
             display_name: row.get("display_name"),
             password_hash: row.get("password_hash"),
-            tier: {
-                let tier_str: String = row.get("tier");
-                match tier_str.as_str() {
-                    tiers::PROFESSIONAL => UserTier::Professional,
-                    tiers::ENTERPRISE => UserTier::Enterprise,
-                    _ => UserTier::Starter,
-                }
-            },
+            tier,
             tenant_id: row.get("tenant_id"),
             strava_token: None,
             fitbit_token: None,
@@ -163,13 +155,7 @@ impl PostgresDatabase {
                 });
 
         let status_str: String = row.try_get("status")?;
-        let status = match status_str.as_str() {
-            "running" => TaskStatus::Running,
-            "completed" => TaskStatus::Completed,
-            "failed" => TaskStatus::Failed,
-            "cancelled" => TaskStatus::Cancelled,
-            _ => TaskStatus::Pending,
-        };
+        let status = shared::enums::str_to_task_status(&status_str);
 
         Ok(A2ATask {
             id: task_id,
@@ -269,19 +255,11 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&user.email)
         .bind(&user.display_name)
         .bind(&user.password_hash)
-        .bind(match user.tier {
-            UserTier::Starter => tiers::STARTER,
-            UserTier::Professional => tiers::PROFESSIONAL,
-            UserTier::Enterprise => tiers::ENTERPRISE,
-        })
+        .bind(shared::enums::user_tier_to_str(&user.tier))
         .bind(&user.tenant_id)
         .bind(user.is_active)
         .bind(user.is_admin)
-        .bind(match user.user_status {
-            crate::models::UserStatus::Active => "active",
-            crate::models::UserStatus::Pending => "pending",
-            crate::models::UserStatus::Suspended => "suspended",
-        })
+        .bind(shared::enums::user_status_to_str(&user.user_status))
         .bind(user.approved_by)
         .bind(user.approved_at)
         .bind(user.created_at)
@@ -327,11 +305,7 @@ impl DatabaseProvider for PostgresDatabase {
                     is_active: row.get("is_active"),
                     user_status: {
                         let status_str: String = row.get("user_status");
-                        match status_str.as_str() {
-                            "pending" => crate::models::UserStatus::Pending,
-                            "suspended" => crate::models::UserStatus::Suspended,
-                            _ => crate::models::UserStatus::Active,
-                        }
+                        shared::enums::str_to_user_status(&status_str)
                     },
                     is_admin: row.get("is_admin"),
                     approved_by: row.get("approved_by"),
@@ -378,11 +352,7 @@ impl DatabaseProvider for PostgresDatabase {
                     is_active: row.get("is_active"),
                     user_status: {
                         let status_str: String = row.get("user_status");
-                        match status_str.as_str() {
-                            "pending" => crate::models::UserStatus::Pending,
-                            "suspended" => crate::models::UserStatus::Suspended,
-                            _ => crate::models::UserStatus::Active,
-                        }
+                        shared::enums::str_to_user_status(&status_str)
                     },
                     is_admin: row.get("is_admin"),
                     approved_by: row.get("approved_by"),
@@ -587,11 +557,7 @@ impl DatabaseProvider for PostgresDatabase {
         new_status: crate::models::UserStatus,
         admin_token_id: &str,
     ) -> Result<User> {
-        let status_str = match new_status {
-            crate::models::UserStatus::Active => "active",
-            crate::models::UserStatus::Pending => "pending",
-            crate::models::UserStatus::Suspended => "suspended",
-        };
+        let status_str = shared::enums::user_status_to_str(&new_status);
 
         let admin_uuid =
             if new_status == crate::models::UserStatus::Active && !admin_token_id.is_empty() {
@@ -1963,13 +1929,7 @@ impl DatabaseProvider for PostgresDatabase {
                     });
 
             let status_str: String = row.try_get("status")?;
-            let status = match status_str.as_str() {
-                "running" => TaskStatus::Running,
-                "completed" => TaskStatus::Completed,
-                "failed" => TaskStatus::Failed,
-                "cancelled" => TaskStatus::Cancelled,
-                _ => TaskStatus::Pending, // Default for unknown values (including "pending")
-            };
+            let status = shared::enums::str_to_task_status(&status_str);
 
             Ok(Some(A2ATask {
                 id: row.try_get("task_id")?,
@@ -2008,13 +1968,7 @@ impl DatabaseProvider for PostgresDatabase {
         }
 
         if let Some(status_val) = status_filter {
-            let status_str = match status_val {
-                TaskStatus::Pending => "pending",
-                TaskStatus::Running => "running",
-                TaskStatus::Completed => "completed",
-                TaskStatus::Failed => "failed",
-                TaskStatus::Cancelled => "cancelled",
-            };
+            let status_str = shared::enums::task_status_to_str(status_val);
             sql_query = sql_query.bind(status_str);
         }
 
@@ -2037,13 +1991,7 @@ impl DatabaseProvider for PostgresDatabase {
         result: Option<&Value>,
         error: Option<&str>,
     ) -> Result<()> {
-        let status_str = match status {
-            TaskStatus::Pending => "pending",
-            TaskStatus::Running => "running",
-            TaskStatus::Completed => "completed",
-            TaskStatus::Failed => "failed",
-            TaskStatus::Cancelled => "cancelled",
-        };
+        let status_str = shared::enums::task_status_to_str(status);
 
         let result_json = result.map(serde_json::to_string).transpose()?;
 
