@@ -1040,7 +1040,8 @@ impl MultiTenantMcpServer {
         resources: Arc<ServerResources>,
     ) -> Result<()> {
         use std::net::SocketAddr;
-        use tower_http::trace::TraceLayer;
+        use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
+        use tower_http::LatencyUnit;
 
         info!("HTTP server (Axum) starting on port {}", port);
 
@@ -1049,7 +1050,22 @@ impl MultiTenantMcpServer {
 
         // Apply middleware layers (order matters - applied bottom-up)
         let app = app
-            .layer(TraceLayer::new_for_http())
+            .layer(
+                TraceLayer::new_for_http()
+                    .make_span_with(
+                        DefaultMakeSpan::new()
+                            .level(tracing::Level::INFO)
+                            .include_headers(false),
+                    )
+                    .on_response(
+                        DefaultOnResponse::new()
+                            .level(tracing::Level::INFO)
+                            .latency_unit(LatencyUnit::Millis),
+                    ),
+            )
+            .layer(axum::middleware::from_fn(
+                crate::middleware::request_id_middleware,
+            ))
             .layer(crate::middleware::setup_cors(&resources.config))
             .layer(Self::create_security_headers_layer(&resources.config));
 

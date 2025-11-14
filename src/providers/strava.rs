@@ -334,6 +334,7 @@ impl FitnessProvider for StravaProvider {
     /// - API returns error response (e.g., 401 Unauthorized)
     /// - Response cannot be parsed as JSON
     /// - Strava API returns malformed athlete data
+    #[tracing::instrument(skip(self), fields(provider = "strava", api_call = "get_athlete"))]
     async fn get_athlete(&self) -> Result<Athlete> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 

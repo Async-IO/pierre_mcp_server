@@ -24,7 +24,161 @@ HOST=127.0.0.1                    # bind address (default: 127.0.0.1)
 # logging
 RUST_LOG=info                     # log level (error, warn, info, debug, trace)
 LOG_FORMAT=json                   # json or pretty (default: pretty)
+LOG_INCLUDE_LOCATION=1            # include file/line numbers (production: auto-enabled)
+LOG_INCLUDE_THREAD=1              # include thread information (production: auto-enabled)
+LOG_INCLUDE_SPANS=1               # include tracing spans (production: auto-enabled)
 ```
+
+### logging and observability
+
+Pierre provides production-ready logging with structured output, request correlation, and performance monitoring.
+
+#### http request logging
+
+Automatic HTTP request/response logging via tower-http TraceLayer:
+
+**what gets logged**:
+- request: method, URI, HTTP version
+- response: status code, latency (milliseconds)
+- request ID: unique UUID for correlation
+
+**example output** (INFO level):
+```
+INFO request{method=GET uri=/health}: tower_http::trace::on_response status=200 latency=5ms
+INFO request{method=POST uri=/auth/login}: tower_http::trace::on_response status=200 latency=45ms
+INFO request{method=GET uri=/api/activities}: tower_http::trace::on_response status=200 latency=235ms
+```
+
+**verbosity control**:
+- `RUST_LOG=tower_http=warn` - disable HTTP request logs
+- `RUST_LOG=tower_http=info` - enable HTTP request logs (default)
+- `RUST_LOG=tower_http=debug` - add request/response headers
+
+#### structured logging (json format)
+
+JSON format recommended for production deployments:
+
+```bash
+LOG_FORMAT=json
+RUST_LOG=info
+```
+
+**benefits**:
+- machine-parseable for log aggregation (Elasticsearch, Splunk, etc.)
+- automatic field extraction for querying
+- preserves structured data (no string parsing needed)
+- efficient storage and indexing
+
+**fields included**:
+- `timestamp`: ISO 8601 timestamp with milliseconds
+- `level`: log level (ERROR, WARN, INFO, DEBUG, TRACE)
+- `target`: rust module path (e.g., `pierre_mcp_server::routes::auth`)
+- `message`: human-readable message
+- `span`: tracing span context (operation, duration, fields)
+- `fields`: structured key-value pairs
+
+**example json output**:
+```json
+{"timestamp":"2025-01-13T10:23:45.123Z","level":"INFO","target":"pierre_mcp_server::routes::auth","fields":{"route":"login","email":"user@example.com"},"message":"User login attempt for email: user@example.com"}
+{"timestamp":"2025-01-13T10:23:45.168Z","level":"INFO","target":"tower_http::trace::on_response","fields":{"method":"POST","uri":"/auth/login","status":200,"latency_ms":45},"message":"request completed"}
+```
+
+**pretty format** (development default):
+```
+2025-01-13T10:23:45.123Z  INFO pierre_mcp_server::routes::auth route=login email=user@example.com: User login attempt for email: user@example.com
+2025-01-13T10:23:45.168Z  INFO tower_http::trace::on_response method=POST uri=/auth/login status=200 latency_ms=45: request completed
+```
+
+#### request id correlation
+
+Every HTTP request receives unique X-Request-ID header for distributed tracing:
+
+**response header**:
+```
+HTTP/1.1 200 OK
+X-Request-ID: 550e8400-e29b-41d4-a716-446655440000
+Content-Type: application/json
+```
+
+**tracing through logs**:
+
+Find all logs for specific request:
+```bash
+# json format
+cat logs/pierre.log | jq 'select(.fields.request_id == "550e8400-e29b-41d4-a716-446655440000")'
+
+# pretty format
+grep "550e8400-e29b-41d4-a716-446655440000" logs/pierre.log
+```
+
+**benefits**:
+- correlate logs across microservices
+- debug user-reported issues via request ID
+- trace request flow through database, APIs, external providers
+- essential for production troubleshooting
+
+#### performance monitoring
+
+Automatic timing spans for critical operations:
+
+**database operations**:
+```rust
+#[tracing::instrument(skip(self), fields(db_operation = "get_user"))]
+async fn get_user(&self, user_id: Uuid) -> Result<Option<User>>
+```
+
+**provider api calls**:
+```rust
+#[tracing::instrument(skip(self), fields(provider = "strava", api_call = "get_activities"))]
+async fn get_activities(&self, limit: Option<usize>) -> Result<Vec<Activity>>
+```
+
+**route handlers**:
+```rust
+#[tracing::instrument(skip(self, request), fields(route = "login", email = %request.email))]
+pub async fn login(&self, request: LoginRequest) -> AppResult<LoginResponse>
+```
+
+**example performance logs**:
+```
+DEBUG pierre_mcp_server::database db_operation=get_user user_id=123e4567-e89b-12d3-a456-426614174000 duration_ms=12
+INFO pierre_mcp_server::providers::strava provider=strava api_call=get_activities duration_ms=423
+INFO pierre_mcp_server::routes::auth route=login email=user@example.com duration_ms=67
+```
+
+**analyzing performance**:
+```bash
+# find slow database queries (>100ms)
+cat logs/pierre.log | jq 'select(.fields.db_operation and .fields.duration_ms > 100)'
+
+# find slow API calls (>500ms)
+cat logs/pierre.log | jq 'select(.fields.api_call and .fields.duration_ms > 500)'
+
+# average response time per route
+cat logs/pierre.log | jq -r 'select(.fields.route) | "\(.fields.route) \(.fields.duration_ms)"' | awk '{sum[$1]+=$2; count[$1]++} END {for (route in sum) print route, sum[route]/count[route]}'
+```
+
+#### security and privacy
+
+**no sensitive data logged**:
+- JWT secrets never logged (removed in production-ready improvements)
+- passwords never logged (hashed before storage)
+- OAuth tokens never logged (encrypted at rest)
+- PII redacted by default (emails masked in non-auth logs)
+
+**verified security**:
+```bash
+# verify no JWT secrets in logs
+RUST_LOG=debug cargo run 2>&1 | grep -i "secret\|password\|token" | grep -v "access_token"
+# should show: no JWT secret exposure, only generic "initialized successfully" messages
+```
+
+**safe to log**:
+- user IDs (UUIDs, not emails)
+- request IDs (correlation)
+- operation types (login, get_activities, etc.)
+- performance metrics (duration, status codes)
+- error categories (not full stack traces with sensitive data)
 
 ### authentication
 

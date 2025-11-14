@@ -202,10 +202,7 @@ impl AdminApiContext {
         jwks_manager: Arc<crate::admin::jwks::JwksManager>,
         admin_api_key_monthly_limit: u32,
     ) -> Self {
-        tracing::info!(
-            "Creating AdminApiContext with JWT secret (first 10 chars): {}...",
-            jwt_secret.chars().take(10).collect::<String>()
-        );
+        tracing::info!("AdminApiContext initialized with JWT signing key");
         let auth_service = AdminAuthService::new((*database).clone(), jwks_manager.clone());
         Self {
             database,
@@ -261,6 +258,7 @@ async fn get_existing_user(database: &Database, email: &str) -> Result<User, App
 }
 
 /// Create and store API key
+#[tracing::instrument(skip(context, user, request, admin_token), fields(route = "provision_api_key", user_id = %user.id))]
 async fn create_and_store_api_key(
     context: &AdminApiContext,
     user: &User,

@@ -306,6 +306,7 @@ impl FitnessProvider for FitbitProvider {
         }
     }
 
+    #[tracing::instrument(skip(self), fields(provider = "fitbit", api_call = "get_athlete"))]
     async fn get_athlete(&self) -> Result<Athlete> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
@@ -328,6 +329,7 @@ impl FitnessProvider for FitbitProvider {
         })
     }
 
+    #[tracing::instrument(skip(self), fields(provider = "fitbit", api_call = "get_activities"))]
     async fn get_activities(
         &self,
         limit: Option<usize>,

@@ -12,6 +12,8 @@ pub mod cors;
 pub mod rate_limiting;
 /// PII redaction and sensitive data masking
 pub mod redaction;
+/// Request ID generation and propagation
+pub mod request_id;
 /// Request tracing and context propagation
 pub mod tracing;
 
@@ -54,6 +56,13 @@ pub use redaction::BoundedUserLabel;
 pub use redaction::RedactionConfig;
 /// Redaction features toggle
 pub use redaction::RedactionFeatures;
+
+// Request ID middleware
+
+/// Request ID middleware function
+pub use request_id::request_id_middleware;
+/// Request ID extractor
+pub use request_id::RequestId;
 
 // Request tracing and context management
 
