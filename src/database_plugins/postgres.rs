@@ -3879,13 +3879,36 @@ impl DatabaseProvider for PostgresDatabase {
     // ================================
 
     async fn upsert_user_oauth_token(&self, token: &crate::models::UserOAuthToken) -> Result<()> {
+        // SECURITY: Encrypt OAuth tokens at rest with AAD binding (AES-256-GCM)
+        let encrypted_access_token = shared::encryption::encrypt_oauth_token(
+            self,
+            &token.access_token,
+            &token.tenant_id,
+            token.user_id,
+            &token.provider,
+        )?;
+
+        let encrypted_refresh_token = token
+            .refresh_token
+            .as_ref()
+            .map(|rt| {
+                shared::encryption::encrypt_oauth_token(
+                    self,
+                    rt,
+                    &token.tenant_id,
+                    token.user_id,
+                    &token.provider,
+                )
+            })
+            .transpose()?;
+
         sqlx::query(
             r"
             INSERT INTO user_oauth_tokens (
                 id, user_id, tenant_id, provider, access_token, refresh_token,
                 token_type, expires_at, scope, created_at, updated_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            ON CONFLICT (user_id, tenant_id, provider) 
+            ON CONFLICT (user_id, tenant_id, provider)
             DO UPDATE SET
                 id = EXCLUDED.id,
                 access_token = EXCLUDED.access_token,
@@ -3900,8 +3923,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(token.user_id)
         .bind(&token.tenant_id)
         .bind(&token.provider)
-        .bind(&token.access_token)
-        .bind(token.refresh_token.as_deref())
+        .bind(&encrypted_access_token)
+        .bind(encrypted_refresh_token.as_deref())
         .bind(&token.token_type)
         .bind(token.expires_at)
         .bind(token.scope.as_deref().unwrap_or(""))
@@ -3935,7 +3958,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         row.map_or_else(
             || Ok(None),
-            |row| Ok(Some(Self::row_to_user_oauth_token(&row)?)),
+            |row| Ok(Some(self.row_to_user_oauth_token(&row)?)),
         )
     }
 
@@ -3958,7 +3981,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         let mut tokens = Vec::with_capacity(rows.len());
         for row in rows {
-            tokens.push(Self::row_to_user_oauth_token(&row)?);
+            tokens.push(self.row_to_user_oauth_token(&row)?);
         }
         Ok(tokens)
     }
@@ -3984,7 +4007,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         let mut tokens = Vec::with_capacity(rows.len());
         for row in rows {
-            tokens.push(Self::row_to_user_oauth_token(&row)?);
+            tokens.push(self.row_to_user_oauth_token(&row)?);
         }
         Ok(tokens)
     }
@@ -5016,19 +5039,50 @@ impl DatabaseProvider for PostgresDatabase {
 }
 
 impl PostgresDatabase {
-    /// Convert database row to `UserOAuthToken`
+    /// Convert database row to `UserOAuthToken` with decryption
+    ///
+    /// SECURITY: Decrypts OAuth tokens from database storage (AES-256-GCM with AAD)
     fn row_to_user_oauth_token(
+        &self,
         row: &sqlx::postgres::PgRow,
     ) -> Result<crate::models::UserOAuthToken> {
         use sqlx::Row;
 
+        let user_id: uuid::Uuid = row.try_get("user_id")?;
+        let tenant_id: String = row.try_get("tenant_id")?;
+        let provider: String = row.try_get("provider")?;
+
+        // Decrypt access token
+        let encrypted_access_token: String = row.try_get("access_token")?;
+        let access_token = shared::encryption::decrypt_oauth_token(
+            self,
+            &encrypted_access_token,
+            &tenant_id,
+            user_id,
+            &provider,
+        )?;
+
+        // Decrypt refresh token (optional)
+        let refresh_token = row
+            .try_get::<Option<String>, _>("refresh_token")?
+            .map(|encrypted_rt| {
+                shared::encryption::decrypt_oauth_token(
+                    self,
+                    &encrypted_rt,
+                    &tenant_id,
+                    user_id,
+                    &provider,
+                )
+            })
+            .transpose()?;
+
         Ok(crate::models::UserOAuthToken {
             id: row.try_get("id")?,
-            user_id: row.try_get("user_id")?,
-            tenant_id: row.try_get("tenant_id")?,
-            provider: row.try_get("provider")?,
-            access_token: row.try_get("access_token")?,
-            refresh_token: row.try_get("refresh_token")?,
+            user_id,
+            tenant_id,
+            provider,
+            access_token,
+            refresh_token,
             token_type: row.try_get("token_type")?,
             expires_at: row.try_get("expires_at")?,
             scope: row.try_get("scope").ok(),
