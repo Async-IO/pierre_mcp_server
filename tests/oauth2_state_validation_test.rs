@@ -48,7 +48,7 @@ async fn create_test_client(
     // Get the underlying SQLite connection and update the client_id
     // Tests always use in-memory SQLite
     let pool = match &**database {
-        Database::SQLite(sqlite_db) => sqlite_db.inner().pool(),
+        Database::SQLite(sqlite_db) => sqlite_db.pool(),
         #[cfg(feature = "postgresql")]
         Database::PostgreSQL(_) => {
             return Err("Test requires SQLite database".into());
