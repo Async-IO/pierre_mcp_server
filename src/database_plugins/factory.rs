@@ -170,6 +170,7 @@ impl DatabaseProvider for Database {
     /// - Database connection fails
     /// - Migration process fails
     /// - Encryption setup fails
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Self::
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
         #[cfg(feature = "postgresql")]
         {

@@ -154,6 +154,7 @@ impl PostgresDatabase {
 
 #[async_trait]
 impl DatabaseProvider for PostgresDatabase {
+    #[allow(clippy::use_self)] // Must use PostgresDatabase:: to avoid infinite recursion with Self::
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
         // Use default pool configuration when called through trait
         // In practice, the Database factory calls the inherent impl's new() directly with config
