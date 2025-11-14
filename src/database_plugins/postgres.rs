@@ -33,6 +33,7 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct PostgresDatabase {
     pool: Pool<Postgres>,
+    encryption_key: Vec<u8>,
 }
 
 impl PostgresDatabase {
@@ -114,7 +115,7 @@ impl PostgresDatabase {
     /// Returns an error if database connection or pool configuration fails
     pub async fn new(
         database_url: &str,
-        _encryption_key: Vec<u8>,
+        encryption_key: Vec<u8>,
         pool_config: &crate::config::environment::PostgresPoolConfig,
     ) -> Result<Self> {
         // Use pool configuration from ServerConfig (read once at startup)
@@ -139,7 +140,10 @@ impl PostgresDatabase {
                 format!("Failed to connect to PostgreSQL with {max_connections} max connections")
             })?;
 
-        let db = Self { pool };
+        let db = Self {
+            pool,
+            encryption_key,
+        };
 
         // Run migrations
         db.migrate().await?;
@@ -5718,5 +5722,95 @@ impl PostgresDatabase {
             .await?;
 
         Ok(())
+    }
+}
+
+// Implement encryption support for PostgreSQL (harmonize with SQLite security)
+impl shared::encryption::HasEncryption for PostgresDatabase {
+    /// Encrypt data using AES-256-GCM with Additional Authenticated Data
+    ///
+    /// This brings PostgreSQL to security parity with SQLite, which already
+    /// encrypts OAuth tokens at rest.
+    ///
+    /// # Security
+    /// - Uses AES-256-GCM (AEAD cipher) via ring crate
+    /// - Generates unique 96-bit nonce per encryption
+    /// - Binds AAD to prevent cross-tenant token reuse
+    /// - Output: base64(nonce || ciphertext || auth_tag)
+    fn encrypt_data_with_aad(&self, data: &str, aad_context: &str) -> Result<String> {
+        use base64::{engine::general_purpose, Engine as _};
+        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
+        use ring::rand::{SecureRandom, SystemRandom};
+
+        let rng = SystemRandom::new();
+
+        // Generate unique nonce (96 bits for GCM)
+        let mut nonce_bytes = [0u8; 12];
+        rng.fill(&mut nonce_bytes)?;
+        let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+
+        // Create encryption key
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let key = LessSafeKey::new(unbound_key);
+
+        // Encrypt data with AAD binding
+        let mut data_bytes = data.as_bytes().to_vec();
+        let aad = Aad::from(aad_context.as_bytes());
+        key.seal_in_place_append_tag(nonce, aad, &mut data_bytes)?;
+
+        // Combine nonce and encrypted data, then base64 encode
+        let mut combined = nonce_bytes.to_vec();
+        combined.extend(data_bytes);
+
+        Ok(general_purpose::STANDARD.encode(combined))
+    }
+
+    /// Decrypt data using AES-256-GCM with Additional Authenticated Data
+    ///
+    /// Reverses `encrypt_data_with_aad`. AAD context must match or decryption fails.
+    ///
+    /// # Security
+    /// - Verifies AAD matches (prevents token context switching)
+    /// - Authenticates ciphertext hasn't been tampered
+    /// - Fails safely on any mismatch/corruption
+    fn decrypt_data_with_aad(&self, encrypted_data: &str, aad_context: &str) -> Result<String> {
+        use base64::{engine::general_purpose, Engine as _};
+        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
+
+        // Decode from base64
+        let combined = general_purpose::STANDARD.decode(encrypted_data)?;
+
+        if combined.len() < 12 {
+            return Err(DatabaseError::QueryError {
+                context: "Invalid encrypted data: too short".to_owned(),
+            }
+            .into());
+        }
+
+        // Extract nonce and encrypted data
+        let (nonce_bytes, encrypted_bytes) = combined.split_at(12);
+        let nonce = Nonce::assume_unique_for_key(nonce_bytes.try_into()?);
+
+        // Create decryption key
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let key = LessSafeKey::new(unbound_key);
+
+        // Decrypt data with AAD verification
+        let mut decrypted_data = encrypted_bytes.to_vec();
+        let aad = Aad::from(aad_context.as_bytes());
+        let decrypted = key
+            .open_in_place(nonce, aad, &mut decrypted_data)
+            .map_err(|e| DatabaseError::QueryError {
+                context: format!(
+                    "Decryption failed (possible AAD mismatch or tampered data): {e:?}"
+                ),
+            })?;
+
+        String::from_utf8(decrypted.to_vec()).map_err(|e| {
+            DatabaseError::QueryError {
+                context: format!("Failed to convert decrypted data to string: {e}"),
+            }
+            .into()
+        })
     }
 }

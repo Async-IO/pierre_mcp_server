@@ -924,6 +924,17 @@ impl Database {
     }
 }
 
+// Implement HasEncryption trait for SQLite (already has encryption methods)
+impl crate::database_plugins::shared::encryption::HasEncryption for Database {
+    fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> Result<String> {
+        self.encrypt_data_with_aad(data, aad)
+    }
+
+    fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> Result<String> {
+        self.decrypt_data_with_aad(encrypted, aad)
+    }
+}
+
 /// Generate a secure encryption key (32 bytes for AES-256)
 #[must_use]
 pub fn generate_encryption_key() -> [u8; 32] {
