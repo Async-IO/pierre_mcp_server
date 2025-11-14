@@ -37,9 +37,10 @@ use crate::errors::AppError;
 use crate::models::{User, UserOAuthApp, UserOAuthToken};
 use crate::rate_limiting::JwtUsage;
 use anyhow::{Context, Result};
+use base64::Engine;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::{Pool, Sqlite, SqlitePool};
+use sqlx::{Pool, Row, Sqlite, SqlitePool};
 use uuid::Uuid;
 
 /// Database connection pool with encryption support
@@ -1025,6 +1026,559 @@ impl Database {
 
         Ok(())
     }
+
+    /// Get or create system secret (generates if not exists)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query fails
+    /// - Unknown secret type requested
+    pub async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
+        // Try to get existing secret
+        if let Ok(secret) = self.get_system_secret(secret_type).await {
+            return Ok(secret);
+        }
+
+        // Generate new secret
+        let secret_value = match secret_type {
+            "admin_jwt_secret" => crate::admin::jwt::AdminJwtManager::generate_jwt_secret(),
+            "database_encryption_key" => {
+                // Return existing key (already loaded during initialization)
+                return Ok(base64::engine::general_purpose::STANDARD.encode(&self.encryption_key));
+            }
+            _ => {
+                return Err(
+                    AppError::invalid_input(format!("Unknown secret type: {secret_type}")).into(),
+                )
+            }
+        };
+
+        // Store in database
+        sqlx::query("INSERT INTO system_secrets (secret_type, secret_value) VALUES (?, ?)")
+            .bind(secret_type)
+            .bind(&secret_value)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(secret_value)
+    }
+
+    /// Get existing system secret
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query fails
+    /// - Secret not found
+    pub async fn get_system_secret(&self, secret_type: &str) -> Result<String> {
+        let row = sqlx::query("SELECT secret_value FROM system_secrets WHERE secret_type = ?")
+            .bind(secret_type)
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(row.try_get("secret_value")?)
+    }
+
+    /// Update system secret (for rotation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database update fails
+    pub async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()> {
+        sqlx::query(
+            "UPDATE system_secrets SET secret_value = ?, updated_at = CURRENT_TIMESTAMP WHERE secret_type = ?",
+        )
+        .bind(new_value)
+        .bind(secret_type)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Get tenant by ID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tenant not found or database query fails
+    pub async fn get_tenant_by_id(&self, tenant_id: Uuid) -> Result<crate::models::Tenant> {
+        let row = sqlx::query(
+            r"
+            SELECT t.id, t.name, t.slug, t.domain, t.subscription_tier, tu.user_id, t.created_at, t.updated_at
+            FROM tenants t
+            JOIN tenant_users tu ON t.id = tu.tenant_id AND tu.role = 'owner'
+            WHERE t.id = ? AND t.is_active = 1
+            ",
+        )
+        .bind(tenant_id.to_string())
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some(row) => Ok(crate::models::Tenant {
+                id: Uuid::parse_str(&row.try_get::<String, _>("id")?)?,
+                name: row.try_get("name")?,
+                slug: row.try_get("slug")?,
+                domain: row.try_get("domain")?,
+                plan: row.try_get("subscription_tier")?,
+                owner_user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            }),
+            None => Err(DatabaseError::NotFound {
+                entity_type: "Tenant",
+                entity_id: tenant_id.to_string(),
+            }
+            .into()),
+        }
+    }
+
+    /// Get tenant by slug
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tenant not found or database query fails
+    pub async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
+        let row = sqlx::query(
+            r"
+            SELECT t.id, t.name, t.slug, t.domain, t.subscription_tier, tu.user_id, t.created_at, t.updated_at
+            FROM tenants t
+            JOIN tenant_users tu ON t.id = tu.tenant_id AND tu.role = 'owner'
+            WHERE t.slug = ? AND t.is_active = 1
+            ",
+        )
+        .bind(slug)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some(row) => Ok(crate::models::Tenant {
+                id: Uuid::parse_str(&row.try_get::<String, _>("id")?)?,
+                name: row.try_get("name")?,
+                slug: row.try_get("slug")?,
+                domain: row.try_get("domain")?,
+                plan: row.try_get("subscription_tier")?,
+                owner_user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            }),
+            None => Err(DatabaseError::NotFound {
+                entity_type: "Tenant",
+                entity_id: slug.to_owned(),
+            }
+            .into()),
+        }
+    }
+
+    /// List tenants for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database query fails
+    pub async fn list_tenants_for_user(&self, user_id: Uuid) -> Result<Vec<crate::models::Tenant>> {
+        let rows = sqlx::query(
+            r"
+            SELECT DISTINCT t.id, t.name, t.slug, t.domain, t.subscription_tier,
+                   owner.user_id as owner_user_id, t.created_at, t.updated_at
+            FROM tenants t
+            JOIN tenant_users tu ON t.id = tu.tenant_id
+            JOIN tenant_users owner ON t.id = owner.tenant_id AND owner.role = 'owner'
+            WHERE tu.user_id = ? AND t.is_active = 1
+            ORDER BY t.created_at DESC
+            ",
+        )
+        .bind(user_id.to_string())
+        .fetch_all(&self.pool)
+        .await?;
+
+        let tenants = rows
+            .into_iter()
+            .map(|row| {
+                Ok(crate::models::Tenant {
+                    id: Uuid::parse_str(&row.try_get::<String, _>("id")?)?,
+                    name: row.try_get("name")?,
+                    slug: row.try_get("slug")?,
+                    domain: row.try_get("domain")?,
+                    plan: row.try_get("subscription_tier")?,
+                    owner_user_id: Uuid::parse_str(&row.try_get::<String, _>("owner_user_id")?)?,
+                    created_at: row.try_get("created_at")?,
+                    updated_at: row.try_get("updated_at")?,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(tenants)
+    }
+
+    /// Get all tenants
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database query fails
+    pub async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
+        let rows = sqlx::query(
+            r"
+            SELECT id, slug, name, domain, subscription_tier as plan, owner_user_id, created_at, updated_at
+            FROM tenants
+            WHERE is_active = 1
+            ORDER BY created_at
+            ",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let tenants = rows
+            .into_iter()
+            .map(|row| {
+                Ok(crate::models::Tenant {
+                    id: Uuid::parse_str(&row.try_get::<String, _>("id")?)?,
+                    name: row.try_get("name")?,
+                    slug: row.try_get("slug")?,
+                    domain: row.try_get("domain")?,
+                    plan: row.try_get("plan")?,
+                    owner_user_id: Uuid::parse_str(&row.try_get::<String, _>("owner_user_id")?)?,
+                    created_at: row.try_get("created_at")?,
+                    updated_at: row.try_get("updated_at")?,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(tenants)
+    }
+
+    /// Store tenant OAuth credentials
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if encryption or database operation fails
+    pub async fn store_tenant_oauth_credentials(
+        &self,
+        credentials: &crate::tenant::TenantOAuthCredentials,
+    ) -> Result<()> {
+        // Encrypt the client secret using proper AES-256-GCM
+        let encryption_manager = crate::security::TenantEncryptionManager::new(
+            ring::digest::digest(
+                &ring::digest::SHA256,
+                format!("oauth_secret_key_{}", credentials.tenant_id).as_bytes(),
+            )
+            .as_ref()
+            .try_into()
+            .map_err(|e| {
+                tracing::error!(
+                    tenant_id = %credentials.tenant_id,
+                    error = ?e,
+                    "Failed to create encryption key from SHA256 digest"
+                );
+                DatabaseError::EncryptionFailed {
+                    context: format!(
+                        "Failed to create encryption key for tenant {}: {:?}",
+                        credentials.tenant_id, e
+                    ),
+                }
+            })?,
+        );
+
+        let encrypted_data = encryption_manager
+            .encrypt_tenant_data(credentials.tenant_id, &credentials.client_secret)
+            .map_err(|e| DatabaseError::EncryptionFailed {
+                context: format!("Failed to encrypt OAuth secret: {e}"),
+            })?;
+
+        let encrypted_secret = encrypted_data.data.as_bytes().to_vec();
+        let nonce = encrypted_data.metadata.key_version.to_le_bytes().to_vec();
+
+        // Convert scopes to JSON array for SQLite
+        let scopes_json = serde_json::to_string(&credentials.scopes)?;
+
+        sqlx::query(
+            r"
+            INSERT INTO tenant_oauth_apps
+                (tenant_id, provider, client_id, client_secret_encrypted, client_secret_nonce,
+                 redirect_uri, scopes, rate_limit_per_day, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+            ON CONFLICT (tenant_id, provider)
+            DO UPDATE SET
+                client_id = excluded.client_id,
+                client_secret_encrypted = excluded.client_secret_encrypted,
+                client_secret_nonce = excluded.client_secret_nonce,
+                redirect_uri = excluded.redirect_uri,
+                scopes = excluded.scopes,
+                rate_limit_per_day = excluded.rate_limit_per_day,
+                updated_at = CURRENT_TIMESTAMP
+            ",
+        )
+        .bind(credentials.tenant_id.to_string())
+        .bind(&credentials.provider)
+        .bind(&credentials.client_id)
+        .bind(&encrypted_secret)
+        .bind(&nonce)
+        .bind(&credentials.redirect_uri)
+        .bind(&scopes_json)
+        .bind(i64::from(credentials.rate_limit_per_day))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DatabaseError::QueryError {
+            context: format!("Failed to store OAuth credentials: {e}"),
+        })?;
+
+        Ok(())
+    }
+
+    /// Get tenant OAuth providers
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database query or decryption fails
+    pub async fn get_tenant_oauth_providers(
+        &self,
+        tenant_id: Uuid,
+    ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
+        let rows = sqlx::query(
+            r"
+            SELECT provider, client_id, client_secret_encrypted, client_secret_nonce,
+                   redirect_uri, scopes, rate_limit_per_day
+            FROM tenant_oauth_apps
+            WHERE tenant_id = ? AND is_active = 1
+            ORDER BY provider
+            ",
+        )
+        .bind(tenant_id.to_string())
+        .fetch_all(&self.pool)
+        .await?;
+
+        let credentials = rows
+            .into_iter()
+            .map(|row| {
+                let provider: String = row.try_get("provider")?;
+                let client_id: String = row.try_get("client_id")?;
+                let encrypted_secret: Vec<u8> = row.try_get("client_secret_encrypted")?;
+                let nonce: Vec<u8> = row.try_get("client_secret_nonce")?;
+                let redirect_uri: String = row.try_get("redirect_uri")?;
+                let scopes_json: String = row.try_get("scopes")?;
+                let rate_limit: i64 = row.try_get("rate_limit_per_day")?;
+
+                // Decrypt the client secret
+                let encryption_manager = crate::security::TenantEncryptionManager::new(
+                    ring::digest::digest(
+                        &ring::digest::SHA256,
+                        format!("oauth_secret_key_{tenant_id}").as_bytes(),
+                    )
+                    .as_ref()
+                    .try_into()
+                    .unwrap_or([0u8; 32]),
+                );
+
+                let encrypted_data = crate::security::EncryptedData {
+                    data: String::from_utf8_lossy(&encrypted_secret).to_string(),
+                    metadata: crate::security::EncryptionMetadata {
+                        key_version: u32::from_le_bytes(
+                            nonce.as_slice().try_into().unwrap_or([1, 0, 0, 0]),
+                        ),
+                        tenant_id: Some(tenant_id),
+                        algorithm: "AES-256-GCM".to_owned(),
+                        encrypted_at: chrono::Utc::now(),
+                    },
+                };
+
+                let client_secret = encryption_manager
+                    .decrypt_tenant_data(tenant_id, &encrypted_data)
+                    .unwrap_or_else(|_| "DECRYPTION_FAILED".to_owned());
+
+                let scopes: Vec<String> = serde_json::from_str(&scopes_json)?;
+
+                Ok(crate::tenant::TenantOAuthCredentials {
+                    tenant_id,
+                    provider,
+                    client_id,
+                    client_secret,
+                    redirect_uri,
+                    scopes,
+                    rate_limit_per_day: u32::try_from(rate_limit).unwrap_or(0),
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(credentials)
+    }
+
+    /// Get tenant OAuth credentials for specific provider
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database query or decryption fails
+    pub async fn get_tenant_oauth_credentials(
+        &self,
+        tenant_id: Uuid,
+        provider: &str,
+    ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
+        let row = sqlx::query(
+            r"
+            SELECT client_id, client_secret_encrypted, client_secret_nonce,
+                   redirect_uri, scopes, rate_limit_per_day
+            FROM tenant_oauth_apps
+            WHERE tenant_id = ? AND provider = ? AND is_active = 1
+            ",
+        )
+        .bind(tenant_id.to_string())
+        .bind(provider)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some(row) => {
+                let client_id: String = row.try_get("client_id")?;
+                let encrypted_secret: Vec<u8> = row.try_get("client_secret_encrypted")?;
+                let nonce: Vec<u8> = row.try_get("client_secret_nonce")?;
+                let redirect_uri: String = row.try_get("redirect_uri")?;
+                let scopes_json: String = row.try_get("scopes")?;
+                let rate_limit: i64 = row.try_get("rate_limit_per_day")?;
+
+                // Decrypt the client secret
+                let encryption_manager = crate::security::TenantEncryptionManager::new(
+                    ring::digest::digest(
+                        &ring::digest::SHA256,
+                        format!("oauth_secret_key_{tenant_id}").as_bytes(),
+                    )
+                    .as_ref()
+                    .try_into()
+                    .map_err(|e| {
+                        tracing::error!(
+                            tenant_id = %tenant_id,
+                            provider = %provider,
+                            error = ?e,
+                            "Failed to create decryption key from SHA256 digest"
+                        );
+                        DatabaseError::DecryptionFailed {
+                            context: format!(
+                                "Failed to create decryption key for tenant {tenant_id}: {e:?}"
+                            ),
+                        }
+                    })?,
+                );
+
+                let encrypted_data = crate::security::EncryptedData {
+                    data: String::from_utf8_lossy(&encrypted_secret).to_string(),
+                    metadata: crate::security::EncryptionMetadata {
+                        key_version: u32::from_le_bytes(
+                            nonce.as_slice().try_into().unwrap_or([1, 0, 0, 0]),
+                        ),
+                        tenant_id: Some(tenant_id),
+                        algorithm: "AES-256-GCM".to_owned(),
+                        encrypted_at: chrono::Utc::now(),
+                    },
+                };
+
+                let client_secret = encryption_manager
+                    .decrypt_tenant_data(tenant_id, &encrypted_data)
+                    .map_err(|e| DatabaseError::DecryptionFailed {
+                        context: format!("Failed to decrypt OAuth secret: {e}"),
+                    })?;
+
+                let scopes: Vec<String> = serde_json::from_str(&scopes_json)?;
+
+                Ok(Some(crate::tenant::TenantOAuthCredentials {
+                    tenant_id,
+                    provider: provider.to_owned(),
+                    client_id,
+                    client_secret,
+                    redirect_uri,
+                    scopes,
+                    rate_limit_per_day: u32::try_from(rate_limit).unwrap_or(0),
+                }))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Save tenant-level fitness configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails
+    pub async fn save_tenant_fitness_config(
+        &self,
+        tenant_id: &str,
+        configuration_name: &str,
+        config: &crate::config::fitness_config::FitnessConfig,
+    ) -> Result<String> {
+        let config_json = serde_json::to_string(config)?;
+
+        let result = sqlx::query(
+            r"
+            INSERT INTO fitness_configurations (tenant_id, user_id, configuration_name, config_data)
+            VALUES (?, NULL, ?, ?)
+            ON CONFLICT (tenant_id, user_id, configuration_name)
+            DO UPDATE SET
+                config_data = excluded.config_data,
+                updated_at = CURRENT_TIMESTAMP
+            RETURNING id
+            ",
+        )
+        .bind(tenant_id)
+        .bind(configuration_name)
+        .bind(&config_json)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(result.try_get("id")?)
+    }
+
+    /// Get tenant-level fitness configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database query fails
+    pub async fn get_tenant_fitness_config(
+        &self,
+        tenant_id: &str,
+        configuration_name: &str,
+    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
+        let result = sqlx::query(
+            r"
+            SELECT config_data FROM fitness_configurations
+            WHERE tenant_id = ? AND user_id IS NULL AND configuration_name = ?
+            ",
+        )
+        .bind(tenant_id)
+        .bind(configuration_name)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = result {
+            let config_json: String = row.try_get("config_data")?;
+            let config: crate::config::fitness_config::FitnessConfig =
+                serde_json::from_str(&config_json)?;
+            Ok(Some(config))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// List all tenant-level fitness configuration names
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database query fails
+    pub async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> Result<Vec<String>> {
+        let rows = sqlx::query(
+            r"
+            SELECT DISTINCT configuration_name FROM fitness_configurations
+            WHERE tenant_id = ?
+            ORDER BY configuration_name
+            ",
+        )
+        .bind(tenant_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let configurations = rows
+            .into_iter()
+            .map(|row| row.try_get("configuration_name"))
+            .collect::<Result<Vec<String>, _>>()?;
+
+        Ok(configurations)
+    }
 }
 
 // Implement HasEncryption trait for SQLite (delegates to inherent impl methods)
@@ -1059,34 +1613,42 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::migrate_impl(self).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_user(&self, user: &User) -> Result<Uuid> {
         Database::create_user(self, user).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
         Database::get_user(self, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
         Database::get_user_by_email(self, email).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
         Database::get_user_by_email_required(self, email).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
         Database::update_last_active(self, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_count(&self) -> Result<i64> {
         Database::get_user_count(self).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
         Database::get_users_by_status(self, status).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_users_by_status_cursor(
         &self,
         status: &str,
@@ -1095,6 +1657,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_users_by_status_cursor(self, status, params).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_user_status(
         &self,
         user_id: Uuid,
@@ -1104,42 +1667,52 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::update_user_status(self, user_id, new_status, admin_token_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
         Database::update_user_tenant_id(self, user_id, tenant_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> Result<()> {
         Database::upsert_user_profile(self, user_id, profile_data).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<Value>> {
         Database::get_user_profile(self, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_goal(&self, user_id: Uuid, goal_data: Value) -> Result<String> {
         Database::create_goal(self, user_id, goal_data).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<Value>> {
         Database::get_user_goals(self, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
         Database::update_goal_progress(self, goal_id, current_value).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
         Database::get_user_configuration(self, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()> {
         Database::save_user_configuration(self, user_id, config_json).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> Result<String> {
         Database::store_insight(self, user_id, insight_data).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_insights(
         &self,
         user_id: Uuid,
@@ -1149,30 +1722,37 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_user_insights(self, user_id, insight_type, limit).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
         Database::create_api_key(self, api_key).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_api_key_by_prefix(&self, prefix: &str, hash: &str) -> Result<Option<ApiKey>> {
         Database::get_api_key_by_prefix(self, prefix, hash).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
         Database::get_user_api_keys(self, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
         Database::update_api_key_last_used(self, api_key_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
         Database::deactivate_api_key(self, api_key_id, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
         Database::get_api_key_by_id(self, api_key_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_api_keys_filtered(
         &self,
         _user_email: Option<&str>,
@@ -1191,22 +1771,27 @@ impl crate::database_plugins::DatabaseProvider for Database {
         .await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn cleanup_expired_api_keys(&self) -> Result<u64> {
         Database::cleanup_expired_api_keys(self).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>> {
         Database::get_expired_api_keys(self).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
         Database::record_api_key_usage(self, usage).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
         Database::get_api_key_current_usage(self, api_key_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_api_key_usage_stats(
         &self,
         api_key_id: &str,
@@ -1216,10 +1801,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_api_key_usage_stats(self, api_key_id, start_date, end_date).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
         Database::record_jwt_usage(self, usage).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
         Database::get_jwt_current_usage(self, user_id).await
     }
@@ -1254,10 +1841,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
             .collect())
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_system_stats(&self) -> Result<(u64, u64)> {
         Database::get_system_stats(self).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_a2a_client(
         &self,
         client: &A2AClient,
@@ -1267,26 +1856,32 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::create_a2a_client(self, client, client_secret, api_key_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
         Database::get_a2a_client(self, client_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_client_by_api_key_id(&self, api_key_id: &str) -> Result<Option<A2AClient>> {
         Database::get_a2a_client_by_api_key_id(self, api_key_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
         Database::get_a2a_client_by_name(self, name).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
         Database::list_a2a_clients(self, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
         Database::deactivate_a2a_client(self, client_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_client_credentials(
         &self,
         client_id: &str,
@@ -1294,14 +1889,17 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_a2a_client_credentials(self, client_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
         Database::invalidate_a2a_client_sessions(self, client_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
         Database::deactivate_client_api_keys(self, client_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_a2a_session(
         &self,
         client_id: &str,
@@ -1309,21 +1907,26 @@ impl crate::database_plugins::DatabaseProvider for Database {
         granted_scopes: &[String],
         expires_in_hours: i64,
     ) -> Result<String> {
-        Database::create_a2a_session(self, client_id, user_id, granted_scopes, expires_in_hours).await
+        Database::create_a2a_session(self, client_id, user_id, granted_scopes, expires_in_hours)
+            .await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
         Database::get_a2a_session(self, session_token).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()> {
         Database::update_a2a_session_activity(self, session_token).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
         Database::get_active_a2a_sessions(self, client_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_a2a_task(
         &self,
         client_id: &str,
@@ -1334,10 +1937,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::create_a2a_task(self, client_id, session_id, task_type, input_data).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
         Database::get_a2a_task(self, task_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn list_a2a_tasks(
         &self,
         client_id: Option<&str>,
@@ -1348,6 +1953,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::list_a2a_tasks(self, client_id, status_filter, limit, offset).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_a2a_task_status(
         &self,
         task_id: &str,
@@ -1358,14 +1964,17 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::update_a2a_task_status(self, task_id, status, result, error).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()> {
         Database::record_a2a_usage(self, usage).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
         Database::get_a2a_client_current_usage(self, client_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_usage_stats(
         &self,
         client_id: &str,
@@ -1375,6 +1984,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_a2a_usage_stats(self, client_id, start_date, end_date).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_client_usage_history(
         &self,
         client_id: &str,
@@ -1383,6 +1993,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_a2a_client_usage_history(self, client_id, days).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_provider_last_sync(
         &self,
         user_id: Uuid,
@@ -1391,6 +2002,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_provider_last_sync(self, user_id, provider).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_provider_last_sync(
         &self,
         user_id: Uuid,
@@ -1400,6 +2012,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::update_provider_last_sync(self, user_id, provider, sync_time).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_top_tools_analysis(
         &self,
         user_id: Uuid,
@@ -1409,6 +2022,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_top_tools_analysis(self, user_id, start_time, end_time).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_admin_token(
         &self,
         request: &crate::admin::models::CreateAdminTokenRequest,
@@ -1418,6 +2032,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::create_admin_token(self, request, admin_jwt_secret, jwks_manager).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_admin_token_by_id(
         &self,
         token_id: &str,
@@ -1425,6 +2040,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_admin_token_by_id(self, token_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_admin_token_by_prefix(
         &self,
         token_prefix: &str,
@@ -1432,6 +2048,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_admin_token_by_prefix(self, token_prefix).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn list_admin_tokens(
         &self,
         include_inactive: bool,
@@ -1439,10 +2056,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::list_admin_tokens(self, include_inactive).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
         Database::deactivate_admin_token(self, token_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_admin_token_last_used(
         &self,
         token_id: &str,
@@ -1451,6 +2070,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::update_admin_token_last_used(self, token_id, ip_address).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn record_admin_token_usage(
         &self,
         usage: &crate::admin::models::AdminTokenUsage,
@@ -1458,6 +2078,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::record_admin_token_usage(self, usage).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_admin_token_usage_history(
         &self,
         token_id: &str,
@@ -1467,6 +2088,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_admin_token_usage_history(self, token_id, start_date, end_date).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn record_admin_provisioned_key(
         &self,
         admin_token_id: &str,
@@ -1488,6 +2110,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         .await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_admin_provisioned_keys(
         &self,
         admin_token_id: Option<&str>,
@@ -1497,6 +2120,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_admin_provisioned_keys(self, admin_token_id, start_date, end_date).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn save_rsa_keypair(
         &self,
         kid: &str,
@@ -1518,32 +2142,39 @@ impl crate::database_plugins::DatabaseProvider for Database {
         .await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn load_rsa_keypairs(
         &self,
     ) -> Result<Vec<(String, String, String, DateTime<Utc>, bool)>> {
         Database::load_rsa_keypairs(self).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
         Database::update_rsa_keypair_active_status(self, kid, is_active).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
         Database::create_tenant(self, tenant).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_tenant_by_id(&self, tenant_id: Uuid) -> Result<crate::models::Tenant> {
         Database::get_tenant_by_id(self, tenant_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
         Database::get_tenant_by_slug(self, slug).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn list_tenants_for_user(&self, user_id: Uuid) -> Result<Vec<crate::models::Tenant>> {
         Database::list_tenants_for_user(self, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_tenant_oauth_credentials(
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
@@ -1551,6 +2182,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::store_tenant_oauth_credentials(self, credentials).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_tenant_oauth_providers(
         &self,
         tenant_id: Uuid,
@@ -1558,6 +2190,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_tenant_oauth_providers(self, tenant_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_tenant_oauth_credentials(
         &self,
         tenant_id: Uuid,
@@ -1566,14 +2199,17 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_tenant_oauth_credentials(self, tenant_id, provider).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()> {
         Database::create_oauth_app(self, app).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_oauth_app_by_client_id(&self, client_id: &str) -> Result<crate::models::OAuthApp> {
         Database::get_oauth_app_by_client_id(self, client_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn list_oauth_apps_for_user(
         &self,
         user_id: Uuid,
@@ -1581,6 +2217,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::list_oauth_apps_for_user(self, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_oauth2_client(
         &self,
         client: &crate::oauth2_server::models::OAuth2Client,
@@ -1588,6 +2225,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::store_oauth2_client(self, client).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_oauth2_client(
         &self,
         client_id: &str,
@@ -1595,6 +2233,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_oauth2_client(self, client_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
@@ -1602,6 +2241,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::store_oauth2_auth_code(self, auth_code).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_oauth2_auth_code(
         &self,
         code: &str,
@@ -1609,6 +2249,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_oauth2_auth_code(self, code).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
@@ -1616,6 +2257,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::update_oauth2_auth_code(self, auth_code).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_oauth2_refresh_token(
         &self,
         refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
@@ -1623,6 +2265,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::store_oauth2_refresh_token(self, refresh_token).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_oauth2_refresh_token(
         &self,
         token: &str,
@@ -1630,10 +2273,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_oauth2_refresh_token(self, token).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()> {
         Database::revoke_oauth2_refresh_token(self, token).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn consume_auth_code(
         &self,
         code: &str,
@@ -1644,6 +2289,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::consume_auth_code(self, code, client_id, redirect_uri, now).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn consume_refresh_token(
         &self,
         token: &str,
@@ -1653,6 +2299,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::consume_refresh_token(self, token, client_id, now).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_refresh_token_by_value(
         &self,
         token: &str,
@@ -1660,6 +2307,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_refresh_token_by_value(self, token).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_authorization_code(
         &self,
         code: &str,
@@ -1668,17 +2316,21 @@ impl crate::database_plugins::DatabaseProvider for Database {
         scope: &str,
         user_id: Uuid,
     ) -> Result<()> {
-        Database::store_authorization_code(self, code, client_id, redirect_uri, scope, user_id).await
+        Database::store_authorization_code(self, code, client_id, redirect_uri, scope, user_id)
+            .await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_authorization_code(&self, code: &str) -> Result<crate::models::AuthorizationCode> {
         Database::get_authorization_code(self, code).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn delete_authorization_code(&self, code: &str) -> Result<()> {
         Database::delete_authorization_code(self, code).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_oauth2_state(
         &self,
         state: &crate::oauth2_server::models::OAuth2State,
@@ -1686,6 +2338,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::store_oauth2_state(self, state).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn consume_oauth2_state(
         &self,
         state_value: &str,
@@ -1695,6 +2348,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::consume_oauth2_state(self, state_value, client_id, now).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_key_version(
         &self,
         version: &crate::security::key_rotation::KeyVersion,
@@ -1702,6 +2356,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::store_key_version(self, version).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_key_versions(
         &self,
         tenant_id: Option<Uuid>,
@@ -1709,6 +2364,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_key_versions(self, tenant_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_current_key_version(
         &self,
         tenant_id: Option<Uuid>,
@@ -1716,6 +2372,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_current_key_version(self, tenant_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_key_version_status(
         &self,
         tenant_id: Option<Uuid>,
@@ -1725,6 +2382,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::update_key_version_status(self, tenant_id, version, is_active).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn delete_old_key_versions(
         &self,
         tenant_id: Option<Uuid>,
@@ -1733,14 +2391,17 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::delete_old_key_versions(self, tenant_id, keep_count).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
         Database::get_all_tenants(self).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> Result<()> {
         Database::store_audit_event(self, event).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_audit_events(
         &self,
         tenant_id: Option<Uuid>,
@@ -1750,22 +2411,27 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_audit_events(self, tenant_id, event_type, limit).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_tenant_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<String>> {
         Database::get_user_tenant_role(self, &user_id.to_string(), &tenant_id.to_string()).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
         Database::get_or_create_system_secret(self, secret_type).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_system_secret(&self, secret_type: &str) -> Result<String> {
         Database::get_system_secret(self, secret_type).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()> {
         Database::update_system_secret(self, secret_type, new_value).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_oauth_notification(
         &self,
         user_id: Uuid,
@@ -1774,9 +2440,11 @@ impl crate::database_plugins::DatabaseProvider for Database {
         message: &str,
         expires_at: Option<&str>,
     ) -> Result<String> {
-        Database::store_oauth_notification(self, user_id, provider, success, message, expires_at).await
+        Database::store_oauth_notification(self, user_id, provider, success, message, expires_at)
+            .await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_unread_oauth_notifications(
         &self,
         user_id: Uuid,
@@ -1784,6 +2452,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_unread_oauth_notifications(self, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn mark_oauth_notification_read(
         &self,
         notification_id: &str,
@@ -1792,10 +2461,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::mark_oauth_notification_read(self, notification_id, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64> {
         Database::mark_all_oauth_notifications_read(self, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_all_oauth_notifications(
         &self,
         user_id: Uuid,
@@ -1879,6 +2550,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
     }
 
     // OAuth Token Management
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn upsert_user_oauth_token(&self, token: &UserOAuthToken) -> Result<()> {
         use crate::database::user_oauth_tokens::OAuthTokenData;
 
@@ -1897,6 +2569,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::upsert_user_oauth_token(self, &token_data).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_oauth_token(
         &self,
         user_id: Uuid,
@@ -1906,10 +2579,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_user_oauth_token(self, user_id, tenant_id, provider).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_oauth_tokens(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>> {
         Database::get_user_oauth_tokens(self, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_tenant_provider_tokens(
         &self,
         tenant_id: &str,
@@ -1918,6 +2593,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_tenant_provider_tokens(self, tenant_id, provider).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn delete_user_oauth_token(
         &self,
         user_id: Uuid,
@@ -1927,10 +2603,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::delete_user_oauth_token(self, user_id, tenant_id, provider).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()> {
         Database::delete_user_oauth_tokens(self, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn refresh_user_oauth_token(
         &self,
         user_id: Uuid,
@@ -1952,6 +2630,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         .await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_user_oauth_app(
         &self,
         user_id: Uuid,
@@ -1971,6 +2650,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         .await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_oauth_app(
         &self,
         user_id: Uuid,
@@ -1979,10 +2659,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_user_oauth_app(self, user_id, provider).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn list_user_oauth_apps(&self, user_id: Uuid) -> Result<Vec<UserOAuthApp>> {
         Database::list_user_oauth_apps(self, user_id).await
     }
 
+    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> Result<()> {
         Database::remove_user_oauth_app(self, user_id, provider).await
     }
