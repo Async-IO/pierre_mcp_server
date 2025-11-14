@@ -25,8 +25,8 @@ pub use crate::database::A2AUsageStats;
 
 /// Database provider factory
 pub mod factory;
-/// SQLite database implementation
-pub mod sqlite;
+// Phase 3: sqlite.rs wrapper eliminated - Database now implements DatabaseProvider directly
+// pub mod sqlite;
 
 /// PostgreSQL database implementation
 #[cfg(feature = "postgresql")]

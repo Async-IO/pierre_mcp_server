@@ -203,33 +203,37 @@ mod tests {
 
     #[test]
     fn test_validate_scope_granted_all_present() {
-        let granted = vec!["read".to_string(), "write".to_string(), "admin".to_string()];
-        let requested = vec!["read".to_string(), "write".to_string()];
+        let granted = vec!["read".to_owned(), "write".to_owned(), "admin".to_owned()];
+        let requested = vec!["read".to_owned(), "write".to_owned()];
         assert!(validate_scope_granted(&requested, &granted).is_ok());
     }
 
     #[test]
     fn test_validate_scope_granted_empty_request() {
-        let granted = vec!["read".to_string()];
+        let granted = vec!["read".to_owned()];
         let requested: Vec<String> = vec![];
         assert!(validate_scope_granted(&requested, &granted).is_ok());
     }
 
     #[test]
     fn test_validate_scope_granted_missing_scope() {
-        let granted = vec!["read".to_string()];
-        let requested = vec!["write".to_string()];
+        let granted = vec!["read".to_owned()];
+        let requested = vec!["write".to_owned()];
         let result = validate_scope_granted(&requested, &granted);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not granted"));
+        if let Err(e) = result {
+            assert!(e.to_string().contains("not granted"));
+        }
     }
 
     #[test]
     fn test_validate_scope_granted_partial_match() {
-        let granted = vec!["read".to_string(), "write".to_string()];
-        let requested = vec!["read".to_string(), "admin".to_string()];
+        let granted = vec!["read".to_owned(), "write".to_owned()];
+        let requested = vec!["read".to_owned(), "admin".to_owned()];
         let result = validate_scope_granted(&requested, &granted);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("admin"));
+        if let Err(e) = result {
+            assert!(e.to_string().contains("admin"));
+        }
     }
 }

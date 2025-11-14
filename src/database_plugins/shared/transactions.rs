@@ -232,7 +232,9 @@ mod tests {
         .await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 42);
+        if let Ok(val) = result {
+            assert_eq!(val, 42);
+        }
         assert_eq!(call_count.load(Ordering::SeqCst), 1);
     }
 
@@ -250,7 +252,7 @@ mod tests {
                 async move {
                     let current = count.fetch_add(1, Ordering::SeqCst) + 1;
                     if current < 3 {
-                        Err(anyhow::anyhow!("database is locked"))
+                        Err(anyhow::Error::msg("database is locked"))
                     } else {
                         Ok::<i32, anyhow::Error>(42)
                     }
@@ -261,7 +263,9 @@ mod tests {
         .await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 42);
+        if let Ok(val) = result {
+            assert_eq!(val, 42);
+        }
         assert_eq!(call_count.load(Ordering::SeqCst), 3);
     }
 
@@ -278,7 +282,7 @@ mod tests {
                 let count = call_count_clone.clone();
                 async move {
                     count.fetch_add(1, Ordering::SeqCst);
-                    Err::<i32, anyhow::Error>(anyhow::anyhow!("deadlock detected"))
+                    Err::<i32, anyhow::Error>(anyhow::Error::msg("deadlock detected"))
                 }
             },
             3,
@@ -287,7 +291,9 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(call_count.load(Ordering::SeqCst), 3);
-        assert!(result.unwrap_err().to_string().contains("deadlock"));
+        if let Err(e) = result {
+            assert!(e.to_string().contains("deadlock"));
+        }
     }
 
     #[tokio::test]
@@ -303,7 +309,7 @@ mod tests {
                 let count = call_count_clone.clone();
                 async move {
                     count.fetch_add(1, Ordering::SeqCst);
-                    Err::<i32, anyhow::Error>(anyhow::anyhow!("unique constraint violation"))
+                    Err::<i32, anyhow::Error>(anyhow::Error::msg("unique constraint violation"))
                 }
             },
             5,
@@ -312,9 +318,8 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(call_count.load(Ordering::SeqCst), 1); // Should not retry
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("unique constraint"));
+        if let Err(e) = result {
+            assert!(e.to_string().contains("unique constraint"));
+        }
     }
 }

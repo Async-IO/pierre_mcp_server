@@ -45,7 +45,6 @@ where
     Option<DateTime<Utc>>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
     DateTime<Utc>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
 {
-
     // Parse enum fields using shared converters
     let user_status_str: String = row.try_get("user_status")?;
     let user_status = super::enums::str_to_user_status(&user_status_str);
@@ -97,7 +96,6 @@ where
     DateTime<Utc>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
     Option<DateTime<Utc>>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
 {
-
     // Get task_id for logging
     let task_id: String = row.try_get("task_id").or_else(|_| row.try_get("id"))?; // Try both column names
 
@@ -177,7 +175,6 @@ where
     Uuid: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
     String: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
 {
-
     // Try PostgreSQL UUID type first
     if let Ok(uuid) = row.try_get::<Uuid, _>(column) {
         return Ok(uuid);

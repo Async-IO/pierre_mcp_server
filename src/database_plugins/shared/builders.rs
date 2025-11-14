@@ -4,4 +4,6 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-// Placeholder - will be implemented in Phase 2.3
+// This module is currently minimal as the query parameter binding helpers
+// were deferred to a later phase. The existing database implementations
+// use direct .bind() chains which, while verbose, are explicit and type-safe.

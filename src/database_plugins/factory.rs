@@ -23,7 +23,8 @@ use uuid::Uuid;
 
 #[cfg(feature = "postgresql")]
 use super::postgres::PostgresDatabase;
-use super::sqlite::SqliteDatabase;
+// Phase 3: Use crate::database::Database directly (eliminates sqlite.rs wrapper)
+use crate::database::Database as SqliteDatabase;
 
 /// Supported database types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -340,7 +341,7 @@ impl DatabaseProvider for Database {
 
     async fn update_user_tenant_id(&self, user_id: uuid::Uuid, tenant_id: &str) -> Result<()> {
         match self {
-            Self::SQLite(db) => db.inner().update_user_tenant_id(user_id, tenant_id).await,
+            Self::SQLite(db) => db.update_user_tenant_id(user_id, tenant_id).await,
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.update_user_tenant_id(user_id, tenant_id).await,
         }
