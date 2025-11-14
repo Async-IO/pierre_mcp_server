@@ -213,8 +213,8 @@ mod tests {
 
     #[test]
     fn test_create_token_aad_context_format() {
-        let user_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000")
-            .expect("Valid UUID for test");
+        let user_id =
+            Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").expect("Valid UUID for test");
         let aad = create_token_aad_context("default", user_id, "fitbit", "user_oauth_tokens");
 
         assert_eq!(

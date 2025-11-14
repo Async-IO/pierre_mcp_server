@@ -187,7 +187,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // Placeholder tests module
 
     // Note: These tests would require mock row implementations or database fixtures
     // For now, we rely on integration tests with actual databases
