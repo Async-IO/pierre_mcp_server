@@ -23,7 +23,8 @@ use uuid::Uuid;
 
 #[cfg(feature = "postgresql")]
 use super::postgres::PostgresDatabase;
-use super::sqlite::SqliteDatabase;
+// Phase 3: Use crate::database::Database directly (eliminates sqlite.rs wrapper)
+use crate::database::Database as SqliteDatabase;
 
 /// Supported database types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -340,7 +341,7 @@ impl DatabaseProvider for Database {
 
     async fn update_user_tenant_id(&self, user_id: uuid::Uuid, tenant_id: &str) -> Result<()> {
         match self {
-            Self::SQLite(db) => db.inner().update_user_tenant_id(user_id, tenant_id).await,
+            Self::SQLite(db) => db.update_user_tenant_id(user_id, tenant_id).await,
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.update_user_tenant_id(user_id, tenant_id).await,
         }
@@ -625,7 +626,7 @@ impl DatabaseProvider for Database {
     ) -> Result<Vec<crate::api_keys::ApiKey>> {
         match self {
             Self::SQLite(db) => {
-                db.get_api_keys_filtered(user_email, active_only, limit, offset)
+                DatabaseProvider::get_api_keys_filtered(db, user_email, active_only, limit, offset)
                     .await
             }
             #[cfg(feature = "postgresql")]
@@ -713,8 +714,15 @@ impl DatabaseProvider for Database {
     ) -> Result<Vec<crate::dashboard_routes::RequestLog>> {
         match self {
             Self::SQLite(db) => {
-                db.get_request_logs(api_key_id, start_time, end_time, status_filter, tool_filter)
-                    .await
+                DatabaseProvider::get_request_logs(
+                    db,
+                    api_key_id,
+                    start_time,
+                    end_time,
+                    status_filter,
+                    tool_filter,
+                )
+                .await
             }
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => {
@@ -1611,7 +1619,7 @@ impl DatabaseProvider for Database {
 
     async fn upsert_user_oauth_token(&self, token: &crate::models::UserOAuthToken) -> Result<()> {
         match self {
-            Self::SQLite(db) => db.upsert_user_oauth_token(token).await,
+            Self::SQLite(db) => DatabaseProvider::upsert_user_oauth_token(db, token).await,
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.upsert_user_oauth_token(token).await,
         }
@@ -1719,7 +1727,9 @@ impl DatabaseProvider for Database {
     /// Get user role for a specific tenant
     async fn get_user_tenant_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<String>> {
         match self {
-            Self::SQLite(db) => db.get_user_tenant_role(user_id, tenant_id).await,
+            Self::SQLite(db) => {
+                DatabaseProvider::get_user_tenant_role(db, user_id, tenant_id).await
+            }
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.get_user_tenant_role(user_id, tenant_id).await,
         }
@@ -2042,7 +2052,7 @@ impl DatabaseProvider for Database {
                     public_key_pem,
                     created_at,
                     is_active,
-                    key_size_bits,
+                    key_size_bits as usize,
                 )
                 .await
             }

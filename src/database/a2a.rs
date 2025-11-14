@@ -10,6 +10,7 @@ use crate::a2a::{
     client::A2ASession,
     protocol::{A2ATask, TaskStatus},
 };
+use crate::database_plugins::shared;
 use crate::errors::AppError;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -942,7 +943,7 @@ impl Database {
         .bind(task_type)
         .bind(serde_json::to_string(input_data)?)
         .bind(None::<String>) // output_data
-        .bind(TaskStatus::Pending.to_string())
+        .bind(shared::enums::task_status_to_str(&TaskStatus::Pending))
         .bind(None::<String>) // error_message
         .bind(now)
         .bind(now)
@@ -1027,48 +1028,10 @@ impl Database {
 
         let rows = sql_query.fetch_all(&self.pool).await?;
 
-        let mut tasks = Vec::new();
-        for row in rows {
-            let input_data_json: String = row.get("input_data");
-            let input_data = serde_json::from_str(&input_data_json)?;
-
-            let output_data = if let Some(output_json) = row.get::<Option<String>, _>("output_data")
-            {
-                Some(serde_json::from_str(&output_json)?)
-            } else {
-                None
-            };
-
-            let status_str: String = row.get("status");
-            let status = match status_str.as_str() {
-                "pending" => TaskStatus::Pending,
-                "running" => TaskStatus::Running,
-                "completed" => TaskStatus::Completed,
-                "failed" => TaskStatus::Failed,
-                "cancelled" => TaskStatus::Cancelled,
-                _ => {
-                    return Err(AppError::invalid_input(format!(
-                        "Invalid task status: {status_str}"
-                    ))
-                    .into())
-                }
-            };
-
-            tasks.push(A2ATask {
-                id: row.get("id"),
-                status,
-                created_at: row.get("created_at"),
-                completed_at: row.get("completed_at"),
-                result: output_data.clone(),
-                error: row.get("error_message"),
-                client_id: row.get("client_id"),
-                task_type: row.get("task_type"),
-                input_data,
-                output_data,
-                error_message: row.get("error_message"),
-                updated_at: row.get("updated_at"),
-            });
-        }
+        let tasks: Vec<A2ATask> = rows
+            .iter()
+            .map(|row| shared::mappers::parse_a2a_task_from_row(row))
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(tasks)
     }
@@ -1091,45 +1054,8 @@ impl Database {
         .await?;
 
         if let Some(row) = row {
-            let input_data_json: String = row.get("input_data");
-            let input_data = serde_json::from_str(&input_data_json)?;
-
-            let output_data = if let Some(output_json) = row.get::<Option<String>, _>("output_data")
-            {
-                Some(serde_json::from_str(&output_json)?)
-            } else {
-                None
-            };
-
-            let status_str: String = row.get("status");
-            let status = match status_str.as_str() {
-                "pending" => TaskStatus::Pending,
-                "running" => TaskStatus::Running,
-                "completed" => TaskStatus::Completed,
-                "failed" => TaskStatus::Failed,
-                "cancelled" => TaskStatus::Cancelled,
-                _ => {
-                    return Err(AppError::invalid_input(format!(
-                        "Invalid task status: {status_str}"
-                    ))
-                    .into())
-                }
-            };
-
-            Ok(Some(A2ATask {
-                id: row.get("id"),
-                status,
-                created_at: row.get("created_at"),
-                completed_at: row.get("completed_at"),
-                result: output_data.clone(),
-                error: row.get("error_message"),
-                client_id: row.get("client_id"),
-                task_type: row.get("task_type"),
-                input_data,
-                output_data,
-                error_message: row.get("error_message"),
-                updated_at: row.get("updated_at"),
-            }))
+            let task = shared::mappers::parse_a2a_task_from_row(&row)?;
+            Ok(Some(task))
         } else {
             Ok(None)
         }
