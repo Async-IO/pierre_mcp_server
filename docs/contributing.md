@@ -383,12 +383,23 @@ After significant changes:
 
 ## review process
 
-1. Automated checks must pass (ci)
+1. Automated checks must pass (ci) - see [ci/cd documentation](ci-cd.md)
 2. Code review by maintainer
 3. All feedback addressed
 4. Tests added/updated
 5. Documentation updated
 6. Merge to main
+
+### ci/cd requirements
+
+All GitHub Actions workflows must pass before merge:
+- **Rust**: Core quality gate (formatting, clippy, tests)
+- **Backend CI**: Multi-database validation (SQLite + PostgreSQL)
+- **Cross-Platform**: OS compatibility (Linux, macOS, Windows)
+- **SDK Tests**: TypeScript SDK bridge validation
+- **MCP Compliance**: Protocol specification conformance
+
+See [ci/cd.md](ci-cd.md) for detailed workflow documentation, troubleshooting, and local validation commands.
 
 ## release process
 

@@ -268,12 +268,33 @@ cargo deny check
 
 ### ci/cd validation
 
-GitHub Actions workflow (`.github/workflows/rust.yml`):
-1. clippy zero-warning check
-2. Test suite execution (1,252 tests)
-3. Security audit (cargo-deny)
-4. Binary size check (<50MB limit)
-5. Architecture validation (unsafe code, algorithm patterns)
+The project uses five GitHub Actions workflows for comprehensive validation:
+
+1. **Rust** (`.github/workflows/rust.yml`): Core quality gate
+   - clippy zero-warning check
+   - Test suite execution with coverage
+   - Security audit (cargo-deny)
+   - Architecture validation (unsafe code, algorithm patterns)
+
+2. **Backend CI** (`.github/workflows/ci.yml`): Multi-database validation
+   - SQLite + PostgreSQL test execution
+   - Frontend tests (Node.js/TypeScript)
+   - Secret pattern validation
+   - Separate coverage for each database
+
+3. **Cross-Platform** (`.github/workflows/cross-platform.yml`): OS compatibility
+   - Linux (PostgreSQL), macOS (SQLite), Windows (SQLite)
+   - Platform-specific optimizations
+
+4. **SDK Tests** (`.github/workflows/sdk-tests.yml`): TypeScript SDK bridge
+   - Unit, integration, and E2E tests
+   - SDK ↔ Rust server communication validation
+
+5. **MCP Compliance** (`.github/workflows/mcp-compliance.yml`): Protocol specification
+   - MCP protocol conformance testing
+   - TypeScript type validation
+
+**See [ci/cd.md](ci-cd.md) for comprehensive workflow documentation, troubleshooting guides, and local validation commands.**
 
 ## cargo-deny configuration
 
