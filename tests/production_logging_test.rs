@@ -171,6 +171,16 @@ async fn test_jwt_secret_not_logged() {
     let encryption_key = vec![0u8; 32];
 
     // Initialize database (which creates JWT secret)
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        &db_url,
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .expect("Failed to create database");
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(&db_url, encryption_key)
         .await
         .expect("Failed to create database");
@@ -207,6 +217,17 @@ async fn test_database_operation_instrumentation() {
     let db_url = format!("sqlite:{}", db_path.display());
 
     let encryption_key = vec![0u8; 32];
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        &db_url,
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .expect("Failed to create database");
+
+    #[cfg(not(feature = "postgresql"))]
     let database = Database::new(&db_url, encryption_key)
         .await
         .expect("Failed to create database");
