@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use super::Database;
+use crate::database_plugins::shared;
 use crate::errors::AppError;
 use crate::models::{EncryptedToken, User, UserStatus};
 use crate::pagination::{Cursor, CursorPage, PaginationParams};
@@ -211,11 +212,7 @@ impl Database {
             .bind(fitbit_expires)
             .bind(fitbit_scope)
             .bind(user.is_active)
-            .bind(match user.user_status {
-                UserStatus::Pending => "pending",
-                UserStatus::Active => "active",
-                UserStatus::Suspended => "suspended",
-            })
+            .bind(shared::enums::user_status_to_str(&user.user_status))
             .bind(user.is_admin)
             .bind(user.approved_by.map(|id| id.to_string()))
             .bind(user.approved_at)
@@ -272,11 +269,7 @@ impl Database {
             .bind(fitbit_expires)
             .bind(fitbit_scope)
             .bind(user.is_active)
-            .bind(match user.user_status {
-                UserStatus::Pending => "pending",
-                UserStatus::Active => "active",
-                UserStatus::Suspended => "suspended",
-            })
+            .bind(shared::enums::user_status_to_str(&user.user_status))
             .bind(user.is_admin)
             .bind(user.approved_by.map(|id| id.to_string()))
             .bind(user.approved_at)
@@ -365,11 +358,7 @@ impl Database {
         let tenant_id: Option<String> = row.get("tenant_id");
         let is_active: bool = row.get("is_active");
         let user_status_str: String = row.get("user_status");
-        let user_status = match user_status_str.as_str() {
-            "active" => UserStatus::Active,
-            "suspended" => UserStatus::Suspended,
-            _ => UserStatus::Pending, // Default fallback for "pending" and unknown values
-        };
+        let user_status = shared::enums::str_to_user_status(&user_status_str);
         let is_admin: bool = row.get("is_admin");
         let approved_by: Option<String> = row.get("approved_by");
         let approved_at: Option<chrono::DateTime<chrono::Utc>> = row.get("approved_at");
@@ -800,11 +789,7 @@ impl Database {
         new_status: UserStatus,
         admin_token_id: &str,
     ) -> Result<User> {
-        let status_str = match new_status {
-            UserStatus::Pending => "pending",
-            UserStatus::Active => "active",
-            UserStatus::Suspended => "suspended",
-        };
+        let status_str = shared::enums::user_status_to_str(&new_status);
 
         let admin_uuid = if new_status == UserStatus::Active && !admin_token_id.is_empty() {
             Some(admin_token_id)

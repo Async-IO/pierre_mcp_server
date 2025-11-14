@@ -10,6 +10,7 @@ use crate::a2a::{
     client::A2ASession,
     protocol::{A2ATask, TaskStatus},
 };
+use crate::database_plugins::shared;
 use crate::errors::AppError;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -942,7 +943,7 @@ impl Database {
         .bind(task_type)
         .bind(serde_json::to_string(input_data)?)
         .bind(None::<String>) // output_data
-        .bind(TaskStatus::Pending.to_string())
+        .bind(shared::enums::task_status_to_str(&TaskStatus::Pending))
         .bind(None::<String>) // error_message
         .bind(now)
         .bind(now)
@@ -1040,19 +1041,7 @@ impl Database {
             };
 
             let status_str: String = row.get("status");
-            let status = match status_str.as_str() {
-                "pending" => TaskStatus::Pending,
-                "running" => TaskStatus::Running,
-                "completed" => TaskStatus::Completed,
-                "failed" => TaskStatus::Failed,
-                "cancelled" => TaskStatus::Cancelled,
-                _ => {
-                    return Err(AppError::invalid_input(format!(
-                        "Invalid task status: {status_str}"
-                    ))
-                    .into())
-                }
-            };
+            let status = shared::enums::str_to_task_status(&status_str);
 
             tasks.push(A2ATask {
                 id: row.get("id"),
@@ -1102,19 +1091,7 @@ impl Database {
             };
 
             let status_str: String = row.get("status");
-            let status = match status_str.as_str() {
-                "pending" => TaskStatus::Pending,
-                "running" => TaskStatus::Running,
-                "completed" => TaskStatus::Completed,
-                "failed" => TaskStatus::Failed,
-                "cancelled" => TaskStatus::Cancelled,
-                _ => {
-                    return Err(AppError::invalid_input(format!(
-                        "Invalid task status: {status_str}"
-                    ))
-                    .into())
-                }
-            };
+            let status = shared::enums::str_to_task_status(&status_str);
 
             Ok(Some(A2ATask {
                 id: row.get("id"),
