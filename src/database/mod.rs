@@ -784,7 +784,11 @@ impl Database {
     /// - Decryption fails
     /// - Data is malformed
     /// - AAD context does not match (authentication fails)
-    fn decrypt_data_with_aad_impl(&self, encrypted_data: &str, aad_context: &str) -> Result<String> {
+    fn decrypt_data_with_aad_impl(
+        &self,
+        encrypted_data: &str,
+        aad_context: &str,
+    ) -> Result<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
@@ -1015,31 +1019,31 @@ impl crate::database_plugins::DatabaseProvider for Database {
     }
 
     async fn create_user(&self, user: &User) -> Result<Uuid> {
-        self.create_user(user).await
+        Self::create_user(self, user).await
     }
 
     async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
-        self.get_user(user_id).await
+        Self::get_user(self, user_id).await
     }
 
     async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
-        self.get_user_by_email(email).await
+        Self::get_user_by_email(self, email).await
     }
 
     async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
-        self.get_user_by_email_required(email).await
+        Self::get_user_by_email_required(self, email).await
     }
 
     async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
-        self.update_last_active(user_id).await
+        Self::update_last_active(self, user_id).await
     }
 
     async fn get_user_count(&self) -> Result<i64> {
-        self.get_user_count().await
+        Self::get_user_count(self).await
     }
 
     async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
-        self.get_users_by_status(status).await
+        Self::get_users_by_status(self, status).await
     }
 
     async fn get_users_by_status_cursor(
@@ -1047,7 +1051,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         status: &str,
         params: &crate::pagination::PaginationParams,
     ) -> Result<crate::pagination::CursorPage<User>> {
-        self.get_users_by_status_cursor(status, params).await
+        Self::get_users_by_status_cursor(self, status, params).await
     }
 
     async fn update_user_status(
@@ -1056,43 +1060,43 @@ impl crate::database_plugins::DatabaseProvider for Database {
         new_status: crate::models::UserStatus,
         admin_token_id: &str,
     ) -> Result<User> {
-        self.update_user_status(user_id, new_status, admin_token_id).await
+        Self::update_user_status(self, user_id, new_status, admin_token_id).await
     }
 
     async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
-        self.update_user_tenant_id(user_id, tenant_id).await
+        Self::update_user_tenant_id(self, user_id, tenant_id).await
     }
 
     async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> Result<()> {
-        self.upsert_user_profile(user_id, profile_data).await
+        Self::upsert_user_profile(self, user_id, profile_data).await
     }
 
     async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<Value>> {
-        self.get_user_profile(user_id).await
+        Self::get_user_profile(self, user_id).await
     }
 
     async fn create_goal(&self, user_id: Uuid, goal_data: Value) -> Result<String> {
-        self.create_goal(user_id, goal_data).await
+        Self::create_goal(self, user_id, goal_data).await
     }
 
     async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<Value>> {
-        self.get_user_goals(user_id).await
+        Self::get_user_goals(self, user_id).await
     }
 
     async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
-        self.update_goal_progress(goal_id, current_value).await
+        Self::update_goal_progress(self, goal_id, current_value).await
     }
 
     async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
-        self.get_user_configuration(user_id).await
+        Self::get_user_configuration(self, user_id).await
     }
 
     async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()> {
-        self.save_user_configuration(user_id, config_json).await
+        Self::save_user_configuration(self, user_id, config_json).await
     }
 
     async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> Result<String> {
-        self.store_insight(user_id, insight_data).await
+        Self::store_insight(self, user_id, insight_data).await
     }
 
     async fn get_user_insights(
@@ -1101,31 +1105,31 @@ impl crate::database_plugins::DatabaseProvider for Database {
         insight_type: Option<&str>,
         limit: Option<u32>,
     ) -> Result<Vec<Value>> {
-        self.get_user_insights(user_id, insight_type, limit).await
+        Self::get_user_insights(self, user_id, insight_type, limit).await
     }
 
     async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
-        self.create_api_key(api_key).await
+        Self::create_api_key(self, api_key).await
     }
 
     async fn get_api_key_by_prefix(&self, prefix: &str, hash: &str) -> Result<Option<ApiKey>> {
-        self.get_api_key_by_prefix(prefix, hash).await
+        Self::get_api_key_by_prefix(self, prefix, hash).await
     }
 
     async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
-        self.get_user_api_keys(user_id).await
+        Self::get_user_api_keys(self, user_id).await
     }
 
     async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
-        self.update_api_key_last_used(api_key_id).await
+        Self::update_api_key_last_used(self, api_key_id).await
     }
 
     async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
-        self.deactivate_api_key(api_key_id, user_id).await
+        Self::deactivate_api_key(self, api_key_id, user_id).await
     }
 
     async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
-        self.get_api_key_by_id(api_key_id).await
+        Self::get_api_key_by_id(self, api_key_id).await
     }
 
     async fn get_api_keys_filtered(
@@ -1147,19 +1151,19 @@ impl crate::database_plugins::DatabaseProvider for Database {
     }
 
     async fn cleanup_expired_api_keys(&self) -> Result<u64> {
-        self.cleanup_expired_api_keys().await
+        Self::cleanup_expired_api_keys(self).await
     }
 
     async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>> {
-        self.get_expired_api_keys().await
+        Self::get_expired_api_keys(self).await
     }
 
     async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
-        self.record_api_key_usage(usage).await
+        Self::record_api_key_usage(self, usage).await
     }
 
     async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
-        self.get_api_key_current_usage(api_key_id).await
+        Self::get_api_key_current_usage(self, api_key_id).await
     }
 
     async fn get_api_key_usage_stats(
@@ -1168,15 +1172,15 @@ impl crate::database_plugins::DatabaseProvider for Database {
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<ApiKeyUsageStats> {
-        self.get_api_key_usage_stats(api_key_id, start_date, end_date).await
+        Self::get_api_key_usage_stats(self, api_key_id, start_date, end_date).await
     }
 
     async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
-        self.record_jwt_usage(usage).await
+        Self::record_jwt_usage(self, usage).await
     }
 
     async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
-        self.get_jwt_current_usage(user_id).await
+        Self::get_jwt_current_usage(self, user_id).await
     }
 
     async fn get_request_logs(
@@ -1187,8 +1191,9 @@ impl crate::database_plugins::DatabaseProvider for Database {
         _status_filter: Option<&str>,
         _tool_filter: Option<&str>,
     ) -> Result<Vec<crate::dashboard_routes::RequestLog>> {
-        let analytics_logs =
-            self.get_request_logs(None, start_time, end_time, 10, 0).await?;
+        let analytics_logs = self
+            .get_request_logs(None, start_time, end_time, 10, 0)
+            .await?;
 
         // Convert analytics::RequestLog to dashboard_routes::RequestLog
         Ok(analytics_logs
@@ -1209,7 +1214,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
     }
 
     async fn get_system_stats(&self) -> Result<(u64, u64)> {
-        self.get_system_stats().await
+        Self::get_system_stats(self).await
     }
 
     async fn create_a2a_client(
@@ -1253,7 +1258,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
     }
 
     async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
-        self.deactivate_client_api_keys(client_id).await
+        Self::deactivate_client_api_keys(self, client_id).await
     }
 
     async fn create_a2a_session(
@@ -1342,7 +1347,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         user_id: Uuid,
         provider: &str,
     ) -> Result<Option<DateTime<Utc>>> {
-        self.get_provider_last_sync(user_id, provider).await
+        Self::get_provider_last_sync(self, user_id, provider).await
     }
 
     async fn update_provider_last_sync(
@@ -1351,7 +1356,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         provider: &str,
         sync_time: DateTime<Utc>,
     ) -> Result<()> {
-        self.update_provider_last_sync(user_id, provider, sync_time).await
+        Self::update_provider_last_sync(self, user_id, provider, sync_time).await
     }
 
     async fn get_top_tools_analysis(
@@ -1360,7 +1365,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
     ) -> Result<Vec<crate::dashboard_routes::ToolUsage>> {
-        self.get_top_tools_analysis(user_id, start_time, end_time).await
+        Self::get_top_tools_analysis(self, user_id, start_time, end_time).await
     }
 
     async fn create_admin_token(
@@ -1369,32 +1374,32 @@ impl crate::database_plugins::DatabaseProvider for Database {
         admin_jwt_secret: &str,
         jwks_manager: &crate::admin::jwks::JwksManager,
     ) -> Result<crate::admin::models::GeneratedAdminToken> {
-        self.create_admin_token(request, admin_jwt_secret, jwks_manager).await
+        Self::create_admin_token(self, request, admin_jwt_secret, jwks_manager).await
     }
 
     async fn get_admin_token_by_id(
         &self,
         token_id: &str,
     ) -> Result<Option<crate::admin::models::AdminToken>> {
-        self.get_admin_token_by_id(token_id).await
+        Self::get_admin_token_by_id(self, token_id).await
     }
 
     async fn get_admin_token_by_prefix(
         &self,
         token_prefix: &str,
     ) -> Result<Option<crate::admin::models::AdminToken>> {
-        self.get_admin_token_by_prefix(token_prefix).await
+        Self::get_admin_token_by_prefix(self, token_prefix).await
     }
 
     async fn list_admin_tokens(
         &self,
         include_inactive: bool,
     ) -> Result<Vec<crate::admin::models::AdminToken>> {
-        self.list_admin_tokens(include_inactive).await
+        Self::list_admin_tokens(self, include_inactive).await
     }
 
     async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
-        self.deactivate_admin_token(token_id).await
+        Self::deactivate_admin_token(self, token_id).await
     }
 
     async fn update_admin_token_last_used(
@@ -1402,14 +1407,14 @@ impl crate::database_plugins::DatabaseProvider for Database {
         token_id: &str,
         ip_address: Option<&str>,
     ) -> Result<()> {
-        self.update_admin_token_last_used(token_id, ip_address).await
+        Self::update_admin_token_last_used(self, token_id, ip_address).await
     }
 
     async fn record_admin_token_usage(
         &self,
         usage: &crate::admin::models::AdminTokenUsage,
     ) -> Result<()> {
-        self.record_admin_token_usage(usage).await
+        Self::record_admin_token_usage(self, usage).await
     }
 
     async fn get_admin_token_usage_history(
@@ -1418,7 +1423,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<Vec<crate::admin::models::AdminTokenUsage>> {
-        self.get_admin_token_usage_history(token_id, start_date, end_date).await
+        Self::get_admin_token_usage_history(self, token_id, start_date, end_date).await
     }
 
     async fn record_admin_provisioned_key(
@@ -1448,7 +1453,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<Vec<serde_json::Value>> {
-        self.get_admin_provisioned_keys(admin_token_id, start_date, end_date).await
+        Self::get_admin_provisioned_keys(self, admin_token_id, start_date, end_date).await
     }
 
     async fn save_rsa_keypair(
@@ -1475,41 +1480,41 @@ impl crate::database_plugins::DatabaseProvider for Database {
     async fn load_rsa_keypairs(
         &self,
     ) -> Result<Vec<(String, String, String, DateTime<Utc>, bool)>> {
-        self.load_rsa_keypairs().await
+        Self::load_rsa_keypairs(self).await
     }
 
     async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
-        self.update_rsa_keypair_active_status(kid, is_active).await
+        Self::update_rsa_keypair_active_status(self, kid, is_active).await
     }
 
     async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
-        self.create_tenant(tenant).await
+        Self::create_tenant(self, tenant).await
     }
 
     async fn get_tenant_by_id(&self, tenant_id: Uuid) -> Result<crate::models::Tenant> {
-        self.get_tenant_by_id(tenant_id).await
+        Self::get_tenant_by_id(self, tenant_id).await
     }
 
     async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
-        self.get_tenant_by_slug(slug).await
+        Self::get_tenant_by_slug(self, slug).await
     }
 
     async fn list_tenants_for_user(&self, user_id: Uuid) -> Result<Vec<crate::models::Tenant>> {
-        self.list_tenants_for_user(user_id).await
+        Self::list_tenants_for_user(self, user_id).await
     }
 
     async fn store_tenant_oauth_credentials(
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
     ) -> Result<()> {
-        self.store_tenant_oauth_credentials(credentials).await
+        Self::store_tenant_oauth_credentials(self, credentials).await
     }
 
     async fn get_tenant_oauth_providers(
         &self,
         tenant_id: Uuid,
     ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
-        self.get_tenant_oauth_providers(tenant_id).await
+        Self::get_tenant_oauth_providers(self, tenant_id).await
     }
 
     async fn get_tenant_oauth_credentials(
@@ -1517,22 +1522,22 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tenant_id: Uuid,
         provider: &str,
     ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
-        self.get_tenant_oauth_credentials(tenant_id, provider).await
+        Self::get_tenant_oauth_credentials(self, tenant_id, provider).await
     }
 
     async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()> {
-        self.create_oauth_app(app).await
+        Self::create_oauth_app(self, app).await
     }
 
     async fn get_oauth_app_by_client_id(&self, client_id: &str) -> Result<crate::models::OAuthApp> {
-        self.get_oauth_app_by_client_id(client_id).await
+        Self::get_oauth_app_by_client_id(self, client_id).await
     }
 
     async fn list_oauth_apps_for_user(
         &self,
         user_id: Uuid,
     ) -> Result<Vec<crate::models::OAuthApp>> {
-        self.list_oauth_apps_for_user(user_id).await
+        Self::list_oauth_apps_for_user(self, user_id).await
     }
 
     async fn store_oauth2_client(
@@ -1595,7 +1600,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         redirect_uri: &str,
         now: DateTime<Utc>,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
-        self.consume_auth_code(code, client_id, redirect_uri, now).await
+        Self::consume_auth_code(self, code, client_id, redirect_uri, now).await
     }
 
     async fn consume_refresh_token(
@@ -1604,14 +1609,14 @@ impl crate::database_plugins::DatabaseProvider for Database {
         client_id: &str,
         now: DateTime<Utc>,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
-        self.consume_refresh_token(token, client_id, now).await
+        Self::consume_refresh_token(self, token, client_id, now).await
     }
 
     async fn get_refresh_token_by_value(
         &self,
         token: &str,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
-        self.get_refresh_token_by_value(token).await
+        Self::get_refresh_token_by_value(self, token).await
     }
 
     async fn store_authorization_code(
@@ -1622,15 +1627,15 @@ impl crate::database_plugins::DatabaseProvider for Database {
         scope: &str,
         user_id: Uuid,
     ) -> Result<()> {
-        self.store_authorization_code(code, client_id, redirect_uri, scope, user_id).await
+        Self::store_authorization_code(self, code, client_id, redirect_uri, scope, user_id).await
     }
 
     async fn get_authorization_code(&self, code: &str) -> Result<crate::models::AuthorizationCode> {
-        self.get_authorization_code(code).await
+        Self::get_authorization_code(self, code).await
     }
 
     async fn delete_authorization_code(&self, code: &str) -> Result<()> {
-        self.delete_authorization_code(code).await
+        Self::delete_authorization_code(self, code).await
     }
 
     async fn store_oauth2_state(
@@ -1653,21 +1658,21 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         version: &crate::security::key_rotation::KeyVersion,
     ) -> Result<()> {
-        self.store_key_version(version).await
+        Self::store_key_version(self, version).await
     }
 
     async fn get_key_versions(
         &self,
         tenant_id: Option<Uuid>,
     ) -> Result<Vec<crate::security::key_rotation::KeyVersion>> {
-        self.get_key_versions(tenant_id).await
+        Self::get_key_versions(self, tenant_id).await
     }
 
     async fn get_current_key_version(
         &self,
         tenant_id: Option<Uuid>,
     ) -> Result<Option<crate::security::key_rotation::KeyVersion>> {
-        self.get_current_key_version(tenant_id).await
+        Self::get_current_key_version(self, tenant_id).await
     }
 
     async fn update_key_version_status(
@@ -1676,7 +1681,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         version: u32,
         is_active: bool,
     ) -> Result<()> {
-        self.update_key_version_status(tenant_id, version, is_active).await
+        Self::update_key_version_status(self, tenant_id, version, is_active).await
     }
 
     async fn delete_old_key_versions(
@@ -1684,15 +1689,15 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tenant_id: Option<Uuid>,
         keep_count: u32,
     ) -> Result<u64> {
-        self.delete_old_key_versions(tenant_id, keep_count).await
+        Self::delete_old_key_versions(self, tenant_id, keep_count).await
     }
 
     async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
-        self.get_all_tenants().await
+        Self::get_all_tenants(self).await
     }
 
     async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> Result<()> {
-        self.store_audit_event(event).await
+        Self::store_audit_event(self, event).await
     }
 
     async fn get_audit_events(
@@ -1701,23 +1706,23 @@ impl crate::database_plugins::DatabaseProvider for Database {
         event_type: Option<&str>,
         limit: Option<u32>,
     ) -> Result<Vec<crate::security::audit::AuditEvent>> {
-        self.get_audit_events(tenant_id, event_type, limit).await
+        Self::get_audit_events(self, tenant_id, event_type, limit).await
     }
 
     async fn get_user_tenant_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<String>> {
-        self.get_user_tenant_role(&user_id.to_string(), &tenant_id.to_string()).await
+        Self::get_user_tenant_role(self, &user_id.to_string(), &tenant_id.to_string()).await
     }
 
     async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
-        self.get_or_create_system_secret(secret_type).await
+        Self::get_or_create_system_secret(self, secret_type).await
     }
 
     async fn get_system_secret(&self, secret_type: &str) -> Result<String> {
-        self.get_system_secret(secret_type).await
+        Self::get_system_secret(self, secret_type).await
     }
 
     async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()> {
-        self.update_system_secret(secret_type, new_value).await
+        Self::update_system_secret(self, secret_type, new_value).await
     }
 
     async fn store_oauth_notification(
@@ -1728,14 +1733,14 @@ impl crate::database_plugins::DatabaseProvider for Database {
         message: &str,
         expires_at: Option<&str>,
     ) -> Result<String> {
-        self.store_oauth_notification(user_id, provider, success, message, expires_at).await
+        Self::store_oauth_notification(self, user_id, provider, success, message, expires_at).await
     }
 
     async fn get_unread_oauth_notifications(
         &self,
         user_id: Uuid,
     ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
-        self.get_unread_oauth_notifications(user_id).await
+        Self::get_unread_oauth_notifications(self, user_id).await
     }
 
     async fn mark_oauth_notification_read(
@@ -1743,11 +1748,11 @@ impl crate::database_plugins::DatabaseProvider for Database {
         notification_id: &str,
         user_id: Uuid,
     ) -> Result<bool> {
-        self.mark_oauth_notification_read(notification_id, user_id).await
+        Self::mark_oauth_notification_read(self, notification_id, user_id).await
     }
 
     async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64> {
-        self.mark_all_oauth_notifications_read(user_id).await
+        Self::mark_all_oauth_notifications_read(self, user_id).await
     }
 
     async fn get_all_oauth_notifications(
@@ -1755,7 +1760,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         user_id: Uuid,
         limit: Option<i64>,
     ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
-        self.get_all_oauth_notifications(user_id, limit).await
+        Self::get_all_oauth_notifications(self, user_id, limit).await
     }
 
     async fn save_tenant_fitness_config(
@@ -1848,7 +1853,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
             scope: token.scope.as_deref().unwrap_or(""),
         };
 
-        self.upsert_user_oauth_token(&token_data).await
+        Self::upsert_user_oauth_token(self, &token_data).await
     }
 
     async fn get_user_oauth_token(
@@ -1857,11 +1862,11 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tenant_id: &str,
         provider: &str,
     ) -> Result<Option<UserOAuthToken>> {
-        self.get_user_oauth_token(user_id, tenant_id, provider).await
+        Self::get_user_oauth_token(self, user_id, tenant_id, provider).await
     }
 
     async fn get_user_oauth_tokens(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>> {
-        self.get_user_oauth_tokens(user_id).await
+        Self::get_user_oauth_tokens(self, user_id).await
     }
 
     async fn get_tenant_provider_tokens(
@@ -1869,7 +1874,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tenant_id: &str,
         provider: &str,
     ) -> Result<Vec<UserOAuthToken>> {
-        self.get_tenant_provider_tokens(tenant_id, provider).await
+        Self::get_tenant_provider_tokens(self, tenant_id, provider).await
     }
 
     async fn delete_user_oauth_token(
@@ -1878,11 +1883,11 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tenant_id: &str,
         provider: &str,
     ) -> Result<()> {
-        self.delete_user_oauth_token(user_id, tenant_id, provider).await
+        Self::delete_user_oauth_token(self, user_id, tenant_id, provider).await
     }
 
     async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()> {
-        self.delete_user_oauth_tokens(user_id).await
+        Self::delete_user_oauth_tokens(self, user_id).await
     }
 
     async fn refresh_user_oauth_token(
@@ -1930,15 +1935,15 @@ impl crate::database_plugins::DatabaseProvider for Database {
         user_id: Uuid,
         provider: &str,
     ) -> Result<Option<UserOAuthApp>> {
-        self.get_user_oauth_app(user_id, provider).await
+        Self::get_user_oauth_app(self, user_id, provider).await
     }
 
     async fn list_user_oauth_apps(&self, user_id: Uuid) -> Result<Vec<UserOAuthApp>> {
-        self.list_user_oauth_apps(user_id).await
+        Self::list_user_oauth_apps(self, user_id).await
     }
 
     async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> Result<()> {
-        self.remove_user_oauth_app(user_id, provider).await
+        Self::remove_user_oauth_app(self, user_id, provider).await
     }
 }
 

@@ -190,21 +190,3 @@ where
     let uuid_str: String = row.try_get(column)?;
     Ok(Uuid::parse_str(&uuid_str)?)
 }
-
-#[cfg(test)]
-mod tests {
-    // Placeholder tests module
-
-    // Note: These tests would require mock row implementations or database fixtures
-    // For now, we rely on integration tests with actual databases
-
-    #[test]
-    fn test_placeholder() {
-        // Placeholder test - actual tests require database fixtures
-        // Integration tests will verify:
-        // - parse_user_from_row with PostgreSQL PgRow
-        // - parse_user_from_row with SQLite SqliteRow
-        // - parse_a2a_task_from_row with both backends
-        // - get_uuid_from_row with native UUID (PostgreSQL) and TEXT (SQLite)
-    }
-}
