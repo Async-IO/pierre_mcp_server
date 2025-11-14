@@ -1168,25 +1168,113 @@ impl AdminRoutes {
 
         tracing::info!("User {} approved successfully. Reason: {}", user_id, reason);
 
+        // Optionally create default tenant
+        let tenant_info = if request
+            .get("create_default_tenant")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+        {
+            let tenant_name = request
+                .get("tenant_name")
+                .and_then(serde_json::Value::as_str)
+                .map(String::from)
+                .unwrap_or_else(|| {
+                    format!(
+                        "{}'s Organization",
+                        updated_user.display_name.as_ref().unwrap_or(&updated_user.email)
+                    )
+                });
+
+            let tenant_slug = request
+                .get("tenant_slug")
+                .and_then(serde_json::Value::as_str)
+                .map(String::from)
+                .unwrap_or_else(|| format!("user-{}", user_uuid.simple()));
+
+            match Self::create_default_tenant_for_user(
+                &ctx.database,
+                user_uuid,
+                &tenant_name,
+                &tenant_slug,
+            )
+            .await
+            {
+                Ok(tenant) => {
+                    tracing::info!(
+                        "Created default tenant '{}' for user {}",
+                        tenant.name,
+                        updated_user.email
+                    );
+
+                    // Update user's tenant_id to link them to the new tenant
+                    let tenant_id_str = tenant.id.to_string();
+                    if let Err(e) = ctx
+                        .database
+                        .update_user_tenant_id(user_uuid, &tenant_id_str)
+                        .await
+                    {
+                        tracing::error!(
+                            "Failed to link user {} to tenant {}: {}",
+                            updated_user.email,
+                            tenant.id,
+                            e
+                        );
+                        return Err(AppError::internal(format!(
+                            "Failed to link user to created tenant: {e}"
+                        )));
+                    }
+
+                    tracing::info!(
+                        "Successfully linked user {} to tenant {} ({})",
+                        updated_user.email,
+                        tenant.slug,
+                        tenant.id
+                    );
+
+                    Some(serde_json::json!({
+                        "tenant_id": tenant.id.to_string(),
+                        "name": tenant.name,
+                        "slug": tenant.slug,
+                        "plan": tenant.plan,
+                    }))
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to create default tenant for user {}: {}. User approval succeeded.",
+                        updated_user.email,
+                        e
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+        let mut response_data = serde_json::json!({
+            "user": {
+                "id": updated_user.id.to_string(),
+                "email": updated_user.email,
+                "user_status": match updated_user.user_status {
+                    UserStatus::Pending => "pending",
+                    UserStatus::Active => "active",
+                    UserStatus::Suspended => "suspended",
+                },
+                "approved_by": updated_user.approved_by,
+                "approved_at": updated_user.approved_at.map(|t| t.to_rfc3339()),
+            },
+            "reason": reason
+        });
+
+        if let Some(tenant_data) = tenant_info {
+            response_data["tenant_created"] = tenant_data;
+        }
+
         Ok(json_response(
             AdminResponse {
                 success: true,
                 message: "User approved successfully".to_owned(),
-                data: serde_json::to_value(serde_json::json!({
-                    "user": {
-                        "id": updated_user.id.to_string(),
-                        "email": updated_user.email,
-                        "user_status": match updated_user.user_status {
-                            UserStatus::Pending => "pending",
-                            UserStatus::Active => "active",
-                            UserStatus::Suspended => "suspended",
-                        },
-                        "approved_by": updated_user.approved_by,
-                        "approved_at": updated_user.approved_at.map(|t| t.to_rfc3339()),
-                    },
-                    "reason": reason
-                }))
-                .ok(),
+                data: serde_json::to_value(response_data).ok(),
             },
             axum::http::StatusCode::OK,
         ))
@@ -1704,5 +1792,63 @@ impl AdminRoutes {
         });
 
         axum::Json(token_info_json)
+    }
+
+    /// Create default tenant for a user
+    async fn create_default_tenant_for_user(
+        database: &Database,
+        owner_user_id: uuid::Uuid,
+        tenant_name: &str,
+        tenant_slug: &str,
+    ) -> Result<crate::models::Tenant, AppError> {
+        let tenant_id = uuid::Uuid::new_v4();
+        let slug = tenant_slug.trim().to_lowercase();
+
+        tracing::debug!(
+            "Creating tenant: name={}, slug={}, owner={}",
+            tenant_name,
+            slug,
+            owner_user_id
+        );
+
+        // Check if slug already exists
+        if database.get_tenant_by_slug(&slug).await.is_ok() {
+            tracing::warn!("Tenant slug '{}' already exists", slug);
+            return Err(AppError::invalid_input(format!(
+                "Tenant slug '{slug}' already exists"
+            )));
+        }
+
+        let tenant_data = crate::models::Tenant {
+            id: tenant_id,
+            name: tenant_name.to_owned(),
+            slug: slug.clone(),
+            domain: None,
+            plan: "starter".to_owned(),
+            owner_user_id,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        database
+            .create_tenant(&tenant_data)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "Database create_tenant failed for slug '{}': {}",
+                    slug,
+                    e
+                );
+                AppError::database(format!("Failed to create tenant: {e}"))
+            })?;
+
+        tracing::info!(
+            "Successfully created tenant '{}' ({}) for owner {}",
+            tenant_name,
+            tenant_id,
+            owner_user_id
+        );
+
+        Ok(tenant_data)
     }
 }

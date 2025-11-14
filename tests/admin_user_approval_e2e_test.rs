@@ -446,3 +446,139 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
 
     Ok(())
 }
+
+/// Test user approval with automatic tenant creation
+#[tokio::test]
+async fn test_user_approval_with_tenant_creation() -> Result<()> {
+    let database_url = if std::env::var("CI").is_ok() {
+        "sqlite::memory:".to_owned()
+    } else {
+        let database_path = "./test_data/admin_approval_with_tenant_test.db";
+        let _ = std::fs::remove_file(database_path);
+        format!("sqlite:{database_path}")
+    };
+
+    #[cfg(feature = "postgresql")]
+    let database = Database::new(
+        &database_url,
+        b"test_encryption_key_32_bytes_long".to_vec(),
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await?;
+
+    #[cfg(not(feature = "postgresql"))]
+    let database =
+        Database::new(&database_url, b"test_encryption_key_32_bytes_long".to_vec()).await?;
+
+    let jwt_secret = "test_jwt_secret_for_tenant_creation";
+    let auth_manager = AuthManager::new(24);
+    let jwks_manager = common::get_shared_test_jwks();
+
+    let admin_context = AdminApiContext::new(
+        Arc::new(database.clone()),
+        jwt_secret,
+        Arc::new(auth_manager.clone()),
+        jwks_manager.clone(),
+        pierre_mcp_server::constants::system_config::STARTER_MONTHLY_LIMIT,
+    );
+
+    let admin_routes = pierre_mcp_server::routes::admin::AdminRoutes::routes(admin_context);
+
+    println!("Testing user approval with tenant creation");
+
+    // Create admin
+    let admin_setup_response = AxumTestRequest::post("/admin/setup")
+        .json(&serde_json::json!({
+            "email": "admin@example.com",
+            "password": "admin_pass",
+            "display_name": "Admin"
+        }))
+        .send(admin_routes.clone())
+        .await;
+
+    assert_eq!(admin_setup_response.status(), 201);
+    let admin_body: Value = serde_json::from_slice(&admin_setup_response.bytes())?;
+    let admin_token = admin_body["data"]["admin_token"].as_str().unwrap();
+
+    // Create pending user
+    let test_user_id = uuid::Uuid::new_v4();
+    let test_user = pierre_mcp_server::models::User {
+        id: test_user_id,
+        email: "user@example.com".to_owned(),
+        display_name: Some("Test User".to_owned()),
+        password_hash: "dummy_hash".to_owned(),
+        tenant_id: None,
+        strava_token: None,
+        fitbit_token: None,
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+        is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Pending,
+        is_admin: false,
+        approved_by: None,
+        approved_at: None,
+    };
+
+    database.create_user(&test_user).await?;
+    println!(" Pending user created");
+
+    // Approve user WITH tenant creation
+    let approve_response = AxumTestRequest::post(&format!("/admin/approve-user/{test_user_id}"))
+        .header("Authorization", &format!("Bearer {admin_token}"))
+        .json(&serde_json::json!({
+            "reason": "Approved for testing",
+            "create_default_tenant": true,
+            "tenant_name": "Test Organization",
+            "tenant_slug": "test-org"
+        }))
+        .send(admin_routes.clone())
+        .await;
+
+    assert_eq!(approve_response.status(), 200);
+    let approve_body: Value = serde_json::from_slice(&approve_response.bytes())?;
+
+    println!("Approval response: {}", serde_json::to_string_pretty(&approve_body)?);
+
+    // Verify response contains tenant_created
+    assert!(approve_body["success"].as_bool().unwrap());
+    assert!(approve_body["data"]["tenant_created"].is_object());
+
+    let tenant_created = &approve_body["data"]["tenant_created"];
+    assert_eq!(tenant_created["name"].as_str().unwrap(), "Test Organization");
+    assert_eq!(tenant_created["slug"].as_str().unwrap(), "test-org");
+    assert_eq!(tenant_created["plan"].as_str().unwrap(), "starter");
+
+    let tenant_id_str = tenant_created["tenant_id"].as_str().unwrap();
+    let tenant_id = uuid::Uuid::parse_str(tenant_id_str)?;
+
+    println!(" Tenant created: {} ({})", tenant_created["name"], tenant_id);
+
+    // Verify tenant exists in database
+    let created_tenant = database.get_tenant_by_id(tenant_id).await?;
+    assert_eq!(created_tenant.name, "Test Organization");
+    assert_eq!(created_tenant.slug, "test-org");
+    assert_eq!(created_tenant.plan, "starter");
+    assert_eq!(created_tenant.owner_user_id, test_user_id);
+    println!(" Tenant verified in database");
+
+    // Verify user is linked to tenant
+    let updated_user = database.get_user(test_user_id).await?.unwrap();
+    assert_eq!(updated_user.tenant_id, Some(tenant_id.to_string()));
+    println!(" User linked to tenant");
+
+    // Verify tenant_users table entry
+    let tenant_users = database.get_tenant_users(tenant_id).await?;
+    assert_eq!(tenant_users.len(), 1);
+    assert_eq!(tenant_users[0].user_id, test_user_id);
+    assert_eq!(tenant_users[0].role, "owner");
+    println!(" Tenant-user relationship verified");
+
+    // Cleanup
+    if std::env::var("CI").is_err() && database_url.starts_with("sqlite:./") {
+        let _ = std::fs::remove_file(&database_url[7..]);
+    }
+
+    println!("USER APPROVAL WITH TENANT CREATION TEST PASSED!");
+
+    Ok(())
+}

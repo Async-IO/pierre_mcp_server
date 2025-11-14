@@ -755,15 +755,31 @@ impl OAuthService {
 
         let authorization_url = match provider {
             oauth_providers::STRAVA => {
-                let client_id = "test_client_id";
+                let client_id = self
+                    .config
+                    .config()
+                    .oauth
+                    .strava
+                    .client_id
+                    .as_ref()
+                    .ok_or_else(|| AppError::config("Strava client_id not configured"))?;
+                let scope = encode(crate::constants::oauth::STRAVA_DEFAULT_SCOPES);
                 format!(
-                    "https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={encoded_redirect_uri}&approval_prompt=force&scope=read%2Cactivity%3Aread_all&state={encoded_state}"
+                    "https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={encoded_redirect_uri}&approval_prompt=force&scope={scope}&state={encoded_state}"
                 )
             }
             oauth_providers::FITBIT => {
-                let client_id = "test_client_id";
+                let client_id = self
+                    .config
+                    .config()
+                    .oauth
+                    .fitbit
+                    .client_id
+                    .as_ref()
+                    .ok_or_else(|| AppError::config("Fitbit client_id not configured"))?;
+                let scope = encode(crate::constants::oauth::FITBIT_DEFAULT_SCOPES);
                 format!(
-                    "https://www.fitbit.com/oauth2/authorize?response_type=code&client_id={client_id}&redirect_uri={encoded_redirect_uri}&scope=activity%20profile&state={encoded_state}"
+                    "https://www.fitbit.com/oauth2/authorize?response_type=code&client_id={client_id}&redirect_uri={encoded_redirect_uri}&scope={scope}&state={encoded_state}"
                 )
             }
             _ => {

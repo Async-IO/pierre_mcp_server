@@ -1028,7 +1028,7 @@ impl DatabaseProvider for SqliteDatabase {
             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
         ";
 
-        sqlx::query(query)
+        let result = sqlx::query(query)
             .bind(tenant.id.to_string())
             .bind(&tenant.name)
             .bind(&tenant.slug)
@@ -1039,8 +1039,17 @@ impl DatabaseProvider for SqliteDatabase {
             .bind(tenant.created_at)
             .bind(tenant.updated_at)
             .execute(self.inner.pool())
-            .await
-            .context("Failed to create tenant")?;
+            .await;
+
+        if let Err(ref e) = result {
+            tracing::error!(
+                "SQLite error creating tenant '{}': {:?}",
+                tenant.name,
+                e
+            );
+        }
+
+        result.context("Failed to create tenant")?;
 
         // Add the owner as an admin of the tenant
         let tenant_user_query = r"
@@ -1048,12 +1057,21 @@ impl DatabaseProvider for SqliteDatabase {
             VALUES (?1, ?2, 'owner', CURRENT_TIMESTAMP)
         ";
 
-        sqlx::query(tenant_user_query)
+        let tenant_user_result = sqlx::query(tenant_user_query)
             .bind(tenant.id.to_string())
             .bind(tenant.owner_user_id.to_string())
             .execute(self.inner.pool())
-            .await
-            .context("Failed to add owner to tenant")?;
+            .await;
+
+        if let Err(ref e) = tenant_user_result {
+            tracing::error!(
+                "SQLite error adding owner to tenant_users for tenant '{}': {:?}",
+                tenant.name,
+                e
+            );
+        }
+
+        tenant_user_result.context("Failed to add owner to tenant")?;
 
         tracing::info!(
             "Created tenant: {} ({}) and added owner to tenant_users",
