@@ -174,11 +174,13 @@ impl DatabaseProvider for Database {
         #[cfg(feature = "postgresql")]
         {
             let pool_config = crate::config::environment::PostgresPoolConfig::default();
-            Self::new(database_url, encryption_key, &pool_config).await
+            // Call inherent impl method directly to avoid infinite recursion
+            Database::new(database_url, encryption_key, &pool_config).await
         }
         #[cfg(not(feature = "postgresql"))]
         {
-            Self::new(database_url, encryption_key).await
+            // Call inherent impl method directly to avoid infinite recursion
+            Database::new(database_url, encryption_key).await
         }
     }
 

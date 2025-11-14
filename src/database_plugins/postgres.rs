@@ -158,7 +158,8 @@ impl DatabaseProvider for PostgresDatabase {
         // Use default pool configuration when called through trait
         // In practice, the Database factory calls the inherent impl's new() directly with config
         let pool_config = crate::config::environment::PostgresPoolConfig::default();
-        Self::new(database_url, encryption_key, &pool_config).await
+        // Call inherent impl explicitly to avoid infinite recursion
+        PostgresDatabase::new(database_url, encryption_key, &pool_config).await
     }
 
     async fn migrate(&self) -> Result<()> {
@@ -3707,7 +3708,14 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
-    // Long function: Complex audit query with dynamic filtering, pagination, and result mapping
+    /// Complex audit query with dynamic filtering, pagination, and exhaustive enum mapping
+    ///
+    /// JUSTIFICATION for `#[allow(clippy::too_many_lines)]`:
+    /// - Dynamic SQL query building with optional filters (`tenant_id`, `event_type`, `limit`)
+    /// - Exhaustive match for 25+ `AuditEventType` variants (cannot be extracted without loss of context)
+    /// - Exhaustive match for `AuditSeverity` variants
+    /// - Row-to-struct mapping with UUID parsing and JSON deserialization
+    /// - Refactoring would fragment audit event construction logic across multiple functions
     #[allow(clippy::too_many_lines)]
     async fn get_audit_events(
         &self,
@@ -5530,7 +5538,15 @@ impl PostgresDatabase {
         Ok(())
     }
 
-    // Long function: Creates complete multi-tenant database schema with all required tables
+    /// Creates complete multi-tenant database schema with all required tables
+    ///
+    /// JUSTIFICATION for `#[allow(clippy::too_many_lines)]`:
+    /// - Creates 6 interdependent tables in a single atomic migration
+    /// - Each table has comprehensive schema: constraints, foreign keys, indexes, defaults
+    /// - Splitting into separate functions obscures the complete schema structure
+    /// - Database migrations benefit from having the full DDL in one location for review
+    /// - Tables: `tenants`, `tenant_oauth_apps`, `tenant_users`, `tenant_provider_usage`,
+    ///   `oauth_apps`, `authorization_codes`, `user_oauth_tokens`
     #[allow(clippy::too_many_lines)]
     async fn create_tenant_tables(&self) -> Result<()> {
         // Create tenants table

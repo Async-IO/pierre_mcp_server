@@ -172,7 +172,9 @@ mod tests {
         let result = validate_tenant_ownership("tenant-123", "tenant-456", "OAuth token");
         assert!(result.is_err());
         if let Err(e) = result {
-            assert!(e.to_string().contains("does not belong to the specified tenant"));
+            assert!(e
+                .to_string()
+                .contains("does not belong to the specified tenant"));
         }
     }
 

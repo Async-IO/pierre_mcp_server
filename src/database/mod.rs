@@ -48,7 +48,7 @@ pub struct Database {
 }
 
 impl Database {
-    /// Create a new database connection
+    /// Create a new database connection (internal implementation)
     ///
     /// # Errors
     ///
@@ -58,7 +58,7 @@ impl Database {
     /// - `SQLite` file creation fails
     /// - Migration process fails
     /// - Encryption key is invalid
-    pub async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
+    async fn new_impl(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
         // Ensure SQLite creates the database file if it doesn't exist
         let connection_options = if database_url.starts_with("sqlite:") {
             format!("{database_url}?mode=rwc")
@@ -74,9 +74,23 @@ impl Database {
         };
 
         // Run migrations
-        db.migrate().await?;
+        db.migrate_impl().await?;
 
         Ok(db)
+    }
+
+    /// Create a new database connection (public API)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database URL is invalid or malformed
+    /// - Database connection fails
+    /// - `SQLite` file creation fails
+    /// - Migration process fails
+    /// - Encryption key is invalid
+    pub async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
+        Self::new_impl(database_url, encryption_key).await
     }
 
     /// Get a reference to the database pool for advanced operations
@@ -85,7 +99,40 @@ impl Database {
         &self.pool
     }
 
-    /// Run all database migrations
+    /// Run all database migrations (public API)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Any migration fails
+    /// - Database connection is lost during migration
+    /// - Insufficient database permissions
+    pub async fn migrate(&self) -> Result<()> {
+        self.migrate_impl().await
+    }
+
+    /// Encrypt data using AES-256-GCM with AAD (public API)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if encryption fails
+    pub fn encrypt_data_with_aad(&self, data: &str, aad_context: &str) -> Result<String> {
+        Self::encrypt_data_with_aad_impl(self, data, aad_context)
+    }
+
+    /// Decrypt data using AES-256-GCM with AAD (public API)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Decryption fails
+    /// - Data is malformed
+    /// - AAD context does not match
+    pub fn decrypt_data_with_aad(&self, encrypted_data: &str, aad_context: &str) -> Result<String> {
+        Self::decrypt_data_with_aad_impl(self, encrypted_data, aad_context)
+    }
+
+    /// Run all database migrations (internal implementation)
     ///
     /// # Errors
     ///
@@ -94,7 +141,7 @@ impl Database {
     /// - Database connection is lost during migration
     /// - Insufficient database permissions
     /// - Database connection is lost during migration
-    pub async fn migrate(&self) -> Result<()> {
+    async fn migrate_impl(&self) -> Result<()> {
         // User tables
         self.migrate_users().await?;
 
@@ -696,7 +743,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if encryption fails
-    pub fn encrypt_data_with_aad(&self, data: &str, aad_context: &str) -> Result<String> {
+    fn encrypt_data_with_aad_impl(&self, data: &str, aad_context: &str) -> Result<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
         use ring::rand::{SecureRandom, SystemRandom};
@@ -735,7 +782,7 @@ impl Database {
     /// - Decryption fails
     /// - Data is malformed
     /// - AAD context does not match (authentication fails)
-    pub fn decrypt_data_with_aad(&self, encrypted_data: &str, aad_context: &str) -> Result<String> {
+    fn decrypt_data_with_aad_impl(&self, encrypted_data: &str, aad_context: &str) -> Result<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
@@ -933,14 +980,16 @@ impl Database {
     }
 }
 
-// Implement HasEncryption trait for SQLite (already has encryption methods)
+// Implement HasEncryption trait for SQLite (delegates to inherent impl methods)
 impl crate::database_plugins::shared::encryption::HasEncryption for Database {
     fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> Result<String> {
-        self.encrypt_data_with_aad(data, aad)
+        // Call inherent impl directly to avoid infinite recursion
+        Database::encrypt_data_with_aad_impl(self, data, aad)
     }
 
     fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> Result<String> {
-        self.decrypt_data_with_aad(encrypted, aad)
+        // Call inherent impl directly to avoid infinite recursion
+        Database::decrypt_data_with_aad_impl(self, encrypted, aad)
     }
 }
 
@@ -950,11 +999,13 @@ use async_trait::async_trait;
 #[async_trait]
 impl crate::database_plugins::DatabaseProvider for Database {
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
-        Self::new(database_url, encryption_key).await
+        // Call inherent impl directly to avoid infinite recursion
+        Database::new_impl(database_url, encryption_key).await
     }
 
     async fn migrate(&self) -> Result<()> {
-        Self::migrate(self).await
+        // Call inherent impl directly
+        Database::migrate_impl(self).await
     }
 
     async fn create_user(&self, user: &User) -> Result<Uuid> {
@@ -1206,8 +1257,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         granted_scopes: &[String],
         expires_in_hours: i64,
     ) -> Result<String> {
-        Self::create_a2a_session(self, client_id, user_id, granted_scopes, expires_in_hours)
-            .await
+        Self::create_a2a_session(self, client_id, user_id, granted_scopes, expires_in_hours).await
     }
 
     async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
@@ -1566,8 +1616,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         scope: &str,
         user_id: Uuid,
     ) -> Result<()> {
-        Self::store_authorization_code(self, code, client_id, redirect_uri, scope, user_id)
-            .await
+        Self::store_authorization_code(self, code, client_id, redirect_uri, scope, user_id).await
     }
 
     async fn get_authorization_code(&self, code: &str) -> Result<crate::models::AuthorizationCode> {
@@ -1673,8 +1722,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         message: &str,
         expires_at: Option<&str>,
     ) -> Result<String> {
-        Self::store_oauth_notification(self, user_id, provider, success, message, expires_at)
-            .await
+        Self::store_oauth_notification(self, user_id, provider, success, message, expires_at).await
     }
 
     async fn get_unread_oauth_notifications(
