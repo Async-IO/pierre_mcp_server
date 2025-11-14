@@ -20,7 +20,7 @@ use chrono::{DateTime, Utc};
 ///
 /// # Returns
 /// * `Ok(())` if valid
-/// * `Err` with AppError::InvalidInput if invalid
+/// * `Err` with `AppError::InvalidInput` if invalid
 ///
 /// # Examples
 /// ```
@@ -48,7 +48,7 @@ pub fn validate_email(email: &str) -> Result<()> {
 ///
 /// # Returns
 /// * `Ok(())` if tenant IDs match
-/// * `Err` with AppError::AuthInvalid if mismatch
+/// * `Err` with `AppError::AuthInvalid` if mismatch
 ///
 /// # Examples
 /// ```
@@ -72,7 +72,7 @@ pub fn validate_tenant_ownership(
 
 /// Validate expiration timestamp (OAuth codes, tokens, sessions)
 ///
-/// Checks if a timestamp is in the future. Used for OAuth2 codes, access tokens,
+/// Checks if a timestamp is in the future. Used for `OAuth2` codes, access tokens,
 /// refresh tokens, and A2A sessions.
 ///
 /// # Arguments
@@ -81,8 +81,8 @@ pub fn validate_tenant_ownership(
 /// * `entity_type` - Human-readable entity type for error messages (e.g., "OAuth token", "Session")
 ///
 /// # Returns
-/// * `Ok(())` if not expired (expires_at > now)
-/// * `Err` with AppError::InvalidInput if expired
+/// * `Ok(())` if not expired (`expires_at` > now)
+/// * `Err` with `AppError::InvalidInput` if expired
 ///
 /// # Examples
 /// ```
@@ -106,10 +106,10 @@ pub fn validate_not_expired(
     Ok(())
 }
 
-/// Validate scope authorization (A2A, OAuth2)
+/// Validate scope authorization (A2A, `OAuth2`)
 ///
 /// Ensures all requested scopes are present in the granted scopes list.
-/// Used for OAuth2 scope validation and A2A session authorization.
+/// Used for `OAuth2` scope validation and A2A session authorization.
 ///
 /// # Arguments
 /// * `requested_scopes` - Scopes being requested/used
@@ -117,7 +117,7 @@ pub fn validate_not_expired(
 ///
 /// # Returns
 /// * `Ok(())` if all requested scopes are granted
-/// * `Err` with AppError::AuthInvalid if any scope is missing
+/// * `Err` with `AppError::AuthInvalid` if any scope is missing
 ///
 /// # Examples
 /// ```
@@ -135,7 +135,7 @@ pub fn validate_scope_granted(
 ) -> Result<()> {
     for scope in requested_scopes {
         if !granted_scopes.contains(scope) {
-            return Err(AppError::auth_invalid(format!("Scope '{}' not granted", scope)).into());
+            return Err(AppError::auth_invalid(format!("Scope '{scope}' not granted")).into());
         }
     }
     Ok(())
@@ -171,10 +171,9 @@ mod tests {
     fn test_validate_tenant_ownership_mismatch() {
         let result = validate_tenant_ownership("tenant-123", "tenant-456", "OAuth token");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("does not belong to the specified tenant"));
+        if let Err(e) = result {
+            assert!(e.to_string().contains("does not belong to the specified tenant"));
+        }
     }
 
     #[test]
@@ -190,7 +189,9 @@ mod tests {
         let past = now - Duration::hours(1);
         let result = validate_not_expired(past, now, "Session");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("has expired"));
+        if let Err(e) = result {
+            assert!(e.to_string().contains("has expired"));
+        }
     }
 
     #[test]

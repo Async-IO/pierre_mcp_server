@@ -14,8 +14,8 @@ use tokio::time::sleep;
 /// Retry a transaction operation if it fails due to deadlock or timeout
 ///
 /// This function implements exponential backoff for retryable database errors:
-/// - SQLite: "database is locked" errors (database-level locking)
-/// - PostgreSQL: Deadlock detection errors (row-level locking)
+/// - `SQLite`: "database is locked" errors (database-level locking)
+/// - `PostgreSQL`: Deadlock detection errors (row-level locking)
 /// - Both: Connection timeout errors
 ///
 /// Non-retryable errors (constraint violations, invalid data, etc.) are
@@ -53,7 +53,7 @@ use tokio::time::sleep;
 /// - Concurrent user creation (username unique constraint contention)
 /// - OAuth token updates (same user, multiple devices)
 /// - A2A task status updates (worker contention)
-/// - SQLite write operations under load
+/// - `SQLite` write operations under load
 pub async fn retry_transaction<F, Fut, T>(mut f: F, max_retries: u32) -> Result<T>
 where
     F: FnMut() -> Fut,
@@ -76,7 +76,7 @@ where
                 }
 
                 // Check if error is retryable (deadlock, database locked, timeout)
-                let error_msg = format!("{:?}", e);
+                let error_msg = format!("{e:?}");
                 if is_retryable_error(&error_msg) {
                     // Exponential backoff: 10ms, 20ms, 40ms, 80ms, 160ms, ...
                     let backoff_ms = 10 * (1 << attempts);
@@ -105,8 +105,8 @@ where
 /// Check if a database error is retryable
 ///
 /// Retryable errors are transient and may succeed on retry:
-/// - Deadlock detection (PostgreSQL)
-/// - Database locked (SQLite)
+/// - Deadlock detection (`PostgreSQL`)
+/// - Database locked (`SQLite`)
 /// - Connection timeout
 /// - Busy timeout
 ///

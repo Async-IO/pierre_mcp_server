@@ -2052,7 +2052,7 @@ impl DatabaseProvider for Database {
                     public_key_pem,
                     created_at,
                     is_active,
-                    key_size_bits as usize,
+                    usize::try_from(key_size_bits).unwrap_or(2048),
                 )
                 .await
             }

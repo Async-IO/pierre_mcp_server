@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 /// Create AAD (Additional Authenticated Data) context for token encryption
 ///
-/// Format: "{tenant_id}|{user_id}|{provider}|{table}"
+/// Format: `"{tenant_id}|{user_id}|{provider}|{table}"`
 ///
 /// This prevents cross-tenant token reuse attacks by binding the encrypted
 /// token to its specific context. If an attacker copies an encrypted token
@@ -22,10 +22,10 @@ use uuid::Uuid;
 /// * `tenant_id` - Tenant ID (or "default" for single-tenant)
 /// * `user_id` - User UUID
 /// * `provider` - OAuth provider (e.g., "strava", "fitbit", "google")
-/// * `table` - Database table name (e.g., "user_oauth_tokens")
+/// * `table` - Database table name (e.g., `"user_oauth_tokens"`)
 ///
 /// # Returns
-/// AAD context string in format: "{tenant_id}|{user_id}|{provider}|{table}"
+/// AAD context string in format: `"{tenant_id}|{user_id}|{provider}|{table}"`
 ///
 /// # Examples
 /// ```
@@ -52,7 +52,7 @@ pub fn create_token_aad_context(
 /// its specific tenant/user/provider combination.
 ///
 /// # Arguments
-/// * `db` - Database implementing HasEncryption trait
+/// * `db` - Database implementing `HasEncryption` trait
 /// * `token` - Plain-text OAuth token to encrypt
 /// * `tenant_id` - Tenant ID
 /// * `user_id` - User UUID
@@ -98,7 +98,7 @@ where
 /// MUST be provided or decryption will fail (authentication error).
 ///
 /// # Arguments
-/// * `db` - Database implementing HasEncryption trait
+/// * `db` - Database implementing `HasEncryption` trait
 /// * `encrypted_token` - Base64-encoded encrypted token (from database)
 /// * `tenant_id` - Tenant ID (must match encryption context)
 /// * `user_id` - User UUID (must match encryption context)
@@ -143,7 +143,7 @@ where
 
 /// Trait for databases that support encryption
 ///
-/// Both PostgreSQL and SQLite must implement this trait to use shared
+/// Both `PostgreSQL` and `SQLite` must implement this trait to use shared
 /// encryption helpers. This ensures consistent encryption behavior across
 /// database backends.
 ///
@@ -214,7 +214,7 @@ mod tests {
     #[test]
     fn test_create_token_aad_context_format() {
         let user_id =
-            Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").expect("Valid UUID for test");
+            Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap_or_else(|_| Uuid::nil());
         let aad = create_token_aad_context("default", user_id, "fitbit", "user_oauth_tokens");
 
         assert_eq!(

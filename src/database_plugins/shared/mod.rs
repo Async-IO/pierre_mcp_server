@@ -4,7 +4,7 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-/// Enum conversion utilities (UserTier, UserStatus, TaskStatus, etc.)
+/// Enum conversion utilities (`UserTier`, `UserStatus`, `TaskStatus`, etc.)
 pub mod enums;
 
 /// Input validation logic (email, tenant ownership, expiration, scopes)
@@ -16,7 +16,7 @@ pub mod mappers;
 /// Encryption/decryption utilities for OAuth tokens and sensitive data
 pub mod encryption;
 
-/// Query parameter binding helpers (reduce repetitive .bind() chains)
+/// Query parameter binding helpers (reduce repetitive `.bind()` chains)
 pub mod builders;
 
 /// Transaction retry patterns (deadlock handling, exponential backoff)

@@ -15,10 +15,10 @@ use uuid::Uuid;
 
 /// Parse User from database row (database-agnostic)
 ///
-/// Works with both PostgreSQL (PgRow) and SQLite (SqliteRow) using generic trait bounds.
+/// Works with both `PostgreSQL` (`PgRow`) and `SQLite` (`SqliteRow`) using generic trait bounds.
 ///
 /// # Arguments
-/// * `row` - Database row implementing sqlx::Row trait
+/// * `row` - Database row implementing `sqlx::Row` trait
 ///
 /// # Returns
 /// * `Ok(User)` if parsing succeeds
@@ -73,18 +73,18 @@ where
 
 /// Parse A2A Task from database row (database-agnostic)
 ///
-/// Works with both PostgreSQL and SQLite. Handles JSON deserialization of
-/// input_data and result_data with fallback to null/None on parse errors.
+/// Works with both `PostgreSQL` and `SQLite`. Handles JSON deserialization of
+/// `input_data` and `result_data` with fallback to null/None on parse errors.
 ///
 /// # Arguments
-/// * `row` - Database row implementing sqlx::Row trait
+/// * `row` - Database row implementing `sqlx::Row` trait
 ///
 /// # Returns
 /// * `Ok(A2ATask)` if parsing succeeds
 /// * `Err` if required fields are missing or have invalid types
 ///
 /// # Note
-/// JSON deserialization errors for input_data/result_data are logged but don't fail
+/// JSON deserialization errors for `input_data`/`result_data` are logged but don't fail
 /// the parse (returns null/None instead).
 pub fn parse_a2a_task_from_row<R>(row: &R) -> Result<A2ATask>
 where
@@ -132,7 +132,7 @@ where
     let status = super::enums::str_to_task_status(&status_str);
 
     Ok(A2ATask {
-        id: task_id.clone(),
+        id: task_id,
         status,
         created_at: row.try_get("created_at")?,
         completed_at: row.try_get("updated_at").ok(),
@@ -149,9 +149,9 @@ where
     })
 }
 
-/// Helper to extract UUID from row (handles PostgreSQL UUID vs SQLite TEXT)
+/// Helper to extract UUID from row (handles `PostgreSQL` UUID vs `SQLite` TEXT)
 ///
-/// PostgreSQL stores UUIDs as a native type, while SQLite stores them as TEXT.
+/// `PostgreSQL` stores UUIDs as a native type, while `SQLite` stores them as TEXT.
 /// This helper tries the native UUID type first, then falls back to parsing a string.
 ///
 /// # Arguments

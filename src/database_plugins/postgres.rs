@@ -5729,14 +5729,14 @@ impl PostgresDatabase {
 impl shared::encryption::HasEncryption for PostgresDatabase {
     /// Encrypt data using AES-256-GCM with Additional Authenticated Data
     ///
-    /// This brings PostgreSQL to security parity with SQLite, which already
+    /// This brings `PostgreSQL` to security parity with `SQLite`, which already
     /// encrypts OAuth tokens at rest.
     ///
     /// # Security
     /// - Uses AES-256-GCM (AEAD cipher) via ring crate
     /// - Generates unique 96-bit nonce per encryption
     /// - Binds AAD to prevent cross-tenant token reuse
-    /// - Output: base64(nonce || ciphertext || auth_tag)
+    /// - Output: base64(nonce || ciphertext || `auth_tag`)
     fn encrypt_data_with_aad(&self, data: &str, aad_context: &str) -> Result<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};

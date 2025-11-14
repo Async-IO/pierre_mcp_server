@@ -4,24 +4,36 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+#![doc = "Database performance benchmarks"]
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::str_to_string)]
+#![allow(clippy::doc_markdown, clippy::unit_arg, missing_docs)]
+
 use chrono::Utc;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use pierre_mcp_server::api_keys::ApiKey;
-use pierre_mcp_server::database::Database;
-use pierre_mcp_server::database_plugins::{
-    postgres::PostgresDatabase, sqlite::SqliteDatabase, DatabaseProvider,
-};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::models::{User, UserOAuthToken, UserStatus, UserTier};
 use std::time::Duration;
 use tokio::runtime::Runtime;
 use uuid::Uuid;
 
 /// Create test database with encryption key
-async fn setup_sqlite_db() -> SqliteDatabase {
+async fn setup_sqlite_db() -> Database {
     let encryption_key = vec![0u8; 32]; // Test key
-    SqliteDatabase::new(":memory:", encryption_key)
+    #[cfg(feature = "postgresql")]
+    let db = Database::new(
+        "sqlite::memory:",
+        encryption_key,
+        &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
+    )
+    .await
+    .expect("Failed to create test database");
+
+    #[cfg(not(feature = "postgresql"))]
+    let db = Database::new("sqlite::memory:", encryption_key)
         .await
-        .expect("Failed to create test database")
+        .expect("Failed to create test database");
+
+    db
 }
 
 /// Create test user for benchmarks
@@ -118,7 +130,7 @@ fn bench_upsert_oauth_token(c: &mut Criterion) {
     group.bench_function("upsert_user_oauth_token/sqlite", |b| {
         b.to_async(&rt).iter(|| async {
             let token = create_test_oauth_token(user_id);
-            black_box(db.upsert_user_oauth_token(&token).await.unwrap())
+            black_box(db.upsert_user_oauth_token(&token).await.unwrap());
         });
     });
 

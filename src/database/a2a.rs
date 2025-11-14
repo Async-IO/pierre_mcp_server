@@ -1030,7 +1030,7 @@ impl Database {
 
         let tasks: Vec<A2ATask> = rows
             .iter()
-            .map(|row| shared::mappers::parse_a2a_task_from_row(row))
+            .map(shared::mappers::parse_a2a_task_from_row)
             .collect::<Result<Vec<_>>>()?;
 
         Ok(tasks)
