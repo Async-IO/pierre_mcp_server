@@ -292,8 +292,8 @@ impl GarminProvider {
             country: None,
             trail_name: None,
 
-            // New fields - Garmin may provide these in detailed activity responses
-            // TODO: Add these fields to GarminActivityResponse once we have API documentation
+            // Optional fields pending Garmin API documentation
+            // These will be populated from GarminActivityResponse once API schema is available
             workout_type: None,
             sport_type_detail: None,
             segment_efforts: None,

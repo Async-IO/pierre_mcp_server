@@ -207,6 +207,7 @@ impl DatabaseProvider for Database {
     /// - Database constraint violations (e.g., duplicate email)
     /// - SQL execution fails
     /// - Database connection issues
+    #[tracing::instrument(skip(self, user), fields(db_operation = "create_user", email = %user.email))]
     async fn create_user(&self, user: &crate::models::User) -> Result<uuid::Uuid> {
         match self {
             Self::SQLite(db) => db.create_user(user).await,
@@ -223,6 +224,7 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
+    #[tracing::instrument(skip(self), fields(db_operation = "get_user"))]
     async fn get_user(&self, user_id: uuid::Uuid) -> Result<Option<crate::models::User>> {
         match self {
             Self::SQLite(db) => db.get_user(user_id).await,

@@ -153,6 +153,7 @@ impl AuthService {
     ///
     /// # Errors
     /// Returns error if user validation fails or database operation fails
+    #[tracing::instrument(skip(self, request), fields(route = "register", email = %request.email))]
     pub async fn register(&self, request: RegisterRequest) -> AppResult<RegisterResponse> {
         tracing::info!("User registration attempt for email: {}", request.email);
 
@@ -202,6 +203,7 @@ impl AuthService {
     ///
     /// # Errors
     /// Returns error if authentication fails or token generation fails
+    #[tracing::instrument(skip(self, request), fields(route = "login", email = %request.email))]
     pub async fn login(&self, request: LoginRequest) -> AppResult<LoginResponse> {
         tracing::info!("User login attempt for email: {}", request.email);
 

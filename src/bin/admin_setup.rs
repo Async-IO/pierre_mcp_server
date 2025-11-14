@@ -337,10 +337,7 @@ async fn generate_token_command(
         .into());
     };
 
-    info!(
-        "JWT secret loaded for token generation (first 10 chars): {}...",
-        jwt_secret.chars().take(10).collect::<String>()
-    );
+    info!("JWT signing key loaded successfully for token generation");
 
     // Generate token using RS256 asymmetric signing
     let generated_token = database
@@ -705,13 +702,10 @@ async fn create_admin_user_command(
 
     // Generate and store admin JWT secret if it doesn't exist
     info!("Ensuring admin JWT secret exists...");
-    let jwt_secret = database
+    database
         .get_or_create_system_secret("admin_jwt_secret")
         .await?;
-    info!(
-        "Admin JWT secret is ready (first 10 chars): {}...",
-        jwt_secret.chars().take(10).collect::<String>()
-    );
+    info!("Admin JWT signing key initialized successfully");
 
     println!("\nSuccess Admin user is ready to use!");
 

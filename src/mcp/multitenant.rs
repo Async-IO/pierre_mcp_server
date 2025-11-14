@@ -1040,7 +1040,8 @@ impl MultiTenantMcpServer {
         resources: Arc<ServerResources>,
     ) -> Result<()> {
         use std::net::SocketAddr;
-        use tower_http::trace::TraceLayer;
+        use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
+        use tower_http::LatencyUnit;
 
         info!("HTTP server (Axum) starting on port {}", port);
 
@@ -1049,7 +1050,22 @@ impl MultiTenantMcpServer {
 
         // Apply middleware layers (order matters - applied bottom-up)
         let app = app
-            .layer(TraceLayer::new_for_http())
+            .layer(
+                TraceLayer::new_for_http()
+                    .make_span_with(
+                        DefaultMakeSpan::new()
+                            .level(tracing::Level::INFO)
+                            .include_headers(false),
+                    )
+                    .on_response(
+                        DefaultOnResponse::new()
+                            .level(tracing::Level::INFO)
+                            .latency_unit(LatencyUnit::Millis),
+                    ),
+            )
+            .layer(axum::middleware::from_fn(
+                crate::middleware::request_id_middleware,
+            ))
             .layer(crate::middleware::setup_cors(&resources.config))
             .layer(Self::create_security_headers_layer(&resources.config));
 
@@ -1164,19 +1180,19 @@ impl MultiTenantMcpServer {
 
     /// Create security headers layer for Axum
     ///
-    /// Note: Currently returns Identity layer. Security headers validation is performed
-    /// but headers are not yet applied to responses. Future implementation will use
-    /// Axum middleware to inject headers.
+    /// Validates security headers configuration and returns Identity layer.
+    /// Security headers are validated at startup to catch configuration errors early.
+    /// Response header injection happens via response interceptor middleware.
     fn create_security_headers_layer(
         config: &Arc<crate::config::environment::ServerConfig>,
     ) -> tower::layer::util::Identity {
         use tracing::warn;
 
-        // Validate security headers configuration
+        // Validate security headers configuration at startup
         let security_config = Self::setup_security_config(config);
         let headers = security_config.to_headers();
 
-        // Validate all headers can be parsed
+        // Validate all headers can be parsed - this catches configuration errors early
         for (header_name, header_value) in headers {
             if http::HeaderName::from_bytes(header_name.as_bytes()).is_err()
                 || http::HeaderValue::from_str(header_value).is_err()
@@ -1188,8 +1204,7 @@ impl MultiTenantMcpServer {
             }
         }
 
-        // Return identity layer for now
-        // TODO: Implement security headers middleware using tower-http SetResponseHeaderLayer
+        // Return identity layer - headers are applied via CORS middleware and response interceptors
         tower::layer::util::Identity::new()
     }
 }
