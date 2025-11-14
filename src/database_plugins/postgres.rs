@@ -42,32 +42,8 @@ impl PostgresDatabase {
     }
 
     /// Helper function to parse User from database row
-    fn parse_user_from_row(row: &sqlx::postgres::PgRow) -> User {
-        use sqlx::Row;
-
-        let user_status_str: String = row.get("user_status");
-        let user_status = shared::enums::str_to_user_status(&user_status_str);
-
-        let tier_str: String = row.get("tier");
-        let tier = shared::enums::str_to_user_tier(&tier_str);
-
-        User {
-            id: row.get("id"),
-            email: row.get("email"),
-            display_name: row.get("display_name"),
-            password_hash: row.get("password_hash"),
-            tier,
-            tenant_id: row.get("tenant_id"),
-            strava_token: None,
-            fitbit_token: None,
-            is_active: row.get("is_active"),
-            user_status,
-            is_admin: row.try_get("is_admin").unwrap_or(false),
-            approved_by: row.get("approved_by"),
-            approved_at: row.get("approved_at"),
-            created_at: row.get("created_at"),
-            last_active: row.get("last_active"),
-        }
+    fn parse_user_from_row(row: &sqlx::postgres::PgRow) -> Result<User> {
+        shared::mappers::parse_user_from_row(row)
     }
 
     /// Helper function to build A2A tasks query with dynamic filters
@@ -125,54 +101,7 @@ impl PostgresDatabase {
 
     /// Helper function to parse A2A task from database row
     fn parse_a2a_task_from_row(row: &sqlx::postgres::PgRow) -> Result<A2ATask> {
-        use sqlx::Row;
-
-        let task_id: String = row.try_get("task_id")?;
-        let input_str: String = row.try_get("input_data")?;
-        let input_data: Value = serde_json::from_str(&input_str).unwrap_or_else(|e| {
-            tracing::warn!(
-                task_id = %task_id,
-                error = %e,
-                "Failed to deserialize A2A task input_data, using null"
-            );
-            Value::Null
-        });
-
-        let result_data =
-            row.try_get::<Option<String>, _>("result_data")
-                .map_or(None, |result_str| {
-                    result_str.and_then(|s| {
-                        serde_json::from_str(&s)
-                            .inspect_err(|e| {
-                                tracing::warn!(
-                                    task_id = %task_id,
-                                    error = %e,
-                                    "Failed to deserialize A2A task result_data"
-                                );
-                            })
-                            .ok()
-                    })
-                });
-
-        let status_str: String = row.try_get("status")?;
-        let status = shared::enums::str_to_task_status(&status_str);
-
-        Ok(A2ATask {
-            id: task_id,
-            status,
-            created_at: row.try_get("created_at")?,
-            completed_at: row.try_get("updated_at")?,
-            result: result_data.clone(), // Safe: JSON value ownership for A2ATask struct
-            error: row.try_get("method")?,
-            client_id: row
-                .try_get("client_id")
-                .unwrap_or_else(|_| "unknown".into()),
-            task_type: row.try_get("task_type")?,
-            input_data,
-            output_data: result_data,
-            error_message: row.try_get("method")?,
-            updated_at: row.try_get("updated_at")?,
-        })
+        shared::mappers::parse_a2a_task_from_row(row)
     }
 }
 
@@ -531,7 +460,10 @@ impl DatabaseProvider for PostgresDatabase {
         };
 
         // Parse rows into User structs
-        let mut users: Vec<User> = rows.iter().map(Self::parse_user_from_row).collect();
+        let mut users: Vec<User> = rows
+            .iter()
+            .map(Self::parse_user_from_row)
+            .collect::<Result<Vec<_>>>()?;
 
         // Determine if there are more items
         let has_more = users.len() > params.limit;
@@ -1981,7 +1913,9 @@ impl DatabaseProvider for PostgresDatabase {
         }
 
         let rows = sql_query.fetch_all(&self.pool).await?;
-        rows.iter().map(Self::parse_a2a_task_from_row).collect()
+        rows.iter()
+            .map(Self::parse_a2a_task_from_row)
+            .collect::<Result<Vec<_>>>()
     }
 
     async fn update_a2a_task_status(
