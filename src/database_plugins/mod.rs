@@ -32,6 +32,9 @@ pub mod sqlite;
 #[cfg(feature = "postgresql")]
 pub mod postgres;
 
+/// Shared database logic (enum conversions, validation, mappers, encryption, etc.)
+pub mod shared;
+
 /// Core database abstraction trait
 ///
 /// All database implementations must implement this trait to provide

@@ -8,7 +8,7 @@
 //! This module provides `PostgreSQL` support for cloud deployments,
 //! implementing the same interface as the `SQLite` version.
 
-use super::DatabaseProvider;
+use super::{shared, DatabaseProvider};
 use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
@@ -33,6 +33,7 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct PostgresDatabase {
     pool: Pool<Postgres>,
+    encryption_key: Vec<u8>,
 }
 
 impl PostgresDatabase {
@@ -42,40 +43,8 @@ impl PostgresDatabase {
     }
 
     /// Helper function to parse User from database row
-    fn parse_user_from_row(row: &sqlx::postgres::PgRow) -> User {
-        use sqlx::Row;
-
-        let user_status_str: String = row.get("user_status");
-        let user_status = match user_status_str.as_str() {
-            "pending" => crate::models::UserStatus::Pending,
-            "suspended" => crate::models::UserStatus::Suspended,
-            _ => crate::models::UserStatus::Active,
-        };
-
-        User {
-            id: row.get("id"),
-            email: row.get("email"),
-            display_name: row.get("display_name"),
-            password_hash: row.get("password_hash"),
-            tier: {
-                let tier_str: String = row.get("tier");
-                match tier_str.as_str() {
-                    tiers::PROFESSIONAL => UserTier::Professional,
-                    tiers::ENTERPRISE => UserTier::Enterprise,
-                    _ => UserTier::Starter,
-                }
-            },
-            tenant_id: row.get("tenant_id"),
-            strava_token: None,
-            fitbit_token: None,
-            is_active: row.get("is_active"),
-            user_status,
-            is_admin: row.try_get("is_admin").unwrap_or(false),
-            approved_by: row.get("approved_by"),
-            approved_at: row.get("approved_at"),
-            created_at: row.get("created_at"),
-            last_active: row.get("last_active"),
-        }
+    fn parse_user_from_row(row: &sqlx::postgres::PgRow) -> Result<User> {
+        shared::mappers::parse_user_from_row(row)
     }
 
     /// Helper function to build A2A tasks query with dynamic filters
@@ -133,60 +102,7 @@ impl PostgresDatabase {
 
     /// Helper function to parse A2A task from database row
     fn parse_a2a_task_from_row(row: &sqlx::postgres::PgRow) -> Result<A2ATask> {
-        use sqlx::Row;
-
-        let task_id: String = row.try_get("task_id")?;
-        let input_str: String = row.try_get("input_data")?;
-        let input_data: Value = serde_json::from_str(&input_str).unwrap_or_else(|e| {
-            tracing::warn!(
-                task_id = %task_id,
-                error = %e,
-                "Failed to deserialize A2A task input_data, using null"
-            );
-            Value::Null
-        });
-
-        let result_data =
-            row.try_get::<Option<String>, _>("result_data")
-                .map_or(None, |result_str| {
-                    result_str.and_then(|s| {
-                        serde_json::from_str(&s)
-                            .inspect_err(|e| {
-                                tracing::warn!(
-                                    task_id = %task_id,
-                                    error = %e,
-                                    "Failed to deserialize A2A task result_data"
-                                );
-                            })
-                            .ok()
-                    })
-                });
-
-        let status_str: String = row.try_get("status")?;
-        let status = match status_str.as_str() {
-            "running" => TaskStatus::Running,
-            "completed" => TaskStatus::Completed,
-            "failed" => TaskStatus::Failed,
-            "cancelled" => TaskStatus::Cancelled,
-            _ => TaskStatus::Pending,
-        };
-
-        Ok(A2ATask {
-            id: task_id,
-            status,
-            created_at: row.try_get("created_at")?,
-            completed_at: row.try_get("updated_at")?,
-            result: result_data.clone(), // Safe: JSON value ownership for A2ATask struct
-            error: row.try_get("method")?,
-            client_id: row
-                .try_get("client_id")
-                .unwrap_or_else(|_| "unknown".into()),
-            task_type: row.try_get("task_type")?,
-            input_data,
-            output_data: result_data,
-            error_message: row.try_get("method")?,
-            updated_at: row.try_get("updated_at")?,
-        })
+        shared::mappers::parse_a2a_task_from_row(row)
     }
 }
 
@@ -199,7 +115,7 @@ impl PostgresDatabase {
     /// Returns an error if database connection or pool configuration fails
     pub async fn new(
         database_url: &str,
-        _encryption_key: Vec<u8>,
+        encryption_key: Vec<u8>,
         pool_config: &crate::config::environment::PostgresPoolConfig,
     ) -> Result<Self> {
         // Use pool configuration from ServerConfig (read once at startup)
@@ -224,7 +140,10 @@ impl PostgresDatabase {
                 format!("Failed to connect to PostgreSQL with {max_connections} max connections")
             })?;
 
-        let db = Self { pool };
+        let db = Self {
+            pool,
+            encryption_key,
+        };
 
         // Run migrations
         db.migrate().await?;
@@ -269,19 +188,11 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&user.email)
         .bind(&user.display_name)
         .bind(&user.password_hash)
-        .bind(match user.tier {
-            UserTier::Starter => tiers::STARTER,
-            UserTier::Professional => tiers::PROFESSIONAL,
-            UserTier::Enterprise => tiers::ENTERPRISE,
-        })
+        .bind(shared::enums::user_tier_to_str(&user.tier))
         .bind(&user.tenant_id)
         .bind(user.is_active)
         .bind(user.is_admin)
-        .bind(match user.user_status {
-            crate::models::UserStatus::Active => "active",
-            crate::models::UserStatus::Pending => "pending",
-            crate::models::UserStatus::Suspended => "suspended",
-        })
+        .bind(shared::enums::user_status_to_str(&user.user_status))
         .bind(user.approved_by)
         .bind(user.approved_at)
         .bind(user.created_at)
@@ -327,11 +238,7 @@ impl DatabaseProvider for PostgresDatabase {
                     is_active: row.get("is_active"),
                     user_status: {
                         let status_str: String = row.get("user_status");
-                        match status_str.as_str() {
-                            "pending" => crate::models::UserStatus::Pending,
-                            "suspended" => crate::models::UserStatus::Suspended,
-                            _ => crate::models::UserStatus::Active,
-                        }
+                        shared::enums::str_to_user_status(&status_str)
                     },
                     is_admin: row.get("is_admin"),
                     approved_by: row.get("approved_by"),
@@ -378,11 +285,7 @@ impl DatabaseProvider for PostgresDatabase {
                     is_active: row.get("is_active"),
                     user_status: {
                         let status_str: String = row.get("user_status");
-                        match status_str.as_str() {
-                            "pending" => crate::models::UserStatus::Pending,
-                            "suspended" => crate::models::UserStatus::Suspended,
-                            _ => crate::models::UserStatus::Active,
-                        }
+                        shared::enums::str_to_user_status(&status_str)
                     },
                     is_admin: row.get("is_admin"),
                     approved_by: row.get("approved_by"),
@@ -561,7 +464,10 @@ impl DatabaseProvider for PostgresDatabase {
         };
 
         // Parse rows into User structs
-        let mut users: Vec<User> = rows.iter().map(Self::parse_user_from_row).collect();
+        let mut users: Vec<User> = rows
+            .iter()
+            .map(Self::parse_user_from_row)
+            .collect::<Result<Vec<_>>>()?;
 
         // Determine if there are more items
         let has_more = users.len() > params.limit;
@@ -587,11 +493,7 @@ impl DatabaseProvider for PostgresDatabase {
         new_status: crate::models::UserStatus,
         admin_token_id: &str,
     ) -> Result<User> {
-        let status_str = match new_status {
-            crate::models::UserStatus::Active => "active",
-            crate::models::UserStatus::Pending => "pending",
-            crate::models::UserStatus::Suspended => "suspended",
-        };
+        let status_str = shared::enums::user_status_to_str(&new_status);
 
         let admin_uuid =
             if new_status == crate::models::UserStatus::Active && !admin_token_id.is_empty() {
@@ -1963,13 +1865,7 @@ impl DatabaseProvider for PostgresDatabase {
                     });
 
             let status_str: String = row.try_get("status")?;
-            let status = match status_str.as_str() {
-                "running" => TaskStatus::Running,
-                "completed" => TaskStatus::Completed,
-                "failed" => TaskStatus::Failed,
-                "cancelled" => TaskStatus::Cancelled,
-                _ => TaskStatus::Pending, // Default for unknown values (including "pending")
-            };
+            let status = shared::enums::str_to_task_status(&status_str);
 
             Ok(Some(A2ATask {
                 id: row.try_get("task_id")?,
@@ -2008,13 +1904,7 @@ impl DatabaseProvider for PostgresDatabase {
         }
 
         if let Some(status_val) = status_filter {
-            let status_str = match status_val {
-                TaskStatus::Pending => "pending",
-                TaskStatus::Running => "running",
-                TaskStatus::Completed => "completed",
-                TaskStatus::Failed => "failed",
-                TaskStatus::Cancelled => "cancelled",
-            };
+            let status_str = shared::enums::task_status_to_str(status_val);
             sql_query = sql_query.bind(status_str);
         }
 
@@ -2027,7 +1917,9 @@ impl DatabaseProvider for PostgresDatabase {
         }
 
         let rows = sql_query.fetch_all(&self.pool).await?;
-        rows.iter().map(Self::parse_a2a_task_from_row).collect()
+        rows.iter()
+            .map(Self::parse_a2a_task_from_row)
+            .collect::<Result<Vec<_>>>()
     }
 
     async fn update_a2a_task_status(
@@ -2037,13 +1929,7 @@ impl DatabaseProvider for PostgresDatabase {
         result: Option<&Value>,
         error: Option<&str>,
     ) -> Result<()> {
-        let status_str = match status {
-            TaskStatus::Pending => "pending",
-            TaskStatus::Running => "running",
-            TaskStatus::Completed => "completed",
-            TaskStatus::Failed => "failed",
-            TaskStatus::Cancelled => "cancelled",
-        };
+        let status_str = shared::enums::task_status_to_str(status);
 
         let result_json = result.map(serde_json::to_string).transpose()?;
 
@@ -5836,5 +5722,95 @@ impl PostgresDatabase {
             .await?;
 
         Ok(())
+    }
+}
+
+// Implement encryption support for PostgreSQL (harmonize with SQLite security)
+impl shared::encryption::HasEncryption for PostgresDatabase {
+    /// Encrypt data using AES-256-GCM with Additional Authenticated Data
+    ///
+    /// This brings PostgreSQL to security parity with SQLite, which already
+    /// encrypts OAuth tokens at rest.
+    ///
+    /// # Security
+    /// - Uses AES-256-GCM (AEAD cipher) via ring crate
+    /// - Generates unique 96-bit nonce per encryption
+    /// - Binds AAD to prevent cross-tenant token reuse
+    /// - Output: base64(nonce || ciphertext || auth_tag)
+    fn encrypt_data_with_aad(&self, data: &str, aad_context: &str) -> Result<String> {
+        use base64::{engine::general_purpose, Engine as _};
+        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
+        use ring::rand::{SecureRandom, SystemRandom};
+
+        let rng = SystemRandom::new();
+
+        // Generate unique nonce (96 bits for GCM)
+        let mut nonce_bytes = [0u8; 12];
+        rng.fill(&mut nonce_bytes)?;
+        let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+
+        // Create encryption key
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let key = LessSafeKey::new(unbound_key);
+
+        // Encrypt data with AAD binding
+        let mut data_bytes = data.as_bytes().to_vec();
+        let aad = Aad::from(aad_context.as_bytes());
+        key.seal_in_place_append_tag(nonce, aad, &mut data_bytes)?;
+
+        // Combine nonce and encrypted data, then base64 encode
+        let mut combined = nonce_bytes.to_vec();
+        combined.extend(data_bytes);
+
+        Ok(general_purpose::STANDARD.encode(combined))
+    }
+
+    /// Decrypt data using AES-256-GCM with Additional Authenticated Data
+    ///
+    /// Reverses `encrypt_data_with_aad`. AAD context must match or decryption fails.
+    ///
+    /// # Security
+    /// - Verifies AAD matches (prevents token context switching)
+    /// - Authenticates ciphertext hasn't been tampered
+    /// - Fails safely on any mismatch/corruption
+    fn decrypt_data_with_aad(&self, encrypted_data: &str, aad_context: &str) -> Result<String> {
+        use base64::{engine::general_purpose, Engine as _};
+        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
+
+        // Decode from base64
+        let combined = general_purpose::STANDARD.decode(encrypted_data)?;
+
+        if combined.len() < 12 {
+            return Err(DatabaseError::QueryError {
+                context: "Invalid encrypted data: too short".to_owned(),
+            }
+            .into());
+        }
+
+        // Extract nonce and encrypted data
+        let (nonce_bytes, encrypted_bytes) = combined.split_at(12);
+        let nonce = Nonce::assume_unique_for_key(nonce_bytes.try_into()?);
+
+        // Create decryption key
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let key = LessSafeKey::new(unbound_key);
+
+        // Decrypt data with AAD verification
+        let mut decrypted_data = encrypted_bytes.to_vec();
+        let aad = Aad::from(aad_context.as_bytes());
+        let decrypted = key
+            .open_in_place(nonce, aad, &mut decrypted_data)
+            .map_err(|e| DatabaseError::QueryError {
+                context: format!(
+                    "Decryption failed (possible AAD mismatch or tampered data): {e:?}"
+                ),
+            })?;
+
+        String::from_utf8(decrypted.to_vec()).map_err(|e| {
+            DatabaseError::QueryError {
+                context: format!("Failed to convert decrypted data to string: {e}"),
+            }
+            .into()
+        })
     }
 }
