@@ -325,6 +325,18 @@ pub async fn handle_my_feature(
 
 3. Register in tool executor
 4. Add unit + integration tests
+5. Regenerate SDK types:
+```bash
+# Ensure server is running
+cargo run --bin pierre-mcp-server
+
+# Generate TypeScript types
+cd sdk
+npm run generate-types
+git add src/types.ts
+```
+
+**Why**: SDK type definitions are auto-generated from server tool schemas. This ensures TypeScript clients have up-to-date parameter types for the new tool.
 
 ### new database backend
 

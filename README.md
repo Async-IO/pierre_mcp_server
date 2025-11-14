@@ -228,6 +228,8 @@ npm install
 npm run build
 ```
 
+**Type Definitions**: The SDK includes auto-generated TypeScript types for all 45+ MCP tools. Types are generated from server tool schemas using `npm run generate-types` in the `sdk/` directory. See [SDK README](sdk/README.md#development) for the type generation workflow.
+
 ### MCP Client Configuration
 
 Add Pierre to your MCP client configuration. For Claude Desktop:
