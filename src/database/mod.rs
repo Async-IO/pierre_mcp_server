@@ -984,6 +984,47 @@ impl Database {
 
         Ok(())
     }
+
+    /// Create a new tenant and add the owner to `tenant_users`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insert fails
+    /// - Tenant already exists with the same slug
+    pub async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
+        sqlx::query(
+            r"
+            INSERT INTO tenants (id, name, slug, domain, plan, owner_user_id, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ",
+        )
+        .bind(tenant.id.to_string())
+        .bind(&tenant.name)
+        .bind(&tenant.slug)
+        .bind(&tenant.domain)
+        .bind(&tenant.plan)
+        .bind(tenant.owner_user_id.to_string())
+        .bind(true)
+        .bind(tenant.created_at)
+        .bind(tenant.updated_at)
+        .execute(&self.pool)
+        .await?;
+
+        // Add the owner as an admin of the tenant
+        sqlx::query(
+            r"
+            INSERT INTO tenant_users (tenant_id, user_id, role, joined_at)
+            VALUES (?, ?, 'owner', datetime('now'))
+            ",
+        )
+        .bind(tenant.id.to_string())
+        .bind(tenant.owner_user_id.to_string())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
 }
 
 // Implement HasEncryption trait for SQLite (delegates to inherent impl methods)
