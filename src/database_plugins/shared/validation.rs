@@ -20,7 +20,9 @@ use chrono::{DateTime, Utc};
 ///
 /// # Returns
 /// * `Ok(())` if valid
-/// * `Err` with `AppError::InvalidInput` if invalid
+///
+/// # Errors
+/// * Returns `AppError::InvalidInput` if invalid
 ///
 /// # Examples
 /// ```
@@ -48,7 +50,9 @@ pub fn validate_email(email: &str) -> Result<()> {
 ///
 /// # Returns
 /// * `Ok(())` if tenant IDs match
-/// * `Err` with `AppError::AuthInvalid` if mismatch
+///
+/// # Errors
+/// * Returns `AppError::AuthInvalid` if mismatch
 ///
 /// # Examples
 /// ```
@@ -82,7 +86,9 @@ pub fn validate_tenant_ownership(
 ///
 /// # Returns
 /// * `Ok(())` if not expired (`expires_at` > now)
-/// * `Err` with `AppError::InvalidInput` if expired
+///
+/// # Errors
+/// * Returns `AppError::InvalidInput` if expired
 ///
 /// # Examples
 /// ```
@@ -117,7 +123,9 @@ pub fn validate_not_expired(
 ///
 /// # Returns
 /// * `Ok(())` if all requested scopes are granted
-/// * `Err` with `AppError::AuthInvalid` if any scope is missing
+///
+/// # Errors
+/// * Returns `AppError::AuthInvalid` if any scope is missing
 ///
 /// # Examples
 /// ```

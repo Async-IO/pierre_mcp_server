@@ -22,7 +22,9 @@ use uuid::Uuid;
 ///
 /// # Returns
 /// * `Ok(User)` if parsing succeeds
-/// * `Err` if required fields are missing or have invalid types
+///
+/// # Errors
+/// * Returns error if required fields are missing or have invalid types
 ///
 /// # Examples
 /// ```ignore
@@ -81,7 +83,9 @@ where
 ///
 /// # Returns
 /// * `Ok(A2ATask)` if parsing succeeds
-/// * `Err` if required fields are missing or have invalid types
+///
+/// # Errors
+/// * Returns error if required fields are missing or have invalid types
 ///
 /// # Note
 /// JSON deserialization errors for `input_data`/`result_data` are logged but don't fail
@@ -160,7 +164,9 @@ where
 ///
 /// # Returns
 /// * `Ok(Uuid)` if extraction/parsing succeeds
-/// * `Err` if column is missing or value is invalid
+///
+/// # Errors
+/// * Returns error if column is missing or value is invalid
 ///
 /// # Examples
 /// ```ignore

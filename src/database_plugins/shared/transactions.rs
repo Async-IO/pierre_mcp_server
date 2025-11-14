@@ -27,7 +27,9 @@ use tokio::time::sleep;
 ///
 /// # Returns
 /// * `Ok(T)` - Operation succeeded
-/// * `Err` - Operation failed after max retries or non-retryable error
+///
+/// # Errors
+/// * Returns error if operation failed after max retries or non-retryable error
 ///
 /// # Exponential Backoff
 /// - Attempt 1: 10ms

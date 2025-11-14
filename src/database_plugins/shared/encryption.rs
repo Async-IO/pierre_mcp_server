@@ -36,6 +36,7 @@ use uuid::Uuid;
 /// assert!(aad.contains("tenant-123"));
 /// assert!(aad.contains("strava"));
 /// ```
+#[must_use]
 pub fn create_token_aad_context(
     tenant_id: &str,
     user_id: Uuid,
@@ -60,7 +61,9 @@ pub fn create_token_aad_context(
 ///
 /// # Returns
 /// * `Ok(String)` - Base64-encoded encrypted token with nonce
-/// * `Err` if encryption fails
+///
+/// # Errors
+/// * Returns error if encryption fails
 ///
 /// # Security
 /// - Uses AES-256-GCM (AEAD cipher)
@@ -106,7 +109,9 @@ where
 ///
 /// # Returns
 /// * `Ok(String)` - Decrypted plain-text token
-/// * `Err` if:
+///
+/// # Errors
+/// * Returns error if:
 ///   - Decryption fails (wrong key)
 ///   - AAD mismatch (token moved to different context)
 ///   - Data corrupted/tampered
@@ -176,6 +181,9 @@ pub trait HasEncryption {
     ///
     /// # Returns
     /// Base64-encoded string containing: nonce (12 bytes) + ciphertext + auth tag
+    ///
+    /// # Errors
+    /// Returns error if encryption fails
     fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> Result<String>;
 
     /// Decrypt data using AES-256-GCM with Additional Authenticated Data

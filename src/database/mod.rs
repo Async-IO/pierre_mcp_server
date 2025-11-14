@@ -6,6 +6,8 @@
 
 /// Agent-to-Agent (A2A) authentication and usage tracking
 pub mod a2a;
+/// Admin token management and authorization
+pub mod admin;
 /// Analytics and usage statistics database operations
 pub mod analytics;
 /// API key management and validation
