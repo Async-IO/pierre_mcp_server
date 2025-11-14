@@ -117,7 +117,7 @@ where
 
     // Parse result_data JSON (optional) with fallback to None
     let result_data = row
-        .try_get::<Option<String>, _>("result_data")
+        .try_get::<Option<String>, _>("output_data") // Column is "output_data" not "result_data"
         .map_or(None, |result_str| {
             result_str.and_then(|s| {
                 serde_json::from_str(&s)
@@ -125,7 +125,7 @@ where
                         tracing::warn!(
                             task_id = %task_id,
                             error = %e,
-                            "Failed to deserialize A2A task result_data"
+                            "Failed to deserialize A2A task output_data"
                         );
                     })
                     .ok()
