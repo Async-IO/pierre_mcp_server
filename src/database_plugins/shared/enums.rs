@@ -148,7 +148,11 @@ mod tests {
 
     #[test]
     fn test_user_tier_round_trip() {
-        let tiers = vec![UserTier::Starter, UserTier::Professional, UserTier::Enterprise];
+        let tiers = vec![
+            UserTier::Starter,
+            UserTier::Professional,
+            UserTier::Enterprise,
+        ];
         for tier in tiers {
             let s = user_tier_to_str(&tier);
             let parsed = str_to_user_tier(s);
@@ -170,7 +174,11 @@ mod tests {
 
     #[test]
     fn test_user_status_round_trip() {
-        let statuses = vec![UserStatus::Active, UserStatus::Pending, UserStatus::Suspended];
+        let statuses = vec![
+            UserStatus::Active,
+            UserStatus::Pending,
+            UserStatus::Suspended,
+        ];
         for status in statuses {
             let s = user_status_to_str(&status);
             let parsed = str_to_user_status(s);
@@ -196,7 +204,10 @@ mod tests {
         for status in statuses {
             let s = task_status_to_str(&status);
             let parsed = str_to_task_status(s);
-            assert_eq!(parsed, status, "Round-trip failed for task status: {status:?}");
+            assert_eq!(
+                parsed, status,
+                "Round-trip failed for task status: {status:?}"
+            );
         }
     }
 

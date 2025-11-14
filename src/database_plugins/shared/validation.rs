@@ -6,8 +6,8 @@
 //! Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 //! Copyright ©2025 Async-IO.org
 
-use anyhow::Result;
 use crate::errors::AppError;
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 
 /// Validate email format

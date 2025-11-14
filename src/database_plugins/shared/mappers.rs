@@ -6,8 +6,8 @@
 //! Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 //! Copyright ©2025 Async-IO.org
 
-use crate::models::User;
 use crate::a2a::protocol::A2ATask;
+use crate::models::User;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
@@ -45,7 +45,6 @@ where
     Option<DateTime<Utc>>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
     DateTime<Utc>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
 {
-    use sqlx::Row;
 
     // Parse enum fields using shared converters
     let user_status_str: String = row.try_get("user_status")?;
@@ -98,11 +97,9 @@ where
     DateTime<Utc>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
     Option<DateTime<Utc>>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
 {
-    use sqlx::Row;
 
     // Get task_id for logging
-    let task_id: String = row.try_get("task_id")
-        .or_else(|_| row.try_get("id"))?; // Try both column names
+    let task_id: String = row.try_get("task_id").or_else(|_| row.try_get("id"))?; // Try both column names
 
     // Parse input_data JSON with fallback to null
     let input_str: String = row.try_get("input_data")?;
@@ -143,7 +140,9 @@ where
         completed_at: row.try_get("updated_at").ok(),
         result: result_data.clone(), // Safe: JSON value ownership for A2ATask struct
         error: row.try_get("method").ok(),
-        client_id: row.try_get("client_id").unwrap_or_else(|_| "unknown".into()),
+        client_id: row
+            .try_get("client_id")
+            .unwrap_or_else(|_| "unknown".into()),
         task_type: row.try_get("task_type")?,
         input_data,
         output_data: result_data,
@@ -178,7 +177,6 @@ where
     Uuid: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
     String: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
 {
-    use sqlx::Row;
 
     // Try PostgreSQL UUID type first
     if let Ok(uuid) = row.try_get::<Uuid, _>(column) {

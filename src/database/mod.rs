@@ -1130,7 +1130,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         _status_filter: Option<&str>,
         _tool_filter: Option<&str>,
     ) -> Result<Vec<crate::dashboard_routes::RequestLog>> {
-        let analytics_logs = Database::get_request_logs(self, None, start_time, end_time, 10, 0).await?;
+        let analytics_logs =
+            Database::get_request_logs(self, None, start_time, end_time, 10, 0).await?;
 
         // Convert analytics::RequestLog to dashboard_routes::RequestLog
         Ok(analytics_logs
@@ -1205,7 +1206,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         granted_scopes: &[String],
         expires_in_hours: i64,
     ) -> Result<String> {
-        Database::create_a2a_session(self, client_id, user_id, granted_scopes, expires_in_hours).await
+        Database::create_a2a_session(self, client_id, user_id, granted_scopes, expires_in_hours)
+            .await
     }
 
     async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
@@ -1564,7 +1566,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         scope: &str,
         user_id: Uuid,
     ) -> Result<()> {
-        Database::store_authorization_code(self, code, client_id, redirect_uri, scope, user_id).await
+        Database::store_authorization_code(self, code, client_id, redirect_uri, scope, user_id)
+            .await
     }
 
     async fn get_authorization_code(&self, code: &str) -> Result<crate::models::AuthorizationCode> {
@@ -1670,7 +1673,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         message: &str,
         expires_at: Option<&str>,
     ) -> Result<String> {
-        Database::store_oauth_notification(self, user_id, provider, success, message, expires_at).await
+        Database::store_oauth_notification(self, user_id, provider, success, message, expires_at)
+            .await
     }
 
     async fn get_unread_oauth_notifications(
@@ -1707,7 +1711,9 @@ impl crate::database_plugins::DatabaseProvider for Database {
         config: &crate::config::fitness_config::FitnessConfig,
     ) -> Result<String> {
         let manager = Database::fitness_configurations(self);
-        manager.save_tenant_config(tenant_id, configuration_name, config).await
+        manager
+            .save_tenant_config(tenant_id, configuration_name, config)
+            .await
     }
 
     async fn save_user_fitness_config(
@@ -1718,7 +1724,9 @@ impl crate::database_plugins::DatabaseProvider for Database {
         config: &crate::config::fitness_config::FitnessConfig,
     ) -> Result<String> {
         let manager = Database::fitness_configurations(self);
-        manager.save_user_config(tenant_id, user_id, configuration_name, config).await
+        manager
+            .save_user_config(tenant_id, user_id, configuration_name, config)
+            .await
     }
 
     async fn get_tenant_fitness_config(
@@ -1727,7 +1735,9 @@ impl crate::database_plugins::DatabaseProvider for Database {
         configuration_name: &str,
     ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
         let manager = Database::fitness_configurations(self);
-        manager.get_tenant_config(tenant_id, configuration_name).await
+        manager
+            .get_tenant_config(tenant_id, configuration_name)
+            .await
     }
 
     async fn get_user_fitness_config(
@@ -1737,7 +1747,9 @@ impl crate::database_plugins::DatabaseProvider for Database {
         configuration_name: &str,
     ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
         let manager = Database::fitness_configurations(self);
-        manager.get_user_config(tenant_id, user_id, configuration_name).await
+        manager
+            .get_user_config(tenant_id, user_id, configuration_name)
+            .await
     }
 
     async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> Result<Vec<String>> {
@@ -1761,7 +1773,9 @@ impl crate::database_plugins::DatabaseProvider for Database {
         configuration_name: &str,
     ) -> Result<bool> {
         let manager = Database::fitness_configurations(self);
-        manager.delete_config(tenant_id, user_id, configuration_name).await
+        manager
+            .delete_config(tenant_id, user_id, configuration_name)
+            .await
     }
 
     // OAuth Token Management
@@ -1846,7 +1860,15 @@ impl crate::database_plugins::DatabaseProvider for Database {
         client_secret: &str,
         redirect_uri: &str,
     ) -> Result<()> {
-        Database::store_user_oauth_app(self, user_id, provider, client_id, client_secret, redirect_uri).await
+        Database::store_user_oauth_app(
+            self,
+            user_id,
+            provider,
+            client_id,
+            client_secret,
+            redirect_uri,
+        )
+        .await
     }
 
     async fn get_user_oauth_app(

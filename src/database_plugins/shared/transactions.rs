@@ -133,8 +133,7 @@ fn is_retryable_error(error_msg: &str) -> bool {
     }
 
     // Retryable: Serialization failures (PostgreSQL)
-    if error_lower.contains("serialization failure")
-        || error_lower.contains("could not serialize")
+    if error_lower.contains("serialization failure") || error_lower.contains("could not serialize")
     {
         return true;
     }
@@ -214,8 +213,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_transaction_succeeds_first_try() {
-        use std::sync::Arc;
         use std::sync::atomic::{AtomicU32, Ordering};
+        use std::sync::Arc;
 
         let call_count = Arc::new(AtomicU32::new(0));
         let call_count_clone = call_count.clone();
@@ -239,8 +238,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_transaction_succeeds_after_retry() {
-        use std::sync::Arc;
         use std::sync::atomic::{AtomicU32, Ordering};
+        use std::sync::Arc;
 
         let call_count = Arc::new(AtomicU32::new(0));
         let call_count_clone = call_count.clone();
@@ -268,8 +267,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_transaction_fails_after_max_retries() {
-        use std::sync::Arc;
         use std::sync::atomic::{AtomicU32, Ordering};
+        use std::sync::Arc;
 
         let call_count = Arc::new(AtomicU32::new(0));
         let call_count_clone = call_count.clone();
@@ -293,8 +292,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_transaction_non_retryable_fails_immediately() {
-        use std::sync::Arc;
         use std::sync::atomic::{AtomicU32, Ordering};
+        use std::sync::Arc;
 
         let call_count = Arc::new(AtomicU32::new(0));
         let call_count_clone = call_count.clone();
@@ -313,6 +312,9 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(call_count.load(Ordering::SeqCst), 1); // Should not retry
-        assert!(result.unwrap_err().to_string().contains("unique constraint"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("unique constraint"));
     }
 }
