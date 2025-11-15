@@ -107,13 +107,13 @@ impl PostgresDatabase {
 }
 
 impl PostgresDatabase {
-    /// Create new `PostgreSQL` database with provided pool configuration
+    /// Create new `PostgreSQL` database with provided pool configuration (internal implementation)
     /// This is called by the Database factory with centralized `ServerConfig`
     ///
     /// # Errors
     ///
     /// Returns an error if database connection or pool configuration fails
-    pub async fn new(
+    async fn new_impl(
         database_url: &str,
         encryption_key: Vec<u8>,
         pool_config: &crate::config::environment::PostgresPoolConfig,
@@ -150,17 +150,29 @@ impl PostgresDatabase {
 
         Ok(db)
     }
+
+    /// Create new `PostgreSQL` database with provided pool configuration (public API)
+    /// This is called by the Database factory with centralized `ServerConfig`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database connection or pool configuration fails
+    pub async fn new(
+        database_url: &str,
+        encryption_key: Vec<u8>,
+        pool_config: &crate::config::environment::PostgresPoolConfig,
+    ) -> Result<Self> {
+        Self::new_impl(database_url, encryption_key, pool_config).await
+    }
 }
 
 #[async_trait]
 impl DatabaseProvider for PostgresDatabase {
-    #[allow(clippy::use_self)] // Must use PostgresDatabase:: to avoid infinite recursion with Self::
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
         // Use default pool configuration when called through trait
         // In practice, the Database factory calls the inherent impl's new() directly with config
         let pool_config = crate::config::environment::PostgresPoolConfig::default();
-        // Call inherent impl explicitly to avoid infinite recursion
-        PostgresDatabase::new(database_url, encryption_key, &pool_config).await
+        Self::new_impl(database_url, encryption_key, &pool_config).await
     }
 
     async fn migrate(&self) -> Result<()> {

@@ -84,7 +84,7 @@ impl Database {
         }
     }
 
-    /// Create a new database instance based on the connection string
+    /// Create a new database instance based on the connection string (internal implementation)
     ///
     /// # Errors
     ///
@@ -94,7 +94,7 @@ impl Database {
     /// - Database connection fails
     /// - Database initialization or migration fails
     /// - Encryption key is invalid
-    pub async fn new(
+    async fn new_impl(
         database_url: &str,
         encryption_key: Vec<u8>,
         #[cfg(feature = "postgresql")] pool_config: &crate::config::environment::PostgresPoolConfig,
@@ -124,6 +124,31 @@ impl Database {
                 tracing::error!("{}", err_msg);
                 Err(AppError::config(err_msg).into())
             }
+        }
+    }
+
+    /// Create a new database instance based on the connection string (public API)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database URL format is unsupported or invalid
+    /// - `PostgreSQL` feature is not enabled when `PostgreSQL` URL is provided
+    /// - Database connection fails
+    /// - Database initialization or migration fails
+    /// - Encryption key is invalid
+    pub async fn new(
+        database_url: &str,
+        encryption_key: Vec<u8>,
+        #[cfg(feature = "postgresql")] pool_config: &crate::config::environment::PostgresPoolConfig,
+    ) -> Result<Self> {
+        #[cfg(feature = "postgresql")]
+        {
+            Self::new_impl(database_url, encryption_key, pool_config).await
+        }
+        #[cfg(not(feature = "postgresql"))]
+        {
+            Self::new_impl(database_url, encryption_key).await
         }
     }
 }
@@ -170,18 +195,15 @@ impl DatabaseProvider for Database {
     /// - Database connection fails
     /// - Migration process fails
     /// - Encryption setup fails
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Self::
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
         #[cfg(feature = "postgresql")]
         {
             let pool_config = crate::config::environment::PostgresPoolConfig::default();
-            // Call inherent impl method directly to avoid infinite recursion
-            Database::new(database_url, encryption_key, &pool_config).await
+            Self::new_impl(database_url, encryption_key, &pool_config).await
         }
         #[cfg(not(feature = "postgresql"))]
         {
-            // Call inherent impl method directly to avoid infinite recursion
-            Database::new(database_url, encryption_key).await
+            Self::new_impl(database_url, encryption_key).await
         }
     }
 
