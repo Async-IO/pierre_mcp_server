@@ -993,7 +993,7 @@ impl Database {
     /// Returns an error if:
     /// - Database insert fails
     /// - Tenant already exists with the same slug
-    pub async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
+    pub async fn create_tenant_impl(&self, tenant: &crate::models::Tenant) -> Result<()> {
         sqlx::query(
             r"
             INSERT INTO tenants (id, name, slug, domain, plan, owner_user_id, is_active, created_at, updated_at)
@@ -2072,9 +2072,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::update_rsa_keypair_active_status(self, kid, is_active).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
-        Database::create_tenant(self, tenant).await
+        Self::create_tenant_impl(self, tenant).await
     }
 
     async fn get_tenant_by_id(&self, tenant_id: Uuid) -> Result<crate::models::Tenant> {
