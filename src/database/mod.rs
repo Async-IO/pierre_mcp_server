@@ -1764,29 +1764,24 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::create_a2a_client(self, client, client_secret, api_key_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
-        Database::get_a2a_client(self, client_id).await
+        Self::get_a2a_client_impl(self, client_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_client_by_api_key_id(&self, api_key_id: &str) -> Result<Option<A2AClient>> {
-        Database::get_a2a_client_by_api_key_id(self, api_key_id).await
+        Self::get_a2a_client_by_api_key_id_impl(self, api_key_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
-        Database::get_a2a_client_by_name(self, name).await
+        Self::get_a2a_client_by_name_impl(self, name).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
-        Database::list_a2a_clients(self, user_id).await
+        Self::list_a2a_clients_impl(self, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
-        Database::deactivate_a2a_client(self, client_id).await
+        Self::deactivate_a2a_client_impl(self, client_id).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -1797,14 +1792,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_a2a_client_credentials(self, client_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
-        Database::invalidate_a2a_client_sessions(self, client_id).await
+        Self::invalidate_a2a_client_sessions_impl(self, client_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
-        Database::deactivate_client_api_keys(self, client_id).await
+        Self::deactivate_client_api_keys_impl(self, client_id).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -1819,19 +1812,16 @@ impl crate::database_plugins::DatabaseProvider for Database {
             .await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
-        Database::get_a2a_session(self, session_token).await
+        Self::get_a2a_session_impl(self, session_token).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()> {
-        Database::update_a2a_session_activity(self, session_token).await
+        Self::update_a2a_session_activity_impl(self, session_token).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
-        Database::get_active_a2a_sessions(self, client_id).await
+        Self::get_active_a2a_sessions_impl(self, client_id).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -1845,9 +1835,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::create_a2a_task(self, client_id, session_id, task_type, input_data).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
-        Database::get_a2a_task(self, task_id).await
+        Self::get_a2a_task_impl(self, task_id).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -1872,14 +1861,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::update_a2a_task_status(self, task_id, status, result, error).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()> {
-        Database::record_a2a_usage(self, usage).await
+        Self::record_a2a_usage_impl(self, usage).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
-        Database::get_a2a_client_current_usage(self, client_id).await
+        Self::get_a2a_client_current_usage_impl(self, client_id).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
