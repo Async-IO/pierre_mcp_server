@@ -430,6 +430,48 @@ cargo test -- --nocapture
 ./scripts/lint-and-test.sh
 ```
 
+### Multi-Tenant End-to-End Tests
+
+Comprehensive tests validating MCP protocol with multi-tenant isolation across HTTP and SDK transports:
+
+```bash
+# Rust multi-tenant MCP tests (4 test scenarios)
+cargo test --test mcp_multitenant_sdk_e2e_test
+
+# Type generation multi-tenant validation (3 test scenarios)
+cargo test --test mcp_type_generation_multitenant_test
+
+# SDK multi-tenant tests (11 test cases)
+cd sdk
+npm run test -- --testPathPattern=e2e-multitenant
+cd ..
+```
+
+**Test Coverage**:
+- ✅ **Concurrent Multi-Tenant Tool Calls**: Validates 3 tenants can make simultaneous requests without cross-tenant data leakage
+- ✅ **HTTP vs SDK Transport Parity**: Ensures HTTP and SDK transports return identical responses
+- ✅ **Tenant Isolation at Protocol Level**: Verifies tenant boundaries are strictly enforced (403/404 errors for unauthorized access)
+- ✅ **Type Generation Consistency**: Validates tools/list returns identical schemas across all tenants
+- ✅ **Rate Limiting Per Tenant**: Ensures one tenant's rate limit doesn't affect other tenants
+- ✅ **SDK Concurrent Access**: Tests simultaneous SDK bridge access by multiple tenants
+- ✅ **SDK Tenant Isolation**: Validates cross-tenant access properly forbidden via SDK
+- ✅ **Schema Consistency Across Tiers**: Verifies schemas identical regardless of tier configuration
+
+**Infrastructure Highlights**:
+- **Helper Functions** (`tests/common.rs`):
+  - `spawn_sdk_bridge()`: Spawns SDK process with JWT token and automatic cleanup
+  - `send_http_mcp_request()`: Direct HTTP MCP requests for transport testing
+  - `create_test_tenant()`: Creates tenant with user and JWT token
+- **SDK Helpers** (`sdk/test/helpers/`):
+  - `multitenant-setup.js`: Multi-tenant client setup and isolation verification
+  - `rust-server-bridge.js`: Coordination between SDK tests and Rust server
+
+**Success Metrics**:
+- All 18 test scenarios pass successfully
+- No cross-tenant data contamination
+- Token validation works correctly
+- Tests complete in <30 seconds total
+
 ### Intelligence Testing Framework
 
 The platform includes 30+ integration tests covering all 8 intelligence tools without OAuth dependencies:
