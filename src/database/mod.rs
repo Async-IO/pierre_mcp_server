@@ -1531,14 +1531,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::migrate_impl(self).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_user(&self, user: &User) -> Result<Uuid> {
-        Database::create_user(self, user).await
+        Self::create_user_impl(self, user).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
-        Database::get_user(self, user_id).await
+        Self::get_user_impl(self, user_id).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::

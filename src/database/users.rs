@@ -143,7 +143,7 @@ impl Database {
     /// - Database operation fails
     // Long function: Comprehensive user creation with validation, duplicate checking, and database-specific implementations
     #[allow(clippy::too_many_lines)]
-    pub async fn create_user(&self, user: &User) -> Result<Uuid> {
+    pub async fn create_user_impl(&self, user: &User) -> Result<Uuid> {
         // Check if user exists by email
         let existing = self.get_user_by_email(&user.email).await?;
         if let Some(existing_user) = existing {
@@ -287,9 +287,9 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
+    pub async fn get_user_impl(&self, user_id: Uuid) -> Result<Option<User>> {
         let user_id_str = user_id.to_string();
-        self.get_user_impl("id", &user_id_str).await
+        self.get_user_by_field("id", &user_id_str).await
     }
 
     /// Get a user by ID (alias for compatibility)
@@ -298,7 +298,7 @@ impl Database {
     ///
     /// Returns an error if the database query fails
     pub async fn get_user_by_id(&self, user_id: Uuid) -> Result<Option<User>> {
-        self.get_user(user_id).await
+        self.get_user_impl(user_id).await
     }
 
     /// Get a user by email
@@ -307,7 +307,7 @@ impl Database {
     ///
     /// Returns an error if the database query fails
     pub async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
-        self.get_user_impl("email", email).await
+        self.get_user_by_field("email", email).await
     }
 
     /// Get a user by email, returning an error if not found
@@ -324,7 +324,7 @@ impl Database {
     }
 
     /// Internal implementation for getting a user
-    async fn get_user_impl(&self, field: &str, value: &str) -> Result<Option<User>> {
+    async fn get_user_by_field(&self, field: &str, value: &str) -> Result<Option<User>> {
         let query = format!(
             r"
             SELECT id, email, display_name, password_hash, tier, tenant_id,
@@ -825,7 +825,7 @@ impl Database {
         }
 
         // Return updated user
-        self.get_user(user_id)
+        self.get_user_impl(user_id)
             .await?
             .ok_or_else(|| AppError::not_found("User after status update").into())
     }
