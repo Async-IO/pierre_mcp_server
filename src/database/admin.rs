@@ -208,7 +208,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database update fails
-    pub async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
+    pub async fn deactivate_admin_token_impl(&self, token_id: &str) -> Result<()> {
         let query = "UPDATE admin_tokens SET is_active = 0 WHERE id = ?";
 
         sqlx::query(query)
@@ -515,5 +515,10 @@ impl Database {
                 .try_get::<Option<i32>, _>("response_time_ms")?
                 .map(|x| u32::try_from(x).unwrap_or(0)),
         })
+    }
+    // Public wrapper methods (delegate to _impl versions)
+
+    pub async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
+        self.deactivate_admin_token_impl(token_id).await
     }
 }

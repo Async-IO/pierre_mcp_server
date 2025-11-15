@@ -1266,57 +1266,59 @@ impl Database {
         Ok(history)
     }
     // Public wrapper methods (delegate to _impl versions)
-    
+
     pub async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
         self.deactivate_a2a_client_impl(client_id).await
     }
-    
+
     pub async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
         self.deactivate_client_api_keys_impl(client_id).await
     }
-    
+
     pub async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
         self.get_a2a_client_impl(client_id).await
     }
-    
-    pub async fn get_a2a_client_by_api_key_id(&self, api_key_id: &str) -> Result<Option<A2AClient>> {
+
+    pub async fn get_a2a_client_by_api_key_id(
+        &self,
+        api_key_id: &str,
+    ) -> Result<Option<A2AClient>> {
         self.get_a2a_client_by_api_key_id_impl(api_key_id).await
     }
-    
+
     pub async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
         self.get_a2a_client_by_name_impl(name).await
     }
-    
+
     pub async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
         self.get_a2a_client_current_usage_impl(client_id).await
     }
-    
+
     pub async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
         self.get_a2a_session_impl(session_token).await
     }
-    
+
     pub async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
         self.get_a2a_task_impl(task_id).await
     }
-    
+
     pub async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
         self.get_active_a2a_sessions_impl(client_id).await
     }
-    
+
     pub async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
         self.invalidate_a2a_client_sessions_impl(client_id).await
     }
-    
+
     pub async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
         self.list_a2a_clients_impl(user_id).await
     }
-    
+
     pub async fn record_a2a_usage(&self, usage: &crate::database::A2AUsage) -> Result<()> {
         self.record_a2a_usage_impl(usage).await
     }
-    
+
     pub async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()> {
         self.update_a2a_session_activity_impl(session_token).await
     }
-
 }

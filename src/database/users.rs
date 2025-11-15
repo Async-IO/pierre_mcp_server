@@ -855,45 +855,48 @@ impl Database {
         Ok(())
     }
     // Public wrapper methods (delegate to _impl versions)
-    
+
     pub async fn create_user(&self, user: &User) -> Result<Uuid> {
         self.create_user_impl(user).await
     }
-    
+
     pub async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
         self.get_user_impl(user_id).await
     }
-    
+
     pub async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
         self.get_user_by_email_impl(email).await
     }
-    
+
     pub async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
         self.get_user_by_email_required_impl(email).await
     }
-    
+
     pub async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
         self.update_last_active_impl(user_id).await
     }
-    
+
     pub async fn get_user_count(&self) -> Result<i64> {
         self.get_user_count_impl().await
     }
-    
-    pub async fn upsert_user_profile(&self, user_id: Uuid, profile_data: serde_json::Value) -> Result<()> {
+
+    pub async fn upsert_user_profile(
+        &self,
+        user_id: Uuid,
+        profile_data: serde_json::Value,
+    ) -> Result<()> {
         self.upsert_user_profile_impl(user_id, profile_data).await
     }
-    
+
     pub async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<serde_json::Value>> {
         self.get_user_profile_impl(user_id).await
     }
-    
+
     pub async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
         self.get_users_by_status_impl(status).await
     }
-    
+
     pub async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
         self.update_user_tenant_id_impl(user_id, tenant_id).await
     }
-
 }
