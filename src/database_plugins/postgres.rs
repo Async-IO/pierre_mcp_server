@@ -2965,8 +2965,7 @@ impl DatabaseProvider for PostgresDatabase {
                 |(provider, client_id, encrypted_secret, redirect_uri, scopes, rate_limit)| {
                     // Decrypt the client secret using AAD binding
                     // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
-                    let aad_context =
-                        format!("{tenant_id}|{provider}|tenant_oauth_credentials");
+                    let aad_context = format!("{tenant_id}|{provider}|tenant_oauth_credentials");
                     let client_secret =
                         self.decrypt_data_with_aad(&encrypted_secret, &aad_context)?;
 
