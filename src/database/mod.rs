@@ -1680,7 +1680,7 @@ impl Database {
             }
             None => Err(DatabaseError::NotFound {
                 entity_type: "OAuth app",
-                entity_id: client_id.to_string(),
+                entity_id: client_id.to_owned(),
             }
             .into()),
         }
@@ -1690,7 +1690,7 @@ impl Database {
     // OAuth2 Server (SQLite implementations)
     // ================================
 
-    /// Revoke OAuth2 refresh token (internal implementation)
+    /// Revoke `OAuth2` refresh token (internal implementation)
     ///
     /// # Errors
     ///
@@ -1737,7 +1737,7 @@ impl Database {
             }),
             None => Err(DatabaseError::NotFound {
                 entity_type: "authorization code",
-                entity_id: code.to_string(),
+                entity_id: code.to_owned(),
             }
             .into()),
         }
@@ -1923,12 +1923,12 @@ impl Database {
 impl crate::database_plugins::shared::encryption::HasEncryption for Database {
     fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> Result<String> {
         // Call inherent impl directly to avoid infinite recursion
-        Database::encrypt_data_with_aad_impl(self, data, aad)
+        Self::encrypt_data_with_aad_impl(self, data, aad)
     }
 
     fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> Result<String> {
         // Call inherent impl directly to avoid infinite recursion
-        Database::decrypt_data_with_aad_impl(self, encrypted, aad)
+        Self::decrypt_data_with_aad_impl(self, encrypted, aad)
     }
 }
 
@@ -1939,12 +1939,12 @@ use async_trait::async_trait;
 impl crate::database_plugins::DatabaseProvider for Database {
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
         // Call inherent impl directly to avoid infinite recursion
-        Database::new_impl(database_url, encryption_key).await
+        Self::new_impl(database_url, encryption_key).await
     }
 
     async fn migrate(&self) -> Result<()> {
         // Call inherent impl directly
-        Database::migrate_impl(self).await
+        Self::migrate_impl(self).await
     }
 
     async fn create_user(&self, user: &User) -> Result<Uuid> {
