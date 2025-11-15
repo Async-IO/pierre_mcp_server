@@ -16,7 +16,7 @@ use tracing::Span;
 use uuid::Uuid;
 
 /// Request ID header name
-const REQUEST_ID_HEADER: &str = "x-request-id";
+pub const REQUEST_ID_HEADER: &str = "x-request-id";
 
 /// Request ID middleware that generates and propagates correlation IDs
 ///

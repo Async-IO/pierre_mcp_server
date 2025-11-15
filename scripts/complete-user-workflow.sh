@@ -47,7 +47,7 @@ ADMIN_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/admin/setup \
   }')
 
 # Extract admin token for future use
-ADMIN_TOKEN=$(echo $ADMIN_RESPONSE | jq -r '.admin_token')
+ADMIN_TOKEN=$(echo $ADMIN_RESPONSE | jq -r '.data.admin_token')
 
 if [[ "$ADMIN_TOKEN" == "null" || -z "$ADMIN_TOKEN" ]]; then
     echo -e "${RED}❌ Failed to create admin or extract admin token${NC}"
@@ -98,7 +98,7 @@ echo "Approval result:"
 echo $APPROVAL_RESPONSE | jq
 
 # Extract tenant info
-TENANT_ID=$(echo $APPROVAL_RESPONSE | jq -r '.tenant_created.tenant_id')
+TENANT_ID=$(echo $APPROVAL_RESPONSE | jq -r '.data.tenant_created.tenant_id')
 
 if [[ "$TENANT_ID" == "null" || -z "$TENANT_ID" ]]; then
     echo -e "${RED}❌ Failed to approve user or create tenant${NC}"

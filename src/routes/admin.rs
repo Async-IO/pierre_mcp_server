@@ -76,6 +76,19 @@ pub struct AdminSetupRequest {
     pub display_name: Option<String>,
 }
 
+/// User approval request
+#[derive(Debug, Deserialize)]
+pub struct ApproveUserRequest {
+    /// Optional reason for approval
+    pub reason: Option<String>,
+    /// Auto-create default tenant for single-user workflows
+    pub create_default_tenant: Option<bool>,
+    /// Custom tenant name (if `create_default_tenant` is true)
+    pub tenant_name: Option<String>,
+    /// Custom tenant slug (if `create_default_tenant` is true)
+    pub tenant_slug: Option<String>,
+}
+
 /// Query parameters for listing API keys
 #[derive(Debug, Deserialize)]
 pub struct ListApiKeysQuery {
@@ -148,6 +161,19 @@ pub struct AdminSetupResponse {
     pub admin_token: String,
     /// Success message
     pub message: String,
+}
+
+/// Information about created tenant
+#[derive(Debug, Clone, Serialize)]
+pub struct TenantCreatedInfo {
+    /// Unique tenant identifier
+    pub tenant_id: String,
+    /// Tenant name
+    pub name: String,
+    /// Tenant URL slug
+    pub slug: String,
+    /// Subscription plan
+    pub plan: String,
 }
 
 /// User list response
@@ -1094,7 +1120,7 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         axum::extract::Path(user_id): axum::extract::Path<String>,
-        Json(request): Json<serde_json::Value>,
+        Json(request): Json<ApproveUserRequest>,
     ) -> Result<impl axum::response::IntoResponse, AppError> {
         // Check required permission
         if !admin_token
@@ -1161,10 +1187,88 @@ impl AdminRoutes {
                 AppError::internal(format!("Failed to approve user: {e}"))
             })?;
 
-        let reason = request
-            .get("reason")
-            .and_then(|v| v.as_str())
-            .unwrap_or("No reason provided");
+        // Optionally create default tenant
+        let tenant_created = if request.create_default_tenant.unwrap_or(false) {
+            let tenant_name = request.tenant_name.clone().unwrap_or_else(|| {
+                format!(
+                    "{}'s Organization",
+                    updated_user
+                        .display_name
+                        .as_ref()
+                        .unwrap_or(&updated_user.email)
+                )
+            });
+            let tenant_slug = request
+                .tenant_slug
+                .clone()
+                .unwrap_or_else(|| format!("user-{}", updated_user.id.as_simple()));
+
+            match Self::create_default_tenant_for_user(
+                &ctx.database,
+                user_uuid,
+                &tenant_name,
+                &tenant_slug,
+            )
+            .await
+            {
+                Ok(tenant) => {
+                    tracing::info!(
+                        "Created default tenant '{}' for user {}",
+                        tenant.name,
+                        updated_user.email
+                    );
+
+                    // Update user's tenant_id to link them to the new tenant
+                    let tenant_id_str = tenant.id.to_string();
+                    if let Err(e) = ctx
+                        .database
+                        .update_user_tenant_id(user_uuid, &tenant_id_str)
+                        .await
+                    {
+                        tracing::error!(
+                            "Failed to link user {} to tenant {}: {}",
+                            updated_user.email,
+                            tenant.id,
+                            e
+                        );
+                        return Ok(json_response(
+                            AdminResponse {
+                                success: false,
+                                message: format!("Failed to link user to created tenant: {e}"),
+                                data: None,
+                            },
+                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                        ));
+                    }
+
+                    Some(TenantCreatedInfo {
+                        tenant_id: tenant.id.to_string(),
+                        name: tenant.name,
+                        slug: tenant.slug,
+                        plan: tenant.plan,
+                    })
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to create default tenant for user {}: {}",
+                        updated_user.email,
+                        e
+                    );
+                    return Ok(json_response(
+                        AdminResponse {
+                            success: false,
+                            message: format!("Failed to create tenant: {e}"),
+                            data: None,
+                        },
+                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    ));
+                }
+            }
+        } else {
+            None
+        };
+
+        let reason = request.reason.as_deref().unwrap_or("No reason provided");
 
         tracing::info!("User {} approved successfully. Reason: {}", user_id, reason);
 
@@ -1184,6 +1288,7 @@ impl AdminRoutes {
                         "approved_by": updated_user.approved_by,
                         "approved_at": updated_user.approved_at.map(|t| t.to_rfc3339()),
                     },
+                    "tenant_created": tenant_created,
                     "reason": reason
                 }))
                 .ok(),
@@ -1704,5 +1809,41 @@ impl AdminRoutes {
         });
 
         axum::Json(token_info_json)
+    }
+
+    /// Create default tenant for a user
+    ///
+    /// # Errors
+    /// Returns error if tenant slug already exists or database operation fails
+    async fn create_default_tenant_for_user(
+        database: &Database,
+        owner_user_id: Uuid,
+        tenant_name: &str,
+        tenant_slug: &str,
+    ) -> Result<crate::models::Tenant, AppError> {
+        let tenant_id = Uuid::new_v4();
+        let slug = tenant_slug.trim().to_lowercase();
+
+        // Check if slug already exists
+        if database.get_tenant_by_slug(&slug).await.is_ok() {
+            return Err(AppError::invalid_input(format!(
+                "Tenant slug '{slug}' already exists"
+            )));
+        }
+
+        let tenant_data = crate::models::Tenant {
+            id: tenant_id,
+            name: tenant_name.to_owned(),
+            slug,
+            domain: None,
+            plan: crate::constants::tiers::STARTER.to_owned(), // Default plan for auto-created tenants
+            owner_user_id,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        database.create_tenant(&tenant_data).await?;
+
+        Ok(tenant_data)
     }
 }

@@ -33,6 +33,7 @@ use pierre_mcp_server::{
     middleware::McpAuthMiddleware,
     models::{User, UserTier},
 };
+use rand::Rng;
 use std::sync::{Arc, LazyLock, Once};
 use uuid::Uuid;
 
@@ -565,4 +566,337 @@ impl Default for MockUsdaClient {
     fn default() -> Self {
         Self::new()
     }
+}
+
+// ============================================================================
+// SDK Bridge Helpers for Multi-Tenant E2E Testing
+// ============================================================================
+
+use std::process::{Child, Command, Stdio};
+use tokio::time::{sleep, Duration};
+
+/// Handle for SDK bridge process that cleans up automatically on drop
+/// Ensures subprocess is terminated when test completes
+pub struct SdkBridgeHandle {
+    process: Child,
+    port: u16,
+}
+
+impl SdkBridgeHandle {
+    /// Get the server port this bridge is connected to
+    pub const fn port(&self) -> u16 {
+        self.port
+    }
+
+    /// Get mutable reference to stdin for sending requests
+    #[allow(clippy::missing_const_for_fn)] // Cannot be const - returns &mut
+    pub fn stdin(&mut self) -> Option<&mut std::process::ChildStdin> {
+        self.process.stdin.as_mut()
+    }
+
+    /// Get mutable reference to stdout for reading responses
+    #[allow(clippy::missing_const_for_fn)] // Cannot be const - returns &mut
+    pub fn stdout(&mut self) -> Option<&mut std::process::ChildStdout> {
+        self.process.stdout.as_mut()
+    }
+
+    /// Get mutable reference to stderr for reading errors
+    #[allow(clippy::missing_const_for_fn)] // Cannot be const - returns &mut
+    pub fn stderr(&mut self) -> Option<&mut std::process::ChildStderr> {
+        self.process.stderr.as_mut()
+    }
+}
+
+impl Drop for SdkBridgeHandle {
+    fn drop(&mut self) {
+        // Kill the SDK bridge process when handle is dropped
+        let _ = self.process.kill();
+        let _ = self.process.wait();
+    }
+}
+
+/// Spawn SDK bridge process for testing
+/// Returns RAII handle that automatically cleans up subprocess on drop
+///
+/// # Arguments
+/// * `jwt_token` - Valid JWT token for authentication
+/// * `server_port` - Port where Pierre server is running
+///
+/// # Errors
+/// Returns error if SDK bridge binary not found or process fails to start
+pub async fn spawn_sdk_bridge(jwt_token: &str, server_port: u16) -> Result<SdkBridgeHandle> {
+    // Find SDK CLI entry point (dist/cli.js - built from TypeScript)
+    let sdk_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("sdk")
+        .join("dist")
+        .join("cli.js");
+
+    if !sdk_path.exists() {
+        return Err(anyhow::Error::msg(format!(
+            "SDK entry point not found at: {}",
+            sdk_path.display()
+        )));
+    }
+
+    // Spawn Node.js process running SDK bridge in stdio mode
+    let mut process = Command::new("node")
+        .arg(sdk_path)
+        .env(
+            "PIERRE_SERVER_URL",
+            format!("http://localhost:{}", server_port),
+        )
+        .env("PIERRE_JWT_TOKEN", jwt_token)
+        .env("MCP_TRANSPORT", "stdio")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    // Wait briefly for process to initialize
+    sleep(Duration::from_millis(500)).await;
+
+    // Check if process is still alive
+    if let Ok(Some(status)) = process.try_wait() {
+        return Err(anyhow::Error::msg(format!(
+            "SDK bridge process exited immediately with status: {}",
+            status
+        )));
+    }
+
+    Ok(SdkBridgeHandle {
+        process,
+        port: server_port,
+    })
+}
+
+/// Send MCP request via SDK stdio bridge
+/// Writes JSON-RPC request to stdin and reads response from stdout
+///
+/// # Arguments
+/// * `sdk_bridge` - Mutable reference to SDK bridge handle
+/// * `method` - MCP method name (e.g., "tools/list", "tools/call")
+/// * `params` - JSON parameters for the method
+///
+/// # Errors
+/// Returns error if stdio communication fails or server returns error
+pub fn send_sdk_stdio_request(
+    sdk_bridge: &mut SdkBridgeHandle,
+    method: &str,
+    params: &serde_json::Value,
+) -> Result<serde_json::Value> {
+    use std::io::{BufRead, BufReader, Write};
+
+    // Build JSON-RPC 2.0 request
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "method": method,
+        "params": params
+    });
+
+    // Get stdin handle
+    let stdin = sdk_bridge
+        .stdin()
+        .ok_or_else(|| anyhow::Error::msg("SDK bridge stdin not available"))?;
+
+    // Write request to stdin (MCP protocol expects newline-delimited JSON)
+    let request_str = serde_json::to_string(&request)?;
+    writeln!(stdin, "{}", request_str)?;
+    stdin.flush()?;
+
+    // Get stdout handle
+    let stdout = sdk_bridge
+        .stdout()
+        .ok_or_else(|| anyhow::Error::msg("SDK bridge stdout not available"))?;
+
+    // Read response from stdout
+    let mut reader = BufReader::new(stdout);
+    let mut response_line = String::new();
+    reader.read_line(&mut response_line)?;
+
+    // Parse JSON-RPC response
+    let response: serde_json::Value = serde_json::from_str(response_line.trim())?;
+
+    // Validate JSON-RPC 2.0 response structure
+    if response.get("jsonrpc") != Some(&serde_json::json!("2.0")) {
+        return Err(anyhow::Error::msg(
+            "Invalid JSON-RPC response (missing jsonrpc field)",
+        ));
+    }
+
+    if response.get("id").and_then(|v| v.as_str()) != Some(&request_id) {
+        return Err(anyhow::Error::msg("Response ID mismatch"));
+    }
+
+    // Return the result or error
+    if let Some(error) = response.get("error") {
+        return Err(anyhow::Error::msg(format!("SDK returned error: {error}")));
+    }
+
+    response
+        .get("result")
+        .cloned()
+        .ok_or_else(|| anyhow::Error::msg("Response missing result field"))
+}
+
+/// Send HTTP MCP request directly to server
+/// Bypasses SDK to test HTTP transport directly
+///
+/// # Arguments
+/// * `url` - Full URL to MCP endpoint (e.g., `http://localhost:8081/mcp`)
+/// * `method` - MCP method name (e.g., "tools/list", "tools/call")
+/// * `params` - JSON parameters for the method
+/// * `jwt_token` - Valid JWT token for authentication
+///
+/// # Errors
+/// Returns error if HTTP request fails or server returns error
+pub async fn send_http_mcp_request(
+    url: &str,
+    method: &str,
+    params: serde_json::Value,
+    jwt_token: &str,
+) -> Result<serde_json::Value> {
+    let client = reqwest::Client::new();
+
+    let request_body = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": method,
+        "params": params,
+    });
+
+    let response = client
+        .post(url)
+        .header("Authorization", format!("Bearer {}", jwt_token))
+        .header("Content-Type", "application/json")
+        .json(&request_body)
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Err(anyhow::Error::msg(format!(
+            "HTTP request failed with status: {}",
+            response.status()
+        )));
+    }
+
+    let response_json: serde_json::Value = response.json().await?;
+
+    // Check for JSON-RPC error
+    if let Some(error) = response_json.get("error") {
+        return Err(anyhow::Error::msg(format!("MCP error: {}", error)));
+    }
+
+    // Extract result field
+    response_json
+        .get("result")
+        .cloned()
+        .ok_or_else(|| anyhow::Error::msg("Response missing 'result' field".to_owned()))
+}
+
+/// Create test tenant with user and JWT token
+/// Combines user creation and token generation for multi-tenant tests
+///
+/// # Arguments
+/// * `resources` - Server resources containing database and auth
+/// * `email` - Email address for the test user
+///
+/// # Errors
+/// Returns error if user creation or token generation fails
+pub async fn create_test_tenant(
+    resources: &ServerResources,
+    email: &str,
+) -> Result<(User, String)> {
+    // Create test user with specified email
+    let (_user_id, user) = create_test_user_with_email(&resources.database, email).await?;
+
+    // Generate JWT token for this user
+    let token = resources
+        .auth_manager
+        .generate_token(&user, &resources.jwks_manager)
+        .map_err(|e| anyhow::Error::msg(format!("Failed to generate JWT: {}", e)))?;
+
+    Ok((user, token))
+}
+
+/// Handle for HTTP MCP server that cleans up automatically on drop
+pub struct HttpServerHandle {
+    task_handle: tokio::task::JoinHandle<()>,
+    port: u16,
+}
+
+impl HttpServerHandle {
+    /// Get the port the server is listening on
+    pub const fn port(&self) -> u16 {
+        self.port
+    }
+
+    /// Get the base URL for making HTTP requests to this server
+    pub fn base_url(&self) -> String {
+        format!("http://127.0.0.1:{}", self.port)
+    }
+}
+
+impl Drop for HttpServerHandle {
+    fn drop(&mut self) {
+        // Abort the server task when handle is dropped (RAII cleanup)
+        self.task_handle.abort();
+    }
+}
+
+/// Check if a TCP port is available for binding
+fn is_port_available(port: u16) -> bool {
+    std::net::TcpListener::bind(format!("127.0.0.1:{port}")).is_ok()
+}
+
+/// Find an available port for testing
+fn find_available_port() -> u16 {
+    let mut rng = rand::thread_rng();
+    for _ in 0..100 {
+        let port = rng.gen_range(10000..60000);
+        if is_port_available(port) {
+            return port;
+        }
+    }
+    panic!("Could not find an available port after 100 attempts");
+}
+
+/// Spawn HTTP MCP server for E2E testing
+///
+/// Creates an Axum server with MCP routes listening on a random available port.
+/// The server runs in the background and is automatically cleaned up when the
+/// returned handle is dropped (RAII pattern).
+///
+/// # Arguments
+/// * `resources` - Arc-wrapped server resources with database, auth, and configuration
+///
+/// # Returns
+/// Handle to the running server with port and base URL
+///
+/// # Errors
+/// Returns error if server cannot be started
+pub async fn spawn_http_mcp_server(resources: &Arc<ServerResources>) -> Result<HttpServerHandle> {
+    let port = find_available_port();
+
+    // Clone Arc for moving into spawned task (Arc enables sharing across tasks)
+    let resources_for_task = Arc::clone(resources);
+
+    // Spawn server task
+    let task_handle = tokio::spawn(async move {
+        let app = pierre_mcp_server::routes::mcp::McpRoutes::routes(resources_for_task);
+
+        let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{port}"))
+            .await
+            .expect("Failed to bind to port");
+
+        axum::serve(listener, app)
+            .await
+            .expect("Server failed to run");
+    });
+
+    // Wait for server to be ready
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+    Ok(HttpServerHandle { task_handle, port })
 }
