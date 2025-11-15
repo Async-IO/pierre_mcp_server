@@ -52,9 +52,15 @@ impl Database {
             |perms| AdminPermissions::new(perms.clone()),
         );
 
-        // Calculate expiration
-        let expires_at = request.expires_in_days.map(|days| {
-            chrono::Utc::now() + chrono::Duration::days(i64::try_from(days).unwrap_or(365))
+        // Calculate expiration (0 days means never expires)
+        let expires_at = request.expires_in_days.and_then(|days| {
+            if days == 0 {
+                None // Never expires
+            } else {
+                Some(
+                    chrono::Utc::now() + chrono::Duration::days(i64::try_from(days).unwrap_or(365)),
+                )
+            }
         });
 
         // Generate JWT token using RS256

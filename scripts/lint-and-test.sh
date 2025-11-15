@@ -33,7 +33,7 @@ TOTAL_TASKS=0
 
 # Count tasks (all mandatory now)
 count_tasks() {
-    echo 11  # Mandatory tasks: cleanup, static analysis, fmt, clippy, deny, tests, frontend, mcp, sdk, bridge, release+docs
+    echo 12  # Mandatory tasks: cleanup, static analysis, fmt, clippy, deny, sdk-build, tests, frontend, mcp, sdk-validation, bridge, release+docs
 }
 
 # Print task header
@@ -458,6 +458,49 @@ if command_exists cargo-deny; then
 else
     echo -e "${YELLOW}[WARN] cargo-deny not installed${NC}"
     echo -e "${YELLOW}Install with: cargo install cargo-deny${NC}"
+fi
+
+# ============================================================================
+# SDK BUILD (Required before tests)
+# ============================================================================
+# The sdk/dist/ folder is in .gitignore, so it must be built locally.
+# Tests like test_http_transport_tools_list_parity require sdk/dist/cli.js
+# ============================================================================
+
+print_task "Building TypeScript SDK (required for tests)"
+
+if [ -d "sdk" ]; then
+    echo -e "${BLUE}Building SDK at sdk/${NC}"
+    cd sdk
+
+    # Install dependencies if node_modules doesn't exist
+    if [ ! -d "node_modules" ]; then
+        echo -e "${BLUE}Installing SDK dependencies...${NC}"
+        if command_exists npm; then
+            npm install
+        else
+            echo -e "${RED}[FAIL] npm not found. Install Node.js to build SDK${NC}"
+            ALL_PASSED=false
+            exit 1
+        fi
+    fi
+
+    # Build TypeScript to JavaScript
+    echo -e "${BLUE}Compiling TypeScript...${NC}"
+    npm run build
+
+    # Verify build output
+    if [ -f "dist/cli.js" ]; then
+        echo -e "${GREEN}[OK] SDK built successfully: sdk/dist/cli.js${NC}"
+    else
+        echo -e "${RED}[FAIL] SDK build failed: sdk/dist/cli.js not found${NC}"
+        ALL_PASSED=false
+        exit 1
+    fi
+
+    cd "$PROJECT_ROOT"
+else
+    echo -e "${YELLOW}[WARN] SDK directory not found, skipping SDK build${NC}"
 fi
 
 print_task "Cargo test (all tests)"
