@@ -1630,34 +1630,28 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_user_insights(self, user_id, insight_type, limit).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
-        Database::create_api_key(self, api_key).await
+        Self::create_api_key_impl(self, api_key).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_api_key_by_prefix(&self, prefix: &str, hash: &str) -> Result<Option<ApiKey>> {
-        Database::get_api_key_by_prefix(self, prefix, hash).await
+        Self::get_api_key_by_prefix_impl(self, prefix, hash).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
-        Database::get_user_api_keys(self, user_id).await
+        Self::get_user_api_keys_impl(self, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
-        Database::update_api_key_last_used(self, api_key_id).await
+        Self::update_api_key_last_used_impl(self, api_key_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
-        Database::deactivate_api_key(self, api_key_id, user_id).await
+        Self::deactivate_api_key_impl(self, api_key_id, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
-        Database::get_api_key_by_id(self, api_key_id).await
+        Self::get_api_key_by_id_impl(self, api_key_id).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -1679,24 +1673,20 @@ impl crate::database_plugins::DatabaseProvider for Database {
         .await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn cleanup_expired_api_keys(&self) -> Result<u64> {
-        Database::cleanup_expired_api_keys(self).await
+        Self::cleanup_expired_api_keys_impl(self).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>> {
-        Database::get_expired_api_keys(self).await
+        Self::get_expired_api_keys_impl(self).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
-        Database::record_api_key_usage(self, usage).await
+        Self::record_api_key_usage_impl(self, usage).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
-        Database::get_api_key_current_usage(self, api_key_id).await
+        Self::get_api_key_current_usage_impl(self, api_key_id).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
