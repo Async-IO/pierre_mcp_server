@@ -1109,7 +1109,7 @@ impl Database {
     pub async fn get_tenant_by_id_impl(&self, tenant_id: Uuid) -> Result<crate::models::Tenant> {
         let row = sqlx::query(
             r"
-            SELECT t.id, t.name, t.slug, t.domain, t.subscription_tier, tu.user_id, t.created_at, t.updated_at
+            SELECT t.id, t.name, t.slug, t.domain, t.plan, tu.user_id, t.created_at, t.updated_at
             FROM tenants t
             JOIN tenant_users tu ON t.id = tu.tenant_id AND tu.role = 'owner'
             WHERE t.id = ? AND t.is_active = 1
@@ -1125,7 +1125,7 @@ impl Database {
                 name: row.try_get("name")?,
                 slug: row.try_get("slug")?,
                 domain: row.try_get("domain")?,
-                plan: row.try_get("subscription_tier")?,
+                plan: row.try_get("plan")?,
                 owner_user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
                 created_at: row.try_get("created_at")?,
                 updated_at: row.try_get("updated_at")?,
@@ -1146,7 +1146,7 @@ impl Database {
     pub async fn get_tenant_by_slug_impl(&self, slug: &str) -> Result<crate::models::Tenant> {
         let row = sqlx::query(
             r"
-            SELECT t.id, t.name, t.slug, t.domain, t.subscription_tier, tu.user_id, t.created_at, t.updated_at
+            SELECT t.id, t.name, t.slug, t.domain, t.plan, tu.user_id, t.created_at, t.updated_at
             FROM tenants t
             JOIN tenant_users tu ON t.id = tu.tenant_id AND tu.role = 'owner'
             WHERE t.slug = ? AND t.is_active = 1
@@ -1162,7 +1162,7 @@ impl Database {
                 name: row.try_get("name")?,
                 slug: row.try_get("slug")?,
                 domain: row.try_get("domain")?,
-                plan: row.try_get("subscription_tier")?,
+                plan: row.try_get("plan")?,
                 owner_user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
                 created_at: row.try_get("created_at")?,
                 updated_at: row.try_get("updated_at")?,
@@ -1186,7 +1186,7 @@ impl Database {
     ) -> Result<Vec<crate::models::Tenant>> {
         let rows = sqlx::query(
             r"
-            SELECT DISTINCT t.id, t.name, t.slug, t.domain, t.subscription_tier,
+            SELECT DISTINCT t.id, t.name, t.slug, t.domain, t.plan,
                    owner.user_id as owner_user_id, t.created_at, t.updated_at
             FROM tenants t
             JOIN tenant_users tu ON t.id = tu.tenant_id
@@ -1207,7 +1207,7 @@ impl Database {
                     name: row.try_get("name")?,
                     slug: row.try_get("slug")?,
                     domain: row.try_get("domain")?,
-                    plan: row.try_get("subscription_tier")?,
+                    plan: row.try_get("plan")?,
                     owner_user_id: Uuid::parse_str(&row.try_get::<String, _>("owner_user_id")?)?,
                     created_at: row.try_get("created_at")?,
                     updated_at: row.try_get("updated_at")?,
@@ -1226,7 +1226,7 @@ impl Database {
     pub async fn get_all_tenants_impl(&self) -> Result<Vec<crate::models::Tenant>> {
         let rows = sqlx::query(
             r"
-            SELECT id, slug, name, domain, subscription_tier as plan, owner_user_id, created_at, updated_at
+            SELECT id, slug, name, domain, plan, owner_user_id, created_at, updated_at
             FROM tenants
             WHERE is_active = 1
             ORDER BY created_at
