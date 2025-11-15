@@ -7,11 +7,47 @@
 # Replaces: cargo audit --ignore RUSTSEC-2023-0071 --no-fetch --color always
 [advisories]
 version = 2
-# Ignored advisories (from original script)
+# Ignored advisories with risk assessment and mitigation plans
 ignore = [
-    "RUSTSEC-2023-0071",  # Existing ignore from scripts/lint-and-test.sh
-    "RUSTSEC-2024-0384",  # instant crate unmaintained (no safe upgrade via reqwest-retry)
-    "RUSTSEC-2024-0387",  # opentelemetry_api merged into opentelemetry (used by opentelemetry-stdout)
+    # -------------------------------------------------------------------------
+    # RUSTSEC-2023-0071: RSA 0.9.x - Marvin Attack (timing sidechannel)
+    # -------------------------------------------------------------------------
+    # Severity: 5.9/10 (Medium)
+    # Crate: rsa 0.9.8
+    # Issue: Potential key recovery through timing sidechannels during decryption
+    # Advisory: https://rustsec.org/advisories/RUSTSEC-2023-0071
+    #
+    # Risk Assessment: LOW for our usage
+    # - Only used for JWT signing/verification (RS256) in src/admin/jwks.rs
+    # - NOT used for decryption operations (primary attack vector)
+    # - Admin-only feature with limited attack surface
+    # - 4096-bit RSA keys provide additional security margin
+    #
+    # Mitigation:
+    # - Monitor for rsa 0.10.0 stable release (currently RC)
+    # - Upgrade to 0.10.0 when stable (fixes this vulnerability)
+    # - Consider Ed25519 migration for future admin tokens (faster, smaller keys)
+    #
+    # Status: Accepted risk until stable fix available
+    # Review Date: 2025-11-15
+    # Next Review: 2026-01-15 or when rsa 0.10.0 stable released
+    "RUSTSEC-2023-0071",
+
+    # -------------------------------------------------------------------------
+    # RUSTSEC-2024-0384: instant crate unmaintained
+    # -------------------------------------------------------------------------
+    # Severity: Informational
+    # Reason: Transitive dependency via reqwest-retry (no safe upgrade path)
+    # Status: Monitor for reqwest-retry update
+    "RUSTSEC-2024-0384",
+
+    # -------------------------------------------------------------------------
+    # RUSTSEC-2024-0387: opentelemetry_api merged into opentelemetry
+    # -------------------------------------------------------------------------
+    # Severity: Informational
+    # Reason: Crate merged into parent (used by opentelemetry-stdout)
+    # Status: Upgrade opentelemetry-stdout when compatible version available
+    "RUSTSEC-2024-0387",
 ]
 
 # Warn on yanked crates
