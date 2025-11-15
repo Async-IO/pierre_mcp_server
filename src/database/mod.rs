@@ -1497,6 +1497,426 @@ impl Database {
             None => Ok(None),
         }
     }
+
+    // ================================
+    // User Configuration (SQLite implementations)
+    // ================================
+
+    /// Get user configuration data (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    async fn get_user_configuration_impl(&self, user_id: &str) -> Result<Option<String>> {
+        // First ensure the user_configurations table exists
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_configurations (
+                user_id TEXT PRIMARY KEY,
+                config_data TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        let query = "SELECT config_data FROM user_configurations WHERE user_id = ?1";
+
+        let row = sqlx::query(query)
+            .bind(user_id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if let Some(row) = row {
+            Ok(Some(row.try_get("config_data")?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Save user configuration data (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    async fn save_user_configuration_impl(&self, user_id: &str, config_json: &str) -> Result<()> {
+        // First ensure the user_configurations table exists
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_configurations (
+                user_id TEXT PRIMARY KEY,
+                config_data TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Insert or update configuration using SQLite syntax
+        let query = r"
+            INSERT INTO user_configurations (user_id, config_data, updated_at)
+            VALUES (?1, ?2, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET
+                config_data = EXCLUDED.config_data,
+                updated_at = CURRENT_TIMESTAMP
+        ";
+
+        sqlx::query(query)
+            .bind(user_id)
+            .bind(config_json)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    // ================================
+    // RSA Keypair Management (SQLite implementations)
+    // ================================
+
+    /// Update RSA keypair active status (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    async fn update_rsa_keypair_active_status_impl(
+        &self,
+        kid: &str,
+        is_active: bool,
+    ) -> Result<()> {
+        sqlx::query("UPDATE rsa_keypairs SET is_active = ?1 WHERE kid = ?2")
+            .bind(is_active)
+            .bind(kid)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    // ================================
+    // OAuth App Management (SQLite implementations)
+    // ================================
+
+    /// Create OAuth app (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    async fn create_oauth_app_impl(&self, app: &crate::models::OAuthApp) -> Result<()> {
+        let redirect_uris_json = serde_json::to_string(&app.redirect_uris)?;
+        let scopes_json = serde_json::to_string(&app.scopes)?;
+
+        sqlx::query(
+            r"
+            INSERT INTO oauth_apps
+                (id, client_id, client_secret_hash, name, description, redirect_uris,
+                 scopes, app_type, owner_user_id, is_active, created_at, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1, ?10, ?11)
+            ",
+        )
+        .bind(app.id.to_string())
+        .bind(&app.client_id)
+        .bind(&app.client_secret)
+        .bind(&app.name)
+        .bind(&app.description)
+        .bind(&redirect_uris_json)
+        .bind(&scopes_json)
+        .bind(&app.app_type)
+        .bind(app.owner_user_id.to_string())
+        .bind(app.created_at)
+        .bind(app.updated_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DatabaseError::QueryError {
+            context: format!("Failed to create OAuth app: {e}"),
+        })?;
+
+        Ok(())
+    }
+
+    /// Get OAuth app by client ID (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails or app not found
+    async fn get_oauth_app_by_client_id_impl(
+        &self,
+        client_id: &str,
+    ) -> Result<crate::models::OAuthApp> {
+        let row = sqlx::query(
+            r"
+            SELECT id, client_id, client_secret_hash, name, description, redirect_uris,
+                   scopes, app_type, owner_user_id, created_at, updated_at
+            FROM oauth_apps
+            WHERE client_id = ?1 AND is_active = 1
+            ",
+        )
+        .bind(client_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some(row) => {
+                let redirect_uris_json: String = row.get("redirect_uris");
+                let scopes_json: String = row.get("scopes");
+
+                Ok(crate::models::OAuthApp {
+                    id: Uuid::parse_str(&row.get::<String, _>("id"))?,
+                    client_id: row.get("client_id"),
+                    client_secret: row.get("client_secret_hash"),
+                    name: row.get("name"),
+                    description: row.get("description"),
+                    redirect_uris: serde_json::from_str(&redirect_uris_json)?,
+                    scopes: serde_json::from_str(&scopes_json)?,
+                    app_type: row.get("app_type"),
+                    owner_user_id: Uuid::parse_str(&row.get::<String, _>("owner_user_id"))?,
+                    created_at: row.get("created_at"),
+                    updated_at: row.get("updated_at"),
+                })
+            }
+            None => Err(DatabaseError::NotFound {
+                entity_type: "OAuth app",
+                entity_id: client_id.to_string(),
+            }
+            .into()),
+        }
+    }
+
+    // ================================
+    // OAuth2 Server (SQLite implementations)
+    // ================================
+
+    /// Revoke OAuth2 refresh token (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    async fn revoke_oauth2_refresh_token_impl(&self, token: &str) -> Result<()> {
+        sqlx::query("UPDATE oauth2_refresh_tokens SET revoked = 1 WHERE token = ?1")
+            .bind(token)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Get authorization code (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails or code not found/expired
+    async fn get_authorization_code_impl(
+        &self,
+        code: &str,
+    ) -> Result<crate::models::AuthorizationCode> {
+        let row = sqlx::query(
+            r"
+            SELECT code, client_id, user_id, redirect_uri, scope, created_at, expires_at
+            FROM oauth2_auth_codes
+            WHERE code = ?1 AND datetime(expires_at) > datetime('now')
+            ",
+        )
+        .bind(code)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some(row) => Ok(crate::models::AuthorizationCode {
+                code: row.get("code"),
+                client_id: row.get("client_id"),
+                redirect_uri: row.get("redirect_uri"),
+                scope: row.get("scope"),
+                user_id: Some(Uuid::parse_str(&row.get::<String, _>("user_id"))?),
+                created_at: row.get("created_at"),
+                expires_at: row.get("expires_at"),
+                is_used: false, // If we can fetch it, it hasn't been used yet
+            }),
+            None => Err(DatabaseError::NotFound {
+                entity_type: "authorization code",
+                entity_id: code.to_string(),
+            }
+            .into()),
+        }
+    }
+
+    /// Delete authorization code (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    async fn delete_authorization_code_impl(&self, code: &str) -> Result<()> {
+        let result = sqlx::query(
+            r"
+            DELETE FROM oauth2_auth_codes
+            WHERE code = ?1
+            ",
+        )
+        .bind(code)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DatabaseError::QueryError {
+            context: format!("Failed to delete authorization code: {e}"),
+        })?;
+
+        if result.rows_affected() == 0 {
+            tracing::warn!("Authorization code not found for deletion: {}", code);
+        }
+
+        Ok(())
+    }
+
+    // ================================
+    // Audit Events (SQLite implementations)
+    // ================================
+
+    /// Store audit event (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    async fn store_audit_event_impl(
+        &self,
+        event: &crate::security::audit::AuditEvent,
+    ) -> Result<()> {
+        let query = r"
+            INSERT INTO audit_events (
+                id, event_type, severity, message, source, result,
+                tenant_id, user_id, ip_address, user_agent, metadata, timestamp
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+        ";
+
+        let event_type_str = format!("{:?}", event.event_type);
+        let severity_str = format!("{:?}", event.severity);
+        let metadata_json = serde_json::to_string(&event.metadata)?;
+
+        sqlx::query(query)
+            .bind(event.event_id.to_string())
+            .bind(&event_type_str)
+            .bind(&severity_str)
+            .bind(&event.description)
+            .bind("security") // source - using generic security source
+            .bind(&event.result)
+            .bind(event.tenant_id.map(|id| id.to_string()))
+            .bind(event.user_id.map(|id| id.to_string()))
+            .bind(&event.source_ip)
+            .bind(&event.user_agent)
+            .bind(&metadata_json)
+            .bind(event.timestamp)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    // ================================
+    // Tenant Management (SQLite implementations)
+    // ================================
+
+    /// Get user tenant role (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    async fn get_user_tenant_role_impl(
+        &self,
+        user_id: Uuid,
+        tenant_id: Uuid,
+    ) -> Result<Option<String>> {
+        let row =
+            sqlx::query("SELECT role FROM tenant_users WHERE user_id = ?1 AND tenant_id = ?2")
+                .bind(user_id.to_string())
+                .bind(tenant_id.to_string())
+                .fetch_optional(&self.pool)
+                .await?;
+
+        Ok(row.map(|r| r.get("role")))
+    }
+
+    // ================================
+    // User OAuth Apps (SQLite implementations)
+    // ================================
+
+    /// List user OAuth apps (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    async fn list_user_oauth_apps_impl(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::models::UserOAuthApp>> {
+        // First ensure the user_oauth_apps table exists
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_oauth_apps (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                client_id TEXT NOT NULL,
+                client_secret TEXT NOT NULL,
+                redirect_uri TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, provider),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        let rows = sqlx::query(
+            r"
+            SELECT id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at
+            FROM user_oauth_apps
+            WHERE user_id = ?1
+            ORDER BY provider
+            ",
+        )
+        .bind(user_id.to_string())
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut apps = Vec::new();
+        for row in rows {
+            apps.push(crate::models::UserOAuthApp {
+                id: row.get("id"),
+                user_id: Uuid::parse_str(&row.get::<String, _>("user_id"))?,
+                provider: row.get("provider"),
+                client_id: row.get("client_id"),
+                client_secret: row.get("client_secret"),
+                redirect_uri: row.get("redirect_uri"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            });
+        }
+
+        Ok(apps)
+    }
+
+    /// Remove user OAuth app (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    async fn remove_user_oauth_app_impl(&self, user_id: Uuid, provider: &str) -> Result<()> {
+        sqlx::query(
+            r"
+            DELETE FROM user_oauth_apps
+            WHERE user_id = ?1 AND provider = ?2
+            ",
+        )
+        .bind(user_id.to_string())
+        .bind(provider)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
 }
 
 // Implement HasEncryption trait for SQLite (delegates to inherent impl methods)
@@ -1602,14 +2022,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::update_goal_progress_impl(self, goal_id, current_value).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
-        Database::get_user_configuration(self, user_id).await
+        Self::get_user_configuration_impl(self, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()> {
-        Database::save_user_configuration(self, user_id, config_json).await
+        Self::save_user_configuration_impl(self, user_id, config_json).await
     }
 
     async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> Result<String> {
@@ -1934,9 +2352,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::list_admin_tokens(self, include_inactive).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
-        Database::deactivate_admin_token(self, token_id).await
+        Self::deactivate_admin_token_impl(self, token_id).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -2027,9 +2444,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::load_rsa_keypairs(self).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
-        Database::update_rsa_keypair_active_status(self, kid, is_active).await
+        Self::update_rsa_keypair_active_status_impl(self, kid, is_active).await
     }
 
     async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
@@ -2070,14 +2486,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::get_tenant_oauth_credentials_impl(self, tenant_id, provider).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()> {
-        Database::create_oauth_app(self, app).await
+        Self::create_oauth_app_impl(self, app).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_oauth_app_by_client_id(&self, client_id: &str) -> Result<crate::models::OAuthApp> {
-        Database::get_oauth_app_by_client_id(self, client_id).await
+        Self::get_oauth_app_by_client_id_impl(self, client_id).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -2144,9 +2558,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_oauth2_refresh_token(self, token).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()> {
-        Database::revoke_oauth2_refresh_token(self, token).await
+        Self::revoke_oauth2_refresh_token_impl(self, token).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -2191,14 +2604,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
             .await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_authorization_code(&self, code: &str) -> Result<crate::models::AuthorizationCode> {
-        Database::get_authorization_code(self, code).await
+        Self::get_authorization_code_impl(self, code).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn delete_authorization_code(&self, code: &str) -> Result<()> {
-        Database::delete_authorization_code(self, code).await
+        Self::delete_authorization_code_impl(self, code).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -2266,9 +2677,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::get_all_tenants_impl(self).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> Result<()> {
-        Database::store_audit_event(self, event).await
+        Self::store_audit_event_impl(self, event).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -2281,9 +2691,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_audit_events(self, tenant_id, event_type, limit).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_tenant_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<String>> {
-        Database::get_user_tenant_role(self, &user_id.to_string(), &tenant_id.to_string()).await
+        Self::get_user_tenant_role_impl(self, user_id, tenant_id).await
     }
 
     async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
@@ -2328,9 +2737,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::mark_oauth_notification_read(self, notification_id, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64> {
-        Database::mark_all_oauth_notifications_read(self, user_id).await
+        Self::mark_all_oauth_notifications_read_impl(self, user_id).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -2446,9 +2854,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_user_oauth_token(self, user_id, tenant_id, provider).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_oauth_tokens(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>> {
-        Database::get_user_oauth_tokens(self, user_id).await
+        Self::get_user_oauth_tokens_impl(self, user_id).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -2470,9 +2877,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::delete_user_oauth_token(self, user_id, tenant_id, provider).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()> {
-        Database::delete_user_oauth_tokens(self, user_id).await
+        Self::delete_user_oauth_tokens_impl(self, user_id).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -2526,14 +2932,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_user_oauth_app(self, user_id, provider).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn list_user_oauth_apps(&self, user_id: Uuid) -> Result<Vec<UserOAuthApp>> {
-        Database::list_user_oauth_apps(self, user_id).await
+        Self::list_user_oauth_apps_impl(self, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> Result<()> {
-        Database::remove_user_oauth_app(self, user_id, provider).await
+        Self::remove_user_oauth_app_impl(self, user_id, provider).await
     }
 }
 
