@@ -1065,7 +1065,9 @@ async fn test_oauth_get_auth_url_strava() -> Result<()> {
     let (oauth_routes, tenant_id, _database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let response = oauth_routes.get_auth_url(user_id, tenant_id, "strava")?;
+    let response = oauth_routes
+        .get_auth_url(user_id, tenant_id, "strava")
+        .await?;
 
     assert!(response.authorization_url.contains("strava.com"));
     assert!(response.authorization_url.contains("authorize"));
@@ -1082,7 +1084,9 @@ async fn test_oauth_get_auth_url_fitbit() -> Result<()> {
     let (oauth_routes, tenant_id, _database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let response = oauth_routes.get_auth_url(user_id, tenant_id, "fitbit")?;
+    let response = oauth_routes
+        .get_auth_url(user_id, tenant_id, "fitbit")
+        .await?;
 
     assert!(response.authorization_url.contains("fitbit.com"));
     assert!(response.authorization_url.contains("authorize"));
@@ -1099,7 +1103,9 @@ async fn test_oauth_get_auth_url_unsupported_provider() -> Result<()> {
     let (oauth_routes, tenant_id, _database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let result = oauth_routes.get_auth_url(user_id, tenant_id, "unsupported_provider");
+    let result = oauth_routes
+        .get_auth_url(user_id, tenant_id, "unsupported_provider")
+        .await;
 
     assert!(result.is_err());
     assert!(result
@@ -1556,7 +1562,9 @@ async fn test_complete_auth_flow() -> Result<()> {
         .store_tenant_oauth_credentials(&strava_credentials)
         .await?;
 
-    let auth_url = oauth_routes.get_auth_url(user_id, tenant_id, "strava")?;
+    let auth_url = oauth_routes
+        .get_auth_url(user_id, tenant_id, "strava")
+        .await?;
 
     // Verify everything worked
     assert!(!register_response.user_id.is_empty());

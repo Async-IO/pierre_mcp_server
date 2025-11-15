@@ -527,6 +527,9 @@ impl OAuthService {
     }
 
     /// Create `OAuth2` config for provider using injected configuration
+    ///
+    /// # Errors
+    /// Returns error if provider is unsupported or required credentials are not configured
     fn create_oauth_config(&self, provider: &str) -> AppResult<crate::oauth2_client::OAuth2Config> {
         let server_config = self.config.config();
         match provider {
@@ -535,11 +538,16 @@ impl OAuthService {
                 let api_config = &server_config.external_services.strava_api;
 
                 Ok(crate::oauth2_client::OAuth2Config {
-                    client_id: oauth_config
-                        .client_id
-                        .clone()
-                        .unwrap_or_else(|| "163846".to_owned()),
-                    client_secret: oauth_config.client_secret.clone().unwrap_or_default(),
+                    client_id: oauth_config.client_id.clone().ok_or_else(|| {
+                        AppError::invalid_input(
+                            "Strava client_id not configured for token exchange",
+                        )
+                    })?,
+                    client_secret: oauth_config.client_secret.clone().ok_or_else(|| {
+                        AppError::invalid_input(
+                            "Strava client_secret not configured for token exchange",
+                        )
+                    })?,
                     auth_url: api_config.auth_url.clone(),
                     token_url: api_config.token_url.clone(),
                     redirect_uri: oauth_config.redirect_uri.clone().unwrap_or_else(|| {
@@ -550,6 +558,33 @@ impl OAuthService {
                     }),
                     scopes: vec![crate::constants::oauth::STRAVA_DEFAULT_SCOPES.to_owned()],
                     use_pkce: true,
+                })
+            }
+            "fitbit" => {
+                let oauth_config = &server_config.oauth.fitbit;
+                let api_config = &server_config.external_services.fitbit_api;
+
+                Ok(crate::oauth2_client::OAuth2Config {
+                    client_id: oauth_config.client_id.clone().ok_or_else(|| {
+                        AppError::invalid_input(
+                            "Fitbit client_id not configured for token exchange",
+                        )
+                    })?,
+                    client_secret: oauth_config.client_secret.clone().ok_or_else(|| {
+                        AppError::invalid_input(
+                            "Fitbit client_secret not configured for token exchange",
+                        )
+                    })?,
+                    auth_url: api_config.auth_url.clone(),
+                    token_url: api_config.token_url.clone(),
+                    redirect_uri: oauth_config.redirect_uri.clone().unwrap_or_else(|| {
+                        format!(
+                            "http://localhost:{}/api/oauth/callback/fitbit",
+                            server_config.http_port
+                        )
+                    }),
+                    scopes: vec![crate::constants::oauth::FITBIT_DEFAULT_SCOPES.to_owned()],
+                    use_pkce: false, // Fitbit uses client_secret instead of PKCE
                 })
             }
             _ => Err(AppError::invalid_input(format!(
@@ -735,15 +770,26 @@ impl OAuthService {
 
     /// Generate OAuth authorization URL for provider
     ///
+    /// This function supports both multi-tenant and single-tenant modes:
+    /// - Multi-tenant: Uses tenant-specific OAuth credentials from database
+    /// - Single-tenant: Falls back to server-level configuration
+    ///
     /// # Errors
-    /// Returns error if provider is unsupported or URL generation fails
-    pub fn get_auth_url(
+    /// Returns error if provider is unsupported or OAuth credentials not configured
+    pub async fn get_auth_url(
         &self,
         user_id: uuid::Uuid,
         tenant_id: uuid::Uuid,
         provider: &str,
     ) -> AppResult<OAuthAuthorizationResponse> {
         use crate::constants::oauth_providers;
+
+        // Check for tenant-specific OAuth credentials first (multi-tenant mode)
+        let tenant_creds = self
+            .data
+            .database()
+            .get_tenant_oauth_credentials(tenant_id, provider)
+            .await?;
 
         let state = format!("{}:{}", user_id, uuid::Uuid::new_v4());
         let base_url = format!("http://localhost:{}", self.config.config().http_port);
@@ -755,30 +801,60 @@ impl OAuthService {
 
         let authorization_url = match provider {
             oauth_providers::STRAVA => {
-                let server_config = self.config.config();
-                let oauth_config = &server_config.oauth.strava;
-                let client_id = oauth_config
-                    .client_id
-                    .as_ref()
-                    .ok_or_else(|| AppError::invalid_input("Strava client_id not configured"))?;
+                let (client_id, scope) = if let Some(creds) = tenant_creds {
+                    // Multi-tenant: use tenant-specific credentials
+                    let scope = creds.scopes.join(",");
+                    (creds.client_id, scope)
+                } else {
+                    // Single-tenant: use server-level configuration
+                    let server_config = self.config.config();
+                    let oauth_config = &server_config.oauth.strava;
+                    let client_id = oauth_config
+                        .client_id
+                        .as_ref()
+                        .ok_or_else(|| {
+                            AppError::invalid_input(
+                                "Strava client_id not configured (set in environment or database)",
+                            )
+                        })?
+                        .clone();
+                    (
+                        client_id,
+                        crate::constants::oauth::STRAVA_DEFAULT_SCOPES.to_owned(),
+                    )
+                };
 
-                // Use constant for scopes and URL-encode it
-                let encoded_scope = encode(crate::constants::oauth::STRAVA_DEFAULT_SCOPES);
+                let encoded_scope = encode(&scope);
 
                 format!(
                     "https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={encoded_redirect_uri}&approval_prompt=force&scope={encoded_scope}&state={encoded_state}"
                 )
             }
             oauth_providers::FITBIT => {
-                let server_config = self.config.config();
-                let oauth_config = &server_config.oauth.fitbit;
-                let client_id = oauth_config
-                    .client_id
-                    .as_ref()
-                    .ok_or_else(|| AppError::invalid_input("Fitbit client_id not configured"))?;
+                let (client_id, scope) = if let Some(creds) = tenant_creds {
+                    // Multi-tenant: use tenant-specific credentials
+                    let scope = creds.scopes.join(" "); // Fitbit uses space-separated scopes
+                    (creds.client_id, scope)
+                } else {
+                    // Single-tenant: use server-level configuration
+                    let server_config = self.config.config();
+                    let oauth_config = &server_config.oauth.fitbit;
+                    let client_id = oauth_config
+                        .client_id
+                        .as_ref()
+                        .ok_or_else(|| {
+                            AppError::invalid_input(
+                                "Fitbit client_id not configured (set in environment or database)",
+                            )
+                        })?
+                        .clone();
+                    (
+                        client_id,
+                        crate::constants::oauth::FITBIT_DEFAULT_SCOPES.to_owned(),
+                    )
+                };
 
-                // Use constant for scopes
-                let encoded_scope = encode(crate::constants::oauth::FITBIT_DEFAULT_SCOPES);
+                let encoded_scope = encode(&scope);
 
                 format!(
                     "https://www.fitbit.com/oauth2/authorize?response_type=code&client_id={client_id}&redirect_uri={encoded_redirect_uri}&scope={encoded_scope}&state={encoded_state}"
@@ -1182,7 +1258,10 @@ impl AuthRoutes {
             server_context.notification().clone(),
         );
 
-        match oauth_service.get_auth_url(user_id, tenant_id, &provider) {
+        match oauth_service
+            .get_auth_url(user_id, tenant_id, &provider)
+            .await
+        {
             Ok(auth_response) => {
                 tracing::info!(
                     "Generated OAuth URL for {} user {}: {}",

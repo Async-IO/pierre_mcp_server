@@ -1814,20 +1814,71 @@ impl AdminRoutes {
     /// Create default tenant for a user
     ///
     /// # Errors
-    /// Returns error if tenant slug already exists or database operation fails
+    /// Returns error if tenant slug is invalid, already exists, or database operation fails
     async fn create_default_tenant_for_user(
         database: &Database,
         owner_user_id: Uuid,
         tenant_name: &str,
         tenant_slug: &str,
     ) -> Result<crate::models::Tenant, AppError> {
+        // Reserved slugs that cannot be used for tenants
+        const RESERVED_SLUGS: &[&str] = &[
+            "admin",
+            "api",
+            "www",
+            "app",
+            "dashboard",
+            "auth",
+            "oauth",
+            "login",
+            "logout",
+            "signup",
+            "system",
+            "root",
+            "public",
+            "static",
+            "assets",
+        ];
+
         let tenant_id = Uuid::new_v4();
         let slug = tenant_slug.trim().to_lowercase();
+
+        // Validate slug format
+        if slug.is_empty() {
+            return Err(AppError::invalid_input("Tenant slug cannot be empty"));
+        }
+
+        if slug.len() > 63 {
+            return Err(AppError::invalid_input(
+                "Tenant slug must be 63 characters or less",
+            ));
+        }
+
+        // Check for valid characters (alphanumeric and hyphens only)
+        if !slug.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+            return Err(AppError::invalid_input(
+                "Tenant slug can only contain letters, numbers, and hyphens",
+            ));
+        }
+
+        // Check for leading/trailing hyphens
+        if slug.starts_with('-') || slug.ends_with('-') {
+            return Err(AppError::invalid_input(
+                "Tenant slug cannot start or end with a hyphen",
+            ));
+        }
+
+        // Check against reserved slugs
+        if RESERVED_SLUGS.contains(&slug.as_str()) {
+            return Err(AppError::invalid_input(format!(
+                "Tenant slug '{slug}' is reserved and cannot be used",
+            )));
+        }
 
         // Check if slug already exists
         if database.get_tenant_by_slug(&slug).await.is_ok() {
             return Err(AppError::invalid_input(format!(
-                "Tenant slug '{slug}' already exists"
+                "Tenant slug '{slug}' is already in use",
             )));
         }
 
