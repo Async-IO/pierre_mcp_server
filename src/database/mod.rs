@@ -1263,52 +1263,28 @@ impl Database {
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
     ) -> Result<()> {
-        // Encrypt the client secret using proper AES-256-GCM
-        let encryption_manager = crate::security::TenantEncryptionManager::new(
-            ring::digest::digest(
-                &ring::digest::SHA256,
-                format!("oauth_secret_key_{}", credentials.tenant_id).as_bytes(),
-            )
-            .as_ref()
-            .try_into()
-            .map_err(|e| {
-                tracing::error!(
-                    tenant_id = %credentials.tenant_id,
-                    error = ?e,
-                    "Failed to create encryption key from SHA256 digest"
-                );
-                DatabaseError::EncryptionFailed {
-                    context: format!(
-                        "Failed to create encryption key for tenant {}: {:?}",
-                        credentials.tenant_id, e
-                    ),
-                }
-            })?,
+        // Encrypt the client secret using AES-256-GCM with AAD binding
+        // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
+        let aad_context = format!(
+            "{}|{}|tenant_oauth_credentials",
+            credentials.tenant_id, credentials.provider
         );
-
-        let encrypted_data = encryption_manager
-            .encrypt_tenant_data(credentials.tenant_id, &credentials.client_secret)
-            .map_err(|e| DatabaseError::EncryptionFailed {
-                context: format!("Failed to encrypt OAuth secret: {e}"),
-            })?;
-
-        let encrypted_secret = encrypted_data.data.as_bytes().to_vec();
-        let nonce = encrypted_data.metadata.key_version.to_le_bytes().to_vec();
+        let encrypted_secret =
+            self.encrypt_data_with_aad(&credentials.client_secret, &aad_context)?;
 
         // Convert scopes to JSON array for SQLite
         let scopes_json = serde_json::to_string(&credentials.scopes)?;
 
         sqlx::query(
             r"
-            INSERT INTO tenant_oauth_apps
-                (tenant_id, provider, client_id, client_secret_encrypted, client_secret_nonce,
+            INSERT INTO tenant_oauth_credentials
+                (tenant_id, provider, client_id, client_secret_encrypted,
                  redirect_uri, scopes, rate_limit_per_day, is_active)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
             ON CONFLICT (tenant_id, provider)
             DO UPDATE SET
                 client_id = excluded.client_id,
                 client_secret_encrypted = excluded.client_secret_encrypted,
-                client_secret_nonce = excluded.client_secret_nonce,
                 redirect_uri = excluded.redirect_uri,
                 scopes = excluded.scopes,
                 rate_limit_per_day = excluded.rate_limit_per_day,
@@ -1319,7 +1295,6 @@ impl Database {
         .bind(&credentials.provider)
         .bind(&credentials.client_id)
         .bind(&encrypted_secret)
-        .bind(&nonce)
         .bind(&credentials.redirect_uri)
         .bind(&scopes_json)
         .bind(i64::from(credentials.rate_limit_per_day))
@@ -1343,9 +1318,9 @@ impl Database {
     ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
         let rows = sqlx::query(
             r"
-            SELECT provider, client_id, client_secret_encrypted, client_secret_nonce,
+            SELECT provider, client_id, client_secret_encrypted,
                    redirect_uri, scopes, rate_limit_per_day
-            FROM tenant_oauth_apps
+            FROM tenant_oauth_credentials
             WHERE tenant_id = ? AND is_active = 1
             ORDER BY provider
             ",
@@ -1359,38 +1334,15 @@ impl Database {
             .map(|row| {
                 let provider: String = row.try_get("provider")?;
                 let client_id: String = row.try_get("client_id")?;
-                let encrypted_secret: Vec<u8> = row.try_get("client_secret_encrypted")?;
-                let nonce: Vec<u8> = row.try_get("client_secret_nonce")?;
+                let encrypted_secret: String = row.try_get("client_secret_encrypted")?;
                 let redirect_uri: String = row.try_get("redirect_uri")?;
                 let scopes_json: String = row.try_get("scopes")?;
                 let rate_limit: i64 = row.try_get("rate_limit_per_day")?;
 
-                // Decrypt the client secret
-                let encryption_manager = crate::security::TenantEncryptionManager::new(
-                    ring::digest::digest(
-                        &ring::digest::SHA256,
-                        format!("oauth_secret_key_{tenant_id}").as_bytes(),
-                    )
-                    .as_ref()
-                    .try_into()
-                    .unwrap_or([0u8; 32]),
-                );
-
-                let encrypted_data = crate::security::EncryptedData {
-                    data: String::from_utf8_lossy(&encrypted_secret).to_string(),
-                    metadata: crate::security::EncryptionMetadata {
-                        key_version: u32::from_le_bytes(
-                            nonce.as_slice().try_into().unwrap_or([1, 0, 0, 0]),
-                        ),
-                        tenant_id: Some(tenant_id),
-                        algorithm: "AES-256-GCM".to_owned(),
-                        encrypted_at: chrono::Utc::now(),
-                    },
-                };
-
-                let client_secret = encryption_manager
-                    .decrypt_tenant_data(tenant_id, &encrypted_data)
-                    .unwrap_or_else(|_| "DECRYPTION_FAILED".to_owned());
+                // Decrypt the client secret using AAD binding
+                // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
+                let aad_context = format!("{tenant_id}|{provider}|tenant_oauth_credentials");
+                let client_secret = self.decrypt_data_with_aad(&encrypted_secret, &aad_context)?;
 
                 let scopes: Vec<String> = serde_json::from_str(&scopes_json)?;
 
@@ -1421,9 +1373,9 @@ impl Database {
     ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
         let row = sqlx::query(
             r"
-            SELECT client_id, client_secret_encrypted, client_secret_nonce,
+            SELECT client_id, client_secret_encrypted,
                    redirect_uri, scopes, rate_limit_per_day
-            FROM tenant_oauth_apps
+            FROM tenant_oauth_credentials
             WHERE tenant_id = ? AND provider = ? AND is_active = 1
             ",
         )
@@ -1435,52 +1387,15 @@ impl Database {
         match row {
             Some(row) => {
                 let client_id: String = row.try_get("client_id")?;
-                let encrypted_secret: Vec<u8> = row.try_get("client_secret_encrypted")?;
-                let nonce: Vec<u8> = row.try_get("client_secret_nonce")?;
+                let encrypted_secret: String = row.try_get("client_secret_encrypted")?;
                 let redirect_uri: String = row.try_get("redirect_uri")?;
                 let scopes_json: String = row.try_get("scopes")?;
                 let rate_limit: i64 = row.try_get("rate_limit_per_day")?;
 
-                // Decrypt the client secret
-                let encryption_manager = crate::security::TenantEncryptionManager::new(
-                    ring::digest::digest(
-                        &ring::digest::SHA256,
-                        format!("oauth_secret_key_{tenant_id}").as_bytes(),
-                    )
-                    .as_ref()
-                    .try_into()
-                    .map_err(|e| {
-                        tracing::error!(
-                            tenant_id = %tenant_id,
-                            provider = %provider,
-                            error = ?e,
-                            "Failed to create decryption key from SHA256 digest"
-                        );
-                        DatabaseError::DecryptionFailed {
-                            context: format!(
-                                "Failed to create decryption key for tenant {tenant_id}: {e:?}"
-                            ),
-                        }
-                    })?,
-                );
-
-                let encrypted_data = crate::security::EncryptedData {
-                    data: String::from_utf8_lossy(&encrypted_secret).to_string(),
-                    metadata: crate::security::EncryptionMetadata {
-                        key_version: u32::from_le_bytes(
-                            nonce.as_slice().try_into().unwrap_or([1, 0, 0, 0]),
-                        ),
-                        tenant_id: Some(tenant_id),
-                        algorithm: "AES-256-GCM".to_owned(),
-                        encrypted_at: chrono::Utc::now(),
-                    },
-                };
-
-                let client_secret = encryption_manager
-                    .decrypt_tenant_data(tenant_id, &encrypted_data)
-                    .map_err(|e| DatabaseError::DecryptionFailed {
-                        context: format!("Failed to decrypt OAuth secret: {e}"),
-                    })?;
+                // Decrypt the client secret using AAD binding
+                // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
+                let aad_context = format!("{tenant_id}|{provider}|tenant_oauth_credentials");
+                let client_secret = self.decrypt_data_with_aad(&encrypted_secret, &aad_context)?;
 
                 let scopes: Vec<String> = serde_json::from_str(&scopes_json)?;
 

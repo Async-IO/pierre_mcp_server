@@ -17,6 +17,7 @@ use crate::constants::oauth_providers;
 use crate::constants::tiers;
 use crate::database::errors::DatabaseError;
 use crate::database::A2AUsage;
+use crate::database_plugins::shared::encryption::HasEncryption;
 use crate::errors::AppError;
 use crate::models::{User, UserTier};
 use crate::rate_limiting::JwtUsage;
@@ -2892,38 +2893,14 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
     ) -> Result<()> {
-        // Encrypt the client secret using proper AES-256-GCM
-        let encryption_manager = crate::security::TenantEncryptionManager::new(
-            // Use a deterministic key derived from tenant ID for consistency
-            ring::digest::digest(
-                &ring::digest::SHA256,
-                format!("oauth_secret_key_{}", credentials.tenant_id).as_bytes(),
-            )
-            .as_ref()
-            .try_into()
-            .map_err(|e| {
-                tracing::error!(
-                    tenant_id = %credentials.tenant_id,
-                    error = ?e,
-                    "Failed to create encryption key from SHA256 digest"
-                );
-                DatabaseError::EncryptionFailed {
-                    context: format!(
-                        "Failed to create encryption key for tenant {}: {:?}",
-                        credentials.tenant_id, e
-                    ),
-                }
-            })?,
+        // Encrypt the client secret using AES-256-GCM with AAD binding
+        // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
+        let aad_context = format!(
+            "{}|{}|tenant_oauth_credentials",
+            credentials.tenant_id, credentials.provider
         );
-
-        let encrypted_data = encryption_manager
-            .encrypt_tenant_data(credentials.tenant_id, &credentials.client_secret)
-            .map_err(|e| DatabaseError::EncryptionFailed {
-                context: format!("Failed to encrypt OAuth secret: {e}"),
-            })?;
-
-        let encrypted_secret = encrypted_data.data.as_bytes().to_vec();
-        let nonce = encrypted_data.metadata.key_version.to_le_bytes().to_vec();
+        let encrypted_secret =
+            self.encrypt_data_with_aad(&credentials.client_secret, &aad_context)?;
 
         // Convert scopes Vec<String> to PostgreSQL array format
         let scopes_array: Vec<&str> = credentials
@@ -2934,17 +2911,16 @@ impl DatabaseProvider for PostgresDatabase {
 
         sqlx::query(
             r"
-            INSERT INTO tenant_oauth_apps 
-                (tenant_id, provider, client_id, client_secret_encrypted, client_secret_nonce, 
+            INSERT INTO tenant_oauth_credentials
+                (tenant_id, provider, client_id, client_secret_encrypted,
                  redirect_uri, scopes, rate_limit_per_day, is_active)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
-            ON CONFLICT (tenant_id, provider) 
-            DO UPDATE SET 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+            ON CONFLICT (tenant_id, provider)
+            DO UPDATE SET
                 client_id = EXCLUDED.client_id,
                 client_secret_encrypted = EXCLUDED.client_secret_encrypted,
-                client_secret_nonce = EXCLUDED.client_secret_nonce,
                 redirect_uri = EXCLUDED.redirect_uri,
-                scope = EXCLUDED.scope,
+                scopes = EXCLUDED.scopes,
                 rate_limit_per_day = EXCLUDED.rate_limit_per_day,
                 updated_at = CURRENT_TIMESTAMP
             ",
@@ -2953,7 +2929,6 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&credentials.provider)
         .bind(&credentials.client_id)
         .bind(&encrypted_secret)
-        .bind(&nonce)
         .bind(&credentials.redirect_uri)
         .bind(&scopes_array)
         .bind(i32::try_from(credentials.rate_limit_per_day).unwrap_or(i32::MAX))
@@ -2971,60 +2946,31 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         tenant_id: Uuid,
     ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
-        let rows =
-            sqlx::query_as::<_, (String, String, Vec<u8>, Vec<u8>, String, Vec<String>, i32)>(
-                r"
-            SELECT provider, client_id, client_secret_encrypted, client_secret_nonce, 
+        let rows = sqlx::query_as::<_, (String, String, String, String, Vec<String>, i32)>(
+            r"
+            SELECT provider, client_id, client_secret_encrypted,
                    redirect_uri, scopes, rate_limit_per_day
-            FROM tenant_oauth_apps
+            FROM tenant_oauth_credentials
             WHERE tenant_id = $1 AND is_active = true
             ORDER BY provider
             ",
-            )
-            .bind(tenant_id)
-            .fetch_all(&self.pool)
-            .await?;
+        )
+        .bind(tenant_id)
+        .fetch_all(&self.pool)
+        .await?;
 
         let credentials = rows
             .into_iter()
             .map(
-                |(
-                    provider,
-                    client_id,
-                    encrypted_secret,
-                    nonce,
-                    redirect_uri,
-                    scopes,
-                    rate_limit,
-                )| {
-                    // Decrypt the client secret using proper AES-256-GCM
-                    let encryption_manager = crate::security::TenantEncryptionManager::new(
-                        ring::digest::digest(
-                            &ring::digest::SHA256,
-                            format!("oauth_secret_key_{tenant_id}").as_bytes(),
-                        )
-                        .as_ref()
-                        .try_into()
-                        .unwrap_or([0u8; 32]),
-                    );
+                |(provider, client_id, encrypted_secret, redirect_uri, scopes, rate_limit)| {
+                    // Decrypt the client secret using AAD binding
+                    // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
+                    let aad_context =
+                        format!("{tenant_id}|{provider}|tenant_oauth_credentials");
+                    let client_secret =
+                        self.decrypt_data_with_aad(&encrypted_secret, &aad_context)?;
 
-                    let encrypted_data = crate::security::EncryptedData {
-                        data: String::from_utf8_lossy(&encrypted_secret).to_string(),
-                        metadata: crate::security::EncryptionMetadata {
-                            key_version: u32::from_le_bytes(
-                                nonce.as_slice().try_into().unwrap_or([1, 0, 0, 0]),
-                            ),
-                            tenant_id: Some(tenant_id),
-                            algorithm: "AES-256-GCM".to_owned(),
-                            encrypted_at: chrono::Utc::now(),
-                        },
-                    };
-
-                    let client_secret = encryption_manager
-                        .decrypt_tenant_data(tenant_id, &encrypted_data)
-                        .unwrap_or_else(|_| "DECRYPTION_FAILED".to_owned());
-
-                    crate::tenant::TenantOAuthCredentials {
+                    Ok(crate::tenant::TenantOAuthCredentials {
                         tenant_id,
                         provider,
                         client_id,
@@ -3032,10 +2978,10 @@ impl DatabaseProvider for PostgresDatabase {
                         redirect_uri,
                         scopes,
                         rate_limit_per_day: u32::try_from(rate_limit).unwrap_or(0),
-                    }
+                    })
                 },
             )
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(credentials)
     }
@@ -3046,11 +2992,11 @@ impl DatabaseProvider for PostgresDatabase {
         tenant_id: Uuid,
         provider: &str,
     ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
-        let row = sqlx::query_as::<_, (String, Vec<u8>, Vec<u8>, String, Vec<String>, i32)>(
+        let row = sqlx::query_as::<_, (String, String, String, Vec<String>, i32)>(
             r"
-            SELECT client_id, client_secret_encrypted, client_secret_nonce, 
+            SELECT client_id, client_secret_encrypted,
                    redirect_uri, scopes, rate_limit_per_day
-            FROM tenant_oauth_apps
+            FROM tenant_oauth_credentials
             WHERE tenant_id = $1 AND provider = $2 AND is_active = true
             ",
         )
@@ -3060,47 +3006,11 @@ impl DatabaseProvider for PostgresDatabase {
         .await?;
 
         match row {
-            Some((client_id, encrypted_secret, nonce, redirect_uri, scopes, rate_limit)) => {
-                // Decrypt the client secret using proper AES-256-GCM
-                let encryption_manager = crate::security::TenantEncryptionManager::new(
-                    ring::digest::digest(
-                        &ring::digest::SHA256,
-                        format!("oauth_secret_key_{tenant_id}").as_bytes(),
-                    )
-                    .as_ref()
-                    .try_into()
-                    .map_err(|e| {
-                        tracing::error!(
-                            tenant_id = %tenant_id,
-                            provider = %provider,
-                            error = ?e,
-                            "Failed to create decryption key from SHA256 digest"
-                        );
-                        DatabaseError::DecryptionFailed {
-                            context: format!(
-                                "Failed to create decryption key for tenant {tenant_id}: {e:?}"
-                            ),
-                        }
-                    })?,
-                );
-
-                let encrypted_data = crate::security::EncryptedData {
-                    data: String::from_utf8_lossy(&encrypted_secret).to_string(),
-                    metadata: crate::security::EncryptionMetadata {
-                        key_version: u32::from_le_bytes(
-                            nonce.as_slice().try_into().unwrap_or([1, 0, 0, 0]),
-                        ),
-                        tenant_id: Some(tenant_id),
-                        algorithm: "AES-256-GCM".to_owned(),
-                        encrypted_at: chrono::Utc::now(),
-                    },
-                };
-
-                let client_secret = encryption_manager
-                    .decrypt_tenant_data(tenant_id, &encrypted_data)
-                    .map_err(|e| DatabaseError::DecryptionFailed {
-                        context: format!("Failed to decrypt OAuth secret: {e}"),
-                    })?;
+            Some((client_id, encrypted_secret, redirect_uri, scopes, rate_limit)) => {
+                // Decrypt the client secret using AAD binding
+                // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
+                let aad_context = format!("{tenant_id}|{provider}|tenant_oauth_credentials");
+                let client_secret = self.decrypt_data_with_aad(&encrypted_secret, &aad_context)?;
 
                 Ok(Some(crate::tenant::TenantOAuthCredentials {
                     tenant_id,
@@ -5558,7 +5468,7 @@ impl PostgresDatabase {
     /// - Each table has comprehensive schema: constraints, foreign keys, indexes, defaults
     /// - Splitting into separate functions obscures the complete schema structure
     /// - Database migrations benefit from having the full DDL in one location for review
-    /// - Tables: `tenants`, `tenant_oauth_apps`, `tenant_users`, `tenant_provider_usage`,
+    /// - Tables: `tenants`, `tenant_oauth_credentials`, `tenant_users`, `tenant_provider_usage`,
     ///   `oauth_apps`, `authorization_codes`, `user_oauth_tokens`
     #[allow(clippy::too_many_lines)]
     async fn create_tenant_tables(&self) -> Result<()> {
@@ -5580,16 +5490,15 @@ impl PostgresDatabase {
         .execute(&self.pool)
         .await?;
 
-        // Create tenant_oauth_apps table
+        // Create tenant_oauth_credentials table
         sqlx::query(
             r"
-            CREATE TABLE IF NOT EXISTS tenant_oauth_apps (
+            CREATE TABLE IF NOT EXISTS tenant_oauth_credentials (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
                 provider VARCHAR(50) NOT NULL,
                 client_id VARCHAR(255) NOT NULL,
-                client_secret_encrypted BYTEA NOT NULL,
-                client_secret_nonce BYTEA NOT NULL,
+                client_secret_encrypted TEXT NOT NULL,
                 redirect_uri VARCHAR(500) NOT NULL,
                 scopes TEXT[] DEFAULT '{}',
                 rate_limit_per_day INTEGER DEFAULT 15000,
@@ -5776,7 +5685,7 @@ impl PostgresDatabase {
             .await?;
 
         // Tenant indexes
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_oauth_apps_tenant_provider ON tenant_oauth_apps(tenant_id, provider)")
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_oauth_credentials_tenant_provider ON tenant_oauth_credentials(tenant_id, provider)")
             .execute(&self.pool)
             .await?;
 
