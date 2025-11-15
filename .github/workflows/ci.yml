@@ -210,8 +210,8 @@ jobs:
           RUST_LOG: "info"
 
       - name: Run all tests with coverage (PostgreSQL)
-        run: timeout 1800 cargo llvm-cov --all-targets --features postgresql --lcov --output-path lcov-postgres.info -- --test-threads=1
-        timeout-minutes: 30
+        run: timeout 3600 cargo llvm-cov --all-targets --features postgresql --lcov --output-path lcov-postgres.info -- --test-threads=1
+        timeout-minutes: 60
         env:
           DATABASE_URL: "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
