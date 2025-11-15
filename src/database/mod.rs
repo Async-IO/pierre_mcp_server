@@ -1921,13 +1921,11 @@ impl Database {
 
 // Implement HasEncryption trait for SQLite (delegates to inherent impl methods)
 impl crate::database_plugins::shared::encryption::HasEncryption for Database {
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Self::
     fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> Result<String> {
         // Call inherent impl directly to avoid infinite recursion
         Database::encrypt_data_with_aad_impl(self, data, aad)
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Self::
     fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> Result<String> {
         // Call inherent impl directly to avoid infinite recursion
         Database::decrypt_data_with_aad_impl(self, encrypted, aad)
@@ -1939,13 +1937,11 @@ use async_trait::async_trait;
 
 #[async_trait]
 impl crate::database_plugins::DatabaseProvider for Database {
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
         // Call inherent impl directly to avoid infinite recursion
         Database::new_impl(database_url, encryption_key).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn migrate(&self) -> Result<()> {
         // Call inherent impl directly
         Database::migrate_impl(self).await
@@ -1979,23 +1975,21 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::get_users_by_status_impl(self, status).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_users_by_status_cursor(
         &self,
         status: &str,
         params: &crate::pagination::PaginationParams,
     ) -> Result<crate::pagination::CursorPage<User>> {
-        Database::get_users_by_status_cursor(self, status, params).await
+        Self::get_users_by_status_cursor(self, status, params).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_user_status(
         &self,
         user_id: Uuid,
         new_status: crate::models::UserStatus,
         admin_token_id: &str,
     ) -> Result<User> {
-        Database::update_user_status(self, user_id, new_status, admin_token_id).await
+        Self::update_user_status(self, user_id, new_status, admin_token_id).await
     }
 
     async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
@@ -2034,14 +2028,13 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::store_insight_impl(self, user_id, insight_data).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_insights(
         &self,
         user_id: Uuid,
         insight_type: Option<&str>,
         limit: Option<u32>,
     ) -> Result<Vec<Value>> {
-        Database::get_user_insights(self, user_id, insight_type, limit).await
+        Self::get_user_insights(self, user_id, insight_type, limit).await
     }
 
     async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
@@ -2068,7 +2061,6 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::get_api_key_by_id_impl(self, api_key_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_api_keys_filtered(
         &self,
         _user_email: Option<&str>,
@@ -2076,7 +2068,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         limit: Option<i32>,
         offset: Option<i32>,
     ) -> Result<Vec<ApiKey>> {
-        Database::get_api_keys_filtered(
+        Self::get_api_keys_filtered(
             self,
             None,
             None,
@@ -2103,14 +2095,13 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::get_api_key_current_usage_impl(self, api_key_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_api_key_usage_stats(
         &self,
         api_key_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<ApiKeyUsageStats> {
-        Database::get_api_key_usage_stats(self, api_key_id, start_date, end_date).await
+        Self::get_api_key_usage_stats(self, api_key_id, start_date, end_date).await
     }
 
     async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
@@ -2155,14 +2146,13 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::get_system_stats_impl(self).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_a2a_client(
         &self,
         client: &A2AClient,
         client_secret: &str,
         api_key_id: &str,
     ) -> Result<String> {
-        Database::create_a2a_client(self, client, client_secret, api_key_id).await
+        Self::create_a2a_client(self, client, client_secret, api_key_id).await
     }
 
     async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
@@ -2185,12 +2175,11 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::deactivate_a2a_client_impl(self, client_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_client_credentials(
         &self,
         client_id: &str,
     ) -> Result<Option<(String, String)>> {
-        Database::get_a2a_client_credentials(self, client_id).await
+        Self::get_a2a_client_credentials(self, client_id).await
     }
 
     async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
@@ -2201,7 +2190,6 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::deactivate_client_api_keys_impl(self, client_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_a2a_session(
         &self,
         client_id: &str,
@@ -2209,8 +2197,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         granted_scopes: &[String],
         expires_in_hours: i64,
     ) -> Result<String> {
-        Database::create_a2a_session(self, client_id, user_id, granted_scopes, expires_in_hours)
-            .await
+        Self::create_a2a_session(self, client_id, user_id, granted_scopes, expires_in_hours).await
     }
 
     async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
@@ -2225,7 +2212,6 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::get_active_a2a_sessions_impl(self, client_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_a2a_task(
         &self,
         client_id: &str,
@@ -2233,14 +2219,13 @@ impl crate::database_plugins::DatabaseProvider for Database {
         task_type: &str,
         input_data: &Value,
     ) -> Result<String> {
-        Database::create_a2a_task(self, client_id, session_id, task_type, input_data).await
+        Self::create_a2a_task(self, client_id, session_id, task_type, input_data).await
     }
 
     async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
         Self::get_a2a_task_impl(self, task_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn list_a2a_tasks(
         &self,
         client_id: Option<&str>,
@@ -2248,10 +2233,9 @@ impl crate::database_plugins::DatabaseProvider for Database {
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<Vec<A2ATask>> {
-        Database::list_a2a_tasks(self, client_id, status_filter, limit, offset).await
+        Self::list_a2a_tasks(self, client_id, status_filter, limit, offset).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_a2a_task_status(
         &self,
         task_id: &str,
@@ -2259,7 +2243,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         result: Option<&Value>,
         error: Option<&str>,
     ) -> Result<()> {
-        Database::update_a2a_task_status(self, task_id, status, result, error).await
+        Self::update_a2a_task_status(self, task_id, status, result, error).await
     }
 
     async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()> {
@@ -2270,120 +2254,107 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::get_a2a_client_current_usage_impl(self, client_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_usage_stats(
         &self,
         client_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<crate::database::A2AUsageStats> {
-        Database::get_a2a_usage_stats(self, client_id, start_date, end_date).await
+        Self::get_a2a_usage_stats(self, client_id, start_date, end_date).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_a2a_client_usage_history(
         &self,
         client_id: &str,
         days: u32,
     ) -> Result<Vec<(DateTime<Utc>, u32, u32)>> {
-        Database::get_a2a_client_usage_history(self, client_id, days).await
+        Self::get_a2a_client_usage_history(self, client_id, days).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_provider_last_sync(
         &self,
         user_id: Uuid,
         provider: &str,
     ) -> Result<Option<DateTime<Utc>>> {
-        Database::get_provider_last_sync(self, user_id, provider).await
+        Self::get_provider_last_sync(self, user_id, provider).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_provider_last_sync(
         &self,
         user_id: Uuid,
         provider: &str,
         sync_time: DateTime<Utc>,
     ) -> Result<()> {
-        Database::update_provider_last_sync(self, user_id, provider, sync_time).await
+        Self::update_provider_last_sync(self, user_id, provider, sync_time).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_top_tools_analysis(
         &self,
         user_id: Uuid,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
     ) -> Result<Vec<crate::dashboard_routes::ToolUsage>> {
-        Database::get_top_tools_analysis(self, user_id, start_time, end_time).await
+        Self::get_top_tools_analysis(self, user_id, start_time, end_time).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_admin_token(
         &self,
         request: &crate::admin::models::CreateAdminTokenRequest,
         admin_jwt_secret: &str,
         jwks_manager: &crate::admin::jwks::JwksManager,
     ) -> Result<crate::admin::models::GeneratedAdminToken> {
-        Database::create_admin_token(self, request, admin_jwt_secret, jwks_manager).await
+        Self::create_admin_token(self, request, admin_jwt_secret, jwks_manager).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_admin_token_by_id(
         &self,
         token_id: &str,
     ) -> Result<Option<crate::admin::models::AdminToken>> {
-        Database::get_admin_token_by_id(self, token_id).await
+        Self::get_admin_token_by_id(self, token_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_admin_token_by_prefix(
         &self,
         token_prefix: &str,
     ) -> Result<Option<crate::admin::models::AdminToken>> {
-        Database::get_admin_token_by_prefix(self, token_prefix).await
+        Self::get_admin_token_by_prefix(self, token_prefix).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn list_admin_tokens(
         &self,
         include_inactive: bool,
     ) -> Result<Vec<crate::admin::models::AdminToken>> {
-        Database::list_admin_tokens(self, include_inactive).await
+        Self::list_admin_tokens(self, include_inactive).await
     }
 
     async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
         Self::deactivate_admin_token_impl(self, token_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_admin_token_last_used(
         &self,
         token_id: &str,
         ip_address: Option<&str>,
     ) -> Result<()> {
-        Database::update_admin_token_last_used(self, token_id, ip_address).await
+        Self::update_admin_token_last_used(self, token_id, ip_address).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn record_admin_token_usage(
         &self,
         usage: &crate::admin::models::AdminTokenUsage,
     ) -> Result<()> {
-        Database::record_admin_token_usage(self, usage).await
+        Self::record_admin_token_usage(self, usage).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_admin_token_usage_history(
         &self,
         token_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<Vec<crate::admin::models::AdminTokenUsage>> {
-        Database::get_admin_token_usage_history(self, token_id, start_date, end_date).await
+        Self::get_admin_token_usage_history(self, token_id, start_date, end_date).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn record_admin_provisioned_key(
         &self,
         admin_token_id: &str,
@@ -2393,7 +2364,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         rate_limit_requests: u32,
         rate_limit_period: &str,
     ) -> Result<()> {
-        Database::record_admin_provisioned_key(
+        Self::record_admin_provisioned_key(
             self,
             admin_token_id,
             api_key_id,
@@ -2405,17 +2376,15 @@ impl crate::database_plugins::DatabaseProvider for Database {
         .await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_admin_provisioned_keys(
         &self,
         admin_token_id: Option<&str>,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<Vec<serde_json::Value>> {
-        Database::get_admin_provisioned_keys(self, admin_token_id, start_date, end_date).await
+        Self::get_admin_provisioned_keys(self, admin_token_id, start_date, end_date).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn save_rsa_keypair(
         &self,
         kid: &str,
@@ -2425,7 +2394,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         is_active: bool,
         key_size_bits: i32,
     ) -> Result<()> {
-        Database::save_rsa_keypair(
+        Self::save_rsa_keypair(
             self,
             kid,
             private_key_pem,
@@ -2437,11 +2406,10 @@ impl crate::database_plugins::DatabaseProvider for Database {
         .await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn load_rsa_keypairs(
         &self,
     ) -> Result<Vec<(String, String, String, DateTime<Utc>, bool)>> {
-        Database::load_rsa_keypairs(self).await
+        Self::load_rsa_keypairs(self).await
     }
 
     async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
@@ -2494,75 +2462,66 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::get_oauth_app_by_client_id_impl(self, client_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn list_oauth_apps_for_user(
         &self,
         user_id: Uuid,
     ) -> Result<Vec<crate::models::OAuthApp>> {
-        Database::list_oauth_apps_for_user(self, user_id).await
+        Self::list_oauth_apps_for_user(self, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_oauth2_client(
         &self,
         client: &crate::oauth2_server::models::OAuth2Client,
     ) -> Result<()> {
-        Database::store_oauth2_client(self, client).await
+        Self::store_oauth2_client(self, client).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_oauth2_client(
         &self,
         client_id: &str,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>> {
-        Database::get_oauth2_client(self, client_id).await
+        Self::get_oauth2_client(self, client_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
     ) -> Result<()> {
-        Database::store_oauth2_auth_code(self, auth_code).await
+        Self::store_oauth2_auth_code(self, auth_code).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_oauth2_auth_code(
         &self,
         code: &str,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
-        Database::get_oauth2_auth_code(self, code).await
+        Self::get_oauth2_auth_code(self, code).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
     ) -> Result<()> {
-        Database::update_oauth2_auth_code(self, auth_code).await
+        Self::update_oauth2_auth_code(self, auth_code).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_oauth2_refresh_token(
         &self,
         refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
     ) -> Result<()> {
-        Database::store_oauth2_refresh_token(self, refresh_token).await
+        Self::store_oauth2_refresh_token(self, refresh_token).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_oauth2_refresh_token(
         &self,
         token: &str,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
-        Database::get_oauth2_refresh_token(self, token).await
+        Self::get_oauth2_refresh_token(self, token).await
     }
 
     async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()> {
         Self::revoke_oauth2_refresh_token_impl(self, token).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn consume_auth_code(
         &self,
         code: &str,
@@ -2570,28 +2529,25 @@ impl crate::database_plugins::DatabaseProvider for Database {
         redirect_uri: &str,
         now: DateTime<Utc>,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
-        Database::consume_auth_code(self, code, client_id, redirect_uri, now).await
+        Self::consume_auth_code(self, code, client_id, redirect_uri, now).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn consume_refresh_token(
         &self,
         token: &str,
         client_id: &str,
         now: DateTime<Utc>,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
-        Database::consume_refresh_token(self, token, client_id, now).await
+        Self::consume_refresh_token(self, token, client_id, now).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_refresh_token_by_value(
         &self,
         token: &str,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
-        Database::get_refresh_token_by_value(self, token).await
+        Self::get_refresh_token_by_value(self, token).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_authorization_code(
         &self,
         code: &str,
@@ -2600,8 +2556,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         scope: &str,
         user_id: Uuid,
     ) -> Result<()> {
-        Database::store_authorization_code(self, code, client_id, redirect_uri, scope, user_id)
-            .await
+        Self::store_authorization_code(self, code, client_id, redirect_uri, scope, user_id).await
     }
 
     async fn get_authorization_code(&self, code: &str) -> Result<crate::models::AuthorizationCode> {
@@ -2612,65 +2567,58 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::delete_authorization_code_impl(self, code).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_oauth2_state(
         &self,
         state: &crate::oauth2_server::models::OAuth2State,
     ) -> Result<()> {
-        Database::store_oauth2_state(self, state).await
+        Self::store_oauth2_state(self, state).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn consume_oauth2_state(
         &self,
         state_value: &str,
         client_id: &str,
         now: DateTime<Utc>,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2State>> {
-        Database::consume_oauth2_state(self, state_value, client_id, now).await
+        Self::consume_oauth2_state(self, state_value, client_id, now).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_key_version(
         &self,
         version: &crate::security::key_rotation::KeyVersion,
     ) -> Result<()> {
-        Database::store_key_version(self, version).await
+        Self::store_key_version(self, version).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_key_versions(
         &self,
         tenant_id: Option<Uuid>,
     ) -> Result<Vec<crate::security::key_rotation::KeyVersion>> {
-        Database::get_key_versions(self, tenant_id).await
+        Self::get_key_versions(self, tenant_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_current_key_version(
         &self,
         tenant_id: Option<Uuid>,
     ) -> Result<Option<crate::security::key_rotation::KeyVersion>> {
-        Database::get_current_key_version(self, tenant_id).await
+        Self::get_current_key_version(self, tenant_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_key_version_status(
         &self,
         tenant_id: Option<Uuid>,
         version: u32,
         is_active: bool,
     ) -> Result<()> {
-        Database::update_key_version_status(self, tenant_id, version, is_active).await
+        Self::update_key_version_status(self, tenant_id, version, is_active).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn delete_old_key_versions(
         &self,
         tenant_id: Option<Uuid>,
         keep_count: u32,
     ) -> Result<u64> {
-        Database::delete_old_key_versions(self, tenant_id, keep_count).await
+        Self::delete_old_key_versions(self, tenant_id, keep_count).await
     }
 
     async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
@@ -2681,14 +2629,13 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::store_audit_event_impl(self, event).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_audit_events(
         &self,
         tenant_id: Option<Uuid>,
         event_type: Option<&str>,
         limit: Option<u32>,
     ) -> Result<Vec<crate::security::audit::AuditEvent>> {
-        Database::get_audit_events(self, tenant_id, event_type, limit).await
+        Self::get_audit_events(self, tenant_id, event_type, limit).await
     }
 
     async fn get_user_tenant_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<String>> {
@@ -2707,7 +2654,6 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::update_system_secret_impl(self, secret_type, new_value).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_oauth_notification(
         &self,
         user_id: Uuid,
@@ -2716,38 +2662,34 @@ impl crate::database_plugins::DatabaseProvider for Database {
         message: &str,
         expires_at: Option<&str>,
     ) -> Result<String> {
-        Database::store_oauth_notification(self, user_id, provider, success, message, expires_at)
-            .await
+        Self::store_oauth_notification(self, user_id, provider, success, message, expires_at).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_unread_oauth_notifications(
         &self,
         user_id: Uuid,
     ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
-        Database::get_unread_oauth_notifications(self, user_id).await
+        Self::get_unread_oauth_notifications(self, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn mark_oauth_notification_read(
         &self,
         notification_id: &str,
         user_id: Uuid,
     ) -> Result<bool> {
-        Database::mark_oauth_notification_read(self, notification_id, user_id).await
+        Self::mark_oauth_notification_read(self, notification_id, user_id).await
     }
 
     async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64> {
         Self::mark_all_oauth_notifications_read_impl(self, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_all_oauth_notifications(
         &self,
         user_id: Uuid,
         limit: Option<i64>,
     ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
-        Database::get_all_oauth_notifications(self, user_id, limit).await
+        Self::get_all_oauth_notifications(self, user_id, limit).await
     }
 
     async fn save_tenant_fitness_config(
@@ -2825,7 +2767,6 @@ impl crate::database_plugins::DatabaseProvider for Database {
     }
 
     // OAuth Token Management
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn upsert_user_oauth_token(&self, token: &UserOAuthToken) -> Result<()> {
         use crate::database::user_oauth_tokens::OAuthTokenData;
 
@@ -2841,47 +2782,43 @@ impl crate::database_plugins::DatabaseProvider for Database {
             scope: token.scope.as_deref().unwrap_or(""),
         };
 
-        Database::upsert_user_oauth_token(self, &token_data).await
+        Self::upsert_user_oauth_token(self, &token_data).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_oauth_token(
         &self,
         user_id: Uuid,
         tenant_id: &str,
         provider: &str,
     ) -> Result<Option<UserOAuthToken>> {
-        Database::get_user_oauth_token(self, user_id, tenant_id, provider).await
+        Self::get_user_oauth_token(self, user_id, tenant_id, provider).await
     }
 
     async fn get_user_oauth_tokens(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>> {
         Self::get_user_oauth_tokens_impl(self, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_tenant_provider_tokens(
         &self,
         tenant_id: &str,
         provider: &str,
     ) -> Result<Vec<UserOAuthToken>> {
-        Database::get_tenant_provider_tokens(self, tenant_id, provider).await
+        Self::get_tenant_provider_tokens(self, tenant_id, provider).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn delete_user_oauth_token(
         &self,
         user_id: Uuid,
         tenant_id: &str,
         provider: &str,
     ) -> Result<()> {
-        Database::delete_user_oauth_token(self, user_id, tenant_id, provider).await
+        Self::delete_user_oauth_token(self, user_id, tenant_id, provider).await
     }
 
     async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()> {
         Self::delete_user_oauth_tokens_impl(self, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn refresh_user_oauth_token(
         &self,
         user_id: Uuid,
@@ -2891,7 +2828,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         refresh_token: Option<&str>,
         expires_at: Option<DateTime<Utc>>,
     ) -> Result<()> {
-        Database::refresh_user_oauth_token(
+        Self::refresh_user_oauth_token(
             self,
             user_id,
             tenant_id,
@@ -2903,7 +2840,6 @@ impl crate::database_plugins::DatabaseProvider for Database {
         .await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_user_oauth_app(
         &self,
         user_id: Uuid,
@@ -2912,7 +2848,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         client_secret: &str,
         redirect_uri: &str,
     ) -> Result<()> {
-        Database::store_user_oauth_app(
+        Self::store_user_oauth_app(
             self,
             user_id,
             provider,
@@ -2923,13 +2859,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         .await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_oauth_app(
         &self,
         user_id: Uuid,
         provider: &str,
     ) -> Result<Option<UserOAuthApp>> {
-        Database::get_user_oauth_app(self, user_id, provider).await
+        Self::get_user_oauth_app(self, user_id, provider).await
     }
 
     async fn list_user_oauth_apps(&self, user_id: Uuid) -> Result<Vec<UserOAuthApp>> {
