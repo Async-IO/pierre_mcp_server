@@ -1619,7 +1619,7 @@ impl Database {
         Ok(())
     }
 
-    /// Store OAuth2 client (internal implementation)
+    /// Store `OAuth2` client (internal implementation)
     ///
     /// # Errors
     ///
@@ -1651,7 +1651,7 @@ impl Database {
         Ok(())
     }
 
-    /// Get OAuth2 client (internal implementation)
+    /// Get `OAuth2` client (internal implementation)
     ///
     /// # Errors
     ///
@@ -1690,7 +1690,7 @@ impl Database {
         }
     }
 
-    /// Store OAuth2 auth code (internal implementation)
+    /// Store `OAuth2` auth code (internal implementation)
     ///
     /// # Errors
     ///
@@ -1722,7 +1722,7 @@ impl Database {
         Ok(())
     }
 
-    /// Get OAuth2 auth code (internal implementation)
+    /// Get `OAuth2` auth code (internal implementation)
     ///
     /// # Errors
     ///
@@ -1761,7 +1761,7 @@ impl Database {
         }
     }
 
-    /// Update OAuth2 auth code (internal implementation)
+    /// Update `OAuth2` auth code (internal implementation)
     ///
     /// # Errors
     ///
@@ -1785,7 +1785,7 @@ impl Database {
         Ok(())
     }
 
-    /// Store OAuth2 refresh token (internal implementation)
+    /// Store `OAuth2` refresh token (internal implementation)
     ///
     /// # Errors
     ///
@@ -1814,7 +1814,7 @@ impl Database {
         Ok(())
     }
 
-    /// Get OAuth2 refresh token (internal implementation)
+    /// Get `OAuth2` refresh token (internal implementation)
     ///
     /// # Errors
     ///
@@ -1850,7 +1850,7 @@ impl Database {
         }
     }
 
-    /// Atomically consume OAuth2 auth code (internal implementation)
+    /// Atomically consume `OAuth2` auth code (internal implementation)
     ///
     /// # Errors
     ///
@@ -1900,7 +1900,7 @@ impl Database {
         }
     }
 
-    /// Atomically consume OAuth2 refresh token (internal implementation)
+    /// Atomically consume `OAuth2` refresh token (internal implementation)
     ///
     /// # Errors
     ///
@@ -1944,7 +1944,7 @@ impl Database {
         }
     }
 
-    /// Store OAuth2 state (internal implementation)
+    /// Store `OAuth2` state (internal implementation)
     ///
     /// # Errors
     ///
@@ -1976,7 +1976,7 @@ impl Database {
         Ok(())
     }
 
-    /// Atomically consume OAuth2 state (internal implementation)
+    /// Atomically consume `OAuth2` state (internal implementation)
     ///
     /// # Errors
     ///
