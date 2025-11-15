@@ -1590,19 +1590,16 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::get_user_profile_impl(self, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn create_goal(&self, user_id: Uuid, goal_data: Value) -> Result<String> {
-        Database::create_goal(self, user_id, goal_data).await
+        Self::create_goal_impl(self, user_id, goal_data).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<Value>> {
-        Database::get_user_goals(self, user_id).await
+        Self::get_user_goals_impl(self, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
-        Database::update_goal_progress(self, goal_id, current_value).await
+        Self::update_goal_progress_impl(self, goal_id, current_value).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -1615,9 +1612,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::save_user_configuration(self, user_id, config_json).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> Result<String> {
-        Database::store_insight(self, user_id, insight_data).await
+        Self::store_insight_impl(self, user_id, insight_data).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -1699,14 +1695,12 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_api_key_usage_stats(self, api_key_id, start_date, end_date).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
-        Database::record_jwt_usage(self, usage).await
+        Self::record_jwt_usage_impl(self, usage).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
-        Database::get_jwt_current_usage(self, user_id).await
+        Self::get_jwt_current_usage_impl(self, user_id).await
     }
 
     async fn get_request_logs(
@@ -1739,9 +1733,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
             .collect())
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_system_stats(&self) -> Result<(u64, u64)> {
-        Database::get_system_stats(self).await
+        Self::get_system_stats_impl(self).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
