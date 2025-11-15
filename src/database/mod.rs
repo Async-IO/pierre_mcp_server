@@ -1034,9 +1034,9 @@ impl Database {
     /// Returns an error if:
     /// - Database query fails
     /// - Unknown secret type requested
-    pub async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
+    pub async fn get_or_create_system_secret_impl(&self, secret_type: &str) -> Result<String> {
         // Try to get existing secret
-        if let Ok(secret) = self.get_system_secret(secret_type).await {
+        if let Ok(secret) = self.get_system_secret_impl(secret_type).await {
             return Ok(secret);
         }
 
@@ -1071,7 +1071,7 @@ impl Database {
     /// Returns an error if:
     /// - Database query fails
     /// - Secret not found
-    pub async fn get_system_secret(&self, secret_type: &str) -> Result<String> {
+    pub async fn get_system_secret_impl(&self, secret_type: &str) -> Result<String> {
         let row = sqlx::query("SELECT secret_value FROM system_secrets WHERE secret_type = ?")
             .bind(secret_type)
             .fetch_one(&self.pool)
@@ -1085,7 +1085,11 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database update fails
-    pub async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()> {
+    pub async fn update_system_secret_impl(
+        &self,
+        secret_type: &str,
+        new_value: &str,
+    ) -> Result<()> {
         sqlx::query(
             "UPDATE system_secrets SET secret_value = ?, updated_at = CURRENT_TIMESTAMP WHERE secret_type = ?",
         )
@@ -1102,7 +1106,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if tenant not found or database query fails
-    pub async fn get_tenant_by_id(&self, tenant_id: Uuid) -> Result<crate::models::Tenant> {
+    pub async fn get_tenant_by_id_impl(&self, tenant_id: Uuid) -> Result<crate::models::Tenant> {
         let row = sqlx::query(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.subscription_tier, tu.user_id, t.created_at, t.updated_at
@@ -1139,7 +1143,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if tenant not found or database query fails
-    pub async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
+    pub async fn get_tenant_by_slug_impl(&self, slug: &str) -> Result<crate::models::Tenant> {
         let row = sqlx::query(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.subscription_tier, tu.user_id, t.created_at, t.updated_at
@@ -1176,7 +1180,10 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database query fails
-    pub async fn list_tenants_for_user(&self, user_id: Uuid) -> Result<Vec<crate::models::Tenant>> {
+    pub async fn list_tenants_for_user_impl(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::models::Tenant>> {
         let rows = sqlx::query(
             r"
             SELECT DISTINCT t.id, t.name, t.slug, t.domain, t.subscription_tier,
@@ -1216,7 +1223,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database query fails
-    pub async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
+    pub async fn get_all_tenants_impl(&self) -> Result<Vec<crate::models::Tenant>> {
         let rows = sqlx::query(
             r"
             SELECT id, slug, name, domain, subscription_tier as plan, owner_user_id, created_at, updated_at
@@ -1252,7 +1259,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if encryption or database operation fails
-    pub async fn store_tenant_oauth_credentials(
+    pub async fn store_tenant_oauth_credentials_impl(
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
     ) -> Result<()> {
@@ -1330,7 +1337,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database query or decryption fails
-    pub async fn get_tenant_oauth_providers(
+    pub async fn get_tenant_oauth_providers_impl(
         &self,
         tenant_id: Uuid,
     ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
@@ -1407,7 +1414,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database query or decryption fails
-    pub async fn get_tenant_oauth_credentials(
+    pub async fn get_tenant_oauth_credentials_impl(
         &self,
         tenant_id: Uuid,
         provider: &str,
@@ -1489,95 +1496,6 @@ impl Database {
             }
             None => Ok(None),
         }
-    }
-
-    /// Save tenant-level fitness configuration
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if database operation fails
-    pub async fn save_tenant_fitness_config(
-        &self,
-        tenant_id: &str,
-        configuration_name: &str,
-        config: &crate::config::fitness_config::FitnessConfig,
-    ) -> Result<String> {
-        let config_json = serde_json::to_string(config)?;
-
-        let result = sqlx::query(
-            r"
-            INSERT INTO fitness_configurations (tenant_id, user_id, configuration_name, config_data)
-            VALUES (?, NULL, ?, ?)
-            ON CONFLICT (tenant_id, user_id, configuration_name)
-            DO UPDATE SET
-                config_data = excluded.config_data,
-                updated_at = CURRENT_TIMESTAMP
-            RETURNING id
-            ",
-        )
-        .bind(tenant_id)
-        .bind(configuration_name)
-        .bind(&config_json)
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(result.try_get("id")?)
-    }
-
-    /// Get tenant-level fitness configuration
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if database query fails
-    pub async fn get_tenant_fitness_config(
-        &self,
-        tenant_id: &str,
-        configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
-        let result = sqlx::query(
-            r"
-            SELECT config_data FROM fitness_configurations
-            WHERE tenant_id = ? AND user_id IS NULL AND configuration_name = ?
-            ",
-        )
-        .bind(tenant_id)
-        .bind(configuration_name)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        if let Some(row) = result {
-            let config_json: String = row.try_get("config_data")?;
-            let config: crate::config::fitness_config::FitnessConfig =
-                serde_json::from_str(&config_json)?;
-            Ok(Some(config))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// List all tenant-level fitness configuration names
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if database query fails
-    pub async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> Result<Vec<String>> {
-        let rows = sqlx::query(
-            r"
-            SELECT DISTINCT configuration_name FROM fitness_configurations
-            WHERE tenant_id = ?
-            ORDER BY configuration_name
-            ",
-        )
-        .bind(tenant_id)
-        .fetch_all(&self.pool)
-        .await?;
-
-        let configurations = rows
-            .into_iter()
-            .map(|row| row.try_get("configuration_name"))
-            .collect::<Result<Vec<String>, _>>()?;
-
-        Ok(configurations)
     }
 }
 
@@ -2159,44 +2077,38 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::create_tenant(self, tenant).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_tenant_by_id(&self, tenant_id: Uuid) -> Result<crate::models::Tenant> {
-        Database::get_tenant_by_id(self, tenant_id).await
+        Self::get_tenant_by_id_impl(self, tenant_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
-        Database::get_tenant_by_slug(self, slug).await
+        Self::get_tenant_by_slug_impl(self, slug).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn list_tenants_for_user(&self, user_id: Uuid) -> Result<Vec<crate::models::Tenant>> {
-        Database::list_tenants_for_user(self, user_id).await
+        Self::list_tenants_for_user_impl(self, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn store_tenant_oauth_credentials(
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
     ) -> Result<()> {
-        Database::store_tenant_oauth_credentials(self, credentials).await
+        Self::store_tenant_oauth_credentials_impl(self, credentials).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_tenant_oauth_providers(
         &self,
         tenant_id: Uuid,
     ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
-        Database::get_tenant_oauth_providers(self, tenant_id).await
+        Self::get_tenant_oauth_providers_impl(self, tenant_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_tenant_oauth_credentials(
         &self,
         tenant_id: Uuid,
         provider: &str,
     ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
-        Database::get_tenant_oauth_credentials(self, tenant_id, provider).await
+        Self::get_tenant_oauth_credentials_impl(self, tenant_id, provider).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -2391,9 +2303,8 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::delete_old_key_versions(self, tenant_id, keep_count).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
-        Database::get_all_tenants(self).await
+        Self::get_all_tenants_impl(self).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -2416,19 +2327,16 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::get_user_tenant_role(self, &user_id.to_string(), &tenant_id.to_string()).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
-        Database::get_or_create_system_secret(self, secret_type).await
+        Self::get_or_create_system_secret_impl(self, secret_type).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_system_secret(&self, secret_type: &str) -> Result<String> {
-        Database::get_system_secret(self, secret_type).await
+        Self::get_system_secret_impl(self, secret_type).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()> {
-        Database::update_system_secret(self, secret_type, new_value).await
+        Self::update_system_secret_impl(self, secret_type, new_value).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
