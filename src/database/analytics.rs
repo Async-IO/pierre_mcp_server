@@ -614,26 +614,50 @@ impl Database {
     }
     // Public wrapper methods (delegate to _impl versions)
 
+    /// Record JWT usage (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
         self.record_jwt_usage_impl(usage).await
     }
 
+    /// Get JWT current usage (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
         self.get_jwt_current_usage_impl(user_id).await
     }
 
+    /// Create user goal (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn create_goal(&self, user_id: Uuid, goal_data: serde_json::Value) -> Result<String> {
         self.create_goal_impl(user_id, goal_data).await
     }
 
+    /// Get user goals (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<serde_json::Value>> {
         self.get_user_goals_impl(user_id).await
     }
 
+    /// Update goal progress (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
         self.update_goal_progress_impl(goal_id, current_value).await
     }
 
+    /// Store user insight (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn store_insight(
         &self,
         user_id: Uuid,
@@ -642,6 +666,10 @@ impl Database {
         self.store_insight_impl(user_id, insight_data).await
     }
 
+    /// Get system statistics (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn get_system_stats(&self) -> Result<(u64, u64)> {
         self.get_system_stats_impl().await
     }

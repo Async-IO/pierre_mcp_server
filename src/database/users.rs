@@ -856,30 +856,58 @@ impl Database {
     }
     // Public wrapper methods (delegate to _impl versions)
 
+    /// Create a new user (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn create_user(&self, user: &User) -> Result<Uuid> {
         self.create_user_impl(user).await
     }
 
+    /// Get user by ID (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
         self.get_user_impl(user_id).await
     }
 
+    /// Get user by email (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
         self.get_user_by_email_impl(email).await
     }
 
+    /// Get user by email, returning error if not found (public API)
+    ///
+    /// # Errors
+    /// Returns error if user not found or database operation fails
     pub async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
         self.get_user_by_email_required_impl(email).await
     }
 
+    /// Update user's last active timestamp (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
         self.update_last_active_impl(user_id).await
     }
 
+    /// Get total user count (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn get_user_count(&self) -> Result<i64> {
         self.get_user_count_impl().await
     }
 
+    /// Upsert user profile data (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn upsert_user_profile(
         &self,
         user_id: Uuid,
@@ -888,14 +916,26 @@ impl Database {
         self.upsert_user_profile_impl(user_id, profile_data).await
     }
 
+    /// Get user profile data (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<serde_json::Value>> {
         self.get_user_profile_impl(user_id).await
     }
 
+    /// Get users by status (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
         self.get_users_by_status_impl(status).await
     }
 
+    /// Update user's tenant ID (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
         self.update_user_tenant_id_impl(user_id, tenant_id).await
     }

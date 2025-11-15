@@ -380,10 +380,18 @@ impl Database {
     }
     // Public wrapper methods (delegate to _impl versions)
 
+    /// Get user OAuth tokens (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn get_user_oauth_tokens(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>> {
         self.get_user_oauth_tokens_impl(user_id).await
     }
 
+    /// Delete user OAuth tokens (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()> {
         self.delete_user_oauth_tokens_impl(user_id).await
     }

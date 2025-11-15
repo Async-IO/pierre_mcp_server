@@ -518,6 +518,10 @@ impl Database {
     }
     // Public wrapper methods (delegate to _impl versions)
 
+    /// Deactivate admin token (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
         self.deactivate_admin_token_impl(token_id).await
     }

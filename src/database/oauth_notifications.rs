@@ -260,6 +260,10 @@ impl Database {
     }
     // Public wrapper methods (delegate to _impl versions)
 
+    /// Mark all OAuth notifications as read (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
     pub async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64> {
         self.mark_all_oauth_notifications_read_impl(user_id).await
     }
