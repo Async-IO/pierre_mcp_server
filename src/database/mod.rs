@@ -1539,29 +1539,24 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::get_user_impl(self, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
-        Database::get_user_by_email(self, email).await
+        Self::get_user_by_email_impl(self, email).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
-        Database::get_user_by_email_required(self, email).await
+        Self::get_user_by_email_required_impl(self, email).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
-        Database::update_last_active(self, user_id).await
+        Self::update_last_active_impl(self, user_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_count(&self) -> Result<i64> {
-        Database::get_user_count(self).await
+        Self::get_user_count_impl(self).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
-        Database::get_users_by_status(self, status).await
+        Self::get_users_by_status_impl(self, status).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
@@ -1583,19 +1578,16 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Database::update_user_status(self, user_id, new_status, admin_token_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
-        Database::update_user_tenant_id(self, user_id, tenant_id).await
+        Self::update_user_tenant_id_impl(self, user_id, tenant_id).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> Result<()> {
-        Database::upsert_user_profile(self, user_id, profile_data).await
+        Self::upsert_user_profile_impl(self, user_id, profile_data).await
     }
 
-    #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::
     async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<Value>> {
-        Database::get_user_profile(self, user_id).await
+        Self::get_user_profile_impl(self, user_id).await
     }
 
     #[allow(clippy::use_self)] // Must use Database:: to avoid infinite recursion with Database::

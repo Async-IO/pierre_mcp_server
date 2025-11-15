@@ -145,7 +145,7 @@ impl Database {
     #[allow(clippy::too_many_lines)]
     pub async fn create_user_impl(&self, user: &User) -> Result<Uuid> {
         // Check if user exists by email
-        let existing = self.get_user_by_email(&user.email).await?;
+        let existing = self.get_user_by_email_impl(&user.email).await?;
         if let Some(existing_user) = existing {
             if existing_user.id != user.id {
                 return Err(AppError::invalid_input("Email already in use by another user").into());
@@ -306,7 +306,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
+    pub async fn get_user_by_email_impl(&self, email: &str) -> Result<Option<User>> {
         self.get_user_by_field("email", email).await
     }
 
@@ -317,8 +317,8 @@ impl Database {
     /// Returns an error if:
     /// - The database query fails
     /// - The user is not found
-    pub async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
-        self.get_user_by_email(email)
+    pub async fn get_user_by_email_required_impl(&self, email: &str) -> Result<User> {
+        self.get_user_by_email_impl(email)
             .await?
             .ok_or_else(|| AppError::not_found(format!("User with email: {email}")).into())
     }
@@ -452,7 +452,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
+    pub async fn update_last_active_impl(&self, user_id: Uuid) -> Result<()> {
         sqlx::query("UPDATE users SET last_active = CURRENT_TIMESTAMP WHERE id = $1")
             .bind(user_id.to_string())
             .execute(&self.pool)
@@ -465,7 +465,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn get_user_count(&self) -> Result<i64> {
+    pub async fn get_user_count_impl(&self) -> Result<i64> {
         let count = sqlx::query_scalar("SELECT COUNT(*) FROM users")
             .fetch_one(&self.pool)
             .await?;
@@ -479,7 +479,7 @@ impl Database {
     /// Returns an error if:
     /// - The database query fails
     /// - JSON serialization fails
-    pub async fn upsert_user_profile(
+    pub async fn upsert_user_profile_impl(
         &self,
         user_id: Uuid,
         profile_data: serde_json::Value,
@@ -510,7 +510,7 @@ impl Database {
     /// Returns an error if:
     /// - The database query fails
     /// - JSON deserialization fails
-    pub async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<serde_json::Value>> {
+    pub async fn get_user_profile_impl(&self, user_id: Uuid) -> Result<Option<serde_json::Value>> {
         let row = sqlx::query(
             r"
             SELECT profile_data FROM user_profiles WHERE user_id = $1
@@ -538,7 +538,7 @@ impl Database {
         &self,
         user_id: Uuid,
     ) -> Result<Option<crate::intelligence::UserFitnessProfile>> {
-        self.get_user_profile(user_id).await?.map_or_else(
+        self.get_user_profile_impl(user_id).await?.map_or_else(
             || Ok(None),
             |profile_data| {
                 // Try to deserialize as UserFitnessProfile
@@ -586,7 +586,7 @@ impl Database {
         profile: &crate::intelligence::UserFitnessProfile,
     ) -> Result<()> {
         let profile_data = serde_json::to_value(profile)?;
-        self.upsert_user_profile(user_id, profile_data).await
+        self.upsert_user_profile_impl(user_id, profile_data).await
     }
 
     /// Get last sync timestamp for a provider
@@ -658,7 +658,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
+    pub async fn get_users_by_status_impl(&self, status: &str) -> Result<Vec<User>> {
         let rows =
             sqlx::query("SELECT * FROM users WHERE user_status = ?1 ORDER BY created_at DESC")
                 .bind(status)
@@ -835,7 +835,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the user is not found or database update fails
-    pub async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
+    pub async fn update_user_tenant_id_impl(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
         let query = sqlx::query(
             r"
             UPDATE users 
@@ -854,4 +854,46 @@ impl Database {
 
         Ok(())
     }
+    // Public wrapper methods (delegate to _impl versions)
+    
+    pub async fn create_user(&self, user: &User) -> Result<Uuid> {
+        self.create_user_impl(user).await
+    }
+    
+    pub async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
+        self.get_user_impl(user_id).await
+    }
+    
+    pub async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
+        self.get_user_by_email_impl(email).await
+    }
+    
+    pub async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
+        self.get_user_by_email_required_impl(email).await
+    }
+    
+    pub async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
+        self.update_last_active_impl(user_id).await
+    }
+    
+    pub async fn get_user_count(&self) -> Result<i64> {
+        self.get_user_count_impl().await
+    }
+    
+    pub async fn upsert_user_profile(&self, user_id: Uuid, profile_data: serde_json::Value) -> Result<()> {
+        self.upsert_user_profile_impl(user_id, profile_data).await
+    }
+    
+    pub async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<serde_json::Value>> {
+        self.get_user_profile_impl(user_id).await
+    }
+    
+    pub async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
+        self.get_users_by_status_impl(status).await
+    }
+    
+    pub async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
+        self.update_user_tenant_id_impl(user_id, tenant_id).await
+    }
+
 }
