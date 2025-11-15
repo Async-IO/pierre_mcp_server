@@ -1619,6 +1619,410 @@ impl Database {
         Ok(())
     }
 
+    /// Store OAuth2 client (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn store_oauth2_client_impl(
+        &self,
+        client: &crate::oauth2_server::models::OAuth2Client,
+    ) -> Result<()> {
+        sqlx::query(
+            r"
+            INSERT INTO oauth2_clients (id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+            "
+        )
+        .bind(&client.id)
+        .bind(&client.client_id)
+        .bind(&client.client_secret_hash)
+        .bind(serde_json::to_string(&client.redirect_uris)?)
+        .bind(serde_json::to_string(&client.grant_types)?)
+        .bind(serde_json::to_string(&client.response_types)?)
+        .bind(&client.client_name)
+        .bind(&client.client_uri)
+        .bind(&client.scope)
+        .bind(client.created_at)
+        .bind(client.expires_at)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Get OAuth2 client (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn get_oauth2_client_impl(
+        &self,
+        client_id: &str,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>> {
+        let row = sqlx::query(
+            r"
+            SELECT id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at
+            FROM oauth2_clients
+            WHERE client_id = ?1
+            "
+        )
+        .bind(client_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            Ok(Some(crate::oauth2_server::models::OAuth2Client {
+                id: row.try_get("id")?,
+                client_id: row.try_get("client_id")?,
+                client_secret_hash: row.try_get("client_secret_hash")?,
+                redirect_uris: serde_json::from_str(&row.try_get::<String, _>("redirect_uris")?)?,
+                grant_types: serde_json::from_str(&row.try_get::<String, _>("grant_types")?)?,
+                response_types: serde_json::from_str(&row.try_get::<String, _>("response_types")?)?,
+                client_name: row.try_get("client_name")?,
+                client_uri: row.try_get("client_uri")?,
+                scope: row.try_get("scope")?,
+                created_at: row.try_get("created_at")?,
+                expires_at: row.try_get("expires_at")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Store OAuth2 auth code (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn store_oauth2_auth_code_impl(
+        &self,
+        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
+    ) -> Result<()> {
+        sqlx::query(
+            r"
+            INSERT INTO oauth2_auth_codes (code, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, expires_at, used, state)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+            "
+        )
+        .bind(&auth_code.code)
+        .bind(&auth_code.client_id)
+        .bind(auth_code.user_id.to_string())
+        .bind(&auth_code.tenant_id)
+        .bind(&auth_code.redirect_uri)
+        .bind(&auth_code.scope)
+        .bind(&auth_code.code_challenge)
+        .bind(&auth_code.code_challenge_method)
+        .bind(auth_code.expires_at)
+        .bind(auth_code.used)
+        .bind(&auth_code.state)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Get OAuth2 auth code (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn get_oauth2_auth_code_impl(
+        &self,
+        code: &str,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+        let row = sqlx::query(
+            r"
+            SELECT code, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, expires_at, used, state
+            FROM oauth2_auth_codes
+            WHERE code = ?1
+            "
+        )
+        .bind(code)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            Ok(Some(crate::oauth2_server::models::OAuth2AuthCode {
+                code: row.try_get("code")?,
+                client_id: row.try_get("client_id")?,
+                user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
+                tenant_id: row.try_get("tenant_id")?,
+                redirect_uri: row.try_get("redirect_uri")?,
+                scope: row.try_get("scope")?,
+                code_challenge: row.try_get("code_challenge")?,
+                code_challenge_method: row.try_get("code_challenge_method")?,
+                expires_at: row.try_get("expires_at")?,
+                used: row.try_get("used")?,
+                state: row.try_get("state")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Update OAuth2 auth code (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn update_oauth2_auth_code_impl(
+        &self,
+        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
+    ) -> Result<()> {
+        sqlx::query(
+            r"
+            UPDATE oauth2_auth_codes
+            SET used = ?1
+            WHERE code = ?2
+            ",
+        )
+        .bind(auth_code.used)
+        .bind(&auth_code.code)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Store OAuth2 refresh token (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn store_oauth2_refresh_token_impl(
+        &self,
+        refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
+    ) -> Result<()> {
+        sqlx::query(
+            r"
+            INSERT INTO oauth2_refresh_tokens (token, client_id, user_id, tenant_id, scope, created_at, expires_at, revoked)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            "
+        )
+        .bind(&refresh_token.token)
+        .bind(&refresh_token.client_id)
+        .bind(refresh_token.user_id.to_string())
+        .bind(&refresh_token.tenant_id)
+        .bind(&refresh_token.scope)
+        .bind(refresh_token.created_at)
+        .bind(refresh_token.expires_at)
+        .bind(refresh_token.revoked)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Get OAuth2 refresh token (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn get_oauth2_refresh_token_impl(
+        &self,
+        token: &str,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+        let row = sqlx::query(
+            r"
+            SELECT token, client_id, user_id, tenant_id, scope, created_at, expires_at, revoked
+            FROM oauth2_refresh_tokens
+            WHERE token = ?1
+            ",
+        )
+        .bind(token)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
+                token: row.try_get("token")?,
+                client_id: row.try_get("client_id")?,
+                user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
+                tenant_id: row.try_get("tenant_id")?,
+                scope: row.try_get("scope")?,
+                created_at: row.try_get("created_at")?,
+                expires_at: row.try_get("expires_at")?,
+                revoked: row.try_get("revoked")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Atomically consume OAuth2 auth code (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn consume_auth_code_impl(
+        &self,
+        code: &str,
+        client_id: &str,
+        redirect_uri: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+        let row = sqlx::query(
+            r"
+            UPDATE oauth2_auth_codes
+            SET used = 1
+            WHERE code = ?1
+              AND client_id = ?2
+              AND redirect_uri = ?3
+              AND used = 0
+              AND datetime(expires_at) > datetime(?4)
+            RETURNING code, client_id, user_id, tenant_id, redirect_uri, scope, expires_at, used, state, code_challenge, code_challenge_method
+            "
+        )
+        .bind(code)
+        .bind(client_id)
+        .bind(redirect_uri)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            Ok(Some(crate::oauth2_server::models::OAuth2AuthCode {
+                code: row.try_get("code")?,
+                client_id: row.try_get("client_id")?,
+                user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
+                tenant_id: row.try_get("tenant_id")?,
+                redirect_uri: row.try_get("redirect_uri")?,
+                scope: row.try_get("scope")?,
+                expires_at: row.try_get("expires_at")?,
+                used: row.try_get("used")?,
+                state: row.try_get("state")?,
+                code_challenge: row.try_get("code_challenge")?,
+                code_challenge_method: row.try_get("code_challenge_method")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Atomically consume OAuth2 refresh token (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn consume_refresh_token_impl(
+        &self,
+        token: &str,
+        client_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+        let row = sqlx::query(
+            r"
+            UPDATE oauth2_refresh_tokens
+            SET revoked = 1
+            WHERE token = ?1
+              AND client_id = ?2
+              AND revoked = 0
+              AND datetime(expires_at) > datetime(?3)
+            RETURNING token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
+            ",
+        )
+        .bind(token)
+        .bind(client_id)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
+                token: row.try_get("token")?,
+                client_id: row.try_get("client_id")?,
+                user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
+                tenant_id: row.try_get("tenant_id")?,
+                scope: row.try_get("scope")?,
+                expires_at: row.try_get("expires_at")?,
+                created_at: row.try_get("created_at")?,
+                revoked: row.try_get("revoked")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Store OAuth2 state (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn store_oauth2_state_impl(
+        &self,
+        state: &crate::oauth2_server::models::OAuth2State,
+    ) -> Result<()> {
+        sqlx::query(
+            r"
+            INSERT INTO oauth2_states (state, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, created_at, expires_at, used)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+            "
+        )
+        .bind(&state.state)
+        .bind(&state.client_id)
+        .bind(state.user_id)
+        .bind(&state.tenant_id)
+        .bind(&state.redirect_uri)
+        .bind(&state.scope)
+        .bind(&state.code_challenge)
+        .bind(&state.code_challenge_method)
+        .bind(state.created_at)
+        .bind(state.expires_at)
+        .bind(state.used)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Atomically consume OAuth2 state (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn consume_oauth2_state_impl(
+        &self,
+        state_value: &str,
+        client_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2State>> {
+        let row = sqlx::query(
+            r"
+            UPDATE oauth2_states
+            SET used = 1
+            WHERE state = ?1
+              AND client_id = ?2
+              AND used = 0
+              AND datetime(expires_at) > datetime(?3)
+            RETURNING state, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, created_at, expires_at, used
+            "
+        )
+        .bind(state_value)
+        .bind(client_id)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            Ok(Some(crate::oauth2_server::models::OAuth2State {
+                state: row.try_get("state")?,
+                client_id: row.try_get("client_id")?,
+                user_id: row.try_get("user_id")?,
+                tenant_id: row.try_get("tenant_id")?,
+                redirect_uri: row.try_get("redirect_uri")?,
+                scope: row.try_get("scope")?,
+                code_challenge: row.try_get("code_challenge")?,
+                code_challenge_method: row.try_get("code_challenge_method")?,
+                created_at: row.try_get("created_at")?,
+                expires_at: row.try_get("expires_at")?,
+                used: row.try_get("used")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Get authorization code (internal implementation)
     ///
     /// # Errors
@@ -2388,49 +2792,49 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         client: &crate::oauth2_server::models::OAuth2Client,
     ) -> Result<()> {
-        Self::store_oauth2_client(self, client).await
+        Self::store_oauth2_client_impl(self, client).await
     }
 
     async fn get_oauth2_client(
         &self,
         client_id: &str,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>> {
-        Self::get_oauth2_client(self, client_id).await
+        Self::get_oauth2_client_impl(self, client_id).await
     }
 
     async fn store_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
     ) -> Result<()> {
-        Self::store_oauth2_auth_code(self, auth_code).await
+        Self::store_oauth2_auth_code_impl(self, auth_code).await
     }
 
     async fn get_oauth2_auth_code(
         &self,
         code: &str,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
-        Self::get_oauth2_auth_code(self, code).await
+        Self::get_oauth2_auth_code_impl(self, code).await
     }
 
     async fn update_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
     ) -> Result<()> {
-        Self::update_oauth2_auth_code(self, auth_code).await
+        Self::update_oauth2_auth_code_impl(self, auth_code).await
     }
 
     async fn store_oauth2_refresh_token(
         &self,
         refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
     ) -> Result<()> {
-        Self::store_oauth2_refresh_token(self, refresh_token).await
+        Self::store_oauth2_refresh_token_impl(self, refresh_token).await
     }
 
     async fn get_oauth2_refresh_token(
         &self,
         token: &str,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
-        Self::get_oauth2_refresh_token(self, token).await
+        Self::get_oauth2_refresh_token_impl(self, token).await
     }
 
     async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()> {
@@ -2444,7 +2848,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         redirect_uri: &str,
         now: DateTime<Utc>,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
-        Self::consume_auth_code(self, code, client_id, redirect_uri, now).await
+        Self::consume_auth_code_impl(self, code, client_id, redirect_uri, now).await
     }
 
     async fn consume_refresh_token(
@@ -2453,7 +2857,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         client_id: &str,
         now: DateTime<Utc>,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
-        Self::consume_refresh_token(self, token, client_id, now).await
+        Self::consume_refresh_token_impl(self, token, client_id, now).await
     }
 
     async fn get_refresh_token_by_value(
@@ -2486,7 +2890,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         state: &crate::oauth2_server::models::OAuth2State,
     ) -> Result<()> {
-        Self::store_oauth2_state(self, state).await
+        Self::store_oauth2_state_impl(self, state).await
     }
 
     async fn consume_oauth2_state(
@@ -2495,7 +2899,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         client_id: &str,
         now: DateTime<Utc>,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2State>> {
-        Self::consume_oauth2_state(self, state_value, client_id, now).await
+        Self::consume_oauth2_state_impl(self, state_value, client_id, now).await
     }
 
     async fn store_key_version(
