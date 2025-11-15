@@ -755,31 +755,33 @@ impl OAuthService {
 
         let authorization_url = match provider {
             oauth_providers::STRAVA => {
-                let client_id = self
-                    .config
-                    .config()
-                    .oauth
-                    .strava
+                let server_config = self.config.config();
+                let oauth_config = &server_config.oauth.strava;
+                let client_id = oauth_config
                     .client_id
                     .as_ref()
-                    .ok_or_else(|| AppError::config("Strava client_id not configured"))?;
-                let scope = encode(crate::constants::oauth::STRAVA_DEFAULT_SCOPES);
+                    .ok_or_else(|| AppError::invalid_input("Strava client_id not configured"))?;
+
+                // Use constant for scopes and URL-encode it
+                let encoded_scope = encode(crate::constants::oauth::STRAVA_DEFAULT_SCOPES);
+
                 format!(
-                    "https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={encoded_redirect_uri}&approval_prompt=force&scope={scope}&state={encoded_state}"
+                    "https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={encoded_redirect_uri}&approval_prompt=force&scope={encoded_scope}&state={encoded_state}"
                 )
             }
             oauth_providers::FITBIT => {
-                let client_id = self
-                    .config
-                    .config()
-                    .oauth
-                    .fitbit
+                let server_config = self.config.config();
+                let oauth_config = &server_config.oauth.fitbit;
+                let client_id = oauth_config
                     .client_id
                     .as_ref()
-                    .ok_or_else(|| AppError::config("Fitbit client_id not configured"))?;
-                let scope = encode(crate::constants::oauth::FITBIT_DEFAULT_SCOPES);
+                    .ok_or_else(|| AppError::invalid_input("Fitbit client_id not configured"))?;
+
+                // Use constant for scopes
+                let encoded_scope = encode(crate::constants::oauth::FITBIT_DEFAULT_SCOPES);
+
                 format!(
-                    "https://www.fitbit.com/oauth2/authorize?response_type=code&client_id={client_id}&redirect_uri={encoded_redirect_uri}&scope={scope}&state={encoded_state}"
+                    "https://www.fitbit.com/oauth2/authorize?response_type=code&client_id={client_id}&redirect_uri={encoded_redirect_uri}&scope={encoded_scope}&state={encoded_state}"
                 )
             }
             _ => {

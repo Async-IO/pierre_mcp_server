@@ -1042,11 +1042,7 @@ impl DatabaseProvider for SqliteDatabase {
             .await;
 
         if let Err(ref e) = result {
-            tracing::error!(
-                "SQLite error creating tenant '{}': {:?}",
-                tenant.name,
-                e
-            );
+            tracing::error!("SQLite error creating tenant '{}': {:?}", tenant.name, e);
         }
 
         result.context("Failed to create tenant")?;

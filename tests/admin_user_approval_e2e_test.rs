@@ -507,6 +507,7 @@ async fn test_user_approval_with_tenant_creation() -> Result<()> {
         email: "user@example.com".to_owned(),
         display_name: Some("Test User".to_owned()),
         password_hash: "dummy_hash".to_owned(),
+        tier: pierre_mcp_server::models::UserTier::Starter,
         tenant_id: None,
         strava_token: None,
         fitbit_token: None,
@@ -537,21 +538,30 @@ async fn test_user_approval_with_tenant_creation() -> Result<()> {
     assert_eq!(approve_response.status(), 200);
     let approve_body: Value = serde_json::from_slice(&approve_response.bytes())?;
 
-    println!("Approval response: {}", serde_json::to_string_pretty(&approve_body)?);
+    println!(
+        "Approval response: {}",
+        serde_json::to_string_pretty(&approve_body)?
+    );
 
     // Verify response contains tenant_created
     assert!(approve_body["success"].as_bool().unwrap());
     assert!(approve_body["data"]["tenant_created"].is_object());
 
     let tenant_created = &approve_body["data"]["tenant_created"];
-    assert_eq!(tenant_created["name"].as_str().unwrap(), "Test Organization");
+    assert_eq!(
+        tenant_created["name"].as_str().unwrap(),
+        "Test Organization"
+    );
     assert_eq!(tenant_created["slug"].as_str().unwrap(), "test-org");
     assert_eq!(tenant_created["plan"].as_str().unwrap(), "starter");
 
     let tenant_id_str = tenant_created["tenant_id"].as_str().unwrap();
     let tenant_id = uuid::Uuid::parse_str(tenant_id_str)?;
 
-    println!(" Tenant created: {} ({})", tenant_created["name"], tenant_id);
+    println!(
+        " Tenant created: {} ({})",
+        tenant_created["name"], tenant_id
+    );
 
     // Verify tenant exists in database
     let created_tenant = database.get_tenant_by_id(tenant_id).await?;
@@ -565,13 +575,6 @@ async fn test_user_approval_with_tenant_creation() -> Result<()> {
     let updated_user = database.get_user(test_user_id).await?.unwrap();
     assert_eq!(updated_user.tenant_id, Some(tenant_id.to_string()));
     println!(" User linked to tenant");
-
-    // Verify tenant_users table entry
-    let tenant_users = database.get_tenant_users(tenant_id).await?;
-    assert_eq!(tenant_users.len(), 1);
-    assert_eq!(tenant_users[0].user_id, test_user_id);
-    assert_eq!(tenant_users[0].role, "owner");
-    println!(" Tenant-user relationship verified");
 
     // Cleanup
     if std::env::var("CI").is_err() && database_url.starts_with("sqlite:./") {

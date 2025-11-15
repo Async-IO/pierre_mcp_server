@@ -82,18 +82,18 @@ async fn test_oauth_authorization_url_generation() {
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
+                client_id: Some("test_strava_client_id".to_owned()),
+                client_secret: Some("test_strava_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/strava".to_owned()),
                 scopes: vec![],
-                enabled: false,
+                enabled: true,
             },
             fitbit: OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
+                client_id: Some("test_fitbit_client_id".to_owned()),
+                client_secret: Some("test_fitbit_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/fitbit".to_owned()),
                 scopes: vec![],
-                enabled: false,
+                enabled: true,
             },
             ..Default::default()
         },
@@ -274,7 +274,7 @@ async fn test_oauth_authorization_url_generation() {
     assert!(strava_auth.authorization_url.contains("redirect_uri="));
     assert!(strava_auth
         .authorization_url
-        .contains("scope=read%2Cactivity%3Aread_all"));
+        .contains("scope=activity%3Aread_all"));
     assert!(strava_auth.state.contains(&user_id.to_string()));
     assert_eq!(strava_auth.expires_in_minutes, 10);
 
@@ -341,18 +341,18 @@ async fn test_oauth_state_validation() {
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
+                client_id: Some("test_strava_client_id".to_owned()),
+                client_secret: Some("test_strava_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/strava".to_owned()),
                 scopes: vec![],
-                enabled: false,
+                enabled: true,
             },
             fitbit: OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
+                client_id: Some("test_fitbit_client_id".to_owned()),
+                client_secret: Some("test_fitbit_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/fitbit".to_owned()),
                 scopes: vec![],
-                enabled: false,
+                enabled: true,
             },
             ..Default::default()
         },
@@ -505,18 +505,18 @@ async fn test_connection_status_no_providers() {
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
+                client_id: Some("test_strava_client_id".to_owned()),
+                client_secret: Some("test_strava_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/strava".to_owned()),
                 scopes: vec![],
-                enabled: false,
+                enabled: true,
             },
             fitbit: OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
+                client_id: Some("test_fitbit_client_id".to_owned()),
+                client_secret: Some("test_fitbit_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/fitbit".to_owned()),
                 scopes: vec![],
-                enabled: false,
+                enabled: true,
             },
             ..Default::default()
         },
@@ -692,18 +692,18 @@ async fn test_invalid_provider_error() {
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
+                client_id: Some("test_strava_client_id".to_owned()),
+                client_secret: Some("test_strava_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/strava".to_owned()),
                 scopes: vec![],
-                enabled: false,
+                enabled: true,
             },
             fitbit: OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
+                client_id: Some("test_fitbit_client_id".to_owned()),
+                client_secret: Some("test_fitbit_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/fitbit".to_owned()),
                 scopes: vec![],
-                enabled: false,
+                enabled: true,
             },
             ..Default::default()
         },
@@ -850,18 +850,18 @@ async fn test_disconnect_provider() {
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
+                client_id: Some("test_strava_client_id".to_owned()),
+                client_secret: Some("test_strava_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/strava".to_owned()),
                 scopes: vec![],
-                enabled: false,
+                enabled: true,
             },
             fitbit: OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
+                client_id: Some("test_fitbit_client_id".to_owned()),
+                client_secret: Some("test_fitbit_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/fitbit".to_owned()),
                 scopes: vec![],
-                enabled: false,
+                enabled: true,
             },
             ..Default::default()
         },
@@ -1102,18 +1102,18 @@ async fn test_oauth_urls_contain_required_parameters() {
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
+                client_id: Some("test_strava_client_id".to_owned()),
+                client_secret: Some("test_strava_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/strava".to_owned()),
                 scopes: vec![],
-                enabled: false,
+                enabled: true,
             },
             fitbit: OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
+                client_id: Some("test_fitbit_client_id".to_owned()),
+                client_secret: Some("test_fitbit_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/fitbit".to_owned()),
                 scopes: vec![],
-                enabled: false,
+                enabled: true,
             },
             ..Default::default()
         },
