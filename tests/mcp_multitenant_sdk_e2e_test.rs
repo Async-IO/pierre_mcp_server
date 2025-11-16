@@ -430,13 +430,9 @@ async fn test_tenant_burst_requests(
 
     println!("\n=== {tenant_name}: Burst Request Test ({request_count} requests) ===");
     for i in 1..=request_count {
-        let result = common::send_http_mcp_request(
-            server_url,
-            "tools/list",
-            serde_json::json!({}),
-            token,
-        )
-        .await;
+        let result =
+            common::send_http_mcp_request(server_url, "tools/list", serde_json::json!({}), token)
+                .await;
 
         match result {
             Ok(_) => {

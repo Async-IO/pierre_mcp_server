@@ -460,7 +460,10 @@ async fn setup_admin_and_get_token(admin_routes: axum::Router) -> Result<String>
 
     assert_eq!(admin_setup_response.status(), 201);
     let admin_body: Value = serde_json::from_slice(&admin_setup_response.bytes())?;
-    Ok(admin_body["data"]["admin_token"].as_str().unwrap().to_owned())
+    Ok(admin_body["data"]["admin_token"]
+        .as_str()
+        .unwrap()
+        .to_owned())
 }
 
 /// Helper: Create pending user for testing
@@ -587,10 +590,20 @@ async fn test_user_approval_with_tenant_creation() -> Result<()> {
     let tenant_id_str = tenant_created["tenant_id"].as_str().unwrap();
     let tenant_id = uuid::Uuid::parse_str(tenant_id_str)?;
 
-    println!(" Tenant created: {} ({})", tenant_created["name"], tenant_id);
+    println!(
+        " Tenant created: {} ({})",
+        tenant_created["name"], tenant_id
+    );
 
     // Verify tenant and user linkage
-    verify_tenant_user_linkage(&database, tenant_id, test_user_id, "Test Organization", "test-org").await?;
+    verify_tenant_user_linkage(
+        &database,
+        tenant_id,
+        test_user_id,
+        "Test Organization",
+        "test-org",
+    )
+    .await?;
     println!(" Tenant and user linkage verified");
 
     // Cleanup
