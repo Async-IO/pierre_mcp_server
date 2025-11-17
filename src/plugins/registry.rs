@@ -62,14 +62,19 @@ impl PluginRegistry {
 
         // Check for duplicate names
         if self.plugins.contains_key(info.name) {
-            return Err(ProtocolError::PluginError(format!(
-                "Plugin '{}' is already registered",
-                info.name
-            )));
+            return Err(ProtocolError::PluginError {
+                plugin_id: info.name.to_owned(),
+                details: format!("Plugin '{}' is already registered", info.name),
+            });
         }
 
         // Call plugin lifecycle hook
-        plugin.on_register()?;
+        plugin
+            .on_register()
+            .map_err(|e| ProtocolError::PluginError {
+                plugin_id: info.name.to_owned(),
+                details: format!("Plugin registration failed: {e}"),
+            })?;
 
         tracing::info!("Dynamically registering plugin: {}", info.name);
 
@@ -86,10 +91,12 @@ impl PluginRegistry {
     ///
     /// Returns `ProtocolError` if plugin not found or unregistration fails
     pub fn unregister_plugin(&mut self, plugin_name: &str) -> Result<(), ProtocolError> {
-        let plugin = self
-            .plugins
-            .remove(plugin_name)
-            .ok_or_else(|| ProtocolError::PluginNotFound(plugin_name.to_owned()))?;
+        let plugin =
+            self.plugins
+                .remove(plugin_name)
+                .ok_or_else(|| ProtocolError::PluginNotFound {
+                    plugin_id: plugin_name.to_owned(),
+                })?;
 
         self.plugin_info.remove(plugin_name);
 
@@ -135,10 +142,12 @@ impl PluginRegistry {
         request: UniversalRequest,
         env: PluginEnvironment<'_>,
     ) -> Result<super::PluginResult, ProtocolError> {
-        let plugin = self
-            .plugins
-            .get(plugin_name)
-            .ok_or_else(|| ProtocolError::PluginNotFound(plugin_name.to_owned()))?;
+        let plugin =
+            self.plugins
+                .get(plugin_name)
+                .ok_or_else(|| ProtocolError::PluginNotFound {
+                    plugin_id: plugin_name.to_owned(),
+                })?;
 
         tracing::debug!(
             "Executing plugin: {} for user: {}",

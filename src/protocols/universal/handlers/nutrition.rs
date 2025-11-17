@@ -323,30 +323,27 @@ pub fn handle_get_nutrient_timing(
             .parameters
             .get("weight_kg")
             .and_then(Value::as_f64)
-            .ok_or_else(|| {
-                ProtocolError::InvalidRequest(
-                    "Missing or invalid required parameter: weight_kg".to_owned(),
-                )
+            .ok_or_else(|| ProtocolError::InvalidRequest {
+                protocol: crate::protocols::ProtocolType::MCP,
+                reason: "Missing or invalid required parameter: weight_kg".to_owned(),
             })?;
 
         let daily_protein_g = request
             .parameters
             .get("daily_protein_g")
             .and_then(Value::as_f64)
-            .ok_or_else(|| {
-                ProtocolError::InvalidRequest(
-                    "Missing or invalid required parameter: daily_protein_g".to_owned(),
-                )
+            .ok_or_else(|| ProtocolError::InvalidRequest {
+                protocol: crate::protocols::ProtocolType::MCP,
+                reason: "Missing or invalid required parameter: daily_protein_g".to_owned(),
             })?;
 
         let workout_intensity_str = request
             .parameters
             .get("workout_intensity")
             .and_then(Value::as_str)
-            .ok_or_else(|| {
-                ProtocolError::InvalidRequest(
-                    "Missing or invalid required parameter: workout_intensity".to_owned(),
-                )
+            .ok_or_else(|| ProtocolError::InvalidRequest {
+                protocol: crate::protocols::ProtocolType::MCP,
+                reason: "Missing or invalid required parameter: workout_intensity".to_owned(),
             })?;
 
         let workout_intensity = match workout_intensity_str.to_lowercase().as_str() {
@@ -436,10 +433,9 @@ pub fn handle_search_food(
             .parameters
             .get("query")
             .and_then(Value::as_str)
-            .ok_or_else(|| {
-                ProtocolError::InvalidRequest(
-                    "Missing or invalid required parameter: query".to_owned(),
-                )
+            .ok_or_else(|| ProtocolError::InvalidRequest {
+                protocol: crate::protocols::ProtocolType::MCP,
+                reason: "Missing or invalid required parameter: query".to_owned(),
             })?;
 
         let page_size_u64 = request
@@ -534,10 +530,9 @@ pub fn handle_get_food_details(
             .parameters
             .get("fdc_id")
             .and_then(Value::as_u64)
-            .ok_or_else(|| {
-                ProtocolError::InvalidRequest(
-                    "Missing or invalid required parameter: fdc_id".to_owned(),
-                )
+            .ok_or_else(|| ProtocolError::InvalidRequest {
+                protocol: crate::protocols::ProtocolType::MCP,
+                reason: "Missing or invalid required parameter: fdc_id".to_owned(),
             })?;
 
         // Get food details using USDA API
@@ -634,10 +629,9 @@ pub fn handle_analyze_meal_nutrition(
             .parameters
             .get("foods")
             .and_then(Value::as_array)
-            .ok_or_else(|| {
-                ProtocolError::InvalidRequest(
-                    "Missing or invalid required parameter: foods (must be array)".to_owned(),
-                )
+            .ok_or_else(|| ProtocolError::InvalidRequest {
+                protocol: crate::protocols::ProtocolType::MCP,
+                reason: "Missing or invalid required parameter: foods (must be array)".to_owned(),
             })?;
 
         // Parse food items
@@ -646,15 +640,17 @@ pub fn handle_analyze_meal_nutrition(
             let fdc_id = food_item
                 .get("fdc_id")
                 .and_then(Value::as_u64)
-                .ok_or_else(|| {
-                    ProtocolError::InvalidRequest("Each food must have fdc_id".to_owned())
+                .ok_or_else(|| ProtocolError::InvalidRequest {
+                    protocol: crate::protocols::ProtocolType::MCP,
+                    reason: "Each food must have fdc_id".to_owned(),
                 })?;
 
             let grams = food_item
                 .get("grams")
                 .and_then(Value::as_f64)
-                .ok_or_else(|| {
-                    ProtocolError::InvalidRequest("Each food must have grams".to_owned())
+                .ok_or_else(|| ProtocolError::InvalidRequest {
+                    protocol: crate::protocols::ProtocolType::MCP,
+                    reason: "Each food must have grams".to_owned(),
                 })?;
 
             meal_foods.push((fdc_id, grams));

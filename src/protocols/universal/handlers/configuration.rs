@@ -252,7 +252,9 @@ pub fn handle_update_user_configuration(
 
         // Save user configuration in database
         let config_json = serde_json::to_string(&configuration).map_err(|e| {
-            ProtocolError::SerializationError(format!("Failed to serialize config: {e}"))
+            ProtocolError::SerializationError {
+                message: format!("Failed to serialize config: {e}"),
+            }
         })?;
 
         match (*executor.resources.database)
@@ -475,7 +477,10 @@ fn extract_zone_parameters(request: &UniversalRequest) -> Result<ZoneParams, Pro
         .parameters
         .get("vo2_max")
         .and_then(serde_json::Value::as_f64)
-        .ok_or_else(|| ProtocolError::InvalidRequest("vo2_max parameter required".to_owned()))?;
+        .ok_or_else(|| ProtocolError::InvalidRequest {
+            protocol: crate::protocols::ProtocolType::MCP,
+            reason: "vo2_max parameter required".to_owned(),
+        })?;
 
     let resting_hr = request
         .parameters
@@ -773,10 +778,14 @@ pub fn handle_validate_configuration(
     request: &UniversalRequest,
 ) -> Result<UniversalResponse, ProtocolError> {
     // Extract parameters to validate
-    let parameters = request
-        .parameters
-        .get("parameters")
-        .ok_or_else(|| ProtocolError::InvalidRequest("parameters field required".to_owned()))?;
+    let parameters =
+        request
+            .parameters
+            .get("parameters")
+            .ok_or_else(|| ProtocolError::InvalidRequest {
+                protocol: crate::protocols::ProtocolType::MCP,
+                reason: "parameters field required".to_owned(),
+            })?;
 
     // Validate parameters structure and content
     if parameters.is_object() {

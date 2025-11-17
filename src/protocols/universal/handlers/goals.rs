@@ -49,7 +49,9 @@ fn extract_feasibility_params(
 ) -> Result<(String, f64, u32), ProtocolError> {
     let params: AnalyzeGoalFeasibilityParams = serde_json::from_value(request.parameters.clone())
         .json_context("analyze_goal_feasibility parameters")
-        .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+        .map_err(|e| ProtocolError::InvalidParameters {
+            message: e.to_string(),
+        })?;
 
     let timeframe_days = params.timeframe_days.unwrap_or(
         crate::intelligence::physiological_constants::goal_feasibility::DEFAULT_TIMEFRAME_DAYS,
@@ -226,7 +228,9 @@ fn build_feasibility_response(params: &FeasibilityResponseParams) -> UniversalRe
 fn extract_goal_params(request: &UniversalRequest) -> Result<SetGoalParams, ProtocolError> {
     serde_json::from_value(request.parameters.clone())
         .json_context("set_goal parameters")
-        .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))
+        .map_err(|e| ProtocolError::InvalidParameters {
+            message: e.to_string(),
+        })
 }
 
 /// Build goal creation response
@@ -292,7 +296,10 @@ pub fn handle_set_goal(
         let goal_id = (*executor.resources.database)
             .create_goal(user_uuid, goal_data)
             .await
-            .map_err(|e| ProtocolError::InternalError(format!("Database error: {e}")))?;
+            .map_err(|e| ProtocolError::InternalError {
+                component: "database",
+                details: format!("Database error: {e}"),
+            })?;
 
         Ok(build_goal_creation_response(
             &goal_id,
@@ -1246,7 +1253,9 @@ pub fn handle_track_progress(
     Box::pin(async move {
         let params: TrackProgressParams = serde_json::from_value(request.parameters.clone())
             .json_context("track_progress parameters")
-            .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+            .map_err(|e| ProtocolError::InvalidParameters {
+                message: e.to_string(),
+            })?;
 
         let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 

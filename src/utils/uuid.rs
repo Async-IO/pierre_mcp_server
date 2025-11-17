@@ -97,8 +97,8 @@ pub fn parse_user_id_from_state(state: &str) -> Result<Uuid> {
 pub fn parse_user_id_for_protocol(
     user_id_str: &str,
 ) -> Result<Uuid, crate::protocols::ProtocolError> {
-    Uuid::parse_str(user_id_str).map_err(|_| {
-        crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
+    Uuid::parse_str(user_id_str).map_err(|_| crate::protocols::ProtocolError::InvalidParameters {
+        message: "Invalid user ID format".into(),
     })
 }
 

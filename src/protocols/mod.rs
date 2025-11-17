@@ -30,63 +30,167 @@ pub use universal::UniversalToolExecutor;
 /// Common error types for protocol operations
 #[derive(Debug, thiserror::Error)]
 pub enum ProtocolError {
-    /// The requested protocol is not supported (e.g., unknown protocol type)
-    #[error("Unsupported protocol: {0}")]
-    UnsupportedProtocol(String),
+    /// The requested protocol is not supported
+    #[error("Unsupported protocol: {protocol:?}")]
+    UnsupportedProtocol {
+        /// Protocol type that is not supported
+        protocol: ProtocolType,
+    },
 
     /// The requested tool does not exist
-    #[error("Tool not found: {0}")]
-    ToolNotFound(String),
+    #[error("Tool '{tool_id}' not found. Available tools: {available_count}")]
+    ToolNotFound {
+        /// ID of the tool that was not found
+        tool_id: String,
+        /// Number of available tools
+        available_count: usize,
+    },
 
-    /// The provided parameters are invalid for the tool
-    #[error("Invalid parameters: {0}")]
-    InvalidParameters(String),
+    /// Invalid parameter for tool
+    #[error("Invalid parameter '{parameter}' for tool '{tool_id}': {reason}")]
+    InvalidParameter {
+        /// ID of the tool
+        tool_id: String,
+        /// Name of the invalid parameter
+        parameter: &'static str,
+        /// Reason why the parameter is invalid
+        reason: &'static str,
+    },
+
+    /// Missing required parameter
+    #[error("Missing required parameter '{parameter}' for tool '{tool_id}'")]
+    MissingParameter {
+        /// ID of the tool
+        tool_id: String,
+        /// Name of the missing parameter
+        parameter: &'static str,
+    },
+
+    /// Generic invalid parameters error (for backward compatibility during migration)
+    #[error("Invalid parameters: {message}")]
+    InvalidParameters {
+        /// Error message
+        message: String,
+    },
 
     /// Configuration error occurred during protocol setup
-    #[error("Configuration error: {0}")]
-    ConfigurationError(String),
+    #[error("Missing configuration: {key}")]
+    ConfigMissing {
+        /// Configuration key that is missing
+        key: &'static str,
+    },
 
-    /// Tool execution failed with an error
-    #[error("Execution failed: {0}")]
-    ExecutionFailed(String),
+    /// Tool execution failed with underlying error
+    #[error("Tool '{tool_id}' execution failed")]
+    ExecutionFailed {
+        /// ID of the tool that failed
+        tool_id: String,
+        /// Underlying error
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
 
     /// Failed to convert between protocol formats
-    #[error("Conversion failed: {0}")]
-    ConversionFailed(String),
+    #[error("Conversion failed from {from:?} to {to:?}: {reason}")]
+    ConversionFailed {
+        /// Source protocol type
+        from: ProtocolType,
+        /// Target protocol type
+        to: ProtocolType,
+        /// Reason for conversion failure
+        reason: &'static str,
+    },
 
-    /// Failed to serialize or deserialize data
-    #[error("Serialization failed: {0}")]
-    SerializationError(String),
+    /// Serialization error
+    #[error("Serialization failed for {context}")]
+    Serialization {
+        /// Context where serialization failed
+        context: &'static str,
+        /// Underlying JSON error
+        #[source]
+        source: serde_json::Error,
+    },
 
-    /// Database operation failed
-    #[error("Database operation failed: {0}")]
-    DatabaseError(String),
+    /// Database error during protocol operation
+    #[error("Database error during protocol operation")]
+    Database {
+        /// Underlying database error
+        #[from]
+        source: crate::database::errors::DatabaseError,
+    },
 
-    /// The requested plugin was not found
-    #[error("Plugin not found: {0}")]
-    PluginNotFound(String),
+    /// Plugin not found
+    #[error("Plugin '{plugin_id}' not found")]
+    PluginNotFound {
+        /// ID of the plugin that was not found
+        plugin_id: String,
+    },
 
-    /// Error occurred while executing a plugin
-    #[error("Plugin error: {0}")]
-    PluginError(String),
+    /// Plugin execution error
+    #[error("Plugin '{plugin_id}' error: {details}")]
+    PluginError {
+        /// ID of the plugin
+        plugin_id: String,
+        /// Error details
+        details: String,
+    },
 
-    /// The provided schema is invalid
-    #[error("Invalid schema: {0}")]
-    InvalidSchema(String),
+    /// Invalid schema
+    #[error("Invalid schema for {entity}: {reason}")]
+    InvalidSchema {
+        /// Entity with invalid schema
+        entity: &'static str,
+        /// Reason why schema is invalid
+        reason: String,
+    },
 
-    /// User's subscription tier is insufficient for the requested operation
-    #[error("Insufficient subscription tier: {0}")]
-    InsufficientSubscription(String),
+    /// User's subscription tier is insufficient
+    #[error("Insufficient subscription tier: requires {required}, has {current}")]
+    InsufficientSubscription {
+        /// Required subscription tier
+        required: String,
+        /// Current subscription tier
+        current: String,
+    },
 
-    /// Rate limit has been exceeded
-    #[error("Rate limit exceeded: {0}")]
-    RateLimitExceeded(String),
+    /// Rate limit exceeded
+    #[error("Rate limit exceeded: {requests} requests in {window_secs}s")]
+    RateLimitExceeded {
+        /// Number of requests made
+        requests: u32,
+        /// Time window in seconds
+        window_secs: u32,
+    },
 
-    /// The request is malformed or invalid
-    #[error("Invalid request: {0}")]
-    InvalidRequest(String),
+    /// Invalid request structure
+    #[error("Invalid {protocol:?} request: {reason}")]
+    InvalidRequest {
+        /// Protocol type
+        protocol: ProtocolType,
+        /// Reason why request is invalid
+        reason: String,
+    },
 
-    /// An internal server error occurred
-    #[error("Internal error: {0}")]
-    InternalError(String),
+    /// Internal server error
+    #[error("Internal error in {component}: {details}")]
+    InternalError {
+        /// Component where error occurred
+        component: &'static str,
+        /// Error details
+        details: String,
+    },
+
+    /// Configuration error (generic)
+    #[error("Configuration error: {message}")]
+    ConfigurationError {
+        /// Error message
+        message: String,
+    },
+
+    /// Serialization error (generic, for backward compatibility)
+    #[error("Serialization failed: {message}")]
+    SerializationError {
+        /// Error message
+        message: String,
+    },
 }

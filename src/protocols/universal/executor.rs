@@ -334,12 +334,19 @@ impl UniversalExecutor {
         let tool_id = self
             .registry
             .resolve_tool_name(&request.tool_name)
-            .ok_or_else(|| ProtocolError::ToolNotFound(request.tool_name.clone()))?; // Safe: String ownership needed for error message
+            .ok_or_else(|| ProtocolError::ToolNotFound {
+                tool_id: request.tool_name.clone(),
+                available_count: self.registry.list_tools().len(),
+            })?; // Safe: String ownership needed for error message
 
         // Get registered tool info
-        let tool_info = self.registry.get_tool(tool_id).ok_or_else(|| {
-            ProtocolError::InternalError(format!("Tool {tool_id:?} not registered"))
-        })?;
+        let tool_info =
+            self.registry
+                .get_tool(tool_id)
+                .ok_or_else(|| ProtocolError::InternalError {
+                    component: "tool_registry",
+                    details: format!("Tool {tool_id:?} not registered"),
+                })?;
 
         // Convert to legacy UniversalToolExecutor for handler compatibility
         let legacy_executor = Self::new(self.resources.clone()); // Safe: Arc clone for legacy executor creation
@@ -354,9 +361,10 @@ impl UniversalExecutor {
                 // Execute sync handler
                 sync_handler(&legacy_executor, &request)
             }
-            _ => Err(ProtocolError::InternalError(format!(
-                "Tool {tool_id:?} has invalid handler configuration"
-            ))),
+            _ => Err(ProtocolError::InternalError {
+                component: "tool_executor",
+                details: format!("Tool {tool_id:?} has invalid handler configuration"),
+            }),
         }
     }
 

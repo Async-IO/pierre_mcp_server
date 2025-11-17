@@ -43,9 +43,14 @@ struct ActivityParameters {
 fn parse_activity_parameters(
     request: &UniversalRequest,
 ) -> Result<ActivityParameters, ProtocolError> {
-    let activity = request.parameters.get("activity").ok_or_else(|| {
-        ProtocolError::InvalidRequest("activity parameter is required".to_owned())
-    })?;
+    let activity =
+        request
+            .parameters
+            .get("activity")
+            .ok_or_else(|| ProtocolError::InvalidRequest {
+                protocol: crate::protocols::ProtocolType::MCP,
+                reason: "activity parameter is required".to_owned(),
+            })?;
 
     let distance = activity
         .get("distance")
@@ -275,7 +280,10 @@ async fn fetch_and_calculate_metrics(
         .resources
         .provider_registry
         .create_provider(provider_name)
-        .map_err(|e| ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}")))?;
+        .map_err(|e| ProtocolError::InternalError {
+            component: "provider_registry",
+            details: format!("Failed to create provider: {e}"),
+        })?;
 
     let credentials = crate::providers::OAuth2Credentials {
         client_id: executor
@@ -303,14 +311,22 @@ async fn fetch_and_calculate_metrics(
             .collect(),
     };
 
-    provider.set_credentials(credentials).await.map_err(|e| {
-        ProtocolError::ConfigurationError(format!("Failed to set provider credentials: {e}"))
-    })?;
+    provider
+        .set_credentials(credentials)
+        .await
+        .map_err(|e| ProtocolError::ConfigurationError {
+            message: format!("Failed to set provider credentials: {e}"),
+        })?;
 
     // Fetch activity from provider
-    let activity = provider.get_activity(activity_id).await.map_err(|e| {
-        ProtocolError::ExecutionFailed(format!("Failed to fetch activity {activity_id}: {e}"))
-    })?;
+    let activity =
+        provider
+            .get_activity(activity_id)
+            .await
+            .map_err(|e| ProtocolError::InternalError {
+                component: "provider",
+                details: format!("Failed to fetch activity {activity_id}: {e}"),
+            })?;
 
     // Convert Activity model to parameters format
     let mut request_with_activity = request.clone();
@@ -325,9 +341,9 @@ async fn fetch_and_calculate_metrics(
             }),
         );
     } else {
-        return Err(ProtocolError::InvalidParameters(
-            "parameters must be a JSON object".to_owned(),
-        ));
+        return Err(ProtocolError::InvalidParameters {
+            message: "parameters must be a JSON object".to_owned(),
+        });
     }
 
     // Parse parameters from converted activity
@@ -363,10 +379,8 @@ pub async fn handle_calculate_metrics(
             .parameters
             .get("provider")
             .and_then(serde_json::Value::as_str)
-            .ok_or_else(|| {
-                ProtocolError::InvalidParameters(
-                    "provider parameter required when using activity_id".to_owned(),
-                )
+            .ok_or_else(|| ProtocolError::InvalidParameters {
+                message: "provider parameter required when using activity_id".to_owned(),
             })?;
 
         return fetch_and_calculate_metrics(
@@ -591,13 +605,20 @@ async fn create_authenticated_provider(
         .resources
         .provider_registry
         .create_provider(oauth_providers::STRAVA)
-        .map_err(|e| ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}")))?;
+        .map_err(|e| ProtocolError::InternalError {
+            component: "provider_registry",
+            details: format!("Failed to create provider: {e}"),
+        })?;
 
     let credentials = build_strava_credentials(executor, token_data);
 
-    provider.set_credentials(credentials).await.map_err(|e| {
-        ProtocolError::ExecutionFailed(format!("Failed to set provider credentials: {e}"))
-    })?;
+    provider
+        .set_credentials(credentials)
+        .await
+        .map_err(|e| ProtocolError::InternalError {
+            component: "provider",
+            details: format!("Failed to set provider credentials: {e}"),
+        })?;
 
     Ok(provider)
 }
@@ -836,7 +857,9 @@ pub fn handle_get_activity_intelligence(
         let params: GetActivityIntelligenceParams =
             serde_json::from_value(request.parameters.clone())
                 .json_context("get_activity_intelligence parameters")
-                .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+                .map_err(|e| ProtocolError::InvalidParameters {
+                    message: e.to_string(),
+                })?;
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -883,7 +906,9 @@ pub fn handle_analyze_performance_trends(
         let params: AnalyzePerformanceTrendsParams =
             serde_json::from_value(request.parameters.clone())
                 .json_context("analyze_performance_trends parameters")
-                .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+                .map_err(|e| ProtocolError::InvalidParameters {
+                    message: e.to_string(),
+                })?;
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -998,7 +1023,9 @@ pub fn handle_compare_activities(
 
         let params: CompareActivitiesParams = serde_json::from_value(request.parameters.clone())
             .json_context("compare_activities parameters")
-            .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+            .map_err(|e| ProtocolError::InvalidParameters {
+                message: e.to_string(),
+            })?;
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -1013,7 +1040,10 @@ pub fn handle_compare_activities(
                     .provider_registry
                     .create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
-                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
+                        ProtocolError::InternalError {
+                            component: "provider_registry",
+                            details: format!("Failed to create provider: {e}"),
+                        }
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
@@ -1029,7 +1059,10 @@ pub fn handle_compare_activities(
                 };
 
                 provider.set_credentials(credentials).await.map_err(|e| {
-                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
+                    ProtocolError::InternalError {
+                        component: "provider",
+                        details: format!("Failed to set credentials: {e}"),
+                    }
                 })?;
 
                 Ok(execute_activity_comparison(
@@ -1069,7 +1102,9 @@ pub fn handle_detect_patterns(
 
         let params: DetectPatternsParams = serde_json::from_value(request.parameters.clone())
             .json_context("detect_patterns parameters")
-            .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+            .map_err(|e| ProtocolError::InvalidParameters {
+                message: e.to_string(),
+            })?;
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -1111,7 +1146,9 @@ pub fn handle_generate_recommendations(
         let params: GenerateRecommendationsParams =
             serde_json::from_value(request.parameters.clone())
                 .json_context("generate_recommendations parameters")
-                .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+                .map_err(|e| ProtocolError::InvalidParameters {
+                    message: e.to_string(),
+                })?;
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -1126,7 +1163,10 @@ pub fn handle_generate_recommendations(
                     .provider_registry
                     .create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
-                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
+                        ProtocolError::InternalError {
+                            component: "provider_registry",
+                            details: format!("Failed to create provider: {e}"),
+                        }
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
@@ -1142,7 +1182,10 @@ pub fn handle_generate_recommendations(
                 };
 
                 provider.set_credentials(credentials).await.map_err(|e| {
-                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
+                    ProtocolError::InternalError {
+                        component: "provider",
+                        details: format!("Failed to set credentials: {e}"),
+                    }
                 })?;
 
                 match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
@@ -1202,7 +1245,9 @@ pub fn handle_calculate_fitness_score(
         let params: CalculateFitnessScoreParams =
             serde_json::from_value(request.parameters.clone())
                 .json_context("calculate_fitness_score parameters")
-                .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+                .map_err(|e| ProtocolError::InvalidParameters {
+                    message: e.to_string(),
+                })?;
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -1217,7 +1262,10 @@ pub fn handle_calculate_fitness_score(
                     .provider_registry
                     .create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
-                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
+                        ProtocolError::InternalError {
+                            component: "provider_registry",
+                            details: format!("Failed to create provider: {e}"),
+                        }
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
@@ -1233,7 +1281,10 @@ pub fn handle_calculate_fitness_score(
                 };
 
                 provider.set_credentials(credentials).await.map_err(|e| {
-                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
+                    ProtocolError::InternalError {
+                        component: "provider",
+                        details: format!("Failed to set credentials: {e}"),
+                    }
                 })?;
 
                 match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
@@ -1291,7 +1342,9 @@ pub fn handle_predict_performance(
 
         let params: PredictPerformanceParams = serde_json::from_value(request.parameters.clone())
             .json_context("predict_performance parameters")
-            .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+            .map_err(|e| ProtocolError::InvalidParameters {
+                message: e.to_string(),
+            })?;
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -1306,7 +1359,10 @@ pub fn handle_predict_performance(
                     .provider_registry
                     .create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
-                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
+                        ProtocolError::InternalError {
+                            component: "provider_registry",
+                            details: format!("Failed to create provider: {e}"),
+                        }
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
@@ -1322,7 +1378,10 @@ pub fn handle_predict_performance(
                 };
 
                 provider.set_credentials(credentials).await.map_err(|e| {
-                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
+                    ProtocolError::InternalError {
+                        component: "provider",
+                        details: format!("Failed to set credentials: {e}"),
+                    }
                 })?;
 
                 match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
@@ -1380,7 +1439,9 @@ pub fn handle_analyze_training_load(
 
         let params: AnalyzeTrainingLoadParams = serde_json::from_value(request.parameters.clone())
             .json_context("analyze_training_load parameters")
-            .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+            .map_err(|e| ProtocolError::InvalidParameters {
+                message: e.to_string(),
+            })?;
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -1395,7 +1456,10 @@ pub fn handle_analyze_training_load(
                     .provider_registry
                     .create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
-                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
+                        ProtocolError::InternalError {
+                            component: "provider_registry",
+                            details: format!("Failed to create provider: {e}"),
+                        }
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
@@ -1411,7 +1475,10 @@ pub fn handle_analyze_training_load(
                 };
 
                 provider.set_credentials(credentials).await.map_err(|e| {
-                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
+                    ProtocolError::InternalError {
+                        component: "provider",
+                        details: format!("Failed to set credentials: {e}"),
+                    }
                 })?;
 
                 match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {

@@ -95,15 +95,48 @@ pub enum DatabaseError {
     #[error("Invalid UUID: {0}")]
     InvalidUuid(#[from] uuid::Error),
 
-    /// Generic error for conversion from anyhow
-    #[error("Database operation failed: {0}")]
-    Other(String),
-}
+    /// Connection pool exhausted
+    #[error(
+        "Connection pool exhausted: {max_connections} connections in use, waited {wait_time_ms}ms"
+    )]
+    PoolExhausted {
+        /// Maximum number of connections allowed
+        max_connections: u32,
+        /// Time waited for a connection in milliseconds
+        wait_time_ms: u64,
+    },
 
-impl From<anyhow::Error> for DatabaseError {
-    fn from(err: anyhow::Error) -> Self {
-        Self::Other(err.to_string())
-    }
+    /// Transaction rolled back
+    #[error("Transaction rolled back: {reason}")]
+    TransactionRollback {
+        /// Reason for the rollback
+        reason: &'static str,
+    },
+
+    /// Schema version mismatch
+    #[error("Schema version mismatch: expected {expected}, found {actual}")]
+    SchemaMismatch {
+        /// Expected schema version
+        expected: String,
+        /// Actual schema version found
+        actual: String,
+    },
+
+    /// Timeout waiting for database operation
+    #[error("Database operation timeout: {operation} exceeded {timeout_secs}s")]
+    Timeout {
+        /// Operation that timed out
+        operation: &'static str,
+        /// Timeout duration in seconds
+        timeout_secs: u64,
+    },
+
+    /// Database transaction conflict
+    #[error("Transaction conflict: {details}")]
+    TransactionConflict {
+        /// Details about the conflict
+        details: String,
+    },
 }
 
 /// Result type for database operations

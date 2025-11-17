@@ -701,9 +701,10 @@ use crate::database::DatabaseError;
 async fn load_config(path: &str) -> DatabaseResult<Config> {
     let contents = tokio::fs::read_to_string(path)
         .await
-        .map_err(|e| DatabaseError::Other(
-            format!("Failed to read config from {}: {}", path, e)
-        ))?;
+        .map_err(|e| DatabaseError::InvalidData {
+            field: "config_file".to_string(),
+            reason: format!("Failed to read config from {}: {}", path, e),
+        })?;
 
     let config: Config = serde_json::from_str(&contents)
         .map_err(|e| DatabaseError::SerializationError(e))?;

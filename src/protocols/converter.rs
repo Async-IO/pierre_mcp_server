@@ -44,17 +44,17 @@ impl ProtocolConverter {
                     .as_ref()
                     .and_then(|p| p.get("tool"))
                     .and_then(|t| t.as_str())
-                    .ok_or_else(|| {
-                        crate::protocols::ProtocolError::InvalidParameters(
-                            "Tool name not found in A2A request".into(),
-                        )
+                    .ok_or_else(|| crate::protocols::ProtocolError::InvalidParameters {
+                        message: "Tool name not found in A2A request".into(),
                     })?
                     .to_owned()
             }
-            method => {
-                return Err(crate::protocols::ProtocolError::ConversionFailed(format!(
-                    "Unsupported A2A method: {method}"
-                )));
+            _method => {
+                return Err(crate::protocols::ProtocolError::ConversionFailed {
+                    from: ProtocolType::A2A,
+                    to: ProtocolType::A2A,
+                    reason: "unsupported A2A method",
+                });
             }
         };
 
@@ -250,7 +250,9 @@ impl ProtocolConverter {
         // Try to parse as JSON first
         let json: Value = serde_json::from_str(request_data).map_err(|e| {
             tracing::debug!(error = %e, "Failed to parse request as JSON during protocol detection");
-            crate::protocols::ProtocolError::ConversionFailed("Invalid JSON".into())
+            crate::protocols::ProtocolError::SerializationError {
+                message: "Invalid JSON during protocol detection".into(),
+            }
         })?;
 
         // Check for A2A indicators
@@ -271,9 +273,10 @@ impl ProtocolConverter {
             }
         }
 
-        Err(crate::protocols::ProtocolError::UnsupportedProtocol(
-            "Unknown protocol format".into(),
-        ))
+        Err(crate::protocols::ProtocolError::InvalidRequest {
+            protocol: ProtocolType::MCP, // Default to MCP for unknown protocols
+            reason: "Unknown protocol format".into(),
+        })
     }
 
     /// Convert tool definition to A2A format

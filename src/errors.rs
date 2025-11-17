@@ -446,45 +446,76 @@ impl From<chrono::ParseError> for AppError {
 impl From<crate::protocols::ProtocolError> for AppError {
     fn from(error: crate::protocols::ProtocolError) -> Self {
         match error {
-            crate::protocols::ProtocolError::UnsupportedProtocol(protocol) => {
-                Self::invalid_input(format!("Unsupported protocol: {protocol}"))
+            crate::protocols::ProtocolError::UnsupportedProtocol { protocol } => {
+                Self::invalid_input(format!("Unsupported protocol: {protocol:?}"))
             }
-            crate::protocols::ProtocolError::ToolNotFound(tool) => {
-                Self::not_found(format!("tool '{tool}'"))
+            crate::protocols::ProtocolError::ToolNotFound { tool_id, .. } => {
+                Self::not_found(format!("tool '{tool_id}'"))
             }
-            crate::protocols::ProtocolError::InvalidParameters(message)
-            | crate::protocols::ProtocolError::InvalidRequest(message) => {
+            crate::protocols::ProtocolError::InvalidParameter {
+                tool_id,
+                parameter,
+                reason,
+            } => Self::invalid_input(format!(
+                "Invalid parameter '{parameter}' for tool '{tool_id}': {reason}"
+            )),
+            crate::protocols::ProtocolError::MissingParameter { tool_id, parameter } => {
+                Self::invalid_input(format!(
+                    "Missing required parameter '{parameter}' for tool '{tool_id}'"
+                ))
+            }
+            crate::protocols::ProtocolError::InvalidParameters { message } => {
                 Self::invalid_input(message)
             }
-            crate::protocols::ProtocolError::ConfigurationError(message) => Self::config(message),
-            crate::protocols::ProtocolError::ExecutionFailed(message) => {
-                Self::internal(format!("Tool execution failed: {message}"))
+            crate::protocols::ProtocolError::InvalidRequest { reason, .. } => {
+                Self::invalid_input(reason)
             }
-            crate::protocols::ProtocolError::ConversionFailed(message) => {
-                Self::internal(format!("Protocol conversion failed: {message}"))
+            crate::protocols::ProtocolError::ConfigMissing { key } => {
+                Self::config(format!("Missing configuration: {key}"))
             }
-            crate::protocols::ProtocolError::SerializationError(message) => {
+            crate::protocols::ProtocolError::ConfigurationError { message } => {
+                Self::config(message)
+            }
+            crate::protocols::ProtocolError::ExecutionFailed { tool_id, .. } => {
+                Self::internal(format!("Tool '{tool_id}' execution failed"))
+            }
+            crate::protocols::ProtocolError::ConversionFailed { from, to, reason } => {
+                Self::internal(format!(
+                    "Protocol conversion failed from {from:?} to {to:?}: {reason}"
+                ))
+            }
+            crate::protocols::ProtocolError::Serialization { context, .. } => {
+                Self::internal(format!("Serialization failed for {context}"))
+            }
+            crate::protocols::ProtocolError::SerializationError { message } => {
                 Self::internal(format!("Serialization failed: {message}"))
             }
-            crate::protocols::ProtocolError::DatabaseError(message) => {
-                Self::internal(format!("Database operation failed: {message}"))
+            crate::protocols::ProtocolError::Database { source } => {
+                Self::internal(format!("Database error: {source}"))
             }
-            crate::protocols::ProtocolError::PluginNotFound(plugin) => {
-                Self::not_found(format!("plugin '{plugin}'"))
+            crate::protocols::ProtocolError::PluginNotFound { plugin_id } => {
+                Self::not_found(format!("plugin '{plugin_id}'"))
             }
-            crate::protocols::ProtocolError::PluginError(message) => {
-                Self::internal(format!("Plugin error: {message}"))
+            crate::protocols::ProtocolError::PluginError { plugin_id, details } => {
+                Self::internal(format!("Plugin '{plugin_id}' error: {details}"))
             }
-            crate::protocols::ProtocolError::InvalidSchema(message) => {
-                Self::invalid_input(format!("Invalid schema: {message}"))
+            crate::protocols::ProtocolError::InvalidSchema { entity, reason } => {
+                Self::invalid_input(format!("Invalid schema for {entity}: {reason}"))
             }
-            crate::protocols::ProtocolError::InsufficientSubscription(message) => {
-                Self::auth_invalid(message)
+            crate::protocols::ProtocolError::InsufficientSubscription { required, current } => {
+                Self::auth_invalid(format!(
+                    "Insufficient subscription tier: requires {required}, has {current}"
+                ))
             }
-            crate::protocols::ProtocolError::RateLimitExceeded(message) => {
-                Self::invalid_input(format!("Rate limit exceeded: {message}"))
+            crate::protocols::ProtocolError::RateLimitExceeded {
+                requests,
+                window_secs,
+            } => Self::invalid_input(format!(
+                "Rate limit exceeded: {requests} requests in {window_secs}s"
+            )),
+            crate::protocols::ProtocolError::InternalError { component, details } => {
+                Self::internal(format!("Internal error in {component}: {details}"))
             }
-            crate::protocols::ProtocolError::InternalError(message) => Self::internal(message),
         }
     }
 }

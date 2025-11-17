@@ -95,9 +95,58 @@ pub enum ProviderError {
         feature: String,
     },
 
-    /// Generic provider error
-    #[error("Provider operation failed: {0}")]
-    Other(String),
+    /// HTTP client error
+    #[error("HTTP client error for {provider}: {status}")]
+    HttpError {
+        /// Name of the fitness provider
+        provider: String,
+        /// HTTP status code
+        status: u16,
+        /// Response body
+        body: String,
+    },
+
+    /// JSON parsing error
+    #[error("Failed to parse {provider} response for field '{field}': {source}")]
+    ParseError {
+        /// Name of the fitness provider
+        provider: String,
+        /// Field that failed to parse
+        field: &'static str,
+        /// Underlying JSON error
+        #[source]
+        source: serde_json::Error,
+    },
+
+    /// Underlying reqwest error
+    #[error("Network request failed for {provider}: {source}")]
+    Reqwest {
+        /// Name of the fitness provider
+        provider: String,
+        /// Underlying reqwest error
+        #[source]
+        source: reqwest::Error,
+    },
+
+    /// Timeout waiting for provider response
+    #[error("Provider {provider} timeout: {operation} exceeded {timeout_secs}s")]
+    Timeout {
+        /// Name of the fitness provider
+        provider: String,
+        /// Operation that timed out
+        operation: &'static str,
+        /// Timeout duration in seconds
+        timeout_secs: u64,
+    },
+
+    /// Provider-specific quota exceeded
+    #[error("Provider {provider} quota exceeded: {quota_type}")]
+    QuotaExceeded {
+        /// Name of the fitness provider
+        provider: String,
+        /// Type of quota exceeded
+        quota_type: String,
+    },
 }
 
 impl ProviderError {
@@ -106,14 +155,19 @@ impl ProviderError {
     pub const fn is_retryable(&self) -> bool {
         match self {
             Self::ApiError { retryable, .. } => *retryable,
-            Self::RateLimitExceeded { .. } | Self::NetworkError(_) => true,
+            Self::RateLimitExceeded { .. }
+            | Self::NetworkError(_)
+            | Self::Timeout { .. }
+            | Self::Reqwest { .. }
+            | Self::HttpError { .. } => true,
             Self::AuthenticationFailed { .. }
             | Self::TokenRefreshFailed { .. }
             | Self::NotFound { .. }
             | Self::InvalidData { .. }
             | Self::ConfigurationError { .. }
             | Self::UnsupportedFeature { .. }
-            | Self::Other(_) => false,
+            | Self::ParseError { .. }
+            | Self::QuotaExceeded { .. } => false,
         }
     }
 

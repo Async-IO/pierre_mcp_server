@@ -99,8 +99,12 @@ pub trait PluginTool: Send + Sync {
     /// Returns `ProtocolError` if validation fails or required parameters are missing
     fn validate_input(&self, params: &Value) -> Result<(), ProtocolError> {
         // Default implementation - plugins can override for custom validation
-        let schema: Value = serde_json::from_str(self.info().input_schema)
-            .map_err(|e| ProtocolError::InvalidSchema(format!("Invalid input schema: {e}")))?;
+        let schema: Value = serde_json::from_str(self.info().input_schema).map_err(|e| {
+            ProtocolError::InvalidSchema {
+                entity: "plugin_input",
+                reason: format!("Invalid input schema: {e}"),
+            }
+        })?;
 
         // Basic validation - in production would use jsonschema crate
         if schema.get("required").is_some() {
@@ -108,9 +112,9 @@ pub trait PluginTool: Send + Sync {
                 for field in required_fields {
                     if let Some(field_name) = field.as_str() {
                         if params.get(field_name).is_none() {
-                            return Err(ProtocolError::InvalidParameters(format!(
-                                "Missing required parameter: {field_name}"
-                            )));
+                            return Err(ProtocolError::InvalidParameters {
+                                message: format!("Missing required parameter: {field_name}"),
+                            });
                         }
                     }
                 }

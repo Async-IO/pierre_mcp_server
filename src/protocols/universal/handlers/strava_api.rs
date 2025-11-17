@@ -218,9 +218,9 @@ async fn try_get_cached_athlete(
         return Ok(Some(UniversalResponse {
             success: true,
             result: Some(serde_json::to_value(&cached_athlete).map_err(|e| {
-                ProtocolError::SerializationError(format!(
-                    "Failed to serialize cached athlete: {e}"
-                ))
+                ProtocolError::SerializationError {
+                    message: format!("Failed to serialize cached athlete: {e}"),
+                }
             })?),
             error: None,
             metadata: Some({
@@ -283,9 +283,9 @@ async fn fetch_and_cache_athlete(
             };
 
             provider.set_credentials(credentials).await.map_err(|e| {
-                ProtocolError::ConfigurationError(format!(
-                    "Failed to set provider credentials: {e}"
-                ))
+                ProtocolError::ConfigurationError {
+                    message: format!("Failed to set provider credentials: {e}"),
+                }
             })?;
 
             match provider.get_athlete().await {
@@ -295,9 +295,9 @@ async fn fetch_and_cache_athlete(
                     Ok(UniversalResponse {
                         success: true,
                         result: Some(serde_json::to_value(&athlete).map_err(|e| {
-                            ProtocolError::SerializationError(format!(
-                                "Failed to serialize athlete: {e}"
-                            ))
+                            ProtocolError::SerializationError {
+                                message: format!("Failed to serialize athlete: {e}"),
+                            }
                         })?),
                         error: None,
                         metadata: Some({
@@ -349,7 +349,9 @@ async fn process_activity_analysis(
     Ok(UniversalResponse {
         success: true,
         result: Some(serde_json::to_value(analysis).map_err(|e| {
-            ProtocolError::SerializationError(format!("Failed to serialize analysis: {e}"))
+            ProtocolError::SerializationError {
+                message: format!("Failed to serialize analysis: {e}"),
+            }
         })?),
         error: None,
         metadata: Some(create_activity_metadata(
@@ -606,7 +608,9 @@ async fn try_get_cached_stats(
         return Ok(Some(UniversalResponse {
             success: true,
             result: Some(serde_json::to_value(&cached_stats).map_err(|e| {
-                ProtocolError::SerializationError(format!("Failed to serialize cached stats: {e}"))
+                ProtocolError::SerializationError {
+                    message: format!("Failed to serialize cached stats: {e}"),
+                }
             })?),
             error: None,
             metadata: Some({
@@ -655,9 +659,9 @@ async fn fetch_and_cache_stats(
             };
 
             provider.set_credentials(credentials).await.map_err(|e| {
-                ProtocolError::ConfigurationError(format!(
-                    "Failed to set provider credentials: {e}"
-                ))
+                ProtocolError::ConfigurationError {
+                    message: format!("Failed to set provider credentials: {e}"),
+                }
             })?;
 
             match provider.get_stats().await {
@@ -692,9 +696,9 @@ async fn fetch_and_cache_stats(
                     Ok(UniversalResponse {
                         success: true,
                         result: Some(serde_json::to_value(&stats).map_err(|e| {
-                            ProtocolError::SerializationError(format!(
-                                "Failed to serialize stats: {e}"
-                            ))
+                            ProtocolError::SerializationError {
+                                message: format!("Failed to serialize stats: {e}"),
+                            }
                         })?),
                         error: None,
                         metadata: Some({
@@ -840,8 +844,9 @@ pub fn handle_analyze_activity(
             .get("activity_id")
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned) // Safe: String ownership needed to avoid borrowing issues
-            .ok_or_else(|| {
-                ProtocolError::InvalidRequest("activity_id parameter required".to_owned())
+            .ok_or_else(|| ProtocolError::InvalidRequest {
+                protocol: crate::protocols::ProtocolType::MCP,
+                reason: "activity_id parameter required".to_owned(),
             })?;
 
         // Get valid Strava token (with automatic refresh if needed)
