@@ -1483,16 +1483,20 @@ async fn test_malformed_parameters() -> Result<()> {
             }
             assert!(!response.success);
             assert!(response.error.is_some());
-            assert!(response
-                .error
-                .as_ref()
-                .unwrap()
-                .contains("goal_type is required"));
+            let error_msg = response.error.as_ref().unwrap();
+            assert!(
+                error_msg.contains("goal_type is required")
+                    || error_msg.contains("missing field `goal_type`")
+            );
         }
         Err(err) => {
             // If execute_tool returns an error, that's also acceptable for missing params
             println!("Tool execution error: {err:?}");
-            assert!(err.to_string().contains("goal_type is required"));
+            let error_str = err.to_string();
+            assert!(
+                error_str.contains("goal_type is required")
+                    || error_str.contains("missing field `goal_type`")
+            );
         }
     }
 

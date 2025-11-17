@@ -23,6 +23,7 @@ use crate::configuration::{
 };
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
+use crate::types::json_schemas;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -37,8 +38,9 @@ use uuid::Uuid;
 pub struct UpdateConfigurationRequest {
     /// Optional profile to apply
     pub profile: Option<String>,
-    /// Parameter overrides to apply
-    pub parameters: Option<HashMap<String, serde_json::Value>>,
+    /// Parameter overrides to apply (typed values instead of generic JSON)
+    #[serde(default)]
+    pub parameters: HashMap<String, json_schemas::ConfigValueInput>,
 }
 
 /// Request to calculate personalized training zones based on physiological parameters
@@ -59,8 +61,8 @@ pub struct PersonalizedZonesRequest {
 /// Request to validate configuration parameters against safety constraints
 #[derive(Debug, Deserialize)]
 pub struct ValidateConfigurationRequest {
-    /// Parameters to validate
-    pub parameters: HashMap<String, serde_json::Value>,
+    /// Parameters to validate (typed values instead of generic JSON)
+    pub parameters: HashMap<String, json_schemas::ConfigValueInput>,
 }
 
 /// Response containing the complete configuration catalog
@@ -410,36 +412,16 @@ impl ConfigurationRoutes {
         let processing_start = std::time::Instant::now();
         let user_id = auth.user_id;
 
-        let parameter_overrides = request.parameters.unwrap_or_default();
+        let parameter_overrides = request.parameters;
         let parameter_count = parameter_overrides.len();
 
         // Validate parameters if provided
         if !parameter_overrides.is_empty() {
             let validator = ConfigValidator::new();
+            // Convert typed input values to internal ConfigValue representation
             let overrides_map: HashMap<String, ConfigValue> = parameter_overrides
                 .iter()
-                .filter_map(|(k, v)| {
-                    v.as_f64().map_or_else(
-                        || {
-                            v.as_i64().map_or_else(
-                                || {
-                                    v.as_bool().map_or_else(
-                                        || {
-                                            v.as_str().map(|str_val| {
-                                                (k.clone(), ConfigValue::String(str_val.to_owned()))
-                                            })
-                                        },
-                                        |bool_val| {
-                                            Some((k.clone(), ConfigValue::Boolean(bool_val)))
-                                        },
-                                    )
-                                },
-                                |int_val| Some((k.clone(), ConfigValue::Integer(int_val))),
-                            )
-                        },
-                        |float_val| Some((k.clone(), ConfigValue::Float(float_val))),
-                    )
-                })
+                .map(|(k, v)| (k.clone(), v.clone().to_config_value()))
                 .collect();
 
             let validation_result = validator.validate(&overrides_map, None);
@@ -467,28 +449,15 @@ impl ConfigurationRoutes {
             ConfigProfile::Default
         };
 
-        // Apply parameter overrides
+        // Apply parameter overrides (using typed values)
         for (key, value) in parameter_overrides {
-            if let Some(float_val) = value.as_f64() {
-                config.set_override(&key, ConfigValue::Float(float_val))
-                    .inspect_err(|e| tracing::warn!(key = %key, error = %e, "Failed to override float config"))
-                    .ok();
-            } else if let Some(int_val) = value.as_i64() {
-                config
-                    .set_override(&key, ConfigValue::Integer(int_val))
-                    .inspect_err(
-                        |e| tracing::warn!(key = %key, error = %e, "Failed to override int config"),
-                    )
-                    .ok();
-            } else if let Some(bool_val) = value.as_bool() {
-                config.set_override(&key, ConfigValue::Boolean(bool_val))
-                    .inspect_err(|e| tracing::warn!(key = %key, error = %e, "Failed to override bool config"))
-                    .ok();
-            } else if let Some(str_val) = value.as_str() {
-                config.set_override(&key, ConfigValue::String(str_val.to_owned()))
-                    .inspect_err(|e| tracing::warn!(key = %key, error = %e, "Failed to override string config"))
-                    .ok();
-            }
+            let config_value = value.to_config_value();
+            config
+                .set_override(&key, config_value)
+                .inspect_err(
+                    |e| tracing::warn!(key = %key, error = %e, "Failed to override config"),
+                )
+                .ok();
         }
 
         // Verify user exists in database before saving configuration
@@ -590,30 +559,11 @@ impl ConfigurationRoutes {
     ) -> Result<ValidationResponse> {
         let processing_start = std::time::Instant::now();
 
-        // Convert to the format expected by validator
+        // Convert typed input values to internal ConfigValue representation
         let params_map: HashMap<String, ConfigValue> = request
             .parameters
             .iter()
-            .filter_map(|(k, v)| {
-                v.as_f64().map_or_else(
-                    || {
-                        v.as_i64().map_or_else(
-                            || {
-                                v.as_bool().map_or_else(
-                                    || {
-                                        v.as_str().map(|str_val| {
-                                            (k.clone(), ConfigValue::String(str_val.to_owned()))
-                                        })
-                                    },
-                                    |bool_val| Some((k.clone(), ConfigValue::Boolean(bool_val))),
-                                )
-                            },
-                            |int_val| Some((k.clone(), ConfigValue::Integer(int_val))),
-                        )
-                    },
-                    |float_val| Some((k.clone(), ConfigValue::Float(float_val))),
-                )
-            })
+            .map(|(k, v)| (k.clone(), v.clone().to_config_value()))
             .collect();
 
         if params_map.is_empty() {

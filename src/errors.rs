@@ -497,3 +497,88 @@ impl From<Box<dyn std::error::Error + Send + Sync>> for AppError {
         Self::database(error.to_string())
     }
 }
+
+// ============================================================================
+// JSON Error Handling Extensions
+// ============================================================================
+
+impl AppError {
+    /// Create error for JSON deserialization failures with context
+    ///
+    /// This provides better error messages than the generic From<`serde_json::Error`>
+    /// implementation by including context about what was being parsed.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let params: MyParams = serde_json::from_value(json)
+    ///     .map_err(|e| AppError::json_parse_error("tool parameters", e))?;
+    /// ```
+    #[must_use]
+    pub fn json_parse_error<E: std::fmt::Display>(context: &str, error: E) -> Self {
+        Self::new(
+            ErrorCode::InvalidInput,
+            format!("Failed to parse JSON in {context}: {error}"),
+        )
+    }
+
+    /// Create error for missing required JSON fields
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let field_value = obj.get("required_field")
+    ///     .ok_or_else(|| AppError::missing_field("required_field"))?;
+    /// ```
+    #[must_use]
+    pub fn missing_field(field: &str) -> Self {
+        Self::new(
+            ErrorCode::MissingRequiredField,
+            format!("Missing required field: {field}"),
+        )
+    }
+
+    /// Create error for invalid JSON field values
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// if value < 0 {
+    ///     return Err(AppError::invalid_field("age", "must be non-negative"));
+    /// }
+    /// ```
+    #[must_use]
+    pub fn invalid_field(field: &str, reason: &str) -> Self {
+        Self::new(
+            ErrorCode::InvalidInput,
+            format!("Invalid value for field '{field}': {reason}"),
+        )
+    }
+}
+
+/// Extension trait for adding context to JSON parsing errors
+///
+/// This trait provides convenient methods to convert `serde_json` errors
+/// into `AppError` with meaningful context about what failed to parse.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use pierre_mcp_server::errors::JsonResultExt;
+///
+/// let params: MyParams = serde_json::from_value(json_value)
+///     .json_context("tool parameters")?;
+/// ```
+pub trait JsonResultExt<T> {
+    /// Add context to a JSON parsing error
+    ///
+    /// # Errors
+    /// Returns `AppError` with context if parsing fails
+    fn json_context(self, context: &str) -> Result<T, AppError>;
+}
+
+impl<T> JsonResultExt<T> for Result<T, serde_json::Error> {
+    fn json_context(self, context: &str) -> Result<T, AppError> {
+        self.map_err(|e| AppError::json_parse_error(context, e))
+    }
+}

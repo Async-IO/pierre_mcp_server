@@ -23,6 +23,7 @@ use crate::constants::{
 };
 use crate::database_plugins::DatabaseProvider;
 use crate::tenant::TenantContext;
+use crate::types::json_schemas;
 use serde_json::{json, Value};
 use std::fmt::Write;
 use std::sync::Arc;
@@ -326,11 +327,17 @@ impl ToolHandlers {
             }
             CONNECT_PROVIDER => {
                 // Handle unified OAuth flow: Pierre + Provider authentication in one session
-                let provider_name = args
-                    .get("provider")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_lowercase();
+                let params =
+                    serde_json::from_value::<json_schemas::ConnectProviderParams>(args.clone())
+                        .unwrap_or_else(|_| json_schemas::ConnectProviderParams {
+                            provider: String::new(),
+                            strava_client_id: None,
+                            strava_client_secret: None,
+                            fitbit_client_id: None,
+                            fitbit_client_secret: None,
+                        });
+
+                let provider_name = params.provider.to_lowercase();
 
                 // Validate provider
                 if provider_name.is_empty()
@@ -375,16 +382,17 @@ impl ToolHandlers {
             }
             GET_CONNECTION_STATUS => {
                 if let Some(ref tenant_ctx) = ctx.tenant_context {
-                    // Extract optional OAuth credentials from args
+                    // Extract optional OAuth credentials from args using typed params
+                    let params = serde_json::from_value::<json_schemas::GetConnectionStatusParams>(
+                        args.clone(),
+                    )
+                    .unwrap_or_default();
+
                     let credentials = McpOAuthCredentials {
-                        strava_client_id: args.get("strava_client_id").and_then(|v| v.as_str()),
-                        strava_client_secret: args
-                            .get("strava_client_secret")
-                            .and_then(|v| v.as_str()),
-                        fitbit_client_id: args.get("fitbit_client_id").and_then(|v| v.as_str()),
-                        fitbit_client_secret: args
-                            .get("fitbit_client_secret")
-                            .and_then(|v| v.as_str()),
+                        strava_client_id: params.strava_client_id.as_deref(),
+                        strava_client_secret: params.strava_client_secret.as_deref(),
+                        fitbit_client_id: params.fitbit_client_id.as_deref(),
+                        fitbit_client_secret: params.fitbit_client_secret.as_deref(),
                     };
 
                     return MultiTenantMcpServer::handle_tenant_connection_status(
@@ -417,36 +425,46 @@ impl ToolHandlers {
                     .await
             }
             MARK_NOTIFICATIONS_READ => {
-                let notification_id = args.get("notification_id").and_then(|v| v.as_str());
-                Self::handle_mark_notifications_read(notification_id, user_id, request_id, ctx)
-                    .await
+                let params = serde_json::from_value::<json_schemas::MarkNotificationsReadParams>(
+                    args.clone(),
+                )
+                .unwrap_or_else(|_| json_schemas::MarkNotificationsReadParams {
+                    notification_id: "unknown".to_owned(),
+                });
+                Self::handle_mark_notifications_read(
+                    Some(&params.notification_id),
+                    user_id,
+                    request_id,
+                    ctx,
+                )
+                .await
             }
             GET_NOTIFICATIONS => {
-                let include_read = args
-                    .get("include_read")
-                    .and_then(serde_json::Value::as_bool)
-                    .unwrap_or(false);
-                let provider = args.get("provider").and_then(|v| v.as_str());
-                Self::handle_get_notifications(include_read, provider, user_id, request_id, ctx)
-                    .await
+                let params =
+                    serde_json::from_value::<json_schemas::GetNotificationsParams>(args.clone())
+                        .unwrap_or_default();
+                Self::handle_get_notifications(
+                    params.include_read,
+                    params.provider.as_deref(),
+                    user_id,
+                    request_id,
+                    ctx,
+                )
+                .await
             }
             ANNOUNCE_OAUTH_SUCCESS => {
-                let provider = args
-                    .get(PROVIDER)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown");
-                let message = args
-                    .get("message")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("OAuth completed successfully");
-                let notification_id = args
-                    .get("notification_id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown");
+                let params = serde_json::from_value::<json_schemas::AnnounceOAuthSuccessParams>(
+                    args.clone(),
+                )
+                .unwrap_or_else(|_| json_schemas::AnnounceOAuthSuccessParams {
+                    provider: "unknown".to_owned(),
+                    message: "OAuth completed successfully".to_owned(),
+                    notification_id: "unknown".to_owned(),
+                });
                 Self::handle_announce_oauth_success(
-                    provider,
-                    message,
-                    notification_id,
+                    &params.provider,
+                    &params.message,
+                    &params.notification_id,
                     user_id,
                     request_id,
                     ctx,
@@ -922,10 +940,9 @@ impl ToolHandlers {
         user_id: &str,
         database: &crate::database_plugins::factory::Database,
     ) -> McpResponse {
-        let config_name = args
-            .get("configuration_name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("default");
+        let params = serde_json::from_value::<json_schemas::GetFitnessConfigParams>(args)
+            .unwrap_or_default();
+        let config_name = &params.configuration_name;
 
         match database
             .get_user_fitness_config(tenant_id, user_id, config_name)
@@ -1004,38 +1021,36 @@ impl ToolHandlers {
         user_id: &str,
         database: &crate::database_plugins::factory::Database,
     ) -> McpResponse {
-        let config_name = args
-            .get("configuration_name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("default");
-
-        let configuration = match args.get("configuration") {
-            Some(config) => {
-                match serde_json::from_value::<crate::config::fitness_config::FitnessConfig>(
-                    config.clone(),
-                ) {
-                    Ok(fc) => fc,
-                    Err(e) => {
-                        return McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_owned(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_INVALID_PARAMS,
-                                message: format!("Invalid configuration format: {e}"),
-                                data: None,
-                            }),
-                            id: Some(request_id),
-                        };
-                    }
-                }
-            }
-            None => {
+        let params = match serde_json::from_value::<json_schemas::SetFitnessConfigParams>(args) {
+            Ok(p) => p,
+            Err(e) => {
                 return McpResponse {
                     jsonrpc: JSONRPC_VERSION.to_owned(),
                     result: None,
                     error: Some(McpError {
                         code: ERROR_INVALID_PARAMS,
-                        message: "Missing configuration parameter".to_owned(),
+                        message: format!("Invalid parameters: {e}"),
+                        data: None,
+                    }),
+                    id: Some(request_id),
+                };
+            }
+        };
+
+        let config_name = &params.configuration_name;
+
+        let configuration = match serde_json::from_value::<
+            crate::config::fitness_config::FitnessConfig,
+        >(params.configuration)
+        {
+            Ok(fc) => fc,
+            Err(e) => {
+                return McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INVALID_PARAMS,
+                        message: format!("Invalid configuration format: {e}"),
                         data: None,
                     }),
                     id: Some(request_id),
@@ -1126,18 +1141,23 @@ impl ToolHandlers {
         user_id: &str,
         database: &crate::database_plugins::factory::Database,
     ) -> McpResponse {
-        let Some(config_name) = args.get("configuration_name").and_then(|v| v.as_str()) else {
-            return McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_owned(),
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_INVALID_PARAMS,
-                    message: "Missing configuration_name parameter".to_owned(),
-                    data: None,
-                }),
-                id: Some(request_id),
-            };
+        let params = match serde_json::from_value::<json_schemas::DeleteFitnessConfigParams>(args) {
+            Ok(p) => p,
+            Err(e) => {
+                return McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INVALID_PARAMS,
+                        message: format!("Invalid parameters: {e}"),
+                        data: None,
+                    }),
+                    id: Some(request_id),
+                };
+            }
         };
+
+        let config_name = &params.configuration_name;
 
         match database
             .delete_fitness_config(tenant_id, Some(user_id), config_name)

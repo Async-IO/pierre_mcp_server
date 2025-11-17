@@ -4,8 +4,14 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+use crate::errors::JsonResultExt;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
+use crate::types::json_schemas::{
+    AnalyzePerformanceTrendsParams, AnalyzeTrainingLoadParams, CalculateFitnessScoreParams,
+    CompareActivitiesParams, DetectPatternsParams, GenerateRecommendationsParams,
+    GetActivityIntelligenceParams, PredictPerformanceParams,
+};
 use chrono::{Duration, Utc};
 use std::future::Future;
 use std::pin::Pin;
@@ -827,13 +833,10 @@ pub fn handle_get_activity_intelligence(
         use crate::constants::oauth_providers;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
-        let activity_id = request
-            .parameters
-            .get("activity_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ProtocolError::InvalidRequest("Missing required parameter: activity_id".to_owned())
-            })?;
+        let params: GetActivityIntelligenceParams =
+            serde_json::from_value(request.parameters.clone())
+                .json_context("get_activity_intelligence parameters")
+                .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -848,10 +851,13 @@ pub fn handle_get_activity_intelligence(
         {
             Ok(Some(token_data)) => {
                 let provider = create_authenticated_provider(executor, &token_data).await?;
-                Ok(
-                    fetch_and_analyze_activity(provider, activity_id, user_uuid, request.tenant_id)
-                        .await,
+                Ok(fetch_and_analyze_activity(
+                    provider,
+                    &params.activity_id,
+                    user_uuid,
+                    request.tenant_id,
                 )
+                .await)
             }
             Ok(None) => Ok(build_no_token_response()),
             Err(e) => Ok(UniversalResponse {
@@ -874,17 +880,12 @@ pub fn handle_analyze_performance_trends(
         use crate::constants::oauth_providers;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
+        let params: AnalyzePerformanceTrendsParams =
+            serde_json::from_value(request.parameters.clone())
+                .json_context("analyze_performance_trends parameters")
+                .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
-        let metric = request
-            .parameters
-            .get("metric")
-            .and_then(|v| v.as_str())
-            .unwrap_or("pace");
-        let timeframe = request
-            .parameters
-            .get("timeframe")
-            .and_then(|v| v.as_str())
-            .unwrap_or("month");
 
         match executor
             .auth_service
@@ -897,7 +898,15 @@ pub fn handle_analyze_performance_trends(
         {
             Ok(Some(token_data)) => {
                 let provider = create_authenticated_provider(executor, &token_data).await?;
-                Ok(fetch_and_analyze_trends(provider, metric, timeframe, user_uuid).await)
+                Ok(
+                    fetch_and_analyze_trends(
+                        provider,
+                        &params.metric,
+                        &params.timeframe,
+                        user_uuid,
+                    )
+                    .await,
+                )
             }
             Ok(None) => Ok(build_no_token_response()),
             Err(e) => Ok(UniversalResponse {
@@ -987,23 +996,11 @@ pub fn handle_compare_activities(
         use crate::constants::oauth_providers;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
+        let params: CompareActivitiesParams = serde_json::from_value(request.parameters.clone())
+            .json_context("compare_activities parameters")
+            .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
-        let activity_id = request
-            .parameters
-            .get("activity_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ProtocolError::InvalidRequest("Missing required parameter: activity_id".to_owned())
-            })?;
-        let comparison_type = request
-            .parameters
-            .get("comparison_type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("similar_activities");
-        let compare_activity_id = request
-            .parameters
-            .get("compare_activity_id")
-            .and_then(|v| v.as_str());
 
         match executor
             .auth_service
@@ -1037,9 +1034,9 @@ pub fn handle_compare_activities(
 
                 Ok(execute_activity_comparison(
                     provider,
-                    activity_id,
-                    comparison_type,
-                    compare_activity_id,
+                    &params.activity_id,
+                    &params.comparison_type,
+                    params.compare_activity_id.as_deref(),
                     user_uuid,
                 )
                 .await)
@@ -1070,14 +1067,11 @@ pub fn handle_detect_patterns(
         use crate::constants::oauth_providers;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
+        let params: DetectPatternsParams = serde_json::from_value(request.parameters.clone())
+            .json_context("detect_patterns parameters")
+            .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
-        let pattern_type = request
-            .parameters
-            .get("pattern_type")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ProtocolError::InvalidRequest("Missing required parameter: pattern_type".to_owned())
-            })?;
 
         match executor
             .auth_service
@@ -1090,7 +1084,7 @@ pub fn handle_detect_patterns(
         {
             Ok(Some(token_data)) => {
                 let provider = create_authenticated_provider(executor, &token_data).await?;
-                Ok(fetch_and_detect_patterns(provider, pattern_type, user_uuid).await)
+                Ok(fetch_and_detect_patterns(provider, &params.pattern_type, user_uuid).await)
             }
             Ok(None) => Ok(build_no_token_response()),
             Err(e) => Ok(UniversalResponse {
@@ -1114,12 +1108,12 @@ pub fn handle_generate_recommendations(
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
+        let params: GenerateRecommendationsParams =
+            serde_json::from_value(request.parameters.clone())
+                .json_context("generate_recommendations parameters")
+                .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
-        let recommendation_type = request
-            .parameters
-            .get("recommendation_type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("all");
 
         match executor
             .auth_service
@@ -1153,7 +1147,8 @@ pub fn handle_generate_recommendations(
 
                 match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
                     Ok(activities) => {
-                        let analysis = generate_training_recommendations(&activities, recommendation_type);
+                        let analysis =
+                            generate_training_recommendations(&activities, &params.recommendation_type);
 
                         Ok(UniversalResponse {
                             success: true,
@@ -1204,12 +1199,12 @@ pub fn handle_calculate_fitness_score(
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
+        let params: CalculateFitnessScoreParams =
+            serde_json::from_value(request.parameters.clone())
+                .json_context("calculate_fitness_score parameters")
+                .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
-        let timeframe = request
-            .parameters
-            .get("timeframe")
-            .and_then(|v| v.as_str())
-            .unwrap_or("month");
 
         match executor
             .auth_service
@@ -1243,7 +1238,7 @@ pub fn handle_calculate_fitness_score(
 
                 match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
                     Ok(activities) => {
-                        let analysis = calculate_fitness_metrics(&activities, timeframe);
+                        let analysis = calculate_fitness_metrics(&activities, &params.timeframe);
 
                         Ok(UniversalResponse {
                             success: true,
@@ -1294,12 +1289,11 @@ pub fn handle_predict_performance(
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
+        let params: PredictPerformanceParams = serde_json::from_value(request.parameters.clone())
+            .json_context("predict_performance parameters")
+            .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
-        let target_sport = request
-            .parameters
-            .get("target_sport")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Run");
 
         match executor
             .auth_service
@@ -1333,7 +1327,7 @@ pub fn handle_predict_performance(
 
                 match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
                     Ok(activities) => {
-                        let prediction = predict_race_performance(&activities, target_sport);
+                        let prediction = predict_race_performance(&activities, &params.target_sport);
 
                         Ok(UniversalResponse {
                             success: true,
@@ -1384,12 +1378,11 @@ pub fn handle_analyze_training_load(
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
+        let params: AnalyzeTrainingLoadParams = serde_json::from_value(request.parameters.clone())
+            .json_context("analyze_training_load parameters")
+            .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
+
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
-        let timeframe = request
-            .parameters
-            .get("timeframe")
-            .and_then(|v| v.as_str())
-            .unwrap_or("week");
 
         match executor
             .auth_service
@@ -1423,7 +1416,7 @@ pub fn handle_analyze_training_load(
 
                 match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
                     Ok(activities) => {
-                        let analysis = analyze_detailed_training_load(&activities, timeframe);
+                        let analysis = analyze_detailed_training_load(&activities, &params.timeframe);
 
                         Ok(UniversalResponse {
                             success: true,

@@ -4,6 +4,8 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+pub mod json_schemas;
+
 use std::fmt;
 use uuid::Uuid;
 

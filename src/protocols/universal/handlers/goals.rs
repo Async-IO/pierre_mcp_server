@@ -5,9 +5,13 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::database_plugins::DatabaseProvider;
+use crate::errors::JsonResultExt;
 use crate::intelligence::goal_engine::GoalEngineTrait;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
+use crate::types::json_schemas::{
+    AnalyzeGoalFeasibilityParams, SetGoalParams, TrackProgressParams,
+};
 use num_traits::ToPrimitive;
 use std::future::Future;
 use std::pin::Pin;
@@ -43,27 +47,13 @@ fn safe_f64_to_u32(val: f64) -> u32 {
 fn extract_feasibility_params(
     request: &UniversalRequest,
 ) -> Result<(String, f64, u32), ProtocolError> {
-    let goal_type = request
-        .parameters
-        .get("goal_type")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| ProtocolError::InvalidParameters("goal_type is required".into()))?
-        .to_owned();
+    let params: AnalyzeGoalFeasibilityParams = serde_json::from_value(request.parameters.clone())
+        .json_context("analyze_goal_feasibility parameters")
+        .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
 
-    let target_value = request
-        .parameters
-        .get("target_value")
-        .and_then(serde_json::Value::as_f64)
-        .ok_or_else(|| ProtocolError::InvalidParameters("target_value is required".into()))?;
-
-    let timeframe_days = request
-        .parameters
-        .get("timeframe_days")
-        .and_then(serde_json::Value::as_u64)
-        .and_then(|v| u32::try_from(v).ok())
-        .unwrap_or(
-            crate::intelligence::physiological_constants::goal_feasibility::DEFAULT_TIMEFRAME_DAYS,
-        );
+    let timeframe_days = params.timeframe_days.unwrap_or(
+        crate::intelligence::physiological_constants::goal_feasibility::DEFAULT_TIMEFRAME_DAYS,
+    );
 
     let effective_timeframe = if timeframe_days > crate::constants::limits::MAX_TIMEFRAME_DAYS {
         tracing::warn!(
@@ -75,7 +65,7 @@ fn extract_feasibility_params(
         timeframe_days
     };
 
-    Ok((goal_type, target_value, effective_timeframe))
+    Ok((params.goal_type, params.target_value, effective_timeframe))
 }
 
 /// Calculate feasibility score based on current level vs target
@@ -232,35 +222,11 @@ fn build_feasibility_response(params: &FeasibilityResponseParams) -> UniversalRe
 /// * `request` - Universal request containing goal parameters
 ///
 /// # Returns
-/// Tuple of (`goal_type`, `target_value`, `timeframe`, `title`)
-fn extract_goal_params(
-    request: &UniversalRequest,
-) -> Result<(&str, f64, &str, &str), ProtocolError> {
-    let goal_type = request
-        .parameters
-        .get("goal_type")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| ProtocolError::InvalidRequest("goal_type is required".to_owned()))?;
-
-    let target_value = request
-        .parameters
-        .get("target_value")
-        .and_then(serde_json::Value::as_f64)
-        .ok_or_else(|| ProtocolError::InvalidRequest("target_value is required".to_owned()))?;
-
-    let timeframe = request
-        .parameters
-        .get("timeframe")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| ProtocolError::InvalidRequest("timeframe is required".to_owned()))?;
-
-    let title = request
-        .parameters
-        .get("title")
-        .and_then(|v| v.as_str())
-        .unwrap_or("Fitness Goal");
-
-    Ok((goal_type, target_value, timeframe, title))
+/// `SetGoalParams` struct with validated parameters
+fn extract_goal_params(request: &UniversalRequest) -> Result<SetGoalParams, ProtocolError> {
+    serde_json::from_value(request.parameters.clone())
+        .json_context("set_goal parameters")
+        .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))
 }
 
 /// Build goal creation response
@@ -310,16 +276,16 @@ pub fn handle_set_goal(
     Box::pin(async move {
         use crate::utils::uuid::parse_user_id_for_protocol;
 
-        let (goal_type, target_value, timeframe, title) = extract_goal_params(&request)?;
+        let params = extract_goal_params(&request)?;
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Save goal to database
         let created_at = chrono::Utc::now();
         let goal_data = serde_json::json!({
-            "goal_type": goal_type,
-            "target_value": target_value,
-            "timeframe": timeframe,
-            "title": title,
+            "goal_type": params.goal_type,
+            "target_value": params.target_value,
+            "timeframe": params.timeframe,
+            "title": params.title,
             "created_at": created_at.to_rfc3339()
         });
 
@@ -330,10 +296,10 @@ pub fn handle_set_goal(
 
         Ok(build_goal_creation_response(
             &goal_id,
-            goal_type,
-            target_value,
-            timeframe,
-            title,
+            &params.goal_type,
+            params.target_value,
+            &params.timeframe,
+            &params.title,
             created_at,
         ))
     })
@@ -1278,22 +1244,23 @@ pub fn handle_track_progress(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        let goal_id = request
-            .parameters
-            .get("goal_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ProtocolError::InvalidParameters("goal_id is required".into()))?
-            .to_owned();
+        let params: TrackProgressParams = serde_json::from_value(request.parameters.clone())
+            .json_context("track_progress parameters")
+            .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
 
         let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
         // Fetch and validate goal
-        let details =
-            match fetch_and_validate_goal(&*executor.resources.database, user_uuid, &goal_id).await
-            {
-                Ok(d) => d,
-                Err(err_response) => return Ok(err_response),
-            };
+        let details = match fetch_and_validate_goal(
+            &*executor.resources.database,
+            user_uuid,
+            &params.goal_id,
+        )
+        .await
+        {
+            Ok(d) => d,
+            Err(err_response) => return Ok(err_response),
+        };
 
         let days_remaining = calculate_days_remaining(details.created_at, &details.timeframe);
 
@@ -1322,7 +1289,7 @@ pub fn handle_track_progress(
             calculate_projected_completion(current_value, details.goal_target, details.created_at);
 
         Ok(build_progress_response(&ProgressResponseParams {
-            goal_id: &goal_id,
+            goal_id: &params.goal_id,
             details: &details,
             current_value,
             unit,

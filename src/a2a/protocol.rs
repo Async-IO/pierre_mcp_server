@@ -14,6 +14,7 @@
 //! providing JSON-RPC 2.0 based communication between AI agents.
 
 use crate::database_plugins::DatabaseProvider;
+use crate::types::json_schemas;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -584,33 +585,40 @@ impl A2AServer {
     }
 
     async fn handle_task_create(&self, request: A2ARequest) -> A2AResponse {
-        // Extract client_id and task_type from request parameters
-        let params = request.params.as_ref().unwrap_or(&serde_json::Value::Null);
-        let client_id = params
-            .get("client_id")
-            .and_then(|v| v.as_str())
-            .unwrap_or_else(|| {
-                tracing::warn!("Missing client_id in A2A task request, using 'unknown'");
-                "unknown"
-            })
-            .to_owned();
-        let task_type = params
-            .get("task_type")
-            .or_else(|| params.get("type"))
-            .and_then(|v| v.as_str())
-            .unwrap_or_else(|| {
-                tracing::warn!("Missing task_type in A2A task request, using 'generic'");
-                "generic"
-            })
-            .to_owned();
+        // Parse request parameters using typed struct
+        let params_value = request.params.as_ref().unwrap_or(&serde_json::Value::Null);
+
+        let task_params =
+            match serde_json::from_value::<json_schemas::A2ATaskCreateParams>(params_value.clone())
+            {
+                Ok(params) => params,
+                Err(e) => {
+                    tracing::error!("Failed to parse A2A task create parameters: {}", e);
+                    return A2AResponse {
+                        jsonrpc: "2.0".into(),
+                        result: None,
+                        error: Some(A2AErrorResponse {
+                            code: -32602,
+                            message: format!("Invalid parameters: {e}"),
+                            data: None,
+                        }),
+                        id: request.id,
+                    };
+                }
+            };
+
+        let client_id = task_params.client_id;
+        let task_type = task_params.task_type;
 
         // Persist task to database and get generated task_id
         let task_id = if let Some(resources) = &self.resources {
             let database = &resources.database;
             match database
                 .create_a2a_task(
-                    &client_id, None, // session_id - optional
-                    &task_type, params,
+                    &client_id,
+                    None, // session_id - optional
+                    &task_type,
+                    params_value,
                 )
                 .await
             {
@@ -647,7 +655,7 @@ impl A2AServer {
             error: None,
             client_id,
             task_type,
-            input_data: params.clone(), // Safe: JSON value ownership for task input
+            input_data: params_value.clone(), // Safe: JSON value ownership for task input
             output_data: None,
             error_message: None,
             updated_at: chrono::Utc::now(),
@@ -709,16 +717,29 @@ impl A2AServer {
         // Query database for actual task data if available
         if let Some(resources) = &self.resources {
             let database = &resources.database;
-            // Extract task_id from validated params
-            let task_id = request
-                .params
-                .as_ref()
-                .and_then(|params| params.get("task_id"))
-                .and_then(|v| v.as_str())
-                .unwrap_or_else(|| {
-                    tracing::error!("Missing task_id parameter after validation");
-                    "" // Return empty string, which will cause database lookup to fail gracefully
-                });
+            // Parse task_id from validated params using typed struct
+            let params_value = request.params.as_ref().unwrap_or(&serde_json::Value::Null);
+
+            let task_params = match serde_json::from_value::<json_schemas::A2ATaskGetParams>(
+                params_value.clone(),
+            ) {
+                Ok(params) => params,
+                Err(e) => {
+                    tracing::error!("Failed to parse A2A task get parameters: {}", e);
+                    return A2AResponse {
+                        jsonrpc: "2.0".into(),
+                        result: None,
+                        error: Some(A2AErrorResponse {
+                            code: -32602,
+                            message: format!("Invalid parameters: {e}"),
+                            data: None,
+                        }),
+                        id: request.id,
+                    };
+                }
+            };
+
+            let task_id = &task_params.task_id;
 
             // Get task from database
             match database.get_a2a_task(task_id).await {
@@ -774,41 +795,35 @@ impl A2AServer {
         // Query database for actual tasks if available
         if let Some(resources) = &self.resources {
             let database = &resources.database;
-            // Extract optional parameters
-            let client_id = request
-                .params
-                .as_ref()
-                .and_then(|params| params.get("client_id"))
-                .and_then(|v| v.as_str());
+            // Parse list parameters using typed struct (with defaults for missing fields)
+            let params_value = request.params.as_ref().unwrap_or(&serde_json::Value::Null);
 
-            let status_filter = request
-                .params
-                .as_ref()
-                .and_then(|params| params.get("status"))
-                .and_then(|v| v.as_str())
-                .and_then(|status_str| match status_str {
-                    "pending" => Some(TaskStatus::Pending),
-                    "running" => Some(TaskStatus::Running),
-                    "completed" => Some(TaskStatus::Completed),
-                    "failed" => Some(TaskStatus::Failed),
-                    "cancelled" => Some(TaskStatus::Cancelled),
-                    _ => None,
-                });
+            let list_params =
+                serde_json::from_value::<json_schemas::A2ATaskListParams>(params_value.clone())
+                    .unwrap_or(json_schemas::A2ATaskListParams {
+                        client_id: None,
+                        status: None,
+                        limit: 20,
+                        offset: None,
+                    });
 
-            let limit = request
-                .params
-                .as_ref()
-                .and_then(|params| params.get("limit"))
-                .and_then(serde_json::Value::as_u64)
-                .and_then(|l| u32::try_from(l).ok())
-                .or(Some(20)); // Default limit of 20
+            let client_id = list_params.client_id.as_deref();
+            let limit = Some(list_params.limit);
+            let offset = list_params.offset;
 
-            let offset = request
-                .params
-                .as_ref()
-                .and_then(|params| params.get("offset"))
-                .and_then(serde_json::Value::as_u64)
-                .and_then(|o| u32::try_from(o).ok());
+            // Parse status string into enum if provided
+            let status_filter =
+                list_params
+                    .status
+                    .as_deref()
+                    .and_then(|status_str| match status_str {
+                        "pending" => Some(TaskStatus::Pending),
+                        "running" => Some(TaskStatus::Running),
+                        "completed" => Some(TaskStatus::Completed),
+                        "failed" => Some(TaskStatus::Failed),
+                        "cancelled" => Some(TaskStatus::Cancelled),
+                        _ => None,
+                    });
 
             // Query database for tasks
             match database
