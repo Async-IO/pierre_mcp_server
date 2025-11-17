@@ -33,7 +33,7 @@ TOTAL_TASKS=0
 
 # Count tasks (all mandatory now)
 count_tasks() {
-    echo 11  # Mandatory tasks: cleanup, static analysis, fmt, clippy, deny, tests, frontend, mcp, sdk, bridge, release+docs
+    echo 12  # Mandatory tasks: cleanup, static analysis, fmt, clippy, deny, sdk-build, tests, frontend, mcp, sdk-validation, bridge, release+docs
 }
 
 # Print task header
@@ -359,7 +359,7 @@ if [ "$VALIDATION_FAILED" = true ]; then
     fi
 
     ALL_PASSED=false
-    exit 1
+    # Continue to final validation
 else
     echo -e "${GREEN}[OK] All static analysis checks passed${NC}"
 fi
@@ -375,7 +375,7 @@ else
     echo -e "${RED}[CRITICAL] Rust code formatting check failed${NC}"
     echo -e "${RED}Run 'cargo fmt --all' to fix formatting issues${NC}"
     ALL_PASSED=false
-    exit 1
+    # Continue to final validation
 fi
 
 print_task "Cargo clippy + build (zero tolerance linting)"
@@ -427,7 +427,7 @@ else
         echo -e "${RED}Zero tolerance policy: fix all warnings and re-run${NC}"
     fi
     ALL_PASSED=false
-    exit 1
+    # Continue to final validation
 fi
 
 print_task "Cargo deny (security audit)"
@@ -460,6 +460,49 @@ else
     echo -e "${YELLOW}Install with: cargo install cargo-deny${NC}"
 fi
 
+# ============================================================================
+# SDK BUILD (Required before tests)
+# ============================================================================
+# The sdk/dist/ folder is in .gitignore, so it must be built locally.
+# Tests like test_http_transport_tools_list_parity require sdk/dist/cli.js
+# ============================================================================
+
+print_task "Building TypeScript SDK (required for tests)"
+
+if [ -d "sdk" ]; then
+    echo -e "${BLUE}Building SDK at sdk/${NC}"
+    cd sdk
+
+    # Install dependencies if node_modules doesn't exist
+    if [ ! -d "node_modules" ]; then
+        echo -e "${BLUE}Installing SDK dependencies...${NC}"
+        if command_exists npm; then
+            npm install
+        else
+            echo -e "${RED}[FAIL] npm not found. Install Node.js to build SDK${NC}"
+            ALL_PASSED=false
+            # exit 1 removed - let script reach final validation
+        fi
+    fi
+
+    # Build TypeScript to JavaScript
+    echo -e "${BLUE}Compiling TypeScript...${NC}"
+    npm run build
+
+    # Verify build output
+    if [ -f "dist/cli.js" ]; then
+        echo -e "${GREEN}[OK] SDK built successfully: sdk/dist/cli.js${NC}"
+    else
+        echo -e "${RED}[FAIL] SDK build failed: sdk/dist/cli.js not found${NC}"
+        ALL_PASSED=false
+        # exit 1 removed - let script reach final validation
+    fi
+
+    cd "$PROJECT_ROOT"
+else
+    echo -e "${YELLOW}[WARN] SDK directory not found, skipping SDK build${NC}"
+fi
+
 print_task "Cargo test (all tests)"
 
 # Clean test databases
@@ -487,7 +530,6 @@ if [ "$ENABLE_COVERAGE" = true ]; then
         else
             echo -e "${RED}[FAIL] Some tests failed${NC}"
             ALL_PASSED=false
-            exit 1
         fi
     else
         echo -e "${YELLOW}[WARN] cargo-llvm-cov not installed${NC}"
@@ -497,7 +539,6 @@ if [ "$ENABLE_COVERAGE" = true ]; then
         else
             echo -e "${RED}[FAIL] Some tests failed${NC}"
             ALL_PASSED=false
-            exit 1
         fi
     fi
 else
@@ -506,7 +547,7 @@ else
     else
         echo -e "${RED}[FAIL] Some tests failed${NC}"
         ALL_PASSED=false
-        exit 1
+        # exit 1 removed - let script reach final validation
     fi
 fi
 
@@ -580,7 +621,7 @@ if [ -f "$SCRIPT_DIR/ensure_mcp_compliance.sh" ]; then
 else
     echo -e "${RED}[CRITICAL] MCP compliance script not found: $SCRIPT_DIR/ensure_mcp_compliance.sh${NC}"
     ALL_PASSED=false
-    exit 1
+    # exit 1 removed - let script reach final validation
 fi
 
 # ============================================================================
@@ -591,7 +632,7 @@ print_task "SDK TypeScript validation + integration tests"
 if [ ! -d "sdk" ]; then
     echo -e "${RED}[CRITICAL] SDK directory not found${NC}"
     ALL_PASSED=false
-    exit 1
+    # exit 1 removed - let script reach final validation
 fi
 
 cd sdk
@@ -636,12 +677,12 @@ if [ -f "package.json" ] && grep -q "generate-types" package.json; then
     else
         echo -e "${RED}[CRITICAL] SDK dependencies not installed - run 'cd sdk && npm install'${NC}"
         ALL_PASSED=false
-        exit 1
+        # Continue to final validation
     fi
 else
     echo -e "${RED}[CRITICAL] SDK generate-types script not found in package.json${NC}"
     ALL_PASSED=false
-    exit 1
+    # Continue to final validation
 fi
 
 cd ..
@@ -661,7 +702,7 @@ if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
 else
     echo -e "${RED}[CRITICAL] Bridge test script not found: $SCRIPT_DIR/run_bridge_tests.sh${NC}"
     ALL_PASSED=false
-    exit 1
+    # Continue to final validation
 fi
 
 # ============================================================================

@@ -84,7 +84,7 @@ async fn test_admin_authentication_flow() {
             .bind(true)
             .bind(chrono::Utc::now())
             .bind(0)
-            .execute(sqlite_db.inner().pool())
+            .execute(sqlite_db.pool())
             .await
             .unwrap();
         }

@@ -184,7 +184,7 @@ impl Database {
     /// Returns an error if:
     /// - Database query fails
     /// - Decryption fails for any token
-    pub async fn get_user_oauth_tokens(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>> {
+    pub async fn get_user_oauth_tokens_impl(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>> {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
@@ -271,7 +271,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()> {
+    pub async fn delete_user_oauth_tokens_impl(&self, user_id: Uuid) -> Result<()> {
         sqlx::query(
             r"
             DELETE FROM user_oauth_tokens
@@ -377,5 +377,22 @@ impl Database {
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
         })
+    }
+    // Public wrapper methods (delegate to _impl versions)
+
+    /// Get user OAuth tokens (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_user_oauth_tokens(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>> {
+        self.get_user_oauth_tokens_impl(user_id).await
+    }
+
+    /// Delete user OAuth tokens (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()> {
+        self.delete_user_oauth_tokens_impl(user_id).await
     }
 }

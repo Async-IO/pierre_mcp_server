@@ -8,7 +8,7 @@
 //! This module provides `PostgreSQL` support for cloud deployments,
 //! implementing the same interface as the `SQLite` version.
 
-use super::DatabaseProvider;
+use super::{shared, DatabaseProvider};
 use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
@@ -17,6 +17,7 @@ use crate::constants::oauth_providers;
 use crate::constants::tiers;
 use crate::database::errors::DatabaseError;
 use crate::database::A2AUsage;
+use crate::database_plugins::shared::encryption::HasEncryption;
 use crate::errors::AppError;
 use crate::models::{User, UserTier};
 use crate::rate_limiting::JwtUsage;
@@ -33,6 +34,7 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct PostgresDatabase {
     pool: Pool<Postgres>,
+    encryption_key: Vec<u8>,
 }
 
 impl PostgresDatabase {
@@ -42,40 +44,8 @@ impl PostgresDatabase {
     }
 
     /// Helper function to parse User from database row
-    fn parse_user_from_row(row: &sqlx::postgres::PgRow) -> User {
-        use sqlx::Row;
-
-        let user_status_str: String = row.get("user_status");
-        let user_status = match user_status_str.as_str() {
-            "pending" => crate::models::UserStatus::Pending,
-            "suspended" => crate::models::UserStatus::Suspended,
-            _ => crate::models::UserStatus::Active,
-        };
-
-        User {
-            id: row.get("id"),
-            email: row.get("email"),
-            display_name: row.get("display_name"),
-            password_hash: row.get("password_hash"),
-            tier: {
-                let tier_str: String = row.get("tier");
-                match tier_str.as_str() {
-                    tiers::PROFESSIONAL => UserTier::Professional,
-                    tiers::ENTERPRISE => UserTier::Enterprise,
-                    _ => UserTier::Starter,
-                }
-            },
-            tenant_id: row.get("tenant_id"),
-            strava_token: None,
-            fitbit_token: None,
-            is_active: row.get("is_active"),
-            user_status,
-            is_admin: row.try_get("is_admin").unwrap_or(false),
-            approved_by: row.get("approved_by"),
-            approved_at: row.get("approved_at"),
-            created_at: row.get("created_at"),
-            last_active: row.get("last_active"),
-        }
+    fn parse_user_from_row(row: &sqlx::postgres::PgRow) -> Result<User> {
+        shared::mappers::parse_user_from_row(row)
     }
 
     /// Helper function to build A2A tasks query with dynamic filters
@@ -133,73 +103,20 @@ impl PostgresDatabase {
 
     /// Helper function to parse A2A task from database row
     fn parse_a2a_task_from_row(row: &sqlx::postgres::PgRow) -> Result<A2ATask> {
-        use sqlx::Row;
-
-        let task_id: String = row.try_get("task_id")?;
-        let input_str: String = row.try_get("input_data")?;
-        let input_data: Value = serde_json::from_str(&input_str).unwrap_or_else(|e| {
-            tracing::warn!(
-                task_id = %task_id,
-                error = %e,
-                "Failed to deserialize A2A task input_data, using null"
-            );
-            Value::Null
-        });
-
-        let result_data =
-            row.try_get::<Option<String>, _>("result_data")
-                .map_or(None, |result_str| {
-                    result_str.and_then(|s| {
-                        serde_json::from_str(&s)
-                            .inspect_err(|e| {
-                                tracing::warn!(
-                                    task_id = %task_id,
-                                    error = %e,
-                                    "Failed to deserialize A2A task result_data"
-                                );
-                            })
-                            .ok()
-                    })
-                });
-
-        let status_str: String = row.try_get("status")?;
-        let status = match status_str.as_str() {
-            "running" => TaskStatus::Running,
-            "completed" => TaskStatus::Completed,
-            "failed" => TaskStatus::Failed,
-            "cancelled" => TaskStatus::Cancelled,
-            _ => TaskStatus::Pending,
-        };
-
-        Ok(A2ATask {
-            id: task_id,
-            status,
-            created_at: row.try_get("created_at")?,
-            completed_at: row.try_get("updated_at")?,
-            result: result_data.clone(), // Safe: JSON value ownership for A2ATask struct
-            error: row.try_get("method")?,
-            client_id: row
-                .try_get("client_id")
-                .unwrap_or_else(|_| "unknown".into()),
-            task_type: row.try_get("task_type")?,
-            input_data,
-            output_data: result_data,
-            error_message: row.try_get("method")?,
-            updated_at: row.try_get("updated_at")?,
-        })
+        shared::mappers::parse_a2a_task_from_row(row)
     }
 }
 
 impl PostgresDatabase {
-    /// Create new `PostgreSQL` database with provided pool configuration
+    /// Create new `PostgreSQL` database with provided pool configuration (internal implementation)
     /// This is called by the Database factory with centralized `ServerConfig`
     ///
     /// # Errors
     ///
     /// Returns an error if database connection or pool configuration fails
-    pub async fn new(
+    async fn new_impl(
         database_url: &str,
-        _encryption_key: Vec<u8>,
+        encryption_key: Vec<u8>,
         pool_config: &crate::config::environment::PostgresPoolConfig,
     ) -> Result<Self> {
         // Use pool configuration from ServerConfig (read once at startup)
@@ -224,12 +141,29 @@ impl PostgresDatabase {
                 format!("Failed to connect to PostgreSQL with {max_connections} max connections")
             })?;
 
-        let db = Self { pool };
+        let db = Self {
+            pool,
+            encryption_key,
+        };
 
         // Run migrations
         db.migrate().await?;
 
         Ok(db)
+    }
+
+    /// Create new `PostgreSQL` database with provided pool configuration (public API)
+    /// This is called by the Database factory with centralized `ServerConfig`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database connection or pool configuration fails
+    pub async fn new(
+        database_url: &str,
+        encryption_key: Vec<u8>,
+        pool_config: &crate::config::environment::PostgresPoolConfig,
+    ) -> Result<Self> {
+        Self::new_impl(database_url, encryption_key, pool_config).await
     }
 }
 
@@ -239,7 +173,7 @@ impl DatabaseProvider for PostgresDatabase {
         // Use default pool configuration when called through trait
         // In practice, the Database factory calls the inherent impl's new() directly with config
         let pool_config = crate::config::environment::PostgresPoolConfig::default();
-        Self::new(database_url, encryption_key, &pool_config).await
+        Self::new_impl(database_url, encryption_key, &pool_config).await
     }
 
     async fn migrate(&self) -> Result<()> {
@@ -269,19 +203,11 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&user.email)
         .bind(&user.display_name)
         .bind(&user.password_hash)
-        .bind(match user.tier {
-            UserTier::Starter => tiers::STARTER,
-            UserTier::Professional => tiers::PROFESSIONAL,
-            UserTier::Enterprise => tiers::ENTERPRISE,
-        })
+        .bind(shared::enums::user_tier_to_str(&user.tier))
         .bind(&user.tenant_id)
         .bind(user.is_active)
         .bind(user.is_admin)
-        .bind(match user.user_status {
-            crate::models::UserStatus::Active => "active",
-            crate::models::UserStatus::Pending => "pending",
-            crate::models::UserStatus::Suspended => "suspended",
-        })
+        .bind(shared::enums::user_status_to_str(&user.user_status))
         .bind(user.approved_by)
         .bind(user.approved_at)
         .bind(user.created_at)
@@ -327,11 +253,7 @@ impl DatabaseProvider for PostgresDatabase {
                     is_active: row.get("is_active"),
                     user_status: {
                         let status_str: String = row.get("user_status");
-                        match status_str.as_str() {
-                            "pending" => crate::models::UserStatus::Pending,
-                            "suspended" => crate::models::UserStatus::Suspended,
-                            _ => crate::models::UserStatus::Active,
-                        }
+                        shared::enums::str_to_user_status(&status_str)
                     },
                     is_admin: row.get("is_admin"),
                     approved_by: row.get("approved_by"),
@@ -378,11 +300,7 @@ impl DatabaseProvider for PostgresDatabase {
                     is_active: row.get("is_active"),
                     user_status: {
                         let status_str: String = row.get("user_status");
-                        match status_str.as_str() {
-                            "pending" => crate::models::UserStatus::Pending,
-                            "suspended" => crate::models::UserStatus::Suspended,
-                            _ => crate::models::UserStatus::Active,
-                        }
+                        shared::enums::str_to_user_status(&status_str)
                     },
                     is_admin: row.get("is_admin"),
                     approved_by: row.get("approved_by"),
@@ -561,7 +479,10 @@ impl DatabaseProvider for PostgresDatabase {
         };
 
         // Parse rows into User structs
-        let mut users: Vec<User> = rows.iter().map(Self::parse_user_from_row).collect();
+        let mut users: Vec<User> = rows
+            .iter()
+            .map(Self::parse_user_from_row)
+            .collect::<Result<Vec<_>>>()?;
 
         // Determine if there are more items
         let has_more = users.len() > params.limit;
@@ -587,11 +508,7 @@ impl DatabaseProvider for PostgresDatabase {
         new_status: crate::models::UserStatus,
         admin_token_id: &str,
     ) -> Result<User> {
-        let status_str = match new_status {
-            crate::models::UserStatus::Active => "active",
-            crate::models::UserStatus::Pending => "pending",
-            crate::models::UserStatus::Suspended => "suspended",
-        };
+        let status_str = shared::enums::user_status_to_str(&new_status);
 
         let admin_uuid =
             if new_status == crate::models::UserStatus::Active && !admin_token_id.is_empty() {
@@ -605,46 +522,6 @@ impl DatabaseProvider for PostgresDatabase {
         } else {
             None
         };
-
-        // First ensure the user_status column exists, create if needed
-        if let Err(e) = sqlx::query(
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS user_status TEXT DEFAULT 'active'",
-        )
-        .execute(&self.pool)
-        .await
-        {
-            tracing::error!(
-                table = "users",
-                column = "user_status",
-                error = %e,
-                "Schema migration failed: unable to add user_status column"
-            );
-        }
-
-        if let Err(e) = sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by TEXT")
-            .execute(&self.pool)
-            .await
-        {
-            tracing::error!(
-                table = "users",
-                column = "approved_by",
-                error = %e,
-                "Schema migration failed: unable to add approved_by column"
-            );
-        }
-
-        if let Err(e) =
-            sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ")
-                .execute(&self.pool)
-                .await
-        {
-            tracing::error!(
-                table = "users",
-                column = "approved_at",
-                error = %e,
-                "Schema migration failed: unable to add approved_at column"
-            );
-        }
 
         // Update user status
         sqlx::query(
@@ -1963,13 +1840,7 @@ impl DatabaseProvider for PostgresDatabase {
                     });
 
             let status_str: String = row.try_get("status")?;
-            let status = match status_str.as_str() {
-                "running" => TaskStatus::Running,
-                "completed" => TaskStatus::Completed,
-                "failed" => TaskStatus::Failed,
-                "cancelled" => TaskStatus::Cancelled,
-                _ => TaskStatus::Pending, // Default for unknown values (including "pending")
-            };
+            let status = shared::enums::str_to_task_status(&status_str);
 
             Ok(Some(A2ATask {
                 id: row.try_get("task_id")?,
@@ -2008,13 +1879,7 @@ impl DatabaseProvider for PostgresDatabase {
         }
 
         if let Some(status_val) = status_filter {
-            let status_str = match status_val {
-                TaskStatus::Pending => "pending",
-                TaskStatus::Running => "running",
-                TaskStatus::Completed => "completed",
-                TaskStatus::Failed => "failed",
-                TaskStatus::Cancelled => "cancelled",
-            };
+            let status_str = shared::enums::task_status_to_str(status_val);
             sql_query = sql_query.bind(status_str);
         }
 
@@ -2027,7 +1892,9 @@ impl DatabaseProvider for PostgresDatabase {
         }
 
         let rows = sql_query.fetch_all(&self.pool).await?;
-        rows.iter().map(Self::parse_a2a_task_from_row).collect()
+        rows.iter()
+            .map(Self::parse_a2a_task_from_row)
+            .collect::<Result<Vec<_>>>()
     }
 
     async fn update_a2a_task_status(
@@ -2037,13 +1904,7 @@ impl DatabaseProvider for PostgresDatabase {
         result: Option<&Value>,
         error: Option<&str>,
     ) -> Result<()> {
-        let status_str = match status {
-            TaskStatus::Pending => "pending",
-            TaskStatus::Running => "running",
-            TaskStatus::Completed => "completed",
-            TaskStatus::Failed => "failed",
-            TaskStatus::Cancelled => "cancelled",
-        };
+        let status_str = shared::enums::task_status_to_str(status);
 
         let result_json = result.map(serde_json::to_string).transpose()?;
 
@@ -2992,38 +2853,14 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
     ) -> Result<()> {
-        // Encrypt the client secret using proper AES-256-GCM
-        let encryption_manager = crate::security::TenantEncryptionManager::new(
-            // Use a deterministic key derived from tenant ID for consistency
-            ring::digest::digest(
-                &ring::digest::SHA256,
-                format!("oauth_secret_key_{}", credentials.tenant_id).as_bytes(),
-            )
-            .as_ref()
-            .try_into()
-            .map_err(|e| {
-                tracing::error!(
-                    tenant_id = %credentials.tenant_id,
-                    error = ?e,
-                    "Failed to create encryption key from SHA256 digest"
-                );
-                DatabaseError::EncryptionFailed {
-                    context: format!(
-                        "Failed to create encryption key for tenant {}: {:?}",
-                        credentials.tenant_id, e
-                    ),
-                }
-            })?,
+        // Encrypt the client secret using AES-256-GCM with AAD binding
+        // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
+        let aad_context = format!(
+            "{}|{}|tenant_oauth_credentials",
+            credentials.tenant_id, credentials.provider
         );
-
-        let encrypted_data = encryption_manager
-            .encrypt_tenant_data(credentials.tenant_id, &credentials.client_secret)
-            .map_err(|e| DatabaseError::EncryptionFailed {
-                context: format!("Failed to encrypt OAuth secret: {e}"),
-            })?;
-
-        let encrypted_secret = encrypted_data.data.as_bytes().to_vec();
-        let nonce = encrypted_data.metadata.key_version.to_le_bytes().to_vec();
+        let encrypted_secret =
+            self.encrypt_data_with_aad(&credentials.client_secret, &aad_context)?;
 
         // Convert scopes Vec<String> to PostgreSQL array format
         let scopes_array: Vec<&str> = credentials
@@ -3034,17 +2871,16 @@ impl DatabaseProvider for PostgresDatabase {
 
         sqlx::query(
             r"
-            INSERT INTO tenant_oauth_apps 
-                (tenant_id, provider, client_id, client_secret_encrypted, client_secret_nonce, 
+            INSERT INTO tenant_oauth_credentials
+                (tenant_id, provider, client_id, client_secret_encrypted,
                  redirect_uri, scopes, rate_limit_per_day, is_active)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
-            ON CONFLICT (tenant_id, provider) 
-            DO UPDATE SET 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+            ON CONFLICT (tenant_id, provider)
+            DO UPDATE SET
                 client_id = EXCLUDED.client_id,
                 client_secret_encrypted = EXCLUDED.client_secret_encrypted,
-                client_secret_nonce = EXCLUDED.client_secret_nonce,
                 redirect_uri = EXCLUDED.redirect_uri,
-                scope = EXCLUDED.scope,
+                scopes = EXCLUDED.scopes,
                 rate_limit_per_day = EXCLUDED.rate_limit_per_day,
                 updated_at = CURRENT_TIMESTAMP
             ",
@@ -3053,7 +2889,6 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&credentials.provider)
         .bind(&credentials.client_id)
         .bind(&encrypted_secret)
-        .bind(&nonce)
         .bind(&credentials.redirect_uri)
         .bind(&scopes_array)
         .bind(i32::try_from(credentials.rate_limit_per_day).unwrap_or(i32::MAX))
@@ -3071,60 +2906,30 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         tenant_id: Uuid,
     ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
-        let rows =
-            sqlx::query_as::<_, (String, String, Vec<u8>, Vec<u8>, String, Vec<String>, i32)>(
-                r"
-            SELECT provider, client_id, client_secret_encrypted, client_secret_nonce, 
+        let rows = sqlx::query_as::<_, (String, String, String, String, Vec<String>, i32)>(
+            r"
+            SELECT provider, client_id, client_secret_encrypted,
                    redirect_uri, scopes, rate_limit_per_day
-            FROM tenant_oauth_apps
+            FROM tenant_oauth_credentials
             WHERE tenant_id = $1 AND is_active = true
             ORDER BY provider
             ",
-            )
-            .bind(tenant_id)
-            .fetch_all(&self.pool)
-            .await?;
+        )
+        .bind(tenant_id)
+        .fetch_all(&self.pool)
+        .await?;
 
         let credentials = rows
             .into_iter()
             .map(
-                |(
-                    provider,
-                    client_id,
-                    encrypted_secret,
-                    nonce,
-                    redirect_uri,
-                    scopes,
-                    rate_limit,
-                )| {
-                    // Decrypt the client secret using proper AES-256-GCM
-                    let encryption_manager = crate::security::TenantEncryptionManager::new(
-                        ring::digest::digest(
-                            &ring::digest::SHA256,
-                            format!("oauth_secret_key_{tenant_id}").as_bytes(),
-                        )
-                        .as_ref()
-                        .try_into()
-                        .unwrap_or([0u8; 32]),
-                    );
+                |(provider, client_id, encrypted_secret, redirect_uri, scopes, rate_limit)| {
+                    // Decrypt the client secret using AAD binding
+                    // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
+                    let aad_context = format!("{tenant_id}|{provider}|tenant_oauth_credentials");
+                    let client_secret =
+                        self.decrypt_data_with_aad(&encrypted_secret, &aad_context)?;
 
-                    let encrypted_data = crate::security::EncryptedData {
-                        data: String::from_utf8_lossy(&encrypted_secret).to_string(),
-                        metadata: crate::security::EncryptionMetadata {
-                            key_version: u32::from_le_bytes(
-                                nonce.as_slice().try_into().unwrap_or([1, 0, 0, 0]),
-                            ),
-                            tenant_id: Some(tenant_id),
-                            algorithm: "AES-256-GCM".to_owned(),
-                            encrypted_at: chrono::Utc::now(),
-                        },
-                    };
-
-                    let client_secret = encryption_manager
-                        .decrypt_tenant_data(tenant_id, &encrypted_data)
-                        .unwrap_or_else(|_| "DECRYPTION_FAILED".to_owned());
-
-                    crate::tenant::TenantOAuthCredentials {
+                    Ok(crate::tenant::TenantOAuthCredentials {
                         tenant_id,
                         provider,
                         client_id,
@@ -3132,10 +2937,10 @@ impl DatabaseProvider for PostgresDatabase {
                         redirect_uri,
                         scopes,
                         rate_limit_per_day: u32::try_from(rate_limit).unwrap_or(0),
-                    }
+                    })
                 },
             )
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(credentials)
     }
@@ -3146,11 +2951,11 @@ impl DatabaseProvider for PostgresDatabase {
         tenant_id: Uuid,
         provider: &str,
     ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
-        let row = sqlx::query_as::<_, (String, Vec<u8>, Vec<u8>, String, Vec<String>, i32)>(
+        let row = sqlx::query_as::<_, (String, String, String, Vec<String>, i32)>(
             r"
-            SELECT client_id, client_secret_encrypted, client_secret_nonce, 
+            SELECT client_id, client_secret_encrypted,
                    redirect_uri, scopes, rate_limit_per_day
-            FROM tenant_oauth_apps
+            FROM tenant_oauth_credentials
             WHERE tenant_id = $1 AND provider = $2 AND is_active = true
             ",
         )
@@ -3160,47 +2965,11 @@ impl DatabaseProvider for PostgresDatabase {
         .await?;
 
         match row {
-            Some((client_id, encrypted_secret, nonce, redirect_uri, scopes, rate_limit)) => {
-                // Decrypt the client secret using proper AES-256-GCM
-                let encryption_manager = crate::security::TenantEncryptionManager::new(
-                    ring::digest::digest(
-                        &ring::digest::SHA256,
-                        format!("oauth_secret_key_{tenant_id}").as_bytes(),
-                    )
-                    .as_ref()
-                    .try_into()
-                    .map_err(|e| {
-                        tracing::error!(
-                            tenant_id = %tenant_id,
-                            provider = %provider,
-                            error = ?e,
-                            "Failed to create decryption key from SHA256 digest"
-                        );
-                        DatabaseError::DecryptionFailed {
-                            context: format!(
-                                "Failed to create decryption key for tenant {tenant_id}: {e:?}"
-                            ),
-                        }
-                    })?,
-                );
-
-                let encrypted_data = crate::security::EncryptedData {
-                    data: String::from_utf8_lossy(&encrypted_secret).to_string(),
-                    metadata: crate::security::EncryptionMetadata {
-                        key_version: u32::from_le_bytes(
-                            nonce.as_slice().try_into().unwrap_or([1, 0, 0, 0]),
-                        ),
-                        tenant_id: Some(tenant_id),
-                        algorithm: "AES-256-GCM".to_owned(),
-                        encrypted_at: chrono::Utc::now(),
-                    },
-                };
-
-                let client_secret = encryption_manager
-                    .decrypt_tenant_data(tenant_id, &encrypted_data)
-                    .map_err(|e| DatabaseError::DecryptionFailed {
-                        context: format!("Failed to decrypt OAuth secret: {e}"),
-                    })?;
+            Some((client_id, encrypted_secret, redirect_uri, scopes, rate_limit)) => {
+                // Decrypt the client secret using AAD binding
+                // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
+                let aad_context = format!("{tenant_id}|{provider}|tenant_oauth_credentials");
+                let client_secret = self.decrypt_data_with_aad(&encrypted_secret, &aad_context)?;
 
                 Ok(Some(crate::tenant::TenantOAuthCredentials {
                     tenant_id,
@@ -3821,7 +3590,14 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
-    // Long function: Complex audit query with dynamic filtering, pagination, and result mapping
+    /// Complex audit query with dynamic filtering, pagination, and exhaustive enum mapping
+    ///
+    /// JUSTIFICATION for `#[allow(clippy::too_many_lines)]`:
+    /// - Dynamic SQL query building with optional filters (`tenant_id`, `event_type`, `limit`)
+    /// - Exhaustive match for 25+ `AuditEventType` variants (cannot be extracted without loss of context)
+    /// - Exhaustive match for `AuditSeverity` variants
+    /// - Row-to-struct mapping with UUID parsing and JSON deserialization
+    /// - Refactoring would fragment audit event construction logic across multiple functions
     #[allow(clippy::too_many_lines)]
     async fn get_audit_events(
         &self,
@@ -3993,13 +3769,36 @@ impl DatabaseProvider for PostgresDatabase {
     // ================================
 
     async fn upsert_user_oauth_token(&self, token: &crate::models::UserOAuthToken) -> Result<()> {
+        // SECURITY: Encrypt OAuth tokens at rest with AAD binding (AES-256-GCM)
+        let encrypted_access_token = shared::encryption::encrypt_oauth_token(
+            self,
+            &token.access_token,
+            &token.tenant_id,
+            token.user_id,
+            &token.provider,
+        )?;
+
+        let encrypted_refresh_token = token
+            .refresh_token
+            .as_ref()
+            .map(|rt| {
+                shared::encryption::encrypt_oauth_token(
+                    self,
+                    rt,
+                    &token.tenant_id,
+                    token.user_id,
+                    &token.provider,
+                )
+            })
+            .transpose()?;
+
         sqlx::query(
             r"
             INSERT INTO user_oauth_tokens (
                 id, user_id, tenant_id, provider, access_token, refresh_token,
                 token_type, expires_at, scope, created_at, updated_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            ON CONFLICT (user_id, tenant_id, provider) 
+            ON CONFLICT (user_id, tenant_id, provider)
             DO UPDATE SET
                 id = EXCLUDED.id,
                 access_token = EXCLUDED.access_token,
@@ -4014,8 +3813,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(token.user_id)
         .bind(&token.tenant_id)
         .bind(&token.provider)
-        .bind(&token.access_token)
-        .bind(token.refresh_token.as_deref())
+        .bind(&encrypted_access_token)
+        .bind(encrypted_refresh_token.as_deref())
         .bind(&token.token_type)
         .bind(token.expires_at)
         .bind(token.scope.as_deref().unwrap_or(""))
@@ -4049,7 +3848,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         row.map_or_else(
             || Ok(None),
-            |row| Ok(Some(Self::row_to_user_oauth_token(&row)?)),
+            |row| Ok(Some(self.row_to_user_oauth_token(&row)?)),
         )
     }
 
@@ -4072,7 +3871,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         let mut tokens = Vec::with_capacity(rows.len());
         for row in rows {
-            tokens.push(Self::row_to_user_oauth_token(&row)?);
+            tokens.push(self.row_to_user_oauth_token(&row)?);
         }
         Ok(tokens)
     }
@@ -4098,7 +3897,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         let mut tokens = Vec::with_capacity(rows.len());
         for row in rows {
-            tokens.push(Self::row_to_user_oauth_token(&row)?);
+            tokens.push(self.row_to_user_oauth_token(&row)?);
         }
         Ok(tokens)
     }
@@ -4147,6 +3946,21 @@ impl DatabaseProvider for PostgresDatabase {
         refresh_token: Option<&str>,
         expires_at: Option<DateTime<Utc>>,
     ) -> Result<()> {
+        // SECURITY: Encrypt OAuth tokens at rest with AAD binding (AES-256-GCM)
+        let encrypted_access_token = shared::encryption::encrypt_oauth_token(
+            self,
+            access_token,
+            tenant_id,
+            user_id,
+            provider,
+        )?;
+
+        let encrypted_refresh_token = refresh_token
+            .map(|rt| {
+                shared::encryption::encrypt_oauth_token(self, rt, tenant_id, user_id, provider)
+            })
+            .transpose()?;
+
         sqlx::query(
             r"
             UPDATE user_oauth_tokens
@@ -4160,8 +3974,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(user_id)
         .bind(tenant_id)
         .bind(provider)
-        .bind(access_token)
-        .bind(refresh_token)
+        .bind(&encrypted_access_token)
+        .bind(encrypted_refresh_token.as_deref())
         .bind(expires_at)
         .execute(&self.pool)
         .await?;
@@ -5130,19 +4944,50 @@ impl DatabaseProvider for PostgresDatabase {
 }
 
 impl PostgresDatabase {
-    /// Convert database row to `UserOAuthToken`
+    /// Convert database row to `UserOAuthToken` with decryption
+    ///
+    /// SECURITY: Decrypts OAuth tokens from database storage (AES-256-GCM with AAD)
     fn row_to_user_oauth_token(
+        &self,
         row: &sqlx::postgres::PgRow,
     ) -> Result<crate::models::UserOAuthToken> {
         use sqlx::Row;
 
+        let user_id: uuid::Uuid = row.try_get("user_id")?;
+        let tenant_id: String = row.try_get("tenant_id")?;
+        let provider: String = row.try_get("provider")?;
+
+        // Decrypt access token
+        let encrypted_access_token: String = row.try_get("access_token")?;
+        let access_token = shared::encryption::decrypt_oauth_token(
+            self,
+            &encrypted_access_token,
+            &tenant_id,
+            user_id,
+            &provider,
+        )?;
+
+        // Decrypt refresh token (optional)
+        let refresh_token = row
+            .try_get::<Option<String>, _>("refresh_token")?
+            .map(|encrypted_rt| {
+                shared::encryption::decrypt_oauth_token(
+                    self,
+                    &encrypted_rt,
+                    &tenant_id,
+                    user_id,
+                    &provider,
+                )
+            })
+            .transpose()?;
+
         Ok(crate::models::UserOAuthToken {
             id: row.try_get("id")?,
-            user_id: row.try_get("user_id")?,
-            tenant_id: row.try_get("tenant_id")?,
-            provider: row.try_get("provider")?,
-            access_token: row.try_get("access_token")?,
-            refresh_token: row.try_get("refresh_token")?,
+            user_id,
+            tenant_id,
+            provider,
+            access_token,
+            refresh_token,
             token_type: row.try_get("token_type")?,
             expires_at: row.try_get("expires_at")?,
             scope: row.try_get("scope").ok(),
@@ -5590,7 +5435,15 @@ impl PostgresDatabase {
         Ok(())
     }
 
-    // Long function: Creates complete multi-tenant database schema with all required tables
+    /// Creates complete multi-tenant database schema with all required tables
+    ///
+    /// JUSTIFICATION for `#[allow(clippy::too_many_lines)]`:
+    /// - Creates 6 interdependent tables in a single atomic migration
+    /// - Each table has comprehensive schema: constraints, foreign keys, indexes, defaults
+    /// - Splitting into separate functions obscures the complete schema structure
+    /// - Database migrations benefit from having the full DDL in one location for review
+    /// - Tables: `tenants`, `tenant_oauth_credentials`, `tenant_users`, `tenant_provider_usage`,
+    ///   `oauth_apps`, `authorization_codes`, `user_oauth_tokens`
     #[allow(clippy::too_many_lines)]
     async fn create_tenant_tables(&self) -> Result<()> {
         // Create tenants table
@@ -5611,16 +5464,15 @@ impl PostgresDatabase {
         .execute(&self.pool)
         .await?;
 
-        // Create tenant_oauth_apps table
+        // Create tenant_oauth_credentials table
         sqlx::query(
             r"
-            CREATE TABLE IF NOT EXISTS tenant_oauth_apps (
+            CREATE TABLE IF NOT EXISTS tenant_oauth_credentials (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
                 provider VARCHAR(50) NOT NULL,
                 client_id VARCHAR(255) NOT NULL,
-                client_secret_encrypted BYTEA NOT NULL,
-                client_secret_nonce BYTEA NOT NULL,
+                client_secret_encrypted TEXT NOT NULL,
                 redirect_uri VARCHAR(500) NOT NULL,
                 scopes TEXT[] DEFAULT '{}',
                 rate_limit_per_day INTEGER DEFAULT 15000,
@@ -5807,7 +5659,7 @@ impl PostgresDatabase {
             .await?;
 
         // Tenant indexes
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_oauth_apps_tenant_provider ON tenant_oauth_apps(tenant_id, provider)")
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_oauth_credentials_tenant_provider ON tenant_oauth_credentials(tenant_id, provider)")
             .execute(&self.pool)
             .await?;
 
@@ -5836,5 +5688,95 @@ impl PostgresDatabase {
             .await?;
 
         Ok(())
+    }
+}
+
+// Implement encryption support for PostgreSQL (harmonize with SQLite security)
+impl shared::encryption::HasEncryption for PostgresDatabase {
+    /// Encrypt data using AES-256-GCM with Additional Authenticated Data
+    ///
+    /// This brings `PostgreSQL` to security parity with `SQLite`, which already
+    /// encrypts OAuth tokens at rest.
+    ///
+    /// # Security
+    /// - Uses AES-256-GCM (AEAD cipher) via ring crate
+    /// - Generates unique 96-bit nonce per encryption
+    /// - Binds AAD to prevent cross-tenant token reuse
+    /// - Output: base64(nonce || ciphertext || `auth_tag`)
+    fn encrypt_data_with_aad(&self, data: &str, aad_context: &str) -> Result<String> {
+        use base64::{engine::general_purpose, Engine as _};
+        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
+        use ring::rand::{SecureRandom, SystemRandom};
+
+        let rng = SystemRandom::new();
+
+        // Generate unique nonce (96 bits for GCM)
+        let mut nonce_bytes = [0u8; 12];
+        rng.fill(&mut nonce_bytes)?;
+        let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+
+        // Create encryption key
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let key = LessSafeKey::new(unbound_key);
+
+        // Encrypt data with AAD binding
+        let mut data_bytes = data.as_bytes().to_vec();
+        let aad = Aad::from(aad_context.as_bytes());
+        key.seal_in_place_append_tag(nonce, aad, &mut data_bytes)?;
+
+        // Combine nonce and encrypted data, then base64 encode
+        let mut combined = nonce_bytes.to_vec();
+        combined.extend(data_bytes);
+
+        Ok(general_purpose::STANDARD.encode(combined))
+    }
+
+    /// Decrypt data using AES-256-GCM with Additional Authenticated Data
+    ///
+    /// Reverses `encrypt_data_with_aad`. AAD context must match or decryption fails.
+    ///
+    /// # Security
+    /// - Verifies AAD matches (prevents token context switching)
+    /// - Authenticates ciphertext hasn't been tampered
+    /// - Fails safely on any mismatch/corruption
+    fn decrypt_data_with_aad(&self, encrypted_data: &str, aad_context: &str) -> Result<String> {
+        use base64::{engine::general_purpose, Engine as _};
+        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
+
+        // Decode from base64
+        let combined = general_purpose::STANDARD.decode(encrypted_data)?;
+
+        if combined.len() < 12 {
+            return Err(DatabaseError::QueryError {
+                context: "Invalid encrypted data: too short".to_owned(),
+            }
+            .into());
+        }
+
+        // Extract nonce and encrypted data
+        let (nonce_bytes, encrypted_bytes) = combined.split_at(12);
+        let nonce = Nonce::assume_unique_for_key(nonce_bytes.try_into()?);
+
+        // Create decryption key
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let key = LessSafeKey::new(unbound_key);
+
+        // Decrypt data with AAD verification
+        let mut decrypted_data = encrypted_bytes.to_vec();
+        let aad = Aad::from(aad_context.as_bytes());
+        let decrypted = key
+            .open_in_place(nonce, aad, &mut decrypted_data)
+            .map_err(|e| DatabaseError::QueryError {
+                context: format!(
+                    "Decryption failed (possible AAD mismatch or tampered data): {e:?}"
+                ),
+            })?;
+
+        String::from_utf8(decrypted.to_vec()).map_err(|e| {
+            DatabaseError::QueryError {
+                context: format!("Failed to convert decrypted data to string: {e}"),
+            }
+            .into()
+        })
     }
 }

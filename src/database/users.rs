@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use super::Database;
+use crate::database_plugins::shared;
 use crate::errors::AppError;
 use crate::models::{EncryptedToken, User, UserStatus};
 use crate::pagination::{Cursor, CursorPage, PaginationParams};
@@ -142,9 +143,9 @@ impl Database {
     /// - Database operation fails
     // Long function: Comprehensive user creation with validation, duplicate checking, and database-specific implementations
     #[allow(clippy::too_many_lines)]
-    pub async fn create_user(&self, user: &User) -> Result<Uuid> {
+    pub async fn create_user_impl(&self, user: &User) -> Result<Uuid> {
         // Check if user exists by email
-        let existing = self.get_user_by_email(&user.email).await?;
+        let existing = self.get_user_by_email_impl(&user.email).await?;
         if let Some(existing_user) = existing {
             if existing_user.id != user.id {
                 return Err(AppError::invalid_input("Email already in use by another user").into());
@@ -211,11 +212,7 @@ impl Database {
             .bind(fitbit_expires)
             .bind(fitbit_scope)
             .bind(user.is_active)
-            .bind(match user.user_status {
-                UserStatus::Pending => "pending",
-                UserStatus::Active => "active",
-                UserStatus::Suspended => "suspended",
-            })
+            .bind(shared::enums::user_status_to_str(&user.user_status))
             .bind(user.is_admin)
             .bind(user.approved_by.map(|id| id.to_string()))
             .bind(user.approved_at)
@@ -272,11 +269,7 @@ impl Database {
             .bind(fitbit_expires)
             .bind(fitbit_scope)
             .bind(user.is_active)
-            .bind(match user.user_status {
-                UserStatus::Pending => "pending",
-                UserStatus::Active => "active",
-                UserStatus::Suspended => "suspended",
-            })
+            .bind(shared::enums::user_status_to_str(&user.user_status))
             .bind(user.is_admin)
             .bind(user.approved_by.map(|id| id.to_string()))
             .bind(user.approved_at)
@@ -294,9 +287,9 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
+    pub async fn get_user_impl(&self, user_id: Uuid) -> Result<Option<User>> {
         let user_id_str = user_id.to_string();
-        self.get_user_impl("id", &user_id_str).await
+        self.get_user_by_field("id", &user_id_str).await
     }
 
     /// Get a user by ID (alias for compatibility)
@@ -305,7 +298,7 @@ impl Database {
     ///
     /// Returns an error if the database query fails
     pub async fn get_user_by_id(&self, user_id: Uuid) -> Result<Option<User>> {
-        self.get_user(user_id).await
+        self.get_user_impl(user_id).await
     }
 
     /// Get a user by email
@@ -313,8 +306,8 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
-        self.get_user_impl("email", email).await
+    pub async fn get_user_by_email_impl(&self, email: &str) -> Result<Option<User>> {
+        self.get_user_by_field("email", email).await
     }
 
     /// Get a user by email, returning an error if not found
@@ -324,14 +317,14 @@ impl Database {
     /// Returns an error if:
     /// - The database query fails
     /// - The user is not found
-    pub async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
-        self.get_user_by_email(email)
+    pub async fn get_user_by_email_required_impl(&self, email: &str) -> Result<User> {
+        self.get_user_by_email_impl(email)
             .await?
             .ok_or_else(|| AppError::not_found(format!("User with email: {email}")).into())
     }
 
     /// Internal implementation for getting a user
-    async fn get_user_impl(&self, field: &str, value: &str) -> Result<Option<User>> {
+    async fn get_user_by_field(&self, field: &str, value: &str) -> Result<Option<User>> {
         let query = format!(
             r"
             SELECT id, email, display_name, password_hash, tier, tenant_id,
@@ -365,11 +358,7 @@ impl Database {
         let tenant_id: Option<String> = row.get("tenant_id");
         let is_active: bool = row.get("is_active");
         let user_status_str: String = row.get("user_status");
-        let user_status = match user_status_str.as_str() {
-            "active" => UserStatus::Active,
-            "suspended" => UserStatus::Suspended,
-            _ => UserStatus::Pending, // Default fallback for "pending" and unknown values
-        };
+        let user_status = shared::enums::str_to_user_status(&user_status_str);
         let is_admin: bool = row.get("is_admin");
         let approved_by: Option<String> = row.get("approved_by");
         let approved_at: Option<chrono::DateTime<chrono::Utc>> = row.get("approved_at");
@@ -463,7 +452,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
+    pub async fn update_last_active_impl(&self, user_id: Uuid) -> Result<()> {
         sqlx::query("UPDATE users SET last_active = CURRENT_TIMESTAMP WHERE id = $1")
             .bind(user_id.to_string())
             .execute(&self.pool)
@@ -476,7 +465,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn get_user_count(&self) -> Result<i64> {
+    pub async fn get_user_count_impl(&self) -> Result<i64> {
         let count = sqlx::query_scalar("SELECT COUNT(*) FROM users")
             .fetch_one(&self.pool)
             .await?;
@@ -490,7 +479,7 @@ impl Database {
     /// Returns an error if:
     /// - The database query fails
     /// - JSON serialization fails
-    pub async fn upsert_user_profile(
+    pub async fn upsert_user_profile_impl(
         &self,
         user_id: Uuid,
         profile_data: serde_json::Value,
@@ -521,7 +510,7 @@ impl Database {
     /// Returns an error if:
     /// - The database query fails
     /// - JSON deserialization fails
-    pub async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<serde_json::Value>> {
+    pub async fn get_user_profile_impl(&self, user_id: Uuid) -> Result<Option<serde_json::Value>> {
         let row = sqlx::query(
             r"
             SELECT profile_data FROM user_profiles WHERE user_id = $1
@@ -549,7 +538,7 @@ impl Database {
         &self,
         user_id: Uuid,
     ) -> Result<Option<crate::intelligence::UserFitnessProfile>> {
-        self.get_user_profile(user_id).await?.map_or_else(
+        self.get_user_profile_impl(user_id).await?.map_or_else(
             || Ok(None),
             |profile_data| {
                 // Try to deserialize as UserFitnessProfile
@@ -597,7 +586,7 @@ impl Database {
         profile: &crate::intelligence::UserFitnessProfile,
     ) -> Result<()> {
         let profile_data = serde_json::to_value(profile)?;
-        self.upsert_user_profile(user_id, profile_data).await
+        self.upsert_user_profile_impl(user_id, profile_data).await
     }
 
     /// Get last sync timestamp for a provider
@@ -669,7 +658,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
+    pub async fn get_users_by_status_impl(&self, status: &str) -> Result<Vec<User>> {
         let rows =
             sqlx::query("SELECT * FROM users WHERE user_status = ?1 ORDER BY created_at DESC")
                 .bind(status)
@@ -800,11 +789,7 @@ impl Database {
         new_status: UserStatus,
         admin_token_id: &str,
     ) -> Result<User> {
-        let status_str = match new_status {
-            UserStatus::Pending => "pending",
-            UserStatus::Active => "active",
-            UserStatus::Suspended => "suspended",
-        };
+        let status_str = shared::enums::user_status_to_str(&new_status);
 
         let admin_uuid = if new_status == UserStatus::Active && !admin_token_id.is_empty() {
             Some(admin_token_id)
@@ -840,7 +825,7 @@ impl Database {
         }
 
         // Return updated user
-        self.get_user(user_id)
+        self.get_user_impl(user_id)
             .await?
             .ok_or_else(|| AppError::not_found("User after status update").into())
     }
@@ -850,7 +835,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the user is not found or database update fails
-    pub async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
+    pub async fn update_user_tenant_id_impl(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
         let query = sqlx::query(
             r"
             UPDATE users 
@@ -868,5 +853,90 @@ impl Database {
         }
 
         Ok(())
+    }
+    // Public wrapper methods (delegate to _impl versions)
+
+    /// Create a new user (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn create_user(&self, user: &User) -> Result<Uuid> {
+        self.create_user_impl(user).await
+    }
+
+    /// Get user by ID (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
+        self.get_user_impl(user_id).await
+    }
+
+    /// Get user by email (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
+        self.get_user_by_email_impl(email).await
+    }
+
+    /// Get user by email, returning error if not found (public API)
+    ///
+    /// # Errors
+    /// Returns error if user not found or database operation fails
+    pub async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
+        self.get_user_by_email_required_impl(email).await
+    }
+
+    /// Update user's last active timestamp (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
+        self.update_last_active_impl(user_id).await
+    }
+
+    /// Get total user count (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_user_count(&self) -> Result<i64> {
+        self.get_user_count_impl().await
+    }
+
+    /// Upsert user profile data (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn upsert_user_profile(
+        &self,
+        user_id: Uuid,
+        profile_data: serde_json::Value,
+    ) -> Result<()> {
+        self.upsert_user_profile_impl(user_id, profile_data).await
+    }
+
+    /// Get user profile data (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<serde_json::Value>> {
+        self.get_user_profile_impl(user_id).await
+    }
+
+    /// Get users by status (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
+        self.get_users_by_status_impl(status).await
+    }
+
+    /// Update user's tenant ID (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
+        self.update_user_tenant_id_impl(user_id, tenant_id).await
     }
 }

@@ -135,6 +135,7 @@ tempfile = "3.20"
 serial_test = "3.1"
 rand_chacha = "0.3"
 tokio-tungstenite = "0.24"
+criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
 
 # ============================================================================
 # Linting Configuration (Replaces bash script clippy invocation)

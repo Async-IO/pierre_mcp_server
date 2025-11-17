@@ -408,6 +408,57 @@ async fn test_tenant_isolation_protocol_level() -> Result<()> {
     Ok(())
 }
 
+/// Helper: Print rate limit test configuration
+fn print_rate_limit_config() {
+    println!("\n=== Rate Limiting Test Configuration ===");
+    println!("  - Attempted to set: Free tier burst = 5 requests");
+    println!("  - Attempted to set: Free tier sustained = 10 requests/minute");
+    println!("  - Test will make 15 requests per tenant\n");
+    println!("  Note: If another test already initialized config, limits may be default (100)");
+    println!("        This is expected due to Once initialization pattern");
+}
+
+/// Helper: Test burst requests for a tenant and return `(success_count, rate_limited)`
+async fn test_tenant_burst_requests(
+    server_url: &str,
+    token: &str,
+    tenant_name: &str,
+    request_count: u32,
+) -> Result<(u32, bool)> {
+    let mut success_count = 0;
+    let mut rate_limited = false;
+
+    println!("\n=== {tenant_name}: Burst Request Test ({request_count} requests) ===");
+    for i in 1..=request_count {
+        let result =
+            common::send_http_mcp_request(server_url, "tools/list", serde_json::json!({}), token)
+                .await;
+
+        match result {
+            Ok(_) => {
+                success_count += 1;
+            }
+            Err(e) => {
+                let error_str = format!("{e}");
+                if error_str.contains("429") || error_str.contains("rate limit") {
+                    println!("  - {tenant_name} request {i}: Rate limited (429) ✓");
+                    rate_limited = true;
+                    break;
+                }
+                return Err(e);
+            }
+        }
+    }
+
+    if rate_limited {
+        println!("✓ {tenant_name}: {success_count} successful requests before 429 rate limit");
+    } else {
+        println!("✓ {tenant_name}: {success_count} successful requests (no rate limit hit)");
+    }
+
+    Ok((success_count, rate_limited))
+}
+
 /// Test: Rate limiting per tenant isolation
 ///
 /// Scenario:
@@ -433,13 +484,7 @@ async fn test_rate_limiting_per_tenant_isolation() -> Result<()> {
     std::env::set_var("RATE_LIMIT_FREE_TIER_PER_MINUTE", "10");
 
     common::init_server_config();
-
-    println!("\n=== Rate Limiting Test Configuration ===");
-    println!("  - Attempted to set: Free tier burst = 5 requests");
-    println!("  - Attempted to set: Free tier sustained = 10 requests/minute");
-    println!("  - Test will make 15 requests per tenant\n");
-    println!("  Note: If another test already initialized config, limits may be default (100)");
-    println!("        This is expected due to Once initialization pattern");
+    print_rate_limit_config();
 
     // Create test server resources
     let resources = common::create_test_server_resources().await?;
@@ -461,78 +506,22 @@ async fn test_rate_limiting_per_tenant_isolation() -> Result<()> {
     println!("✓ HTTP MCP server spawned on port {}", server.port());
 
     // Make rapid burst of requests from Tenant A to trigger rate limiting
-    let mut tenant1_success_count = 0;
-    let mut tenant1_rate_limited = false;
-
-    println!("\n=== Tenant A: Burst Request Test (15 requests) ===");
-    for i in 1..=15 {
-        let result = common::send_http_mcp_request(
-            &server_url,
-            "tools/list",
-            serde_json::json!({}),
-            &token1,
-        )
-        .await;
-
-        match result {
-            Ok(_) => {
-                tenant1_success_count += 1;
-            }
-            Err(e) => {
-                let error_str = format!("{e}");
-                if error_str.contains("429") || error_str.contains("rate limit") {
-                    println!("  - Tenant A request {i}: Rate limited (429) ✓");
-                    tenant1_rate_limited = true;
-                    break;
-                }
-                return Err(e);
-            }
-        }
-    }
+    let (tenant1_success_count, tenant1_rate_limited) =
+        test_tenant_burst_requests(&server_url, &token1, "Tenant A", 15).await?;
 
     if tenant1_rate_limited {
-        println!("✓ Tenant A: {tenant1_success_count} successful requests before 429 rate limit");
         println!("✓ Tenant A triggered 429 rate limiting - custom limits were applied!");
     } else {
-        println!("✓ Tenant A: {tenant1_success_count} successful requests (no rate limit hit)");
         println!("  Note: Rate limit not triggered - likely using default limits (100 burst)");
     }
 
     // Make requests from Tenant B to verify isolation
-    let mut tenant2_success_count = 0;
-    let mut tenant2_rate_limited = false;
-
-    println!("\n=== Tenant B: Burst Request Test (15 requests) ===");
-    for i in 1..=15 {
-        let result = common::send_http_mcp_request(
-            &server_url,
-            "tools/list",
-            serde_json::json!({}),
-            &token2,
-        )
-        .await;
-
-        match result {
-            Ok(_) => {
-                tenant2_success_count += 1;
-            }
-            Err(e) => {
-                let error_str = format!("{e}");
-                if error_str.contains("429") || error_str.contains("rate limit") {
-                    println!("  - Tenant B request {i}: Rate limited (429) ✓");
-                    tenant2_rate_limited = true;
-                    break;
-                }
-                return Err(e);
-            }
-        }
-    }
+    let (tenant2_success_count, tenant2_rate_limited) =
+        test_tenant_burst_requests(&server_url, &token2, "Tenant B", 15).await?;
 
     if tenant2_rate_limited {
-        println!("✓ Tenant B: {tenant2_success_count} successful requests before 429 rate limit");
         println!("✓ Tenant B triggered 429 rate limiting independently");
     } else {
-        println!("✓ Tenant B: {tenant2_success_count} successful requests (no rate limit hit)");
         println!("  Note: Rate limit not triggered - likely using default limits (100 burst)");
     }
 

@@ -10,6 +10,7 @@ use crate::a2a::{
     client::A2ASession,
     protocol::{A2ATask, TaskStatus},
 };
+use crate::database_plugins::shared;
 use crate::errors::AppError;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -137,7 +138,6 @@ impl Database {
     /// Returns an error if database operations fail
     pub(super) async fn migrate_a2a(&self) -> Result<()> {
         self.create_a2a_clients_table().await?;
-        self.migrate_a2a_clients_columns().await?;
         self.create_a2a_sessions_table().await?;
         self.create_a2a_tasks_table().await?;
         self.create_a2a_usage_table().await?;
@@ -171,45 +171,6 @@ impl Database {
         )
         .execute(&self.pool)
         .await?;
-        Ok(())
-    }
-
-    /// Migrate `a2a_clients` table to add new columns
-    async fn migrate_a2a_clients_columns(&self) -> Result<()> {
-        // Add capabilities column if it doesn't exist (migration)
-        if let Err(e) = sqlx::query(
-            r"
-            ALTER TABLE a2a_clients ADD COLUMN capabilities TEXT DEFAULT '[]'
-            ",
-        )
-        .execute(&self.pool)
-        .await
-        {
-            tracing::debug!(
-                table = "a2a_clients",
-                column = "capabilities",
-                error = %e,
-                "Schema migration: capabilities column may already exist or migration failed"
-            );
-        }
-
-        // Add redirect_uris column if it doesn't exist (migration)
-        if let Err(e) = sqlx::query(
-            r"
-            ALTER TABLE a2a_clients ADD COLUMN redirect_uris TEXT DEFAULT '[]'
-            ",
-        )
-        .execute(&self.pool)
-        .await
-        {
-            tracing::debug!(
-                table = "a2a_clients",
-                column = "redirect_uris",
-                error = %e,
-                "Schema migration: redirect_uris column may already exist or migration failed"
-            );
-        }
-
         Ok(())
     }
 
@@ -404,7 +365,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns an error if database operations fail or JSON deserialization fails
-    pub async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
+    pub async fn get_a2a_client_impl(&self, client_id: &str) -> Result<Option<A2AClient>> {
         let row = sqlx::query(
             r"
             SELECT id, user_id, name, description, public_key, permissions, capabilities, redirect_uris,
@@ -470,7 +431,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns an error if database query fails
-    pub async fn get_a2a_client_by_api_key_id(
+    pub async fn get_a2a_client_by_api_key_id_impl(
         &self,
         api_key_id: &str,
     ) -> Result<Option<A2AClient>> {
@@ -542,7 +503,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns an error if database operations fail or JSON deserialization fails
-    pub async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
+    pub async fn list_a2a_clients_impl(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
         let rows = if user_id == &Uuid::nil() {
             // Admin/system-wide query - list all active A2A clients
             let query = r"
@@ -627,7 +588,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns an error if database operations fail or client not found
-    pub async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
+    pub async fn deactivate_a2a_client_impl(&self, client_id: &str) -> Result<()> {
         let query = "UPDATE a2a_clients SET is_active = 0, updated_at = ? WHERE id = ?";
         let now = chrono::Utc::now();
 
@@ -673,7 +634,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns an error if database operations fail
-    pub async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
+    pub async fn invalidate_a2a_client_sessions_impl(&self, client_id: &str) -> Result<()> {
         let query =
             "UPDATE a2a_sessions SET expires_at = datetime('now', '-1 hour') WHERE client_id = ?";
 
@@ -689,7 +650,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns an error if database operations fail
-    pub async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
+    pub async fn deactivate_client_api_keys_impl(&self, client_id: &str) -> Result<()> {
         // Get API keys associated with the client through the a2a_clients table
         let query = "UPDATE api_keys SET is_active = 0 WHERE id IN (SELECT api_key_id FROM a2a_client_api_keys WHERE client_id = ?)";
 
@@ -705,7 +666,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns an error if database operations fail or JSON deserialization fails
-    pub async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
+    pub async fn get_a2a_client_by_name_impl(&self, name: &str) -> Result<Option<A2AClient>> {
         let row = sqlx::query(
             r"
             SELECT id, name, description, public_key, permissions, capabilities, redirect_uris,
@@ -808,13 +769,13 @@ impl Database {
     ///
     /// # Errors
     /// Returns an error if database operations fail or UUID parsing fails
-    pub async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
+    pub async fn get_a2a_session_impl(&self, session_token: &str) -> Result<Option<A2ASession>> {
         let row = sqlx::query(
             r"
-            SELECT session_token, client_id, user_id, granted_scopes, 
+            SELECT session_token, client_id, user_id, granted_scopes,
                    expires_at, last_activity, created_at, requests_count
             FROM a2a_sessions
-            WHERE session_token = $1 AND expires_at > datetime('now')
+            WHERE session_token = $1 AND expires_at > CURRENT_TIMESTAMP
             ",
         )
         .bind(session_token)
@@ -853,7 +814,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns an error if database operations fail
-    pub async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()> {
+    pub async fn update_a2a_session_activity_impl(&self, session_token: &str) -> Result<()> {
         sqlx::query(
             r"
             UPDATE a2a_sessions 
@@ -872,13 +833,13 @@ impl Database {
     ///
     /// # Errors
     /// Returns an error if database operations fail or UUID parsing fails
-    pub async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
+    pub async fn get_active_a2a_sessions_impl(&self, client_id: &str) -> Result<Vec<A2ASession>> {
         let rows = sqlx::query(
             r"
-            SELECT session_token, client_id, user_id, granted_scopes, 
+            SELECT session_token, client_id, user_id, granted_scopes,
                    expires_at, last_activity, created_at, requests_count
             FROM a2a_sessions
-            WHERE client_id = $1 AND expires_at > datetime('now')
+            WHERE client_id = $1 AND expires_at > CURRENT_TIMESTAMP
             ORDER BY last_activity DESC
             ",
         )
@@ -942,7 +903,7 @@ impl Database {
         .bind(task_type)
         .bind(serde_json::to_string(input_data)?)
         .bind(None::<String>) // output_data
-        .bind(TaskStatus::Pending.to_string())
+        .bind(shared::enums::task_status_to_str(&TaskStatus::Pending))
         .bind(None::<String>) // error_message
         .bind(now)
         .bind(now)
@@ -1027,48 +988,10 @@ impl Database {
 
         let rows = sql_query.fetch_all(&self.pool).await?;
 
-        let mut tasks = Vec::new();
-        for row in rows {
-            let input_data_json: String = row.get("input_data");
-            let input_data = serde_json::from_str(&input_data_json)?;
-
-            let output_data = if let Some(output_json) = row.get::<Option<String>, _>("output_data")
-            {
-                Some(serde_json::from_str(&output_json)?)
-            } else {
-                None
-            };
-
-            let status_str: String = row.get("status");
-            let status = match status_str.as_str() {
-                "pending" => TaskStatus::Pending,
-                "running" => TaskStatus::Running,
-                "completed" => TaskStatus::Completed,
-                "failed" => TaskStatus::Failed,
-                "cancelled" => TaskStatus::Cancelled,
-                _ => {
-                    return Err(AppError::invalid_input(format!(
-                        "Invalid task status: {status_str}"
-                    ))
-                    .into())
-                }
-            };
-
-            tasks.push(A2ATask {
-                id: row.get("id"),
-                status,
-                created_at: row.get("created_at"),
-                completed_at: row.get("completed_at"),
-                result: output_data.clone(),
-                error: row.get("error_message"),
-                client_id: row.get("client_id"),
-                task_type: row.get("task_type"),
-                input_data,
-                output_data,
-                error_message: row.get("error_message"),
-                updated_at: row.get("updated_at"),
-            });
-        }
+        let tasks: Vec<A2ATask> = rows
+            .iter()
+            .map(shared::mappers::parse_a2a_task_from_row)
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(tasks)
     }
@@ -1077,7 +1000,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns an error if database operations fail or JSON deserialization fails
-    pub async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
+    pub async fn get_a2a_task_impl(&self, task_id: &str) -> Result<Option<A2ATask>> {
         let row = sqlx::query(
             r"
             SELECT id, client_id, task_type, input_data, output_data,
@@ -1091,45 +1014,8 @@ impl Database {
         .await?;
 
         if let Some(row) = row {
-            let input_data_json: String = row.get("input_data");
-            let input_data = serde_json::from_str(&input_data_json)?;
-
-            let output_data = if let Some(output_json) = row.get::<Option<String>, _>("output_data")
-            {
-                Some(serde_json::from_str(&output_json)?)
-            } else {
-                None
-            };
-
-            let status_str: String = row.get("status");
-            let status = match status_str.as_str() {
-                "pending" => TaskStatus::Pending,
-                "running" => TaskStatus::Running,
-                "completed" => TaskStatus::Completed,
-                "failed" => TaskStatus::Failed,
-                "cancelled" => TaskStatus::Cancelled,
-                _ => {
-                    return Err(AppError::invalid_input(format!(
-                        "Invalid task status: {status_str}"
-                    ))
-                    .into())
-                }
-            };
-
-            Ok(Some(A2ATask {
-                id: row.get("id"),
-                status,
-                created_at: row.get("created_at"),
-                completed_at: row.get("completed_at"),
-                result: output_data.clone(),
-                error: row.get("error_message"),
-                client_id: row.get("client_id"),
-                task_type: row.get("task_type"),
-                input_data,
-                output_data,
-                error_message: row.get("error_message"),
-                updated_at: row.get("updated_at"),
-            }))
+            let task = shared::mappers::parse_a2a_task_from_row(&row)?;
+            Ok(Some(task))
         } else {
             Ok(None)
         }
@@ -1176,7 +1062,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns an error if database operations fail or JSON serialization fails
-    pub async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()> {
+    pub async fn record_a2a_usage_impl(&self, usage: &A2AUsage) -> Result<()> {
         sqlx::query(
             r"
             INSERT INTO a2a_usage (
@@ -1210,7 +1096,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns an error if database operations fail or client not found
-    pub async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
+    pub async fn get_a2a_client_current_usage_impl(&self, client_id: &str) -> Result<u32> {
         // Get the client to determine its rate limit window
         let client = self
             .get_a2a_client(client_id)
@@ -1338,5 +1224,113 @@ impl Database {
         }
 
         Ok(history)
+    }
+    // Public wrapper methods (delegate to _impl versions)
+
+    /// Deactivate A2A client (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
+        self.deactivate_a2a_client_impl(client_id).await
+    }
+
+    /// Deactivate client API keys (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
+        self.deactivate_client_api_keys_impl(client_id).await
+    }
+
+    /// Get A2A client by ID (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
+        self.get_a2a_client_impl(client_id).await
+    }
+
+    /// Get A2A client by API key ID (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_a2a_client_by_api_key_id(
+        &self,
+        api_key_id: &str,
+    ) -> Result<Option<A2AClient>> {
+        self.get_a2a_client_by_api_key_id_impl(api_key_id).await
+    }
+
+    /// Get A2A client by name (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
+        self.get_a2a_client_by_name_impl(name).await
+    }
+
+    /// Get A2A client current usage (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
+        self.get_a2a_client_current_usage_impl(client_id).await
+    }
+
+    /// Get A2A session by token (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
+        self.get_a2a_session_impl(session_token).await
+    }
+
+    /// Get A2A task by ID (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
+        self.get_a2a_task_impl(task_id).await
+    }
+
+    /// Get active A2A sessions (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
+        self.get_active_a2a_sessions_impl(client_id).await
+    }
+
+    /// Invalidate A2A client sessions (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
+        self.invalidate_a2a_client_sessions_impl(client_id).await
+    }
+
+    /// List A2A clients for user (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
+        self.list_a2a_clients_impl(user_id).await
+    }
+
+    /// Record A2A usage (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn record_a2a_usage(&self, usage: &crate::database::A2AUsage) -> Result<()> {
+        self.record_a2a_usage_impl(usage).await
+    }
+
+    /// Update A2A session activity (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()> {
+        self.update_a2a_session_activity_impl(session_token).await
     }
 }

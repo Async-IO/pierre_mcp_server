@@ -15,7 +15,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-MAIN_WORKTREE="/Users/jeanfrancoisarcand/workspace/strava_ai/pierre_mcp_server"
+MAIN_WORKTREE="$PROJECT_ROOT"
 CLAUDE_CONFIG="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
 TOKEN_FILE="$HOME/.pierre-claude-tokens.json"
 

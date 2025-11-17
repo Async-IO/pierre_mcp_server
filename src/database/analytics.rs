@@ -145,7 +145,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails.
-    pub async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
+    pub async fn record_jwt_usage_impl(&self, usage: &JwtUsage) -> Result<()> {
         sqlx::query(
             r"
             INSERT INTO jwt_usage (
@@ -212,7 +212,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails.
-    pub async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
+    pub async fn get_jwt_current_usage_impl(&self, user_id: Uuid) -> Result<u32> {
         let window_start = Utc::now() - Duration::hours(1); // 1 hour window
 
         let count: i32 = sqlx::query_scalar(
@@ -242,7 +242,11 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails or if JSON serialization fails.
-    pub async fn create_goal(&self, user_id: Uuid, goal_data: serde_json::Value) -> Result<String> {
+    pub async fn create_goal_impl(
+        &self,
+        user_id: Uuid,
+        goal_data: serde_json::Value,
+    ) -> Result<String> {
         let goal_id = Uuid::new_v4().to_string();
         let goal_json = serde_json::to_string(&goal_data)?;
 
@@ -266,7 +270,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails or if JSON deserialization fails.
-    pub async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<serde_json::Value>> {
+    pub async fn get_user_goals_impl(&self, user_id: Uuid) -> Result<Vec<serde_json::Value>> {
         let rows = sqlx::query(
             r"
             SELECT id, goal_data FROM goals
@@ -300,7 +304,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails or if JSON operations fail.
-    pub async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
+    pub async fn update_goal_progress_impl(&self, goal_id: &str, current_value: f64) -> Result<()> {
         // Get the current goal data
         let row = sqlx::query(
             r"
@@ -407,7 +411,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails or if JSON serialization fails.
-    pub async fn store_insight(
+    pub async fn store_insight_impl(
         &self,
         user_id: Uuid,
         insight_data: serde_json::Value,
@@ -576,7 +580,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails.
-    pub async fn get_system_stats(&self) -> Result<(u64, u64)> {
+    pub async fn get_system_stats_impl(&self) -> Result<(u64, u64)> {
         // Get total users
         let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
             .fetch_one(&self.pool)
@@ -607,5 +611,66 @@ impl Database {
                 0
             }),
         ))
+    }
+    // Public wrapper methods (delegate to _impl versions)
+
+    /// Record JWT usage (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
+        self.record_jwt_usage_impl(usage).await
+    }
+
+    /// Get JWT current usage (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
+        self.get_jwt_current_usage_impl(user_id).await
+    }
+
+    /// Create user goal (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn create_goal(&self, user_id: Uuid, goal_data: serde_json::Value) -> Result<String> {
+        self.create_goal_impl(user_id, goal_data).await
+    }
+
+    /// Get user goals (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<serde_json::Value>> {
+        self.get_user_goals_impl(user_id).await
+    }
+
+    /// Update goal progress (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
+        self.update_goal_progress_impl(goal_id, current_value).await
+    }
+
+    /// Store user insight (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn store_insight(
+        &self,
+        user_id: Uuid,
+        insight_data: serde_json::Value,
+    ) -> Result<String> {
+        self.store_insight_impl(user_id, insight_data).await
+    }
+
+    /// Get system statistics (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_system_stats(&self) -> Result<(u64, u64)> {
+        self.get_system_stats_impl().await
     }
 }

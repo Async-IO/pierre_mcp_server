@@ -1116,6 +1116,12 @@ impl AdminRoutes {
     }
 
     /// Handle user approval (Axum)
+    /// JUSTIFICATION for `#[allow(clippy::too_many_lines)]`:
+    /// This function handles the complete user approval workflow including permission checks,
+    /// user status updates, optional tenant creation, and comprehensive error handling.
+    /// Splitting this into smaller functions would harm readability by fragmenting the
+    /// business logic flow. The function is cohesive and handles a single logical operation.
+    #[allow(clippy::too_many_lines)]
     async fn handle_approve_user(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,

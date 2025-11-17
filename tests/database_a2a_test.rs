@@ -288,3 +288,45 @@ async fn test_a2a_usage_tracking() {
     assert_eq!(stats.successful_requests, 1);
     assert_eq!(stats.failed_requests, 0);
 }
+
+#[tokio::test]
+async fn test_a2a_schema_no_duplicate_columns() {
+    let encryption_key = vec![0u8; 32];
+    let db = Database::new("sqlite::memory:", encryption_key)
+        .await
+        .expect("Failed to create database");
+
+    db.migrate().await.expect("Failed to run migrations");
+
+    let columns: Vec<(String,)> =
+        sqlx::query_as("SELECT name FROM pragma_table_info('a2a_clients') ORDER BY name")
+            .fetch_all(db.pool())
+            .await
+            .expect("Failed to query table info");
+
+    let column_names: Vec<String> = columns.into_iter().map(|(name,)| name).collect();
+
+    assert!(
+        column_names.contains(&"capabilities".to_owned()),
+        "capabilities column should exist in a2a_clients table"
+    );
+    assert!(
+        column_names.contains(&"redirect_uris".to_owned()),
+        "redirect_uris column should exist in a2a_clients table"
+    );
+
+    let capabilities_count = column_names.iter().filter(|n| *n == "capabilities").count();
+    let redirect_uris_count = column_names
+        .iter()
+        .filter(|n| *n == "redirect_uris")
+        .count();
+
+    assert_eq!(
+        capabilities_count, 1,
+        "capabilities column should appear exactly once (found {capabilities_count} occurrences)"
+    );
+    assert_eq!(
+        redirect_uris_count, 1,
+        "redirect_uris column should appear exactly once (found {redirect_uris_count} occurrences)"
+    );
+}

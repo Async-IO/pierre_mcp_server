@@ -94,7 +94,7 @@ jobs:
           npm run build
 
       - name: Run all backend tests with coverage (SQLite)
-        run: cargo llvm-cov --all-targets --lcov --output-path lcov-sqlite.info -- --test-threads=1
+        run: cargo llvm-cov --lib --bins --tests --lcov --output-path lcov-sqlite.info -- --test-threads=1
         env:
           DATABASE_URL: "sqlite::memory:"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
@@ -210,7 +210,7 @@ jobs:
           RUST_LOG: "info"
 
       - name: Run all tests with coverage (PostgreSQL)
-        run: timeout 3600 cargo llvm-cov --all-targets --features postgresql --lcov --output-path lcov-postgres.info -- --test-threads=1
+        run: timeout 3600 cargo llvm-cov --lib --bins --tests --features postgresql --lcov --output-path lcov-postgres.info -- --test-threads=1
         timeout-minutes: 60
         env:
           DATABASE_URL: "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server"

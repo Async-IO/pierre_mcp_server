@@ -95,8 +95,8 @@ MCP_VALIDATOR_DIR=""
 if [ -d "../validator" ]; then
     # Installed locally in worktree (for testing)
     MCP_VALIDATOR_DIR="../validator"
-elif [ -d "$HOME/mcp-validator" ]; then
-    MCP_VALIDATOR_DIR="$HOME/mcp-validator"
+elif [ -d "/tmp/mcp-validator" ]; then
+    MCP_VALIDATOR_DIR="/tmp/mcp-validator"
 elif [ -d "./mcp-validator" ]; then
     MCP_VALIDATOR_DIR="./mcp-validator"
 elif [ -d "../mcp-validator" ]; then
@@ -108,8 +108,8 @@ if [ -z "$MCP_VALIDATOR_DIR" ] || [ ! -f "$MCP_VALIDATOR_DIR/mcp_testing/__init_
     echo -e "${RED}           Per NO EXCEPTIONS POLICY: MCP spec compliance validation is mandatory${NC}"
     echo -e "${RED}           ${NC}"
     echo -e "${RED}           Install with:${NC}"
-    echo -e "${RED}             git clone https://github.com/Janix-ai/mcp-validator.git ~/mcp-validator${NC}"
-    echo -e "${RED}             cd ~/mcp-validator${NC}"
+    echo -e "${RED}             git clone https://github.com/Janix-ai/mcp-validator.git /tmp/mcp-validator${NC}"
+    echo -e "${RED}             cd /tmp/mcp-validator${NC}"
     echo -e "${RED}             python3 -m venv venv${NC}"
     echo -e "${RED}             source venv/bin/activate${NC}"
     echo -e "${RED}             pip install -r requirements.txt${NC}"

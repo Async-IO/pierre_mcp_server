@@ -224,7 +224,8 @@ echo -e "${BLUE}Validating clippy allow attribute usage...${NC}"
 #   - bool_to_int_with_if (multi-level thresholds, not simple conversions)
 #   - type_complexity (complex types in generic code)
 #   - too_many_arguments (algorithm functions with many validated parameters)
-ALLOWED_CLIPPY_ALLOWS="cast_possible_truncation|cast_sign_loss|cast_precision_loss|cast_possible_wrap|struct_excessive_bools|too_many_lines|let_unit_value|option_if_let_else|cognitive_complexity|bool_to_int_with_if|type_complexity|too_many_arguments"
+#   - use_self (trait delegation pattern - calling Database::method() instead of Self:: to avoid infinite recursion)
+ALLOWED_CLIPPY_ALLOWS="cast_possible_truncation|cast_sign_loss|cast_precision_loss|cast_possible_wrap|struct_excessive_bools|too_many_lines|let_unit_value|option_if_let_else|cognitive_complexity|bool_to_int_with_if|type_complexity|too_many_arguments|use_self"
 
 # Find all #[allow(clippy::...)] usages
 CLIPPY_ALLOWS=$(rg "#\[allow\(clippy::" src/ -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')

@@ -90,7 +90,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
+    pub async fn create_api_key_impl(&self, api_key: &ApiKey) -> Result<()> {
         // Handle enterprise tier unlimited requests by storing NULL
         let rate_limit_requests = if api_key.tier == crate::api_keys::ApiKeyTier::Enterprise {
             None
@@ -132,7 +132,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn get_api_key_by_prefix(
+    pub async fn get_api_key_by_prefix_impl(
         &self,
         key_prefix: &str,
         key_hash: &str,
@@ -156,7 +156,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
+    pub async fn get_user_api_keys_impl(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
         let rows = sqlx::query(
             r"
             SELECT * FROM api_keys
@@ -176,7 +176,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
+    pub async fn update_api_key_last_used_impl(&self, api_key_id: &str) -> Result<()> {
         sqlx::query(
             r"
             UPDATE api_keys
@@ -196,7 +196,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
+    pub async fn deactivate_api_key_impl(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
         sqlx::query(
             r"
             UPDATE api_keys
@@ -218,7 +218,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
+    pub async fn get_api_key_by_id_impl(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
         let row = sqlx::query(
             r"
             SELECT * FROM api_keys WHERE id = $1
@@ -280,7 +280,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn cleanup_expired_api_keys(&self) -> Result<u64> {
+    pub async fn cleanup_expired_api_keys_impl(&self) -> Result<u64> {
         let result = sqlx::query(
             r"
             UPDATE api_keys
@@ -301,7 +301,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>> {
+    pub async fn get_expired_api_keys_impl(&self) -> Result<Vec<ApiKey>> {
         let rows = sqlx::query(
             r"
             SELECT * FROM api_keys
@@ -321,7 +321,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
+    pub async fn record_api_key_usage_impl(&self, usage: &ApiKeyUsage) -> Result<()> {
         sqlx::query(
             r"
             INSERT INTO api_key_usage (
@@ -351,7 +351,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails or the API key is not found
-    pub async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
+    pub async fn get_api_key_current_usage_impl(&self, api_key_id: &str) -> Result<u32> {
         // Get the API key to determine its rate limit window
         let api_key = self
             .get_api_key_by_id(api_key_id)
@@ -510,5 +510,90 @@ impl Database {
             last_used_at: row.get("last_used_at"),
             created_at: row.get("created_at"),
         })
+    }
+    // Public wrapper methods (delegate to _impl versions)
+
+    /// Create API key (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
+        self.create_api_key_impl(api_key).await
+    }
+
+    /// Get API key by prefix and hash (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_api_key_by_prefix(
+        &self,
+        key_prefix: &str,
+        key_hash: &str,
+    ) -> Result<Option<ApiKey>> {
+        self.get_api_key_by_prefix_impl(key_prefix, key_hash).await
+    }
+
+    /// Get user API keys (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
+        self.get_user_api_keys_impl(user_id).await
+    }
+
+    /// Update API key last used timestamp (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
+        self.update_api_key_last_used_impl(api_key_id).await
+    }
+
+    /// Deactivate API key (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
+        self.deactivate_api_key_impl(api_key_id, user_id).await
+    }
+
+    /// Get API key by ID (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
+        self.get_api_key_by_id_impl(api_key_id).await
+    }
+
+    /// Cleanup expired API keys (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn cleanup_expired_api_keys(&self) -> Result<u64> {
+        self.cleanup_expired_api_keys_impl().await
+    }
+
+    /// Get expired API keys (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>> {
+        self.get_expired_api_keys_impl().await
+    }
+
+    /// Record API key usage (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
+        self.record_api_key_usage_impl(usage).await
+    }
+
+    /// Get API key current usage (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
+        self.get_api_key_current_usage_impl(api_key_id).await
     }
 }

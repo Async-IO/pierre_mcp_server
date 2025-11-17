@@ -342,7 +342,7 @@ impl AdminTestSetup {
                     .bind(token.created_at)
                     .bind(token.expires_at)
                     .bind(0) // usage_count
-                    .execute(sqlite_db.inner().pool())
+                    .execute(sqlite_db.pool())
                     .await?;
             }
             #[cfg(feature = "postgresql")]

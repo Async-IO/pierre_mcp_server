@@ -447,6 +447,68 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
     Ok(())
 }
 
+/// Helper: Setup admin and get token
+async fn setup_admin_and_get_token(admin_routes: axum::Router) -> Result<String> {
+    let admin_setup_response = AxumTestRequest::post("/admin/setup")
+        .json(&serde_json::json!({
+            "email": "admin@example.com",
+            "password": "admin_pass",
+            "display_name": "Admin"
+        }))
+        .send(admin_routes)
+        .await;
+
+    assert_eq!(admin_setup_response.status(), 201);
+    let admin_body: Value = serde_json::from_slice(&admin_setup_response.bytes())?;
+    Ok(admin_body["data"]["admin_token"]
+        .as_str()
+        .unwrap()
+        .to_owned())
+}
+
+/// Helper: Create pending user for testing
+async fn create_test_pending_user(database: &Database) -> Result<uuid::Uuid> {
+    let test_user_id = uuid::Uuid::new_v4();
+    let test_user = pierre_mcp_server::models::User {
+        id: test_user_id,
+        email: "user@example.com".to_owned(),
+        display_name: Some("Test User".to_owned()),
+        password_hash: "dummy_hash".to_owned(),
+        tier: pierre_mcp_server::models::UserTier::Starter,
+        tenant_id: None,
+        strava_token: None,
+        fitbit_token: None,
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+        is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Pending,
+        is_admin: false,
+        approved_by: None,
+        approved_at: None,
+    };
+    database.create_user(&test_user).await?;
+    Ok(test_user_id)
+}
+
+/// Helper: Verify tenant and user linkage
+async fn verify_tenant_user_linkage(
+    database: &Database,
+    tenant_id: uuid::Uuid,
+    test_user_id: uuid::Uuid,
+    expected_tenant_name: &str,
+    expected_tenant_slug: &str,
+) -> Result<()> {
+    let created_tenant = database.get_tenant_by_id(tenant_id).await?;
+    assert_eq!(created_tenant.name, expected_tenant_name);
+    assert_eq!(created_tenant.slug, expected_tenant_slug);
+    assert_eq!(created_tenant.plan, "starter");
+    assert_eq!(created_tenant.owner_user_id, test_user_id);
+
+    let updated_user = database.get_user(test_user_id).await?.unwrap();
+    assert_eq!(updated_user.tenant_id, Some(tenant_id.to_string()));
+    Ok(())
+}
+
 /// Test user approval with automatic tenant creation
 #[tokio::test]
 async fn test_user_approval_with_tenant_creation() -> Result<()> {
@@ -486,41 +548,11 @@ async fn test_user_approval_with_tenant_creation() -> Result<()> {
 
     println!("Testing user approval with tenant creation");
 
-    // Create admin
-    let admin_setup_response = AxumTestRequest::post("/admin/setup")
-        .json(&serde_json::json!({
-            "email": "admin@example.com",
-            "password": "admin_pass",
-            "display_name": "Admin"
-        }))
-        .send(admin_routes.clone())
-        .await;
-
-    assert_eq!(admin_setup_response.status(), 201);
-    let admin_body: Value = serde_json::from_slice(&admin_setup_response.bytes())?;
-    let admin_token = admin_body["data"]["admin_token"].as_str().unwrap();
+    // Create admin and get token
+    let admin_token = setup_admin_and_get_token(admin_routes.clone()).await?;
 
     // Create pending user
-    let test_user_id = uuid::Uuid::new_v4();
-    let test_user = pierre_mcp_server::models::User {
-        id: test_user_id,
-        email: "user@example.com".to_owned(),
-        display_name: Some("Test User".to_owned()),
-        password_hash: "dummy_hash".to_owned(),
-        tier: pierre_mcp_server::models::UserTier::Starter,
-        tenant_id: None,
-        strava_token: None,
-        fitbit_token: None,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Pending,
-        is_admin: false,
-        approved_by: None,
-        approved_at: None,
-    };
-
-    database.create_user(&test_user).await?;
+    let test_user_id = create_test_pending_user(&database).await?;
     println!(" Pending user created");
 
     // Approve user WITH tenant creation
@@ -563,18 +595,16 @@ async fn test_user_approval_with_tenant_creation() -> Result<()> {
         tenant_created["name"], tenant_id
     );
 
-    // Verify tenant exists in database
-    let created_tenant = database.get_tenant_by_id(tenant_id).await?;
-    assert_eq!(created_tenant.name, "Test Organization");
-    assert_eq!(created_tenant.slug, "test-org");
-    assert_eq!(created_tenant.plan, "starter");
-    assert_eq!(created_tenant.owner_user_id, test_user_id);
-    println!(" Tenant verified in database");
-
-    // Verify user is linked to tenant
-    let updated_user = database.get_user(test_user_id).await?.unwrap();
-    assert_eq!(updated_user.tenant_id, Some(tenant_id.to_string()));
-    println!(" User linked to tenant");
+    // Verify tenant and user linkage
+    verify_tenant_user_linkage(
+        &database,
+        tenant_id,
+        test_user_id,
+        "Test Organization",
+        "test-org",
+    )
+    .await?;
+    println!(" Tenant and user linkage verified");
 
     // Cleanup
     if std::env::var("CI").is_err() && database_url.starts_with("sqlite:./") {
