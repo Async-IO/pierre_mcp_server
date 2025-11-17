@@ -200,7 +200,22 @@ else
 fi
 
 # ============================================================================
-# 4. ARCHITECTURAL VALIDATION
+# 4. ANYHOW ERROR BLANKET CONVERSION DETECTION (CLAUDE.MD ZERO TOLERANCE)
+# ============================================================================
+ANYHOW_FROM_IMPL=$(rg "impl From<anyhow::Error>" src/ -l 2>/dev/null || true)
+ANYHOW_FROM_COUNT=0
+[ -n "$ANYHOW_FROM_IMPL" ] && ANYHOW_FROM_COUNT=$(echo "$ANYHOW_FROM_IMPL" | wc -l | tr -d ' ')
+
+if [ "$ANYHOW_FROM_COUNT" -gt 0 ]; then
+    FIRST_ANYHOW_FROM=$(echo "$ANYHOW_FROM_IMPL" | head -1)
+    add_validation "impl From<anyhow::Error> blanket conversions" "$ANYHOW_FROM_COUNT" "❌ FAIL" "$FIRST_ANYHOW_FROM"
+    VALIDATION_FAILED=true
+else
+    add_validation "impl From<anyhow::Error> blanket conversions" "0" "✅ PASS" "No blanket error conversions"
+fi
+
+# ============================================================================
+# 5. ARCHITECTURAL VALIDATION
 # ============================================================================
 if [ -f "$SCRIPT_DIR/architectural-validation.sh" ]; then
     # Temporarily disable set -e to capture output even if script fails
