@@ -104,21 +104,44 @@ elif [ -d "../mcp-validator" ]; then
 fi
 
 if [ -z "$MCP_VALIDATOR_DIR" ] || [ ! -f "$MCP_VALIDATOR_DIR/mcp_testing/__init__.py" ]; then
-    echo -e "${RED}[CRITICAL] Python MCP validator not installed - REQUIRED for MCP compliance${NC}"
-    echo -e "${RED}           Per NO EXCEPTIONS POLICY: MCP spec compliance validation is mandatory${NC}"
-    echo -e "${RED}           ${NC}"
-    echo -e "${RED}           Install with:${NC}"
-    echo -e "${RED}             git clone https://github.com/Janix-ai/mcp-validator.git /tmp/mcp-validator${NC}"
-    echo -e "${RED}             cd /tmp/mcp-validator${NC}"
-    echo -e "${RED}             python3 -m venv venv${NC}"
-    echo -e "${RED}             source venv/bin/activate${NC}"
-    echo -e "${RED}             pip install -r requirements.txt${NC}"
-    echo -e "${RED}           ${NC}"
-    echo -e "${RED}FAST FAIL: MCP compliance validation is REQUIRED for bridge implementation${NC}"
-    exit 1
-fi
+    echo -e "${YELLOW}[INFO] Python MCP validator not found - installing automatically...${NC}"
 
-echo -e "${GREEN}[OK] Python MCP validator found at: $MCP_VALIDATOR_DIR${NC}"
+    # Auto-install to /tmp/mcp-validator
+    MCP_VALIDATOR_DIR="/tmp/mcp-validator"
+
+    # Remove old installation if it exists but is broken
+    if [ -d "$MCP_VALIDATOR_DIR" ]; then
+        echo -e "${YELLOW}[INFO] Removing existing broken installation...${NC}"
+        rm -rf "$MCP_VALIDATOR_DIR"
+    fi
+
+    # Clone the repository
+    echo -e "${BLUE}[INFO] Cloning MCP validator from GitHub...${NC}"
+    if ! git clone https://github.com/Janix-ai/mcp-validator.git "$MCP_VALIDATOR_DIR" 2>&1; then
+        echo -e "${RED}[FAIL] Failed to clone MCP validator repository${NC}"
+        echo -e "${RED}       Please check your internet connection and GitHub access${NC}"
+        exit 1
+    fi
+
+    # Create Python virtual environment
+    echo -e "${BLUE}[INFO] Creating Python virtual environment...${NC}"
+    if ! python3 -m venv "$MCP_VALIDATOR_DIR/venv" 2>&1; then
+        echo -e "${RED}[FAIL] Failed to create Python virtual environment${NC}"
+        echo -e "${RED}       Please ensure python3-venv is installed${NC}"
+        exit 1
+    fi
+
+    # Install dependencies
+    echo -e "${BLUE}[INFO] Installing MCP validator dependencies...${NC}"
+    if ! (cd "$MCP_VALIDATOR_DIR" && source venv/bin/activate && pip install -q -r requirements.txt 2>&1); then
+        echo -e "${RED}[FAIL] Failed to install MCP validator dependencies${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}[OK] MCP validator installed successfully at: $MCP_VALIDATOR_DIR${NC}"
+else
+    echo -e "${GREEN}[OK] Python MCP validator found at: $MCP_VALIDATOR_DIR${NC}"
+fi
 
 # Build the bridge before testing
 echo -e "${BLUE}==== Building pierre-claude-bridge for compliance testing... ====${NC}"
