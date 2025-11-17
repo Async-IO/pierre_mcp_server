@@ -441,8 +441,8 @@ else
         echo -e "${RED}[CRITICAL] Clippy failed - ALL code warnings must be fixed${NC}"
         echo -e "${RED}Zero tolerance policy: fix all warnings and re-run${NC}"
     fi
-    ALL_PASSED=false
-    # Continue to final validation
+    echo -e "${RED}Exiting immediately - fix compilation/clippy errors first${NC}"
+    exit 1
 fi
 
 print_task "Cargo deny (security audit)"
