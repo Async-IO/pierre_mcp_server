@@ -6,7 +6,6 @@ target/
 .vscode/
 *.swp
 *.swo
-.claude/
 
 # Environment
 .env
@@ -84,7 +83,6 @@ frontend/dist/
 
 # Documentation directory
 claude_docs/
-CLAUDE.md
 GEMINI.md
 .workflow*
 
