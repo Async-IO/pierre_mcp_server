@@ -10,7 +10,7 @@
 //! Constants are grouped into logical domains rather than being in a single large file.
 
 use crate::config::environment::ServerConfig;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use std::sync::OnceLock;
 
 /// Static server configuration loaded once at startup
@@ -21,12 +21,12 @@ static SERVER_CONFIG: OnceLock<ServerConfig> = OnceLock::new();
 /// # Errors
 ///
 /// Returns error if `ServerConfig` initialization fails or if called more than once
-pub fn init_server_config() -> Result<()> {
+pub fn init_server_config() -> AppResult<()> {
     let config = ServerConfig::from_env()?;
 
     SERVER_CONFIG
         .set(config)
-        .map_err(|_| anyhow::Error::msg("Server configuration already initialized"))?;
+        .map_err(|_| AppError::internal("Server configuration already initialized"))?;
 
     Ok(())
 }

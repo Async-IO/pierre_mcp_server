@@ -40,16 +40,17 @@
 //!
 //! ```rust,no_run
 //! use pierre_mcp_server::config::environment::ServerConfig;
+//! use pierre_mcp_server::errors::AppResult;
 //!
 //! #[tokio::main]
-//! async fn main() -> anyhow::Result<()> {
+//! async fn main() -> AppResult<()> {
 //!     // Load configuration
 //!     let config = ServerConfig::from_env()?;
-//!     
+//!
 //!     // Start Pierre MCP Server with loaded configuration
 //!     println!("Pierre MCP Server configured with port: HTTP={}",
 //!              config.http_port);
-//!     
+//!
 //!     Ok(())
 //! }
 //! ```

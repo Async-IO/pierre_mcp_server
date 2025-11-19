@@ -67,7 +67,7 @@ impl ApiKeyRoutes {
         let response = service
             .create_api_key_simple(&auth, request)
             .await
-            .map_err(|e| AppError::database(e.to_string()))?;
+            .map_err(|e| AppError::internal(format!("Failed to create API key: {e}")))?;
 
         Ok((StatusCode::CREATED, Json(response)).into_response())
     }
@@ -85,7 +85,7 @@ impl ApiKeyRoutes {
         let response = service
             .list_api_keys(&auth)
             .await
-            .map_err(|e| AppError::database(e.to_string()))?;
+            .map_err(|e| AppError::internal(format!("Failed to list API keys: {e}")))?;
 
         Ok((StatusCode::OK, Json(response)).into_response())
     }
@@ -104,7 +104,7 @@ impl ApiKeyRoutes {
         let response = service
             .deactivate_api_key(&auth, &key_id)
             .await
-            .map_err(|e| AppError::database(e.to_string()))?;
+            .map_err(|e| AppError::internal(format!("Failed to deactivate API key: {e}")))?;
 
         Ok((StatusCode::OK, Json(response)).into_response())
     }

@@ -12,10 +12,9 @@ use crate::{
     auth::{AuthManager, AuthResult},
     constants::oauth_providers,
     database_plugins::factory::Database,
-    errors::AppError,
+    errors::{AppError, AppResult},
     tenant::TenantOAuthCredentials,
 };
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
@@ -243,7 +242,7 @@ pub async fn create_tenant(
     tenant_request: CreateTenantRequest,
     auth_result: AuthResult,
     database: Arc<Database>,
-) -> Result<CreateTenantResponse, AppError> {
+) -> AppResult<CreateTenantResponse> {
     info!("Creating new tenant: {}", tenant_request.name);
 
     // Verify user is authenticated and has tenant creation permissions
@@ -305,7 +304,7 @@ pub async fn create_tenant(
 pub async fn list_tenants(
     auth_result: AuthResult,
     database: Arc<Database>,
-) -> Result<TenantListResponse, AppError> {
+) -> AppResult<TenantListResponse> {
     info!("Listing tenants for user: {}", auth_result.user_id);
 
     let tenants = database
@@ -360,7 +359,7 @@ pub async fn configure_tenant_oauth(
     oauth_request: ConfigureTenantOAuthRequest,
     auth_result: AuthResult,
     database: Arc<Database>,
-) -> Result<ConfigureTenantOAuthResponse, AppError> {
+) -> AppResult<ConfigureTenantOAuthResponse> {
     info!(
         "Configuring {} OAuth for tenant: {}",
         oauth_request.provider, tenant_id
@@ -440,7 +439,7 @@ pub async fn get_tenant_oauth(
     tenant_id: String,
     auth_result: AuthResult,
     database: Arc<Database>,
-) -> Result<TenantOAuthListResponse, AppError> {
+) -> AppResult<TenantOAuthListResponse> {
     info!("Getting OAuth config for tenant: {}", tenant_id);
 
     let tenant_uuid = Uuid::parse_str(&tenant_id).map_err(|e| {
@@ -498,7 +497,7 @@ pub async fn register_oauth_app(
     app_request: RegisterOAuthAppRequest,
     auth_result: AuthResult,
     database: Arc<Database>,
-) -> Result<RegisterOAuthAppResponse, AppError> {
+) -> AppResult<RegisterOAuthAppResponse> {
     info!("Registering OAuth app: {}", app_request.name);
 
     // Generate client credentials
@@ -549,7 +548,7 @@ pub async fn register_oauth_app(
 pub async fn oauth_authorize(
     auth_params: OAuthAuthorizeRequest,
     database: Arc<Database>,
-) -> Result<OAuthAuthorizeResponse, AppError> {
+) -> AppResult<OAuthAuthorizeResponse> {
     info!(
         "OAuth authorization request for client: {}",
         auth_params.client_id
@@ -574,15 +573,14 @@ pub async fn oauth_authorize(
     }
 
     // Generate authorization code and store it temporarily
-    let auth_code = format!("code_{}", Uuid::new_v4().simple());
+    let auth_code_value = format!("code_{}", Uuid::new_v4().simple());
 
-    // Store auth code in database with expiration (10 minutes)
-    // Use the OAuth app owner as the user_id (validated through JWT authentication)
-    let auth_code_model = crate::oauth2_server::models::OAuth2AuthCode {
-        code: auth_code.clone(),
+    // Create OAuth2AuthCode struct
+    let auth_code = crate::oauth2_server::models::OAuth2AuthCode {
+        code: auth_code_value.clone(),
         client_id: auth_params.client_id.clone(),
-        user_id: oauth_app.owner_user_id,
-        tenant_id: String::new(), // Not tenant-scoped in this context
+        user_id: oauth_app.owner_user_id, // Use the OAuth app owner
+        tenant_id: "default".to_owned(),  // Default tenant for now
         redirect_uri: auth_params.redirect_uri.clone(),
         scope: Some(auth_params.scope.clone()),
         expires_at: chrono::Utc::now() + chrono::Duration::minutes(10),
@@ -592,8 +590,9 @@ pub async fn oauth_authorize(
         code_challenge_method: None,
     };
 
+    // Store auth code in database with expiration (10 minutes)
     database
-        .store_authorization_code(&auth_code_model)
+        .store_authorization_code(&auth_code)
         .await
         .map_err(|e| AppError::database(e.to_string()))?;
 
@@ -601,7 +600,7 @@ pub async fn oauth_authorize(
     let auth_url = format!(
         "{}?code={}&state={}",
         auth_params.redirect_uri,
-        auth_code,
+        auth_code_value,
         auth_params.state.unwrap_or_default()
     );
 
@@ -624,7 +623,7 @@ pub async fn oauth_token(
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
     jwks_manager: Arc<crate::admin::jwks::JwksManager>,
-) -> Result<OAuthTokenResponse, AppError> {
+) -> AppResult<OAuthTokenResponse> {
     info!(
         "OAuth token request for client: {}",
         token_request.client_id
@@ -658,10 +657,12 @@ pub async fn oauth_token(
                 .code
                 .ok_or_else(|| AppError::invalid_input("Missing authorization code".to_owned()))?;
 
-            let redirect_uri = token_request.redirect_uri.as_deref().unwrap_or("");
-
             database
-                .get_authorization_code(&code, &token_request.client_id, redirect_uri)
+                .get_authorization_code(
+                    &code,
+                    &token_request.client_id,
+                    &oauth_app.redirect_uris[0],
+                )
                 .await
                 .map_err(|e| {
                     tracing::warn!(
@@ -680,11 +681,17 @@ pub async fn oauth_token(
                     &oauth_app.scopes,
                     None, // tenant_id
                 )
-                .map_err(|e| AppError::database(e.to_string()))?;
+                .map_err(|e| {
+                    AppError::auth_invalid(format!("Failed to generate OAuth access token: {e}"))
+                })?;
 
             // Clean up authorization code
             if let Err(e) = database
-                .delete_authorization_code(&code, &token_request.client_id, redirect_uri)
+                .delete_authorization_code(
+                    &code,
+                    &token_request.client_id,
+                    &oauth_app.redirect_uris[0],
+                )
                 .await
             {
                 tracing::warn!(
@@ -711,7 +718,11 @@ pub async fn oauth_token(
                     &oauth_app.scopes,
                     None, // tenant_id
                 )
-                .map_err(|e| AppError::database(e.to_string()))?;
+                .map_err(|e| {
+                    AppError::auth_invalid(format!(
+                        "Failed to generate client credentials token: {e}"
+                    ))
+                })?;
 
             Ok(OAuthTokenResponse {
                 access_token,

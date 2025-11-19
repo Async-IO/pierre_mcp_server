@@ -404,13 +404,6 @@ impl AppError {
     }
 }
 
-/// Conversion from `anyhow::Error` to `AppError`
-impl From<anyhow::Error> for AppError {
-    fn from(error: anyhow::Error) -> Self {
-        Self::new(ErrorCode::InternalError, error.to_string())
-    }
-}
-
 /// Conversion from `std::io::Error` to `AppError`
 impl From<std::io::Error> for AppError {
     fn from(error: std::io::Error) -> Self {
@@ -422,6 +415,13 @@ impl From<std::io::Error> for AppError {
 impl From<serde_json::Error> for AppError {
     fn from(error: serde_json::Error) -> Self {
         Self::new(ErrorCode::InvalidInput, format!("JSON error: {error}"))
+    }
+}
+
+/// Conversion from `sqlx::Error` to `AppError`
+impl From<sqlx::Error> for AppError {
+    fn from(error: sqlx::Error) -> Self {
+        Self::database(format!("Database operation failed: {error}"))
     }
 }
 
@@ -445,6 +445,46 @@ impl From<chrono::ParseError> for AppError {
         Self::new(
             ErrorCode::InvalidInput,
             format!("Date parse error: {error}"),
+        )
+    }
+}
+
+/// Conversion from `TryFromIntError` to `AppError`
+impl From<std::num::TryFromIntError> for AppError {
+    fn from(error: std::num::TryFromIntError) -> Self {
+        Self::new(
+            ErrorCode::InvalidInput,
+            format!("Integer conversion error: {error}"),
+        )
+    }
+}
+
+/// Conversion from `ring::error::Unspecified` to `AppError`
+impl From<ring::error::Unspecified> for AppError {
+    fn from(_error: ring::error::Unspecified) -> Self {
+        Self::new(
+            ErrorCode::InternalError,
+            "Cryptographic operation failed".to_owned(),
+        )
+    }
+}
+
+/// Conversion from `base64::DecodeError` to `AppError`
+impl From<base64::DecodeError> for AppError {
+    fn from(error: base64::DecodeError) -> Self {
+        Self::new(
+            ErrorCode::InvalidInput,
+            format!("Base64 decode error: {error}"),
+        )
+    }
+}
+
+/// Conversion from `TryFromSliceError` to `AppError`
+impl From<std::array::TryFromSliceError> for AppError {
+    fn from(error: std::array::TryFromSliceError) -> Self {
+        Self::new(
+            ErrorCode::InvalidInput,
+            format!("Array conversion error: {error}"),
         )
     }
 }
@@ -523,6 +563,76 @@ impl From<crate::protocols::ProtocolError> for AppError {
             crate::protocols::ProtocolError::InternalError { component, details } => {
                 Self::internal(format!("Internal error in {component}: {details}"))
             }
+        }
+    }
+}
+
+/// Convert `ProviderError` to `AppError`
+impl From<crate::providers::errors::ProviderError> for AppError {
+    fn from(error: crate::providers::errors::ProviderError) -> Self {
+        use crate::providers::errors::ProviderError;
+        match error {
+            ProviderError::ApiError {
+                provider, message, ..
+            } => Self::external_service(&provider, message),
+            ProviderError::RateLimitExceeded {
+                provider,
+                retry_after_secs,
+                limit_type,
+            } => Self::external_service(
+                &provider,
+                format!("Rate limit exceeded ({limit_type}): retry after {retry_after_secs}s"),
+            ),
+            ProviderError::AuthenticationFailed { provider, reason } => {
+                Self::auth_invalid(format!("{provider} authentication failed: {reason}"))
+            }
+            ProviderError::TokenRefreshFailed { provider, details } => {
+                Self::auth_invalid(format!("{provider} token refresh failed: {details}"))
+            }
+            ProviderError::NotFound {
+                provider,
+                resource_type,
+                resource_id,
+            } => Self::not_found(format!("{provider} {resource_type} '{resource_id}'")),
+            ProviderError::InvalidData {
+                provider,
+                field,
+                reason,
+            } => Self::invalid_input(format!("{provider} invalid data in '{field}': {reason}")),
+            ProviderError::NetworkError(details) => {
+                Self::external_service("provider", format!("Network error: {details}"))
+            }
+            ProviderError::ConfigurationError { provider, details } => {
+                Self::config(format!("{provider} configuration error: {details}"))
+            }
+            ProviderError::UnsupportedFeature { provider, feature } => {
+                Self::invalid_input(format!("{provider} does not support {feature}"))
+            }
+            ProviderError::HttpError {
+                provider,
+                status,
+                body,
+            } => Self::external_service(&provider, format!("HTTP {status}: {body}")),
+            ProviderError::ParseError {
+                provider,
+                field,
+                source,
+            } => Self::internal(format!("{provider} failed to parse '{field}': {source}")),
+            ProviderError::Reqwest { provider, source } => {
+                Self::external_service(&provider, format!("Request failed: {source}"))
+            }
+            ProviderError::Timeout {
+                provider,
+                operation,
+                timeout_secs,
+            } => Self::external_service(
+                &provider,
+                format!("{operation} timed out after {timeout_secs}s"),
+            ),
+            ProviderError::QuotaExceeded {
+                provider,
+                quota_type,
+            } => Self::external_service(&provider, format!("Quota exceeded: {quota_type}")),
         }
     }
 }

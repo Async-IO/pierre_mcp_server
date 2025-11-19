@@ -1,7 +1,7 @@
 // ABOUTME: LTHR (Lactate Threshold Heart Rate) estimation algorithms for endurance training
 // ABOUTME: Implements MaxHR-based, 30-min test, ramp test, and Friel method for LTHR calculation
 
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -134,7 +134,7 @@ impl LthrAlgorithm {
     /// let lthr = algorithm.estimate_lthr()?;
     /// // lthr = 169.95 bpm (165 x 1.03)
     /// ```
-    pub fn estimate_lthr(&self) -> Result<f64, AppError> {
+    pub fn estimate_lthr(&self) -> AppResult<f64> {
         match self {
             Self::FromMaxHR { max_hr, percentage } => {
                 Self::validate_hr(*max_hr, "Maximum heart rate")?;
@@ -162,7 +162,7 @@ impl LthrAlgorithm {
     }
 
     /// Validate heart rate value
-    fn validate_hr(hr: f64, name: &str) -> Result<(), AppError> {
+    fn validate_hr(hr: f64, name: &str) -> AppResult<()> {
         if !(40.0..=220.0).contains(&hr) {
             return Err(AppError::invalid_input(format!(
                 "{name} {hr:.1} bpm is outside physiological range (40-220 bpm)"
@@ -172,7 +172,7 @@ impl LthrAlgorithm {
     }
 
     /// Validate LTHR percentage
-    fn validate_percentage(percentage: f64) -> Result<(), AppError> {
+    fn validate_percentage(percentage: f64) -> AppResult<()> {
         if !(0.80..=0.95).contains(&percentage) {
             return Err(AppError::invalid_input(format!(
                 "LTHR percentage {percentage:.2} is outside valid range (0.80-0.95)"
@@ -182,7 +182,7 @@ impl LthrAlgorithm {
     }
 
     /// Calculate LTHR from ramp test HR samples
-    fn calculate_ramp_test_lthr(hr_samples: &[f64]) -> Result<f64, AppError> {
+    fn calculate_ramp_test_lthr(hr_samples: &[f64]) -> AppResult<f64> {
         if hr_samples.is_empty() {
             return Err(AppError::invalid_input(
                 "Ramp test requires HR samples".to_owned(),
@@ -213,7 +213,7 @@ impl LthrAlgorithm {
         first_half_avg_hr: f64,
         second_half_avg_hr: f64,
         half_duration_seconds: f64,
-    ) -> Result<f64, AppError> {
+    ) -> AppResult<f64> {
         Self::validate_hr(first_half_avg_hr, "First half average HR")?;
         Self::validate_hr(second_half_avg_hr, "Second half average HR")?;
 
@@ -255,10 +255,7 @@ impl LthrAlgorithm {
     /// # Errors
     ///
     /// Returns `AppError::InvalidInput` if HR values are outside physiological range
-    pub fn calculate_hr_drift(
-        first_half_avg_hr: f64,
-        second_half_avg_hr: f64,
-    ) -> Result<f64, AppError> {
+    pub fn calculate_hr_drift(first_half_avg_hr: f64, second_half_avg_hr: f64) -> AppResult<f64> {
         Self::validate_hr(first_half_avg_hr, "First half average HR")?;
         Self::validate_hr(second_half_avg_hr, "Second half average HR")?;
 

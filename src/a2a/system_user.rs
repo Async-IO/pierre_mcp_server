@@ -9,8 +9,8 @@
 
 use crate::database::repositories::UserRepository;
 use crate::database_plugins::factory::Database;
+use crate::errors::{AppError, AppResult};
 use crate::models::User;
-use anyhow::Result;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -41,7 +41,7 @@ impl A2ASystemUserService {
         &self,
         client_id: &str,
         contact_email: &str,
-    ) -> Result<Uuid> {
+    ) -> AppResult<Uuid> {
         let system_email = format!("a2a-system-{client_id}@pierre.ai");
 
         // Check if system user already exists
@@ -62,7 +62,8 @@ impl A2ASystemUserService {
             bcrypt::DEFAULT_COST // Secure hashing for production (12)
         };
 
-        let hashed_password = bcrypt::hash(secure_password, bcrypt_cost)?;
+        let hashed_password = bcrypt::hash(secure_password, bcrypt_cost)
+            .map_err(|e| AppError::internal(format!("Failed to hash password: {e}")))?;
 
         let system_user = User::new(
             system_email.clone(),
@@ -116,7 +117,7 @@ impl A2ASystemUserService {
     /// # Errors
     ///
     /// Returns an error if database operations fail
-    pub async fn is_system_user(&self, user_id: Uuid) -> Result<bool> {
+    pub async fn is_system_user(&self, user_id: Uuid) -> AppResult<bool> {
         if let Some(user) = self.database.users().get_by_id(user_id).await? {
             // System users have emails following the pattern a2a-system-{client_id}@pierre.ai
             Ok(user.email.starts_with("a2a-system-") && user.email.ends_with("@pierre.ai"))
@@ -130,7 +131,7 @@ impl A2ASystemUserService {
     /// # Errors
     ///
     /// Returns an error if database operations fail
-    pub async fn get_client_id_for_system_user(&self, user_id: Uuid) -> Result<Option<String>> {
+    pub async fn get_client_id_for_system_user(&self, user_id: Uuid) -> AppResult<Option<String>> {
         if let Some(user) = self.database.users().get_by_id(user_id).await? {
             if user.email.starts_with("a2a-system-") && user.email.ends_with("@pierre.ai") {
                 // Extract client ID from email: a2a-system-{client_id}@pierre.ai
@@ -149,7 +150,7 @@ impl A2ASystemUserService {
     /// # Errors
     ///
     /// Returns an error if database operations fail
-    pub async fn deactivate_system_user(&self, client_id: &str) -> Result<()> {
+    pub async fn deactivate_system_user(&self, client_id: &str) -> AppResult<()> {
         let system_email = format!("a2a-system-{client_id}@pierre.ai");
 
         if let Some(user) = self.database.users().get_by_email(&system_email).await? {

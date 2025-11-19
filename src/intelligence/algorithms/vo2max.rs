@@ -1,7 +1,7 @@
 // ABOUTME: VO2max estimation algorithms for aerobic fitness assessment
 // ABOUTME: Implements VDOT, Cooper, Rockport, Astrand-Ryhming, and pace-based models for VO2max calculation
 
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -163,7 +163,7 @@ impl Vo2maxAlgorithm {
     /// let vo2max = algorithm.estimate_vo2max()?;
     /// // vo2max ≈ 51.3 ml/kg/min
     /// ```
-    pub fn estimate_vo2max(&self) -> Result<f64, AppError> {
+    pub fn estimate_vo2max(&self) -> AppResult<f64> {
         match self {
             Self::FromVdot { vdot } => {
                 Self::validate_vdot(*vdot)?;
@@ -200,7 +200,7 @@ impl Vo2maxAlgorithm {
     }
 
     /// Validate VDOT value
-    fn validate_vdot(vdot: f64) -> Result<(), AppError> {
+    fn validate_vdot(vdot: f64) -> AppResult<()> {
         if !(30.0..=85.0).contains(&vdot) {
             return Err(AppError::invalid_input(format!(
                 "VDOT {vdot:.1} is outside typical range (30-85)"
@@ -210,7 +210,7 @@ impl Vo2maxAlgorithm {
     }
 
     /// Validate gender (0 = female, 1 = male)
-    fn validate_gender(gender: u8) -> Result<(), AppError> {
+    fn validate_gender(gender: u8) -> AppResult<()> {
         if gender > 1 {
             return Err(AppError::invalid_input(format!(
                 "Gender must be 0 (female) or 1 (male), got {gender}"
@@ -220,7 +220,7 @@ impl Vo2maxAlgorithm {
     }
 
     /// Calculate `VO2max` from Cooper 12-minute test
-    fn calculate_cooper(distance_meters: f64) -> Result<f64, AppError> {
+    fn calculate_cooper(distance_meters: f64) -> AppResult<f64> {
         if distance_meters < 1000.0 {
             return Err(AppError::invalid_input(format!(
                 "Cooper test distance {distance_meters:.0}m seems too low (< 1000m)"
@@ -239,7 +239,7 @@ impl Vo2maxAlgorithm {
     }
 
     /// Calculate `VO2max` from Rockport 1-mile walk test
-    fn calculate_rockport(data: RockportTestData) -> Result<f64, AppError> {
+    fn calculate_rockport(data: RockportTestData) -> AppResult<f64> {
         Self::validate_gender(data.gender)?;
 
         if !(40.0..=150.0).contains(&data.weight_kg) {
@@ -298,7 +298,7 @@ impl Vo2maxAlgorithm {
         heart_rate: f64,
         power_watts: f64,
         weight_kg: f64,
-    ) -> Result<f64, AppError> {
+    ) -> AppResult<f64> {
         Self::validate_gender(gender)?;
 
         if !(120.0..=170.0).contains(&heart_rate) {
@@ -336,7 +336,7 @@ impl Vo2maxAlgorithm {
     }
 
     /// Calculate `VO2max` from pace relationship
-    fn calculate_from_pace(max_speed_ms: f64, recovery_speed_ms: f64) -> Result<f64, AppError> {
+    fn calculate_from_pace(max_speed_ms: f64, recovery_speed_ms: f64) -> AppResult<f64> {
         if max_speed_ms <= 0.0 || recovery_speed_ms <= 0.0 {
             return Err(AppError::invalid_input(
                 "Speeds must be positive".to_owned(),

@@ -10,9 +10,8 @@
 use super::oauth_manager::{CredentialConfig, TenantOAuthCredentials, TenantOAuthManager};
 use super::TenantContext;
 use crate::database_plugins::factory::Database;
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::oauth2_client::{OAuth2Client, OAuth2Config, OAuth2Token, PkceParams};
-use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{info, warn};
@@ -61,7 +60,7 @@ impl TenantOAuthClient {
         tenant_context: &TenantContext,
         provider: &str,
         database: &Database,
-    ) -> Result<OAuth2Client> {
+    ) -> AppResult<OAuth2Client> {
         // Check rate limit first
         let manager = self.oauth_manager.lock().await;
         let (current_usage, daily_limit) =
@@ -71,8 +70,7 @@ impl TenantOAuthClient {
             return Err(AppError::invalid_input(format!(
                 "Tenant {} has exceeded daily rate limit for provider {}: {}/{}",
                 tenant_context.tenant_id, provider, current_usage, daily_limit
-            ))
-            .into());
+            )));
         }
 
         // Get tenant credentials
@@ -103,11 +101,16 @@ impl TenantOAuthClient {
         provider: &str,
         state: &str,
         database: &Database,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let oauth_client = self
             .get_oauth_client(tenant_context, provider, database)
             .await?;
-        oauth_client.get_authorization_url(state)
+        oauth_client.get_authorization_url(state).map_err(|e| {
+            AppError::external_service(
+                "oauth2",
+                format!("OAuth authorization URL generation failed: {e}"),
+            )
+        })
     }
 
     /// Get authorization URL with PKCE for tenant-specific OAuth flow
@@ -122,11 +125,18 @@ impl TenantOAuthClient {
         state: &str,
         pkce: &PkceParams,
         database: &Database,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let oauth_client = self
             .get_oauth_client(tenant_context, provider, database)
             .await?;
-        oauth_client.get_authorization_url_with_pkce(state, pkce)
+        oauth_client
+            .get_authorization_url_with_pkce(state, pkce)
+            .map_err(|e| {
+                AppError::external_service(
+                    "oauth2",
+                    format!("OAuth authorization URL with PKCE generation failed: {e}"),
+                )
+            })
     }
 
     /// Exchange authorization code for access token
@@ -140,11 +150,13 @@ impl TenantOAuthClient {
         provider: &str,
         code: &str,
         database: &Database,
-    ) -> Result<OAuth2Token> {
+    ) -> AppResult<OAuth2Token> {
         let oauth_client = self
             .get_oauth_client(tenant_context, provider, database)
             .await?;
-        let token = oauth_client.exchange_code(code).await?;
+        let token = oauth_client.exchange_code(code).await.map_err(|e| {
+            AppError::external_service("oauth2", format!("OAuth code exchange failed: {e}"))
+        })?;
 
         // Increment usage counter
         self.oauth_manager.lock().await.increment_usage(
@@ -174,11 +186,19 @@ impl TenantOAuthClient {
         code: &str,
         pkce: &PkceParams,
         database: &Database,
-    ) -> Result<OAuth2Token> {
+    ) -> AppResult<OAuth2Token> {
         let oauth_client = self
             .get_oauth_client(tenant_context, provider, database)
             .await?;
-        let token = oauth_client.exchange_code_with_pkce(code, pkce).await?;
+        let token = oauth_client
+            .exchange_code_with_pkce(code, pkce)
+            .await
+            .map_err(|e| {
+                AppError::external_service(
+                    "oauth2",
+                    format!("OAuth code exchange with PKCE failed: {e}"),
+                )
+            })?;
 
         // Increment usage counter
         self.oauth_manager.lock().await.increment_usage(
@@ -207,11 +227,16 @@ impl TenantOAuthClient {
         provider: &str,
         refresh_token: &str,
         database: &Database,
-    ) -> Result<OAuth2Token> {
+    ) -> AppResult<OAuth2Token> {
         let oauth_client = self
             .get_oauth_client(tenant_context, provider, database)
             .await?;
-        let token = oauth_client.refresh_token(refresh_token).await?;
+        let token = oauth_client
+            .refresh_token(refresh_token)
+            .await
+            .map_err(|e| {
+                AppError::external_service("oauth2", format!("OAuth token refresh failed: {e}"))
+            })?;
 
         // Increment usage counter
         self.oauth_manager.lock().await.increment_usage(
@@ -234,7 +259,7 @@ impl TenantOAuthClient {
     /// # Errors
     ///
     /// Returns an error if rate limit checking fails
-    pub async fn check_rate_limit(&self, tenant_id: Uuid, provider: &str) -> Result<(u32, u32)> {
+    pub async fn check_rate_limit(&self, tenant_id: Uuid, provider: &str) -> AppResult<(u32, u32)> {
         let manager = self.oauth_manager.lock().await;
         manager.check_rate_limit(tenant_id, provider)
     }
@@ -249,7 +274,7 @@ impl TenantOAuthClient {
         tenant_id: Uuid,
         provider: &str,
         database: &Database,
-    ) -> Result<Option<TenantOAuthCredentials>> {
+    ) -> AppResult<Option<TenantOAuthCredentials>> {
         let manager = self.oauth_manager.lock().await;
         manager
             .get_credentials(tenant_id, provider, database)
@@ -267,7 +292,7 @@ impl TenantOAuthClient {
         tenant_id: Uuid,
         provider: &str,
         request: StoreCredentialsRequest,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let config = CredentialConfig {
             client_id: request.client_id,
             client_secret: request.client_secret,
@@ -284,7 +309,7 @@ impl TenantOAuthClient {
     fn build_oauth_config(
         credentials: &TenantOAuthCredentials,
         provider: &str,
-    ) -> Result<OAuth2Config> {
+    ) -> AppResult<OAuth2Config> {
         let (auth_url, token_url, use_pkce) = match provider {
             "strava" => (
                 "https://www.strava.com/oauth/authorize".to_owned(),
@@ -300,8 +325,7 @@ impl TenantOAuthClient {
                 warn!("Unknown provider {}, using generic OAuth URLs", provider);
                 return Err(AppError::invalid_input(format!(
                     "Unsupported OAuth provider: {provider}"
-                ))
-                .into());
+                )));
             }
         };
 

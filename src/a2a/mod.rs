@@ -28,11 +28,11 @@ pub use protocol::{A2AError, A2AErrorResponse, A2ARequest, A2AResponse, A2AServe
 pub const A2A_VERSION: &str = "1.0.0";
 
 /// Helper function for mapping database errors to A2A errors
-pub fn map_db_error(context: &str) -> impl Fn(anyhow::Error) -> A2AError + '_ {
+pub fn map_db_error(context: &str) -> impl Fn(crate::errors::AppError) -> A2AError + '_ {
     move |e| A2AError::InternalError(format!("{context}: {e}"))
 }
 
 /// Helper function for mapping database errors to A2A errors with string context
-pub fn map_db_error_str(context: String) -> impl Fn(anyhow::Error) -> A2AError {
+pub fn map_db_error_str(context: String) -> impl Fn(crate::errors::AppError) -> A2AError {
     move |e| A2AError::InternalError(format!("{context}: {e}"))
 }

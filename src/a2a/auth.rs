@@ -10,7 +10,7 @@
 //! supporting API keys and `OAuth2` for agent-to-agent communication.
 
 use crate::auth::{AuthMethod, AuthResult};
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::providers::errors::ProviderError;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -99,7 +99,7 @@ impl A2AAuthenticator {
     /// - The API key format is invalid
     /// - Authentication fails
     /// - Rate limits are exceeded
-    pub async fn authenticate_api_key(&self, api_key: &str) -> Result<AuthResult, anyhow::Error> {
+    pub async fn authenticate_api_key(&self, api_key: &str) -> AppResult<AuthResult> {
         // Check if it's an A2A-specific API key (with a2a_ prefix)
         if api_key.starts_with("a2a_") {
             return self.authenticate_a2a_key(api_key).await;
@@ -108,14 +108,17 @@ impl A2AAuthenticator {
         // Use standard API key authentication through MCP middleware
         let middleware = &self.resources.auth_middleware;
 
-        middleware.authenticate_request(Some(api_key)).await
+        middleware
+            .authenticate_request(Some(api_key))
+            .await
+            .map_err(|e| AppError::auth_invalid(format!("A2A authentication failed: {e}")))
     }
 
     /// Authenticate A2A-specific API key with rate limiting
-    async fn authenticate_a2a_key(&self, api_key: &str) -> Result<AuthResult, anyhow::Error> {
+    async fn authenticate_a2a_key(&self, api_key: &str) -> AppResult<AuthResult> {
         // Extract key components (similar to API key validation)
         if !api_key.starts_with("a2a_") || api_key.len() < 16 {
-            return Err(AppError::auth_invalid("Invalid A2A API key format").into());
+            return Err(AppError::auth_invalid("Invalid A2A API key format"));
         }
 
         // A2A keys are stored in API keys table but linked to A2A clients
@@ -129,7 +132,11 @@ impl A2AAuthenticator {
         // Add A2A-specific rate limiting
         if let AuthMethod::ApiKey { key_id, tier: _ } = &auth_result.auth_method {
             // Find A2A client associated with this API key
-            if let Some(client) = self.get_a2a_client_by_api_key(key_id).await? {
+            if let Some(client) = self
+                .get_a2a_client_by_api_key(key_id)
+                .await
+                .map_err(|e| AppError::database(format!("Failed to get A2A client: {e}")))?
+            {
                 let client_manager = &*self.resources.a2a_client_manager;
 
                 // Check A2A-specific rate limits
@@ -141,7 +148,7 @@ impl A2AAuthenticator {
                     })?;
 
                 if rate_limit_status.is_rate_limited {
-                    return Err(ProviderError::RateLimitExceeded {
+                    let err = ProviderError::RateLimitExceeded {
                         provider: "A2A Client Authentication".to_owned(),
                         retry_after_secs: rate_limit_status.reset_at.map_or(3600, |dt| {
                             let now = chrono::Utc::now().timestamp();
@@ -155,8 +162,11 @@ impl A2AAuthenticator {
                                 .reset_at
                                 .map_or_else(|| "unknown".into(), |dt| dt.to_rfc3339())
                         ),
-                    }
-                    .into());
+                    };
+                    return Err(AppError::external_service(
+                        "A2A Client Authentication",
+                        err.to_string(),
+                    ));
                 }
 
                 // Update auth method to indicate A2A authentication

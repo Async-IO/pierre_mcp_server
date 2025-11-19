@@ -12,7 +12,7 @@
 //! - Emergency key rotation procedures
 //! - Key lifecycle management
 
-use anyhow::Result;
+use crate::errors::AppResult;
 use chrono::Timelike;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
@@ -132,7 +132,7 @@ impl KeyRotationManager {
     /// # Errors
     ///
     /// Returns an error if the scheduler cannot be started
-    pub fn start_scheduler(self: Arc<Self>) -> Result<()> {
+    pub fn start_scheduler(self: Arc<Self>) -> AppResult<()> {
         if !self.config.auto_rotation_enabled {
             tracing::info!("Key rotation scheduler disabled");
             return Ok(());
@@ -166,7 +166,7 @@ impl KeyRotationManager {
     }
 
     /// Check all tenants and rotate keys as needed
-    async fn check_and_rotate_keys(&self) -> Result<()> {
+    async fn check_and_rotate_keys(&self) -> AppResult<()> {
         tracing::info!("Checking for keys that need rotation");
 
         // Get all tenants from database
@@ -190,7 +190,7 @@ impl KeyRotationManager {
     }
 
     /// Check if a specific tenant/global key needs rotation
-    async fn check_key_rotation(&self, tenant_id: Option<Uuid>) -> Result<()> {
+    async fn check_key_rotation(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
         let current_version = self.get_current_key_version(tenant_id).await?;
 
         if let Some(version) = current_version {
@@ -217,7 +217,7 @@ impl KeyRotationManager {
     }
 
     /// Schedule a key rotation
-    async fn schedule_key_rotation(&self, tenant_id: Option<Uuid>) -> Result<()> {
+    async fn schedule_key_rotation(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
         let scheduled_at = chrono::Utc::now() + chrono::Duration::hours(1); // Schedule for 1 hour from now
 
         {
@@ -251,7 +251,7 @@ impl KeyRotationManager {
     }
 
     /// Perform actual key rotation
-    async fn perform_key_rotation(&self, tenant_id: Option<Uuid>) -> Result<()> {
+    async fn perform_key_rotation(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
         tracing::info!("Starting key rotation for tenant {:?}", tenant_id);
 
         {
@@ -297,7 +297,7 @@ impl KeyRotationManager {
     }
 
     /// Execute the actual key rotation process
-    async fn execute_key_rotation(&self, tenant_id: Option<Uuid>) -> Result<()> {
+    async fn execute_key_rotation(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
         // 1. Create new key version
         let new_version = self.create_new_key_version(tenant_id).await?;
 
@@ -325,7 +325,7 @@ impl KeyRotationManager {
     }
 
     /// Create a new key version
-    async fn create_new_key_version(&self, tenant_id: Option<Uuid>) -> Result<KeyVersion> {
+    async fn create_new_key_version(&self, tenant_id: Option<Uuid>) -> AppResult<KeyVersion> {
         let current_versions = self.get_key_versions(tenant_id).await?;
         let next_version = current_versions
             .iter()
@@ -360,7 +360,7 @@ impl KeyRotationManager {
     }
 
     /// Activate a specific key version
-    async fn activate_key_version(&self, tenant_id: Option<Uuid>, version: u32) -> Result<()> {
+    async fn activate_key_version(&self, tenant_id: Option<Uuid>, version: u32) -> AppResult<()> {
         // Update database first
         self.database
             .update_key_version_status(tenant_id, version, true)
@@ -383,7 +383,7 @@ impl KeyRotationManager {
     }
 
     /// Clean up old key versions
-    async fn cleanup_old_key_versions(&self, tenant_id: Option<Uuid>) -> Result<()> {
+    async fn cleanup_old_key_versions(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
         // Delete old key versions from database
         let deleted_count = self
             .database
@@ -409,7 +409,7 @@ impl KeyRotationManager {
     }
 
     /// Initialize key version for new tenant
-    async fn initialize_key_version(&self, tenant_id: Option<Uuid>) -> Result<()> {
+    async fn initialize_key_version(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
         let initial_version = KeyVersion {
             version: 1,
             created_at: chrono::Utc::now(),
@@ -431,13 +431,16 @@ impl KeyRotationManager {
     }
 
     /// Get current active key version
-    async fn get_current_key_version(&self, tenant_id: Option<Uuid>) -> Result<Option<KeyVersion>> {
+    async fn get_current_key_version(
+        &self,
+        tenant_id: Option<Uuid>,
+    ) -> AppResult<Option<KeyVersion>> {
         let versions = self.get_key_versions(tenant_id).await?;
         Ok(versions.into_iter().find(|v| v.is_active))
     }
 
     /// Get all key versions for a tenant
-    async fn get_key_versions(&self, tenant_id: Option<Uuid>) -> Result<Vec<KeyVersion>> {
+    async fn get_key_versions(&self, tenant_id: Option<Uuid>) -> AppResult<Vec<KeyVersion>> {
         // First try to get from database
         if let Ok(versions) = self.database.get_key_versions(tenant_id).await {
             // Update in-memory cache
@@ -454,7 +457,7 @@ impl KeyRotationManager {
     }
 
     /// Store key version in database
-    fn store_key_version(&self, version: &KeyVersion) -> Result<()> {
+    fn store_key_version(&self, version: &KeyVersion) -> AppResult<()> {
         // Use async runtime to call the database method
         let rt = tokio::runtime::Handle::current();
         rt.block_on(self.database.store_key_version(version.tenant_id, version))
@@ -478,7 +481,7 @@ impl KeyRotationManager {
         &self,
         tenant_id: Option<Uuid>,
         reason: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         tracing::warn!(
             "Emergency key rotation initiated for tenant {:?}. Reason: {}",
             tenant_id,

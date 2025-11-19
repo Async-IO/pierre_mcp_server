@@ -16,8 +16,7 @@ use super::{
 };
 use crate::constants::errors::{ERROR_INTERNAL_ERROR, ERROR_METHOD_NOT_FOUND};
 use crate::constants::protocol::JSONRPC_VERSION;
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, error, warn};
@@ -76,7 +75,7 @@ impl McpRequestProcessor {
     }
 
     /// Process an MCP request and generate response
-    async fn process_request(&self, request: McpRequest) -> Result<McpResponse> {
+    async fn process_request(&self, request: McpRequest) -> AppResult<McpResponse> {
         // Validate request format
         Self::validate_request(&request)?;
 
@@ -94,17 +93,16 @@ impl McpRequestProcessor {
     }
 
     /// Validate MCP request format and required fields
-    fn validate_request(request: &McpRequest) -> Result<()> {
+    fn validate_request(request: &McpRequest) -> AppResult<()> {
         if request.jsonrpc != JSONRPC_VERSION {
             return Err(AppError::invalid_input(format!(
                 "Invalid JSON-RPC version: got '{}', expected '{}'",
                 request.jsonrpc, JSONRPC_VERSION
-            ))
-            .into());
+            )));
         }
 
         if request.method.is_empty() {
-            return Err(AppError::invalid_input("Missing method").into());
+            return Err(AppError::invalid_input("Missing method"));
         }
 
         Ok(())
@@ -193,7 +191,7 @@ impl McpRequestProcessor {
     }
 
     /// Handle tools/call request
-    async fn handle_tools_call(&self, request: &McpRequest) -> Result<McpResponse> {
+    async fn handle_tools_call(&self, request: &McpRequest) -> AppResult<McpResponse> {
         debug!("Handling tools/call request");
 
         request
@@ -330,17 +328,27 @@ impl McpRequestProcessor {
 pub async fn write_response_to_stdout(
     response: &McpResponse,
     stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
-) -> Result<()> {
+) -> AppResult<()> {
     use tokio::io::AsyncWriteExt;
 
-    let response_json = serde_json::to_string(response)?;
+    let response_json = serde_json::to_string(response)
+        .map_err(|e| AppError::internal(format!("JSON serialization failed: {e}")))?;
     debug!("Sending MCP response: {}", response_json);
 
     {
         let mut stdout_lock = stdout.lock().await;
-        stdout_lock.write_all(response_json.as_bytes()).await?;
-        stdout_lock.write_all(b"\n").await?;
-        stdout_lock.flush().await?;
+        stdout_lock
+            .write_all(response_json.as_bytes())
+            .await
+            .map_err(|e| AppError::internal(format!("Transport error: {e}")))?;
+        stdout_lock
+            .write_all(b"\n")
+            .await
+            .map_err(|e| AppError::internal(format!("Transport error: {e}")))?;
+        stdout_lock
+            .flush()
+            .await
+            .map_err(|e| AppError::internal(format!("Transport error: {e}")))?;
         drop(stdout_lock);
     }
 

@@ -16,9 +16,8 @@ use super::{
     TrendDirection,
 };
 use crate::config::intelligence_config::IntelligenceStrategy;
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::models::Activity;
-use anyhow::Result;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
@@ -34,8 +33,9 @@ impl PerformanceAnalyzerV2 {
     /// # Errors
     ///
     /// Returns an error if the configuration is invalid
-    pub fn new(strategy: Box<dyn IntelligenceStrategy>) -> Result<Self> {
-        let config = AnalysisConfig::from_environment()?;
+    pub fn new(strategy: Box<dyn IntelligenceStrategy>) -> AppResult<Self> {
+        let config = AnalysisConfig::from_environment()
+            .map_err(|e| AppError::internal(format!("Configuration loading failed: {e}")))?;
         Ok(Self { config, strategy })
     }
 
@@ -61,13 +61,15 @@ impl PerformanceAnalyzerV2 {
         activities: &[Activity],
         timeframe: TimeFrame,
         metric_type: MetricType,
-    ) -> Result<TrendAnalysis> {
+    ) -> AppResult<TrendAnalysis> {
         // 1. Filter activities by timeframe
-        let filtered_activities = Self::filter_activities_by_timeframe(activities, &timeframe)?;
+        let filtered_activities = Self::filter_activities_by_timeframe(activities, &timeframe)
+            .map_err(|e| AppError::invalid_input(format!("Activity filtering failed: {e}")))?;
 
         // 2. Extract metric values with type safety
         let metric_values =
-            SafeMetricExtractor::extract_metric_values(&filtered_activities, metric_type)?;
+            SafeMetricExtractor::extract_metric_values(&filtered_activities, metric_type)
+                .map_err(|e| AppError::internal(format!("Metric extraction failed: {e}")))?;
 
         // 3. Convert to data points
         let mut data_points = Self::create_data_points(metric_values);
@@ -77,8 +79,7 @@ impl PerformanceAnalyzerV2 {
                 "Insufficient data points for reliable trend analysis: got {}, need at least {}",
                 data_points.len(),
                 self.config.confidence.medium_data_points
-            ))
-            .into());
+            )));
         }
 
         // 4. Apply smoothing based on configuration
@@ -122,7 +123,7 @@ impl PerformanceAnalyzerV2 {
     /// # Errors
     ///
     /// Returns an error if fitness score calculation fails
-    pub fn calculate_fitness_score(&self, activities: &[Activity]) -> Result<FitnessScore> {
+    pub fn calculate_fitness_score(&self, activities: &[Activity]) -> AppResult<FitnessScore> {
         let weeks_back = self.config.timeframes.fitness_score_weeks;
         let cutoff_date = Utc::now() - chrono::Duration::weeks(weeks_back.into());
 
@@ -181,7 +182,7 @@ impl PerformanceAnalyzerV2 {
         &self,
         activities: &[Activity],
         target: &ActivityGoal,
-    ) -> Result<PerformancePrediction> {
+    ) -> AppResult<PerformancePrediction> {
         // Filter to similar sport activities
         let similar_activities: Vec<_> = activities
             .iter()
@@ -194,18 +195,20 @@ impl PerformanceAnalyzerV2 {
                 "Insufficient similar activities for prediction: need {}, got {}",
                 self.config.min_activities_for_prediction,
                 similar_activities.len()
-            ))
-            .into());
+            )));
         }
 
         // Extract metric for trend analysis
-        let metric_type = Self::target_metric_to_metric_type(&target.metric)?;
+        let metric_type = Self::target_metric_to_metric_type(&target.metric)
+            .map_err(|e| AppError::invalid_input(format!("Invalid metric type: {e}")))?;
         let metric_values =
-            SafeMetricExtractor::extract_metric_values(&similar_activities, metric_type)?;
+            SafeMetricExtractor::extract_metric_values(&similar_activities, metric_type)
+                .map_err(|e| AppError::internal(format!("Metric extraction failed: {e}")))?;
 
         // Perform regression analysis
         let data_points = Self::create_data_points(metric_values);
-        let regression = StatisticalAnalyzer::linear_regression(&data_points)?;
+        let regression = StatisticalAnalyzer::linear_regression(&data_points)
+            .map_err(|e| AppError::internal(format!("Regression analysis failed: {e}")))?;
 
         // Project future performance
         let days_to_target = (target.target_date - Utc::now()).num_days();
@@ -213,8 +216,7 @@ impl PerformanceAnalyzerV2 {
             return Err(AppError::invalid_input(format!(
                 "Target date too far in future: {} days (max: {})",
                 days_to_target, self.config.max_prediction_days
-            ))
-            .into());
+            )));
         }
 
         let future_x = data_points.len() as f64 + (days_to_target as f64 / 7.0); // Weekly progression
@@ -226,7 +228,8 @@ impl PerformanceAnalyzerV2 {
             &regression,
             future_x,
             0.95, // 95% confidence interval
-        )?;
+        )
+        .map_err(|e| AppError::internal(format!("Confidence interval calculation failed: {e}")))?;
 
         let confidence =
             self.calculate_prediction_confidence(&regression, similar_activities.len());
@@ -247,7 +250,10 @@ impl PerformanceAnalyzerV2 {
     /// # Errors
     ///
     /// Returns an error if training load analysis fails
-    pub fn analyze_training_load(&self, activities: &[Activity]) -> Result<TrainingLoadAnalysis> {
+    pub fn analyze_training_load(
+        &self,
+        activities: &[Activity],
+    ) -> AppResult<TrainingLoadAnalysis> {
         let weeks = self.config.timeframes.training_load_weeks;
         let start_date = Utc::now() - chrono::Duration::weeks(weeks.into());
 
@@ -272,7 +278,9 @@ impl PerformanceAnalyzerV2 {
             weekly_loads.push(load);
         }
 
-        let analysis = self.analyze_load_pattern(&weekly_loads)?;
+        let analysis = self
+            .analyze_load_pattern(&weekly_loads)
+            .map_err(|e| AppError::internal(format!("Load pattern analysis failed: {e}")))?;
         let recommendations = self.generate_load_recommendations(&analysis);
         let insights = Self::generate_load_insights(&analysis);
 
@@ -291,7 +299,7 @@ impl PerformanceAnalyzerV2 {
     fn filter_activities_by_timeframe(
         activities: &[Activity],
         timeframe: &TimeFrame,
-    ) -> Result<Vec<Activity>> {
+    ) -> AppResult<Vec<Activity>> {
         let start_date = timeframe.start_date();
         let end_date = timeframe.end_date();
 
@@ -304,8 +312,7 @@ impl PerformanceAnalyzerV2 {
         if filtered.is_empty() {
             return Err(AppError::invalid_input(format!(
                 "No activities found in timeframe from {start_date} to {end_date}"
-            ))
-            .into());
+            )));
         }
 
         Ok(filtered)
@@ -516,7 +523,7 @@ impl PerformanceAnalyzerV2 {
         consistency_ratio.min(1.0) * 100.0
     }
 
-    fn target_metric_to_metric_type(metric: &str) -> Result<MetricType> {
+    fn target_metric_to_metric_type(metric: &str) -> AppResult<MetricType> {
         match metric.to_lowercase().as_str() {
             "pace" => Ok(MetricType::Pace),
             "speed" => Ok(MetricType::Speed),
@@ -525,7 +532,9 @@ impl PerformanceAnalyzerV2 {
             "heart_rate" | "hr" => Ok(MetricType::HeartRate),
             "elevation" => Ok(MetricType::Elevation),
             "power" => Ok(MetricType::Power),
-            _ => Err(AppError::invalid_input(format!("Unknown metric type: {metric}")).into()),
+            _ => Err(AppError::invalid_input(format!(
+                "Unknown metric type: {metric}"
+            ))),
         }
     }
 
@@ -612,9 +621,9 @@ impl PerformanceAnalyzerV2 {
         }
     }
 
-    fn analyze_load_pattern(&self, weekly_loads: &[WeeklyLoad]) -> Result<LoadPatternAnalysis> {
+    fn analyze_load_pattern(&self, weekly_loads: &[WeeklyLoad]) -> AppResult<LoadPatternAnalysis> {
         if weekly_loads.is_empty() {
-            return Err(AppError::invalid_input("No weekly load data to analyze").into());
+            return Err(AppError::invalid_input("No weekly load data to analyze"));
         }
 
         let average_load = weekly_loads

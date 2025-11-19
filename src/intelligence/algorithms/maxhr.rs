@@ -1,7 +1,7 @@
 // ABOUTME: Maximum heart rate estimation algorithms using age-predicted formulas
 // ABOUTME: Implements Fox, Tanaka, Nes, and Gulati formulas with scientific validation
 
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -73,7 +73,7 @@ impl MaxHrAlgorithm {
     /// let max_hr = MaxHrAlgorithm::Tanaka.estimate(40, None)?;
     /// assert_eq!(max_hr, 180.0); // 208 - 0.7*40 = 180
     /// ```
-    pub fn estimate(&self, age: u32, gender: Option<&str>) -> Result<f64, AppError> {
+    pub fn estimate(&self, age: u32, gender: Option<&str>) -> AppResult<f64> {
         // Validate age range
         if age == 0 || age > 120 {
             return Err(AppError::invalid_input(format!(

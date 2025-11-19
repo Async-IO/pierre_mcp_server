@@ -15,8 +15,7 @@ use super::models::{
 use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::database::repositories::UserRepository;
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{Duration, Utc};
 use ring::rand::{SecureRandom, SystemRandom};
@@ -372,7 +371,7 @@ impl OAuth2AuthorizationServer {
     }
 
     /// Generate authorization code
-    async fn generate_authorization_code(&self, params: AuthCodeParams<'_>) -> Result<String> {
+    async fn generate_authorization_code(&self, params: AuthCodeParams<'_>) -> AppResult<String> {
         let code = Self::generate_random_string(32)?;
         let expires_at = Utc::now() + Duration::minutes(10); // 10 minute expiry
 
@@ -604,7 +603,7 @@ impl OAuth2AuthorizationServer {
         client_id: &str,
         user_id: Option<Uuid>,
         scope: Option<&str>,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let scopes = scope.map_or_else(
             || {
                 tracing::debug!(
@@ -619,20 +618,25 @@ impl OAuth2AuthorizationServer {
 
         user_id.map_or_else(
             || {
-                self.auth_manager.generate_client_credentials_token(
-                    &self.jwks_manager,
-                    client_id,
-                    &scopes,
-                    None, // tenant_id for client credentials
-                )
+                self.auth_manager
+                    .generate_client_credentials_token(
+                        &self.jwks_manager,
+                        client_id,
+                        &scopes,
+                        None, // tenant_id for client credentials
+                    )
+                    .map_err(|e| {
+                        AppError::internal(format!(
+                            "Failed to generate client credentials token: {e}"
+                        ))
+                    })
             },
             |uid| {
-                self.auth_manager.generate_oauth_access_token(
-                    &self.jwks_manager,
-                    &uid,
-                    &scopes,
-                    None,
-                )
+                self.auth_manager
+                    .generate_oauth_access_token(&self.jwks_manager, &uid, &scopes, None)
+                    .map_err(|e| {
+                        AppError::internal(format!("Failed to generate OAuth access token: {e}"))
+                    })
             },
         )
     }
@@ -642,7 +646,7 @@ impl OAuth2AuthorizationServer {
     /// # Errors
     /// Returns an error if system RNG fails - this is a critical security failure
     /// and the server cannot operate securely without working RNG
-    fn generate_random_string(length: usize) -> Result<String> {
+    fn generate_random_string(length: usize) -> AppResult<String> {
         let rng = SystemRandom::new();
         let mut bytes = vec![0u8; length];
 
@@ -659,7 +663,7 @@ impl OAuth2AuthorizationServer {
     }
 
     /// Store authorization code (database operation)
-    async fn store_auth_code(&self, auth_code: &OAuth2AuthCode) -> Result<()> {
+    async fn store_auth_code(&self, auth_code: &OAuth2AuthCode) -> AppResult<()> {
         self.database.store_oauth2_auth_code(auth_code).await
     }
 
@@ -667,7 +671,7 @@ impl OAuth2AuthorizationServer {
     ///
     /// # Errors
     /// Returns an error if system RNG fails
-    fn generate_refresh_token() -> Result<String> {
+    fn generate_refresh_token() -> AppResult<String> {
         // Generate 32 bytes (256 bits) of secure random data
         Self::generate_random_string(32)
     }
@@ -676,7 +680,7 @@ impl OAuth2AuthorizationServer {
     async fn store_refresh_token(
         &self,
         refresh_token: &super::models::OAuth2RefreshToken,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.database
             .store_oauth2_refresh_token(refresh_token)
             .await
@@ -725,7 +729,7 @@ impl OAuth2AuthorizationServer {
         &self,
         access_token: &str,
         request: super::models::ValidateRefreshRequest,
-    ) -> Result<super::models::ValidateRefreshResponse> {
+    ) -> AppResult<super::models::ValidateRefreshResponse> {
         // Validate the JWT token
         match self
             .auth_manager
@@ -743,7 +747,7 @@ impl OAuth2AuthorizationServer {
     async fn handle_valid_token_claims(
         &self,
         claims: crate::auth::Claims,
-    ) -> Result<super::models::ValidateRefreshResponse> {
+    ) -> AppResult<super::models::ValidateRefreshResponse> {
         use super::models::{ValidateRefreshResponse, ValidationStatus};
 
         match Uuid::parse_str(&claims.sub) {
@@ -773,7 +777,7 @@ impl OAuth2AuthorizationServer {
         validation_error: crate::auth::JwtValidationError,
         expired_access_token: &str,
         request: &super::models::ValidateRefreshRequest,
-    ) -> Result<super::models::ValidateRefreshResponse> {
+    ) -> AppResult<super::models::ValidateRefreshResponse> {
         use super::models::{ValidateRefreshResponse, ValidationStatus};
         use crate::auth::JwtValidationError;
 
@@ -869,7 +873,7 @@ impl OAuth2AuthorizationServer {
     ///
     /// This is safe because we only need to read the claims, not trust them.
     /// The refresh token will be validated separately.
-    fn decode_expired_token(token: &str) -> Result<crate::auth::Claims> {
+    fn decode_expired_token(token: &str) -> AppResult<crate::auth::Claims> {
         use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 
         // Create a permissive validation that doesn't check expiry or signature
@@ -898,7 +902,7 @@ impl OAuth2AuthorizationServer {
         &self,
         refresh_token_value: &str,
         user_id_str: &str,
-    ) -> Result<super::models::OAuth2RefreshToken> {
+    ) -> AppResult<super::models::OAuth2RefreshToken> {
         // Parse user_id from string
         let user_id = Uuid::parse_str(user_id_str).map_err(|e| {
             crate::errors::AppError::new(
@@ -931,8 +935,7 @@ impl OAuth2AuthorizationServer {
             return Err(crate::errors::AppError::new(
                 crate::errors::ErrorCode::AuthInvalid,
                 "Refresh token does not belong to the user in the access token",
-            )
-            .into());
+            ));
         }
 
         // Verify the refresh token hasn't expired
@@ -940,8 +943,7 @@ impl OAuth2AuthorizationServer {
             return Err(crate::errors::AppError::new(
                 crate::errors::ErrorCode::AuthExpired,
                 "Refresh token has expired",
-            )
-            .into());
+            ));
         }
 
         // Verify the refresh token hasn't been revoked
@@ -949,8 +951,7 @@ impl OAuth2AuthorizationServer {
             return Err(crate::errors::AppError::new(
                 crate::errors::ErrorCode::AuthInvalid,
                 "Refresh token has been revoked",
-            )
-            .into());
+            ));
         }
 
         Ok(refresh_token)

@@ -5,8 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use super::{CacheConfig, CacheKey, CacheProvider};
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use redis::{aio::ConnectionManager, AsyncCommands};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -27,7 +26,7 @@ impl RedisCache {
     /// # Errors
     ///
     /// Returns an error if Redis connection fails
-    async fn new_with_config(config: &CacheConfig) -> Result<Self> {
+    async fn new_with_config(config: &CacheConfig) -> AppResult<Self> {
         let redis_url = config
             .redis_url
             .as_ref()
@@ -57,7 +56,7 @@ impl RedisCache {
 
 #[async_trait::async_trait]
 impl CacheProvider for RedisCache {
-    async fn new(config: CacheConfig) -> Result<Self>
+    async fn new(config: CacheConfig) -> AppResult<Self>
     where
         Self: Sized,
     {
@@ -69,8 +68,9 @@ impl CacheProvider for RedisCache {
         key: &CacheKey,
         value: &T,
         ttl: Duration,
-    ) -> Result<()> {
-        let serialized = serde_json::to_vec(value)?;
+    ) -> AppResult<()> {
+        let serialized = serde_json::to_vec(value)
+            .map_err(|e| AppError::internal(format!("Cache serialization failed: {e}")))?;
         let redis_key = Self::build_key(key);
         let ttl_secs = ttl.as_secs();
 
@@ -81,43 +81,45 @@ impl CacheProvider for RedisCache {
             .await
             .map_err(|e| {
                 tracing::error!("Redis SET operation failed: {}", e);
-                AppError::internal(format!("Redis SET failed: {e}"))
+                AppError::internal(format!("Cache error: {e}"))
             })?;
 
         Ok(())
     }
 
-    async fn get<T: for<'de> Deserialize<'de>>(&self, key: &CacheKey) -> Result<Option<T>> {
+    async fn get<T: for<'de> Deserialize<'de>>(&self, key: &CacheKey) -> AppResult<Option<T>> {
         let redis_key = Self::build_key(key);
         let mut conn = self.manager.clone();
 
         let data: Option<Vec<u8>> = conn.get(&redis_key).await.map_err(|e| {
             tracing::error!("Redis GET operation failed: {}", e);
-            AppError::internal(format!("Redis GET failed: {e}"))
+            AppError::internal(format!("Cache error: {e}"))
         })?;
 
         match data {
             Some(bytes) => {
-                let value: T = serde_json::from_slice(&bytes)?;
+                let value: T = serde_json::from_slice(&bytes).map_err(|e| {
+                    AppError::internal(format!("Cache deserialization failed: {e}"))
+                })?;
                 Ok(Some(value))
             }
             None => Ok(None),
         }
     }
 
-    async fn invalidate(&self, key: &CacheKey) -> Result<()> {
+    async fn invalidate(&self, key: &CacheKey) -> AppResult<()> {
         let redis_key = Self::build_key(key);
         let mut conn = self.manager.clone();
 
         let _: () = conn.del(&redis_key).await.map_err(|e| {
             tracing::error!("Redis DEL operation failed: {}", e);
-            AppError::internal(format!("Redis DEL failed: {e}"))
+            AppError::internal(format!("Cache error: {e}"))
         })?;
 
         Ok(())
     }
 
-    async fn invalidate_pattern(&self, pattern: &str) -> Result<u64> {
+    async fn invalidate_pattern(&self, pattern: &str) -> AppResult<u64> {
         // Convert glob pattern to Redis pattern (glob and Redis use same wildcard syntax)
         let redis_pattern = format!("{}{}", crate::constants::cache::CACHE_KEY_PREFIX, pattern);
 
@@ -137,14 +139,14 @@ impl CacheProvider for RedisCache {
                 .await
                 .map_err(|e| {
                     tracing::error!("Redis SCAN failed: {}", e);
-                    AppError::internal(format!("Redis SCAN failed: {e}"))
+                    AppError::internal(format!("Cache error: {e}"))
                 })?;
 
             // Delete matching keys in pipeline for efficiency
             if !keys.is_empty() {
                 let deleted: u64 = conn.del(&keys).await.map_err(|e| {
                     tracing::error!("Redis DEL failed: {}", e);
-                    AppError::internal(format!("Redis DEL failed: {e}"))
+                    AppError::internal(format!("Cache error: {e}"))
                 })?;
                 count += deleted;
             }
@@ -158,25 +160,25 @@ impl CacheProvider for RedisCache {
         Ok(count)
     }
 
-    async fn exists(&self, key: &CacheKey) -> Result<bool> {
+    async fn exists(&self, key: &CacheKey) -> AppResult<bool> {
         let redis_key = Self::build_key(key);
         let mut conn = self.manager.clone();
 
         let exists: bool = conn.exists(&redis_key).await.map_err(|e| {
             tracing::error!("Redis EXISTS operation failed: {}", e);
-            AppError::internal(format!("Redis EXISTS failed: {e}"))
+            AppError::internal(format!("Cache error: {e}"))
         })?;
 
         Ok(exists)
     }
 
-    async fn ttl(&self, key: &CacheKey) -> Result<Option<Duration>> {
+    async fn ttl(&self, key: &CacheKey) -> AppResult<Option<Duration>> {
         let redis_key = Self::build_key(key);
         let mut conn = self.manager.clone();
 
         let ttl_secs: i64 = conn.ttl(&redis_key).await.map_err(|e| {
             tracing::error!("Redis TTL operation failed: {}", e);
-            AppError::internal(format!("Redis TTL failed: {e}"))
+            AppError::internal(format!("Cache error: {e}"))
         })?;
 
         // Redis returns -2 if key doesn't exist, -1 if key has no expiration
@@ -188,7 +190,7 @@ impl CacheProvider for RedisCache {
         }
     }
 
-    async fn health_check(&self) -> Result<()> {
+    async fn health_check(&self) -> AppResult<()> {
         let mut conn = self.manager.clone();
 
         // Use PING to verify Redis connection is healthy
@@ -197,20 +199,19 @@ impl CacheProvider for RedisCache {
             .await
             .map_err(|e| {
                 tracing::error!("Redis PING failed: {}", e);
-                AppError::internal(format!("Redis health check failed: {e}"))
+                AppError::internal(format!("Cache error: {e}"))
             })?;
 
         if response == "PONG" {
             Ok(())
         } else {
             Err(AppError::internal(format!(
-                "Redis health check failed: unexpected response '{response}'"
-            ))
-            .into())
+                "Cache error: unexpected PING response '{response}'"
+            )))
         }
     }
 
-    async fn clear_all(&self) -> Result<()> {
+    async fn clear_all(&self) -> AppResult<()> {
         // Clear only keys with our namespace prefix (safe for shared Redis instances)
         let pattern = format!("{}*", crate::constants::cache::CACHE_KEY_PREFIX);
 
@@ -228,13 +229,13 @@ impl CacheProvider for RedisCache {
                 .await
                 .map_err(|e| {
                     tracing::error!("Redis SCAN failed during clear_all: {}", e);
-                    AppError::internal(format!("Redis SCAN failed: {e}"))
+                    AppError::internal(format!("Cache error: {e}"))
                 })?;
 
             if !keys.is_empty() {
                 let _: u64 = conn.del(&keys).await.map_err(|e| {
                     tracing::error!("Redis DEL failed during clear_all: {}", e);
-                    AppError::internal(format!("Redis DEL failed: {e}"))
+                    AppError::internal(format!("Cache error: {e}"))
                 })?;
             }
 

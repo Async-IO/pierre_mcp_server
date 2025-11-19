@@ -115,11 +115,21 @@ async fn perform_basic_analysis(
     // Fetch actual activity data from the provider
     let activity = provider.get_activity(activity_id).await.map_err(|e| {
         // Provide helpful error message for NotFound errors
-        let error_message =
-            e.downcast_ref::<crate::providers::errors::ProviderError>()
-                .map_or_else(
-                    || format!("Failed to fetch activity {activity_id}: {e}"),
-                    |provider_err| match provider_err {
+        let error_message = {
+            let err_str = e.to_string();
+            if err_str.contains("not found") || err_str.contains("NotFound") {
+                format!("Activity {activity_id} not found in provider. The activity may have been deleted, made private, or the ID may be incorrect.")
+            } else {
+                format!("Failed to fetch activity {activity_id}: {e}")
+            }
+        };
+
+        // Legacy code kept for reference - AppError doesn't support downcast_ref
+        /*
+        e.downcast_ref::<crate::providers::errors::ProviderError>()
+            .map_or_else(
+                || format!("Failed to fetch activity {activity_id}: {e}"),
+                |provider_err| match provider_err {
                         crate::providers::errors::ProviderError::NotFound {
                             resource_type,
                             resource_id,
@@ -132,6 +142,7 @@ async fn perform_basic_analysis(
                         _ => format!("Failed to fetch activity {activity_id}: {e}"),
                     },
                 );
+        */
         ProtocolError::InternalError {
             component: "provider",
             details: error_message,

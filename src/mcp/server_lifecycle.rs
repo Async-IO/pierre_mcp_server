@@ -10,7 +10,7 @@ use super::{
     mcp_request_processor::McpRequestProcessor, resources::ServerResources,
     transport_manager::TransportManager,
 };
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tracing::{debug, info};
@@ -31,7 +31,7 @@ impl ServerLifecycle {
     ///
     /// # Errors
     /// Returns an error if server startup or transport coordination fails
-    pub async fn run_unified_server(self, port: u16) -> Result<()> {
+    pub async fn run_unified_server(self, port: u16) -> AppResult<()> {
         let transport_manager = TransportManager::new(self.resources);
         transport_manager.start_all_transports(port).await
     }
@@ -40,7 +40,7 @@ impl ServerLifecycle {
     ///
     /// # Errors
     /// Returns an error if HTTP server startup fails
-    pub async fn run_http_only(self, port: u16) -> Result<()> {
+    pub async fn run_http_only(self, port: u16) -> AppResult<()> {
         info!(
             "Starting MCP server with HTTP transport only on port {}",
             port
@@ -55,7 +55,7 @@ impl ServerLifecycle {
         self,
         port: u16,
         resources: Arc<ServerResources>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         // Delegate to the existing comprehensive HTTP server implementation
         // This ensures we don't lose any existing functionality
         let server = super::multitenant::MultiTenantMcpServer::new(resources.clone());
@@ -71,7 +71,7 @@ impl ServerLifecycle {
     pub async fn run_stdio_transport(
         self,
         notification_receiver: tokio::sync::broadcast::Receiver<OAuthCompletedNotification>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         use tokio::io::{AsyncBufReadExt, BufReader};
 
         let stdin = tokio::io::stdin();
@@ -90,7 +90,11 @@ impl ServerLifecycle {
         info!("MCP stdio transport started");
 
         // Process stdin requests
-        while let Some(line) = reader.next_line().await? {
+        while let Some(line) = reader
+            .next_line()
+            .await
+            .map_err(|e| AppError::internal(format!("Transport error: {e}")))?
+        {
             if line.trim().is_empty() {
                 continue;
             }
@@ -115,7 +119,7 @@ impl ServerLifecycle {
     pub async fn run_sse_notification_forwarder(
         &self,
         mut notification_receiver: tokio::sync::broadcast::Receiver<OAuthCompletedNotification>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         info!("Starting SSE notification forwarder");
 
         while let Ok(_notification) = notification_receiver.recv().await {
@@ -161,14 +165,24 @@ impl ServerLifecycle {
     async fn write_response_to_stdout(
         response: &McpResponse,
         stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
-    ) -> Result<()> {
-        let response_json = serde_json::to_string(response)?;
+    ) -> AppResult<()> {
+        let response_json = serde_json::to_string(response)
+            .map_err(|e| AppError::internal(format!("JSON serialization failed: {e}")))?;
         debug!("Sending MCP response: {}", response_json);
 
         let mut stdout_lock = stdout.lock().await;
-        stdout_lock.write_all(response_json.as_bytes()).await?;
-        stdout_lock.write_all(b"\n").await?;
-        stdout_lock.flush().await?;
+        stdout_lock
+            .write_all(response_json.as_bytes())
+            .await
+            .map_err(|e| AppError::internal(format!("Transport error: {e}")))?;
+        stdout_lock
+            .write_all(b"\n")
+            .await
+            .map_err(|e| AppError::internal(format!("Transport error: {e}")))?;
+        stdout_lock
+            .flush()
+            .await
+            .map_err(|e| AppError::internal(format!("Transport error: {e}")))?;
         drop(stdout_lock);
 
         Ok(())
@@ -179,7 +193,7 @@ impl ServerLifecycle {
         request: McpRequest,
         resources: &Arc<ServerResources>,
         stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         debug!(
             "Processing MCP request: method={}, id={:?}",
             request.method, request.id

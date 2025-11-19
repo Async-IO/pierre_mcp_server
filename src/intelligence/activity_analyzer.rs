@@ -10,6 +10,7 @@ use super::{
     MetricsCalculator,
 };
 use crate::config::intelligence_config::{ActivityAnalyzerConfig, IntelligenceConfig};
+use crate::errors::{AppError, AppResult};
 use crate::intelligence::physiological_constants::{
     activity_scoring::{
         BASE_ACTIVITY_SCORE, COMPLETION_BONUS, DURATION_BONUS, HR_ZONE_BONUS, INTENSITY_BONUS,
@@ -29,7 +30,6 @@ use crate::intelligence::physiological_constants::{
     training_load::{HIGH_TSS_THRESHOLD, LOW_TSS_THRESHOLD},
 };
 use crate::models::{Activity, SportType};
-use anyhow::Result;
 use std::collections::HashMap;
 
 /// Safe casting helper functions to avoid clippy warnings
@@ -63,7 +63,7 @@ pub trait ActivityAnalyzerTrait {
     /// - Metrics calculation fails
     /// - Anomaly detection fails
     /// - Data processing errors occur
-    async fn analyze_activity(&self, activity: &Activity) -> Result<ActivityInsights>;
+    async fn analyze_activity(&self, activity: &Activity) -> AppResult<ActivityInsights>;
 
     /// Detect anomalies in activity data
     ///
@@ -73,7 +73,7 @@ pub trait ActivityAnalyzerTrait {
     /// - Activity data is malformed
     /// - Anomaly detection algorithms fail
     /// - Data validation errors occur
-    async fn detect_anomalies(&self, activity: &Activity) -> Result<Vec<Anomaly>>;
+    async fn detect_anomalies(&self, activity: &Activity) -> AppResult<Vec<Anomaly>>;
 
     /// Calculate training load for an activity
     ///
@@ -84,7 +84,7 @@ pub trait ActivityAnalyzerTrait {
     /// - Heart rate data is corrupted
     /// - Training load calculation fails
     /// - Mathematical operations fail
-    async fn calculate_training_load(&self, activity: &Activity) -> Result<f64>;
+    async fn calculate_training_load(&self, activity: &Activity) -> AppResult<f64>;
 
     /// Compare activity against user's historical data
     ///
@@ -99,7 +99,7 @@ pub trait ActivityAnalyzerTrait {
         &self,
         activity: &Activity,
         historical_activities: &[Activity],
-    ) -> Result<Vec<AdvancedInsight>>;
+    ) -> AppResult<Vec<AdvancedInsight>>;
 }
 
 /// Advanced activity analyzer implementation
@@ -524,9 +524,12 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
     /// - Metrics calculation fails
     /// - Anomaly detection fails
     /// - Data processing errors occur
-    async fn analyze_activity(&self, activity: &Activity) -> Result<ActivityInsights> {
+    async fn analyze_activity(&self, activity: &Activity) -> AppResult<ActivityInsights> {
         // Calculate advanced metrics
-        let metrics = self.metrics_calculator.calculate_metrics(activity)?;
+        let metrics = self
+            .metrics_calculator
+            .calculate_metrics(activity)
+            .map_err(|e| AppError::internal(format!("Metrics calculation failed: {e}")))?;
 
         // Generate overall score
         let overall_score = self.calculate_overall_score(activity, &metrics);
@@ -538,7 +541,10 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         let recommendations = Self::generate_recommendations(activity, &metrics);
 
         // Detect anomalies
-        let anomalies = self.detect_anomalies(activity).await?;
+        let anomalies = self
+            .detect_anomalies(activity)
+            .await
+            .map_err(|e| AppError::internal(format!("Anomaly detection failed: {e}")))?;
 
         Ok(ActivityInsights {
             activity_id: activity.id.clone(),
@@ -558,7 +564,7 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
     /// - Activity data is malformed
     /// - Anomaly detection algorithms fail
     /// - Data validation errors occur
-    async fn detect_anomalies(&self, activity: &Activity) -> Result<Vec<Anomaly>> {
+    async fn detect_anomalies(&self, activity: &Activity) -> AppResult<Vec<Anomaly>> {
         let mut anomalies = Vec::new();
 
         // Check for unrealistic heart rate values using physiological limits
@@ -629,7 +635,7 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
     /// - Heart rate data is corrupted
     /// - Training load calculation fails
     /// - Mathematical operations fail
-    async fn calculate_training_load(&self, activity: &Activity) -> Result<f64> {
+    async fn calculate_training_load(&self, activity: &Activity) -> AppResult<f64> {
         // Calculate training load based on available metrics
         let mut load = 0.0;
 
@@ -675,7 +681,7 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         &self,
         activity: &Activity,
         historical_activities: &[Activity],
-    ) -> Result<Vec<AdvancedInsight>> {
+    ) -> AppResult<Vec<AdvancedInsight>> {
         let mut insights = Vec::new();
 
         // Filter historical activities by sport type

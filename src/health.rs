@@ -9,7 +9,7 @@
 use crate::constants::service_names;
 use crate::database::repositories::{ApiKeyRepository, UserRepository};
 use crate::database_plugins::factory::Database;
-use anyhow::Result;
+use crate::errors::AppResult;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -418,7 +418,7 @@ impl HealthChecker {
     }
 
     /// Perform database-specific health checks
-    async fn database_health_check(&self) -> Result<serde_json::Value> {
+    async fn database_health_check(&self) -> AppResult<serde_json::Value> {
         // Try a simple query to ensure database is responsive
         let start = Instant::now();
 

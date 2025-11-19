@@ -5,8 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use super::{CacheConfig, CacheKey, CacheProvider};
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroUsize;
@@ -126,7 +125,7 @@ impl InMemoryCache {
 
 #[async_trait::async_trait]
 impl CacheProvider for InMemoryCache {
-    async fn new(config: CacheConfig) -> Result<Self> {
+    async fn new(config: CacheConfig) -> AppResult<Self> {
         Ok(Self::new_with_config(&config))
     }
 
@@ -135,8 +134,9 @@ impl CacheProvider for InMemoryCache {
         key: &CacheKey,
         value: &T,
         ttl: Duration,
-    ) -> Result<()> {
-        let serialized = serde_json::to_vec(value)?;
+    ) -> AppResult<()> {
+        let serialized = serde_json::to_vec(value)
+            .map_err(|e| AppError::internal(format!("Cache serialization failed: {e}")))?;
         let entry = CacheEntry::new(serialized, ttl);
 
         // LruCache handles eviction automatically on push
@@ -145,7 +145,7 @@ impl CacheProvider for InMemoryCache {
         Ok(())
     }
 
-    async fn get<T: for<'de> Deserialize<'de>>(&self, key: &CacheKey) -> Result<Option<T>> {
+    async fn get<T: for<'de> Deserialize<'de>>(&self, key: &CacheKey) -> AppResult<Option<T>> {
         let mut store = self.store.write().await;
 
         // LruCache::get is mutable (updates access order for LRU)
@@ -157,7 +157,8 @@ impl CacheProvider for InMemoryCache {
                 return Ok(None);
             }
 
-            let value: T = serde_json::from_slice(&entry.data)?;
+            let value: T = serde_json::from_slice(&entry.data)
+                .map_err(|e| AppError::internal(format!("Cache deserialization failed: {e}")))?;
             drop(store);
             return Ok(Some(value));
         }
@@ -166,19 +167,18 @@ impl CacheProvider for InMemoryCache {
         Ok(None)
     }
 
-    async fn invalidate(&self, key: &CacheKey) -> Result<()> {
+    async fn invalidate(&self, key: &CacheKey) -> AppResult<()> {
         self.store.write().await.pop(&key.to_string());
         Ok(())
     }
 
-    async fn invalidate_pattern(&self, pattern: &str) -> Result<u64> {
+    async fn invalidate_pattern(&self, pattern: &str) -> AppResult<u64> {
         let mut store = self.store.write().await;
 
         // Use proper glob matching for cache key patterns
         // Patterns like "tenant:*:provider:strava:*" will correctly match wildcards
-        let glob_pattern = glob::Pattern::new(pattern).map_err(|e| -> anyhow::Error {
-            AppError::internal(format!("Invalid glob pattern '{pattern}': {e}")).into()
-        })?;
+        let glob_pattern = glob::Pattern::new(pattern)
+            .map_err(|e| AppError::internal(format!("Invalid glob pattern '{pattern}': {e}")))?;
 
         // Collect keys to remove (can't modify while iterating)
         let keys_to_remove: Vec<String> = store
@@ -202,7 +202,7 @@ impl CacheProvider for InMemoryCache {
         Ok(removed)
     }
 
-    async fn exists(&self, key: &CacheKey) -> Result<bool> {
+    async fn exists(&self, key: &CacheKey) -> AppResult<bool> {
         let mut store = self.store.write().await;
 
         // LruCache::get is mutable, need write lock
@@ -221,7 +221,7 @@ impl CacheProvider for InMemoryCache {
         Ok(false)
     }
 
-    async fn ttl(&self, key: &CacheKey) -> Result<Option<Duration>> {
+    async fn ttl(&self, key: &CacheKey) -> AppResult<Option<Duration>> {
         let store = self.store.write().await;
 
         // Use peek to avoid updating LRU order
@@ -237,12 +237,12 @@ impl CacheProvider for InMemoryCache {
         Ok(None)
     }
 
-    async fn health_check(&self) -> Result<()> {
+    async fn health_check(&self) -> AppResult<()> {
         // In-memory cache is always healthy
         Ok(())
     }
 
-    async fn clear_all(&self) -> Result<()> {
+    async fn clear_all(&self) -> AppResult<()> {
         self.store.write().await.clear();
         Ok(())
     }

@@ -4,12 +4,12 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+use crate::errors::AppResult;
 use crate::models::{
     Activity, Athlete, HealthMetrics, PersonalRecord, RecoveryMetrics, SleepSession, Stats,
 };
 use crate::pagination::{CursorPage, PaginationParams};
 use crate::providers::errors::ProviderError;
-use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -59,23 +59,23 @@ pub trait FitnessProvider: Send + Sync {
     fn config(&self) -> &ProviderConfig;
 
     /// Set `OAuth2` credentials for this provider
-    async fn set_credentials(&self, credentials: OAuth2Credentials) -> Result<()>;
+    async fn set_credentials(&self, credentials: OAuth2Credentials) -> AppResult<()>;
 
     /// Check if provider has valid authentication
     async fn is_authenticated(&self) -> bool;
 
     /// Refresh access token if needed
-    async fn refresh_token_if_needed(&self) -> Result<()>;
+    async fn refresh_token_if_needed(&self) -> AppResult<()>;
 
     /// Get user's athlete profile
-    async fn get_athlete(&self) -> Result<Athlete>;
+    async fn get_athlete(&self) -> AppResult<Athlete>;
 
     /// Get user's activities with offset-based pagination (legacy)
     async fn get_activities(
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> Result<Vec<Activity>>;
+    ) -> AppResult<Vec<Activity>>;
 
     /// Get user's activities with cursor-based pagination (recommended)
     ///
@@ -84,16 +84,16 @@ pub trait FitnessProvider: Send + Sync {
     async fn get_activities_cursor(
         &self,
         params: &PaginationParams,
-    ) -> Result<CursorPage<Activity>>;
+    ) -> AppResult<CursorPage<Activity>>;
 
     /// Get specific activity by ID
-    async fn get_activity(&self, id: &str) -> Result<Activity>;
+    async fn get_activity(&self, id: &str) -> AppResult<Activity>;
 
     /// Get user's aggregate statistics
-    async fn get_stats(&self) -> Result<Stats>;
+    async fn get_stats(&self) -> AppResult<Stats>;
 
     /// Get user's personal records
-    async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>>;
+    async fn get_personal_records(&self) -> AppResult<Vec<PersonalRecord>>;
 
     /// Get sleep sessions for a date range
     ///
@@ -167,7 +167,7 @@ pub trait FitnessProvider: Send + Sync {
     }
 
     /// Revoke access tokens (disconnect)
-    async fn disconnect(&self) -> Result<()>;
+    async fn disconnect(&self) -> AppResult<()>;
 }
 
 /// Provider factory for creating instances
@@ -220,7 +220,7 @@ impl FitnessProvider for TenantProvider {
         self.inner.config()
     }
 
-    async fn set_credentials(&self, credentials: OAuth2Credentials) -> Result<()> {
+    async fn set_credentials(&self, credentials: OAuth2Credentials) -> AppResult<()> {
         // Add tenant-specific logging/metrics here
         tracing::info!(
             "Setting credentials for provider {} in tenant {} for user {}",
@@ -235,11 +235,11 @@ impl FitnessProvider for TenantProvider {
         self.inner.is_authenticated().await
     }
 
-    async fn refresh_token_if_needed(&self) -> Result<()> {
+    async fn refresh_token_if_needed(&self) -> AppResult<()> {
         self.inner.refresh_token_if_needed().await
     }
 
-    async fn get_athlete(&self) -> Result<Athlete> {
+    async fn get_athlete(&self) -> AppResult<Athlete> {
         self.inner.get_athlete().await
     }
 
@@ -247,30 +247,30 @@ impl FitnessProvider for TenantProvider {
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> Result<Vec<Activity>> {
+    ) -> AppResult<Vec<Activity>> {
         self.inner.get_activities(limit, offset).await
     }
 
     async fn get_activities_cursor(
         &self,
         params: &PaginationParams,
-    ) -> Result<CursorPage<Activity>> {
+    ) -> AppResult<CursorPage<Activity>> {
         self.inner.get_activities_cursor(params).await
     }
 
-    async fn get_activity(&self, id: &str) -> Result<Activity> {
+    async fn get_activity(&self, id: &str) -> AppResult<Activity> {
         self.inner.get_activity(id).await
     }
 
-    async fn get_stats(&self) -> Result<Stats> {
+    async fn get_stats(&self) -> AppResult<Stats> {
         self.inner.get_stats().await
     }
 
-    async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>> {
+    async fn get_personal_records(&self) -> AppResult<Vec<PersonalRecord>> {
         self.inner.get_personal_records().await
     }
 
-    async fn disconnect(&self) -> Result<()> {
+    async fn disconnect(&self) -> AppResult<()> {
         self.inner.disconnect().await
     }
 }

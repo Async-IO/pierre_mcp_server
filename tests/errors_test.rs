@@ -310,14 +310,9 @@ fn test_error_response_without_request_id() {
 
 // Error Conversion Tests
 
-#[test]
-fn test_app_error_from_anyhow_error() {
-    let anyhow_error = anyhow::anyhow!("Test anyhow error");
-    let app_error = AppError::from(anyhow_error);
-
-    assert_eq!(app_error.code, ErrorCode::InternalError);
-    assert_eq!(app_error.message, "Test anyhow error");
-}
+// Note: AppError no longer implements From<anyhow::Error> as part of the error migration.
+// This test has been removed as the conversion is no longer supported by design.
+// Use AppError constructors directly instead of converting from anyhow::Error.
 
 #[test]
 fn test_app_error_from_io_error() {

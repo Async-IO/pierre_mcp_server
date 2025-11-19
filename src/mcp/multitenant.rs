@@ -31,13 +31,13 @@ use crate::constants::{
 };
 use crate::database::repositories::ProfileRepository;
 use crate::database_plugins::factory::Database;
+use crate::errors::{AppError, AppResult};
 use crate::providers::ProviderRegistry;
 use crate::routes::OAuthRoutes;
 use crate::security::headers::SecurityConfig;
 use crate::tenant::{TenantContext, TenantOAuthClient};
 // Removed unused imports - now using AppError directly
 
-use anyhow::Result;
 use chrono::Utc;
 
 use serde_json::Value;
@@ -387,7 +387,7 @@ impl MultiTenantMcpServer {
         tool_name: &str,
         response_time: std::time::Duration,
         response: &McpResponse,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         use crate::api_keys::ApiKeyUsage;
 
         let status_code = if response.error.is_some() {
@@ -412,7 +412,10 @@ impl MultiTenantMcpServer {
             user_agent: None,          // Would need to be passed from request context
         };
 
-        database.record_api_key_usage(&usage).await?;
+        database
+            .record_api_key_usage(&usage)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to record API key usage: {e}")))?;
         Ok(())
     }
 
@@ -1024,7 +1027,7 @@ impl MultiTenantMcpServer {
     ///
     /// # Errors
     /// Returns an error if server setup or routing configuration fails
-    pub async fn run(&self, port: u16) -> Result<()> {
+    pub async fn run(&self, port: u16) -> AppResult<()> {
         self.run_http_server_with_resources_axum(port, self.resources.clone())
             .await
     }
@@ -1039,7 +1042,7 @@ impl MultiTenantMcpServer {
         &self,
         port: u16,
         resources: Arc<ServerResources>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         use std::net::SocketAddr;
         use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
         use tower_http::LatencyUnit;
@@ -1075,12 +1078,15 @@ impl MultiTenantMcpServer {
         info!("HTTP server (Axum) listening on http://{}", addr);
 
         // Start the Axum server with ConnectInfo for IP extraction (rate limiting)
-        let listener = tokio::net::TcpListener::bind(addr).await?;
+        let listener = tokio::net::TcpListener::bind(addr)
+            .await
+            .map_err(|e| AppError::internal(format!("Transport error: {e}")))?;
         axum::serve(
             listener,
             app.into_make_service_with_connect_info::<SocketAddr>(),
         )
-        .await?;
+        .await
+        .map_err(|e| AppError::internal(format!("Transport error: {e}")))?;
 
         Ok(())
     }

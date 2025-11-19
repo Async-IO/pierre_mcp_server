@@ -7,8 +7,8 @@
 //! Copyright ©2025 Async-IO.org
 
 use crate::a2a::protocol::A2ATask;
+use crate::errors::{AppError, AppResult};
 use crate::models::User;
-use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use uuid::Uuid;
@@ -34,7 +34,7 @@ use uuid::Uuid;
 /// // SQLite usage:
 /// let user = shared::mappers::parse_user_from_row(&sqlite_row)?;
 /// ```
-pub fn parse_user_from_row<R>(row: &R) -> Result<User>
+pub fn parse_user_from_row<R>(row: &R) -> AppResult<User>
 where
     R: sqlx::Row,
     for<'a> &'a str: sqlx::ColumnIndex<R>,
@@ -48,28 +48,52 @@ where
     DateTime<Utc>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
 {
     // Parse enum fields using shared converters
-    let user_status_str: String = row.try_get("user_status")?;
+    let user_status_str: String = row
+        .try_get("user_status")
+        .map_err(|e| AppError::database(format!("Failed to get column 'user_status': {e}")))?;
     let user_status = super::enums::str_to_user_status(&user_status_str);
 
-    let tier_str: String = row.try_get("tier")?;
+    let tier_str: String = row
+        .try_get("tier")
+        .map_err(|e| AppError::database(format!("Failed to get column 'tier': {e}")))?;
     let tier = super::enums::str_to_user_tier(&tier_str);
 
     Ok(User {
-        id: row.try_get("id")?,
-        email: row.try_get("email")?,
-        display_name: row.try_get("display_name")?,
-        password_hash: row.try_get("password_hash")?,
+        id: row
+            .try_get("id")
+            .map_err(|e| AppError::database(format!("Failed to get column 'id': {e}")))?,
+        email: row
+            .try_get("email")
+            .map_err(|e| AppError::database(format!("Failed to get column 'email': {e}")))?,
+        display_name: row
+            .try_get("display_name")
+            .map_err(|e| AppError::database(format!("Failed to get column 'display_name': {e}")))?,
+        password_hash: row.try_get("password_hash").map_err(|e| {
+            AppError::database(format!("Failed to get column 'password_hash': {e}"))
+        })?,
         tier,
-        tenant_id: row.try_get("tenant_id")?,
+        tenant_id: row
+            .try_get("tenant_id")
+            .map_err(|e| AppError::database(format!("Failed to get column 'tenant_id': {e}")))?,
         strava_token: None, // Loaded separately via user_oauth_tokens
         fitbit_token: None,
-        is_active: row.try_get("is_active")?,
+        is_active: row
+            .try_get("is_active")
+            .map_err(|e| AppError::database(format!("Failed to get column 'is_active': {e}")))?,
         user_status,
         is_admin: row.try_get("is_admin").unwrap_or(false),
-        approved_by: row.try_get("approved_by")?,
-        approved_at: row.try_get("approved_at")?,
-        created_at: row.try_get("created_at")?,
-        last_active: row.try_get("last_active")?,
+        approved_by: row
+            .try_get("approved_by")
+            .map_err(|e| AppError::database(format!("Failed to get column 'approved_by': {e}")))?,
+        approved_at: row
+            .try_get("approved_at")
+            .map_err(|e| AppError::database(format!("Failed to get column 'approved_at': {e}")))?,
+        created_at: row
+            .try_get("created_at")
+            .map_err(|e| AppError::database(format!("Failed to get column 'created_at': {e}")))?,
+        last_active: row
+            .try_get("last_active")
+            .map_err(|e| AppError::database(format!("Failed to get column 'last_active': {e}")))?,
     })
 }
 
@@ -90,7 +114,7 @@ where
 /// # Note
 /// JSON deserialization errors for `input_data`/`result_data` are logged but don't fail
 /// the parse (returns null/None instead).
-pub fn parse_a2a_task_from_row<R>(row: &R) -> Result<A2ATask>
+pub fn parse_a2a_task_from_row<R>(row: &R) -> AppResult<A2ATask>
 where
     R: sqlx::Row,
     for<'a> &'a str: sqlx::ColumnIndex<R>,
@@ -101,10 +125,15 @@ where
     Option<DateTime<Utc>>: for<'a> sqlx::Type<R::Database> + for<'a> sqlx::Decode<'a, R::Database>,
 {
     // Get task_id for logging
-    let task_id: String = row.try_get("task_id").or_else(|_| row.try_get("id"))?; // Try both column names
+    let task_id: String = row
+        .try_get("task_id")
+        .or_else(|_| row.try_get("id"))
+        .map_err(|e| AppError::database(format!("Failed to get task_id or id: {e}")))?; // Try both column names
 
     // Parse input_data JSON with fallback to null
-    let input_str: String = row.try_get("input_data")?;
+    let input_str: String = row
+        .try_get("input_data")
+        .map_err(|e| AppError::database(format!("Failed to get column 'input_data': {e}")))?;
     let input_data: Value = serde_json::from_str(&input_str).unwrap_or_else(|e| {
         tracing::warn!(
             task_id = %task_id,
@@ -132,24 +161,32 @@ where
         });
 
     // Parse status using shared enum converter
-    let status_str: String = row.try_get("status")?;
+    let status_str: String = row
+        .try_get("status")
+        .map_err(|e| AppError::database(format!("Failed to get column 'status': {e}")))?;
     let status = super::enums::str_to_task_status(&status_str);
 
     Ok(A2ATask {
         id: task_id,
         status,
-        created_at: row.try_get("created_at")?,
+        created_at: row
+            .try_get("created_at")
+            .map_err(|e| AppError::database(format!("Failed to get column 'created_at': {e}")))?,
         completed_at: row.try_get("updated_at").ok(),
         result: result_data.clone(), // Safe: JSON value ownership for A2ATask struct
         error: row.try_get("method").ok(),
         client_id: row
             .try_get("client_id")
             .unwrap_or_else(|_| "unknown".into()),
-        task_type: row.try_get("task_type")?,
+        task_type: row
+            .try_get("task_type")
+            .map_err(|e| AppError::database(format!("Failed to get column 'task_type': {e}")))?,
         input_data,
         output_data: result_data,
         error_message: row.try_get("method").ok(),
-        updated_at: row.try_get("updated_at")?,
+        updated_at: row
+            .try_get("updated_at")
+            .map_err(|e| AppError::database(format!("Failed to get column 'updated_at': {e}")))?,
     })
 }
 
@@ -174,7 +211,7 @@ where
 /// let user_id = get_uuid_from_row(&pg_row, "id")?;      // PostgreSQL UUID
 /// let user_id = get_uuid_from_row(&sqlite_row, "id")?;  // SQLite TEXT -> parsed
 /// ```
-pub fn get_uuid_from_row<R>(row: &R, column: &str) -> Result<Uuid>
+pub fn get_uuid_from_row<R>(row: &R, column: &str) -> AppResult<Uuid>
 where
     R: sqlx::Row,
     for<'a> &'a str: sqlx::ColumnIndex<R>,
@@ -187,6 +224,8 @@ where
     }
 
     // Fall back to SQLite TEXT (parse string)
-    let uuid_str: String = row.try_get(column)?;
+    let uuid_str: String = row
+        .try_get(column)
+        .map_err(|e| AppError::database(format!("Failed to get column: {e}")))?;
     Ok(Uuid::parse_str(&uuid_str)?)
 }

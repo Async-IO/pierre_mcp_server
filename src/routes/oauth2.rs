@@ -14,13 +14,13 @@ use crate::auth::AuthManager;
 use crate::config::environment::ServerConfig;
 use crate::database_plugins::factory::Database;
 use crate::errors::AppError;
+use crate::errors::AppResult;
 use crate::oauth2_server::{
     client_registration::ClientRegistrationManager,
     endpoints::OAuth2AuthorizationServer,
     models::{AuthorizeRequest, ClientRegistrationRequest, OAuth2Error, TokenRequest},
     rate_limiting::OAuth2RateLimiter,
 };
-use anyhow::Result;
 use axum::{
     extract::{ConnectInfo, Form, Query, State},
     http::{header, HeaderMap, StatusCode},
@@ -1021,21 +1021,24 @@ impl OAuth2Routes {
         password: &str,
         auth_manager: &AuthManager,
         jwks_manager: &JwksManager,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         // Look up user by email
         let user = database
             .get_user_by_email(email)
-            .await?
+            .await
+            .map_err(|e| AppError::database(e.to_string()))?
             .ok_or_else(|| AppError::not_found("User not found"))?;
 
         // Verify password hash
         if !Self::verify_password(password, &user.password_hash).await {
-            return Err(AppError::auth_invalid("Invalid password").into());
+            return Err(AppError::auth_invalid("Invalid password"));
         }
 
         // Use AuthManager to generate JWT token with RS256 (proper architecture)
         // This ensures consistent JWT handling across the entire system
-        let token = auth_manager.generate_token(&user, jwks_manager)?;
+        let token = auth_manager
+            .generate_token(&user, jwks_manager)
+            .map_err(|e| AppError::internal(format!("Token generation failed: {e}")))?;
 
         Ok(token)
     }

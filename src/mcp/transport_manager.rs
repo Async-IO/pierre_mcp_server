@@ -9,8 +9,8 @@
 // - Shared resource distribution across stdio, SSE, and HTTP transports
 
 use super::resources::ServerResources;
+use crate::errors::{AppError, AppResult};
 use crate::mcp::schema::OAuthCompletedNotification;
-use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use tracing::{error, info, warn};
@@ -36,7 +36,7 @@ impl TransportManager {
     ///
     /// # Errors
     /// Returns an error if transport setup or server startup fails
-    pub async fn start_all_transports(&self, port: u16) -> Result<()> {
+    pub async fn start_all_transports(&self, port: u16) -> AppResult<()> {
         info!(
             "Transport manager coordinating all transports on port {}",
             port
@@ -47,7 +47,7 @@ impl TransportManager {
     }
 
     /// Unified server startup using existing transport coordination
-    async fn start_legacy_unified_server(&self, port: u16) -> Result<()> {
+    async fn start_legacy_unified_server(&self, port: u16) -> AppResult<()> {
         info!("Starting MCP server with stdio and HTTP transports (Axum framework)");
 
         // Use the notification sender from the struct instance
@@ -132,7 +132,7 @@ impl StdioTransport {
     pub async fn run(
         &self,
         notification_receiver: broadcast::Receiver<OAuthCompletedNotification>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         use tokio::io::{AsyncBufReadExt, BufReader};
 
         info!("MCP stdio transport ready - listening on stdin/stdout");
@@ -148,7 +148,11 @@ impl StdioTransport {
         });
 
         // Main stdio loop
-        while let Some(line) = lines.next_line().await? {
+        while let Some(line) = lines
+            .next_line()
+            .await
+            .map_err(|e| AppError::internal(format!("Transport error: {e}")))?
+        {
             if line.trim().is_empty() {
                 continue;
             }
@@ -179,9 +183,10 @@ impl StdioTransport {
         Ok(())
     }
 
-    fn process_stdio_line(line: &str) -> Result<Option<String>> {
+    fn process_stdio_line(line: &str) -> AppResult<Option<String>> {
         // Parse JSON-RPC request to validate format
-        serde_json::from_str::<serde_json::Value>(line)?;
+        serde_json::from_str::<serde_json::Value>(line)
+            .map_err(|e| AppError::internal(format!("JSON parsing failed: {e}")))?;
 
         // Process MCP request (processed by McpRequestProcessor in actual implementation)
         // For now, return a simple response
@@ -191,19 +196,22 @@ impl StdioTransport {
             "id": 1
         });
 
-        Ok(Some(serde_json::to_string(&response)?))
+        Ok(Some(serde_json::to_string(&response).map_err(|e| {
+            AppError::internal(format!("JSON serialization failed: {e}"))
+        })?))
     }
 
     async fn handle_stdio_notifications(
         mut receiver: broadcast::Receiver<OAuthCompletedNotification>,
         _resources: Arc<ServerResources>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         info!("Stdio notification handler ready");
 
         while let Ok(notification) = receiver.recv().await {
             info!("Received OAuth notification for stdio: {:?}", notification);
             // Send notification to stdio client
-            let notification_json = serde_json::to_string(&notification)?;
+            let notification_json = serde_json::to_string(&notification)
+                .map_err(|e| AppError::internal(format!("JSON serialization failed: {e}")))?;
             println!("{notification_json}");
         }
 
@@ -228,7 +236,7 @@ impl SseNotificationForwarder {
     pub async fn run(
         &self,
         mut notification_receiver: broadcast::Receiver<OAuthCompletedNotification>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         info!("SSE notification forwarder ready - waiting for OAuth notifications");
 
         loop {

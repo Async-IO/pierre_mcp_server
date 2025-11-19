@@ -16,7 +16,7 @@ use super::{
 use crate::config::intelligence_config::{
     IntelligenceConfig, IntelligenceStrategy, PerformanceAnalyzerConfig,
 };
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::intelligence::physiological_constants::{
     adaptations::{
         HIGH_VOLUME_IMPROVEMENT_FACTOR, LOW_VOLUME_IMPROVEMENT_FACTOR,
@@ -30,7 +30,6 @@ use crate::intelligence::physiological_constants::{
     training_load::{RECOVERY_LOAD_MULTIPLIER, TWO_WEEK_RECOVERY_THRESHOLD},
 };
 use crate::models::Activity;
-use anyhow::Result;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
@@ -92,20 +91,23 @@ pub trait PerformanceAnalyzerTrait {
         activities: &[Activity],
         timeframe: TimeFrame,
         metric: &str,
-    ) -> Result<TrendAnalysis>;
+    ) -> AppResult<TrendAnalysis>;
 
     /// Calculate fitness score based on recent activities
-    async fn calculate_fitness_score(&self, activities: &[Activity]) -> Result<FitnessScore>;
+    async fn calculate_fitness_score(&self, activities: &[Activity]) -> AppResult<FitnessScore>;
 
     /// Predict performance for a target activity
     async fn predict_performance(
         &self,
         activities: &[Activity],
         target: &ActivityGoal,
-    ) -> Result<PerformancePrediction>;
+    ) -> AppResult<PerformancePrediction>;
 
     /// Calculate training load balance and recovery metrics
-    async fn analyze_training_load(&self, activities: &[Activity]) -> Result<TrainingLoadAnalysis>;
+    async fn analyze_training_load(
+        &self,
+        activities: &[Activity],
+    ) -> AppResult<TrainingLoadAnalysis>;
 }
 
 /// Advanced performance analyzer implementation with configurable strategy
@@ -341,7 +343,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         activities: &[Activity],
         timeframe: TimeFrame,
         metric: &str,
-    ) -> Result<TrendAnalysis> {
+    ) -> AppResult<TrendAnalysis> {
         // Filter activities by timeframe
         let start_date = timeframe.start_date();
         let end_date = timeframe.end_date();
@@ -355,9 +357,9 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             .collect();
 
         if filtered_activities.is_empty() {
-            return Err(
-                AppError::not_found("No activities found in the specified timeframe").into(),
-            );
+            return Err(AppError::not_found(
+                "No activities found in the specified timeframe",
+            ));
         }
 
         // Extract metric values
@@ -391,8 +393,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         if data_points.is_empty() {
             return Err(AppError::not_found(format!(
                 "No valid data points found for metric: {metric}"
-            ))
-            .into());
+            )));
         }
 
         // Sort by date
@@ -460,7 +461,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         Ok(analysis_with_insights)
     }
 
-    async fn calculate_fitness_score(&self, activities: &[Activity]) -> Result<FitnessScore> {
+    async fn calculate_fitness_score(&self, activities: &[Activity]) -> AppResult<FitnessScore> {
         // Calculate fitness score based on recent training load and consistency
         let recent_activities: Vec<_> = activities
             .iter()
@@ -587,7 +588,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         &self,
         activities: &[Activity],
         target: &ActivityGoal,
-    ) -> Result<PerformancePrediction> {
+    ) -> AppResult<PerformancePrediction> {
         // Simple performance prediction based on recent trends
         let similar_activities: Vec<_> = activities
             .iter()
@@ -595,7 +596,9 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             .collect();
 
         if similar_activities.is_empty() {
-            return Err(AppError::not_found("No similar activities found for prediction").into());
+            return Err(AppError::not_found(
+                "No similar activities found for prediction",
+            ));
         }
 
         // Calculate recent average performance
@@ -659,7 +662,10 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         })
     }
 
-    async fn analyze_training_load(&self, activities: &[Activity]) -> Result<TrainingLoadAnalysis> {
+    async fn analyze_training_load(
+        &self,
+        activities: &[Activity],
+    ) -> AppResult<TrainingLoadAnalysis> {
         // Analyze training load over recent weeks
         let weeks = 4;
         let start_date = Utc::now() - chrono::Duration::weeks(weeks);

@@ -6,7 +6,6 @@
 
 //! HTTP routes for API key management
 
-use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
@@ -16,7 +15,7 @@ use crate::{
     },
     auth::AuthResult,
     database::repositories::{ApiKeyRepository, UsageRepository},
-    errors::AppError,
+    errors::{AppError, AppResult},
     mcp::resources::ServerResources,
 };
 
@@ -108,7 +107,7 @@ impl ApiKeyRoutes {
         &self,
         auth: &AuthResult,
         request: CreateApiKeyRequestSimple,
-    ) -> Result<ApiKeyCreateResponse> {
+    ) -> AppResult<ApiKeyCreateResponse> {
         let user_id = auth.user_id;
 
         // Create the API key
@@ -150,7 +149,7 @@ impl ApiKeyRoutes {
         &self,
         auth: &AuthResult,
         request: CreateApiKeyRequest,
-    ) -> Result<ApiKeyCreateResponse> {
+    ) -> AppResult<ApiKeyCreateResponse> {
         let user_id = auth.user_id;
 
         // Create the API key
@@ -185,7 +184,7 @@ impl ApiKeyRoutes {
     /// Returns an error if:
     /// - Authentication fails
     /// - Database operations fail
-    pub async fn list_api_keys(&self, auth: &AuthResult) -> Result<ApiKeyListResponse> {
+    pub async fn list_api_keys(&self, auth: &AuthResult) -> AppResult<ApiKeyListResponse> {
         let user_id = auth.user_id;
 
         let api_keys = self
@@ -227,7 +226,7 @@ impl ApiKeyRoutes {
         &self,
         auth: &AuthResult,
         api_key_id: &str,
-    ) -> Result<ApiKeyDeactivateResponse> {
+    ) -> AppResult<ApiKeyDeactivateResponse> {
         let user_id = auth.user_id;
 
         self.resources
@@ -256,7 +255,7 @@ impl ApiKeyRoutes {
         api_key_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<ApiKeyUsageResponse> {
+    ) -> AppResult<ApiKeyUsageResponse> {
         let user_id = auth.user_id;
 
         // Verify the API key belongs to the user
@@ -267,7 +266,7 @@ impl ApiKeyRoutes {
             .list_by_user(user_id)
             .await?;
         if !user_keys.iter().any(|key| key.id == api_key_id) {
-            return Err(AppError::not_found("API key not found or access denied").into());
+            return Err(AppError::not_found("API key not found or access denied"));
         }
 
         let stats = self
@@ -294,7 +293,7 @@ impl ApiKeyRoutes {
         auth: &AuthResult,
         name: String,
         description: Option<String>,
-    ) -> Result<ApiKeyCreateResponse> {
+    ) -> AppResult<ApiKeyCreateResponse> {
         let user_id = auth.user_id;
 
         // Check if user already has a trial key
@@ -307,7 +306,7 @@ impl ApiKeyRoutes {
         let has_trial_key = existing_keys.iter().any(|k| k.tier == ApiKeyTier::Trial);
 
         if has_trial_key {
-            return Err(AppError::invalid_input("User already has a trial API key").into());
+            return Err(AppError::invalid_input("User already has a trial API key"));
         }
 
         // Create the trial key

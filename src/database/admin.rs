@@ -5,7 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use super::Database;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Utc};
 use sqlx::Row;
 
@@ -23,7 +23,7 @@ impl Database {
         request: &crate::admin::models::CreateAdminTokenRequest,
         admin_jwt_secret: &str,
         jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> Result<crate::admin::models::GeneratedAdminToken> {
+    ) -> AppResult<crate::admin::models::GeneratedAdminToken> {
         use crate::admin::{
             jwt::AdminJwtManager,
             models::{AdminPermissions, GeneratedAdminToken},
@@ -64,18 +64,21 @@ impl Database {
         });
 
         // Generate JWT token using RS256
-        let jwt_token = jwt_manager.generate_token(
-            &token_id,
-            &request.service_name,
-            &permissions,
-            request.is_super_admin,
-            expires_at,
-            jwks_manager,
-        )?;
+        let jwt_token = jwt_manager
+            .generate_token(
+                &token_id,
+                &request.service_name,
+                &permissions,
+                request.is_super_admin,
+                expires_at,
+                jwks_manager,
+            )
+            .map_err(|e| AppError::internal(format!("Failed to generate JWT token: {e}")))?;
 
         // Generate token prefix and hash for storage
         let token_prefix = AdminJwtManager::generate_token_prefix(&jwt_token);
-        let token_hash = AdminJwtManager::hash_token_for_storage(&jwt_token)?;
+        let token_hash = AdminJwtManager::hash_token_for_storage(&jwt_token)
+            .map_err(|e| AppError::internal(format!("Failed to hash JWT token: {e}")))?;
         let jwt_secret_hash = AdminJwtManager::hash_secret(admin_jwt_secret);
 
         // Store in database (SQLite uses ? placeholders)
@@ -104,7 +107,8 @@ impl Database {
             .bind(expires_at)
             .bind(0i64) // usage_count
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to create admin token: {e}")))?;
 
         Ok(GeneratedAdminToken {
             token_id,
@@ -126,7 +130,7 @@ impl Database {
     pub async fn get_admin_token_by_id(
         &self,
         token_id: &str,
-    ) -> Result<Option<crate::admin::models::AdminToken>> {
+    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
         let query = r"
             SELECT id, service_name, service_description, token_hash, token_prefix,
                    jwt_secret_hash, permissions, is_super_admin, is_active,
@@ -137,7 +141,8 @@ impl Database {
         let row = sqlx::query(query)
             .bind(token_id)
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get admin token by ID: {e}")))?;
 
         if let Some(row) = row {
             Ok(Some(Self::row_to_admin_token(&row)?))
@@ -154,7 +159,7 @@ impl Database {
     pub async fn get_admin_token_by_prefix(
         &self,
         token_prefix: &str,
-    ) -> Result<Option<crate::admin::models::AdminToken>> {
+    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
         let query = r"
             SELECT id, service_name, service_description, token_hash, token_prefix,
                    jwt_secret_hash, permissions, is_super_admin, is_active,
@@ -165,7 +170,8 @@ impl Database {
         let row = sqlx::query(query)
             .bind(token_prefix)
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get admin token by prefix: {e}")))?;
 
         if let Some(row) = row {
             Ok(Some(Self::row_to_admin_token(&row)?))
@@ -182,7 +188,7 @@ impl Database {
     pub async fn list_admin_tokens(
         &self,
         include_inactive: bool,
-    ) -> Result<Vec<crate::admin::models::AdminToken>> {
+    ) -> AppResult<Vec<crate::admin::models::AdminToken>> {
         let query = if include_inactive {
             r"
                 SELECT id, service_name, service_description, token_hash, token_prefix,
@@ -199,7 +205,10 @@ impl Database {
             "
         };
 
-        let rows = sqlx::query(query).fetch_all(&self.pool).await?;
+        let rows = sqlx::query(query)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to list admin tokens: {e}")))?;
 
         let mut tokens = Vec::with_capacity(rows.len());
         for row in rows {
@@ -214,13 +223,14 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database update fails
-    pub async fn deactivate_admin_token_impl(&self, token_id: &str) -> Result<()> {
+    pub async fn deactivate_admin_token_impl(&self, token_id: &str) -> AppResult<()> {
         let query = "UPDATE admin_tokens SET is_active = 0 WHERE id = ?";
 
         sqlx::query(query)
             .bind(token_id)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to deactivate admin token: {e}")))?;
 
         Ok(())
     }
@@ -234,7 +244,7 @@ impl Database {
         &self,
         token_id: &str,
         ip_address: Option<&str>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let query = r"
             UPDATE admin_tokens
             SET last_used_at = CURRENT_TIMESTAMP, last_used_ip = ?, usage_count = usage_count + 1
@@ -245,7 +255,10 @@ impl Database {
             .bind(ip_address)
             .bind(token_id)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to update admin token last used: {e}"))
+            })?;
 
         Ok(())
     }
@@ -258,7 +271,7 @@ impl Database {
     pub async fn record_admin_token_usage(
         &self,
         usage: &crate::admin::models::AdminTokenUsage,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let query = r"
             INSERT INTO admin_token_usage (
                 admin_token_id, timestamp, action, target_resource,
@@ -286,7 +299,8 @@ impl Database {
                     .map(|x| i32::try_from(x).unwrap_or(i32::MAX)),
             )
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to record admin token usage: {e}")))?;
 
         Ok(())
     }
@@ -301,7 +315,7 @@ impl Database {
         token_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<Vec<crate::admin::models::AdminTokenUsage>> {
+    ) -> AppResult<Vec<crate::admin::models::AdminTokenUsage>> {
         let query = r"
             SELECT id, admin_token_id, timestamp, action, target_resource,
                    ip_address, user_agent, request_size_bytes, success,
@@ -316,7 +330,10 @@ impl Database {
             .bind(start_date)
             .bind(end_date)
             .fetch_all(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to get admin token usage history: {e}"))
+            })?;
 
         let mut usage_history = Vec::new();
         for row in rows {
@@ -339,7 +356,7 @@ impl Database {
         tier: &str,
         rate_limit_requests: u32,
         rate_limit_period: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let query = r"
             INSERT INTO admin_provisioned_keys (
                 admin_token_id, api_key_id, user_email, requested_tier,
@@ -366,7 +383,10 @@ impl Database {
             .bind(rate_limit_period)
             .bind("active")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to record admin provisioned key: {e}"))
+            })?;
 
         Ok(())
     }
@@ -381,7 +401,7 @@ impl Database {
         admin_token_id: Option<&str>,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<Vec<serde_json::Value>> {
+    ) -> AppResult<Vec<serde_json::Value>> {
         if let Some(token_id) = admin_token_id {
             let rows = sqlx::query(
                 r"
@@ -397,7 +417,10 @@ impl Database {
             .bind(start_date)
             .bind(end_date)
             .fetch_all(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to get admin provisioned keys: {e}"))
+            })?;
 
             let mut results = Vec::new();
             for row in rows {
@@ -432,7 +455,10 @@ impl Database {
             .bind(start_date)
             .bind(end_date)
             .fetch_all(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to get all admin provisioned keys: {e}"))
+            })?;
 
             let mut results = Vec::new();
             for row in rows {
@@ -463,28 +489,56 @@ impl Database {
     /// Returns an error if row parsing or JSON deserialization fails
     fn row_to_admin_token(
         row: &sqlx::sqlite::SqliteRow,
-    ) -> Result<crate::admin::models::AdminToken> {
+    ) -> AppResult<crate::admin::models::AdminToken> {
         use crate::admin::models::{AdminPermissions, AdminToken};
         use sqlx::Row;
 
-        let permissions_json: String = row.try_get("permissions")?;
+        let permissions_json: String = row
+            .try_get("permissions")
+            .map_err(|e| AppError::database(format!("Failed to get permissions from row: {e}")))?;
         let permissions = AdminPermissions::from_json(&permissions_json)?;
 
         Ok(AdminToken {
-            id: row.try_get("id")?,
-            service_name: row.try_get("service_name")?,
-            service_description: row.try_get("service_description")?,
-            token_hash: row.try_get("token_hash")?,
-            token_prefix: row.try_get("token_prefix")?,
-            jwt_secret_hash: row.try_get("jwt_secret_hash")?,
+            id: row
+                .try_get("id")
+                .map_err(|e| AppError::database(format!("Failed to get id from row: {e}")))?,
+            service_name: row.try_get("service_name").map_err(|e| {
+                AppError::database(format!("Failed to get service_name from row: {e}"))
+            })?,
+            service_description: row.try_get("service_description").map_err(|e| {
+                AppError::database(format!("Failed to get service_description from row: {e}"))
+            })?,
+            token_hash: row.try_get("token_hash").map_err(|e| {
+                AppError::database(format!("Failed to get token_hash from row: {e}"))
+            })?,
+            token_prefix: row.try_get("token_prefix").map_err(|e| {
+                AppError::database(format!("Failed to get token_prefix from row: {e}"))
+            })?,
+            jwt_secret_hash: row.try_get("jwt_secret_hash").map_err(|e| {
+                AppError::database(format!("Failed to get jwt_secret_hash from row: {e}"))
+            })?,
             permissions,
-            is_super_admin: row.try_get("is_super_admin")?,
-            is_active: row.try_get("is_active")?,
-            created_at: row.try_get("created_at")?,
-            expires_at: row.try_get("expires_at")?,
-            last_used_at: row.try_get("last_used_at")?,
-            last_used_ip: row.try_get("last_used_ip")?,
-            usage_count: row.try_get("usage_count")?,
+            is_super_admin: row.try_get("is_super_admin").map_err(|e| {
+                AppError::database(format!("Failed to get is_super_admin from row: {e}"))
+            })?,
+            is_active: row.try_get("is_active").map_err(|e| {
+                AppError::database(format!("Failed to get is_active from row: {e}"))
+            })?,
+            created_at: row.try_get("created_at").map_err(|e| {
+                AppError::database(format!("Failed to get created_at from row: {e}"))
+            })?,
+            expires_at: row.try_get("expires_at").map_err(|e| {
+                AppError::database(format!("Failed to get expires_at from row: {e}"))
+            })?,
+            last_used_at: row.try_get("last_used_at").map_err(|e| {
+                AppError::database(format!("Failed to get last_used_at from row: {e}"))
+            })?,
+            last_used_ip: row.try_get("last_used_ip").map_err(|e| {
+                AppError::database(format!("Failed to get last_used_ip from row: {e}"))
+            })?,
+            usage_count: row.try_get("usage_count").map_err(|e| {
+                AppError::database(format!("Failed to get usage_count from row: {e}"))
+            })?,
         })
     }
 
@@ -495,30 +549,53 @@ impl Database {
     /// Returns an error if row parsing fails
     fn row_to_admin_token_usage(
         row: &sqlx::sqlite::SqliteRow,
-    ) -> Result<crate::admin::models::AdminTokenUsage> {
+    ) -> AppResult<crate::admin::models::AdminTokenUsage> {
         use crate::admin::models::{AdminAction, AdminTokenUsage};
         use sqlx::Row;
 
-        let action_str: String = row.try_get("action")?;
+        let action_str: String = row
+            .try_get("action")
+            .map_err(|e| AppError::database(format!("Failed to get action from row: {e}")))?;
         let action = action_str
             .parse::<AdminAction>()
             .unwrap_or(AdminAction::ProvisionKey);
 
         Ok(AdminTokenUsage {
-            id: Some(row.try_get("id")?),
-            admin_token_id: row.try_get("admin_token_id")?,
-            timestamp: row.try_get("timestamp")?,
+            id: Some(
+                row.try_get("id")
+                    .map_err(|e| AppError::database(format!("Failed to get id from row: {e}")))?,
+            ),
+            admin_token_id: row.try_get("admin_token_id").map_err(|e| {
+                AppError::database(format!("Failed to get admin_token_id from row: {e}"))
+            })?,
+            timestamp: row.try_get("timestamp").map_err(|e| {
+                AppError::database(format!("Failed to get timestamp from row: {e}"))
+            })?,
             action,
-            target_resource: row.try_get("target_resource")?,
-            ip_address: row.try_get("ip_address")?,
-            user_agent: row.try_get("user_agent")?,
+            target_resource: row.try_get("target_resource").map_err(|e| {
+                AppError::database(format!("Failed to get target_resource from row: {e}"))
+            })?,
+            ip_address: row.try_get("ip_address").map_err(|e| {
+                AppError::database(format!("Failed to get ip_address from row: {e}"))
+            })?,
+            user_agent: row.try_get("user_agent").map_err(|e| {
+                AppError::database(format!("Failed to get user_agent from row: {e}"))
+            })?,
             request_size_bytes: row
-                .try_get::<Option<i32>, _>("request_size_bytes")?
+                .try_get::<Option<i32>, _>("request_size_bytes")
+                .map_err(|e| {
+                    AppError::database(format!("Failed to get request_size_bytes from row: {e}"))
+                })?
                 .map(|x| u32::try_from(x).unwrap_or(0)),
-            success: row.try_get("success")?,
+            success: row
+                .try_get("success")
+                .map_err(|e| AppError::database(format!("Failed to get success from row: {e}")))?,
             error_message: None,
             response_time_ms: row
-                .try_get::<Option<i32>, _>("response_time_ms")?
+                .try_get::<Option<i32>, _>("response_time_ms")
+                .map_err(|e| {
+                    AppError::database(format!("Failed to get response_time_ms from row: {e}"))
+                })?
                 .map(|x| u32::try_from(x).unwrap_or(0)),
         })
     }
@@ -528,7 +605,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
+    pub async fn deactivate_admin_token(&self, token_id: &str) -> AppResult<()> {
         self.deactivate_admin_token_impl(token_id).await
     }
 }

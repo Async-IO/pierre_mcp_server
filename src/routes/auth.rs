@@ -13,7 +13,6 @@
 use crate::{
     constants::{error_messages, limits},
     context::{AuthContext, ConfigContext, DataContext, NotificationContext},
-    database::repositories::UserRepository,
     errors::{AppError, AppResult},
     mcp::resources::ServerResources,
     models::User,
@@ -190,7 +189,7 @@ impl AuthService {
             .database()
             .create_user(&user)
             .await
-            .map_err(|e| AppError::database(e.to_string()))?;
+            .map_err(|e| AppError::database(format!("Failed to create user: {e}")))?;
 
         tracing::info!(
             "User registered successfully: {} ({})",
@@ -251,14 +250,15 @@ impl AuthService {
         self.data_context
             .database()
             .update_last_active(user.id)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to update last active: {e}")))?;
 
         // Generate JWT token using RS256
         let jwt_token = self
             .auth_context
             .auth_manager()
             .generate_token(&user, self.auth_context.jwks_manager())
-            .map_err(|e| AppError::database(e.to_string()))?;
+            .map_err(|e| AppError::auth_invalid(format!("Failed to generate token: {e}")))?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS); // Default 24h expiry
 
@@ -306,7 +306,8 @@ impl AuthService {
             .data_context
             .database()
             .get_user(user_id)
-            .await?
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
             .ok_or_else(|| AppError::not_found("User"))?;
 
         // Generate new JWT token using RS256
@@ -314,7 +315,7 @@ impl AuthService {
             .auth_context
             .auth_manager()
             .generate_token(&user, self.auth_context.jwks_manager())
-            .map_err(|e| AppError::database(e.to_string()))?;
+            .map_err(|e| AppError::auth_invalid(format!("Failed to generate token: {e}")))?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS);
 
@@ -322,7 +323,8 @@ impl AuthService {
         self.data_context
             .database()
             .update_last_active(user.id)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to update last active: {e}")))?;
 
         tracing::info!("Token refreshed successfully for user: {}", user.id);
 
@@ -488,10 +490,9 @@ impl OAuthService {
     ) -> AppResult<(crate::models::User, String)> {
         let database = self.data.database();
         let user = database
-            .users()
-            .get_by_id(user_id)
+            .get_user(user_id)
             .await
-            .map_err(|e| AppError::from(anyhow::Error::from(e)))?
+            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
             .ok_or_else(|| {
                 tracing::error!(
                     "OAuth callback failed: User not found - user_id: {}, provider: {}",
@@ -634,7 +635,8 @@ impl OAuthService {
         self.data
             .database()
             .upsert_user_oauth_token(&user_oauth_token)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to upsert OAuth token: {e}")))?;
         Ok(expires_at)
     }
 
@@ -656,7 +658,8 @@ impl OAuthService {
                 "OAuth authorization completed successfully",
                 Some(&expires_at.to_rfc3339()),
             )
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to store OAuth notification: {e}")))?;
 
         tracing::info!(
             "Created OAuth completion notification {} for user {} provider {}",
@@ -760,7 +763,8 @@ impl OAuthService {
                     .data
                     .database()
                     .get_user(user_id)
-                    .await?
+                    .await
+                    .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
                     .ok_or_else(|| AppError::not_found("User"))?;
                 let tenant_id = user.tenant_id.as_deref().unwrap_or("default");
 
@@ -768,7 +772,10 @@ impl OAuthService {
                 self.data
                     .database()
                     .delete_user_oauth_token(user_id, tenant_id, provider)
-                    .await?;
+                    .await
+                    .map_err(|e| {
+                        AppError::database(format!("Failed to delete OAuth token: {e}"))
+                    })?;
 
                 tracing::info!("Disconnected {} for user {}", provider, user_id);
 
@@ -801,7 +808,10 @@ impl OAuthService {
             .data
             .database()
             .get_tenant_oauth_credentials(tenant_id, provider)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to get tenant OAuth credentials: {e}"))
+            })?;
 
         let state = format!("{}:{}", user_id, uuid::Uuid::new_v4());
         let base_url = format!("http://localhost:{}", self.config.config().http_port);
@@ -912,7 +922,7 @@ impl OAuthService {
             .database()
             .get_user_oauth_tokens(user_id)
             .await
-            .map_err(|e| AppError::database(e.to_string()))?;
+            .map_err(|e| AppError::database(format!("Failed to get user OAuth tokens: {e}")))?;
 
         // Create a set of connected providers
         let mut providers_seen = std::collections::HashSet::new();
@@ -1231,13 +1241,7 @@ impl AuthRoutes {
         })?;
 
         // Retrieve user from database
-        let user = match resources
-            .database
-            .users()
-            .get_by_id(user_id)
-            .await
-            .map_err(|e| AppError::from(anyhow::Error::from(e)))
-        {
+        let user = match resources.database.get_user(user_id).await {
             Ok(Some(user)) => user,
             Ok(None) => {
                 tracing::error!("User {} not found in database", user_id);

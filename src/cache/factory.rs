@@ -5,7 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use super::{memory::InMemoryCache, redis::RedisCache, CacheConfig, CacheProvider};
-use anyhow::Result;
+use crate::errors::AppResult;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -28,7 +28,7 @@ impl Cache {
     /// # Errors
     ///
     /// Returns an error if cache initialization fails
-    pub async fn new(config: CacheConfig) -> Result<Self> {
+    pub async fn new(config: CacheConfig) -> AppResult<Self> {
         let inner = if let Some(ref redis_url) = config.redis_url {
             tracing::info!("Initializing Redis cache (url: {})", redis_url);
             let redis = RedisCache::new(config).await?;
@@ -53,7 +53,7 @@ impl Cache {
     /// # Errors
     ///
     /// Returns an error if cache initialization fails
-    pub async fn from_env() -> Result<Self> {
+    pub async fn from_env() -> AppResult<Self> {
         let config = crate::constants::get_server_config().map_or_else(
             || CacheConfig {
                 max_entries: 1000,
@@ -82,7 +82,7 @@ impl Cache {
         key: &super::CacheKey,
         value: &T,
         ttl: Duration,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         match &self.inner {
             CacheBackend::InMemory(cache) => cache.set(key, value, ttl).await,
             CacheBackend::Redis(cache) => cache.set(key, value, ttl).await,
@@ -97,7 +97,7 @@ impl Cache {
     pub async fn get<T: for<'de> Deserialize<'de>>(
         &self,
         key: &super::CacheKey,
-    ) -> Result<Option<T>> {
+    ) -> AppResult<Option<T>> {
         match &self.inner {
             CacheBackend::InMemory(cache) => cache.get(key).await,
             CacheBackend::Redis(cache) => cache.get(key).await,
@@ -109,7 +109,7 @@ impl Cache {
     /// # Errors
     ///
     /// Returns an error if invalidation fails
-    pub async fn invalidate(&self, key: &super::CacheKey) -> Result<()> {
+    pub async fn invalidate(&self, key: &super::CacheKey) -> AppResult<()> {
         match &self.inner {
             CacheBackend::InMemory(cache) => cache.invalidate(key).await,
             CacheBackend::Redis(cache) => cache.invalidate(key).await,
@@ -121,7 +121,7 @@ impl Cache {
     /// # Errors
     ///
     /// Returns an error if pattern invalidation fails
-    pub async fn invalidate_pattern(&self, pattern: &str) -> Result<u64> {
+    pub async fn invalidate_pattern(&self, pattern: &str) -> AppResult<u64> {
         match &self.inner {
             CacheBackend::InMemory(cache) => cache.invalidate_pattern(pattern).await,
             CacheBackend::Redis(cache) => cache.invalidate_pattern(pattern).await,
@@ -133,7 +133,7 @@ impl Cache {
     /// # Errors
     ///
     /// Returns an error if existence check fails
-    pub async fn exists(&self, key: &super::CacheKey) -> Result<bool> {
+    pub async fn exists(&self, key: &super::CacheKey) -> AppResult<bool> {
         match &self.inner {
             CacheBackend::InMemory(cache) => cache.exists(key).await,
             CacheBackend::Redis(cache) => cache.exists(key).await,
@@ -145,7 +145,7 @@ impl Cache {
     /// # Errors
     ///
     /// Returns an error if TTL check fails
-    pub async fn ttl(&self, key: &super::CacheKey) -> Result<Option<Duration>> {
+    pub async fn ttl(&self, key: &super::CacheKey) -> AppResult<Option<Duration>> {
         match &self.inner {
             CacheBackend::InMemory(cache) => cache.ttl(key).await,
             CacheBackend::Redis(cache) => cache.ttl(key).await,
@@ -157,7 +157,7 @@ impl Cache {
     /// # Errors
     ///
     /// Returns an error if health check fails
-    pub async fn health_check(&self) -> Result<()> {
+    pub async fn health_check(&self) -> AppResult<()> {
         match &self.inner {
             CacheBackend::InMemory(cache) => cache.health_check().await,
             CacheBackend::Redis(cache) => cache.health_check().await,
@@ -169,7 +169,7 @@ impl Cache {
     /// # Errors
     ///
     /// Returns an error if clear operation fails
-    pub async fn clear_all(&self) -> Result<()> {
+    pub async fn clear_all(&self) -> AppResult<()> {
         match &self.inner {
             CacheBackend::InMemory(cache) => cache.clear_all().await,
             CacheBackend::Redis(cache) => cache.clear_all().await,

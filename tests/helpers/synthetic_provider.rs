@@ -3,9 +3,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use anyhow::Result;
 use async_trait::async_trait;
 use pierre_mcp_server::constants::oauth_providers;
+use pierre_mcp_server::errors::AppResult;
 use pierre_mcp_server::models::{Activity, Athlete, PersonalRecord, PrMetric, Stats};
 use pierre_mcp_server::pagination::{Cursor, CursorPage, PaginationParams};
 use pierre_mcp_server::providers::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
@@ -298,7 +298,7 @@ impl FitnessProvider for SyntheticProvider {
         &self.config
     }
 
-    async fn set_credentials(&self, _credentials: OAuth2Credentials) -> Result<()> {
+    async fn set_credentials(&self, _credentials: OAuth2Credentials) -> AppResult<()> {
         // No-op: synthetic provider doesn't need credentials
         Ok(())
     }
@@ -308,12 +308,12 @@ impl FitnessProvider for SyntheticProvider {
         true
     }
 
-    async fn refresh_token_if_needed(&self) -> Result<()> {
+    async fn refresh_token_if_needed(&self) -> AppResult<()> {
         // No-op: no tokens to refresh
         Ok(())
     }
 
-    async fn get_athlete(&self) -> Result<Athlete> {
+    async fn get_athlete(&self) -> AppResult<Athlete> {
         // Return consistent test athlete
         Ok(Athlete {
             id: "synthetic_athlete_001".to_owned(),
@@ -329,7 +329,7 @@ impl FitnessProvider for SyntheticProvider {
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> Result<Vec<Activity>> {
+    ) -> AppResult<Vec<Activity>> {
         let sorted = {
             let activities = self
                 .activities
@@ -355,7 +355,7 @@ impl FitnessProvider for SyntheticProvider {
     async fn get_activities_cursor(
         &self,
         params: &PaginationParams,
-    ) -> Result<CursorPage<Activity>> {
+    ) -> AppResult<CursorPage<Activity>> {
         let (sorted, activities_len) = {
             let activities = self
                 .activities
@@ -408,7 +408,7 @@ impl FitnessProvider for SyntheticProvider {
         ))
     }
 
-    async fn get_activity(&self, id: &str) -> Result<Activity> {
+    async fn get_activity(&self, id: &str) -> AppResult<Activity> {
         let index = self
             .activity_index
             .read()
@@ -424,15 +424,15 @@ impl FitnessProvider for SyntheticProvider {
         })
     }
 
-    async fn get_stats(&self) -> Result<Stats> {
+    async fn get_stats(&self) -> AppResult<Stats> {
         Ok(self.calculate_stats())
     }
 
-    async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>> {
+    async fn get_personal_records(&self) -> AppResult<Vec<PersonalRecord>> {
         Ok(self.extract_personal_records())
     }
 
-    async fn disconnect(&self) -> Result<()> {
+    async fn disconnect(&self) -> AppResult<()> {
         // No-op: nothing to disconnect
         Ok(())
     }

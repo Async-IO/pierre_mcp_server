@@ -10,10 +10,10 @@
 use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
 use super::errors::ProviderError;
 use crate::constants::{api_provider_limits, oauth_providers};
+use crate::errors::{AppError, AppResult};
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
 use crate::pagination::{Cursor, CursorPage, PaginationDirection, PaginationParams};
 use crate::utils::http_client::shared_client;
-use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use reqwest::Client;
@@ -255,7 +255,7 @@ impl StravaProvider {
     }
 
     /// Make authenticated API request
-    async fn api_request<T>(&self, endpoint: &str) -> Result<T>
+    async fn api_request<T>(&self, endpoint: &str) -> AppResult<T>
     where
         T: for<'de> Deserialize<'de>,
     {
@@ -267,23 +267,23 @@ impl StravaProvider {
         // Clone access token to avoid holding lock across await
         let access_token = {
             let guard = self.credentials.read().await;
-            let credentials = guard
-                .as_ref()
-                .context("No credentials available for Strava API request")?;
+            let credentials = guard.as_ref().ok_or_else(|| {
+                AppError::internal("No credentials available for Strava API request")
+            })?;
 
             let token = credentials
                 .access_token
                 .clone() // Safe: String ownership needed for async request
-                .context("No access token available")?;
+                .ok_or_else(|| AppError::internal("No access token available"))?;
             drop(guard); // Release lock immediately after cloning
             token
         };
 
         // Reject test/invalid tokens with proper error message
         if access_token.starts_with("at_") || access_token.len() < 40 {
-            anyhow::bail!(
+            return Err(AppError::internal(
                 "Invalid Strava access token. Please authenticate with Strava first to access real data."
-            );
+            ));
         }
 
         tracing::debug!("Making authenticated request to Strava API");
@@ -302,7 +302,9 @@ impl StravaProvider {
             .header("Authorization", format!("Bearer {access_token}"))
             .send()
             .await
-            .context("Failed to send request to Strava API")?;
+            .map_err(|e| {
+                AppError::external_service("Strava", format!("Failed to send request: {e}"))
+            })?;
 
         tracing::info!("Received HTTP response with status: {}", response.status());
 
@@ -342,31 +344,30 @@ impl StravaProvider {
                                 .unwrap_or("unknown")
                                 .to_owned();
 
-                            return Err(ProviderError::NotFound {
+                            let err = ProviderError::NotFound {
                                 provider: oauth_providers::STRAVA.to_owned(),
                                 resource_type: first_error.resource.clone(),
                                 resource_id,
-                            }
-                            .into());
+                            };
+                            return Err(AppError::external_service("Strava", err.to_string()));
                         }
                     }
                 }
             }
 
-            return Err(ProviderError::ApiError {
+            let err = ProviderError::ApiError {
                 provider: oauth_providers::STRAVA.to_owned(),
                 status_code: status.as_u16(),
                 message: format!("Strava API request failed with status {status}: {text}"),
                 retryable: false,
-            }
-            .into());
+            };
+            return Err(AppError::external_service("Strava", err.to_string()));
         }
 
         tracing::info!("Parsing JSON response from Strava API");
-        let result = response
-            .json()
-            .await
-            .context("Failed to parse Strava API response");
+        let result = response.json().await.map_err(|e| {
+            AppError::external_service("Strava", format!("Failed to parse API response: {e}"))
+        });
 
         match &result {
             Ok(_) => tracing::info!("Successfully parsed JSON response"),
@@ -392,9 +393,9 @@ impl StravaProvider {
     }
 
     /// Convert Strava activity response to internal Activity model
-    fn convert_strava_activity(activity: StravaActivityResponse) -> Result<Activity> {
+    fn convert_strava_activity(activity: StravaActivityResponse) -> AppResult<Activity> {
         let start_date = DateTime::parse_from_rfc3339(&activity.start_date)
-            .context("Failed to parse activity start date")?
+            .map_err(|e| AppError::internal(format!("Failed to parse activity start date: {e}")))?
             .with_timezone(&Utc);
 
         let duration_seconds = activity.elapsed_time.map_or_else(
@@ -478,7 +479,7 @@ impl StravaProvider {
     /// Returns error if activity date parsing fails or API data is malformed
     pub fn convert_detailed_strava_activity(
         detailed: DetailedActivityResponse,
-    ) -> Result<Activity> {
+    ) -> AppResult<Activity> {
         // Start with summary conversion
         let activity = Self::convert_strava_activity(detailed.summary)?;
 
@@ -501,7 +502,7 @@ impl StravaProvider {
     ///
     /// # Errors
     /// Returns error if API request fails, authentication is invalid, or response parsing fails
-    pub async fn get_activity_details(&self, id: &str) -> Result<Activity> {
+    pub async fn get_activity_details(&self, id: &str) -> AppResult<Activity> {
         let endpoint = format!("activities/{id}");
         let detailed_activity: DetailedActivityResponse = self.api_request(&endpoint).await?;
         Self::convert_detailed_strava_activity(detailed_activity)
@@ -529,7 +530,7 @@ impl StravaProvider {
         limit: Option<usize>,
         offset: Option<usize>,
         include_details: bool,
-    ) -> Result<Vec<Activity>> {
+    ) -> AppResult<Vec<Activity>> {
         // Fetch summary activities using existing implementation
         let activities = self.get_activities(limit, offset).await?;
 
@@ -581,7 +582,7 @@ impl FitnessProvider for StravaProvider {
         &self.config
     }
 
-    async fn set_credentials(&self, credentials: OAuth2Credentials) -> Result<()> {
+    async fn set_credentials(&self, credentials: OAuth2Credentials) -> AppResult<()> {
         info!("Setting Strava credentials");
         *self.credentials.write().await = Some(credentials);
         Ok(())
@@ -600,7 +601,7 @@ impl FitnessProvider for StravaProvider {
         false
     }
 
-    async fn refresh_token_if_needed(&self) -> Result<()> {
+    async fn refresh_token_if_needed(&self) -> AppResult<()> {
         #[derive(Deserialize)]
         struct TokenResponse {
             access_token: String,
@@ -616,16 +617,16 @@ impl FitnessProvider for StravaProvider {
                     Utc::now() + chrono::Duration::minutes(5) > expires_at
                 })
             } else {
-                return Err(ProviderError::ConfigurationError {
+                let err = ProviderError::ConfigurationError {
                     provider: oauth_providers::STRAVA.to_owned(),
                     details: "No credentials available".to_owned(),
-                }
-                .into());
+                };
+                return Err(AppError::external_service("Strava", err.to_string()));
             };
 
             let credentials = guard
                 .as_ref()
-                .context("No credentials available for refresh")?
+                .ok_or_else(|| AppError::internal("No credentials available for refresh"))?
                 .clone(); // Safe: OAuth2Credentials ownership for refresh operation
             drop(guard); // Release lock early to avoid contention
 
@@ -638,7 +639,7 @@ impl FitnessProvider for StravaProvider {
 
         let refresh_token = credentials
             .refresh_token
-            .context("No refresh token available")?;
+            .ok_or_else(|| AppError::internal("No refresh token available"))?;
 
         info!("Refreshing Strava access token");
 
@@ -656,21 +657,28 @@ impl FitnessProvider for StravaProvider {
             .form(&params)
             .send()
             .await
-            .context("Failed to send token refresh request")?;
+            .map_err(|e| {
+                AppError::external_service(
+                    "Strava",
+                    format!("Failed to send token refresh request: {e}"),
+                )
+            })?;
 
         if !response.status().is_success() {
             let status = response.status();
-            return Err(ProviderError::AuthenticationFailed {
+            let err = ProviderError::AuthenticationFailed {
                 provider: oauth_providers::STRAVA.to_owned(),
                 reason: format!("token refresh failed with status: {status}"),
-            }
-            .into());
+            };
+            return Err(AppError::external_service("Strava", err.to_string()));
         }
 
-        let token_response: TokenResponse = response
-            .json()
-            .await
-            .context("Failed to parse token refresh response")?;
+        let token_response: TokenResponse = response.json().await.map_err(|e| {
+            AppError::external_service(
+                "Strava",
+                format!("Failed to parse token refresh response: {e}"),
+            )
+        })?;
 
         let new_credentials = OAuth2Credentials {
             client_id: credentials.client_id,
@@ -685,7 +693,7 @@ impl FitnessProvider for StravaProvider {
         Ok(())
     }
 
-    async fn get_athlete(&self) -> Result<Athlete> {
+    async fn get_athlete(&self) -> AppResult<Athlete> {
         let strava_athlete: StravaAthleteResponse = self.api_request("athlete").await?;
 
         Ok(Athlete {
@@ -702,7 +710,7 @@ impl FitnessProvider for StravaProvider {
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> Result<Vec<Activity>> {
+    ) -> AppResult<Vec<Activity>> {
         let requested_limit =
             limit.unwrap_or(api_provider_limits::strava::DEFAULT_ACTIVITIES_PER_PAGE);
         let start_offset = offset.unwrap_or(0);
@@ -728,7 +736,7 @@ impl FitnessProvider for StravaProvider {
     async fn get_activities_cursor(
         &self,
         params: &PaginationParams,
-    ) -> Result<CursorPage<Activity>> {
+    ) -> AppResult<CursorPage<Activity>> {
         let limit = params
             .limit
             .min(api_provider_limits::strava::MAX_ACTIVITIES_PER_REQUEST);
@@ -796,13 +804,13 @@ impl FitnessProvider for StravaProvider {
         ))
     }
 
-    async fn get_activity(&self, id: &str) -> Result<Activity> {
+    async fn get_activity(&self, id: &str) -> AppResult<Activity> {
         let endpoint = format!("activities/{id}");
         let strava_activity: StravaActivityResponse = self.api_request(&endpoint).await?;
         Self::convert_strava_activity(strava_activity)
     }
 
-    async fn get_stats(&self) -> Result<Stats> {
+    async fn get_stats(&self) -> AppResult<Stats> {
         let stats: StravaStatsResponse = self.api_request("athletes/{id}/stats").await?;
 
         Ok(Stats {
@@ -831,13 +839,13 @@ impl FitnessProvider for StravaProvider {
         })
     }
 
-    async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>> {
+    async fn get_personal_records(&self) -> AppResult<Vec<PersonalRecord>> {
         // Strava doesn't provide personal records via API in the same format
         // This would require analyzing activities to determine PRs
         Ok(vec![])
     }
 
-    async fn disconnect(&self) -> Result<()> {
+    async fn disconnect(&self) -> AppResult<()> {
         // Clone access token and revoke URL to avoid holding lock across await
         let (access_token_opt, revoke_url_opt) = {
             let guard = self.credentials.read().await;
@@ -877,7 +885,7 @@ impl StravaProvider {
         &self,
         limit: usize,
         offset: usize,
-    ) -> Result<Vec<Activity>> {
+    ) -> AppResult<Vec<Activity>> {
         let page = offset / limit + 1;
         let endpoint = format!("athlete/activities?per_page={limit}&page={page}");
 
@@ -902,7 +910,7 @@ impl StravaProvider {
         &self,
         total_limit: usize,
         start_offset: usize,
-    ) -> Result<Vec<Activity>> {
+    ) -> AppResult<Vec<Activity>> {
         // Pre-allocate vector with expected capacity for efficiency
         let mut all_activities = Vec::with_capacity(total_limit);
 

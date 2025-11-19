@@ -5,8 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::database_plugins::factory::Database;
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use chrono::Utc;
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -78,7 +77,7 @@ impl TenantOAuthManager {
         tenant_id: Uuid,
         provider: &str,
         database: &Database,
-    ) -> Result<TenantOAuthCredentials> {
+    ) -> AppResult<TenantOAuthCredentials> {
         // Priority 1: Try tenant-specific credentials first (in-memory cache, then database)
         if let Some(credentials) = self
             .try_tenant_specific_credentials(tenant_id, provider, database)
@@ -96,7 +95,7 @@ impl TenantOAuthManager {
         Err(AppError::not_found(format!(
             "No OAuth credentials configured for tenant {} and provider {}. Configure {}_CLIENT_ID and {}_CLIENT_SECRET environment variables, or provide tenant-specific credentials via the MCP OAuth configuration tool.",
             tenant_id, provider, provider.to_uppercase(), provider.to_uppercase()
-        )).into())
+        )))
     }
 
     /// Store OAuth credentials for a tenant
@@ -109,7 +108,7 @@ impl TenantOAuthManager {
         tenant_id: Uuid,
         provider: &str,
         config: CredentialConfig,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let credentials = TenantOAuthCredentials {
             tenant_id,
             provider: provider.to_owned(),
@@ -130,7 +129,7 @@ impl TenantOAuthManager {
     /// # Errors
     ///
     /// Returns an error if rate limit check fails
-    pub fn check_rate_limit(&self, tenant_id: Uuid, provider: &str) -> Result<(u32, u32)> {
+    pub fn check_rate_limit(&self, tenant_id: Uuid, provider: &str) -> AppResult<(u32, u32)> {
         let today = Utc::now().date_naive();
         let usage = self
             .usage_tracking
@@ -161,7 +160,7 @@ impl TenantOAuthManager {
         provider: &str,
         successful_requests: u32,
         _failed_requests: u32,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let today = Utc::now().date_naive();
         let key = (tenant_id, provider.to_owned(), today);
         let current = self.usage_tracking.get(&key).copied().unwrap_or(0);

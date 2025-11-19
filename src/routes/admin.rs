@@ -20,10 +20,9 @@ use crate::{
     },
     database::repositories::{AdminRepository, ApiKeyRepository, UserRepository},
     database_plugins::factory::Database,
-    errors::AppError,
+    errors::{AppError, AppResult},
     models::{User, UserStatus},
 };
-use anyhow::Result;
 use axum::{
     extract::{Query, State},
     Extension, Json,
@@ -244,7 +243,7 @@ impl AdminApiContext {
 
 /// Helper functions for admin operations
 /// Convert rate limit period string to window duration in seconds
-fn convert_rate_limit_period(period: &str) -> Result<u32> {
+fn convert_rate_limit_period(period: &str) -> AppResult<u32> {
     match period.to_lowercase().as_str() {
         "hour" => Ok(SECONDS_PER_HOUR),   // 1 hour
         "day" => Ok(SECONDS_PER_DAY),     // 24 hours
@@ -252,8 +251,7 @@ fn convert_rate_limit_period(period: &str) -> Result<u32> {
         "month" => Ok(SECONDS_PER_MONTH), // 30 days
         _ => Err(AppError::invalid_input(
             "Invalid rate limit period. Supported: hour, day, week, month",
-        )
-        .into()),
+        )),
     }
 }
 
@@ -271,7 +269,7 @@ fn validate_tier(tier_str: &str) -> Result<ApiKeyTier, String> {
 }
 
 /// Get existing user for API key provisioning (no automatic creation)
-async fn get_existing_user(database: &Database, email: &str) -> Result<User, AppError> {
+async fn get_existing_user(database: &Database, email: &str) -> AppResult<User> {
     match database.users().get_by_email(email).await {
         Ok(Some(user)) => Ok(user),
         Ok(None) => {
@@ -465,7 +463,7 @@ async fn record_provisioning_audit(
 /// Returns an error response if an admin already exists, or Ok(None) if setup can proceed
 async fn check_no_admin_exists(
     database: &Database,
-) -> Result<Option<(axum::http::StatusCode, Json<AdminResponse>)>> {
+) -> AppResult<Option<(axum::http::StatusCode, Json<AdminResponse>)>> {
     match database.users().list_by_status("active").await {
         Ok(users) => {
             let admin_exists = users.iter().any(|u| u.is_admin);
@@ -700,7 +698,7 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         body: axum::body::Bytes,
-    ) -> Result<impl axum::response::IntoResponse, AppError> {
+    ) -> AppResult<impl axum::response::IntoResponse> {
         // Parse and validate request
         let request = match parse_provision_request(&body) {
             Ok(req) => req,
@@ -794,7 +792,7 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         Json(request): Json<RevokeKeyRequest>,
-    ) -> Result<impl axum::response::IntoResponse, AppError> {
+    ) -> AppResult<impl axum::response::IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
@@ -885,7 +883,7 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         Query(params): Query<ListApiKeysQuery>,
-    ) -> Result<impl axum::response::IntoResponse, AppError> {
+    ) -> AppResult<impl axum::response::IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
@@ -985,7 +983,7 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         Query(params): Query<ListUsersQuery>,
-    ) -> Result<impl axum::response::IntoResponse, AppError> {
+    ) -> AppResult<impl axum::response::IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
@@ -1054,7 +1052,7 @@ impl AdminRoutes {
     async fn handle_pending_users(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-    ) -> Result<impl axum::response::IntoResponse, AppError> {
+    ) -> AppResult<impl axum::response::IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
@@ -1131,7 +1129,7 @@ impl AdminRoutes {
         Extension(admin_token): Extension<ValidatedAdminToken>,
         axum::extract::Path(user_id): axum::extract::Path<String>,
         Json(request): Json<ApproveUserRequest>,
-    ) -> Result<impl axum::response::IntoResponse, AppError> {
+    ) -> AppResult<impl axum::response::IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
@@ -1313,7 +1311,7 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         Json(request): Json<serde_json::Value>,
-    ) -> Result<impl axum::response::IntoResponse, AppError> {
+    ) -> AppResult<impl axum::response::IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
@@ -1426,7 +1424,7 @@ impl AdminRoutes {
     async fn handle_list_admin_tokens(
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
-    ) -> Result<impl axum::response::IntoResponse, AppError> {
+    ) -> AppResult<impl axum::response::IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
@@ -1475,7 +1473,7 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         axum::extract::Path(token_id): axum::extract::Path<String>,
-    ) -> Result<impl axum::response::IntoResponse, AppError> {
+    ) -> AppResult<impl axum::response::IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
@@ -1539,7 +1537,7 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         axum::extract::Path(token_id): axum::extract::Path<String>,
-    ) -> Result<impl axum::response::IntoResponse, AppError> {
+    ) -> AppResult<impl axum::response::IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
@@ -1592,7 +1590,7 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         axum::extract::Path(token_id): axum::extract::Path<String>,
-    ) -> Result<impl axum::response::IntoResponse, AppError> {
+    ) -> AppResult<impl axum::response::IntoResponse> {
         // Check required permission
         if !admin_token
             .permissions
@@ -1684,7 +1682,7 @@ impl AdminRoutes {
     async fn handle_admin_setup(
         State(context): State<Arc<AdminApiContext>>,
         Json(request): Json<AdminSetupRequest>,
-    ) -> Result<impl axum::response::IntoResponse, AppError> {
+    ) -> AppResult<impl axum::response::IntoResponse> {
         tracing::info!("Admin setup request for email: {}", request.email);
 
         let ctx = context.as_ref();
@@ -1692,7 +1690,7 @@ impl AdminRoutes {
         // Check if any admin users already exist
         if let Some(error_response) = check_no_admin_exists(&ctx.database)
             .await
-            .map_err(|e| AppError::database(e.to_string()))?
+            .map_err(|e| AppError::database(format!("Failed to check for existing admin: {e}")))?
         {
             return Ok(error_response);
         }
@@ -1736,7 +1734,7 @@ impl AdminRoutes {
     /// Handle setup status check
     async fn handle_setup_status(
         State(context): State<Arc<AdminApiContext>>,
-    ) -> Result<impl axum::response::IntoResponse, AppError> {
+    ) -> AppResult<impl axum::response::IntoResponse> {
         tracing::info!("Setup status check requested");
 
         let ctx = context.as_ref();
@@ -1834,7 +1832,7 @@ impl AdminRoutes {
         owner_user_id: Uuid,
         tenant_name: &str,
         tenant_slug: &str,
-    ) -> Result<crate::models::Tenant, AppError> {
+    ) -> AppResult<crate::models::Tenant> {
         // Reserved slugs that cannot be used for tenants
         const RESERVED_SLUGS: &[&str] = &[
             "admin",
@@ -1910,7 +1908,7 @@ impl AdminRoutes {
         database
             .create_tenant(&tenant_data)
             .await
-            .map_err(|e| AppError::database(e.to_string()))?;
+            .map_err(|e| AppError::database(format!("Failed to create tenant: {e}")))?;
 
         Ok(tenant_data)
     }

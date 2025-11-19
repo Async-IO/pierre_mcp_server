@@ -23,8 +23,9 @@
 //!
 //! ```rust,no_run
 //! use pierre_mcp_server::admin::jwks::JwksManager;
+//! use pierre_mcp_server::errors::AppResult;
 //!
-//! # async fn example() -> anyhow::Result<()> {
+//! # async fn example() -> AppResult<()> {
 //! let mut manager = JwksManager::new();
 //!
 //! // Generate initial RSA key pair
@@ -39,8 +40,7 @@
 //! # }
 //! ```
 
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use rsa::{
@@ -104,7 +104,7 @@ impl RsaKeyPair {
     ///
     /// # Errors
     /// Returns error if key generation fails
-    pub fn generate(kid: &str) -> Result<Self> {
+    pub fn generate(kid: &str) -> AppResult<Self> {
         Self::generate_with_key_size(kid, RSA_KEY_SIZE)
     }
 
@@ -114,7 +114,7 @@ impl RsaKeyPair {
     ///
     /// # Errors
     /// Returns error if key generation fails
-    pub fn generate_with_key_size(kid: &str, key_size_bits: usize) -> Result<Self> {
+    pub fn generate_with_key_size(kid: &str, key_size_bits: usize) -> AppResult<Self> {
         use rand::rngs::OsRng;
 
         let mut rng = OsRng;
@@ -136,7 +136,7 @@ impl RsaKeyPair {
     ///
     /// # Errors
     /// Returns error if key serialization fails
-    pub fn to_jwk(&self) -> Result<JsonWebKey> {
+    pub fn to_jwk(&self) -> AppResult<JsonWebKey> {
         // Extract RSA modulus and exponent
         use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
         use rsa::traits::PublicKeyParts;
@@ -165,30 +165,28 @@ impl RsaKeyPair {
     ///
     /// # Errors
     /// Returns error if PEM encoding fails
-    pub fn export_private_key_pem(&self) -> Result<String> {
-        Ok(self
-            .private_key
+    pub fn export_private_key_pem(&self) -> AppResult<String> {
+        self.private_key
             .to_pkcs8_pem(rsa::pkcs8::LineEnding::LF)
             .map(|pem| pem.to_string())
-            .map_err(|e| AppError::internal(format!("Failed to export private key as PEM: {e}")))?)
+            .map_err(|e| AppError::internal(format!("Failed to export private key as PEM: {e}")))
     }
 
     /// Export public key as PEM
     ///
     /// # Errors
     /// Returns error if PEM encoding fails
-    pub fn export_public_key_pem(&self) -> Result<String> {
-        Ok(self
-            .public_key
+    pub fn export_public_key_pem(&self) -> AppResult<String> {
+        self.public_key
             .to_public_key_pem(rsa::pkcs8::LineEnding::LF)
-            .map_err(|e| AppError::internal(format!("Failed to export public key as PEM: {e}")))?)
+            .map_err(|e| AppError::internal(format!("Failed to export public key as PEM: {e}")))
     }
 
     /// Import private key from PEM
     ///
     /// # Errors
     /// Returns error if PEM parsing fails
-    pub fn import_private_key_pem(kid: &str, pem: &str) -> Result<Self> {
+    pub fn import_private_key_pem(kid: &str, pem: &str) -> AppResult<Self> {
         let private_key = RsaPrivateKey::from_pkcs8_pem(pem).map_err(|e| {
             AppError::invalid_input(format!("Failed to parse private key PEM: {e}"))
         })?;
@@ -208,20 +206,22 @@ impl RsaKeyPair {
     ///
     /// # Errors
     /// Returns error if PEM export or encoding key creation fails
-    pub fn encoding_key(&self) -> anyhow::Result<EncodingKey> {
+    pub fn encoding_key(&self) -> AppResult<EncodingKey> {
         // Export to PEM and create encoding key
         let pem = self.export_private_key_pem()?;
-        Ok(EncodingKey::from_rsa_pem(pem.as_bytes())?)
+        EncodingKey::from_rsa_pem(pem.as_bytes())
+            .map_err(|e| AppError::internal(format!("JWT encoding key creation failed: {e}")))
     }
 
     /// Get decoding key for JWT verification
     ///
     /// # Errors
     /// Returns error if PEM export or decoding key creation fails
-    pub fn decoding_key(&self) -> anyhow::Result<DecodingKey> {
+    pub fn decoding_key(&self) -> AppResult<DecodingKey> {
         // Export to PEM and create decoding key
         let pem = self.export_public_key_pem()?;
-        Ok(DecodingKey::from_rsa_pem(pem.as_bytes())?)
+        DecodingKey::from_rsa_pem(pem.as_bytes())
+            .map_err(|e| AppError::internal(format!("JWT decoding key creation failed: {e}")))
     }
 }
 
@@ -247,7 +247,7 @@ impl JwksManager {
     ///
     /// # Errors
     /// Returns error if key generation or registration fails
-    pub fn generate_rsa_key_pair(&mut self, kid: &str) -> Result<()> {
+    pub fn generate_rsa_key_pair(&mut self, kid: &str) -> AppResult<()> {
         self.generate_rsa_key_pair_with_size(kid, RSA_KEY_SIZE)
     }
 
@@ -261,7 +261,7 @@ impl JwksManager {
         &mut self,
         kid: &str,
         key_size_bits: usize,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let key_pair = RsaKeyPair::generate_with_key_size(kid, key_size_bits)?;
 
         // Deactivate previous active key if exists
@@ -282,7 +282,7 @@ impl JwksManager {
     ///
     /// # Errors
     /// Returns error if no active key exists
-    pub fn get_active_key(&self) -> Result<&RsaKeyPair> {
+    pub fn get_active_key(&self) -> AppResult<&RsaKeyPair> {
         let kid = self
             .active_key_id
             .as_ref()
@@ -290,7 +290,7 @@ impl JwksManager {
 
         self.keys
             .get(kid)
-            .ok_or_else(|| AppError::internal(format!("Active key not found: {kid}")).into())
+            .ok_or_else(|| AppError::internal(format!("Active key not found: {kid}")))
     }
 
     /// Get key by ID
@@ -315,7 +315,7 @@ impl JwksManager {
         private_key_pem: &str,
         created_at: DateTime<Utc>,
         is_active: bool,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let mut key_pair = RsaKeyPair::import_private_key_pem(kid, private_key_pem)?;
         key_pair.created_at = created_at;
         key_pair.is_active = is_active;
@@ -341,7 +341,7 @@ impl JwksManager {
     pub fn load_keys_from_database(
         &mut self,
         keypairs: Vec<(String, String, String, DateTime<Utc>, bool)>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         for (kid, private_key_pem, _public_key_pem, created_at, is_active) in keypairs {
             self.register_keypair_from_pem(&kid, &private_key_pem, created_at, is_active)?;
         }
@@ -352,17 +352,17 @@ impl JwksManager {
     ///
     /// # Errors
     /// Returns error if JWK serialization fails
-    pub fn get_jwks_json(&self) -> Result<String> {
+    pub fn get_jwks_json(&self) -> AppResult<String> {
         let jwks = self.get_jwks()?;
         serde_json::to_string_pretty(&jwks)
-            .map_err(|e| AppError::internal(format!("Failed to serialize JWKS: {e}")).into())
+            .map_err(|e| AppError::internal(format!("Failed to serialize JWKS: {e}")))
     }
 
     /// Get JWKS structure
     ///
     /// # Errors
     /// Returns error if JWK conversion fails
-    pub fn get_jwks(&self) -> Result<JsonWebKeySet> {
+    pub fn get_jwks(&self) -> AppResult<JsonWebKeySet> {
         let mut keys = Vec::new();
 
         for key_pair in self.keys.values() {
@@ -376,7 +376,7 @@ impl JwksManager {
     ///
     /// # Errors
     /// Returns error if key generation fails
-    pub fn rotate_keys(&mut self) -> Result<String> {
+    pub fn rotate_keys(&mut self) -> AppResult<String> {
         self.rotate_keys_with_size(RSA_KEY_SIZE)
     }
 
@@ -384,7 +384,7 @@ impl JwksManager {
     ///
     /// # Errors
     /// Returns error if key generation fails
-    pub fn rotate_keys_with_size(&mut self, key_size_bits: usize) -> Result<String> {
+    pub fn rotate_keys_with_size(&mut self, key_size_bits: usize) -> AppResult<String> {
         let new_kid = format!("key_{}", Utc::now().format("%Y%m%d_%H%M%S"));
 
         self.generate_rsa_key_pair_with_size(&new_kid, key_size_bits)?;
@@ -436,7 +436,7 @@ impl JwksManager {
     ///
     /// # Errors
     /// Returns error if no active key exists or signing fails
-    pub fn sign_admin_token<T: Serialize>(&self, claims: &T) -> Result<String> {
+    pub fn sign_admin_token<T: Serialize>(&self, claims: &T) -> AppResult<String> {
         use jsonwebtoken::{encode, Header};
 
         let active_key = self.get_active_key()?;
@@ -446,15 +446,15 @@ impl JwksManager {
 
         let encoding_key = active_key.encoding_key()?;
 
-        Ok(encode(&header, claims, &encoding_key)
-            .map_err(|e| AppError::internal(format!("Failed to encode RS256 admin JWT: {e}")))?)
+        encode(&header, claims, &encoding_key)
+            .map_err(|e| AppError::internal(format!("Failed to encode RS256 admin JWT: {e}")))
     }
 
     /// Verify admin token and extract claims
     ///
     /// # Errors
     /// Returns error if token verification fails or claims cannot be decoded
-    pub fn verify_admin_token<T: for<'de> Deserialize<'de>>(&self, token: &str) -> Result<T> {
+    pub fn verify_admin_token<T: for<'de> Deserialize<'de>>(&self, token: &str) -> AppResult<T> {
         use jsonwebtoken::{decode, decode_header, Validation};
 
         // Extract kid from header

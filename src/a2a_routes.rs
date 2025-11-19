@@ -16,7 +16,6 @@ use crate::a2a::{
 };
 use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use crate::utils::auth::extract_bearer_token;
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use subtle::ConstantTimeEq;

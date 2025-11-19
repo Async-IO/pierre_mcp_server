@@ -9,10 +9,9 @@
 
 use super::tenant_provider::TenantFitnessProvider;
 use crate::constants::api_provider_limits;
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::models::{Activity, Athlete, PersonalRecord, Stats};
 use crate::tenant::{TenantContext, TenantOAuthClient, TenantOAuthCredentials};
-use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::Deserialize;
@@ -71,10 +70,10 @@ impl TenantStravaProvider {
     }
 
     /// Get the access token, returning an error if not authenticated
-    fn get_access_token(&self) -> Result<&str> {
+    fn get_access_token(&self) -> AppResult<&str> {
         self.access_token
             .as_deref()
-            .ok_or_else(|| AppError::auth_required().into())
+            .ok_or_else(|| AppError::auth_required())
     }
 }
 
@@ -85,7 +84,7 @@ impl TenantFitnessProvider for TenantStravaProvider {
         tenant_context: &TenantContext,
         provider: &str,
         database: &dyn DatabaseProvider,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         // Get tenant credentials
         let credentials = self
             .oauth_client
@@ -97,7 +96,6 @@ impl TenantFitnessProvider for TenantStravaProvider {
                     tenant_context.tenant_id,
                     provider
                 ))
-                .into()
             })?;
 
         // Store credentials for later use
@@ -106,7 +104,7 @@ impl TenantFitnessProvider for TenantStravaProvider {
         Ok(())
     }
 
-    async fn get_athlete(&self) -> Result<Athlete> {
+    async fn get_athlete(&self) -> AppResult<Athlete> {
         let token = self.get_access_token()?;
 
         let response: StravaAthlete = self
@@ -114,9 +112,11 @@ impl TenantFitnessProvider for TenantStravaProvider {
             .get(format!("{}/athlete", crate::constants::api::strava_api_base()))
             .bearer_auth(token)
             .send()
-            .await?
+            .await
+            .map_err(|e| AppError::external_service("strava", format!("Failed to fetch athlete: {e}")))?
             .json()
-            .await?;
+            .await
+            .map_err(|e| AppError::internal(format!("JSON parsing failed: {e}")))?;
 
         // Clone name fields before using them in the closure to avoid borrow checker issues
         let firstname_clone = response.firstname.clone();
@@ -144,10 +144,11 @@ impl TenantFitnessProvider for TenantStravaProvider {
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> Result<Vec<Activity>> {
+    ) -> AppResult<Vec<Activity>> {
         let token = self.get_access_token()?;
 
-        let mut url = url::Url::parse(&format!("{}/athlete/activities", crate::constants::api::strava_api_base()))?;
+        let mut url = url::Url::parse(&format!("{}/athlete/activities", crate::constants::api::strava_api_base()))
+            .map_err(|e| AppError::internal(format!("URL parsing failed: {e}")))?;
 
         if let Some(limit) = limit {
             url.query_pairs_mut()
@@ -163,9 +164,11 @@ impl TenantFitnessProvider for TenantStravaProvider {
             .get(url)
             .bearer_auth(token)
             .send()
-            .await?
+            .await
+            .map_err(|e| AppError::external_service("strava", format!("Failed to fetch activities: {e}")))?
             .json()
-            .await?;
+            .await
+            .map_err(|e| AppError::internal(format!("JSON parsing failed: {e}")))?;
 
         // Use default fitness config for sport type mapping
         let fitness_config = crate::config::FitnessConfig::default();
@@ -237,7 +240,7 @@ impl TenantFitnessProvider for TenantStravaProvider {
         Ok(activities)
     }
 
-    async fn get_activity(&self, id: &str) -> Result<Activity> {
+    async fn get_activity(&self, id: &str) -> AppResult<Activity> {
         let token = self.get_access_token()?;
 
         let response: StravaActivity = self
@@ -245,9 +248,11 @@ impl TenantFitnessProvider for TenantStravaProvider {
             .get(format!("{}/activities/{id}", crate::constants::api::strava_api_base()))
             .bearer_auth(token)
             .send()
-            .await?
+            .await
+            .map_err(|e| AppError::external_service("strava", format!("Failed to fetch activity: {e}")))?
             .json()
-            .await?;
+            .await
+            .map_err(|e| AppError::internal(format!("JSON parsing failed: {e}")))?;
 
         // Use default fitness config for sport type mapping
         let fitness_config = crate::config::FitnessConfig::default();
@@ -314,8 +319,9 @@ impl TenantFitnessProvider for TenantStravaProvider {
         })
     }
 
-    async fn get_stats(&self) -> Result<Stats> {
-        let token = self.get_access_token()?;
+    async fn get_stats(&self) -> AppResult<Stats> {
+        // Validate token access before proceeding
+        self.get_access_token()?;
 
         // Strava doesn't have a single stats endpoint, so we'll return empty stats
         // In a real implementation, you'd aggregate data from multiple endpoints
@@ -327,7 +333,7 @@ impl TenantFitnessProvider for TenantStravaProvider {
         })
     }
 
-    async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>> {
+    async fn get_personal_records(&self) -> AppResult<Vec<PersonalRecord>> {
         // Strava doesn't provide a direct personal records endpoint
         // In a real implementation, you'd analyze activities to find PRs
         Ok(vec![])

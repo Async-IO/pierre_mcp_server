@@ -6,8 +6,7 @@
 #![allow(clippy::cast_precision_loss)] // Safe: statistical calculations with controlled ranges
 
 use super::{TrendDataPoint, TrendDirection};
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 
 /// Complete linear regression analysis results
@@ -83,13 +82,12 @@ impl StatisticalAnalyzer {
     /// # Errors
     ///
     /// Returns an error if there are insufficient data points for regression
-    pub fn linear_regression(data_points: &[TrendDataPoint]) -> Result<RegressionResult> {
+    pub fn linear_regression(data_points: &[TrendDataPoint]) -> AppResult<RegressionResult> {
         if data_points.len() < 2 {
             return Err(AppError::invalid_input(format!(
                 "Insufficient data points for regression: need at least 2, got {}",
                 data_points.len()
-            ))
-            .into());
+            )));
         }
 
         let n = data_points.len() as f64;
@@ -113,9 +111,9 @@ impl StatisticalAnalyzer {
         // Calculate slope and intercept
         let denominator = (n * mean_x).mul_add(-mean_x, sum_xx);
         if denominator.abs() < f64::EPSILON {
-            return Err(
-                AppError::invalid_input("Cannot calculate regression: zero variance in x").into(),
-            );
+            return Err(AppError::invalid_input(
+                "Cannot calculate regression: zero variance in x",
+            ));
         }
 
         let slope = (n * mean_x).mul_add(-mean_y, sum_x_y) / denominator;
@@ -178,8 +176,9 @@ impl StatisticalAnalyzer {
     /// # Errors
     ///
     /// Returns an error if regression analysis fails
-    pub fn calculate_trend_strength(data_points: &[TrendDataPoint]) -> Result<f64> {
-        let regression = Self::linear_regression(data_points)?;
+    pub fn calculate_trend_strength(data_points: &[TrendDataPoint]) -> AppResult<f64> {
+        let regression = Self::linear_regression(data_points)
+            .map_err(|e| AppError::internal(format!("Regression analysis failed: {e}")))?;
         Ok(regression.r_squared)
     }
 
@@ -188,8 +187,9 @@ impl StatisticalAnalyzer {
     /// # Errors
     ///
     /// Returns an error if regression analysis fails
-    pub fn calculate_correlation(data_points: &[TrendDataPoint]) -> Result<f64> {
-        let regression = Self::linear_regression(data_points)?;
+    pub fn calculate_correlation(data_points: &[TrendDataPoint]) -> AppResult<f64> {
+        let regression = Self::linear_regression(data_points)
+            .map_err(|e| AppError::internal(format!("Regression analysis failed: {e}")))?;
         Ok(regression.correlation)
     }
 
@@ -347,7 +347,6 @@ impl StatisticalAnalyzer {
     }
 
     /// Calculate confidence intervals for trend predictions
-    /// Calculate confidence intervals for trend predictions
     ///
     /// # Errors
     ///
@@ -356,12 +355,11 @@ impl StatisticalAnalyzer {
         regression: &RegressionResult,
         x_value: f64,
         confidence_level: f64,
-    ) -> Result<(f64, f64)> {
+    ) -> AppResult<(f64, f64)> {
         if regression.degrees_of_freedom == 0 {
             return Err(AppError::invalid_input(
                 "Cannot calculate confidence interval with zero degrees of freedom",
-            )
-            .into());
+            ));
         }
 
         // Use mul_add for optimal floating point operation: slope * x + intercept

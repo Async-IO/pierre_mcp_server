@@ -170,7 +170,9 @@ pub async fn create_test_cache() -> Result<pierre_mcp_server::cache::factory::Ca
         cleanup_interval: std::time::Duration::from_secs(60),
         enable_background_cleanup: false, // Disable background cleanup for tests
     };
-    pierre_mcp_server::cache::factory::Cache::new(cache_config).await
+    pierre_mcp_server::cache::factory::Cache::new(cache_config)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create test cache: {e}"))
 }
 
 /// Create a standard test user

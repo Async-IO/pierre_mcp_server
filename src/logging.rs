@@ -16,7 +16,7 @@ pub use tenant::{
 };
 
 use crate::constants::service_names;
-use anyhow::Result;
+use crate::errors::AppResult;
 use serde_json::json;
 use std::env;
 use std::io;
@@ -156,7 +156,7 @@ impl LoggingConfig {
     /// # Errors
     ///
     /// Returns an error if the tracing subscriber fails to initialize
-    pub fn init(&self) -> Result<()> {
+    pub fn init(&self) -> AppResult<()> {
         // Create environment filter that always applies our noise reduction rules
         let env_filter = env::var("RUST_LOG")
             .map_or_else(
@@ -307,7 +307,7 @@ impl LoggingConfig {
     /// Currently disabled due to dependency version conflicts with tokio-tungstenite.
     /// `OpenTelemetry` requires specific versions that conflict with `WebSocket` dependencies.
     #[allow(dead_code, clippy::unused_self, clippy::unnecessary_wraps)]
-    fn create_telemetry_layer(&self) -> Result<(), anyhow::Error> {
+    fn create_telemetry_layer(&self) -> AppResult<()> {
         // OpenTelemetry integration disabled due to version compatibility issues
         // Can be enabled once dependency conflicts are resolved
         tracing::info!(
@@ -345,7 +345,7 @@ impl LoggingConfig {
 /// # Errors
 ///
 /// Returns an error if logging initialization fails
-pub fn init_default() -> Result<()> {
+pub fn init_default() -> AppResult<()> {
     LoggingConfig::default().init()
 }
 
@@ -354,7 +354,7 @@ pub fn init_default() -> Result<()> {
 /// # Errors
 ///
 /// Returns an error if logging initialization fails
-pub fn init_from_env() -> Result<()> {
+pub fn init_from_env() -> AppResult<()> {
     LoggingConfig::from_env().init()
 }
 

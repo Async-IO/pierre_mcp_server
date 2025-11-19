@@ -6,7 +6,7 @@
 //! Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 //! Copyright ©2025 Async-IO.org
 
-use anyhow::Result;
+use crate::errors::AppResult;
 use uuid::Uuid;
 
 /// Create AAD (Additional Authenticated Data) context for token encryption
@@ -87,7 +87,7 @@ pub fn encrypt_oauth_token<D>(
     tenant_id: &str,
     user_id: Uuid,
     provider: &str,
-) -> Result<String>
+) -> AppResult<String>
 where
     D: HasEncryption,
 {
@@ -138,7 +138,7 @@ pub fn decrypt_oauth_token<D>(
     tenant_id: &str,
     user_id: Uuid,
     provider: &str,
-) -> Result<String>
+) -> AppResult<String>
 where
     D: HasEncryption,
 {
@@ -184,7 +184,7 @@ pub trait HasEncryption {
     ///
     /// # Errors
     /// Returns error if encryption fails
-    fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> Result<String>;
+    fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> AppResult<String>;
 
     /// Decrypt data using AES-256-GCM with Additional Authenticated Data
     ///
@@ -197,5 +197,5 @@ pub trait HasEncryption {
     ///
     /// # Errors
     /// Returns error if AAD doesn't match or data is tampered/corrupted
-    fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> Result<String>;
+    fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> AppResult<String>;
 }

@@ -4,18 +4,17 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use anyhow::{Context, Result};
+use crate::errors::{AppError, AppResult};
 use uuid::Uuid;
-
-use crate::errors::AppError;
 
 /// Parse a UUID from a string with consistent error handling
 ///
 /// # Errors
 ///
 /// Returns an error if the string is not a valid UUID format
-pub fn parse_uuid(uuid_str: &str) -> Result<Uuid> {
-    Uuid::parse_str(uuid_str).with_context(|| format!("Invalid UUID format: '{uuid_str}'"))
+pub fn parse_uuid(uuid_str: &str) -> AppResult<Uuid> {
+    Uuid::parse_str(uuid_str)
+        .map_err(|e| AppError::invalid_input(format!("Invalid UUID format '{uuid_str}': {e}")))
 }
 
 /// Parse a UUID from a string, returning a custom error message
@@ -23,8 +22,8 @@ pub fn parse_uuid(uuid_str: &str) -> Result<Uuid> {
 /// # Errors
 ///
 /// Returns an error with the provided custom message if parsing fails
-pub fn parse_uuid_with_message(uuid_str: &str, error_msg: &str) -> Result<Uuid> {
-    Uuid::parse_str(uuid_str).map_err(|_| AppError::invalid_input(error_msg).into())
+pub fn parse_uuid_with_message(uuid_str: &str, error_msg: &str) -> AppResult<Uuid> {
+    Uuid::parse_str(uuid_str).map_err(|_| AppError::invalid_input(error_msg))
 }
 
 /// Parse a UUID for a user ID with specific error handling
@@ -32,8 +31,10 @@ pub fn parse_uuid_with_message(uuid_str: &str, error_msg: &str) -> Result<Uuid> 
 /// # Errors
 ///
 /// Returns an error if the user ID is not a valid UUID format
-pub fn parse_user_id(user_id_str: &str) -> Result<Uuid> {
-    Uuid::parse_str(user_id_str).with_context(|| format!("Invalid user ID format: '{user_id_str}'"))
+pub fn parse_user_id(user_id_str: &str) -> AppResult<Uuid> {
+    Uuid::parse_str(user_id_str).map_err(|e| {
+        AppError::invalid_input(format!("Invalid user ID format '{user_id_str}': {e}"))
+    })
 }
 
 /// Parse an optional UUID string
@@ -43,7 +44,7 @@ pub fn parse_user_id(user_id_str: &str) -> Result<Uuid> {
 /// # Errors
 ///
 /// Returns an error if the string is Some but not a valid UUID
-pub fn parse_optional_uuid(uuid_str: Option<&str>) -> Result<Option<Uuid>> {
+pub fn parse_optional_uuid(uuid_str: Option<&str>) -> AppResult<Option<Uuid>> {
     uuid_str.map(parse_uuid).transpose()
 }
 
@@ -55,7 +56,7 @@ pub fn parse_optional_uuid(uuid_str: Option<&str>) -> Result<Option<Uuid>> {
 pub fn parse_optional_uuid_with_message(
     uuid_str: Option<&str>,
     error_msg: &str,
-) -> Result<Option<Uuid>> {
+) -> AppResult<Option<Uuid>> {
     uuid_str
         .map(|s| parse_uuid_with_message(s, error_msg))
         .transpose()
@@ -72,8 +73,9 @@ pub fn is_valid_uuid(uuid_str: &str) -> bool {
 /// # Errors
 ///
 /// Returns an error if the string is not a valid UUID format
-pub fn parse_uuid_owned(uuid_str: &str) -> Result<Uuid> {
-    Uuid::parse_str(uuid_str).with_context(|| format!("Invalid UUID format: '{uuid_str}'"))
+pub fn parse_uuid_owned(uuid_str: &str) -> AppResult<Uuid> {
+    Uuid::parse_str(uuid_str)
+        .map_err(|e| AppError::invalid_input(format!("Invalid UUID format '{uuid_str}': {e}")))
 }
 
 /// Parse a user ID from state parameter (format: "`user_id:random_uuid`")
@@ -81,10 +83,10 @@ pub fn parse_uuid_owned(uuid_str: &str) -> Result<Uuid> {
 /// # Errors
 ///
 /// Returns an error if the state format is invalid or `user_id` is not a valid UUID
-pub fn parse_user_id_from_state(state: &str) -> Result<Uuid> {
+pub fn parse_user_id_from_state(state: &str) -> AppResult<Uuid> {
     let parts: Vec<&str> = state.split(':').collect();
     if parts.len() != 2 {
-        return Err(AppError::invalid_input("Invalid state parameter format").into());
+        return Err(AppError::invalid_input("Invalid state parameter format"));
     }
     parse_user_id(parts[0])
 }

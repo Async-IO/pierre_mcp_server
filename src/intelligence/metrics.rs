@@ -7,7 +7,7 @@
 #![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges for fitness metrics
 
 use crate::config::intelligence_config::IntelligenceConfig;
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::intelligence::algorithms::{TrimpAlgorithm, TssAlgorithm};
 use crate::intelligence::physiological_constants::{
     metrics_constants::{EFFICIENCY_TIME_MULTIPLIER, MIN_DECOUPLING_DATA_POINTS},
@@ -18,7 +18,6 @@ use crate::intelligence::physiological_constants::{
     },
 };
 use crate::models::Activity;
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -138,11 +137,12 @@ impl MetricsCalculator {
     ///
     /// # Errors
     /// Returns an error if metrics calculation fails
-    pub fn calculate_metrics(&self, activity: &Activity) -> Result<AdvancedMetrics> {
+    pub fn calculate_metrics(&self, activity: &Activity) -> AppResult<AdvancedMetrics> {
         let mut metrics = AdvancedMetrics::default();
 
         // Calculate basic metrics
-        self.calculate_basic_metrics(activity, &mut metrics)?;
+        self.calculate_basic_metrics(activity, &mut metrics)
+            .map_err(|e| AppError::internal(format!("Basic metrics calculation failed: {e}")))?;
 
         // Calculate power-based metrics
         self.calculate_power_metrics(activity, &mut metrics);
@@ -164,13 +164,11 @@ impl MetricsCalculator {
         &self,
         activity: &Activity,
         metrics: &mut AdvancedMetrics,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         // Calculate TRIMP if heart rate data is available
         if let Some(avg_hr) = activity.average_heart_rate {
-            let duration =
-                i32::try_from(activity.duration_seconds).map_err(|_| -> anyhow::Error {
-                    AppError::internal("Duration too large for i32").into()
-                })?;
+            let duration = i32::try_from(activity.duration_seconds)
+                .map_err(|e| AppError::internal(format!("Duration conversion failed: {e}")))?;
             metrics.trimp = self.calculate_trimp(avg_hr, duration);
         }
 

@@ -15,6 +15,7 @@ use super::{
 use crate::config::intelligence_config::{
     IntelligenceConfig, IntelligenceStrategy, RecommendationEngineConfig,
 };
+use crate::errors::AppResult;
 use crate::intelligence::physiological_constants::{
     consistency::CONSISTENCY_SCORE_THRESHOLD,
     frequency_targets::MAX_WEEKLY_FREQUENCY,
@@ -36,7 +37,6 @@ use crate::intelligence::physiological_constants::{
     },
 };
 use crate::models::Activity;
-use anyhow::Result;
 use chrono::Utc;
 use std::collections::HashMap;
 
@@ -48,26 +48,26 @@ pub trait RecommendationEngineTrait {
         &self,
         user_profile: &UserFitnessProfile,
         activities: &[Activity],
-    ) -> Result<Vec<TrainingRecommendation>>;
+    ) -> AppResult<Vec<TrainingRecommendation>>;
 
     /// Generate recovery recommendations based on training load
     async fn generate_recovery_recommendations(
         &self,
         activities: &[Activity],
-    ) -> Result<Vec<TrainingRecommendation>>;
+    ) -> AppResult<Vec<TrainingRecommendation>>;
 
     /// Generate nutrition recommendations for activities
     async fn generate_nutrition_recommendations(
         &self,
         activity: &Activity,
-    ) -> Result<Vec<TrainingRecommendation>>;
+    ) -> AppResult<Vec<TrainingRecommendation>>;
 
     /// Generate equipment recommendations
     async fn generate_equipment_recommendations(
         &self,
         user_profile: &UserFitnessProfile,
         activities: &[Activity],
-    ) -> Result<Vec<TrainingRecommendation>>;
+    ) -> AppResult<Vec<TrainingRecommendation>>;
 }
 
 /// Advanced recommendation engine implementation with configurable strategy
@@ -561,7 +561,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         &self,
         user_profile: &UserFitnessProfile,
         activities: &[Activity],
-    ) -> Result<Vec<TrainingRecommendation>> {
+    ) -> AppResult<Vec<TrainingRecommendation>> {
         let mut recommendations = Vec::new();
 
         // Analyze current training patterns
@@ -655,7 +655,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
     async fn generate_recovery_recommendations(
         &self,
         activities: &[Activity],
-    ) -> Result<Vec<TrainingRecommendation>> {
+    ) -> AppResult<Vec<TrainingRecommendation>> {
         let mut recommendations = Vec::new();
 
         // Analyze recent training load
@@ -722,7 +722,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
     async fn generate_nutrition_recommendations(
         &self,
         activity: &Activity,
-    ) -> Result<Vec<TrainingRecommendation>> {
+    ) -> AppResult<Vec<TrainingRecommendation>> {
         let mut recommendations = Vec::new();
 
         // Safe: duration conversion to hours, precision loss acceptable for nutrition calculations
@@ -791,7 +791,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         &self,
         _user_profile: &UserFitnessProfile,
         activities: &[Activity],
-    ) -> Result<Vec<TrainingRecommendation>> {
+    ) -> AppResult<Vec<TrainingRecommendation>> {
         let mut recommendations = Vec::new();
 
         // Analyze primary sports

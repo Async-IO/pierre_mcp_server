@@ -17,10 +17,9 @@
 use crate::constants::{limits::USER_SESSION_EXPIRY_HOURS, time_constants::SECONDS_PER_HOUR};
 use crate::database::repositories::UserRepository;
 use crate::database_plugins::factory::Database;
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::models::{AuthRequest, AuthResponse, User, UserSession};
 use crate::rate_limiting::UnifiedRateLimitInfo;
-use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, Header, Validation};
 use serde::{Deserialize, Serialize};
@@ -214,7 +213,7 @@ impl AuthManager {
         &self,
         user: &User,
         jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let now = Utc::now();
         let expiry = now + Duration::hours(self.token_expiry_hours);
 
@@ -238,7 +237,8 @@ impl AuthManager {
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some(active_key.kid.clone());
 
-        let token = encode(&header, &claims, &encoding_key)?;
+        let token = encode(&header, &claims, &encoding_key)
+            .map_err(|e| AppError::internal(format!("Failed to encode JWT token: {e}")))?;
 
         Ok(token)
     }
@@ -258,26 +258,24 @@ impl AuthManager {
         &self,
         token: &str,
         jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> Result<Claims> {
+    ) -> AppResult<Claims> {
         // Extract kid from token header
-        let header = jsonwebtoken::decode_header(token)?;
-        let kid = header.kid.ok_or_else(|| -> anyhow::Error {
-            AppError::auth_invalid("Token header missing kid (key ID)").into()
+        let header = jsonwebtoken::decode_header(token)
+            .map_err(|e| AppError::auth_invalid(format!("Failed to decode token header: {e}")))?;
+        let kid = header.kid.ok_or_else(|| -> AppError {
+            AppError::auth_invalid("Token header missing kid (key ID)")
         })?;
 
         tracing::debug!("Validating RS256 JWT token with kid: {}", kid);
 
         // Get public key from JWKS manager
-        let key_pair = jwks_manager.get_key(&kid).ok_or_else(|| -> anyhow::Error {
-            AppError::auth_invalid(format!("Key not found in JWKS: {kid}")).into()
+        let key_pair = jwks_manager.get_key(&kid).ok_or_else(|| -> AppError {
+            AppError::auth_invalid(format!("Key not found in JWKS: {kid}"))
         })?;
 
-        let decoding_key =
-            key_pair
-                .decoding_key()
-                .map_err(|e| JwtValidationError::TokenInvalid {
-                    reason: format!("Failed to get decoding key: {e}"),
-                })?;
+        let decoding_key = key_pair
+            .decoding_key()
+            .map_err(|e| AppError::auth_invalid(format!("Failed to get decoding key: {e}")))?;
 
         let mut validation = Validation::new(Algorithm::RS256);
         validation.validate_exp = true;
@@ -286,7 +284,7 @@ impl AuthManager {
 
         let token_data = decode::<Claims>(token, &decoding_key, &validation).map_err(|e| {
             tracing::error!("RS256 JWT validation failed: {:?}", e);
-            e
+            AppError::auth_invalid(format!("JWT validation failed: {e}"))
         })?;
 
         Ok(token_data.claims)
@@ -323,13 +321,13 @@ impl AuthManager {
             ErrorKind::InvalidSignature => {
                 tracing::warn!("JWT token signature verification failed");
                 JwtValidationError::TokenInvalid {
-                    reason: "Token signature verification failed".into(),
+                    reason: "Token signature verification failed".to_owned(),
                 }
             }
             ErrorKind::InvalidToken => {
                 tracing::warn!("JWT token format is invalid: {:?}", e);
                 JwtValidationError::TokenMalformed {
-                    details: "Token format is invalid".into(),
+                    details: "Token format is invalid".to_owned(),
                 }
             }
             ErrorKind::Base64(base64_err) => JwtValidationError::TokenMalformed {
@@ -451,7 +449,7 @@ impl AuthManager {
         &self,
         user: &User,
         jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> Result<UserSession> {
+    ) -> AppResult<UserSession> {
         let jwt_token = self.generate_token(user, jwks_manager)?;
         let expires_at = Utc::now() + Duration::hours(self.token_expiry_hours);
 
@@ -518,11 +516,11 @@ impl AuthManager {
         old_token: &str,
         user: &User,
         jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         // First validate the old token signature (even if expired)
         // This ensures the refresh request is legitimate
-        Self::decode_token_claims(old_token, jwks_manager).map_err(|e| -> anyhow::Error {
-            AppError::auth_invalid(format!("Failed to validate old token for refresh: {e}")).into()
+        Self::decode_token_claims(old_token, jwks_manager).map_err(|e| -> AppError {
+            AppError::auth_invalid(format!("Failed to validate old token for refresh: {e}"))
         })?;
 
         // Generate new token - atomic counter ensures uniqueness
@@ -540,7 +538,7 @@ impl AuthManager {
     pub async fn check_setup_status(
         &self,
         database: &Database,
-    ) -> Result<crate::routes::SetupStatusResponse> {
+    ) -> AppResult<crate::routes::SetupStatusResponse> {
         const DEFAULT_ADMIN_EMAIL: &str = "admin@pierre.mcp";
 
         match database.users().get_by_email(DEFAULT_ADMIN_EMAIL).await {
@@ -592,7 +590,7 @@ impl AuthManager {
         user_id: &Uuid,
         scopes: &[String],
         tenant_id: Option<String>,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let now = Utc::now();
         let expiry =
             now + Duration::hours(crate::constants::limits::OAUTH_ACCESS_TOKEN_EXPIRY_HOURS);
@@ -617,7 +615,8 @@ impl AuthManager {
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some(active_key.kid.clone());
 
-        let token = encode(&header, &claims, &encoding_key)?;
+        let token = encode(&header, &claims, &encoding_key)
+            .map_err(|e| AppError::internal(format!("Failed to encode JWT token: {e}")))?;
 
         Ok(token)
     }
@@ -639,7 +638,7 @@ impl AuthManager {
         client_id: &str,
         scopes: &[String],
         tenant_id: Option<String>,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let now = Utc::now();
         let expiry = now + Duration::hours(1); // 1 hour for client credentials
 
@@ -663,7 +662,8 @@ impl AuthManager {
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some(active_key.kid.clone());
 
-        let token = encode(&header, &claims, &encoding_key)?;
+        let token = encode(&header, &claims, &encoding_key)
+            .map_err(|e| AppError::internal(format!("Failed to encode JWT token: {e}")))?;
 
         Ok(token)
     }
@@ -674,7 +674,7 @@ impl AuthManager {
 /// # Errors
 /// Returns an error if system RNG fails - this is a critical security failure
 /// and the server cannot operate securely without working RNG
-pub fn generate_jwt_secret() -> Result<[u8; 64]> {
+pub fn generate_jwt_secret() -> AppResult<[u8; 64]> {
     use ring::rand::{SecureRandom, SystemRandom};
 
     let rng = SystemRandom::new();

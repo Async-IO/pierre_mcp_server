@@ -12,7 +12,7 @@ use crate::oauth2_client::client::PkceParams;
 use crate::pagination::{CursorPage, PaginationParams};
 use crate::providers::errors::ProviderError;
 use crate::utils::http_client::api_client;
-use anyhow::{Context, Result};
+use crate::errors::{AppError, AppResult};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
@@ -114,7 +114,7 @@ impl StravaProvider {
     /// - Client ID is not configured or empty
     /// - Auth URL is malformed and cannot be parsed
     /// - URL encoding fails for any parameter
-    pub fn get_auth_url(&self, redirect_uri: &str, state: &str) -> Result<String> {
+    pub fn get_auth_url(&self, redirect_uri: &str, state: &str) -> AppResult<String> {
         if self.config.client_id.is_empty() {
             return Err(ProviderError::ConfigurationError("Client ID not configured".into()).into());
         }
@@ -144,7 +144,7 @@ impl StravaProvider {
         redirect_uri: &str,
         state: &str,
         pkce: &PkceParams,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         if self.config.client_id.is_empty() {
             return Err(ProviderError::ConfigurationError("Client ID not configured".into()).into());
         }
@@ -308,7 +308,7 @@ impl FitnessProvider for StravaProvider {
     /// Returns an error if:
     /// - Auth data is not OAuth2 format (Strava requires OAuth2)
     /// - Token storage fails
-    async fn authenticate(&mut self, auth_data: AuthData) -> Result<()> {
+    async fn authenticate(&mut self, auth_data: AuthData) -> AppResult<()> {
         match auth_data {
             AuthData::OAuth2 {
                 access_token,
@@ -335,7 +335,7 @@ impl FitnessProvider for StravaProvider {
     /// - Response cannot be parsed as JSON
     /// - Strava API returns malformed athlete data
     #[tracing::instrument(skip(self), fields(provider = "strava", api_call = "get_athlete"))]
-    async fn get_athlete(&self) -> Result<Athlete> {
+    async fn get_athlete(&self) -> AppResult<Athlete> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
         let response: StravaAthlete = self
@@ -375,7 +375,7 @@ impl FitnessProvider for StravaProvider {
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> Result<Vec<Activity>> {
+    ) -> AppResult<Vec<Activity>> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
         // Build query parameters without unnecessary allocations
@@ -470,7 +470,7 @@ impl FitnessProvider for StravaProvider {
     async fn get_activities_cursor(
         &self,
         params: &PaginationParams,
-    ) -> Result<CursorPage<Activity>> {
+    ) -> AppResult<CursorPage<Activity>> {
         // Strava API uses numeric pagination - delegate to offset-based approach
         let activities = self.get_activities(Some(params.limit), None).await?;
         Ok(CursorPage::new(activities, None, None, false))
@@ -487,7 +487,7 @@ impl FitnessProvider for StravaProvider {
     /// - Response cannot be parsed as JSON
     /// - Strava API returns malformed activity data
     /// - Activity ID is invalid or inaccessible
-    async fn get_activity(&self, id: &str) -> Result<Activity> {
+    async fn get_activity(&self, id: &str) -> AppResult<Activity> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
         let response: StravaActivity = self
@@ -513,7 +513,7 @@ impl FitnessProvider for StravaProvider {
     /// - Response cannot be parsed as JSON
     /// - Both athlete stats API and activities fallback fail
     /// - Strava API returns malformed stats data
-    async fn get_stats(&self) -> Result<Stats> {
+    async fn get_stats(&self) -> AppResult<Stats> {
         // Try Strava's athlete stats endpoint first
         if let Ok(strava_stats) = self.get_strava_athlete_stats().await {
             return Ok(strava_stats);
@@ -543,7 +543,7 @@ impl FitnessProvider for StravaProvider {
     /// - Authentication failures
     /// - API communication issues  
     /// - Data parsing errors
-    async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>> {
+    async fn get_personal_records(&self) -> AppResult<Vec<PersonalRecord>> {
         // Personal records require analysis of activities to determine bests
         // This would involve fetching activities and calculating personal bests
         // Strava API does not provide direct PR endpoints - requires activity analysis
@@ -568,7 +568,7 @@ impl StravaProvider {
     /// - API returns error response (e.g., 401 Unauthorized, 403 Forbidden)
     /// - Response cannot be parsed as JSON
     /// - Strava API returns malformed athlete or stats data
-    async fn get_strava_athlete_stats(&self) -> Result<Stats> {
+    async fn get_strava_athlete_stats(&self) -> AppResult<Stats> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
         // Get athlete ID first

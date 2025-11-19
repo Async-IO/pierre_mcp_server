@@ -5,8 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::constants::key_prefixes;
-use crate::errors::AppError;
-use anyhow::{Context, Result};
+use crate::errors::{AppError, AppResult};
 
 /// Extract bearer token from Authorization header string
 ///
@@ -16,18 +15,20 @@ use anyhow::{Context, Result};
 /// - Authorization header doesn't start with "Bearer "
 /// - Token is empty after extraction and trimming
 /// - Header format is invalid
-pub fn extract_bearer_token(auth_header: &str) -> Result<&str> {
+pub fn extract_bearer_token(auth_header: &str) -> AppResult<&str> {
     if !auth_header.starts_with("Bearer ") {
-        return Err(AppError::auth_invalid("Invalid authorization header format").into());
+        return Err(AppError::auth_invalid(
+            "Invalid authorization header format",
+        ));
     }
 
     let token = auth_header
         .strip_prefix("Bearer ")
-        .context("Failed to extract bearer token")?
+        .ok_or_else(|| AppError::auth_invalid("Failed to extract bearer token"))?
         .trim();
 
     if token.is_empty() {
-        return Err(AppError::auth_invalid("Empty bearer token").into());
+        return Err(AppError::auth_invalid("Empty bearer token"));
     }
 
     Ok(token)
@@ -41,7 +42,7 @@ pub fn extract_bearer_token(auth_header: &str) -> Result<&str> {
 /// - Authorization header doesn't start with "Bearer "  
 /// - Token is empty after extraction and trimming
 /// - Header format is invalid
-pub fn extract_bearer_token_owned(auth_header: &str) -> Result<String> {
+pub fn extract_bearer_token_owned(auth_header: &str) -> AppResult<String> {
     extract_bearer_token(auth_header).map(str::to_owned)
 }
 
@@ -53,7 +54,7 @@ pub fn extract_bearer_token_owned(auth_header: &str) -> Result<String> {
 /// - Authorization header is missing (None)
 /// - Header format is invalid
 /// - Token is empty
-pub fn extract_bearer_token_from_option(auth_header: Option<&str>) -> Result<&str> {
+pub fn extract_bearer_token_from_option(auth_header: Option<&str>) -> AppResult<&str> {
     let header = auth_header.ok_or_else(AppError::auth_required)?;
     extract_bearer_token(header)
 }
@@ -66,7 +67,7 @@ pub fn extract_bearer_token_from_option(auth_header: Option<&str>) -> Result<&st
 /// - Authorization header is missing (None)
 /// - Header format is invalid  
 /// - Token is empty
-pub fn extract_bearer_token_from_option_owned(auth_header: Option<&str>) -> Result<String> {
+pub fn extract_bearer_token_from_option_owned(auth_header: Option<&str>) -> AppResult<String> {
     extract_bearer_token_from_option(auth_header).map(str::to_owned)
 }
 

@@ -5,7 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use super::Database;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -41,7 +41,7 @@ impl Database {
     /// - The database schema migration fails
     /// - Table creation fails
     /// - Index creation fails
-    pub(super) async fn migrate_oauth_notifications(&self) -> Result<()> {
+    pub(super) async fn migrate_oauth_notifications(&self) -> AppResult<()> {
         // Create oauth_notifications table
         sqlx::query(
             r"
@@ -59,7 +59,10 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to create oauth_notifications table: {e}"))
+        })?;
 
         // Create indices for efficient queries
         sqlx::query(
@@ -69,17 +72,27 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_oauth_notifications_user_id: {e}"
+            ))
+        })?;
 
         sqlx::query(
             r"
-            CREATE INDEX IF NOT EXISTS idx_oauth_notifications_user_unread 
-            ON oauth_notifications (user_id, read_at) 
+            CREATE INDEX IF NOT EXISTS idx_oauth_notifications_user_unread
+            ON oauth_notifications (user_id, read_at)
             WHERE read_at IS NULL
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_oauth_notifications_user_unread: {e}"
+            ))
+        })?;
 
         Ok(())
     }
@@ -98,7 +111,7 @@ impl Database {
         success: bool,
         message: &str,
         expires_at: Option<&str>,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let notification_id = Uuid::new_v4().to_string();
 
         sqlx::query(
@@ -114,7 +127,8 @@ impl Database {
         .bind(message)
         .bind(expires_at)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to store OAuth notification: {e}")))?;
 
         Ok(notification_id)
     }
@@ -129,7 +143,7 @@ impl Database {
     pub async fn get_unread_oauth_notifications(
         &self,
         user_id: Uuid,
-    ) -> Result<Vec<OAuthNotification>> {
+    ) -> AppResult<Vec<OAuthNotification>> {
         tracing::debug!("Querying unread notifications for user_id: {}", user_id);
         let rows = sqlx::query(
             r"
@@ -141,7 +155,10 @@ impl Database {
         )
         .bind(user_id.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to query unread OAuth notifications: {e}"))
+        })?;
 
         tracing::debug!(
             "Found {} unread notification rows for user {}",
@@ -177,7 +194,7 @@ impl Database {
         &self,
         notification_id: &str,
         user_id: Uuid,
-    ) -> Result<bool> {
+    ) -> AppResult<bool> {
         let result = sqlx::query(
             r"
             UPDATE oauth_notifications 
@@ -188,7 +205,10 @@ impl Database {
         .bind(notification_id)
         .bind(user_id.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to mark OAuth notification as read: {e}"))
+        })?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -199,7 +219,7 @@ impl Database {
     ///
     /// Returns an error if:
     /// - Database update fails
-    pub async fn mark_all_oauth_notifications_read_impl(&self, user_id: Uuid) -> Result<u64> {
+    pub async fn mark_all_oauth_notifications_read_impl(&self, user_id: Uuid) -> AppResult<u64> {
         let result = sqlx::query(
             r"
             UPDATE oauth_notifications 
@@ -209,7 +229,12 @@ impl Database {
         )
         .bind(user_id.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to mark all OAuth notifications as read: {e}"
+            ))
+        })?;
 
         Ok(result.rows_affected())
     }
@@ -224,7 +249,7 @@ impl Database {
         &self,
         user_id: Uuid,
         limit: Option<i64>,
-    ) -> Result<Vec<OAuthNotification>> {
+    ) -> AppResult<Vec<OAuthNotification>> {
         let limit_clause = limit.map_or(String::new(), |l| format!(" LIMIT {l}"));
 
         let query = format!(
@@ -240,7 +265,10 @@ impl Database {
         let rows = sqlx::query(&query)
             .bind(user_id.to_string())
             .fetch_all(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to query all OAuth notifications: {e}"))
+            })?;
 
         let mut notifications = Vec::new();
         for row in rows {
@@ -264,7 +292,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64> {
+    pub async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> AppResult<u64> {
         self.mark_all_oauth_notifications_read_impl(user_id).await
     }
 }

@@ -5,9 +5,8 @@
 // Copyright ©2025 Async-IO.org
 
 use super::Database;
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::rate_limiting::JwtUsage;
-use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -38,8 +37,16 @@ pub struct RequestLog {
 
 impl Database {
     /// Create analytics tables
-    pub(super) async fn migrate_analytics(&self) -> Result<()> {
-        // Create JWT usage tracking table
+    pub(super) async fn migrate_analytics(&self) -> AppResult<()> {
+        self.create_jwt_usage_table().await?;
+        self.create_goals_table().await?;
+        self.create_insights_table().await?;
+        self.create_request_logs_table().await?;
+        self.create_analytics_indexes().await?;
+        Ok(())
+    }
+
+    async fn create_jwt_usage_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS jwt_usage (
@@ -58,9 +65,12 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create jwt_usage table: {e}")))?;
+        Ok(())
+    }
 
-        // Create goals table
+    async fn create_goals_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS goals (
@@ -73,9 +83,12 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create goals table: {e}")))?;
+        Ok(())
+    }
 
-        // Create insights table
+    async fn create_insights_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS insights (
@@ -89,9 +102,12 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create insights table: {e}")))?;
+        Ok(())
+    }
 
-        // Create request_logs table
+    async fn create_request_logs_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS request_logs (
@@ -108,34 +124,61 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create request_logs table: {e}")))?;
+        Ok(())
+    }
 
-        // Create indexes
+    async fn create_analytics_indexes(&self) -> AppResult<()> {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_user_id ON jwt_usage(user_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to create index idx_jwt_usage_user_id: {e}"))
+            })?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_timestamp ON jwt_usage(timestamp)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!(
+                    "Failed to create index idx_jwt_usage_timestamp: {e}"
+                ))
+            })?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_goals_user_id ON goals(user_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to create index idx_goals_user_id: {e}"))
+            })?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_insights_user_id ON insights(user_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to create index idx_insights_user_id: {e}"))
+            })?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_insights_activity_id ON insights(activity_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!(
+                    "Failed to create index idx_insights_activity_id: {e}"
+                ))
+            })?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_request_logs_timestamp ON request_logs(timestamp)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_request_logs_timestamp: {e}"
+            ))
+        })?;
 
         Ok(())
     }
@@ -145,7 +188,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails.
-    pub async fn record_jwt_usage_impl(&self, usage: &JwtUsage) -> Result<()> {
+    pub async fn record_jwt_usage_impl(&self, usage: &JwtUsage) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO jwt_usage (
@@ -202,7 +245,8 @@ impl Database {
         .bind(&usage.ip_address)
         .bind(&usage.user_agent)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to record JWT usage: {e}")))?;
 
         Ok(())
     }
@@ -212,7 +256,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails.
-    pub async fn get_jwt_current_usage_impl(&self, user_id: Uuid) -> Result<u32> {
+    pub async fn get_jwt_current_usage_impl(&self, user_id: Uuid) -> AppResult<u32> {
         let window_start = Utc::now() - Duration::hours(1); // 1 hour window
 
         let count: i32 = sqlx::query_scalar(
@@ -224,7 +268,8 @@ impl Database {
         .bind(user_id.to_string())
         .bind(window_start)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get JWT current usage: {e}")))?;
 
         Ok(u32::try_from(count).unwrap_or_else(|e| {
             tracing::error!(
@@ -246,7 +291,7 @@ impl Database {
         &self,
         user_id: Uuid,
         goal_data: serde_json::Value,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let goal_id = Uuid::new_v4().to_string();
         let goal_json = serde_json::to_string(&goal_data)?;
 
@@ -260,7 +305,8 @@ impl Database {
         .bind(user_id.to_string())
         .bind(goal_json)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create goal: {e}")))?;
 
         Ok(goal_id)
     }
@@ -270,7 +316,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails or if JSON deserialization fails.
-    pub async fn get_user_goals_impl(&self, user_id: Uuid) -> Result<Vec<serde_json::Value>> {
+    pub async fn get_user_goals_impl(&self, user_id: Uuid) -> AppResult<Vec<serde_json::Value>> {
         let rows = sqlx::query(
             r"
             SELECT id, goal_data FROM goals
@@ -280,7 +326,8 @@ impl Database {
         )
         .bind(user_id.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get user goals: {e}")))?;
 
         let mut goals = Vec::new();
         for row in rows {
@@ -304,7 +351,11 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails or if JSON operations fail.
-    pub async fn update_goal_progress_impl(&self, goal_id: &str, current_value: f64) -> Result<()> {
+    pub async fn update_goal_progress_impl(
+        &self,
+        goal_id: &str,
+        current_value: f64,
+    ) -> AppResult<()> {
         // Get the current goal data
         let row = sqlx::query(
             r"
@@ -313,7 +364,8 @@ impl Database {
         )
         .bind(goal_id)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get goal data for update: {e}")))?;
 
         let goal_data_str: String = row.get("goal_data");
         let mut goal_data: serde_json::Value = serde_json::from_str(&goal_data_str)?;
@@ -323,9 +375,7 @@ impl Database {
             obj.insert(
                 "current_value".into(),
                 serde_json::Value::Number(serde_json::Number::from_f64(current_value).ok_or_else(
-                    || -> anyhow::Error {
-                        AppError::internal(format!("Invalid current_value: {current_value}")).into()
-                    },
+                    || AppError::internal(format!("Invalid current_value: {current_value}")),
                 )?),
             );
 
@@ -342,14 +392,11 @@ impl Database {
                     obj.insert(
                         "progress_percentage".into(),
                         serde_json::Value::Number(
-                            serde_json::Number::from_f64(progress_percentage).ok_or_else(
-                                || -> anyhow::Error {
-                                    AppError::internal(format!(
-                                        "Invalid progress_percentage: {progress_percentage}"
-                                    ))
-                                    .into()
-                                },
-                            )?,
+                            serde_json::Number::from_f64(progress_percentage).ok_or_else(|| {
+                                AppError::internal(format!(
+                                    "Invalid progress_percentage: {progress_percentage}"
+                                ))
+                            })?,
                         ),
                     );
                 }
@@ -369,7 +416,8 @@ impl Database {
         .bind(updated_goal_json)
         .bind(goal_id)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update goal progress: {e}")))?;
 
         Ok(())
     }
@@ -385,7 +433,7 @@ impl Database {
         activity_id: Option<String>,
         insight_type: &str,
         insight_data: serde_json::Value,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let insight_id = Uuid::new_v4().to_string();
         let insight_json = serde_json::to_string(&insight_data)?;
 
@@ -401,7 +449,8 @@ impl Database {
         .bind(insight_type)
         .bind(insight_json)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to store insight: {e}")))?;
 
         Ok(insight_id)
     }
@@ -415,7 +464,7 @@ impl Database {
         &self,
         user_id: Uuid,
         insight_data: serde_json::Value,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         // Extract insight type from the JSON data or use a default
         let insight_type = insight_data
             .get("type")
@@ -437,7 +486,7 @@ impl Database {
         user_id: Uuid,
         _insight_type: Option<&str>,
         limit: Option<u32>,
-    ) -> Result<Vec<serde_json::Value>> {
+    ) -> AppResult<Vec<serde_json::Value>> {
         // Safe: limit represents small positive query limit (1-1000)
         #[allow(clippy::cast_possible_wrap)]
         let actual_limit = limit.unwrap_or(10) as i32;
@@ -453,7 +502,7 @@ impl Database {
         &self,
         user_id: Uuid,
         limit: i32,
-    ) -> Result<Vec<serde_json::Value>> {
+    ) -> AppResult<Vec<serde_json::Value>> {
         let rows = sqlx::query(
             r"
             SELECT insight_data FROM insights
@@ -465,7 +514,8 @@ impl Database {
         .bind(user_id.to_string())
         .bind(limit)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get user insights: {e}")))?;
 
         let mut insights = Vec::new();
         for row in rows {
@@ -489,7 +539,7 @@ impl Database {
         end_date: Option<DateTime<Utc>>,
         limit: i32,
         offset: i32,
-    ) -> Result<Vec<RequestLog>> {
+    ) -> AppResult<Vec<RequestLog>> {
         let mut query = String::from(
             r"
             SELECT id, user_id, api_key_id, timestamp, method, endpoint, 
@@ -524,7 +574,10 @@ impl Database {
         }
         sql_query = sql_query.bind(limit).bind(offset);
 
-        let rows = sql_query.fetch_all(&self.pool).await?;
+        let rows = sql_query
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get request logs: {e}")))?;
 
         let mut logs = Vec::new();
         for row in rows {
@@ -580,16 +633,18 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails.
-    pub async fn get_system_stats_impl(&self) -> Result<(u64, u64)> {
+    pub async fn get_system_stats_impl(&self) -> AppResult<(u64, u64)> {
         // Get total users
         let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
             .fetch_one(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user count: {e}")))?;
 
         // Get total API keys
         let api_key_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM api_keys")
             .fetch_one(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get API key count: {e}")))?;
 
         Ok((
             u64::try_from(user_count).unwrap_or_else(|e| {
@@ -618,7 +673,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
+    pub async fn record_jwt_usage(&self, usage: &JwtUsage) -> AppResult<()> {
         self.record_jwt_usage_impl(usage).await
     }
 
@@ -626,7 +681,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
+    pub async fn get_jwt_current_usage(&self, user_id: Uuid) -> AppResult<u32> {
         self.get_jwt_current_usage_impl(user_id).await
     }
 
@@ -634,7 +689,11 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn create_goal(&self, user_id: Uuid, goal_data: serde_json::Value) -> Result<String> {
+    pub async fn create_goal(
+        &self,
+        user_id: Uuid,
+        goal_data: serde_json::Value,
+    ) -> AppResult<String> {
         self.create_goal_impl(user_id, goal_data).await
     }
 
@@ -642,7 +701,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<serde_json::Value>> {
+    pub async fn get_user_goals(&self, user_id: Uuid) -> AppResult<Vec<serde_json::Value>> {
         self.get_user_goals_impl(user_id).await
     }
 
@@ -650,7 +709,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
+    pub async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> AppResult<()> {
         self.update_goal_progress_impl(goal_id, current_value).await
     }
 
@@ -662,7 +721,7 @@ impl Database {
         &self,
         user_id: Uuid,
         insight_data: serde_json::Value,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         self.store_insight_impl(user_id, insight_data).await
     }
 
@@ -670,7 +729,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn get_system_stats(&self) -> Result<(u64, u64)> {
+    pub async fn get_system_stats(&self) -> AppResult<(u64, u64)> {
         self.get_system_stats_impl().await
     }
 }

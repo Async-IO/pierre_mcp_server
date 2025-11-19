@@ -31,9 +31,8 @@ pub mod test_utils;
 pub use a2a::{A2AUsage, A2AUsageStats};
 pub use errors::{DatabaseError, DatabaseResult};
 
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::models::UserOAuthApp;
-use anyhow::{Context, Result};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use sqlx::{Pool, Row, Sqlite, SqlitePool};
@@ -57,7 +56,7 @@ impl Database {
     /// - `SQLite` file creation fails
     /// - Migration process fails
     /// - Encryption key is invalid
-    async fn new_impl(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
+    async fn new_impl(database_url: &str, encryption_key: Vec<u8>) -> AppResult<Self> {
         // Ensure SQLite creates the database file if it doesn't exist
         let connection_options = if database_url.starts_with("sqlite:") {
             format!("{database_url}?mode=rwc")
@@ -65,7 +64,9 @@ impl Database {
             database_url.to_owned()
         };
 
-        let pool = SqlitePool::connect(&connection_options).await?;
+        let pool = SqlitePool::connect(&connection_options)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to connect to database: {e}")))?;
 
         let db = Self {
             pool,
@@ -88,7 +89,7 @@ impl Database {
     /// - `SQLite` file creation fails
     /// - Migration process fails
     /// - Encryption key is invalid
-    pub async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
+    pub async fn new(database_url: &str, encryption_key: Vec<u8>) -> AppResult<Self> {
         Self::new_impl(database_url, encryption_key).await
     }
 
@@ -106,7 +107,7 @@ impl Database {
     /// - Any migration fails
     /// - Database connection is lost during migration
     /// - Insufficient database permissions
-    pub async fn migrate(&self) -> Result<()> {
+    pub async fn migrate(&self) -> AppResult<()> {
         self.migrate_impl().await
     }
 
@@ -115,7 +116,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if encryption fails
-    pub fn encrypt_data_with_aad(&self, data: &str, aad_context: &str) -> Result<String> {
+    pub fn encrypt_data_with_aad(&self, data: &str, aad_context: &str) -> AppResult<String> {
         Self::encrypt_data_with_aad_impl(self, data, aad_context)
     }
 
@@ -127,7 +128,11 @@ impl Database {
     /// - Decryption fails
     /// - Data is malformed
     /// - AAD context does not match
-    pub fn decrypt_data_with_aad(&self, encrypted_data: &str, aad_context: &str) -> Result<String> {
+    pub fn decrypt_data_with_aad(
+        &self,
+        encrypted_data: &str,
+        aad_context: &str,
+    ) -> AppResult<String> {
         Self::decrypt_data_with_aad_impl(self, encrypted_data, aad_context)
     }
 
@@ -248,7 +253,7 @@ impl Database {
     /// - Database connection is lost during migration
     /// - Insufficient database permissions
     /// - Database connection is lost during migration
-    async fn migrate_impl(&self) -> Result<()> {
+    async fn migrate_impl(&self) -> AppResult<()> {
         // User tables
         self.migrate_users().await?;
 
@@ -287,7 +292,7 @@ impl Database {
     /// # Errors
     ///
     /// Create OAuth 2.0 server tables for RFC 7591 client registration
-    async fn migrate_oauth2(&self) -> Result<()> {
+    async fn migrate_oauth2(&self) -> AppResult<()> {
         // Create oauth2_clients table
         sqlx::query(
             r"
@@ -398,7 +403,7 @@ impl Database {
     }
 
     /// Create `OAuth2` state validation table for `CSRF` protection
-    async fn migrate_oauth2_state_table(&self) -> Result<()> {
+    async fn migrate_oauth2_state_table(&self) -> AppResult<()> {
         // Create oauth2_states table for server-side state validation (CSRF protection)
         sqlx::query(
             r"
@@ -441,7 +446,7 @@ impl Database {
     /// - Database constraints cannot be applied
     /// - SQL syntax errors in migration statements
     #[allow(clippy::too_many_lines)] // Long function: Defines complete tenant management schema
-    async fn migrate_tenant_management(&self) -> Result<()> {
+    async fn migrate_tenant_management(&self) -> AppResult<()> {
         // Create tenants table
         sqlx::query(
             r"
@@ -650,7 +655,7 @@ impl Database {
     /// - SQL syntax errors in migration statements
     // Long function: Defines complete admin database schema with multiple tables and indices
     #[allow(clippy::too_many_lines)]
-    async fn migrate_admin(&self) -> Result<()> {
+    async fn migrate_admin(&self) -> AppResult<()> {
         // Create admin_tokens table
         sqlx::query(
             r#"
@@ -795,7 +800,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if encryption fails
-    pub fn encrypt_data(&self, data: &str) -> Result<String> {
+    pub fn encrypt_data(&self, data: &str) -> AppResult<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
         use ring::rand::{SecureRandom, SystemRandom};
@@ -827,7 +832,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if decryption fails or data is malformed
-    pub fn decrypt_data(&self, encrypted_data: &str) -> Result<String> {
+    pub fn decrypt_data(&self, encrypted_data: &str) -> AppResult<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
@@ -835,7 +840,7 @@ impl Database {
         let combined = general_purpose::STANDARD.decode(encrypted_data)?;
 
         if combined.len() < 12 {
-            return Err(AppError::internal("Invalid encrypted data: too short").into());
+            return Err(AppError::internal("Invalid encrypted data: too short"));
         }
 
         // Extract nonce and encrypted data
@@ -851,7 +856,7 @@ impl Database {
         let decrypted = key.open_in_place(nonce, Aad::empty(), &mut decrypted_data)?;
 
         String::from_utf8(decrypted.to_vec()).map_err(|e| {
-            AppError::internal(format!("Failed to convert decrypted data to string: {e}")).into()
+            AppError::internal(format!("Failed to convert decrypted data to string: {e}"))
         })
     }
 
@@ -863,7 +868,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if encryption fails
-    fn encrypt_data_with_aad_impl(&self, data: &str, aad_context: &str) -> Result<String> {
+    fn encrypt_data_with_aad_impl(&self, data: &str, aad_context: &str) -> AppResult<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
         use ring::rand::{SecureRandom, SystemRandom};
@@ -906,7 +911,7 @@ impl Database {
         &self,
         encrypted_data: &str,
         aad_context: &str,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
@@ -914,7 +919,7 @@ impl Database {
         let combined = general_purpose::STANDARD.decode(encrypted_data)?;
 
         if combined.len() < 12 {
-            return Err(AppError::internal("Invalid encrypted data: too short").into());
+            return Err(AppError::internal("Invalid encrypted data: too short"));
         }
 
         // Extract nonce and encrypted data
@@ -937,7 +942,7 @@ impl Database {
             })?;
 
         String::from_utf8(decrypted.to_vec()).map_err(|e| {
-            AppError::internal(format!("Failed to convert decrypted data to string: {e}")).into()
+            AppError::internal(format!("Failed to convert decrypted data to string: {e}"))
         })
     }
 
@@ -950,7 +955,7 @@ impl Database {
         &self,
         user_id: &str,
         tenant_id: &str,
-    ) -> Result<Option<String>> {
+    ) -> AppResult<Option<String>> {
         let row = sqlx::query_as::<_, (String,)>(
             "SELECT role FROM tenant_users WHERE user_id = ? AND tenant_id = ?",
         )
@@ -967,7 +972,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if table creation fails or database connection is lost
-    async fn migrate_fitness_configurations(&self) -> Result<()> {
+    async fn migrate_fitness_configurations(&self) -> AppResult<()> {
         // Create fitness_configurations table
         sqlx::query(
             r"
@@ -1014,7 +1019,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if hashing fails
-    pub fn hash_data(&self, data: &str) -> Result<String> {
+    pub fn hash_data(&self, data: &str) -> AppResult<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::digest::{digest, SHA256};
 
@@ -1035,7 +1040,7 @@ impl Database {
         created_at: chrono::DateTime<chrono::Utc>,
         is_active: bool,
         key_size_bits: usize,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO rsa_keypairs (kid, private_key_pem, public_key_pem, created_at, is_active, key_size_bits)
@@ -1051,7 +1056,7 @@ impl Database {
         .bind(public_key_pem)
         .bind(created_at)
         .bind(is_active)
-        .bind(i64::try_from(key_size_bits).context("RSA key size exceeds maximum supported value")?)
+        .bind(i64::try_from(key_size_bits).map_err(|_| AppError::internal("RSA key size exceeds maximum supported value"))?)
         .execute(&self.pool)
         .await?;
 
@@ -1065,7 +1070,7 @@ impl Database {
     /// Returns an error if database query fails
     pub async fn load_rsa_keypairs(
         &self,
-    ) -> Result<Vec<(String, String, String, chrono::DateTime<chrono::Utc>, bool)>> {
+    ) -> AppResult<Vec<(String, String, String, chrono::DateTime<chrono::Utc>, bool)>> {
         use sqlx::Row;
 
         let rows = sqlx::query(
@@ -1093,7 +1098,11 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database operation fails
-    pub async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
+    pub async fn update_rsa_keypair_active_status(
+        &self,
+        kid: &str,
+        is_active: bool,
+    ) -> AppResult<()> {
         sqlx::query("UPDATE rsa_keypairs SET is_active = $1 WHERE kid = $2")
             .bind(is_active)
             .bind(kid)
@@ -1110,7 +1119,7 @@ impl Database {
     /// Returns an error if:
     /// - Database insert fails
     /// - Tenant already exists with the same slug
-    pub async fn create_tenant_impl(&self, tenant: &crate::models::Tenant) -> Result<()> {
+    pub async fn create_tenant_impl(&self, tenant: &crate::models::Tenant) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO tenants (id, name, slug, domain, plan, owner_user_id, is_active, created_at, updated_at)
@@ -1151,7 +1160,7 @@ impl Database {
     /// Returns an error if:
     /// - Database query fails
     /// - Unknown secret type requested
-    pub async fn get_or_create_system_secret_impl(&self, secret_type: &str) -> Result<String> {
+    pub async fn get_or_create_system_secret_impl(&self, secret_type: &str) -> AppResult<String> {
         // Try to get existing secret
         if let Ok(secret) = self.get_system_secret_impl(secret_type).await {
             return Ok(secret);
@@ -1165,9 +1174,9 @@ impl Database {
                 return Ok(base64::engine::general_purpose::STANDARD.encode(&self.encryption_key));
             }
             _ => {
-                return Err(
-                    AppError::invalid_input(format!("Unknown secret type: {secret_type}")).into(),
-                )
+                return Err(AppError::invalid_input(format!(
+                    "Unknown secret type: {secret_type}"
+                )))
             }
         };
 
@@ -1188,7 +1197,7 @@ impl Database {
     /// Returns an error if:
     /// - Database query fails
     /// - Secret not found
-    pub async fn get_system_secret_impl(&self, secret_type: &str) -> Result<String> {
+    pub async fn get_system_secret_impl(&self, secret_type: &str) -> AppResult<String> {
         let row = sqlx::query("SELECT secret_value FROM system_secrets WHERE secret_type = ?")
             .bind(secret_type)
             .fetch_one(&self.pool)
@@ -1206,7 +1215,7 @@ impl Database {
         &self,
         secret_type: &str,
         new_value: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             "UPDATE system_secrets SET secret_value = ?, updated_at = CURRENT_TIMESTAMP WHERE secret_type = ?",
         )
@@ -1223,7 +1232,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if tenant not found or database query fails
-    pub async fn get_tenant_by_id_impl(&self, tenant_id: Uuid) -> Result<crate::models::Tenant> {
+    pub async fn get_tenant_by_id_impl(&self, tenant_id: Uuid) -> AppResult<crate::models::Tenant> {
         let row = sqlx::query(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.plan, tu.user_id, t.created_at, t.updated_at
@@ -1260,7 +1269,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if tenant not found or database query fails
-    pub async fn get_tenant_by_slug_impl(&self, slug: &str) -> Result<crate::models::Tenant> {
+    pub async fn get_tenant_by_slug_impl(&self, slug: &str) -> AppResult<crate::models::Tenant> {
         let row = sqlx::query(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.plan, tu.user_id, t.created_at, t.updated_at
@@ -1300,7 +1309,7 @@ impl Database {
     pub async fn list_tenants_for_user_impl(
         &self,
         user_id: Uuid,
-    ) -> Result<Vec<crate::models::Tenant>> {
+    ) -> AppResult<Vec<crate::models::Tenant>> {
         let rows = sqlx::query(
             r"
             SELECT DISTINCT t.id, t.name, t.slug, t.domain, t.plan,
@@ -1330,7 +1339,7 @@ impl Database {
                     updated_at: row.try_get("updated_at")?,
                 })
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<AppResult<Vec<_>>>()?;
 
         Ok(tenants)
     }
@@ -1340,7 +1349,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database query fails
-    pub async fn get_all_tenants_impl(&self) -> Result<Vec<crate::models::Tenant>> {
+    pub async fn get_all_tenants_impl(&self) -> AppResult<Vec<crate::models::Tenant>> {
         let rows = sqlx::query(
             r"
             SELECT id, slug, name, domain, plan, owner_user_id, created_at, updated_at
@@ -1366,7 +1375,7 @@ impl Database {
                     updated_at: row.try_get("updated_at")?,
                 })
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<AppResult<Vec<_>>>()?;
 
         Ok(tenants)
     }
@@ -1379,7 +1388,7 @@ impl Database {
     pub async fn store_tenant_oauth_credentials_impl(
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         // Encrypt the client secret using AES-256-GCM with AAD binding
         // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
         let aad_context = format!(
@@ -1432,7 +1441,7 @@ impl Database {
     pub async fn get_tenant_oauth_providers_impl(
         &self,
         tenant_id: Uuid,
-    ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Vec<crate::tenant::TenantOAuthCredentials>> {
         let rows = sqlx::query(
             r"
             SELECT provider, client_id, client_secret_encrypted,
@@ -1473,7 +1482,7 @@ impl Database {
                     rate_limit_per_day: u32::try_from(rate_limit).unwrap_or(0),
                 })
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<AppResult<Vec<_>>>()?;
 
         Ok(credentials)
     }
@@ -1487,7 +1496,7 @@ impl Database {
         &self,
         tenant_id: Uuid,
         provider: &str,
-    ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Option<crate::tenant::TenantOAuthCredentials>> {
         let row = sqlx::query(
             r"
             SELECT client_id, client_secret_encrypted,
@@ -1542,7 +1551,7 @@ impl Database {
     pub async fn store_oauth2_client_impl(
         &self,
         client: &crate::oauth2_server::models::OAuth2Client,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO oauth2_clients (id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at)
@@ -1574,7 +1583,7 @@ impl Database {
     pub async fn get_oauth2_client_impl(
         &self,
         client_id: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2Client>> {
         let row = sqlx::query(
             r"
             SELECT id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at
@@ -1613,7 +1622,7 @@ impl Database {
     pub async fn store_oauth2_auth_code_impl(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO oauth2_auth_codes (code, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, expires_at, used, state)
@@ -1645,7 +1654,7 @@ impl Database {
     pub async fn get_oauth2_auth_code_impl(
         &self,
         code: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         let row = sqlx::query(
             r"
             SELECT code, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, expires_at, used, state
@@ -1684,7 +1693,7 @@ impl Database {
     pub async fn update_oauth2_auth_code_impl(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             UPDATE oauth2_auth_codes
@@ -1708,7 +1717,7 @@ impl Database {
     pub async fn store_oauth2_refresh_token_impl(
         &self,
         refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO oauth2_refresh_tokens (token, client_id, user_id, tenant_id, scope, created_at, expires_at, revoked)
@@ -1737,7 +1746,7 @@ impl Database {
     pub async fn get_oauth2_refresh_token_impl(
         &self,
         token: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         let row = sqlx::query(
             r"
             SELECT token, client_id, user_id, tenant_id, scope, created_at, expires_at, revoked
@@ -1776,7 +1785,7 @@ impl Database {
         client_id: &str,
         redirect_uri: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         let row = sqlx::query(
             r"
             UPDATE oauth2_auth_codes
@@ -1825,7 +1834,7 @@ impl Database {
         token: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         let row = sqlx::query(
             r"
             UPDATE oauth2_refresh_tokens
@@ -1867,7 +1876,7 @@ impl Database {
     pub async fn store_oauth2_state_impl(
         &self,
         state: &crate::oauth2_server::models::OAuth2State,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO oauth2_states (state, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, created_at, expires_at, used)
@@ -1901,7 +1910,7 @@ impl Database {
         state_value: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2State>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2State>> {
         let row = sqlx::query(
             r"
             UPDATE oauth2_states
@@ -1949,7 +1958,7 @@ impl Database {
     /// Returns an error if:
     /// - Database query execution fails
     /// - Database connection issues occur
-    pub async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
+    pub async fn get_user_configuration(&self, user_id: &str) -> AppResult<Option<String>> {
         let row = sqlx::query("SELECT config_json FROM user_configurations WHERE user_id = ?")
             .bind(user_id)
             .fetch_optional(&self.pool)
@@ -1965,7 +1974,7 @@ impl Database {
     /// Returns an error if:
     /// - Database insert or update fails
     /// - Database connection issues occur
-    pub async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()> {
+    pub async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO user_configurations (user_id, config_json, updated_at)
@@ -1995,7 +2004,7 @@ impl Database {
         _user_id: Uuid,
         _start_time: chrono::DateTime<chrono::Utc>,
         _end_time: chrono::DateTime<chrono::Utc>,
-    ) -> Result<Vec<crate::dashboard_routes::ToolUsage>> {
+    ) -> AppResult<Vec<crate::dashboard_routes::ToolUsage>> {
         // NOTE: This method is not actually used. Dashboard routes has its own
         // implementation that aggregates data from get_api_key_usage_stats.
         // Returning empty vector to avoid circular delegation through UsageRepository.
@@ -2015,7 +2024,7 @@ impl Database {
         end_time: Option<chrono::DateTime<chrono::Utc>>,
         _status_filter: Option<&str>,
         _tool_filter: Option<&str>,
-    ) -> Result<Vec<crate::dashboard_routes::RequestLog>> {
+    ) -> AppResult<Vec<crate::dashboard_routes::RequestLog>> {
         let mut query = "SELECT id, user_id, api_key_id, timestamp, method, endpoint, status_code, response_time_ms, error_message FROM request_logs WHERE 1=1".to_owned();
 
         if api_key_id.is_some() {
@@ -2073,7 +2082,7 @@ impl Database {
     /// - Database insert fails
     /// - Tenant already exists with the same slug
     /// - Database connection issues occur
-    pub async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
+    pub async fn create_tenant(&self, tenant: &crate::models::Tenant) -> AppResult<()> {
         Self::create_tenant_impl(self, tenant).await
     }
 
@@ -2085,7 +2094,7 @@ impl Database {
     /// - Tenant not found with the given ID
     /// - Database query execution fails
     /// - Database connection issues occur
-    pub async fn get_tenant_by_id(&self, id: Uuid) -> Result<crate::models::Tenant> {
+    pub async fn get_tenant_by_id(&self, id: Uuid) -> AppResult<crate::models::Tenant> {
         Self::get_tenant_by_id_impl(self, id).await
     }
 
@@ -2097,7 +2106,7 @@ impl Database {
     /// - Tenant not found with the given slug
     /// - Database query execution fails
     /// - Database connection issues occur
-    pub async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
+    pub async fn get_tenant_by_slug(&self, slug: &str) -> AppResult<crate::models::Tenant> {
         Self::get_tenant_by_slug_impl(self, slug).await
     }
 
@@ -2109,7 +2118,10 @@ impl Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues occur
-    pub async fn list_tenants_for_user(&self, user_id: Uuid) -> Result<Vec<crate::models::Tenant>> {
+    pub async fn list_tenants_for_user(
+        &self,
+        user_id: Uuid,
+    ) -> AppResult<Vec<crate::models::Tenant>> {
         Self::list_tenants_for_user_impl(self, user_id).await
     }
 
@@ -2121,7 +2133,7 @@ impl Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues occur
-    pub async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
+    pub async fn get_all_tenants(&self) -> AppResult<Vec<crate::models::Tenant>> {
         Self::get_all_tenants_impl(self).await
     }
 
@@ -2136,7 +2148,7 @@ impl Database {
     pub async fn store_tenant_oauth_credentials(
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::store_tenant_oauth_credentials_impl(self, credentials).await
     }
 
@@ -2152,7 +2164,7 @@ impl Database {
     pub async fn get_tenant_oauth_providers(
         &self,
         tenant_id: Uuid,
-    ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Vec<crate::tenant::TenantOAuthCredentials>> {
         Self::get_tenant_oauth_providers_impl(self, tenant_id).await
     }
 
@@ -2169,7 +2181,7 @@ impl Database {
         &self,
         tenant_id: Uuid,
         provider: &str,
-    ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Option<crate::tenant::TenantOAuthCredentials>> {
         Self::get_tenant_oauth_credentials_impl(self, tenant_id, provider).await
     }
 
@@ -2181,7 +2193,7 @@ impl Database {
     /// - Database insert fails
     /// - OAuth app already exists with the same client ID
     /// - Database connection issues occur
-    pub async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()> {
+    pub async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO oauth_apps (id, client_id, client_secret_hash, name, description, redirect_uris, scopes, app_type, owner_user_id, is_active, created_at, updated_at)
@@ -2216,7 +2228,7 @@ impl Database {
     pub async fn get_oauth_app_by_client_id(
         &self,
         client_id: &str,
-    ) -> Result<crate::models::OAuthApp> {
+    ) -> AppResult<crate::models::OAuthApp> {
         let row = sqlx::query(
             r"
             SELECT id, client_id, client_secret_hash, name, description, redirect_uris, scopes, app_type, owner_user_id, created_at, updated_at
@@ -2254,7 +2266,7 @@ impl Database {
     pub async fn list_oauth_apps_for_user(
         &self,
         user_id: Uuid,
-    ) -> Result<Vec<crate::models::OAuthApp>> {
+    ) -> AppResult<Vec<crate::models::OAuthApp>> {
         let rows = sqlx::query(
             r"
             SELECT id, client_id, client_secret_hash, name, description, redirect_uris, scopes, app_type, owner_user_id, created_at, updated_at
@@ -2301,7 +2313,7 @@ impl Database {
         client_id: &str,
         client_secret: &str,
         redirect_uri: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         // Encrypt the client secret
         let aad_context = format!("user_oauth_app:{user_id}:{provider}");
         let encrypted_secret = self.encrypt_data_with_aad(client_secret, &aad_context)?;
@@ -2339,7 +2351,7 @@ impl Database {
         &self,
         user_id: Uuid,
         provider: &str,
-    ) -> Result<Option<UserOAuthApp>> {
+    ) -> AppResult<Option<UserOAuthApp>> {
         let row = sqlx::query(
             "SELECT id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at
              FROM user_oauth_app_credentials
@@ -2387,7 +2399,7 @@ impl Database {
     /// - Database query execution fails
     /// - Decryption of OAuth credentials fails
     /// - Database connection issues occur
-    pub async fn list_user_oauth_apps(&self, user_id: Uuid) -> Result<Vec<UserOAuthApp>> {
+    pub async fn list_user_oauth_apps(&self, user_id: Uuid) -> AppResult<Vec<UserOAuthApp>> {
         let rows = sqlx::query(
             "SELECT id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at
              FROM user_oauth_app_credentials
@@ -2434,7 +2446,7 @@ impl Database {
     /// Returns an error if:
     /// - Database delete operation fails
     /// - Database connection issues occur
-    pub async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> Result<()> {
+    pub async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> AppResult<()> {
         sqlx::query("DELETE FROM user_oauth_app_credentials WHERE user_id = ? AND provider = ?")
             .bind(user_id.to_string())
             .bind(provider)
@@ -2456,7 +2468,7 @@ impl Database {
     pub async fn store_oauth2_client(
         &self,
         client: &crate::oauth2_server::models::OAuth2Client,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::store_oauth2_client_impl(self, client).await
     }
 
@@ -2471,7 +2483,7 @@ impl Database {
     pub async fn get_oauth2_client(
         &self,
         client_id: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2Client>> {
         Self::get_oauth2_client_impl(self, client_id).await
     }
 
@@ -2486,7 +2498,7 @@ impl Database {
     pub async fn store_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::store_oauth2_auth_code_impl(self, auth_code).await
     }
 
@@ -2501,7 +2513,7 @@ impl Database {
     pub async fn get_oauth2_auth_code(
         &self,
         code: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         Self::get_oauth2_auth_code_impl(self, code).await
     }
 
@@ -2516,7 +2528,7 @@ impl Database {
     pub async fn update_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::update_oauth2_auth_code_impl(self, auth_code).await
     }
 
@@ -2531,7 +2543,7 @@ impl Database {
     pub async fn store_oauth2_refresh_token(
         &self,
         refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::store_oauth2_refresh_token_impl(self, refresh_token).await
     }
 
@@ -2546,7 +2558,7 @@ impl Database {
     pub async fn get_oauth2_refresh_token(
         &self,
         token: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         Self::get_oauth2_refresh_token_impl(self, token).await
     }
 
@@ -2558,7 +2570,7 @@ impl Database {
     /// - Database update fails
     /// - Refresh token not found
     /// - Database connection issues occur
-    pub async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()> {
+    pub async fn revoke_oauth2_refresh_token(&self, token: &str) -> AppResult<()> {
         sqlx::query("UPDATE oauth2_refresh_tokens SET revoked = 1 WHERE token = ?")
             .bind(token)
             .execute(&self.pool)
@@ -2577,7 +2589,7 @@ impl Database {
     pub async fn get_refresh_token_by_value(
         &self,
         token: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         let row = sqlx::query(
             "SELECT token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
              FROM oauth2_refresh_tokens WHERE token = ?",
@@ -2621,7 +2633,7 @@ impl Database {
         client_id: &str,
         redirect_uri: &str,
         now: chrono::DateTime<chrono::Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         // First fetch the auth code
         let row = sqlx::query(
             "SELECT code, client_id, user_id, tenant_id, redirect_uri, scope, expires_at, used, state, code_challenge, code_challenge_method
@@ -2682,7 +2694,7 @@ impl Database {
         token: &str,
         client_id: &str,
         now: chrono::DateTime<chrono::Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         // First fetch the refresh token
         let row = sqlx::query(
             "SELECT token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
@@ -2738,7 +2750,7 @@ impl Database {
     pub async fn store_authorization_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             "INSERT INTO oauth2_auth_codes (code, client_id, user_id, tenant_id, redirect_uri, scope, expires_at, used, state, code_challenge, code_challenge_method)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -2773,7 +2785,7 @@ impl Database {
         code: &str,
         client_id: &str,
         redirect_uri: &str,
-    ) -> Result<crate::oauth2_server::models::OAuth2AuthCode> {
+    ) -> AppResult<crate::oauth2_server::models::OAuth2AuthCode> {
         let row = sqlx::query(
             "SELECT code, client_id, user_id, tenant_id, redirect_uri, scope, expires_at, used, state, code_challenge, code_challenge_method
              FROM oauth2_auth_codes WHERE code = ? AND client_id = ? AND redirect_uri = ?",
@@ -2814,7 +2826,7 @@ impl Database {
         code: &str,
         client_id: &str,
         redirect_uri: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             "DELETE FROM oauth2_auth_codes WHERE code = ? AND client_id = ? AND redirect_uri = ?",
         )
@@ -2837,7 +2849,7 @@ impl Database {
     pub async fn store_oauth2_state(
         &self,
         state: &crate::oauth2_server::models::OAuth2State,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::store_oauth2_state_impl(self, state).await
     }
 
@@ -2854,7 +2866,7 @@ impl Database {
         state: &str,
         client_id: &str,
         now: chrono::DateTime<chrono::Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2State>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2State>> {
         Self::consume_oauth2_state_impl(self, state, client_id, now).await
     }
 
@@ -2870,7 +2882,7 @@ impl Database {
         &self,
         tenant_id: Option<Uuid>,
         event: &crate::security::audit::AuditEvent,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let event_type_json = serde_json::to_string(&event.event_type)?;
         let severity_json = serde_json::to_string(&event.severity)?;
         let metadata_json = serde_json::to_string(&event.metadata)?;
@@ -2909,7 +2921,7 @@ impl Database {
         tenant_id: Option<Uuid>,
         event_type: Option<&str>,
         limit: Option<u32>,
-    ) -> Result<Vec<crate::security::audit::AuditEvent>> {
+    ) -> AppResult<Vec<crate::security::audit::AuditEvent>> {
         let mut query = "SELECT id, event_type, severity, message, source, result, tenant_id, user_id, ip_address, user_agent, metadata, timestamp FROM audit_events WHERE 1=1".to_owned();
 
         if tenant_id.is_some() {
@@ -2974,7 +2986,7 @@ impl Database {
     /// - Database query fails
     /// - Unknown secret type requested
     /// - Database connection issues occur
-    pub async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
+    pub async fn get_or_create_system_secret(&self, secret_type: &str) -> AppResult<String> {
         Self::get_or_create_system_secret_impl(self, secret_type).await
     }
 
@@ -2986,7 +2998,7 @@ impl Database {
     /// - Database query fails
     /// - Secret not found
     /// - Database connection issues occur
-    pub async fn get_system_secret(&self, secret_type: &str) -> Result<String> {
+    pub async fn get_system_secret(&self, secret_type: &str) -> AppResult<String> {
         Self::get_system_secret_impl(self, secret_type).await
     }
 
@@ -2997,7 +3009,11 @@ impl Database {
     /// Returns an error if:
     /// - Database update fails
     /// - Database connection issues occur
-    pub async fn update_system_secret(&self, secret_type: &str, secret_value: &str) -> Result<()> {
+    pub async fn update_system_secret(
+        &self,
+        secret_type: &str,
+        secret_value: &str,
+    ) -> AppResult<()> {
         Self::update_system_secret_impl(self, secret_type, secret_value).await
     }
 
@@ -3013,7 +3029,7 @@ impl Database {
         &self,
         tenant_id: Option<Uuid>,
         version: &crate::security::key_rotation::KeyVersion,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             "INSERT INTO key_versions (tenant_id, version, created_at, expires_at, is_active, algorithm)
              VALUES (?, ?, ?, ?, ?, ?)",
@@ -3040,7 +3056,7 @@ impl Database {
     pub async fn get_key_versions(
         &self,
         tenant_id: Option<Uuid>,
-    ) -> Result<Vec<crate::security::key_rotation::KeyVersion>> {
+    ) -> AppResult<Vec<crate::security::key_rotation::KeyVersion>> {
         let rows = if let Some(tid) = tenant_id {
             sqlx::query(
                 "SELECT version, created_at, expires_at, is_active, tenant_id, algorithm
@@ -3060,7 +3076,10 @@ impl Database {
 
         let mut versions = Vec::new();
         for row in rows {
-            let version_num: u32 = row.try_get::<i64, _>("version")?.try_into()?;
+            let version_num: u32 = row
+                .try_get::<i64, _>("version")?
+                .try_into()
+                .map_err(|_| AppError::database("Invalid version number"))?;
             let created_at_str: String = row.try_get("created_at")?;
             let expires_at_str: String = row.try_get("expires_at")?;
             let tenant_id_opt: Option<String> = row.try_get("tenant_id")?;
@@ -3089,7 +3108,7 @@ impl Database {
     pub async fn get_current_key_version(
         &self,
         tenant_id: Option<Uuid>,
-    ) -> Result<Option<crate::security::key_rotation::KeyVersion>> {
+    ) -> AppResult<Option<crate::security::key_rotation::KeyVersion>> {
         let row = if let Some(tid) = tenant_id {
             sqlx::query(
                 "SELECT version, created_at, expires_at, is_active, tenant_id, algorithm
@@ -3108,7 +3127,10 @@ impl Database {
         };
 
         if let Some(row) = row {
-            let version_num: u32 = row.try_get::<i64, _>("version")?.try_into()?;
+            let version_num: u32 = row
+                .try_get::<i64, _>("version")?
+                .try_into()
+                .map_err(|_| AppError::database("Invalid version number"))?;
             let created_at_str: String = row.try_get("created_at")?;
             let expires_at_str: String = row.try_get("expires_at")?;
             let tenant_id_opt: Option<String> = row.try_get("tenant_id")?;
@@ -3139,7 +3161,7 @@ impl Database {
         tenant_id: Option<Uuid>,
         version_id: u32,
         is_active: bool,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         if let Some(tid) = tenant_id {
             sqlx::query(
                 "UPDATE key_versions SET is_active = ? WHERE tenant_id = ? AND version = ?",
@@ -3172,7 +3194,7 @@ impl Database {
         &self,
         tenant_id: Option<Uuid>,
         keep_count: u32,
-    ) -> Result<u64> {
+    ) -> AppResult<u64> {
         // Delete all but the most recent keep_count versions
         let result = if let Some(tid) = tenant_id {
             sqlx::query(
@@ -3212,7 +3234,7 @@ impl Database {
         tenant_id: &str,
         configuration_name: &str,
         config: &crate::config::fitness_config::FitnessConfig,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let config_json = serde_json::to_string(config)?;
         let id = uuid::Uuid::new_v4().to_string();
 
@@ -3244,7 +3266,7 @@ impl Database {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
+    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>> {
         let row = sqlx::query(
             "SELECT config_data FROM fitness_configurations
              WHERE tenant_id = ? AND user_id IS NULL AND configuration_name = ?",
@@ -3271,7 +3293,10 @@ impl Database {
     /// Returns an error if:
     /// - Database query execution fails
     /// - Database connection issues occur
-    pub async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> Result<Vec<String>> {
+    pub async fn list_tenant_fitness_configurations(
+        &self,
+        tenant_id: &str,
+    ) -> AppResult<Vec<String>> {
         let rows = sqlx::query(
             "SELECT configuration_name FROM fitness_configurations
              WHERE tenant_id = ? AND user_id IS NULL",
@@ -3302,7 +3327,7 @@ impl Database {
         user_id: &str,
         configuration_name: &str,
         config: &crate::config::fitness_config::FitnessConfig,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let config_json = serde_json::to_string(config)?;
         let id = uuid::Uuid::new_v4().to_string();
 
@@ -3336,7 +3361,7 @@ impl Database {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
+    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>> {
         let row = sqlx::query(
             "SELECT config_data FROM fitness_configurations
              WHERE tenant_id = ? AND user_id = ? AND configuration_name = ?",
@@ -3368,7 +3393,7 @@ impl Database {
         &self,
         tenant_id: &str,
         user_id: &str,
-    ) -> Result<Vec<String>> {
+    ) -> AppResult<Vec<String>> {
         let rows = sqlx::query(
             "SELECT configuration_name FROM fitness_configurations
              WHERE tenant_id = ? AND user_id = ?",
@@ -3398,7 +3423,7 @@ impl Database {
         tenant_id: &str,
         user_id: Option<&str>,
         configuration_name: &str,
-    ) -> Result<bool> {
+    ) -> AppResult<bool> {
         let result = if let Some(uid) = user_id {
             sqlx::query(
                 "DELETE FROM fitness_configurations
@@ -3426,12 +3451,12 @@ impl Database {
 
 // Implement HasEncryption trait for SQLite (delegates to inherent impl methods)
 impl crate::database_plugins::shared::encryption::HasEncryption for Database {
-    fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> Result<String> {
+    fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> AppResult<String> {
         // Call inherent impl directly to avoid infinite recursion
         Self::encrypt_data_with_aad_impl(self, data, aad)
     }
 
-    fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> Result<String> {
+    fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> AppResult<String> {
         // Call inherent impl directly to avoid infinite recursion
         Self::decrypt_data_with_aad_impl(self, encrypted, aad)
     }

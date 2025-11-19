@@ -15,8 +15,8 @@ use crate::database::repositories::{
     NotificationRepository, OAuth2ServerRepository, OAuthTokenRepository, SecurityRepository,
     TenantRepository, UsageRepository,
 };
+use crate::errors::AppResult;
 use crate::models::User;
-use anyhow::{Context, Result};
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres, Row};
 use std::time::Duration;
 
@@ -41,7 +41,7 @@ impl PostgresDatabase {
     /// - Any migration fails
     /// - Database connection is lost during migration
     /// - Insufficient database permissions
-    pub async fn migrate(&self) -> anyhow::Result<()> {
+    pub async fn migrate(&self) -> AppResult<()> {
         self.create_users_table().await?;
         self.create_user_profiles_table().await?;
         self.create_goals_table().await?;
@@ -57,7 +57,7 @@ impl PostgresDatabase {
         Ok(())
     }
 
-    async fn create_users_table(&self) -> anyhow::Result<()> {
+    async fn create_users_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS users (
@@ -92,7 +92,7 @@ impl PostgresDatabase {
         Ok(())
     }
 
-    async fn create_user_profiles_table(&self) -> anyhow::Result<()> {
+    async fn create_user_profiles_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS user_profiles (
@@ -108,7 +108,7 @@ impl PostgresDatabase {
         Ok(())
     }
 
-    async fn create_goals_table(&self) -> anyhow::Result<()> {
+    async fn create_goals_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS goals (
@@ -125,7 +125,7 @@ impl PostgresDatabase {
         Ok(())
     }
 
-    async fn create_insights_table(&self) -> anyhow::Result<()> {
+    async fn create_insights_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS insights (
@@ -143,7 +143,7 @@ impl PostgresDatabase {
         Ok(())
     }
 
-    async fn create_api_keys_tables(&self) -> anyhow::Result<()> {
+    async fn create_api_keys_tables(&self) -> AppResult<()> {
         // Create api_keys table
         sqlx::query(
             r"
@@ -191,7 +191,7 @@ impl PostgresDatabase {
         Ok(())
     }
 
-    async fn create_a2a_tables(&self) -> anyhow::Result<()> {
+    async fn create_a2a_tables(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS a2a_clients (
@@ -275,7 +275,7 @@ impl PostgresDatabase {
         Ok(())
     }
 
-    async fn create_admin_tables(&self) -> anyhow::Result<()> {
+    async fn create_admin_tables(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS admin_tokens (
@@ -342,7 +342,7 @@ impl PostgresDatabase {
         Ok(())
     }
 
-    async fn create_jwt_usage_table(&self) -> anyhow::Result<()> {
+    async fn create_jwt_usage_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS jwt_usage (
@@ -366,7 +366,7 @@ impl PostgresDatabase {
     }
 
     /// Create OAuth notifications table for MCP resource delivery
-    async fn create_oauth_notifications_table(&self) -> anyhow::Result<()> {
+    async fn create_oauth_notifications_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS oauth_notifications (
@@ -409,7 +409,7 @@ impl PostgresDatabase {
     }
 
     /// Create RSA keypairs table for JWT signing key persistence
-    async fn create_rsa_keypairs_table(&self) -> anyhow::Result<()> {
+    async fn create_rsa_keypairs_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS rsa_keypairs (
@@ -440,7 +440,8 @@ impl PostgresDatabase {
     }
 
     /// Creates complete multi-tenant database schema with all required tables
-    async fn create_tenant_tables(&self) -> anyhow::Result<()> {
+    #[allow(clippy::too_many_lines)]
+    async fn create_tenant_tables(&self) -> AppResult<()> {
         // Create tenants table
         sqlx::query(
             r"
@@ -581,7 +582,7 @@ impl PostgresDatabase {
         Ok(())
     }
 
-    async fn create_indexes(&self) -> anyhow::Result<()> {
+    async fn create_indexes(&self) -> AppResult<()> {
         // User and profile indexes
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
             .execute(&self.pool)
@@ -690,7 +691,7 @@ impl PostgresDatabase {
     /// # Errors
     ///
     /// Returns an error if database operation fails or email already in use
-    pub async fn create_user(&self, user: &User) -> Result<uuid::Uuid> {
+    pub async fn create_user(&self, user: &User) -> AppResult<uuid::Uuid> {
         // Check if user exists by email
         let existing = self.get_user_by_email(&user.email).await?;
         if let Some(existing_user) = existing {
@@ -710,7 +711,7 @@ impl PostgresDatabase {
     }
 
     /// Update existing user in database
-    async fn update_existing_user(&self, user: &User) -> Result<()> {
+    async fn update_existing_user(&self, user: &User) -> AppResult<()> {
         let (strava_access, strava_refresh, strava_expires, strava_scope) =
             Self::extract_token_fields(user.strava_token.as_ref());
         let (fitbit_access, fitbit_refresh, fitbit_expires, fitbit_scope) =
@@ -762,7 +763,7 @@ impl PostgresDatabase {
     }
 
     /// Insert new user into database
-    async fn insert_new_user(&self, user: &User) -> Result<()> {
+    async fn insert_new_user(&self, user: &User) -> AppResult<()> {
         let (strava_access, strava_refresh, strava_expires, strava_scope) =
             Self::extract_token_fields(user.strava_token.as_ref());
         let (fitbit_access, fitbit_refresh, fitbit_expires, fitbit_scope) =
@@ -823,7 +824,7 @@ impl PostgresDatabase {
     /// # Errors
     ///
     /// Returns an error if database query fails
-    pub async fn get_user(&self, user_id: uuid::Uuid) -> Result<Option<User>> {
+    pub async fn get_user(&self, user_id: uuid::Uuid) -> AppResult<Option<User>> {
         let row = sqlx::query(
             r"
             SELECT id, email, display_name, password_hash, tier, tenant_id,
@@ -845,7 +846,7 @@ impl PostgresDatabase {
     /// # Errors
     ///
     /// Returns an error if database query fails
-    pub async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
+    pub async fn get_user_by_email(&self, email: &str) -> AppResult<Option<User>> {
         let row = sqlx::query(
             r"
             SELECT id, email, display_name, password_hash, tier, tenant_id,
@@ -962,7 +963,7 @@ impl PostgresDatabase {
         database_url: &str,
         encryption_key: Vec<u8>,
         pool_config: &crate::config::environment::PostgresPoolConfig,
-    ) -> Result<Self> {
+    ) -> AppResult<Self> {
         // Use pool configuration from ServerConfig (read once at startup)
         let max_connections = pool_config.max_connections;
         let min_connections = pool_config.min_connections;
@@ -980,10 +981,7 @@ impl PostgresDatabase {
             .idle_timeout(Some(Duration::from_secs(300)))
             .max_lifetime(Some(Duration::from_secs(600)))
             .connect(database_url)
-            .await
-            .with_context(|| {
-                format!("Failed to connect to PostgreSQL with {max_connections} max connections")
-            })?;
+            .await?;
 
         let db = Self {
             pool,
@@ -1006,7 +1004,7 @@ impl PostgresDatabase {
         database_url: &str,
         encryption_key: Vec<u8>,
         pool_config: &crate::config::environment::PostgresPoolConfig,
-    ) -> Result<Self> {
+    ) -> AppResult<Self> {
         Self::new_impl(database_url, encryption_key, pool_config).await
     }
 }
@@ -1025,7 +1023,7 @@ impl PostgresDatabase {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    pub async fn get_user_by_email_required(&self, email: &str) -> Result<crate::models::User> {
+    pub async fn get_user_by_email_required(&self, email: &str) -> AppResult<crate::models::User> {
         self.get_user_by_email(email).await?.ok_or_else(|| {
             DatabaseError::NotFound {
                 entity_type: "User",
@@ -1043,7 +1041,7 @@ impl PostgresDatabase {
     /// - User does not exist
     /// - Database update fails
     /// - Database connection issues
-    pub async fn update_last_active(&self, user_id: uuid::Uuid) -> Result<()> {
+    pub async fn update_last_active(&self, user_id: uuid::Uuid) -> AppResult<()> {
         sqlx::query("UPDATE users SET last_active = CURRENT_TIMESTAMP WHERE id = $1")
             .bind(user_id.to_string())
             .execute(&self.pool)
@@ -1059,7 +1057,7 @@ impl PostgresDatabase {
     /// - Database query execution fails
     /// - Count aggregation fails
     /// - Database connection issues
-    pub async fn get_user_count(&self) -> Result<i64> {
+    pub async fn get_user_count(&self) -> AppResult<i64> {
         let count = sqlx::query_scalar("SELECT COUNT(*) FROM users")
             .fetch_one(&self.pool)
             .await?;
@@ -1074,7 +1072,7 @@ impl PostgresDatabase {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    pub async fn get_users_by_status(&self, status: &str) -> Result<Vec<crate::models::User>> {
+    pub async fn get_users_by_status(&self, status: &str) -> AppResult<Vec<crate::models::User>> {
         let rows = sqlx::query(
             r"
             SELECT id, email, display_name, password_hash, tier, tenant_id,
@@ -1106,7 +1104,7 @@ impl PostgresDatabase {
         &self,
         status: &str,
         params: &crate::pagination::PaginationParams,
-    ) -> Result<crate::pagination::CursorPage<crate::models::User>> {
+    ) -> AppResult<crate::pagination::CursorPage<crate::models::User>> {
         use crate::pagination::{Cursor, CursorPage};
 
         let limit = params.limit;
@@ -1142,7 +1140,7 @@ impl PostgresDatabase {
             .iter()
             .take(limit)
             .map(shared::mappers::parse_user_from_row)
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<AppResult<Vec<_>>>()?;
 
         let count = items.len();
         let next_cursor = if has_more && !items.is_empty() {
@@ -1176,7 +1174,7 @@ impl PostgresDatabase {
         user_id: uuid::Uuid,
         new_status: crate::models::UserStatus,
         admin_token_id: &str,
-    ) -> Result<crate::models::User> {
+    ) -> AppResult<crate::models::User> {
         let status_str = shared::enums::user_status_to_str(&new_status);
 
         sqlx::query(
@@ -1210,7 +1208,11 @@ impl PostgresDatabase {
     /// - User does not exist
     /// - Database update fails
     /// - Database connection issues
-    pub async fn update_user_tenant_id(&self, user_id: uuid::Uuid, tenant_id: &str) -> Result<()> {
+    pub async fn update_user_tenant_id(
+        &self,
+        user_id: uuid::Uuid,
+        tenant_id: &str,
+    ) -> AppResult<()> {
         sqlx::query("UPDATE users SET tenant_id = $1 WHERE id = $2")
             .bind(tenant_id)
             .bind(user_id.to_string())
@@ -1235,7 +1237,7 @@ impl PostgresDatabase {
         &self,
         user_id: uuid::Uuid,
         profile_data: serde_json::Value,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let profile_json = serde_json::to_string(&profile_data)?;
 
         sqlx::query(
@@ -1263,7 +1265,10 @@ impl PostgresDatabase {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    pub async fn get_user_profile(&self, user_id: uuid::Uuid) -> Result<Option<serde_json::Value>> {
+    pub async fn get_user_profile(
+        &self,
+        user_id: uuid::Uuid,
+    ) -> AppResult<Option<serde_json::Value>> {
         let row = sqlx::query("SELECT profile_data FROM user_profiles WHERE user_id = $1")
             .bind(user_id.to_string())
             .fetch_optional(&self.pool)
@@ -1291,7 +1296,7 @@ impl PostgresDatabase {
         &self,
         user_id: uuid::Uuid,
         goal_data: serde_json::Value,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let goal_id = uuid::Uuid::new_v4().to_string();
         let goal_json = serde_json::to_string(&goal_data)?;
 
@@ -1318,7 +1323,7 @@ impl PostgresDatabase {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    pub async fn get_user_goals(&self, user_id: uuid::Uuid) -> Result<Vec<serde_json::Value>> {
+    pub async fn get_user_goals(&self, user_id: uuid::Uuid) -> AppResult<Vec<serde_json::Value>> {
         let rows = sqlx::query(
             r"
             SELECT goal_data FROM user_goals
@@ -1347,7 +1352,7 @@ impl PostgresDatabase {
     /// - Goal does not exist
     /// - Database update fails
     /// - Database connection issues
-    pub async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
+    pub async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> AppResult<()> {
         sqlx::query(
             r"
             UPDATE user_goals
@@ -1371,7 +1376,7 @@ impl PostgresDatabase {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    pub async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
+    pub async fn get_user_configuration(&self, user_id: &str) -> AppResult<Option<String>> {
         let row = sqlx::query("SELECT config_json FROM user_configurations WHERE user_id = $1")
             .bind(user_id)
             .fetch_optional(&self.pool)
@@ -1388,7 +1393,7 @@ impl PostgresDatabase {
     /// - Configuration validation fails
     /// - Database update fails
     /// - Database connection issues
-    pub async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()> {
+    pub async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO user_configurations (user_id, config_json, updated_at)
@@ -1423,7 +1428,7 @@ impl PostgresDatabase {
         &self,
         user_id: uuid::Uuid,
         insight_data: serde_json::Value,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let insight_id = uuid::Uuid::new_v4().to_string();
         let insight_json = serde_json::to_string(&insight_data)?;
 
@@ -1455,7 +1460,7 @@ impl PostgresDatabase {
         user_id: uuid::Uuid,
         insight_type: Option<&str>,
         limit: Option<u32>,
-    ) -> Result<Vec<serde_json::Value>> {
+    ) -> AppResult<Vec<serde_json::Value>> {
         let limit_val = limit.unwrap_or(10);
 
         let rows = if let Some(insight_type_val) = insight_type {
@@ -1508,7 +1513,7 @@ impl PostgresDatabase {
     /// - API key already exists
     /// - Database insertion fails
     /// - Database connection issues
-    pub async fn create_api_key(&self, api_key: &crate::api_keys::ApiKey) -> Result<()> {
+    pub async fn create_api_key(&self, api_key: &crate::api_keys::ApiKey) -> AppResult<()> {
         sqlx::query(
             "INSERT INTO api_keys (id, user_id, name, key_prefix, key_hash, description, tier, rate_limit_requests, rate_limit_window_seconds, is_active, last_used_at, expires_at, created_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)"
@@ -1543,7 +1548,7 @@ impl PostgresDatabase {
         &self,
         prefix: &str,
         hash: &str,
-    ) -> Result<Option<crate::api_keys::ApiKey>> {
+    ) -> AppResult<Option<crate::api_keys::ApiKey>> {
         // Delegate to Repository pattern
         self.api_keys()
             .get_by_prefix(prefix, hash)
@@ -1562,7 +1567,7 @@ impl PostgresDatabase {
     pub async fn get_user_api_keys(
         &self,
         user_id: uuid::Uuid,
-    ) -> Result<Vec<crate::api_keys::ApiKey>> {
+    ) -> AppResult<Vec<crate::api_keys::ApiKey>> {
         // Delegate to Repository pattern
         self.api_keys()
             .list_by_user(user_id)
@@ -1578,7 +1583,7 @@ impl PostgresDatabase {
     /// - API key does not exist
     /// - Database update fails
     /// - Database connection issues
-    pub async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
+    pub async fn update_api_key_last_used(&self, api_key_id: &str) -> AppResult<()> {
         // Delegate to Repository pattern
         self.api_keys()
             .update_last_used(api_key_id)
@@ -1595,7 +1600,7 @@ impl PostgresDatabase {
     /// - User does not own the API key
     /// - Database update fails
     /// - Database connection issues
-    pub async fn deactivate_api_key(&self, api_key_id: &str, user_id: uuid::Uuid) -> Result<()> {
+    pub async fn deactivate_api_key(&self, api_key_id: &str, user_id: uuid::Uuid) -> AppResult<()> {
         // Delegate to Repository pattern
         self.api_keys()
             .deactivate(api_key_id, user_id)
@@ -1614,7 +1619,7 @@ impl PostgresDatabase {
     pub async fn get_api_key_by_id(
         &self,
         api_key_id: &str,
-    ) -> Result<Option<crate::api_keys::ApiKey>> {
+    ) -> AppResult<Option<crate::api_keys::ApiKey>> {
         // Delegate to Repository pattern
         self.api_keys()
             .get_by_id(api_key_id)
@@ -1629,7 +1634,7 @@ impl PostgresDatabase {
     /// Returns an error if:
     /// - Database deletion fails
     /// - Database connection issues
-    pub async fn cleanup_expired_api_keys(&self) -> Result<u64> {
+    pub async fn cleanup_expired_api_keys(&self) -> AppResult<u64> {
         let result = sqlx::query("DELETE FROM api_keys WHERE expires_at < NOW()")
             .execute(&self.pool)
             .await?;
@@ -1644,7 +1649,7 @@ impl PostgresDatabase {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    pub async fn get_expired_api_keys(&self) -> Result<Vec<crate::api_keys::ApiKey>> {
+    pub async fn get_expired_api_keys(&self) -> AppResult<Vec<crate::api_keys::ApiKey>> {
         let rows = sqlx::query(
             "SELECT id, user_id, name, key_prefix, key_hash, description, tier, rate_limit_requests, rate_limit_window_seconds, is_active, last_used_at, expires_at, created_at
              FROM api_keys WHERE expires_at < NOW()"
@@ -1683,7 +1688,10 @@ impl PostgresDatabase {
     /// Returns an error if:
     /// - Database insertion fails
     /// - Database connection issues
-    pub async fn record_api_key_usage(&self, usage: &crate::api_keys::ApiKeyUsage) -> Result<()> {
+    pub async fn record_api_key_usage(
+        &self,
+        usage: &crate::api_keys::ApiKeyUsage,
+    ) -> AppResult<()> {
         // Delegate to Repository pattern
         self.usage()
             .record_api_key_usage(usage)
@@ -1698,7 +1706,7 @@ impl PostgresDatabase {
     /// Returns an error if:
     /// - Database query execution fails
     /// - Database connection issues
-    pub async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
+    pub async fn get_api_key_current_usage(&self, api_key_id: &str) -> AppResult<u32> {
         // Delegate to Repository pattern
         self.usage()
             .get_api_key_current_usage(api_key_id)
@@ -1719,7 +1727,7 @@ impl PostgresDatabase {
         api_key_id: &str,
         start_date: chrono::DateTime<chrono::Utc>,
         end_date: chrono::DateTime<chrono::Utc>,
-    ) -> Result<crate::api_keys::ApiKeyUsageStats> {
+    ) -> AppResult<crate::api_keys::ApiKeyUsageStats> {
         // Delegate to Repository pattern
         self.usage()
             .get_api_key_usage_stats(api_key_id, start_date, end_date)
@@ -1738,7 +1746,7 @@ impl PostgresDatabase {
     /// Returns an error if:
     /// - Database insertion fails
     /// - Database connection issues
-    pub async fn record_jwt_usage(&self, usage: &crate::rate_limiting::JwtUsage) -> Result<()> {
+    pub async fn record_jwt_usage(&self, usage: &crate::rate_limiting::JwtUsage) -> AppResult<()> {
         // Delegate to Repository pattern
         self.usage()
             .record_jwt_usage(usage)
@@ -1753,7 +1761,7 @@ impl PostgresDatabase {
     /// Returns an error if:
     /// - Database query execution fails
     /// - Database connection issues
-    pub async fn get_jwt_current_usage(&self, user_id: uuid::Uuid) -> Result<u32> {
+    pub async fn get_jwt_current_usage(&self, user_id: uuid::Uuid) -> AppResult<u32> {
         // Delegate to Repository pattern
         self.usage()
             .get_jwt_current_usage(user_id)
@@ -1772,7 +1780,7 @@ impl PostgresDatabase {
     /// Returns an error if:
     /// - Database query execution fails
     /// - Database connection issues
-    pub async fn get_system_stats(&self) -> Result<(u64, u64)> {
+    pub async fn get_system_stats(&self) -> AppResult<(u64, u64)> {
         let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
             .fetch_one(&self.pool)
             .await?;
@@ -1803,7 +1811,7 @@ impl PostgresDatabase {
         client: &crate::a2a::auth::A2AClient,
         client_secret: &str,
         api_key_id: &str,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         self.a2a()
             .create_client(client, client_secret, api_key_id)
             .await
@@ -1821,7 +1829,7 @@ impl PostgresDatabase {
     pub async fn get_a2a_client(
         &self,
         _client_id: &str,
-    ) -> Result<Option<crate::a2a::auth::A2AClient>> {
+    ) -> AppResult<Option<crate::a2a::auth::A2AClient>> {
         tokio::task::yield_now().await;
         Ok(None)
     }
@@ -1837,7 +1845,7 @@ impl PostgresDatabase {
     pub async fn get_a2a_client_by_api_key_id(
         &self,
         api_key_id: &str,
-    ) -> Result<Option<crate::a2a::auth::A2AClient>> {
+    ) -> AppResult<Option<crate::a2a::auth::A2AClient>> {
         self.a2a()
             .get_client_by_api_key(api_key_id)
             .await
@@ -1855,7 +1863,7 @@ impl PostgresDatabase {
     pub async fn get_a2a_client_by_name(
         &self,
         name: &str,
-    ) -> Result<Option<crate::a2a::auth::A2AClient>> {
+    ) -> AppResult<Option<crate::a2a::auth::A2AClient>> {
         self.a2a()
             .get_client_by_name(name)
             .await
@@ -1873,7 +1881,7 @@ impl PostgresDatabase {
     pub async fn list_a2a_clients(
         &self,
         _user_id: &uuid::Uuid,
-    ) -> Result<Vec<crate::a2a::auth::A2AClient>> {
+    ) -> AppResult<Vec<crate::a2a::auth::A2AClient>> {
         tokio::task::yield_now().await;
         Ok(Vec::new())
     }
@@ -1886,7 +1894,7 @@ impl PostgresDatabase {
     /// - Client does not exist
     /// - Database update fails
     /// - Database connection issues
-    pub async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
+    pub async fn deactivate_a2a_client(&self, client_id: &str) -> AppResult<()> {
         self.a2a()
             .deactivate_client(client_id)
             .await
@@ -1904,7 +1912,7 @@ impl PostgresDatabase {
     pub async fn get_a2a_client_credentials(
         &self,
         client_id: &str,
-    ) -> Result<Option<(String, String)>> {
+    ) -> AppResult<Option<(String, String)>> {
         self.a2a()
             .get_client_credentials(client_id)
             .await
@@ -1918,7 +1926,7 @@ impl PostgresDatabase {
     /// Returns an error if:
     /// - Database update fails
     /// - Database connection issues
-    pub async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
+    pub async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> AppResult<()> {
         self.a2a()
             .invalidate_client_sessions(client_id)
             .await
@@ -1932,7 +1940,7 @@ impl PostgresDatabase {
     /// Returns an error if:
     /// - Database update fails
     /// - Database connection issues
-    pub async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
+    pub async fn deactivate_client_api_keys(&self, client_id: &str) -> AppResult<()> {
         self.a2a()
             .deactivate_client_api_keys(client_id)
             .await
@@ -1957,7 +1965,7 @@ impl PostgresDatabase {
         user_id: Option<&uuid::Uuid>,
         granted_scopes: &[String],
         expires_in_hours: i64,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         self.a2a()
             .create_session(client_id, user_id, granted_scopes, expires_in_hours)
             .await
@@ -1975,7 +1983,7 @@ impl PostgresDatabase {
     pub async fn get_a2a_session(
         &self,
         session_token: &str,
-    ) -> Result<Option<crate::a2a::client::A2ASession>> {
+    ) -> AppResult<Option<crate::a2a::client::A2ASession>> {
         self.a2a()
             .get_session(session_token)
             .await
@@ -1990,7 +1998,7 @@ impl PostgresDatabase {
     /// - Session does not exist
     /// - Database update fails
     /// - Database connection issues
-    pub async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()> {
+    pub async fn update_a2a_session_activity(&self, session_token: &str) -> AppResult<()> {
         self.a2a()
             .update_session_activity(session_token)
             .await
@@ -2008,7 +2016,7 @@ impl PostgresDatabase {
     pub async fn get_active_a2a_sessions(
         &self,
         client_id: &str,
-    ) -> Result<Vec<crate::a2a::client::A2ASession>> {
+    ) -> AppResult<Vec<crate::a2a::client::A2ASession>> {
         self.a2a()
             .get_active_sessions(client_id)
             .await
@@ -2034,7 +2042,7 @@ impl PostgresDatabase {
         session_id: Option<&str>,
         task_type: &str,
         input_data: &serde_json::Value,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         self.a2a()
             .create_task(client_id, session_id, task_type, input_data)
             .await
@@ -2052,7 +2060,7 @@ impl PostgresDatabase {
     pub async fn get_a2a_task(
         &self,
         _task_id: &str,
-    ) -> Result<Option<crate::a2a::protocol::A2ATask>> {
+    ) -> AppResult<Option<crate::a2a::protocol::A2ATask>> {
         tokio::task::yield_now().await;
         Ok(None)
     }
@@ -2071,7 +2079,7 @@ impl PostgresDatabase {
         status_filter: Option<&crate::a2a::protocol::TaskStatus>,
         limit: Option<u32>,
         offset: Option<u32>,
-    ) -> Result<Vec<crate::a2a::protocol::A2ATask>> {
+    ) -> AppResult<Vec<crate::a2a::protocol::A2ATask>> {
         self.a2a()
             .list_tasks(client_id, status_filter, limit, offset)
             .await
@@ -2093,7 +2101,7 @@ impl PostgresDatabase {
         status: &crate::a2a::protocol::TaskStatus,
         result: Option<&serde_json::Value>,
         error: Option<&str>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.a2a()
             .update_task_status(task_id, status, result, error)
             .await
@@ -2111,7 +2119,7 @@ impl PostgresDatabase {
     /// Returns an error if:
     /// - Database insertion fails
     /// - Database connection issues
-    pub async fn record_a2a_usage(&self, _usage: &crate::database::A2AUsage) -> Result<()> {
+    pub async fn record_a2a_usage(&self, _usage: &crate::database::A2AUsage) -> AppResult<()> {
         tokio::task::yield_now().await;
         Ok(())
     }
@@ -2123,7 +2131,7 @@ impl PostgresDatabase {
     /// Returns an error if:
     /// - Database query execution fails
     /// - Database connection issues
-    pub async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
+    pub async fn get_a2a_client_current_usage(&self, client_id: &str) -> AppResult<u32> {
         self.a2a()
             .get_client_current_usage(client_id)
             .await
@@ -2143,7 +2151,7 @@ impl PostgresDatabase {
         client_id: &str,
         start_date: chrono::DateTime<chrono::Utc>,
         end_date: chrono::DateTime<chrono::Utc>,
-    ) -> Result<crate::database::A2AUsageStats> {
+    ) -> AppResult<crate::database::A2AUsageStats> {
         self.a2a()
             .get_usage_stats(client_id, start_date, end_date)
             .await
@@ -2162,7 +2170,7 @@ impl PostgresDatabase {
         &self,
         client_id: &str,
         days: u32,
-    ) -> Result<Vec<(chrono::DateTime<chrono::Utc>, u32, u32)>> {
+    ) -> AppResult<Vec<(chrono::DateTime<chrono::Utc>, u32, u32)>> {
         self.a2a()
             .get_client_usage_history(client_id, days)
             .await
@@ -2184,7 +2192,7 @@ impl PostgresDatabase {
         &self,
         user_id: uuid::Uuid,
         provider: &str,
-    ) -> Result<Option<chrono::DateTime<chrono::Utc>>> {
+    ) -> AppResult<Option<chrono::DateTime<chrono::Utc>>> {
         self.oauth_tokens()
             .get_last_sync(user_id, provider)
             .await
@@ -2203,7 +2211,7 @@ impl PostgresDatabase {
         user_id: uuid::Uuid,
         provider: &str,
         sync_time: chrono::DateTime<chrono::Utc>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.oauth_tokens()
             .update_last_sync(user_id, provider, sync_time)
             .await
@@ -2227,7 +2235,7 @@ impl PostgresDatabase {
         _user_id: uuid::Uuid,
         _start_time: chrono::DateTime<chrono::Utc>,
         _end_time: chrono::DateTime<chrono::Utc>,
-    ) -> Result<Vec<crate::dashboard_routes::ToolUsage>> {
+    ) -> AppResult<Vec<crate::dashboard_routes::ToolUsage>> {
         // NOTE: This method is not actually used. Dashboard routes has its own
         // implementation that aggregates data from get_api_key_usage_stats.
         // Returning empty vector to avoid circular delegation through UsageRepository.
@@ -2247,7 +2255,7 @@ impl PostgresDatabase {
         _end_time: Option<chrono::DateTime<chrono::Utc>>,
         _status_filter: Option<&str>,
         _tool_filter: Option<&str>,
-    ) -> Result<Vec<crate::dashboard_routes::RequestLog>> {
+    ) -> AppResult<Vec<crate::dashboard_routes::RequestLog>> {
         tokio::task::yield_now().await;
         Ok(Vec::new())
     }
@@ -2269,7 +2277,7 @@ impl PostgresDatabase {
         request: &crate::admin::models::CreateAdminTokenRequest,
         admin_jwt_secret: &str,
         jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> Result<crate::admin::models::GeneratedAdminToken> {
+    ) -> AppResult<crate::admin::models::GeneratedAdminToken> {
         self.admin()
             .create_token(request, admin_jwt_secret, jwks_manager)
             .await
@@ -2287,7 +2295,7 @@ impl PostgresDatabase {
     pub async fn get_admin_token_by_id(
         &self,
         token_id: &str,
-    ) -> Result<Option<crate::admin::models::AdminToken>> {
+    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
         self.admin()
             .get_token_by_id(token_id)
             .await
@@ -2305,7 +2313,7 @@ impl PostgresDatabase {
     pub async fn get_admin_token_by_prefix(
         &self,
         token_prefix: &str,
-    ) -> Result<Option<crate::admin::models::AdminToken>> {
+    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
         self.admin()
             .get_token_by_prefix(token_prefix)
             .await
@@ -2323,7 +2331,7 @@ impl PostgresDatabase {
     pub async fn list_admin_tokens(
         &self,
         include_inactive: bool,
-    ) -> Result<Vec<crate::admin::models::AdminToken>> {
+    ) -> AppResult<Vec<crate::admin::models::AdminToken>> {
         self.admin()
             .list_tokens(include_inactive)
             .await
@@ -2338,7 +2346,7 @@ impl PostgresDatabase {
     /// - Token does not exist
     /// - Database update fails
     /// - Database connection issues
-    pub async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
+    pub async fn deactivate_admin_token(&self, token_id: &str) -> AppResult<()> {
         self.admin()
             .deactivate_token(token_id)
             .await
@@ -2357,7 +2365,7 @@ impl PostgresDatabase {
         &self,
         token_id: &str,
         ip_address: Option<&str>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.admin()
             .update_token_last_used(token_id, ip_address)
             .await
@@ -2374,7 +2382,7 @@ impl PostgresDatabase {
     pub async fn record_admin_token_usage(
         &self,
         _usage: &crate::admin::models::AdminTokenUsage,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         tokio::task::yield_now().await;
         Ok(())
     }
@@ -2392,7 +2400,7 @@ impl PostgresDatabase {
         token_id: &str,
         start_date: chrono::DateTime<chrono::Utc>,
         end_date: chrono::DateTime<chrono::Utc>,
-    ) -> Result<Vec<crate::admin::models::AdminTokenUsage>> {
+    ) -> AppResult<Vec<crate::admin::models::AdminTokenUsage>> {
         self.admin()
             .get_usage_history(token_id, start_date, end_date)
             .await
@@ -2414,7 +2422,7 @@ impl PostgresDatabase {
         tier: &str,
         rate_limit_requests: u32,
         rate_limit_period: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.admin()
             .record_provisioned_key(
                 admin_token_id,
@@ -2441,7 +2449,7 @@ impl PostgresDatabase {
         admin_token_id: Option<&str>,
         start_date: chrono::DateTime<chrono::Utc>,
         end_date: chrono::DateTime<chrono::Utc>,
-    ) -> Result<Vec<serde_json::Value>> {
+    ) -> AppResult<Vec<serde_json::Value>> {
         self.admin()
             .get_provisioned_keys(admin_token_id, start_date, end_date)
             .await
@@ -2460,7 +2468,7 @@ impl PostgresDatabase {
     /// - Tenant already exists
     /// - Database insertion fails
     /// - Database connection issues
-    pub async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
+    pub async fn create_tenant(&self, tenant: &crate::models::Tenant) -> AppResult<()> {
         self.tenants().create(tenant).await.map_err(Into::into)
     }
 
@@ -2473,7 +2481,10 @@ impl PostgresDatabase {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    pub async fn get_tenant_by_id(&self, tenant_id: uuid::Uuid) -> Result<crate::models::Tenant> {
+    pub async fn get_tenant_by_id(
+        &self,
+        tenant_id: uuid::Uuid,
+    ) -> AppResult<crate::models::Tenant> {
         self.tenants()
             .get_by_id(tenant_id)
             .await
@@ -2489,7 +2500,7 @@ impl PostgresDatabase {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    pub async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
+    pub async fn get_tenant_by_slug(&self, slug: &str) -> AppResult<crate::models::Tenant> {
         self.tenants().get_by_slug(slug).await.map_err(Into::into)
     }
 
@@ -2504,7 +2515,7 @@ impl PostgresDatabase {
     pub async fn list_tenants_for_user(
         &self,
         user_id: uuid::Uuid,
-    ) -> Result<Vec<crate::models::Tenant>> {
+    ) -> AppResult<Vec<crate::models::Tenant>> {
         self.tenants()
             .list_for_user(user_id)
             .await
@@ -2522,7 +2533,7 @@ impl PostgresDatabase {
     pub async fn store_tenant_oauth_credentials(
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.tenants()
             .store_oauth_credentials(credentials)
             .await
@@ -2541,7 +2552,7 @@ impl PostgresDatabase {
     pub async fn get_tenant_oauth_providers(
         &self,
         tenant_id: uuid::Uuid,
-    ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Vec<crate::tenant::TenantOAuthCredentials>> {
         self.tenants()
             .get_oauth_providers(tenant_id)
             .await
@@ -2561,7 +2572,7 @@ impl PostgresDatabase {
         &self,
         tenant_id: uuid::Uuid,
         provider: &str,
-    ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Option<crate::tenant::TenantOAuthCredentials>> {
         self.tenants()
             .get_oauth_credentials(tenant_id, provider)
             .await
@@ -2580,7 +2591,7 @@ impl PostgresDatabase {
     /// - App already exists
     /// - Database insertion fails
     /// - Database connection issues
-    pub async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()> {
+    pub async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> AppResult<()> {
         self.tenants()
             .create_oauth_app(app)
             .await
@@ -2599,7 +2610,7 @@ impl PostgresDatabase {
     pub async fn get_oauth_app_by_client_id(
         &self,
         client_id: &str,
-    ) -> Result<crate::models::OAuthApp> {
+    ) -> AppResult<crate::models::OAuthApp> {
         self.tenants()
             .get_oauth_app_by_client_id(client_id)
             .await
@@ -2617,7 +2628,7 @@ impl PostgresDatabase {
     pub async fn list_oauth_apps_for_user(
         &self,
         user_id: uuid::Uuid,
-    ) -> Result<Vec<crate::models::OAuthApp>> {
+    ) -> AppResult<Vec<crate::models::OAuthApp>> {
         self.tenants()
             .list_oauth_apps_for_user(user_id)
             .await
@@ -2639,7 +2650,7 @@ impl PostgresDatabase {
     pub async fn store_oauth2_client(
         &self,
         client: &crate::oauth2_server::models::OAuth2Client,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.oauth2_server()
             .store_client(client)
             .await
@@ -2657,7 +2668,7 @@ impl PostgresDatabase {
     pub async fn get_oauth2_client(
         &self,
         client_id: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2Client>> {
         self.oauth2_server()
             .get_client(client_id)
             .await
@@ -2675,7 +2686,7 @@ impl PostgresDatabase {
     pub async fn store_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.oauth2_server()
             .store_auth_code(auth_code)
             .await
@@ -2693,7 +2704,7 @@ impl PostgresDatabase {
     pub async fn get_oauth2_auth_code(
         &self,
         code: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         self.oauth2_server()
             .get_auth_code(code)
             .await
@@ -2711,7 +2722,7 @@ impl PostgresDatabase {
     pub async fn update_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.oauth2_server()
             .update_auth_code(auth_code)
             .await
@@ -2729,7 +2740,7 @@ impl PostgresDatabase {
     pub async fn store_oauth2_refresh_token(
         &self,
         refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.oauth2_server()
             .store_refresh_token(refresh_token)
             .await
@@ -2747,7 +2758,7 @@ impl PostgresDatabase {
     pub async fn get_oauth2_refresh_token(
         &self,
         token: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         self.oauth2_server()
             .get_refresh_token(token)
             .await
@@ -2762,7 +2773,7 @@ impl PostgresDatabase {
     /// - Token does not exist
     /// - Database update fails
     /// - Database connection issues
-    pub async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()> {
+    pub async fn revoke_oauth2_refresh_token(&self, token: &str) -> AppResult<()> {
         self.oauth2_server()
             .revoke_refresh_token(token)
             .await
@@ -2786,7 +2797,7 @@ impl PostgresDatabase {
         client_id: &str,
         redirect_uri: &str,
         now: chrono::DateTime<chrono::Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         self.oauth2_server()
             .consume_auth_code(code, client_id, redirect_uri, now)
             .await
@@ -2809,7 +2820,7 @@ impl PostgresDatabase {
         token: &str,
         client_id: &str,
         now: chrono::DateTime<chrono::Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         self.oauth2_server()
             .consume_refresh_token(token, client_id, now)
             .await
@@ -2827,7 +2838,7 @@ impl PostgresDatabase {
     pub async fn get_refresh_token_by_value(
         &self,
         token: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         self.oauth2_server()
             .get_refresh_token_by_value(token)
             .await
@@ -2845,7 +2856,7 @@ impl PostgresDatabase {
     pub async fn store_authorization_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.oauth2_server()
             .store_authorization_code(auth_code)
             .await
@@ -2867,7 +2878,7 @@ impl PostgresDatabase {
         code: &str,
         client_id: &str,
         redirect_uri: &str,
-    ) -> Result<crate::oauth2_server::models::OAuth2AuthCode> {
+    ) -> AppResult<crate::oauth2_server::models::OAuth2AuthCode> {
         self.oauth2_server()
             .get_authorization_code(code, client_id, redirect_uri)
             .await
@@ -2888,7 +2899,7 @@ impl PostgresDatabase {
         code: &str,
         client_id: &str,
         redirect_uri: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.oauth2_server()
             .delete_authorization_code(code, client_id, redirect_uri)
             .await
@@ -2906,7 +2917,7 @@ impl PostgresDatabase {
     pub async fn store_oauth2_state(
         &self,
         state: &crate::oauth2_server::models::OAuth2State,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.oauth2_server()
             .store_state(state)
             .await
@@ -2929,7 +2940,7 @@ impl PostgresDatabase {
         state: &str,
         client_id: &str,
         now: chrono::DateTime<chrono::Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2State>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2State>> {
         self.oauth2_server()
             .consume_state(state, client_id, now)
             .await
@@ -2952,7 +2963,7 @@ impl PostgresDatabase {
         &self,
         tenant_id: Option<uuid::Uuid>,
         version: &crate::security::key_rotation::KeyVersion,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.security()
             .store_key_version(tenant_id, version)
             .await
@@ -2970,7 +2981,7 @@ impl PostgresDatabase {
     pub async fn get_key_versions(
         &self,
         tenant_id: Option<uuid::Uuid>,
-    ) -> Result<Vec<crate::security::key_rotation::KeyVersion>> {
+    ) -> AppResult<Vec<crate::security::key_rotation::KeyVersion>> {
         self.security()
             .get_key_versions(tenant_id)
             .await
@@ -2988,7 +2999,7 @@ impl PostgresDatabase {
     pub async fn get_current_key_version(
         &self,
         tenant_id: Option<uuid::Uuid>,
-    ) -> Result<Option<crate::security::key_rotation::KeyVersion>> {
+    ) -> AppResult<Option<crate::security::key_rotation::KeyVersion>> {
         self.security()
             .get_current_key_version(tenant_id)
             .await
@@ -3008,7 +3019,7 @@ impl PostgresDatabase {
         tenant_id: Option<uuid::Uuid>,
         version: u32,
         is_active: bool,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.security()
             .update_key_version_status(tenant_id, version, is_active)
             .await
@@ -3026,7 +3037,7 @@ impl PostgresDatabase {
         &self,
         tenant_id: Option<uuid::Uuid>,
         keep_count: u32,
-    ) -> Result<u64> {
+    ) -> AppResult<u64> {
         self.security()
             .delete_old_key_versions(tenant_id, keep_count)
             .await
@@ -3041,7 +3052,7 @@ impl PostgresDatabase {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    pub async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
+    pub async fn get_all_tenants(&self) -> AppResult<Vec<crate::models::Tenant>> {
         self.tenants().list_all().await.map_err(Into::into)
     }
 
@@ -3057,7 +3068,7 @@ impl PostgresDatabase {
         &self,
         tenant_id: Option<uuid::Uuid>,
         event: &crate::security::audit::AuditEvent,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.security()
             .store_audit_event(tenant_id, event)
             .await
@@ -3077,7 +3088,7 @@ impl PostgresDatabase {
         tenant_id: Option<uuid::Uuid>,
         event_type: Option<&str>,
         limit: Option<u32>,
-    ) -> Result<Vec<crate::security::audit::AuditEvent>> {
+    ) -> AppResult<Vec<crate::security::audit::AuditEvent>> {
         self.security()
             .get_audit_events(tenant_id, event_type, limit)
             .await
@@ -3099,7 +3110,7 @@ impl PostgresDatabase {
     pub async fn upsert_user_oauth_token(
         &self,
         _token: &crate::models::UserOAuthToken,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         tokio::task::yield_now().await;
         Ok(())
     }
@@ -3117,7 +3128,7 @@ impl PostgresDatabase {
         user_id: uuid::Uuid,
         tenant_id: &str,
         provider: &str,
-    ) -> Result<Option<crate::models::UserOAuthToken>> {
+    ) -> AppResult<Option<crate::models::UserOAuthToken>> {
         self.oauth_tokens()
             .get(user_id, tenant_id, provider)
             .await
@@ -3135,7 +3146,7 @@ impl PostgresDatabase {
     pub async fn get_user_oauth_tokens(
         &self,
         user_id: uuid::Uuid,
-    ) -> Result<Vec<crate::models::UserOAuthToken>> {
+    ) -> AppResult<Vec<crate::models::UserOAuthToken>> {
         self.oauth_tokens()
             .list_by_user(user_id)
             .await
@@ -3154,7 +3165,7 @@ impl PostgresDatabase {
         &self,
         tenant_id: &str,
         provider: &str,
-    ) -> Result<Vec<crate::models::UserOAuthToken>> {
+    ) -> AppResult<Vec<crate::models::UserOAuthToken>> {
         self.oauth_tokens()
             .list_by_tenant_provider(tenant_id, provider)
             .await
@@ -3173,7 +3184,7 @@ impl PostgresDatabase {
         user_id: uuid::Uuid,
         tenant_id: &str,
         provider: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.oauth_tokens()
             .delete(user_id, tenant_id, provider)
             .await
@@ -3187,7 +3198,7 @@ impl PostgresDatabase {
     /// Returns an error if:
     /// - Database deletion fails
     /// - Database connection issues
-    pub async fn delete_user_oauth_tokens(&self, user_id: uuid::Uuid) -> Result<()> {
+    pub async fn delete_user_oauth_tokens(&self, user_id: uuid::Uuid) -> AppResult<()> {
         self.oauth_tokens()
             .delete_all_for_user(user_id)
             .await
@@ -3210,7 +3221,7 @@ impl PostgresDatabase {
         access_token: &str,
         refresh_token: Option<&str>,
         expires_at: Option<chrono::DateTime<chrono::Utc>>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.oauth_tokens()
             .refresh(
                 user_id,
@@ -3235,7 +3246,7 @@ impl PostgresDatabase {
         &self,
         user_id: uuid::Uuid,
         tenant_id: uuid::Uuid,
-    ) -> Result<Option<String>> {
+    ) -> AppResult<Option<String>> {
         self.tenants()
             .get_user_role(&user_id.to_string(), &tenant_id.to_string())
             .await
@@ -3261,7 +3272,7 @@ impl PostgresDatabase {
         client_id: &str,
         client_secret: &str,
         redirect_uri: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         self.oauth_tokens()
             .store_app(user_id, provider, client_id, client_secret, redirect_uri)
             .await
@@ -3281,7 +3292,7 @@ impl PostgresDatabase {
         &self,
         user_id: uuid::Uuid,
         provider: &str,
-    ) -> Result<Option<crate::models::UserOAuthApp>> {
+    ) -> AppResult<Option<crate::models::UserOAuthApp>> {
         self.oauth_tokens()
             .get_app(user_id, provider)
             .await
@@ -3299,7 +3310,7 @@ impl PostgresDatabase {
     pub async fn list_user_oauth_apps(
         &self,
         user_id: uuid::Uuid,
-    ) -> Result<Vec<crate::models::UserOAuthApp>> {
+    ) -> AppResult<Vec<crate::models::UserOAuthApp>> {
         self.oauth_tokens()
             .list_apps(user_id)
             .await
@@ -3313,7 +3324,11 @@ impl PostgresDatabase {
     /// Returns an error if:
     /// - Database deletion fails
     /// - Database connection issues
-    pub async fn remove_user_oauth_app(&self, user_id: uuid::Uuid, provider: &str) -> Result<()> {
+    pub async fn remove_user_oauth_app(
+        &self,
+        user_id: uuid::Uuid,
+        provider: &str,
+    ) -> AppResult<()> {
         self.oauth_tokens()
             .remove_app(user_id, provider)
             .await
@@ -3333,7 +3348,7 @@ impl PostgresDatabase {
     /// - Database insertion fails
     /// - Database query execution fails
     /// - Database connection issues
-    pub async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
+    pub async fn get_or_create_system_secret(&self, secret_type: &str) -> AppResult<String> {
         self.security()
             .get_or_create_system_secret(secret_type)
             .await
@@ -3348,7 +3363,7 @@ impl PostgresDatabase {
     /// - Secret does not exist
     /// - Database query execution fails
     /// - Database connection issues
-    pub async fn get_system_secret(&self, secret_type: &str) -> Result<String> {
+    pub async fn get_system_secret(&self, secret_type: &str) -> AppResult<String> {
         self.security()
             .get_system_secret(secret_type)
             .await
@@ -3363,7 +3378,7 @@ impl PostgresDatabase {
     /// - Secret does not exist
     /// - Database update fails
     /// - Database connection issues
-    pub async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()> {
+    pub async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> AppResult<()> {
         self.security()
             .update_system_secret(secret_type, new_value)
             .await
@@ -3388,7 +3403,7 @@ impl PostgresDatabase {
         success: bool,
         message: &str,
         expires_at: Option<&str>,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         self.notifications()
             .store(user_id, provider, success, message, expires_at)
             .await
@@ -3406,7 +3421,7 @@ impl PostgresDatabase {
     pub async fn get_unread_oauth_notifications(
         &self,
         user_id: uuid::Uuid,
-    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>> {
         self.notifications()
             .get_unread(user_id)
             .await
@@ -3425,7 +3440,7 @@ impl PostgresDatabase {
         &self,
         notification_id: &str,
         user_id: uuid::Uuid,
-    ) -> Result<bool> {
+    ) -> AppResult<bool> {
         self.notifications()
             .mark_read(notification_id, user_id)
             .await
@@ -3439,7 +3454,7 @@ impl PostgresDatabase {
     /// Returns an error if:
     /// - Database update fails
     /// - Database connection issues
-    pub async fn mark_all_oauth_notifications_read(&self, user_id: uuid::Uuid) -> Result<u64> {
+    pub async fn mark_all_oauth_notifications_read(&self, user_id: uuid::Uuid) -> AppResult<u64> {
         self.notifications()
             .mark_all_read(user_id)
             .await
@@ -3458,7 +3473,7 @@ impl PostgresDatabase {
         &self,
         user_id: uuid::Uuid,
         limit: Option<i64>,
-    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>> {
         self.notifications()
             .get_all(user_id, limit)
             .await
@@ -3483,7 +3498,7 @@ impl PostgresDatabase {
         tenant_id: &str,
         configuration_name: &str,
         config: &crate::config::fitness_config::FitnessConfig,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         self.fitness_configs()
             .save_tenant_config(tenant_id, configuration_name, config)
             .await
@@ -3505,7 +3520,7 @@ impl PostgresDatabase {
         user_id: &str,
         configuration_name: &str,
         config: &crate::config::fitness_config::FitnessConfig,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         self.fitness_configs()
             .save_user_config(tenant_id, user_id, configuration_name, config)
             .await
@@ -3524,7 +3539,7 @@ impl PostgresDatabase {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
+    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>> {
         self.fitness_configs()
             .get_tenant_config(tenant_id, configuration_name)
             .await
@@ -3544,7 +3559,7 @@ impl PostgresDatabase {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
+    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>> {
         self.fitness_configs()
             .get_user_config(tenant_id, user_id, configuration_name)
             .await
@@ -3558,7 +3573,10 @@ impl PostgresDatabase {
     /// Returns an error if:
     /// - Database query execution fails
     /// - Database connection issues
-    pub async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> Result<Vec<String>> {
+    pub async fn list_tenant_fitness_configurations(
+        &self,
+        tenant_id: &str,
+    ) -> AppResult<Vec<String>> {
         self.fitness_configs()
             .list_tenant_configs(tenant_id)
             .await
@@ -3576,7 +3594,7 @@ impl PostgresDatabase {
         &self,
         tenant_id: &str,
         user_id: &str,
-    ) -> Result<Vec<String>> {
+    ) -> AppResult<Vec<String>> {
         self.fitness_configs()
             .list_user_configs(tenant_id, user_id)
             .await
@@ -3596,7 +3614,7 @@ impl PostgresDatabase {
         tenant_id: &str,
         user_id: Option<&str>,
         configuration_name: &str,
-    ) -> Result<bool> {
+    ) -> AppResult<bool> {
         self.fitness_configs()
             .delete_config(tenant_id, user_id, configuration_name)
             .await
@@ -3623,7 +3641,7 @@ impl PostgresDatabase {
         created_at: chrono::DateTime<chrono::Utc>,
         is_active: bool,
         key_size_bits: i32,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         #[allow(clippy::cast_sign_loss)]
         self.security()
             .save_rsa_keypair(
@@ -3648,7 +3666,7 @@ impl PostgresDatabase {
     /// - Database connection issues
     pub async fn load_rsa_keypairs(
         &self,
-    ) -> Result<Vec<(String, String, String, chrono::DateTime<chrono::Utc>, bool)>> {
+    ) -> AppResult<Vec<(String, String, String, chrono::DateTime<chrono::Utc>, bool)>> {
         self.security()
             .load_rsa_keypairs()
             .await
@@ -3663,7 +3681,11 @@ impl PostgresDatabase {
     /// - Keypair does not exist
     /// - Database update fails
     /// - Database connection issues
-    pub async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
+    pub async fn update_rsa_keypair_active_status(
+        &self,
+        kid: &str,
+        is_active: bool,
+    ) -> AppResult<()> {
         self.security()
             .update_rsa_keypair_status(kid, is_active)
             .await
@@ -3683,7 +3705,7 @@ impl shared::encryption::HasEncryption for PostgresDatabase {
     /// - Generates unique 96-bit nonce per encryption
     /// - Binds AAD to prevent cross-tenant token reuse
     /// - Output: base64(nonce || ciphertext || `auth_tag`)
-    fn encrypt_data_with_aad(&self, data: &str, aad_context: &str) -> Result<String> {
+    fn encrypt_data_with_aad(&self, data: &str, aad_context: &str) -> AppResult<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
         use ring::rand::{SecureRandom, SystemRandom};
@@ -3719,7 +3741,7 @@ impl shared::encryption::HasEncryption for PostgresDatabase {
     /// - Verifies AAD matches (prevents token context switching)
     /// - Authenticates ciphertext hasn't been tampered
     /// - Fails safely on any mismatch/corruption
-    fn decrypt_data_with_aad(&self, encrypted_data: &str, aad_context: &str) -> Result<String> {
+    fn decrypt_data_with_aad(&self, encrypted_data: &str, aad_context: &str) -> AppResult<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
