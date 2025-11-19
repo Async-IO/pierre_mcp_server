@@ -7,7 +7,8 @@
 //! System user management for A2A clients
 // NOTE: All `.clone()` calls in this file are Safe - Arc/String ownership for A2A operations
 
-use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::database::repositories::UserRepository;
+use crate::database_plugins::factory::Database;
 use crate::models::User;
 use anyhow::Result;
 use std::sync::Arc;
@@ -44,7 +45,7 @@ impl A2ASystemUserService {
         let system_email = format!("a2a-system-{client_id}@pierre.ai");
 
         // Check if system user already exists
-        if let Some(existing_user) = self.database.get_user_by_email(&system_email).await? {
+        if let Some(existing_user) = self.database.users().get_by_email(&system_email).await? {
             return Ok(existing_user.id);
         }
 
@@ -69,7 +70,7 @@ impl A2ASystemUserService {
             Some(format!("A2A System User for {client_id}")),
         );
 
-        let user_id = self.database.create_user(&system_user).await?;
+        let user_id = self.database.users().create(&system_user).await?;
 
         // Store metadata about this being a system user
         Self::store_system_user_metadata(user_id, client_id, contact_email);
@@ -116,7 +117,7 @@ impl A2ASystemUserService {
     ///
     /// Returns an error if database operations fail
     pub async fn is_system_user(&self, user_id: Uuid) -> Result<bool> {
-        if let Some(user) = self.database.get_user(user_id).await? {
+        if let Some(user) = self.database.users().get_by_id(user_id).await? {
             // System users have emails following the pattern a2a-system-{client_id}@pierre.ai
             Ok(user.email.starts_with("a2a-system-") && user.email.ends_with("@pierre.ai"))
         } else {
@@ -130,7 +131,7 @@ impl A2ASystemUserService {
     ///
     /// Returns an error if database operations fail
     pub async fn get_client_id_for_system_user(&self, user_id: Uuid) -> Result<Option<String>> {
-        if let Some(user) = self.database.get_user(user_id).await? {
+        if let Some(user) = self.database.users().get_by_id(user_id).await? {
             if user.email.starts_with("a2a-system-") && user.email.ends_with("@pierre.ai") {
                 // Extract client ID from email: a2a-system-{client_id}@pierre.ai
                 let email_part = user
@@ -151,7 +152,7 @@ impl A2ASystemUserService {
     pub async fn deactivate_system_user(&self, client_id: &str) -> Result<()> {
         let system_email = format!("a2a-system-{client_id}@pierre.ai");
 
-        if let Some(user) = self.database.get_user_by_email(&system_email).await? {
+        if let Some(user) = self.database.users().get_by_email(&system_email).await? {
             // Instead of deleting, we could mark as inactive
             // Log system user deactivation
             tracing::info!(

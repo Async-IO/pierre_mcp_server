@@ -15,10 +15,7 @@
 
 use super::{Plugin, PluginHealth, PluginState};
 use crate::{
-    auth::AuthManager,
-    cache::factory::Cache,
-    database_plugins::{factory::Database, DatabaseProvider},
-    errors::AppError,
+    auth::AuthManager, cache::factory::Cache, database_plugins::factory::Database, errors::AppError,
 };
 use anyhow::Result;
 use async_trait::async_trait;

@@ -64,7 +64,7 @@ impl ConfigurationRoutes {
         let response = service
             .get_user_configuration(&auth)
             .await
-            .map_err(AppError::from)?;
+            .map_err(|e| AppError::database(e.to_string()))?;
 
         Ok((StatusCode::OK, Json(response)).into_response())
     }
@@ -81,7 +81,7 @@ impl ConfigurationRoutes {
         let response = service
             .update_user_configuration(&auth, request)
             .await
-            .map_err(AppError::from)?;
+            .map_err(|e| AppError::database(e.to_string()))?;
 
         Ok((StatusCode::OK, Json(response)).into_response())
     }
@@ -97,7 +97,7 @@ impl ConfigurationRoutes {
         let response = service
             .get_user_configuration(&auth)
             .await
-            .map_err(AppError::from)?;
+            .map_err(|e| AppError::database(e.to_string()))?;
 
         Ok((StatusCode::OK, Json(response)).into_response())
     }
@@ -114,7 +114,7 @@ impl ConfigurationRoutes {
         let response = service
             .update_user_configuration(&auth, request)
             .await
-            .map_err(AppError::from)?;
+            .map_err(|e| AppError::database(e.to_string()))?;
 
         Ok((StatusCode::OK, Json(response)).into_response())
     }

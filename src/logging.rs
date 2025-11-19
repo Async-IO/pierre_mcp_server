@@ -30,34 +30,47 @@ use tracing_subscriber::{
 
 // OpenTelemetry support disabled temporarily due to version compatibility issues
 
+/// Log output options for controlling what information is included
+#[derive(Debug, Clone, Copy)]
+pub struct LogOutputOptions {
+    /// Include source file and line numbers
+    pub location: bool,
+    /// Include thread information
+    pub thread: bool,
+    /// Include span information for tracing
+    pub spans: bool,
+}
+
+/// Feature flags for optional logging capabilities
+#[derive(Debug, Clone, Copy)]
+pub struct LogFeatures {
+    /// Enable OpenTelemetry tracing
+    pub telemetry: bool,
+    /// Enable GCP Cloud Logging format
+    pub gcp_format: bool,
+    /// Truncate long MCP request/response logs for readability
+    pub truncate_mcp: bool,
+}
+
 /// Logging configuration
 #[derive(Debug, Clone)]
-#[allow(clippy::struct_excessive_bools)] // Configuration struct needs multiple boolean flags for comprehensive control
 pub struct LoggingConfig {
     /// Log level (trace, debug, info, warn, error)
     pub level: String,
     /// Output format (json, pretty, compact)
     pub format: LogFormat,
-    /// Include source file and line numbers
-    pub include_location: bool,
-    /// Include thread information
-    pub include_thread: bool,
-    /// Include span information for tracing
-    pub include_spans: bool,
+    /// Output options controlling included information
+    pub output: LogOutputOptions,
     /// Service name for structured logging
     pub service_name: String,
     /// Service version
     pub service_version: String,
     /// Environment (development, staging, production)
     pub environment: String,
-    /// Enable OpenTelemetry tracing
-    pub enable_telemetry: bool,
+    /// Feature flags for optional capabilities
+    pub features: LogFeatures,
     /// Request ID header name
     pub request_id_header: String,
-    /// Enable GCP Cloud Logging format
-    pub enable_gcp_format: bool,
-    /// Truncate long MCP request/response logs for readability
-    pub truncate_mcp_logs: bool,
 }
 
 /// Log output format options
@@ -76,16 +89,20 @@ impl Default for LoggingConfig {
         Self {
             level: "info".into(),
             format: LogFormat::Pretty,
-            include_location: false,
-            include_thread: false,
-            include_spans: false,
+            output: LogOutputOptions {
+                location: false,
+                thread: false,
+                spans: false,
+            },
             service_name: service_names::PIERRE_MCP_SERVER.into(),
             service_version: env!("CARGO_PKG_VERSION").to_owned(),
             environment: "development".into(),
-            enable_telemetry: false,
+            features: LogFeatures {
+                telemetry: false,
+                gcp_format: false,
+                truncate_mcp: true, // Default to readable logs
+            },
             request_id_header: "x-request-id".into(),
-            enable_gcp_format: false,
-            truncate_mcp_logs: true, // Default to readable logs
         }
     }
 }
@@ -112,21 +129,25 @@ impl LoggingConfig {
         Self {
             level,
             format,
-            include_location: is_production || env::var("LOG_INCLUDE_LOCATION").is_ok(),
-            include_thread: is_production || env::var("LOG_INCLUDE_THREAD").is_ok(),
-            include_spans: is_production || env::var("LOG_INCLUDE_SPANS").is_ok(),
+            output: LogOutputOptions {
+                location: is_production || env::var("LOG_INCLUDE_LOCATION").is_ok(),
+                thread: is_production || env::var("LOG_INCLUDE_THREAD").is_ok(),
+                spans: is_production || env::var("LOG_INCLUDE_SPANS").is_ok(),
+            },
             service_name: env::var("SERVICE_NAME")
                 .unwrap_or_else(|_| service_names::PIERRE_MCP_SERVER.into()),
             service_version: env::var("SERVICE_VERSION")
                 .unwrap_or_else(|_| env!("CARGO_PKG_VERSION").to_owned()),
             environment: environment.clone(), // Safe: String ownership for logging config
-            enable_telemetry: is_production || env::var("ENABLE_TELEMETRY").is_ok(),
+            features: LogFeatures {
+                telemetry: is_production || env::var("ENABLE_TELEMETRY").is_ok(),
+                gcp_format: environment == "production" && env::var("GCP_PROJECT_ID").is_ok(),
+                truncate_mcp: env::var("MCP_LOG_TRUNCATE")
+                    .map(|v| v != "false" && v != "0")
+                    .unwrap_or(true), // Default to true (truncated) unless explicitly disabled
+            },
             request_id_header: env::var("REQUEST_ID_HEADER")
                 .unwrap_or_else(|_| "x-request-id".into()),
-            enable_gcp_format: environment == "production" && env::var("GCP_PROJECT_ID").is_ok(),
-            truncate_mcp_logs: env::var("MCP_LOG_TRUNCATE")
-                .map(|v| v != "false" && v != "0")
-                .unwrap_or(true), // Default to true (truncated) unless explicitly disabled
         }
     }
 
@@ -197,13 +218,13 @@ impl LoggingConfig {
         match self.format {
             LogFormat::Json => {
                 let json_layer = fmt::layer()
-                    .with_file(self.include_location)
-                    .with_line_number(self.include_location)
-                    .with_thread_ids(self.include_thread)
-                    .with_thread_names(self.include_thread)
+                    .with_file(self.output.location)
+                    .with_line_number(self.output.location)
+                    .with_thread_ids(self.output.thread)
+                    .with_thread_names(self.output.thread)
                     .with_target(true)
                     .with_writer(io::stdout)
-                    .with_span_events(if self.include_spans {
+                    .with_span_events(if self.output.spans {
                         FmtSpan::NEW | FmtSpan::CLOSE
                     } else {
                         FmtSpan::NONE
@@ -214,13 +235,13 @@ impl LoggingConfig {
             }
             LogFormat::Pretty => {
                 let pretty_layer = fmt::layer()
-                    .with_file(self.include_location)
-                    .with_line_number(self.include_location)
-                    .with_thread_ids(self.include_thread)
-                    .with_thread_names(self.include_thread)
+                    .with_file(self.output.location)
+                    .with_line_number(self.output.location)
+                    .with_thread_ids(self.output.thread)
+                    .with_thread_names(self.output.thread)
                     .with_target(true)
                     .with_writer(io::stdout)
-                    .with_span_events(if self.include_spans {
+                    .with_span_events(if self.output.spans {
                         FmtSpan::NEW | FmtSpan::CLOSE
                     } else {
                         FmtSpan::NONE
@@ -271,9 +292,9 @@ impl LoggingConfig {
                 "level": self.level,
                 "format": format!("{:?}", self.format),
                 "features": {
-                    "location": self.include_location,
-                    "thread": self.include_thread,
-                    "spans": self.include_spans
+                    "location": self.output.location,
+                    "thread": self.output.thread,
+                    "spans": self.output.spans
                 }
             }
         });
@@ -301,16 +322,20 @@ impl LoggingConfig {
         Self {
             level: "info".into(),
             format: LogFormat::Json,
-            include_location: false,
-            include_thread: false,
-            include_spans: true,
+            output: LogOutputOptions {
+                location: false,
+                thread: false,
+                spans: true,
+            },
             service_name: service_names::PIERRE_MCP_SERVER.into(),
             service_version: env!("CARGO_PKG_VERSION").to_owned(),
             environment: "production".into(),
-            enable_telemetry: true,
+            features: LogFeatures {
+                telemetry: true,
+                gcp_format: true,
+                truncate_mcp: false, // Production wants full logs
+            },
             request_id_header: "x-request-id".into(),
-            enable_gcp_format: true,
-            truncate_mcp_logs: false, // Production wants full logs
         }
     }
 }

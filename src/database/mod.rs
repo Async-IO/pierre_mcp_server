@@ -18,6 +18,8 @@ pub mod errors;
 pub mod fitness_configurations;
 /// OAuth callback notification handling
 pub mod oauth_notifications;
+/// Repository pattern implementation for database abstraction
+pub mod repositories;
 /// User OAuth token storage and management
 pub mod user_oauth_tokens;
 /// User account management and authentication
@@ -29,17 +31,11 @@ pub mod test_utils;
 pub use a2a::{A2AUsage, A2AUsageStats};
 pub use errors::{DatabaseError, DatabaseResult};
 
-use crate::a2a::auth::A2AClient;
-use crate::a2a::client::A2ASession;
-use crate::a2a::protocol::{A2ATask, TaskStatus};
-use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
 use crate::errors::AppError;
-use crate::models::{User, UserOAuthApp, UserOAuthToken};
-use crate::rate_limiting::JwtUsage;
+use crate::models::UserOAuthApp;
 use anyhow::{Context, Result};
 use base64::Engine;
 use chrono::{DateTime, Utc};
-use serde_json::Value;
 use sqlx::{Pool, Row, Sqlite, SqlitePool};
 use uuid::Uuid;
 
@@ -133,6 +129,114 @@ impl Database {
     /// - AAD context does not match
     pub fn decrypt_data_with_aad(&self, encrypted_data: &str, aad_context: &str) -> Result<String> {
         Self::decrypt_data_with_aad_impl(self, encrypted_data, aad_context)
+    }
+
+    // ================================
+    // Repository Pattern Accessors
+    // ================================
+
+    /// Get `UserRepository` for user account management
+    #[must_use]
+    pub fn users(&self) -> repositories::UserRepositoryImpl {
+        repositories::UserRepositoryImpl::new(crate::database_plugins::factory::Database::SQLite(
+            self.clone(),
+        ))
+    }
+
+    /// Get `OAuthTokenRepository` for OAuth token storage
+    #[must_use]
+    pub fn oauth_tokens(&self) -> repositories::OAuthTokenRepositoryImpl {
+        repositories::OAuthTokenRepositoryImpl::new(
+            crate::database_plugins::factory::Database::SQLite(self.clone()),
+        )
+    }
+
+    /// Get `ApiKeyRepository` for API key management
+    #[must_use]
+    pub fn api_keys(&self) -> repositories::ApiKeyRepositoryImpl {
+        repositories::ApiKeyRepositoryImpl::new(crate::database_plugins::factory::Database::SQLite(
+            self.clone(),
+        ))
+    }
+
+    /// Get `UsageRepository` for usage tracking and analytics
+    #[must_use]
+    pub fn usage(&self) -> repositories::UsageRepositoryImpl {
+        repositories::UsageRepositoryImpl::new(crate::database_plugins::factory::Database::SQLite(
+            self.clone(),
+        ))
+    }
+
+    /// Get `A2ARepository` for Agent-to-Agent management
+    #[must_use]
+    pub fn a2a(&self) -> repositories::A2ARepositoryImpl {
+        repositories::A2ARepositoryImpl::new(crate::database_plugins::factory::Database::SQLite(
+            self.clone(),
+        ))
+    }
+
+    /// Get `ProfileRepository` for user profiles and goals
+    #[must_use]
+    pub fn profiles(&self) -> repositories::ProfileRepositoryImpl {
+        repositories::ProfileRepositoryImpl::new(
+            crate::database_plugins::factory::Database::SQLite(self.clone()),
+        )
+    }
+
+    /// Get `InsightRepository` for AI-generated insights
+    #[must_use]
+    pub fn insights(&self) -> repositories::InsightRepositoryImpl {
+        repositories::InsightRepositoryImpl::new(
+            crate::database_plugins::factory::Database::SQLite(self.clone()),
+        )
+    }
+
+    /// Get `AdminRepository` for admin token management
+    #[must_use]
+    pub fn admin(&self) -> repositories::AdminRepositoryImpl {
+        repositories::AdminRepositoryImpl::new(crate::database_plugins::factory::Database::SQLite(
+            self.clone(),
+        ))
+    }
+
+    /// Get `TenantRepository` for multi-tenant management
+    #[must_use]
+    pub fn tenants(&self) -> repositories::TenantRepositoryImpl {
+        repositories::TenantRepositoryImpl::new(crate::database_plugins::factory::Database::SQLite(
+            self.clone(),
+        ))
+    }
+
+    /// Get `OAuth2ServerRepository` for OAuth 2.0 server functionality
+    #[must_use]
+    pub fn oauth2_server(&self) -> repositories::OAuth2ServerRepositoryImpl {
+        repositories::OAuth2ServerRepositoryImpl::new(
+            crate::database_plugins::factory::Database::SQLite(self.clone()),
+        )
+    }
+
+    /// Get `SecurityRepository` for key rotation and audit
+    #[must_use]
+    pub fn security(&self) -> repositories::SecurityRepositoryImpl {
+        repositories::SecurityRepositoryImpl::new(
+            crate::database_plugins::factory::Database::SQLite(self.clone()),
+        )
+    }
+
+    /// Get `NotificationRepository` for OAuth notifications
+    #[must_use]
+    pub fn notifications(&self) -> repositories::NotificationRepositoryImpl {
+        repositories::NotificationRepositoryImpl::new(
+            crate::database_plugins::factory::Database::SQLite(self.clone()),
+        )
+    }
+
+    /// Get `FitnessConfigRepository` for fitness configuration management
+    #[must_use]
+    pub fn fitness_configs(&self) -> repositories::FitnessConfigRepositoryImpl {
+        repositories::FitnessConfigRepositoryImpl::new(
+            crate::database_plugins::factory::Database::SQLite(self.clone()),
+        )
     }
 
     /// Run all database migrations (internal implementation)
@@ -455,6 +559,19 @@ impl Database {
                 joined_at DATETIME,
                 is_active BOOLEAN NOT NULL DEFAULT 1,
                 UNIQUE(tenant_id, user_id)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create user_configurations table for storing user configuration data
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_configurations (
+                user_id TEXT PRIMARY KEY,
+                config_json TEXT NOT NULL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
             ",
         )
@@ -1414,210 +1531,8 @@ impl Database {
     }
 
     // ================================
-    // User Configuration (SQLite implementations)
-    // ================================
-
-    /// Get user configuration data (internal implementation)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the database query fails
-    async fn get_user_configuration_impl(&self, user_id: &str) -> Result<Option<String>> {
-        // First ensure the user_configurations table exists
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS user_configurations (
-                user_id TEXT PRIMARY KEY,
-                config_data TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        let query = "SELECT config_data FROM user_configurations WHERE user_id = ?1";
-
-        let row = sqlx::query(query)
-            .bind(user_id)
-            .fetch_optional(&self.pool)
-            .await?;
-
-        if let Some(row) = row {
-            Ok(Some(row.try_get("config_data")?))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Save user configuration data (internal implementation)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the database query fails
-    async fn save_user_configuration_impl(&self, user_id: &str, config_json: &str) -> Result<()> {
-        // First ensure the user_configurations table exists
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS user_configurations (
-                user_id TEXT PRIMARY KEY,
-                config_data TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        // Insert or update configuration using SQLite syntax
-        let query = r"
-            INSERT INTO user_configurations (user_id, config_data, updated_at)
-            VALUES (?1, ?2, CURRENT_TIMESTAMP)
-            ON CONFLICT(user_id) DO UPDATE SET
-                config_data = EXCLUDED.config_data,
-                updated_at = CURRENT_TIMESTAMP
-        ";
-
-        sqlx::query(query)
-            .bind(user_id)
-            .bind(config_json)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(())
-    }
-
-    // ================================
-    // RSA Keypair Management (SQLite implementations)
-    // ================================
-
-    /// Update RSA keypair active status (internal implementation)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the database query fails
-    async fn update_rsa_keypair_active_status_impl(
-        &self,
-        kid: &str,
-        is_active: bool,
-    ) -> Result<()> {
-        sqlx::query("UPDATE rsa_keypairs SET is_active = ?1 WHERE kid = ?2")
-            .bind(is_active)
-            .bind(kid)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(())
-    }
-
-    // ================================
-    // OAuth App Management (SQLite implementations)
-    // ================================
-
-    /// Create OAuth app (internal implementation)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the database query fails
-    async fn create_oauth_app_impl(&self, app: &crate::models::OAuthApp) -> Result<()> {
-        let redirect_uris_json = serde_json::to_string(&app.redirect_uris)?;
-        let scopes_json = serde_json::to_string(&app.scopes)?;
-
-        sqlx::query(
-            r"
-            INSERT INTO oauth_apps
-                (id, client_id, client_secret_hash, name, description, redirect_uris,
-                 scopes, app_type, owner_user_id, is_active, created_at, updated_at)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1, ?10, ?11)
-            ",
-        )
-        .bind(app.id.to_string())
-        .bind(&app.client_id)
-        .bind(&app.client_secret)
-        .bind(&app.name)
-        .bind(&app.description)
-        .bind(&redirect_uris_json)
-        .bind(&scopes_json)
-        .bind(&app.app_type)
-        .bind(app.owner_user_id.to_string())
-        .bind(app.created_at)
-        .bind(app.updated_at)
-        .execute(&self.pool)
-        .await
-        .map_err(|e| DatabaseError::QueryError {
-            context: format!("Failed to create OAuth app: {e}"),
-        })?;
-
-        Ok(())
-    }
-
-    /// Get OAuth app by client ID (internal implementation)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the database query fails or app not found
-    async fn get_oauth_app_by_client_id_impl(
-        &self,
-        client_id: &str,
-    ) -> Result<crate::models::OAuthApp> {
-        let row = sqlx::query(
-            r"
-            SELECT id, client_id, client_secret_hash, name, description, redirect_uris,
-                   scopes, app_type, owner_user_id, created_at, updated_at
-            FROM oauth_apps
-            WHERE client_id = ?1 AND is_active = 1
-            ",
-        )
-        .bind(client_id)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        match row {
-            Some(row) => {
-                let redirect_uris_json: String = row.get("redirect_uris");
-                let scopes_json: String = row.get("scopes");
-
-                Ok(crate::models::OAuthApp {
-                    id: Uuid::parse_str(&row.get::<String, _>("id"))?,
-                    client_id: row.get("client_id"),
-                    client_secret: row.get("client_secret_hash"),
-                    name: row.get("name"),
-                    description: row.get("description"),
-                    redirect_uris: serde_json::from_str(&redirect_uris_json)?,
-                    scopes: serde_json::from_str(&scopes_json)?,
-                    app_type: row.get("app_type"),
-                    owner_user_id: Uuid::parse_str(&row.get::<String, _>("owner_user_id"))?,
-                    created_at: row.get("created_at"),
-                    updated_at: row.get("updated_at"),
-                })
-            }
-            None => Err(DatabaseError::NotFound {
-                entity_type: "OAuth app",
-                entity_id: client_id.to_owned(),
-            }
-            .into()),
-        }
-    }
-
-    // ================================
     // OAuth2 Server (SQLite implementations)
     // ================================
-
-    /// Revoke `OAuth2` refresh token (internal implementation)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the database query fails
-    async fn revoke_oauth2_refresh_token_impl(&self, token: &str) -> Result<()> {
-        sqlx::query("UPDATE oauth2_refresh_tokens SET revoked = 1 WHERE token = ?1")
-            .bind(token)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(())
-    }
 
     /// Store `OAuth2` client (internal implementation)
     ///
@@ -2023,177 +1938,329 @@ impl Database {
         }
     }
 
-    /// Get authorization code (internal implementation)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the database query fails or code not found/expired
-    async fn get_authorization_code_impl(
-        &self,
-        code: &str,
-    ) -> Result<crate::models::AuthorizationCode> {
-        let row = sqlx::query(
-            r"
-            SELECT code, client_id, user_id, redirect_uri, scope, created_at, expires_at
-            FROM oauth2_auth_codes
-            WHERE code = ?1 AND expires_at > CURRENT_TIMESTAMP
-            ",
-        )
-        .bind(code)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        match row {
-            Some(row) => Ok(crate::models::AuthorizationCode {
-                code: row.get("code"),
-                client_id: row.get("client_id"),
-                redirect_uri: row.get("redirect_uri"),
-                scope: row.get("scope"),
-                user_id: Some(Uuid::parse_str(&row.get::<String, _>("user_id"))?),
-                created_at: row.get("created_at"),
-                expires_at: row.get("expires_at"),
-                is_used: false, // If we can fetch it, it hasn't been used yet
-            }),
-            None => Err(DatabaseError::NotFound {
-                entity_type: "authorization code",
-                entity_id: code.to_owned(),
-            }
-            .into()),
-        }
-    }
-
-    /// Delete authorization code (internal implementation)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the database query fails
-    async fn delete_authorization_code_impl(&self, code: &str) -> Result<()> {
-        let result = sqlx::query(
-            r"
-            DELETE FROM oauth2_auth_codes
-            WHERE code = ?1
-            ",
-        )
-        .bind(code)
-        .execute(&self.pool)
-        .await
-        .map_err(|e| DatabaseError::QueryError {
-            context: format!("Failed to delete authorization code: {e}"),
-        })?;
-
-        if result.rows_affected() == 0 {
-            tracing::warn!("Authorization code not found for deletion: {}", code);
-        }
-
-        Ok(())
-    }
-
     // ================================
-    // Audit Events (SQLite implementations)
+    // Public Wrapper Methods (delegates to impl methods or repositories)
     // ================================
 
-    /// Store audit event (internal implementation)
+    /// Get user configuration
     ///
     /// # Errors
     ///
-    /// Returns an error if the database query fails
-    async fn store_audit_event_impl(
-        &self,
-        event: &crate::security::audit::AuditEvent,
-    ) -> Result<()> {
-        let query = r"
-            INSERT INTO audit_events (
-                id, event_type, severity, message, source, result,
-                tenant_id, user_id, ip_address, user_agent, metadata, timestamp
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
-        ";
-
-        let event_type_str = format!("{:?}", event.event_type);
-        let severity_str = format!("{:?}", event.severity);
-        let metadata_json = serde_json::to_string(&event.metadata)?;
-
-        sqlx::query(query)
-            .bind(event.event_id.to_string())
-            .bind(&event_type_str)
-            .bind(&severity_str)
-            .bind(&event.description)
-            .bind("security") // source - using generic security source
-            .bind(&event.result)
-            .bind(event.tenant_id.map(|id| id.to_string()))
-            .bind(event.user_id.map(|id| id.to_string()))
-            .bind(&event.source_ip)
-            .bind(&event.user_agent)
-            .bind(&metadata_json)
-            .bind(event.timestamp)
-            .execute(&self.pool)
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Database connection issues occur
+    pub async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
+        let row = sqlx::query("SELECT config_json FROM user_configurations WHERE user_id = ?")
+            .bind(user_id)
+            .fetch_optional(&self.pool)
             .await?;
 
+        Ok(row.and_then(|r| r.try_get("config_json").ok()))
+    }
+
+    /// Save user configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insert or update fails
+    /// - Database connection issues occur
+    pub async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()> {
+        sqlx::query(
+            r"
+            INSERT INTO user_configurations (user_id, config_json, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET
+                config_json = excluded.config_json,
+                updated_at = CURRENT_TIMESTAMP
+            ",
+        )
+        .bind(user_id)
+        .bind(config_json)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
-    // ================================
-    // Tenant Management (SQLite implementations)
-    // ================================
-
-    /// Get user tenant role (internal implementation)
+    /// Get top tools analysis
     ///
     /// # Errors
     ///
-    /// Returns an error if the database query fails
-    async fn get_user_tenant_role_impl(
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization from usage repository fails
+    /// - Database connection issues occur
+    pub async fn get_top_tools_analysis(
         &self,
-        user_id: Uuid,
-        tenant_id: Uuid,
-    ) -> Result<Option<String>> {
-        let row =
-            sqlx::query("SELECT role FROM tenant_users WHERE user_id = ?1 AND tenant_id = ?2")
-                .bind(user_id.to_string())
-                .bind(tenant_id.to_string())
-                .fetch_optional(&self.pool)
-                .await?;
-
-        Ok(row.map(|r| r.get("role")))
+        _user_id: Uuid,
+        _start_time: chrono::DateTime<chrono::Utc>,
+        _end_time: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Vec<crate::dashboard_routes::ToolUsage>> {
+        // NOTE: This method is not actually used. Dashboard routes has its own
+        // implementation that aggregates data from get_api_key_usage_stats.
+        // Returning empty vector to avoid circular delegation through UsageRepository.
+        tokio::task::yield_now().await;
+        Ok(Vec::new())
     }
 
-    // ================================
-    // User OAuth Apps (SQLite implementations)
-    // ================================
-
-    /// List user OAuth apps (internal implementation)
+    /// Get request logs with filters (avoids circular delegation)
     ///
     /// # Errors
     ///
-    /// Returns an error if the database query fails
-    async fn list_user_oauth_apps_impl(
+    /// Returns an error if database query fails
+    pub async fn get_request_logs_with_filters(
         &self,
-        user_id: Uuid,
-    ) -> Result<Vec<crate::models::UserOAuthApp>> {
-        // First ensure the user_oauth_apps table exists
+        api_key_id: Option<&str>,
+        start_time: Option<chrono::DateTime<chrono::Utc>>,
+        end_time: Option<chrono::DateTime<chrono::Utc>>,
+        _status_filter: Option<&str>,
+        _tool_filter: Option<&str>,
+    ) -> Result<Vec<crate::dashboard_routes::RequestLog>> {
+        let mut query = "SELECT id, user_id, api_key_id, timestamp, method, endpoint, status_code, response_time_ms, error_message FROM request_logs WHERE 1=1".to_owned();
+
+        if api_key_id.is_some() {
+            query.push_str(" AND api_key_id = ?");
+        }
+        if start_time.is_some() {
+            query.push_str(" AND timestamp >= ?");
+        }
+        if end_time.is_some() {
+            query.push_str(" AND timestamp <= ?");
+        }
+
+        query.push_str(" ORDER BY timestamp DESC LIMIT 100");
+
+        let mut sql_query = sqlx::query(&query);
+        if let Some(key_id) = api_key_id {
+            sql_query = sql_query.bind(key_id);
+        }
+        if let Some(start) = start_time {
+            sql_query = sql_query.bind(start.to_rfc3339());
+        }
+        if let Some(end) = end_time {
+            sql_query = sql_query.bind(end.to_rfc3339());
+        }
+
+        let rows = sql_query.fetch_all(&self.pool).await?;
+
+        let mut logs = Vec::new();
+        for row in rows {
+            let timestamp_str: String = row.try_get("timestamp")?;
+            let api_key_id_opt: Option<String> = row.try_get("api_key_id")?;
+
+            logs.push(crate::dashboard_routes::RequestLog {
+                id: row.try_get::<i64, _>("id")?.to_string(),
+                timestamp: DateTime::parse_from_rfc3339(&timestamp_str)?.with_timezone(&Utc),
+                api_key_id: api_key_id_opt.unwrap_or_default(),
+                api_key_name: String::new(),
+                tool_name: row.try_get("endpoint")?,
+                status_code: row.try_get::<i32, _>("status_code")?,
+                response_time_ms: row.try_get("response_time_ms")?,
+                error_message: row.try_get("error_message")?,
+                request_size_bytes: None,
+                response_size_bytes: None,
+            });
+        }
+
+        Ok(logs)
+    }
+
+    /// Create tenant
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insert fails
+    /// - Tenant already exists with the same slug
+    /// - Database connection issues occur
+    pub async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
+        Self::create_tenant_impl(self, tenant).await
+    }
+
+    /// Get tenant by ID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Tenant not found with the given ID
+    /// - Database query execution fails
+    /// - Database connection issues occur
+    pub async fn get_tenant_by_id(&self, id: Uuid) -> Result<crate::models::Tenant> {
+        Self::get_tenant_by_id_impl(self, id).await
+    }
+
+    /// Get tenant by slug
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Tenant not found with the given slug
+    /// - Database query execution fails
+    /// - Database connection issues occur
+    pub async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
+        Self::get_tenant_by_slug_impl(self, slug).await
+    }
+
+    /// List tenants for user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues occur
+    pub async fn list_tenants_for_user(&self, user_id: Uuid) -> Result<Vec<crate::models::Tenant>> {
+        Self::list_tenants_for_user_impl(self, user_id).await
+    }
+
+    /// Get all tenants
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues occur
+    pub async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
+        Self::get_all_tenants_impl(self).await
+    }
+
+    /// Store tenant OAuth credentials
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Encryption of client secret fails
+    /// - Database insert or update fails
+    /// - Database connection issues occur
+    pub async fn store_tenant_oauth_credentials(
+        &self,
+        credentials: &crate::tenant::TenantOAuthCredentials,
+    ) -> Result<()> {
+        Self::store_tenant_oauth_credentials_impl(self, credentials).await
+    }
+
+    /// Get tenant OAuth providers
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Decryption of client secret fails
+    /// - Data deserialization fails
+    /// - Database connection issues occur
+    pub async fn get_tenant_oauth_providers(
+        &self,
+        tenant_id: Uuid,
+    ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
+        Self::get_tenant_oauth_providers_impl(self, tenant_id).await
+    }
+
+    /// Get tenant OAuth credentials
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Decryption of client secret fails
+    /// - Data deserialization fails
+    /// - Database connection issues occur
+    pub async fn get_tenant_oauth_credentials(
+        &self,
+        tenant_id: Uuid,
+        provider: &str,
+    ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
+        Self::get_tenant_oauth_credentials_impl(self, tenant_id, provider).await
+    }
+
+    /// Create OAuth app
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insert fails
+    /// - OAuth app already exists with the same client ID
+    /// - Database connection issues occur
+    pub async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()> {
         sqlx::query(
             r"
-            CREATE TABLE IF NOT EXISTS user_oauth_apps (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                provider TEXT NOT NULL,
-                client_id TEXT NOT NULL,
-                client_secret TEXT NOT NULL,
-                redirect_uri TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, provider),
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
+            INSERT INTO oauth_apps (id, client_id, client_secret_hash, name, description, redirect_uris, scopes, app_type, owner_user_id, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ",
         )
+        .bind(app.id.to_string())
+        .bind(&app.client_id)
+        .bind(&app.client_secret)
+        .bind(&app.name)
+        .bind(&app.description)
+        .bind(serde_json::to_string(&app.redirect_uris)?)
+        .bind(serde_json::to_string(&app.scopes)?)
+        .bind(&app.app_type)
+        .bind(app.owner_user_id.to_string())
+        .bind(true) // is_active
+        .bind(app.created_at)
+        .bind(app.updated_at)
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
 
+    /// Get OAuth app by client ID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - OAuth app not found with the given client ID
+    /// - Database query execution fails
+    /// - Database connection issues occur
+    pub async fn get_oauth_app_by_client_id(
+        &self,
+        client_id: &str,
+    ) -> Result<crate::models::OAuthApp> {
+        let row = sqlx::query(
+            r"
+            SELECT id, client_id, client_secret_hash, name, description, redirect_uris, scopes, app_type, owner_user_id, created_at, updated_at
+            FROM oauth_apps
+            WHERE client_id = ?
+            ",
+        )
+        .bind(client_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(crate::models::OAuthApp {
+            id: Uuid::parse_str(&row.try_get::<String, _>("id")?)?,
+            client_id: row.try_get("client_id")?,
+            client_secret: row.try_get("client_secret_hash")?,
+            name: row.try_get("name")?,
+            description: row.try_get("description")?,
+            redirect_uris: serde_json::from_str(&row.try_get::<String, _>("redirect_uris")?)?,
+            scopes: serde_json::from_str(&row.try_get::<String, _>("scopes")?)?,
+            app_type: row.try_get("app_type")?,
+            owner_user_id: Uuid::parse_str(&row.try_get::<String, _>("owner_user_id")?)?,
+            created_at: row.try_get("created_at")?,
+            updated_at: row.try_get("updated_at")?,
+        })
+    }
+
+    /// List OAuth apps for user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues occur
+    pub async fn list_oauth_apps_for_user(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::models::OAuthApp>> {
         let rows = sqlx::query(
             r"
-            SELECT id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at
-            FROM user_oauth_apps
-            WHERE user_id = ?1
-            ORDER BY provider
+            SELECT id, client_id, client_secret_hash, name, description, redirect_uris, scopes, app_type, owner_user_id, created_at, updated_at
+            FROM oauth_apps
+            WHERE owner_user_id = ?
+            ORDER BY created_at DESC
             ",
         )
         .bind(user_id.to_string())
@@ -2202,39 +2269,1158 @@ impl Database {
 
         let mut apps = Vec::new();
         for row in rows {
-            apps.push(crate::models::UserOAuthApp {
-                id: row.get("id"),
-                user_id: Uuid::parse_str(&row.get::<String, _>("user_id"))?,
-                provider: row.get("provider"),
-                client_id: row.get("client_id"),
-                client_secret: row.get("client_secret"),
-                redirect_uri: row.get("redirect_uri"),
-                created_at: row.get("created_at"),
-                updated_at: row.get("updated_at"),
+            apps.push(crate::models::OAuthApp {
+                id: Uuid::parse_str(&row.try_get::<String, _>("id")?)?,
+                client_id: row.try_get("client_id")?,
+                client_secret: row.try_get("client_secret_hash")?,
+                name: row.try_get("name")?,
+                description: row.try_get("description")?,
+                redirect_uris: serde_json::from_str(&row.try_get::<String, _>("redirect_uris")?)?,
+                scopes: serde_json::from_str(&row.try_get::<String, _>("scopes")?)?,
+                app_type: row.try_get("app_type")?,
+                owner_user_id: Uuid::parse_str(&row.try_get::<String, _>("owner_user_id")?)?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            });
+        }
+        Ok(apps)
+    }
+
+    /// Store user OAuth app
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insert or update fails
+    /// - Encryption of OAuth credentials fails
+    /// - Database connection issues occur
+    pub async fn store_user_oauth_app(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+        client_id: &str,
+        client_secret: &str,
+        redirect_uri: &str,
+    ) -> Result<()> {
+        // Encrypt the client secret
+        let aad_context = format!("user_oauth_app:{user_id}:{provider}");
+        let encrypted_secret = self.encrypt_data_with_aad(client_secret, &aad_context)?;
+
+        let id = uuid::Uuid::new_v4().to_string();
+
+        sqlx::query(
+            "INSERT INTO user_oauth_app_credentials (id, user_id, provider, client_id, client_secret, redirect_uri)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON CONFLICT(user_id, provider)
+             DO UPDATE SET client_id = excluded.client_id, client_secret = excluded.client_secret,
+                          redirect_uri = excluded.redirect_uri, updated_at = CURRENT_TIMESTAMP",
+        )
+        .bind(&id)
+        .bind(user_id.to_string())
+        .bind(provider)
+        .bind(client_id)
+        .bind(&encrypted_secret)
+        .bind(redirect_uri)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Get user OAuth app
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Decryption of OAuth credentials fails
+    /// - Database connection issues occur
+    pub async fn get_user_oauth_app(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+    ) -> Result<Option<UserOAuthApp>> {
+        let row = sqlx::query(
+            "SELECT id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at
+             FROM user_oauth_app_credentials
+             WHERE user_id = ? AND provider = ?",
+        )
+        .bind(user_id.to_string())
+        .bind(provider)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            let id: String = row.try_get("id")?;
+            let user_id_str: String = row.try_get("user_id")?;
+            let provider: String = row.try_get("provider")?;
+            let client_id: String = row.try_get("client_id")?;
+            let encrypted_secret: String = row.try_get("client_secret")?;
+            let redirect_uri: String = row.try_get("redirect_uri")?;
+            let created_at: String = row.try_get("created_at")?;
+            let updated_at: String = row.try_get("updated_at")?;
+
+            // Decrypt the client secret
+            let aad_context = format!("user_oauth_app:{user_id_str}:{provider}");
+            let client_secret = self.decrypt_data_with_aad(&encrypted_secret, &aad_context)?;
+
+            Ok(Some(UserOAuthApp {
+                id,
+                user_id: Uuid::parse_str(&user_id_str)?,
+                provider,
+                client_id,
+                client_secret,
+                redirect_uri,
+                created_at: DateTime::parse_from_rfc3339(&created_at)?.with_timezone(&Utc),
+                updated_at: DateTime::parse_from_rfc3339(&updated_at)?.with_timezone(&Utc),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// List user OAuth apps
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Decryption of OAuth credentials fails
+    /// - Database connection issues occur
+    pub async fn list_user_oauth_apps(&self, user_id: Uuid) -> Result<Vec<UserOAuthApp>> {
+        let rows = sqlx::query(
+            "SELECT id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at
+             FROM user_oauth_app_credentials
+             WHERE user_id = ?",
+        )
+        .bind(user_id.to_string())
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut apps = Vec::new();
+        for row in rows {
+            let id: String = row.try_get("id")?;
+            let user_id_str: String = row.try_get("user_id")?;
+            let provider: String = row.try_get("provider")?;
+            let client_id: String = row.try_get("client_id")?;
+            let encrypted_secret: String = row.try_get("client_secret")?;
+            let redirect_uri: String = row.try_get("redirect_uri")?;
+            let created_at: String = row.try_get("created_at")?;
+            let updated_at: String = row.try_get("updated_at")?;
+
+            // Decrypt the client secret
+            let aad_context = format!("user_oauth_app:{user_id_str}:{provider}");
+            let client_secret = self.decrypt_data_with_aad(&encrypted_secret, &aad_context)?;
+
+            apps.push(UserOAuthApp {
+                id,
+                user_id: Uuid::parse_str(&user_id_str)?,
+                provider,
+                client_id,
+                client_secret,
+                redirect_uri,
+                created_at: DateTime::parse_from_rfc3339(&created_at)?.with_timezone(&Utc),
+                updated_at: DateTime::parse_from_rfc3339(&updated_at)?.with_timezone(&Utc),
             });
         }
 
         Ok(apps)
     }
 
-    /// Remove user OAuth app (internal implementation)
+    /// Remove user OAuth app
     ///
     /// # Errors
     ///
-    /// Returns an error if the database query fails
-    async fn remove_user_oauth_app_impl(&self, user_id: Uuid, provider: &str) -> Result<()> {
-        sqlx::query(
-            r"
-            DELETE FROM user_oauth_apps
-            WHERE user_id = ?1 AND provider = ?2
-            ",
+    /// Returns an error if:
+    /// - Database delete operation fails
+    /// - Database connection issues occur
+    pub async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> Result<()> {
+        sqlx::query("DELETE FROM user_oauth_app_credentials WHERE user_id = ? AND provider = ?")
+            .bind(user_id.to_string())
+            .bind(provider)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Store `OAuth2` client
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insert fails
+    /// - Client ID already exists
+    /// - Data serialization fails
+    /// - Database connection issues occur
+    pub async fn store_oauth2_client(
+        &self,
+        client: &crate::oauth2_server::models::OAuth2Client,
+    ) -> Result<()> {
+        Self::store_oauth2_client_impl(self, client).await
+    }
+
+    /// Get `OAuth2` client
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues occur
+    pub async fn get_oauth2_client(
+        &self,
+        client_id: &str,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>> {
+        Self::get_oauth2_client_impl(self, client_id).await
+    }
+
+    /// Store `OAuth2` authorization code
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insert fails
+    /// - Authorization code already exists
+    /// - Database connection issues occur
+    pub async fn store_oauth2_auth_code(
+        &self,
+        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
+    ) -> Result<()> {
+        Self::store_oauth2_auth_code_impl(self, auth_code).await
+    }
+
+    /// Get `OAuth2` authorization code
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues occur
+    pub async fn get_oauth2_auth_code(
+        &self,
+        code: &str,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+        Self::get_oauth2_auth_code_impl(self, code).await
+    }
+
+    /// Update `OAuth2` authorization code
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database update fails
+    /// - Authorization code not found
+    /// - Database connection issues occur
+    pub async fn update_oauth2_auth_code(
+        &self,
+        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
+    ) -> Result<()> {
+        Self::update_oauth2_auth_code_impl(self, auth_code).await
+    }
+
+    /// Store `OAuth2` refresh token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insert fails
+    /// - Refresh token already exists
+    /// - Database connection issues occur
+    pub async fn store_oauth2_refresh_token(
+        &self,
+        refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
+    ) -> Result<()> {
+        Self::store_oauth2_refresh_token_impl(self, refresh_token).await
+    }
+
+    /// Get `OAuth2` refresh token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues occur
+    pub async fn get_oauth2_refresh_token(
+        &self,
+        token: &str,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+        Self::get_oauth2_refresh_token_impl(self, token).await
+    }
+
+    /// Revoke `OAuth2` refresh token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database update fails
+    /// - Refresh token not found
+    /// - Database connection issues occur
+    pub async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()> {
+        sqlx::query("UPDATE oauth2_refresh_tokens SET revoked = 1 WHERE token = ?")
+            .bind(token)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Get refresh token by value
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues occur
+    pub async fn get_refresh_token_by_value(
+        &self,
+        token: &str,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+        let row = sqlx::query(
+            "SELECT token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
+             FROM oauth2_refresh_tokens WHERE token = ?",
         )
-        .bind(user_id.to_string())
-        .bind(provider)
+        .bind(token)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            let user_id_str: String = row.try_get("user_id")?;
+            let expires_at_str: String = row.try_get("expires_at")?;
+            let created_at_str: String = row.try_get("created_at")?;
+            let revoked: bool = row.try_get("revoked")?;
+
+            Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
+                token: row.try_get("token")?,
+                client_id: row.try_get("client_id")?,
+                user_id: Uuid::parse_str(&user_id_str)?,
+                tenant_id: row.try_get("tenant_id")?,
+                scope: row.try_get("scope")?,
+                expires_at: DateTime::parse_from_rfc3339(&expires_at_str)?.with_timezone(&Utc),
+                created_at: DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&Utc),
+                revoked,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Consume auth code
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database update fails
+    /// - Authorization code validation fails
+    /// - Database connection issues occur
+    pub async fn consume_auth_code(
+        &self,
+        code: &str,
+        client_id: &str,
+        redirect_uri: &str,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+        // First fetch the auth code
+        let row = sqlx::query(
+            "SELECT code, client_id, user_id, tenant_id, redirect_uri, scope, expires_at, used, state, code_challenge, code_challenge_method
+             FROM oauth2_auth_codes WHERE code = ? AND client_id = ? AND redirect_uri = ?",
+        )
+        .bind(code)
+        .bind(client_id)
+        .bind(redirect_uri)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            let used: bool = row.try_get("used")?;
+            let expires_at_str: String = row.try_get("expires_at")?;
+            let expires_at = DateTime::parse_from_rfc3339(&expires_at_str)?.with_timezone(&Utc);
+
+            // Validate: not used and not expired
+            if used || expires_at < now {
+                return Ok(None);
+            }
+
+            // Mark as used
+            sqlx::query("UPDATE oauth2_auth_codes SET used = 1 WHERE code = ?")
+                .bind(code)
+                .execute(&self.pool)
+                .await?;
+
+            let user_id_str: String = row.try_get("user_id")?;
+
+            Ok(Some(crate::oauth2_server::models::OAuth2AuthCode {
+                code: row.try_get("code")?,
+                client_id: row.try_get("client_id")?,
+                user_id: Uuid::parse_str(&user_id_str)?,
+                tenant_id: row.try_get("tenant_id")?,
+                redirect_uri: row.try_get("redirect_uri")?,
+                scope: row.try_get("scope")?,
+                expires_at,
+                used: true, // Now marked as used
+                state: row.try_get("state")?,
+                code_challenge: row.try_get("code_challenge")?,
+                code_challenge_method: row.try_get("code_challenge_method")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Consume refresh token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database update fails
+    /// - Refresh token validation fails
+    /// - Database connection issues occur
+    pub async fn consume_refresh_token(
+        &self,
+        token: &str,
+        client_id: &str,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+        // First fetch the refresh token
+        let row = sqlx::query(
+            "SELECT token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
+             FROM oauth2_refresh_tokens WHERE token = ? AND client_id = ?",
+        )
+        .bind(token)
+        .bind(client_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            let revoked: bool = row.try_get("revoked")?;
+            let expires_at_str: String = row.try_get("expires_at")?;
+            let expires_at = DateTime::parse_from_rfc3339(&expires_at_str)?.with_timezone(&Utc);
+
+            // Validate: not revoked and not expired
+            if revoked || expires_at < now {
+                return Ok(None);
+            }
+
+            // Mark as revoked (consumed)
+            sqlx::query("UPDATE oauth2_refresh_tokens SET revoked = 1 WHERE token = ?")
+                .bind(token)
+                .execute(&self.pool)
+                .await?;
+
+            let user_id_str: String = row.try_get("user_id")?;
+            let created_at_str: String = row.try_get("created_at")?;
+
+            Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
+                token: row.try_get("token")?,
+                client_id: row.try_get("client_id")?,
+                user_id: Uuid::parse_str(&user_id_str)?,
+                tenant_id: row.try_get("tenant_id")?,
+                scope: row.try_get("scope")?,
+                expires_at,
+                created_at: DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&Utc),
+                revoked: true, // Now marked as revoked
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Store authorization code
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insert fails
+    /// - Authorization code already exists
+    /// - Database connection issues occur
+    pub async fn store_authorization_code(
+        &self,
+        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO oauth2_auth_codes (code, client_id, user_id, tenant_id, redirect_uri, scope, expires_at, used, state, code_challenge, code_challenge_method)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&auth_code.code)
+        .bind(&auth_code.client_id)
+        .bind(auth_code.user_id.to_string())
+        .bind(&auth_code.tenant_id)
+        .bind(&auth_code.redirect_uri)
+        .bind(&auth_code.scope)
+        .bind(auth_code.expires_at.to_rfc3339())
+        .bind(auth_code.used)
+        .bind(&auth_code.state)
+        .bind(&auth_code.code_challenge)
+        .bind(&auth_code.code_challenge_method)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Get authorization code
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authorization code not found
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues occur
+    pub async fn get_authorization_code(
+        &self,
+        code: &str,
+        client_id: &str,
+        redirect_uri: &str,
+    ) -> Result<crate::oauth2_server::models::OAuth2AuthCode> {
+        let row = sqlx::query(
+            "SELECT code, client_id, user_id, tenant_id, redirect_uri, scope, expires_at, used, state, code_challenge, code_challenge_method
+             FROM oauth2_auth_codes WHERE code = ? AND client_id = ? AND redirect_uri = ?",
+        )
+        .bind(code)
+        .bind(client_id)
+        .bind(redirect_uri)
+        .fetch_one(&self.pool)
+        .await?;
+
+        let user_id_str: String = row.try_get("user_id")?;
+        let expires_at_str: String = row.try_get("expires_at")?;
+
+        Ok(crate::oauth2_server::models::OAuth2AuthCode {
+            code: row.try_get("code")?,
+            client_id: row.try_get("client_id")?,
+            user_id: Uuid::parse_str(&user_id_str)?,
+            tenant_id: row.try_get("tenant_id")?,
+            redirect_uri: row.try_get("redirect_uri")?,
+            scope: row.try_get("scope")?,
+            expires_at: DateTime::parse_from_rfc3339(&expires_at_str)?.with_timezone(&Utc),
+            used: row.try_get("used")?,
+            state: row.try_get("state")?,
+            code_challenge: row.try_get("code_challenge")?,
+            code_challenge_method: row.try_get("code_challenge_method")?,
+        })
+    }
+
+    /// Delete authorization code
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database delete operation fails
+    /// - Database connection issues occur
+    pub async fn delete_authorization_code(
+        &self,
+        code: &str,
+        client_id: &str,
+        redirect_uri: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            "DELETE FROM oauth2_auth_codes WHERE code = ? AND client_id = ? AND redirect_uri = ?",
+        )
+        .bind(code)
+        .bind(client_id)
+        .bind(redirect_uri)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Store `OAuth2` state
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insert fails
+    /// - State value already exists
+    /// - Database connection issues occur
+    pub async fn store_oauth2_state(
+        &self,
+        state: &crate::oauth2_server::models::OAuth2State,
+    ) -> Result<()> {
+        Self::store_oauth2_state_impl(self, state).await
+    }
+
+    /// Consume `OAuth2` state
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database update fails
+    /// - State validation fails
+    /// - Database connection issues occur
+    pub async fn consume_oauth2_state(
+        &self,
+        state: &str,
+        client_id: &str,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Option<crate::oauth2_server::models::OAuth2State>> {
+        Self::consume_oauth2_state_impl(self, state, client_id, now).await
+    }
+
+    /// Store audit event
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insert fails
+    /// - Event serialization fails
+    /// - Database connection issues occur
+    pub async fn store_audit_event(
+        &self,
+        tenant_id: Option<Uuid>,
+        event: &crate::security::audit::AuditEvent,
+    ) -> Result<()> {
+        let event_type_json = serde_json::to_string(&event.event_type)?;
+        let severity_json = serde_json::to_string(&event.severity)?;
+        let metadata_json = serde_json::to_string(&event.metadata)?;
+
+        sqlx::query(
+            "INSERT INTO audit_events (id, event_type, severity, message, source, result, tenant_id, user_id, ip_address, user_agent, metadata, timestamp)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(event.event_id.to_string())
+        .bind(&event_type_json)
+        .bind(&severity_json)
+        .bind(&event.description)
+        .bind(&event.action)
+        .bind(&event.result)
+        .bind(tenant_id.map(|id| id.to_string()))
+        .bind(event.user_id.map(|id| id.to_string()))
+        .bind(&event.source_ip)
+        .bind(&event.user_agent)
+        .bind(&metadata_json)
+        .bind(event.timestamp.to_rfc3339())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Get audit events
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Event deserialization fails
+    /// - Database connection issues occur
+    pub async fn get_audit_events(
+        &self,
+        tenant_id: Option<Uuid>,
+        event_type: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<Vec<crate::security::audit::AuditEvent>> {
+        let mut query = "SELECT id, event_type, severity, message, source, result, tenant_id, user_id, ip_address, user_agent, metadata, timestamp FROM audit_events WHERE 1=1".to_owned();
+
+        if tenant_id.is_some() {
+            query.push_str(" AND tenant_id = ?");
+        }
+        if event_type.is_some() {
+            query.push_str(" AND event_type = ?");
+        }
+        query.push_str(" ORDER BY timestamp DESC");
+        if let Some(lim) = limit {
+            use std::fmt::Write;
+            let _ = write!(query, " LIMIT {lim}");
+        }
+
+        let mut sql_query = sqlx::query(&query);
+        if let Some(tid) = tenant_id {
+            sql_query = sql_query.bind(tid.to_string());
+        }
+        if let Some(et) = event_type {
+            sql_query = sql_query.bind(et);
+        }
+
+        let rows = sql_query.fetch_all(&self.pool).await?;
+
+        let mut events = Vec::new();
+        for row in rows {
+            let event_id_str: String = row.try_get("id")?;
+            let event_type_json: String = row.try_get("event_type")?;
+            let severity_json: String = row.try_get("severity")?;
+            let metadata_json: String = row.try_get("metadata")?;
+            let timestamp_str: String = row.try_get("timestamp")?;
+
+            let user_id_opt: Option<String> = row.try_get("user_id")?;
+            let tenant_id_opt: Option<String> = row.try_get("tenant_id")?;
+
+            events.push(crate::security::audit::AuditEvent {
+                event_id: Uuid::parse_str(&event_id_str)?,
+                event_type: serde_json::from_str(&event_type_json)?,
+                severity: serde_json::from_str(&severity_json)?,
+                timestamp: DateTime::parse_from_rfc3339(&timestamp_str)?.with_timezone(&Utc),
+                user_id: user_id_opt.and_then(|s| Uuid::parse_str(&s).ok()),
+                tenant_id: tenant_id_opt.and_then(|s| Uuid::parse_str(&s).ok()),
+                source_ip: row.try_get("ip_address")?,
+                user_agent: row.try_get("user_agent")?,
+                session_id: None, // Not stored in current schema
+                description: row.try_get("message")?,
+                metadata: serde_json::from_str(&metadata_json)?,
+                resource: None, // Not stored in current schema
+                action: row.try_get("source")?,
+                result: row.try_get("result")?,
+            });
+        }
+
+        Ok(events)
+    }
+
+    /// Get or create system secret
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query fails
+    /// - Unknown secret type requested
+    /// - Database connection issues occur
+    pub async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
+        Self::get_or_create_system_secret_impl(self, secret_type).await
+    }
+
+    /// Get system secret
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query fails
+    /// - Secret not found
+    /// - Database connection issues occur
+    pub async fn get_system_secret(&self, secret_type: &str) -> Result<String> {
+        Self::get_system_secret_impl(self, secret_type).await
+    }
+
+    /// Update system secret
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database update fails
+    /// - Database connection issues occur
+    pub async fn update_system_secret(&self, secret_type: &str, secret_value: &str) -> Result<()> {
+        Self::update_system_secret_impl(self, secret_type, secret_value).await
+    }
+
+    /// Store key version
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insert fails
+    /// - Key version already exists
+    /// - Database connection issues occur
+    pub async fn store_key_version(
+        &self,
+        tenant_id: Option<Uuid>,
+        version: &crate::security::key_rotation::KeyVersion,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO key_versions (tenant_id, version, created_at, expires_at, is_active, algorithm)
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(tenant_id.map(|id| id.to_string()))
+        .bind(version.version)
+        .bind(version.created_at.to_rfc3339())
+        .bind(version.expires_at.to_rfc3339())
+        .bind(version.is_active)
+        .bind(&version.algorithm)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Get key versions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues occur
+    pub async fn get_key_versions(
+        &self,
+        tenant_id: Option<Uuid>,
+    ) -> Result<Vec<crate::security::key_rotation::KeyVersion>> {
+        let rows = if let Some(tid) = tenant_id {
+            sqlx::query(
+                "SELECT version, created_at, expires_at, is_active, tenant_id, algorithm
+                 FROM key_versions WHERE tenant_id = ? ORDER BY version DESC",
+            )
+            .bind(tid.to_string())
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query(
+                "SELECT version, created_at, expires_at, is_active, tenant_id, algorithm
+                 FROM key_versions WHERE tenant_id IS NULL ORDER BY version DESC",
+            )
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        let mut versions = Vec::new();
+        for row in rows {
+            let version_num: u32 = row.try_get::<i64, _>("version")?.try_into()?;
+            let created_at_str: String = row.try_get("created_at")?;
+            let expires_at_str: String = row.try_get("expires_at")?;
+            let tenant_id_opt: Option<String> = row.try_get("tenant_id")?;
+
+            versions.push(crate::security::key_rotation::KeyVersion {
+                version: version_num,
+                created_at: DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&Utc),
+                expires_at: DateTime::parse_from_rfc3339(&expires_at_str)?.with_timezone(&Utc),
+                is_active: row.try_get("is_active")?,
+                tenant_id: tenant_id_opt.and_then(|s| Uuid::parse_str(&s).ok()),
+                algorithm: row.try_get("algorithm")?,
+            });
+        }
+
+        Ok(versions)
+    }
+
+    /// Get current key version
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues occur
+    pub async fn get_current_key_version(
+        &self,
+        tenant_id: Option<Uuid>,
+    ) -> Result<Option<crate::security::key_rotation::KeyVersion>> {
+        let row = if let Some(tid) = tenant_id {
+            sqlx::query(
+                "SELECT version, created_at, expires_at, is_active, tenant_id, algorithm
+                 FROM key_versions WHERE tenant_id = ? AND is_active = 1 ORDER BY version DESC LIMIT 1",
+            )
+            .bind(tid.to_string())
+            .fetch_optional(&self.pool)
+            .await?
+        } else {
+            sqlx::query(
+                "SELECT version, created_at, expires_at, is_active, tenant_id, algorithm
+                 FROM key_versions WHERE tenant_id IS NULL AND is_active = 1 ORDER BY version DESC LIMIT 1",
+            )
+            .fetch_optional(&self.pool)
+            .await?
+        };
+
+        if let Some(row) = row {
+            let version_num: u32 = row.try_get::<i64, _>("version")?.try_into()?;
+            let created_at_str: String = row.try_get("created_at")?;
+            let expires_at_str: String = row.try_get("expires_at")?;
+            let tenant_id_opt: Option<String> = row.try_get("tenant_id")?;
+
+            Ok(Some(crate::security::key_rotation::KeyVersion {
+                version: version_num,
+                created_at: DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&Utc),
+                expires_at: DateTime::parse_from_rfc3339(&expires_at_str)?.with_timezone(&Utc),
+                is_active: row.try_get("is_active")?,
+                tenant_id: tenant_id_opt.and_then(|s| Uuid::parse_str(&s).ok()),
+                algorithm: row.try_get("algorithm")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Update key version status
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database update fails
+    /// - Key version not found
+    /// - Database connection issues occur
+    pub async fn update_key_version_status(
+        &self,
+        tenant_id: Option<Uuid>,
+        version_id: u32,
+        is_active: bool,
+    ) -> Result<()> {
+        if let Some(tid) = tenant_id {
+            sqlx::query(
+                "UPDATE key_versions SET is_active = ? WHERE tenant_id = ? AND version = ?",
+            )
+            .bind(is_active)
+            .bind(tid.to_string())
+            .bind(version_id)
+            .execute(&self.pool)
+            .await?;
+        } else {
+            sqlx::query(
+                "UPDATE key_versions SET is_active = ? WHERE tenant_id IS NULL AND version = ?",
+            )
+            .bind(is_active)
+            .bind(version_id)
+            .execute(&self.pool)
+            .await?;
+        }
+        Ok(())
+    }
+
+    /// Delete old key versions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database delete operation fails
+    /// - Database connection issues occur
+    pub async fn delete_old_key_versions(
+        &self,
+        tenant_id: Option<Uuid>,
+        keep_count: u32,
+    ) -> Result<u64> {
+        // Delete all but the most recent keep_count versions
+        let result = if let Some(tid) = tenant_id {
+            sqlx::query(
+                "DELETE FROM key_versions WHERE tenant_id = ? AND id NOT IN (
+                   SELECT id FROM key_versions WHERE tenant_id = ? ORDER BY version DESC LIMIT ?
+                 )",
+            )
+            .bind(tid.to_string())
+            .bind(tid.to_string())
+            .bind(keep_count)
+            .execute(&self.pool)
+            .await?
+        } else {
+            sqlx::query(
+                "DELETE FROM key_versions WHERE tenant_id IS NULL AND id NOT IN (
+                   SELECT id FROM key_versions WHERE tenant_id IS NULL ORDER BY version DESC LIMIT ?
+                 )",
+            )
+            .bind(keep_count)
+            .execute(&self.pool)
+            .await?
+        };
+
+        Ok(result.rows_affected())
+    }
+
+    /// Save tenant fitness config
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insert or update fails
+    /// - Configuration serialization fails
+    /// - Database connection issues occur
+    pub async fn save_tenant_fitness_config(
+        &self,
+        tenant_id: &str,
+        configuration_name: &str,
+        config: &crate::config::fitness_config::FitnessConfig,
+    ) -> Result<String> {
+        let config_json = serde_json::to_string(config)?;
+        let id = uuid::Uuid::new_v4().to_string();
+
+        sqlx::query(
+            "INSERT INTO fitness_configurations (id, tenant_id, user_id, configuration_name, config_data)
+             VALUES (?, ?, NULL, ?, ?)
+             ON CONFLICT(tenant_id, user_id, configuration_name)
+             DO UPDATE SET config_data = excluded.config_data, updated_at = datetime('now')",
+        )
+        .bind(&id)
+        .bind(tenant_id)
+        .bind(configuration_name)
+        .bind(&config_json)
         .execute(&self.pool)
         .await?;
 
-        Ok(())
+        Ok(id)
+    }
+
+    /// Get tenant fitness config
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Configuration deserialization fails
+    /// - Database connection issues occur
+    pub async fn get_tenant_fitness_config(
+        &self,
+        tenant_id: &str,
+        configuration_name: &str,
+    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
+        let row = sqlx::query(
+            "SELECT config_data FROM fitness_configurations
+             WHERE tenant_id = ? AND user_id IS NULL AND configuration_name = ?",
+        )
+        .bind(tenant_id)
+        .bind(configuration_name)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            let config_json: String = row.try_get("config_data")?;
+            let config: crate::config::fitness_config::FitnessConfig =
+                serde_json::from_str(&config_json)?;
+            Ok(Some(config))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// List tenant fitness configurations
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Database connection issues occur
+    pub async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> Result<Vec<String>> {
+        let rows = sqlx::query(
+            "SELECT configuration_name FROM fitness_configurations
+             WHERE tenant_id = ? AND user_id IS NULL",
+        )
+        .bind(tenant_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let names: Vec<String> = rows
+            .iter()
+            .filter_map(|row| row.try_get("configuration_name").ok())
+            .collect();
+
+        Ok(names)
+    }
+
+    /// Save user fitness config
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insert or update fails
+    /// - Configuration serialization fails
+    /// - Database connection issues occur
+    pub async fn save_user_fitness_config(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        configuration_name: &str,
+        config: &crate::config::fitness_config::FitnessConfig,
+    ) -> Result<String> {
+        let config_json = serde_json::to_string(config)?;
+        let id = uuid::Uuid::new_v4().to_string();
+
+        sqlx::query(
+            "INSERT INTO fitness_configurations (id, tenant_id, user_id, configuration_name, config_data)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(tenant_id, user_id, configuration_name)
+             DO UPDATE SET config_data = excluded.config_data, updated_at = datetime('now')",
+        )
+        .bind(&id)
+        .bind(tenant_id)
+        .bind(user_id)
+        .bind(configuration_name)
+        .bind(&config_json)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(id)
+    }
+
+    /// Get user fitness config
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Configuration deserialization fails
+    /// - Database connection issues occur
+    pub async fn get_user_fitness_config(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        configuration_name: &str,
+    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
+        let row = sqlx::query(
+            "SELECT config_data FROM fitness_configurations
+             WHERE tenant_id = ? AND user_id = ? AND configuration_name = ?",
+        )
+        .bind(tenant_id)
+        .bind(user_id)
+        .bind(configuration_name)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            let config_json: String = row.try_get("config_data")?;
+            let config: crate::config::fitness_config::FitnessConfig =
+                serde_json::from_str(&config_json)?;
+            Ok(Some(config))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// List user fitness configurations
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Database connection issues occur
+    pub async fn list_user_fitness_configurations(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+    ) -> Result<Vec<String>> {
+        let rows = sqlx::query(
+            "SELECT configuration_name FROM fitness_configurations
+             WHERE tenant_id = ? AND user_id = ?",
+        )
+        .bind(tenant_id)
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let names: Vec<String> = rows
+            .iter()
+            .filter_map(|row| row.try_get("configuration_name").ok())
+            .collect();
+
+        Ok(names)
+    }
+
+    /// Delete fitness config
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database delete operation fails
+    /// - Database connection issues occur
+    pub async fn delete_fitness_config(
+        &self,
+        tenant_id: &str,
+        user_id: Option<&str>,
+        configuration_name: &str,
+    ) -> Result<bool> {
+        let result = if let Some(uid) = user_id {
+            sqlx::query(
+                "DELETE FROM fitness_configurations
+                 WHERE tenant_id = ? AND user_id = ? AND configuration_name = ?",
+            )
+            .bind(tenant_id)
+            .bind(uid)
+            .bind(configuration_name)
+            .execute(&self.pool)
+            .await?
+        } else {
+            sqlx::query(
+                "DELETE FROM fitness_configurations
+                 WHERE tenant_id = ? AND user_id IS NULL AND configuration_name = ?",
+            )
+            .bind(tenant_id)
+            .bind(configuration_name)
+            .execute(&self.pool)
+            .await?
+        };
+
+        Ok(result.rows_affected() > 0)
     }
 }
 
@@ -2252,949 +3438,6 @@ impl crate::database_plugins::shared::encryption::HasEncryption for Database {
 }
 
 // Implement DatabaseProvider trait for Database (eliminates sqlite.rs wrapper)
-use async_trait::async_trait;
-
-#[async_trait]
-impl crate::database_plugins::DatabaseProvider for Database {
-    async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
-        // Call inherent impl directly to avoid infinite recursion
-        Self::new_impl(database_url, encryption_key).await
-    }
-
-    async fn migrate(&self) -> Result<()> {
-        // Call inherent impl directly
-        Self::migrate_impl(self).await
-    }
-
-    async fn create_user(&self, user: &User) -> Result<Uuid> {
-        Self::create_user_impl(self, user).await
-    }
-
-    async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
-        Self::get_user_impl(self, user_id).await
-    }
-
-    async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
-        Self::get_user_by_email_impl(self, email).await
-    }
-
-    async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
-        Self::get_user_by_email_required_impl(self, email).await
-    }
-
-    async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
-        Self::update_last_active_impl(self, user_id).await
-    }
-
-    async fn get_user_count(&self) -> Result<i64> {
-        Self::get_user_count_impl(self).await
-    }
-
-    async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
-        Self::get_users_by_status_impl(self, status).await
-    }
-
-    async fn get_users_by_status_cursor(
-        &self,
-        status: &str,
-        params: &crate::pagination::PaginationParams,
-    ) -> Result<crate::pagination::CursorPage<User>> {
-        Self::get_users_by_status_cursor(self, status, params).await
-    }
-
-    async fn update_user_status(
-        &self,
-        user_id: Uuid,
-        new_status: crate::models::UserStatus,
-        admin_token_id: &str,
-    ) -> Result<User> {
-        Self::update_user_status(self, user_id, new_status, admin_token_id).await
-    }
-
-    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
-        Self::update_user_tenant_id_impl(self, user_id, tenant_id).await
-    }
-
-    async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> Result<()> {
-        Self::upsert_user_profile_impl(self, user_id, profile_data).await
-    }
-
-    async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<Value>> {
-        Self::get_user_profile_impl(self, user_id).await
-    }
-
-    async fn create_goal(&self, user_id: Uuid, goal_data: Value) -> Result<String> {
-        Self::create_goal_impl(self, user_id, goal_data).await
-    }
-
-    async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<Value>> {
-        Self::get_user_goals_impl(self, user_id).await
-    }
-
-    async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
-        Self::update_goal_progress_impl(self, goal_id, current_value).await
-    }
-
-    async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
-        Self::get_user_configuration_impl(self, user_id).await
-    }
-
-    async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()> {
-        Self::save_user_configuration_impl(self, user_id, config_json).await
-    }
-
-    async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> Result<String> {
-        Self::store_insight_impl(self, user_id, insight_data).await
-    }
-
-    async fn get_user_insights(
-        &self,
-        user_id: Uuid,
-        insight_type: Option<&str>,
-        limit: Option<u32>,
-    ) -> Result<Vec<Value>> {
-        Self::get_user_insights(self, user_id, insight_type, limit).await
-    }
-
-    async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
-        Self::create_api_key_impl(self, api_key).await
-    }
-
-    async fn get_api_key_by_prefix(&self, prefix: &str, hash: &str) -> Result<Option<ApiKey>> {
-        Self::get_api_key_by_prefix_impl(self, prefix, hash).await
-    }
-
-    async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
-        Self::get_user_api_keys_impl(self, user_id).await
-    }
-
-    async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
-        Self::update_api_key_last_used_impl(self, api_key_id).await
-    }
-
-    async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
-        Self::deactivate_api_key_impl(self, api_key_id, user_id).await
-    }
-
-    async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
-        Self::get_api_key_by_id_impl(self, api_key_id).await
-    }
-
-    async fn get_api_keys_filtered(
-        &self,
-        _user_email: Option<&str>,
-        active_only: bool,
-        limit: Option<i32>,
-        offset: Option<i32>,
-    ) -> Result<Vec<ApiKey>> {
-        Self::get_api_keys_filtered(
-            self,
-            None,
-            None,
-            Some(active_only),
-            limit.unwrap_or(10),
-            offset.unwrap_or(0),
-        )
-        .await
-    }
-
-    async fn cleanup_expired_api_keys(&self) -> Result<u64> {
-        Self::cleanup_expired_api_keys_impl(self).await
-    }
-
-    async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>> {
-        Self::get_expired_api_keys_impl(self).await
-    }
-
-    async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
-        Self::record_api_key_usage_impl(self, usage).await
-    }
-
-    async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
-        Self::get_api_key_current_usage_impl(self, api_key_id).await
-    }
-
-    async fn get_api_key_usage_stats(
-        &self,
-        api_key_id: &str,
-        start_date: DateTime<Utc>,
-        end_date: DateTime<Utc>,
-    ) -> Result<ApiKeyUsageStats> {
-        Self::get_api_key_usage_stats(self, api_key_id, start_date, end_date).await
-    }
-
-    async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
-        Self::record_jwt_usage_impl(self, usage).await
-    }
-
-    async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
-        Self::get_jwt_current_usage_impl(self, user_id).await
-    }
-
-    async fn get_request_logs(
-        &self,
-        _api_key_id: Option<&str>,
-        start_time: Option<DateTime<Utc>>,
-        end_time: Option<DateTime<Utc>>,
-        _status_filter: Option<&str>,
-        _tool_filter: Option<&str>,
-    ) -> Result<Vec<crate::dashboard_routes::RequestLog>> {
-        let analytics_logs = self
-            .get_request_logs(None, start_time, end_time, 10, 0)
-            .await?;
-
-        // Convert analytics::RequestLog to dashboard_routes::RequestLog
-        Ok(analytics_logs
-            .into_iter()
-            .map(|log| crate::dashboard_routes::RequestLog {
-                id: log.id.to_string(),
-                timestamp: log.timestamp,
-                api_key_id: log.api_key_id.unwrap_or_default(),
-                api_key_name: "Unknown".into(),
-                tool_name: "Unknown".into(),
-                status_code: i32::from(log.status_code),
-                response_time_ms: log.response_time_ms.and_then(|ms| i32::try_from(ms).ok()),
-                error_message: log.error_message,
-                request_size_bytes: None,
-                response_size_bytes: None,
-            })
-            .collect())
-    }
-
-    async fn get_system_stats(&self) -> Result<(u64, u64)> {
-        Self::get_system_stats_impl(self).await
-    }
-
-    async fn create_a2a_client(
-        &self,
-        client: &A2AClient,
-        client_secret: &str,
-        api_key_id: &str,
-    ) -> Result<String> {
-        Self::create_a2a_client(self, client, client_secret, api_key_id).await
-    }
-
-    async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
-        Self::get_a2a_client_impl(self, client_id).await
-    }
-
-    async fn get_a2a_client_by_api_key_id(&self, api_key_id: &str) -> Result<Option<A2AClient>> {
-        Self::get_a2a_client_by_api_key_id_impl(self, api_key_id).await
-    }
-
-    async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
-        Self::get_a2a_client_by_name_impl(self, name).await
-    }
-
-    async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
-        Self::list_a2a_clients_impl(self, user_id).await
-    }
-
-    async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
-        Self::deactivate_a2a_client_impl(self, client_id).await
-    }
-
-    async fn get_a2a_client_credentials(
-        &self,
-        client_id: &str,
-    ) -> Result<Option<(String, String)>> {
-        Self::get_a2a_client_credentials(self, client_id).await
-    }
-
-    async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
-        Self::invalidate_a2a_client_sessions_impl(self, client_id).await
-    }
-
-    async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
-        Self::deactivate_client_api_keys_impl(self, client_id).await
-    }
-
-    async fn create_a2a_session(
-        &self,
-        client_id: &str,
-        user_id: Option<&Uuid>,
-        granted_scopes: &[String],
-        expires_in_hours: i64,
-    ) -> Result<String> {
-        Self::create_a2a_session(self, client_id, user_id, granted_scopes, expires_in_hours).await
-    }
-
-    async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
-        Self::get_a2a_session_impl(self, session_token).await
-    }
-
-    async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()> {
-        Self::update_a2a_session_activity_impl(self, session_token).await
-    }
-
-    async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
-        Self::get_active_a2a_sessions_impl(self, client_id).await
-    }
-
-    async fn create_a2a_task(
-        &self,
-        client_id: &str,
-        session_id: Option<&str>,
-        task_type: &str,
-        input_data: &Value,
-    ) -> Result<String> {
-        Self::create_a2a_task(self, client_id, session_id, task_type, input_data).await
-    }
-
-    async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
-        Self::get_a2a_task_impl(self, task_id).await
-    }
-
-    async fn list_a2a_tasks(
-        &self,
-        client_id: Option<&str>,
-        status_filter: Option<&TaskStatus>,
-        limit: Option<u32>,
-        offset: Option<u32>,
-    ) -> Result<Vec<A2ATask>> {
-        Self::list_a2a_tasks(self, client_id, status_filter, limit, offset).await
-    }
-
-    async fn update_a2a_task_status(
-        &self,
-        task_id: &str,
-        status: &TaskStatus,
-        result: Option<&Value>,
-        error: Option<&str>,
-    ) -> Result<()> {
-        Self::update_a2a_task_status(self, task_id, status, result, error).await
-    }
-
-    async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()> {
-        Self::record_a2a_usage_impl(self, usage).await
-    }
-
-    async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
-        Self::get_a2a_client_current_usage_impl(self, client_id).await
-    }
-
-    async fn get_a2a_usage_stats(
-        &self,
-        client_id: &str,
-        start_date: DateTime<Utc>,
-        end_date: DateTime<Utc>,
-    ) -> Result<crate::database::A2AUsageStats> {
-        Self::get_a2a_usage_stats(self, client_id, start_date, end_date).await
-    }
-
-    async fn get_a2a_client_usage_history(
-        &self,
-        client_id: &str,
-        days: u32,
-    ) -> Result<Vec<(DateTime<Utc>, u32, u32)>> {
-        Self::get_a2a_client_usage_history(self, client_id, days).await
-    }
-
-    async fn get_provider_last_sync(
-        &self,
-        user_id: Uuid,
-        provider: &str,
-    ) -> Result<Option<DateTime<Utc>>> {
-        Self::get_provider_last_sync(self, user_id, provider).await
-    }
-
-    async fn update_provider_last_sync(
-        &self,
-        user_id: Uuid,
-        provider: &str,
-        sync_time: DateTime<Utc>,
-    ) -> Result<()> {
-        Self::update_provider_last_sync(self, user_id, provider, sync_time).await
-    }
-
-    async fn get_top_tools_analysis(
-        &self,
-        user_id: Uuid,
-        start_time: DateTime<Utc>,
-        end_time: DateTime<Utc>,
-    ) -> Result<Vec<crate::dashboard_routes::ToolUsage>> {
-        Self::get_top_tools_analysis(self, user_id, start_time, end_time).await
-    }
-
-    async fn create_admin_token(
-        &self,
-        request: &crate::admin::models::CreateAdminTokenRequest,
-        admin_jwt_secret: &str,
-        jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> Result<crate::admin::models::GeneratedAdminToken> {
-        Self::create_admin_token(self, request, admin_jwt_secret, jwks_manager).await
-    }
-
-    async fn get_admin_token_by_id(
-        &self,
-        token_id: &str,
-    ) -> Result<Option<crate::admin::models::AdminToken>> {
-        Self::get_admin_token_by_id(self, token_id).await
-    }
-
-    async fn get_admin_token_by_prefix(
-        &self,
-        token_prefix: &str,
-    ) -> Result<Option<crate::admin::models::AdminToken>> {
-        Self::get_admin_token_by_prefix(self, token_prefix).await
-    }
-
-    async fn list_admin_tokens(
-        &self,
-        include_inactive: bool,
-    ) -> Result<Vec<crate::admin::models::AdminToken>> {
-        Self::list_admin_tokens(self, include_inactive).await
-    }
-
-    async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
-        Self::deactivate_admin_token_impl(self, token_id).await
-    }
-
-    async fn update_admin_token_last_used(
-        &self,
-        token_id: &str,
-        ip_address: Option<&str>,
-    ) -> Result<()> {
-        Self::update_admin_token_last_used(self, token_id, ip_address).await
-    }
-
-    async fn record_admin_token_usage(
-        &self,
-        usage: &crate::admin::models::AdminTokenUsage,
-    ) -> Result<()> {
-        Self::record_admin_token_usage(self, usage).await
-    }
-
-    async fn get_admin_token_usage_history(
-        &self,
-        token_id: &str,
-        start_date: DateTime<Utc>,
-        end_date: DateTime<Utc>,
-    ) -> Result<Vec<crate::admin::models::AdminTokenUsage>> {
-        Self::get_admin_token_usage_history(self, token_id, start_date, end_date).await
-    }
-
-    async fn record_admin_provisioned_key(
-        &self,
-        admin_token_id: &str,
-        api_key_id: &str,
-        user_email: &str,
-        tier: &str,
-        rate_limit_requests: u32,
-        rate_limit_period: &str,
-    ) -> Result<()> {
-        Self::record_admin_provisioned_key(
-            self,
-            admin_token_id,
-            api_key_id,
-            user_email,
-            tier,
-            rate_limit_requests,
-            rate_limit_period,
-        )
-        .await
-    }
-
-    async fn get_admin_provisioned_keys(
-        &self,
-        admin_token_id: Option<&str>,
-        start_date: DateTime<Utc>,
-        end_date: DateTime<Utc>,
-    ) -> Result<Vec<serde_json::Value>> {
-        Self::get_admin_provisioned_keys(self, admin_token_id, start_date, end_date).await
-    }
-
-    async fn save_rsa_keypair(
-        &self,
-        kid: &str,
-        private_key_pem: &str,
-        public_key_pem: &str,
-        created_at: DateTime<Utc>,
-        is_active: bool,
-        key_size_bits: i32,
-    ) -> Result<()> {
-        Self::save_rsa_keypair(
-            self,
-            kid,
-            private_key_pem,
-            public_key_pem,
-            created_at,
-            is_active,
-            key_size_bits.try_into().unwrap_or(2048),
-        )
-        .await
-    }
-
-    async fn load_rsa_keypairs(
-        &self,
-    ) -> Result<Vec<(String, String, String, DateTime<Utc>, bool)>> {
-        Self::load_rsa_keypairs(self).await
-    }
-
-    async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
-        Self::update_rsa_keypair_active_status_impl(self, kid, is_active).await
-    }
-
-    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
-        Self::create_tenant_impl(self, tenant).await
-    }
-
-    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> Result<crate::models::Tenant> {
-        Self::get_tenant_by_id_impl(self, tenant_id).await
-    }
-
-    async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
-        Self::get_tenant_by_slug_impl(self, slug).await
-    }
-
-    async fn list_tenants_for_user(&self, user_id: Uuid) -> Result<Vec<crate::models::Tenant>> {
-        Self::list_tenants_for_user_impl(self, user_id).await
-    }
-
-    async fn store_tenant_oauth_credentials(
-        &self,
-        credentials: &crate::tenant::TenantOAuthCredentials,
-    ) -> Result<()> {
-        Self::store_tenant_oauth_credentials_impl(self, credentials).await
-    }
-
-    async fn get_tenant_oauth_providers(
-        &self,
-        tenant_id: Uuid,
-    ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
-        Self::get_tenant_oauth_providers_impl(self, tenant_id).await
-    }
-
-    async fn get_tenant_oauth_credentials(
-        &self,
-        tenant_id: Uuid,
-        provider: &str,
-    ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
-        Self::get_tenant_oauth_credentials_impl(self, tenant_id, provider).await
-    }
-
-    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()> {
-        Self::create_oauth_app_impl(self, app).await
-    }
-
-    async fn get_oauth_app_by_client_id(&self, client_id: &str) -> Result<crate::models::OAuthApp> {
-        Self::get_oauth_app_by_client_id_impl(self, client_id).await
-    }
-
-    async fn list_oauth_apps_for_user(
-        &self,
-        user_id: Uuid,
-    ) -> Result<Vec<crate::models::OAuthApp>> {
-        Self::list_oauth_apps_for_user(self, user_id).await
-    }
-
-    async fn store_oauth2_client(
-        &self,
-        client: &crate::oauth2_server::models::OAuth2Client,
-    ) -> Result<()> {
-        Self::store_oauth2_client_impl(self, client).await
-    }
-
-    async fn get_oauth2_client(
-        &self,
-        client_id: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>> {
-        Self::get_oauth2_client_impl(self, client_id).await
-    }
-
-    async fn store_oauth2_auth_code(
-        &self,
-        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
-        Self::store_oauth2_auth_code_impl(self, auth_code).await
-    }
-
-    async fn get_oauth2_auth_code(
-        &self,
-        code: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
-        Self::get_oauth2_auth_code_impl(self, code).await
-    }
-
-    async fn update_oauth2_auth_code(
-        &self,
-        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
-        Self::update_oauth2_auth_code_impl(self, auth_code).await
-    }
-
-    async fn store_oauth2_refresh_token(
-        &self,
-        refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
-    ) -> Result<()> {
-        Self::store_oauth2_refresh_token_impl(self, refresh_token).await
-    }
-
-    async fn get_oauth2_refresh_token(
-        &self,
-        token: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
-        Self::get_oauth2_refresh_token_impl(self, token).await
-    }
-
-    async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()> {
-        Self::revoke_oauth2_refresh_token_impl(self, token).await
-    }
-
-    async fn consume_auth_code(
-        &self,
-        code: &str,
-        client_id: &str,
-        redirect_uri: &str,
-        now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
-        Self::consume_auth_code_impl(self, code, client_id, redirect_uri, now).await
-    }
-
-    async fn consume_refresh_token(
-        &self,
-        token: &str,
-        client_id: &str,
-        now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
-        Self::consume_refresh_token_impl(self, token, client_id, now).await
-    }
-
-    async fn get_refresh_token_by_value(
-        &self,
-        token: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
-        Self::get_refresh_token_by_value(self, token).await
-    }
-
-    async fn store_authorization_code(
-        &self,
-        code: &str,
-        client_id: &str,
-        redirect_uri: &str,
-        scope: &str,
-        user_id: Uuid,
-    ) -> Result<()> {
-        Self::store_authorization_code(self, code, client_id, redirect_uri, scope, user_id).await
-    }
-
-    async fn get_authorization_code(&self, code: &str) -> Result<crate::models::AuthorizationCode> {
-        Self::get_authorization_code_impl(self, code).await
-    }
-
-    async fn delete_authorization_code(&self, code: &str) -> Result<()> {
-        Self::delete_authorization_code_impl(self, code).await
-    }
-
-    async fn store_oauth2_state(
-        &self,
-        state: &crate::oauth2_server::models::OAuth2State,
-    ) -> Result<()> {
-        Self::store_oauth2_state_impl(self, state).await
-    }
-
-    async fn consume_oauth2_state(
-        &self,
-        state_value: &str,
-        client_id: &str,
-        now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2State>> {
-        Self::consume_oauth2_state_impl(self, state_value, client_id, now).await
-    }
-
-    async fn store_key_version(
-        &self,
-        version: &crate::security::key_rotation::KeyVersion,
-    ) -> Result<()> {
-        Self::store_key_version(self, version).await
-    }
-
-    async fn get_key_versions(
-        &self,
-        tenant_id: Option<Uuid>,
-    ) -> Result<Vec<crate::security::key_rotation::KeyVersion>> {
-        Self::get_key_versions(self, tenant_id).await
-    }
-
-    async fn get_current_key_version(
-        &self,
-        tenant_id: Option<Uuid>,
-    ) -> Result<Option<crate::security::key_rotation::KeyVersion>> {
-        Self::get_current_key_version(self, tenant_id).await
-    }
-
-    async fn update_key_version_status(
-        &self,
-        tenant_id: Option<Uuid>,
-        version: u32,
-        is_active: bool,
-    ) -> Result<()> {
-        Self::update_key_version_status(self, tenant_id, version, is_active).await
-    }
-
-    async fn delete_old_key_versions(
-        &self,
-        tenant_id: Option<Uuid>,
-        keep_count: u32,
-    ) -> Result<u64> {
-        Self::delete_old_key_versions(self, tenant_id, keep_count).await
-    }
-
-    async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
-        Self::get_all_tenants_impl(self).await
-    }
-
-    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> Result<()> {
-        Self::store_audit_event_impl(self, event).await
-    }
-
-    async fn get_audit_events(
-        &self,
-        tenant_id: Option<Uuid>,
-        event_type: Option<&str>,
-        limit: Option<u32>,
-    ) -> Result<Vec<crate::security::audit::AuditEvent>> {
-        Self::get_audit_events(self, tenant_id, event_type, limit).await
-    }
-
-    async fn get_user_tenant_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<String>> {
-        Self::get_user_tenant_role_impl(self, user_id, tenant_id).await
-    }
-
-    async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
-        Self::get_or_create_system_secret_impl(self, secret_type).await
-    }
-
-    async fn get_system_secret(&self, secret_type: &str) -> Result<String> {
-        Self::get_system_secret_impl(self, secret_type).await
-    }
-
-    async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()> {
-        Self::update_system_secret_impl(self, secret_type, new_value).await
-    }
-
-    async fn store_oauth_notification(
-        &self,
-        user_id: Uuid,
-        provider: &str,
-        success: bool,
-        message: &str,
-        expires_at: Option<&str>,
-    ) -> Result<String> {
-        Self::store_oauth_notification(self, user_id, provider, success, message, expires_at).await
-    }
-
-    async fn get_unread_oauth_notifications(
-        &self,
-        user_id: Uuid,
-    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
-        Self::get_unread_oauth_notifications(self, user_id).await
-    }
-
-    async fn mark_oauth_notification_read(
-        &self,
-        notification_id: &str,
-        user_id: Uuid,
-    ) -> Result<bool> {
-        Self::mark_oauth_notification_read(self, notification_id, user_id).await
-    }
-
-    async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64> {
-        Self::mark_all_oauth_notifications_read_impl(self, user_id).await
-    }
-
-    async fn get_all_oauth_notifications(
-        &self,
-        user_id: Uuid,
-        limit: Option<i64>,
-    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
-        Self::get_all_oauth_notifications(self, user_id, limit).await
-    }
-
-    async fn save_tenant_fitness_config(
-        &self,
-        tenant_id: &str,
-        configuration_name: &str,
-        config: &crate::config::fitness_config::FitnessConfig,
-    ) -> Result<String> {
-        let manager = self.fitness_configurations();
-        manager
-            .save_tenant_config(tenant_id, configuration_name, config)
-            .await
-    }
-
-    async fn save_user_fitness_config(
-        &self,
-        tenant_id: &str,
-        user_id: &str,
-        configuration_name: &str,
-        config: &crate::config::fitness_config::FitnessConfig,
-    ) -> Result<String> {
-        let manager = self.fitness_configurations();
-        manager
-            .save_user_config(tenant_id, user_id, configuration_name, config)
-            .await
-    }
-
-    async fn get_tenant_fitness_config(
-        &self,
-        tenant_id: &str,
-        configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
-        let manager = self.fitness_configurations();
-        manager
-            .get_tenant_config(tenant_id, configuration_name)
-            .await
-    }
-
-    async fn get_user_fitness_config(
-        &self,
-        tenant_id: &str,
-        user_id: &str,
-        configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
-        let manager = self.fitness_configurations();
-        manager
-            .get_user_config(tenant_id, user_id, configuration_name)
-            .await
-    }
-
-    async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> Result<Vec<String>> {
-        let manager = self.fitness_configurations();
-        manager.list_tenant_configurations(tenant_id).await
-    }
-
-    async fn list_user_fitness_configurations(
-        &self,
-        tenant_id: &str,
-        user_id: &str,
-    ) -> Result<Vec<String>> {
-        let manager = self.fitness_configurations();
-        manager.list_user_configurations(tenant_id, user_id).await
-    }
-
-    async fn delete_fitness_config(
-        &self,
-        tenant_id: &str,
-        user_id: Option<&str>,
-        configuration_name: &str,
-    ) -> Result<bool> {
-        let manager = self.fitness_configurations();
-        manager
-            .delete_config(tenant_id, user_id, configuration_name)
-            .await
-    }
-
-    // OAuth Token Management
-    async fn upsert_user_oauth_token(&self, token: &UserOAuthToken) -> Result<()> {
-        use crate::database::user_oauth_tokens::OAuthTokenData;
-
-        let token_data = OAuthTokenData {
-            id: &token.id,
-            user_id: token.user_id,
-            tenant_id: &token.tenant_id,
-            provider: &token.provider,
-            access_token: &token.access_token,
-            refresh_token: token.refresh_token.as_deref(),
-            token_type: &token.token_type,
-            expires_at: token.expires_at,
-            scope: token.scope.as_deref().unwrap_or(""),
-        };
-
-        Self::upsert_user_oauth_token(self, &token_data).await
-    }
-
-    async fn get_user_oauth_token(
-        &self,
-        user_id: Uuid,
-        tenant_id: &str,
-        provider: &str,
-    ) -> Result<Option<UserOAuthToken>> {
-        Self::get_user_oauth_token(self, user_id, tenant_id, provider).await
-    }
-
-    async fn get_user_oauth_tokens(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>> {
-        Self::get_user_oauth_tokens_impl(self, user_id).await
-    }
-
-    async fn get_tenant_provider_tokens(
-        &self,
-        tenant_id: &str,
-        provider: &str,
-    ) -> Result<Vec<UserOAuthToken>> {
-        Self::get_tenant_provider_tokens(self, tenant_id, provider).await
-    }
-
-    async fn delete_user_oauth_token(
-        &self,
-        user_id: Uuid,
-        tenant_id: &str,
-        provider: &str,
-    ) -> Result<()> {
-        Self::delete_user_oauth_token(self, user_id, tenant_id, provider).await
-    }
-
-    async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()> {
-        Self::delete_user_oauth_tokens_impl(self, user_id).await
-    }
-
-    async fn refresh_user_oauth_token(
-        &self,
-        user_id: Uuid,
-        tenant_id: &str,
-        provider: &str,
-        access_token: &str,
-        refresh_token: Option<&str>,
-        expires_at: Option<DateTime<Utc>>,
-    ) -> Result<()> {
-        Self::refresh_user_oauth_token(
-            self,
-            user_id,
-            tenant_id,
-            provider,
-            access_token,
-            refresh_token,
-            expires_at,
-        )
-        .await
-    }
-
-    async fn store_user_oauth_app(
-        &self,
-        user_id: Uuid,
-        provider: &str,
-        client_id: &str,
-        client_secret: &str,
-        redirect_uri: &str,
-    ) -> Result<()> {
-        Self::store_user_oauth_app(
-            self,
-            user_id,
-            provider,
-            client_id,
-            client_secret,
-            redirect_uri,
-        )
-        .await
-    }
-
-    async fn get_user_oauth_app(
-        &self,
-        user_id: Uuid,
-        provider: &str,
-    ) -> Result<Option<UserOAuthApp>> {
-        Self::get_user_oauth_app(self, user_id, provider).await
-    }
-
-    async fn list_user_oauth_apps(&self, user_id: Uuid) -> Result<Vec<UserOAuthApp>> {
-        Self::list_user_oauth_apps_impl(self, user_id).await
-    }
-
-    async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> Result<()> {
-        Self::remove_user_oauth_app_impl(self, user_id, provider).await
-    }
-}
-
 /// Generate a secure encryption key (32 bytes for AES-256)
 #[must_use]
 pub fn generate_encryption_key() -> [u8; 32] {

@@ -17,7 +17,7 @@ use uuid::Uuid;
 // Import necessary modules from the main crate
 use pierre_mcp_server::config::environment::*;
 use pierre_mcp_server::constants::oauth_providers;
-use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
+use pierre_mcp_server::database_plugins::factory::Database;
 use pierre_mcp_server::intelligence::insights::{Insight, InsightType};
 use pierre_mcp_server::intelligence::{
     ActivityIntelligence, ContextualFactors, ContextualWeeklyLoad, PerformanceMetrics, TimeOfDay,

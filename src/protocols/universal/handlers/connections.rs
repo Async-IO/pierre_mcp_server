@@ -5,7 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::constants::oauth_providers;
-use crate::database_plugins::DatabaseProvider;
+use crate::database::repositories::UserRepository;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
 use crate::tenant::TenantContext;
@@ -308,7 +308,13 @@ pub fn handle_connect_provider(
             )));
         }
 
-        let user = match executor.resources.database.get_user(user_uuid).await {
+        let user = match executor
+            .resources
+            .database
+            .users()
+            .get_by_id(user_uuid)
+            .await
+        {
             Ok(Some(user)) => user,
             Ok(None) => return Ok(connection_error(format!("User {user_uuid} not found"))),
             Err(e) => return Ok(connection_error(format!("Database error: {e}"))),

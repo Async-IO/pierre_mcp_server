@@ -13,7 +13,6 @@
 //! Implements the core A2A (Agent-to-Agent) protocol for Pierre,
 //! providing JSON-RPC 2.0 based communication between AI agents.
 
-use crate::database_plugins::DatabaseProvider;
 use crate::types::json_schemas;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

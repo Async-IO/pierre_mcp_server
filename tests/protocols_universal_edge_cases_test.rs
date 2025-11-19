@@ -15,7 +15,6 @@ use anyhow::Result;
 use pierre_mcp_server::{
     config::environment::*,
     constants::oauth_providers,
-    database_plugins::DatabaseProvider,
     intelligence::{
         ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
         TrendIndicators,

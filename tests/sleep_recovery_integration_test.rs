@@ -14,7 +14,6 @@
 use anyhow::Result;
 use pierre_mcp_server::{
     config::environment::*,
-    database_plugins::DatabaseProvider,
     protocols::universal::{UniversalRequest, UniversalToolExecutor},
 };
 use serde_json::json;

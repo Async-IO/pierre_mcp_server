@@ -27,7 +27,7 @@ fn test_logging_config_from_env() {
     assert!(matches!(config.format, LogFormat::Json));
     assert_eq!(config.environment, "production");
     assert_eq!(config.service_name, "test-service");
-    assert!(config.include_location); // Should be true for production
+    assert!(config.output.location); // Should be true for production
 
     // Clean up
     env::remove_var("RUST_LOG");
@@ -44,5 +44,5 @@ fn test_default_logging_config() {
     assert!(matches!(config.format, LogFormat::Pretty));
     assert_eq!(config.environment, "development");
     assert_eq!(config.service_name, "pierre-mcp-server");
-    assert!(!config.include_location); // Should be false for development
+    assert!(!config.output.location); // Should be false for development
 }

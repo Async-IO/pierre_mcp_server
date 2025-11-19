@@ -8,7 +8,7 @@
 
 use chrono::Utc;
 use pierre_mcp_server::constants::oauth_providers;
-use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
+use pierre_mcp_server::database_plugins::factory::Database;
 use pierre_mcp_server::models::{User, UserOAuthToken};
 use serde_json::json;
 use uuid::Uuid;

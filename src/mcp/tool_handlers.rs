@@ -21,7 +21,7 @@ use crate::constants::{
         SET_GOAL, TRACK_PROGRESS,
     },
 };
-use crate::database_plugins::DatabaseProvider;
+use crate::database::repositories::UserRepository;
 use crate::tenant::TenantContext;
 use crate::types::json_schemas;
 use serde_json::{json, Value};
@@ -611,13 +611,13 @@ impl ToolHandlers {
             ctx.resources
                 .database
                 .get_all_oauth_notifications(user_id, None)
+                .await
         } else {
             ctx.resources
                 .database
                 .get_unread_oauth_notifications(user_id)
-        }
-        .await
-        {
+                .await
+        } {
             Ok(mut notifications) => {
                 tracing::debug!(
                     "Retrieved {} notifications from database for user {}",
@@ -837,7 +837,7 @@ impl ToolHandlers {
         resources: Arc<crate::mcp::resources::ServerResources>,
     ) -> McpResponse {
         // Get user's tenant_id for tenant isolation
-        let tenant_id = match resources.database.get_user(*user_id).await {
+        let tenant_id = match resources.database.users().get_by_id(*user_id).await {
             Ok(Some(user)) => match user.tenant_id {
                 Some(tid) => tid,
                 None => {

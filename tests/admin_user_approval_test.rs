@@ -12,7 +12,7 @@ mod common;
 use anyhow::Result;
 use pierre_mcp_server::{
     admin::models::CreateAdminTokenRequest,
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::factory::Database,
     models::{User, UserStatus, UserTier},
 };
 use uuid::Uuid;

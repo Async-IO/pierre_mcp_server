@@ -5,7 +5,6 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::configuration::{catalog::CatalogBuilder, profiles::ProfileTemplates};
-use crate::database_plugins::DatabaseProvider;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
 use crate::utils::uuid::parse_user_id_for_protocol;

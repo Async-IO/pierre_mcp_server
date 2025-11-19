@@ -19,7 +19,7 @@ use std::{num::NonZeroUsize, sync::Arc};
 use tokio::sync::Mutex;
 use tracing::{debug, info};
 
-use crate::database_plugins::DatabaseProvider;
+use crate::database::repositories::UserRepository;
 use crate::mcp::resources::ServerResources;
 use crate::mcp::tenant_isolation::validate_jwt_token_for_mcp;
 
@@ -250,7 +250,13 @@ impl McpRoutes {
         };
 
         // Get user details
-        let Ok(Some(user)) = state.resources.database.get_user(jwt_result.user_id).await else {
+        let Ok(Some(user)) = state
+            .resources
+            .database
+            .users()
+            .get_by_id(jwt_result.user_id)
+            .await
+        else {
             return;
         };
 

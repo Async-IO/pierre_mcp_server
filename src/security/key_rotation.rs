@@ -12,7 +12,6 @@
 //! - Emergency key rotation procedures
 //! - Key lifecycle management
 
-use crate::database_plugins::DatabaseProvider;
 use anyhow::Result;
 use chrono::Timelike;
 use serde::{Deserialize, Serialize};
@@ -458,7 +457,7 @@ impl KeyRotationManager {
     fn store_key_version(&self, version: &KeyVersion) -> Result<()> {
         // Use async runtime to call the database method
         let rt = tokio::runtime::Handle::current();
-        rt.block_on(self.database.store_key_version(version))
+        rt.block_on(self.database.store_key_version(version.tenant_id, version))
     }
 
     /// Get rotation status for a tenant

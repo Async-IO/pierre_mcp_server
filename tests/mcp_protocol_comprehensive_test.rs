@@ -15,8 +15,7 @@ mod common;
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    config::environment::ServerConfig, database_plugins::DatabaseProvider,
-    mcp::multitenant::MultiTenantMcpServer, models::User,
+    config::environment::ServerConfig, mcp::multitenant::MultiTenantMcpServer, models::User,
 };
 use serde_json::{json, Value};
 use std::sync::Arc;

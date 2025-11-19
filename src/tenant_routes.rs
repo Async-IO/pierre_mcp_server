@@ -11,7 +11,7 @@
 use crate::{
     auth::{AuthManager, AuthResult},
     constants::oauth_providers,
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::factory::Database,
     errors::AppError,
     tenant::TenantOAuthCredentials,
 };
@@ -578,14 +578,22 @@ pub async fn oauth_authorize(
 
     // Store auth code in database with expiration (10 minutes)
     // Use the OAuth app owner as the user_id (validated through JWT authentication)
+    let auth_code_model = crate::oauth2_server::models::OAuth2AuthCode {
+        code: auth_code.clone(),
+        client_id: auth_params.client_id.clone(),
+        user_id: oauth_app.owner_user_id,
+        tenant_id: String::new(), // Not tenant-scoped in this context
+        redirect_uri: auth_params.redirect_uri.clone(),
+        scope: Some(auth_params.scope.clone()),
+        expires_at: chrono::Utc::now() + chrono::Duration::minutes(10),
+        used: false,
+        state: auth_params.state.clone(),
+        code_challenge: None,
+        code_challenge_method: None,
+    };
+
     database
-        .store_authorization_code(
-            &auth_code,
-            &auth_params.client_id,
-            &auth_params.redirect_uri,
-            &auth_params.scope,
-            oauth_app.owner_user_id, // Use the app owner's user_id
-        )
+        .store_authorization_code(&auth_code_model)
         .await
         .map_err(|e| AppError::database(e.to_string()))?;
 
@@ -650,25 +658,35 @@ pub async fn oauth_token(
                 .code
                 .ok_or_else(|| AppError::invalid_input("Missing authorization code".to_owned()))?;
 
-            database.get_authorization_code(&code).await.map_err(|e| {
-                tracing::warn!(
-                    code = %code,
-                    error = %e,
-                    "Failed to retrieve authorization code from database"
-                );
-                AppError::invalid_input("Invalid or expired authorization code".to_owned())
-            })?;
+            let redirect_uri = token_request.redirect_uri.as_deref().unwrap_or("");
+
+            database
+                .get_authorization_code(&code, &token_request.client_id, redirect_uri)
+                .await
+                .map_err(|e| {
+                    tracing::warn!(
+                        code = %code,
+                        error = %e,
+                        "Failed to retrieve authorization code from database"
+                    );
+                    AppError::invalid_input("Invalid or expired authorization code".to_owned())
+                })?;
 
             // Generate access token (JWT)
-            let access_token = auth_manager.generate_oauth_access_token(
-                &jwks_manager,
-                &oauth_app.owner_user_id,
-                &oauth_app.scopes,
-                None, // tenant_id
-            )?;
+            let access_token = auth_manager
+                .generate_oauth_access_token(
+                    &jwks_manager,
+                    &oauth_app.owner_user_id,
+                    &oauth_app.scopes,
+                    None, // tenant_id
+                )
+                .map_err(|e| AppError::database(e.to_string()))?;
 
             // Clean up authorization code
-            if let Err(e) = database.delete_authorization_code(&code).await {
+            if let Err(e) = database
+                .delete_authorization_code(&code, &token_request.client_id, redirect_uri)
+                .await
+            {
                 tracing::warn!(
                     code = %code,
                     client_id = %oauth_app.client_id,
@@ -686,12 +704,14 @@ pub async fn oauth_token(
         }
         "client_credentials" => {
             // Direct client credentials grant (for A2A)
-            let access_token = auth_manager.generate_client_credentials_token(
-                &jwks_manager,
-                &token_request.client_id,
-                &oauth_app.scopes,
-                None, // tenant_id
-            )?;
+            let access_token = auth_manager
+                .generate_client_credentials_token(
+                    &jwks_manager,
+                    &token_request.client_id,
+                    &oauth_app.scopes,
+                    None, // tenant_id
+                )
+                .map_err(|e| AppError::database(e.to_string()))?;
 
             Ok(OAuthTokenResponse {
                 access_token,

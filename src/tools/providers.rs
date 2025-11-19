@@ -5,7 +5,6 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::database_plugins::factory::Database;
-use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
 use crate::providers::CoreFitnessProvider;
 use std::collections::HashMap;

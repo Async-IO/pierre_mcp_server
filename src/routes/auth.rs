@@ -13,7 +13,7 @@
 use crate::{
     constants::{error_messages, limits},
     context::{AuthContext, ConfigContext, DataContext, NotificationContext},
-    database_plugins::DatabaseProvider,
+    database::repositories::UserRepository,
     errors::{AppError, AppResult},
     mcp::resources::ServerResources,
     models::User,
@@ -185,7 +185,12 @@ impl AuthService {
         let user = User::new(request.email.clone(), password_hash, request.display_name); // Safe: String ownership needed for user model
 
         // Save user to database
-        let user_id = self.data_context.database().create_user(&user).await?;
+        let user_id = self
+            .data_context
+            .database()
+            .create_user(&user)
+            .await
+            .map_err(|e| AppError::database(e.to_string()))?;
 
         tracing::info!(
             "User registered successfully: {} ({})",
@@ -252,7 +257,8 @@ impl AuthService {
         let jwt_token = self
             .auth_context
             .auth_manager()
-            .generate_token(&user, self.auth_context.jwks_manager())?;
+            .generate_token(&user, self.auth_context.jwks_manager())
+            .map_err(|e| AppError::database(e.to_string()))?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS); // Default 24h expiry
 
@@ -307,7 +313,8 @@ impl AuthService {
         let new_jwt_token = self
             .auth_context
             .auth_manager()
-            .generate_token(&user, self.auth_context.jwks_manager())?;
+            .generate_token(&user, self.auth_context.jwks_manager())
+            .map_err(|e| AppError::database(e.to_string()))?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS);
 
@@ -480,14 +487,19 @@ impl OAuthService {
         provider: &str,
     ) -> AppResult<(crate::models::User, String)> {
         let database = self.data.database();
-        let user = database.get_user(user_id).await?.ok_or_else(|| {
-            tracing::error!(
-                "OAuth callback failed: User not found - user_id: {}, provider: {}",
-                user_id,
-                provider
-            );
-            AppError::not_found("User")
-        })?;
+        let user = database
+            .users()
+            .get_by_id(user_id)
+            .await
+            .map_err(|e| AppError::from(anyhow::Error::from(e)))?
+            .ok_or_else(|| {
+                tracing::error!(
+                    "OAuth callback failed: User not found - user_id: {}, provider: {}",
+                    user_id,
+                    provider
+                );
+                AppError::not_found("User")
+            })?;
 
         let tenant_id =
             user.tenant_id
@@ -895,7 +907,12 @@ impl OAuthService {
         tracing::debug!("Getting OAuth connection status for user {}", user_id);
 
         // Get all OAuth tokens for the user from database
-        let tokens = self.data.database().get_user_oauth_tokens(user_id).await?;
+        let tokens = self
+            .data
+            .database()
+            .get_user_oauth_tokens(user_id)
+            .await
+            .map_err(|e| AppError::database(e.to_string()))?;
 
         // Create a set of connected providers
         let mut providers_seen = std::collections::HashSet::new();
@@ -1214,7 +1231,13 @@ impl AuthRoutes {
         })?;
 
         // Retrieve user from database
-        let user = match resources.database.get_user(user_id).await {
+        let user = match resources
+            .database
+            .users()
+            .get_by_id(user_id)
+            .await
+            .map_err(|e| AppError::from(anyhow::Error::from(e)))
+        {
             Ok(Some(user)) => user,
             Ok(None) => {
                 tracing::error!("User {} not found in database", user_id);

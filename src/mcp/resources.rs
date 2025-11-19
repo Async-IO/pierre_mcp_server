@@ -18,7 +18,7 @@ use crate::a2a::system_user::A2ASystemUserService;
 use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::cache::factory::Cache;
-use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::database_plugins::factory::Database;
 use crate::errors::AppError;
 use crate::intelligence::ActivityIntelligence;
 use crate::mcp::schema::OAuthCompletedNotification;

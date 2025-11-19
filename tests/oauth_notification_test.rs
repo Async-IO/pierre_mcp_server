@@ -9,9 +9,7 @@
 
 use anyhow::Result;
 use chrono::Utc;
-use pierre_mcp_server::{
-    database::oauth_notifications::OAuthNotification, database_plugins::DatabaseProvider,
-};
+use pierre_mcp_server::database::oauth_notifications::OAuthNotification;
 use std::sync::Arc;
 use uuid::Uuid;
 

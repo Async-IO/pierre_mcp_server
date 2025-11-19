@@ -7,7 +7,6 @@
 use super::models::{
     ClientRegistrationRequest, ClientRegistrationResponse, OAuth2Client, OAuth2Error,
 };
-use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
 use anyhow::Result;
 use argon2::{

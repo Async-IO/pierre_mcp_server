@@ -16,7 +16,7 @@ use chrono::Utc;
 use pierre_mcp_server::{
     api_keys::{ApiKeyManager, ApiKeyTier, CreateApiKeyRequest},
     auth::AuthManager,
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::factory::Database,
     mcp::multitenant::MultiTenantMcpServer,
     models::User,
 };

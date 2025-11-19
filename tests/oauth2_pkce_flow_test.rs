@@ -13,7 +13,7 @@ use base64::{engine::general_purpose, Engine as _};
 use pierre_mcp_server::{
     auth::AuthManager,
     database::generate_encryption_key,
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::factory::Database,
     models::User,
     oauth2_server::{
         client_registration::ClientRegistrationManager,

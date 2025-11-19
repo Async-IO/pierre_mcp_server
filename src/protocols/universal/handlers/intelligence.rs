@@ -3610,7 +3610,7 @@ fn predict_race_performance(
 /// - Recency of best performance (< 30 days = high confidence)
 /// - Training volume (high CTL = more confidence)
 /// - Number of recent races and consistency
-#[allow(clippy::cast_precision_loss, clippy::bool_to_int_with_if)] // Multi-level threshold scoring, not simple boolean conversion
+#[allow(clippy::cast_precision_loss)] // Safe: converting usize length to score values
 fn calculate_prediction_confidence(
     activities: &[&crate::models::Activity],
     best_activity_date: &chrono::DateTime<chrono::Utc>,
@@ -3620,6 +3620,7 @@ fn calculate_prediction_confidence(
 
     // Factor 1: Recency (< 30 days = high confidence)
     let days_since_best = (Utc::now() - *best_activity_date).num_days();
+    #[allow(clippy::bool_to_int_with_if)]
     let recency_score = if days_since_best < 30 {
         2 // Recent performance
     } else if days_since_best < 90 {
@@ -3631,6 +3632,7 @@ fn calculate_prediction_confidence(
     // Factor 2: Training volume (CTL)
     let owned_activities: Vec<_> = activities.iter().copied().cloned().collect();
     let calculator = TrainingLoadCalculator::new();
+    #[allow(clippy::bool_to_int_with_if)]
     let ctl_score = if let Ok(training_load) =
         calculator.calculate_training_load(&owned_activities, None, None, None, None, None)
     {
@@ -3646,6 +3648,7 @@ fn calculate_prediction_confidence(
     };
 
     // Factor 3: Number of activities
+    #[allow(clippy::bool_to_int_with_if)]
     let volume_score = if activities.len() >= 20 {
         2
     } else if activities.len() >= 10 {

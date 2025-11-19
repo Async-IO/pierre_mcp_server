@@ -6,7 +6,6 @@
 
 use crate::auth::AuthResult;
 use crate::config::fitness_config::FitnessConfig;
-use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

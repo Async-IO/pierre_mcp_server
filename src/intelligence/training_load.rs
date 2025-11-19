@@ -306,19 +306,26 @@ impl TrainingLoadCalculator {
 
     /// Calculate recommended recovery days based on TSB
     #[must_use]
-    #[allow(clippy::bool_to_int_with_if)] // Multi-level threshold, not simple boolean conversion
     pub fn recommend_recovery_days(tsb: f64) -> u32 {
-        if tsb < -20.0 {
-            5 // Very deep fatigue
-        } else if tsb < -15.0 {
-            3 // Deep fatigue
-        } else if tsb < -10.0 {
-            2 // Moderate fatigue
-        } else if tsb < 0.0 {
-            1 // Light fatigue
-        } else {
-            0 // Fresh or recovering
+        // Multi-level threshold function for recovery recommendations
+        const VERY_DEEP_FATIGUE: f64 = -20.0;
+        const DEEP_FATIGUE: f64 = -15.0;
+        const MODERATE_FATIGUE: f64 = -10.0;
+        const LIGHT_FATIGUE: f64 = 0.0;
+
+        if tsb < VERY_DEEP_FATIGUE {
+            return 5;
         }
+        if tsb < DEEP_FATIGUE {
+            return 3;
+        }
+        if tsb < MODERATE_FATIGUE {
+            return 2;
+        }
+        if tsb < LIGHT_FATIGUE {
+            return 1;
+        }
+        0
     }
 }
 

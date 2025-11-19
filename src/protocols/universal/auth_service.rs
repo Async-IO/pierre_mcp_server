@@ -5,7 +5,6 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::constants::oauth_providers;
-use crate::database_plugins::DatabaseProvider;
 use crate::mcp::resources::ServerResources;
 use crate::protocols::universal::UniversalResponse;
 use crate::providers::{CoreFitnessProvider, OAuth2Credentials};

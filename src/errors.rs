@@ -425,6 +425,13 @@ impl From<serde_json::Error> for AppError {
     }
 }
 
+/// Conversion from `DatabaseError` to `AppError`
+impl From<crate::database::DatabaseError> for AppError {
+    fn from(error: crate::database::DatabaseError) -> Self {
+        Self::database(format!("Database error: {error}"))
+    }
+}
+
 /// Conversion from `uuid::Error` to `AppError`
 impl From<uuid::Error> for AppError {
     fn from(error: uuid::Error) -> Self {

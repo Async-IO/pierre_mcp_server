@@ -19,7 +19,7 @@
 use anyhow::Result;
 use pierre_mcp_server::{
     config::environment::ServerConfig,
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::factory::Database,
     intelligence::ActivityIntelligence,
     models::{OAuthApp, Tenant, User, UserTier},
     protocols::universal::{UniversalRequest, UniversalToolExecutor},

@@ -29,7 +29,8 @@ use crate::constants::{
         GET_ATHLETE, GET_STATS, PREDICT_PERFORMANCE, SET_GOAL, SUGGEST_GOALS, TRACK_PROGRESS,
     },
 };
-use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::database::repositories::ProfileRepository;
+use crate::database_plugins::factory::Database;
 use crate::providers::ProviderRegistry;
 use crate::routes::OAuthRoutes;
 use crate::security::headers::SecurityConfig;
@@ -299,7 +300,7 @@ impl MultiTenantMcpServer {
     ) -> Result<Value, McpResponse> {
         let goal_data = args.clone();
 
-        match database.create_goal(user_id, goal_data).await {
+        match database.profiles().create_goal(user_id, goal_data).await {
             Ok(goal_id) => {
                 let response = serde_json::json!({
                     "goal_created": {
@@ -332,7 +333,7 @@ impl MultiTenantMcpServer {
     ) -> Result<Value, McpResponse> {
         let goal_id = args[GOAL_ID].as_str().unwrap_or("");
 
-        match database.get_user_goals(user_id).await {
+        match database.profiles().list_goals(user_id).await {
             Ok(goals) => goals.iter().find(|g| g["id"] == goal_id).map_or_else(
                 || {
                     Err(McpResponse {

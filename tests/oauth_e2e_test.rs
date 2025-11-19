@@ -156,7 +156,7 @@ use pierre_mcp_server::{
         SecurityHeadersConfig, ServerConfig, StravaApiConfig, TlsConfig, WeatherServiceConfig,
     },
     database::generate_encryption_key,
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::factory::Database,
     mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
     models::{Tenant, User, UserStatus},
     routes::auth::{AuthService, OAuthService},
