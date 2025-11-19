@@ -32,8 +32,8 @@ pierre_mcp_server/
 │   ├── oauth2_client/          # oauth2 client (for providers)
 │   ├── providers/              # fitness provider integrations
 │   ├── intelligence/           # sports science algorithms
-│   ├── database/               # legacy database operations
-│   ├── database_plugins/       # pluggable database backends
+│   ├── database/               # database repositories (13 focused traits)
+│   ├── database_plugins/       # pluggable database backends (SQLite/PostgreSQL)
 │   ├── middleware/             # http middleware (auth, tracing, etc)
 │   ├── routes/                 # http route handlers
 │   └── [30+ other modules]
@@ -302,7 +302,7 @@ use pierre_mcp_server::{
     auth::AuthManager,
     cache::factory::Cache,
     config::environment::ServerConfig,
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::factory::Database,  // Repository pattern: Database provides accessor methods
     logging,
     mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
 };
