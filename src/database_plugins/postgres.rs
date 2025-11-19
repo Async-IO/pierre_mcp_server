@@ -42,11 +42,646 @@ impl PostgresDatabase {
     /// - Database connection is lost during migration
     /// - Insufficient database permissions
     pub async fn migrate(&self) -> anyhow::Result<()> {
-        // PostgreSQL migrations are handled externally via database migration tools
-        // (e.g., sqlx-cli, flyway, or liquibase) rather than in application code.
-        // This is the recommended approach for PostgreSQL deployments to ensure
-        // proper version control and rollback capabilities.
-        tokio::task::yield_now().await;
+        self.create_users_table().await?;
+        self.create_user_profiles_table().await?;
+        self.create_goals_table().await?;
+        self.create_insights_table().await?;
+        self.create_api_keys_tables().await?;
+        self.create_a2a_tables().await?;
+        self.create_admin_tables().await?;
+        self.create_jwt_usage_table().await?;
+        self.create_oauth_notifications_table().await?;
+        self.create_rsa_keypairs_table().await?;
+        self.create_tenant_tables().await?;
+        self.create_indexes().await?;
+        Ok(())
+    }
+
+    async fn create_users_table(&self) -> anyhow::Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS users (
+                id UUID PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                display_name TEXT,
+                password_hash TEXT NOT NULL,
+                tier TEXT NOT NULL DEFAULT 'starter' CHECK (tier IN ('starter', 'professional', 'enterprise')),
+                tenant_id TEXT,
+                strava_access_token TEXT,
+                strava_refresh_token TEXT,
+                strava_expires_at TIMESTAMPTZ,
+                strava_scope TEXT,
+                strava_nonce TEXT,
+                fitbit_access_token TEXT,
+                fitbit_refresh_token TEXT,
+                fitbit_expires_at TIMESTAMPTZ,
+                fitbit_scope TEXT,
+                fitbit_nonce TEXT,
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                user_status TEXT NOT NULL DEFAULT 'pending' CHECK (user_status IN ('pending', 'active', 'suspended')),
+                is_admin BOOLEAN NOT NULL DEFAULT false,
+                approved_by UUID REFERENCES users(id),
+                approved_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                last_active TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_user_profiles_table(&self) -> anyhow::Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                profile_data JSONB NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_goals_table(&self) -> anyhow::Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS goals (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                goal_data JSONB NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_insights_table(&self) -> anyhow::Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS insights (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                insight_type TEXT NOT NULL,
+                content JSONB NOT NULL,
+                metadata JSONB,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_api_keys_tables(&self) -> anyhow::Result<()> {
+        // Create api_keys table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id TEXT PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                key_prefix TEXT NOT NULL,
+                key_hash TEXT NOT NULL,
+                description TEXT,
+                tier TEXT NOT NULL CHECK (tier IN ('trial', 'starter', 'professional', 'enterprise')),
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                rate_limit_requests INTEGER NOT NULL,
+                rate_limit_window_seconds INTEGER NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMPTZ,
+                last_used_at TIMESTAMPTZ,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create api_key_usage table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS api_key_usage (
+                id SERIAL PRIMARY KEY,
+                api_key_id TEXT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
+                timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                endpoint TEXT NOT NULL,
+                response_time_ms INTEGER,
+                status_code SMALLINT NOT NULL,
+                method TEXT,
+                request_size_bytes INTEGER,
+                response_size_bytes INTEGER,
+                ip_address INET,
+                user_agent TEXT
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_a2a_tables(&self) -> anyhow::Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS a2a_clients (
+                client_id TEXT PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                description TEXT,
+                client_secret_hash TEXT NOT NULL,
+                api_key_hash TEXT NOT NULL,
+                capabilities TEXT[] NOT NULL DEFAULT '{}',
+                redirect_uris TEXT[] NOT NULL DEFAULT '{}',
+                contact_email TEXT,
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                rate_limit_per_minute INTEGER NOT NULL DEFAULT 100,
+                rate_limit_per_day INTEGER DEFAULT 10000,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS a2a_sessions (
+                session_token TEXT PRIMARY KEY,
+                client_id TEXT NOT NULL REFERENCES a2a_clients(client_id) ON DELETE CASCADE,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                granted_scopes TEXT[] NOT NULL DEFAULT '{}',
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMPTZ NOT NULL,
+                last_active_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS a2a_tasks (
+                task_id TEXT PRIMARY KEY,
+                session_token TEXT NOT NULL REFERENCES a2a_sessions(session_token) ON DELETE CASCADE,
+                task_type TEXT NOT NULL,
+                parameters JSONB NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                result JSONB,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS a2a_usage (
+                id SERIAL PRIMARY KEY,
+                client_id TEXT NOT NULL REFERENCES a2a_clients(client_id) ON DELETE CASCADE,
+                session_token TEXT REFERENCES a2a_sessions(session_token) ON DELETE SET NULL,
+                timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                endpoint TEXT NOT NULL,
+                response_time_ms INTEGER,
+                status_code SMALLINT NOT NULL,
+                method TEXT,
+                request_size_bytes INTEGER,
+                response_size_bytes INTEGER,
+                ip_address INET,
+                user_agent TEXT,
+                protocol_version TEXT NOT NULL DEFAULT 'v1',
+                client_capabilities TEXT[] DEFAULT '{}',
+                granted_scopes TEXT[] DEFAULT '{}'
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_admin_tables(&self) -> anyhow::Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS admin_tokens (
+                id TEXT PRIMARY KEY,
+                service_name TEXT NOT NULL,
+                service_description TEXT,
+                token_hash TEXT NOT NULL,
+                token_prefix TEXT NOT NULL,
+                jwt_secret_hash TEXT NOT NULL,
+                permissions TEXT NOT NULL DEFAULT '[]',
+                is_super_admin BOOLEAN NOT NULL DEFAULT false,
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMPTZ,
+                last_used_at TIMESTAMPTZ,
+                last_used_ip INET,
+                usage_count BIGINT NOT NULL DEFAULT 0
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS admin_token_usage (
+                id SERIAL PRIMARY KEY,
+                admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
+                timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                action TEXT NOT NULL,
+                target_resource TEXT,
+                ip_address INET,
+                user_agent TEXT,
+                request_size_bytes INTEGER,
+                success BOOLEAN NOT NULL,
+                method TEXT,
+                response_time_ms INTEGER
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS admin_provisioned_keys (
+                id SERIAL PRIMARY KEY,
+                admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
+                api_key_id TEXT NOT NULL,
+                user_email TEXT NOT NULL,
+                requested_tier TEXT NOT NULL,
+                provisioned_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                provisioned_by_service TEXT NOT NULL,
+                rate_limit_requests INTEGER NOT NULL,
+                rate_limit_period TEXT NOT NULL,
+                key_status TEXT NOT NULL DEFAULT 'active',
+                revoked_at TIMESTAMPTZ,
+                revoked_reason TEXT
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_jwt_usage_table(&self) -> anyhow::Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS jwt_usage (
+                id SERIAL PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                endpoint TEXT NOT NULL,
+                response_time_ms INTEGER,
+                status_code INTEGER NOT NULL,
+                method TEXT,
+                request_size_bytes INTEGER,
+                response_size_bytes INTEGER,
+                ip_address INET,
+                user_agent TEXT
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Create OAuth notifications table for MCP resource delivery
+    async fn create_oauth_notifications_table(&self) -> anyhow::Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS oauth_notifications (
+                id TEXT PRIMARY KEY,
+                user_id UUID NOT NULL,
+                provider TEXT NOT NULL,
+                success BOOLEAN NOT NULL DEFAULT true,
+                message TEXT NOT NULL,
+                expires_at TEXT,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                read_at TIMESTAMPTZ,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create indices for efficient queries
+        sqlx::query(
+            r"
+            CREATE INDEX IF NOT EXISTS idx_oauth_notifications_user_id
+            ON oauth_notifications (user_id)
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r"
+            CREATE INDEX IF NOT EXISTS idx_oauth_notifications_user_unread
+            ON oauth_notifications (user_id, read_at)
+            WHERE read_at IS NULL
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Create RSA keypairs table for JWT signing key persistence
+    async fn create_rsa_keypairs_table(&self) -> anyhow::Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS rsa_keypairs (
+                kid TEXT PRIMARY KEY,
+                private_key_pem TEXT NOT NULL,
+                public_key_pem TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT false,
+                key_size_bits INTEGER NOT NULL
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create index for active key lookup
+        sqlx::query(
+            r"
+            CREATE INDEX IF NOT EXISTS idx_rsa_keypairs_active
+            ON rsa_keypairs (is_active)
+            WHERE is_active = true
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Creates complete multi-tenant database schema with all required tables
+    async fn create_tenant_tables(&self) -> anyhow::Result<()> {
+        // Create tenants table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS tenants (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(255) NOT NULL,
+                slug VARCHAR(100) UNIQUE NOT NULL,
+                domain VARCHAR(255) UNIQUE,
+                subscription_tier VARCHAR(50) DEFAULT 'starter' CHECK (subscription_tier IN ('starter', 'professional', 'enterprise')),
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            "
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create tenant_oauth_credentials table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS tenant_oauth_credentials (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                provider VARCHAR(50) NOT NULL,
+                client_id VARCHAR(255) NOT NULL,
+                client_secret_encrypted TEXT NOT NULL,
+                redirect_uri VARCHAR(500) NOT NULL,
+                scopes TEXT[] DEFAULT '{}',
+                rate_limit_per_day INTEGER DEFAULT 15000,
+                is_active BOOLEAN DEFAULT true,
+                configured_by UUID REFERENCES users(id),
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, provider)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create tenant_users table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS tenant_users (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                role VARCHAR(50) DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'billing', 'member')),
+                joined_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, user_id)
+            )
+            "
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create tenant_provider_usage table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS tenant_provider_usage (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                provider VARCHAR(50) NOT NULL,
+                usage_date DATE NOT NULL,
+                request_count INTEGER DEFAULT 0,
+                error_count INTEGER DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, provider, usage_date)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create OAuth Apps table for app registration
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS oauth_apps (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                client_id VARCHAR(255) UNIQUE NOT NULL,
+                client_secret VARCHAR(255) NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                redirect_uris TEXT[] NOT NULL DEFAULT '{}',
+                scopes TEXT[] NOT NULL DEFAULT '{}',
+                app_type VARCHAR(50) DEFAULT 'web' CHECK (app_type IN ('desktop', 'web', 'mobile', 'server')),
+                owner_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create Authorization Code table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS authorization_codes (
+                code VARCHAR(255) PRIMARY KEY,
+                client_id VARCHAR(255) NOT NULL REFERENCES oauth_apps(client_id) ON DELETE CASCADE,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                redirect_uri VARCHAR(500) NOT NULL,
+                scope VARCHAR(500) NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMPTZ NOT NULL
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create user_oauth_tokens table for per-user, per-tenant OAuth tokens
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_oauth_tokens (
+                id VARCHAR(255) PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                tenant_id VARCHAR(255) NOT NULL,
+                provider VARCHAR(50) NOT NULL,
+                access_token TEXT NOT NULL,
+                refresh_token TEXT,
+                token_type VARCHAR(50) DEFAULT 'bearer',
+                expires_at TIMESTAMPTZ,
+                scope TEXT,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, tenant_id, provider)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn create_indexes(&self) -> anyhow::Result<()> {
+        // User and profile indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+            .execute(&self.pool)
+            .await?;
+
+        // API key indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_api_key_usage_api_key_id ON api_key_usage(api_key_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_api_key_usage_timestamp ON api_key_usage(timestamp)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // A2A indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_clients_user_id ON a2a_clients(user_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_client_id ON a2a_usage(client_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_timestamp ON a2a_usage(timestamp)")
+            .execute(&self.pool)
+            .await?;
+
+        // Admin token indexes
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_admin_tokens_service ON admin_tokens(service_name)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_admin_tokens_prefix ON admin_tokens(token_prefix)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_usage_token_id ON admin_token_usage(admin_token_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_admin_usage_timestamp ON admin_token_usage(timestamp)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_provisioned_token ON admin_provisioned_keys(admin_token_id)")
+            .execute(&self.pool)
+            .await?;
+
+        // JWT usage indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_user_id ON jwt_usage(user_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_timestamp ON jwt_usage(timestamp)")
+            .execute(&self.pool)
+            .await?;
+
+        // Tenant indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_oauth_credentials_tenant_provider ON tenant_oauth_credentials(tenant_id, provider)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_tenant_users_tenant ON tenant_users(tenant_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // UserOAuthToken indexes
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_user_oauth_tokens_user ON user_oauth_tokens(user_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_oauth_tokens_tenant_provider ON user_oauth_tokens(tenant_id, provider)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_users_user ON tenant_users(user_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_usage_date ON tenant_provider_usage(tenant_id, provider, usage_date)")
+            .execute(&self.pool)
+            .await?;
+
         Ok(())
     }
 
