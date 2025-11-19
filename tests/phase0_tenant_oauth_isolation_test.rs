@@ -19,7 +19,7 @@ use chrono::Utc;
 use pierre_mcp_server::{
     constants::oauth_providers,
     database::generate_encryption_key,
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::factory::Database,
     models::{Tenant, User, UserOAuthToken, UserStatus, UserTier},
     tenant::oauth_manager::{CredentialConfig, TenantOAuthManager},
 };

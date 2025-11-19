@@ -231,15 +231,11 @@ fn parse_nutrition_params(
 /// Returns `ProtocolError` if required parameters are missing or invalid
 #[must_use]
 pub fn handle_calculate_daily_nutrition(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    _executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
         // Executor parameter required by trait signature but unused (config accessed via global singleton)
-        #[allow(clippy::let_unit_value)]
-        let () = {
-            let _ = executor;
-        };
 
         // Parse user parameters
         let params = match parse_nutrition_params(&request) {
@@ -309,15 +305,11 @@ pub fn handle_calculate_daily_nutrition(
 /// Returns `ProtocolError` if required parameters are missing or invalid
 #[must_use]
 pub fn handle_get_nutrient_timing(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    _executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
         // Executor parameter required by trait signature but unused (config accessed via global singleton)
-        #[allow(clippy::let_unit_value)]
-        let () = {
-            let _ = executor;
-        };
 
         let weight_kg = request
             .parameters

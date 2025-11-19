@@ -4,7 +4,8 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::database_plugins::DatabaseProvider;
+use crate::database::repositories::ProfileRepository;
+use crate::database_plugins::factory::Database;
 use crate::errors::JsonResultExt;
 use crate::intelligence::goal_engine::GoalEngineTrait;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
@@ -324,13 +325,13 @@ pub fn handle_set_goal(
 ///
 /// # Returns
 /// `UserFitnessProfile` (either from DB or calculated fallback)
-async fn load_user_profile<D: DatabaseProvider>(
-    database: &D,
+async fn load_user_profile(
+    database: &Database,
     user_uuid: uuid::Uuid,
     user_id: &str,
     activities: &[crate::models::Activity],
 ) -> crate::intelligence::UserFitnessProfile {
-    match database.get_user_profile(user_uuid).await {
+    match database.profiles().get_profile(user_uuid).await {
         Ok(Some(profile_json)) => serde_json::from_value(profile_json).unwrap_or_else(|e| {
             tracing::warn!(
                 user_id = %user_id,
@@ -452,7 +453,7 @@ pub fn handle_suggest_goals(
         // Generate goal suggestions
         let goal_engine = crate::intelligence::goal_engine::AdvancedGoalEngine::new();
         let user_profile = load_user_profile(
-            &*executor.resources.database,
+            &executor.resources.database,
             user_uuid,
             &request.user_id,
             &activities,
@@ -1143,12 +1144,12 @@ async fn fetch_progress_activities(
 ///
 /// # Returns
 /// Result containing validated `GoalDetails` or error response
-async fn fetch_and_validate_goal<D: DatabaseProvider>(
-    database: &D,
+async fn fetch_and_validate_goal(
+    database: &Database,
     user_uuid: uuid::Uuid,
     goal_id: &str,
 ) -> Result<GoalDetails, UniversalResponse> {
-    let goals = match database.get_user_goals(user_uuid).await {
+    let goals = match database.profiles().list_goals(user_uuid).await {
         Ok(goals) => goals,
         Err(e) => {
             return Err(UniversalResponse {
@@ -1260,16 +1261,13 @@ pub fn handle_track_progress(
         let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
         // Fetch and validate goal
-        let details = match fetch_and_validate_goal(
-            &*executor.resources.database,
-            user_uuid,
-            &params.goal_id,
-        )
-        .await
-        {
-            Ok(d) => d,
-            Err(err_response) => return Ok(err_response),
-        };
+        let details =
+            match fetch_and_validate_goal(&executor.resources.database, user_uuid, &params.goal_id)
+                .await
+            {
+                Ok(d) => d,
+                Err(err_response) => return Ok(err_response),
+            };
 
         let days_remaining = calculate_days_remaining(details.created_at, &details.timeframe);
 

@@ -21,7 +21,7 @@ use crate::configuration::{
     validation::ConfigValidator,
     vo2_max::VO2MaxCalculator,
 };
-use crate::database_plugins::DatabaseProvider;
+use crate::database::repositories::UserRepository;
 use crate::errors::AppError;
 use crate::types::json_schemas;
 use anyhow::Result;
@@ -374,7 +374,7 @@ impl ConfigurationRoutes {
         let user_id = auth.user_id;
 
         // Verify user exists in database before proceeding
-        if let Err(e) = self.resources.database.get_user(user_id).await {
+        if let Err(e) = self.resources.database.users().get_by_id(user_id).await {
             tracing::debug!("Database user lookup failed: {}", e);
         }
 
@@ -461,7 +461,7 @@ impl ConfigurationRoutes {
         }
 
         // Verify user exists in database before saving configuration
-        if let Err(e) = self.resources.database.get_user(user_id).await {
+        if let Err(e) = self.resources.database.users().get_by_id(user_id).await {
             tracing::debug!("Database user lookup failed during save: {}", e);
         }
 

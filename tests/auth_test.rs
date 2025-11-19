@@ -13,7 +13,7 @@ use chrono::{Duration, Utc};
 use pierre_mcp_server::{
     auth::{generate_jwt_secret, AuthManager, AuthMethod, Claims, JwtValidationError},
     database::generate_encryption_key,
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::factory::Database,
     middleware::McpAuthMiddleware,
     models::{AuthRequest, User, UserStatus, UserTier},
 };

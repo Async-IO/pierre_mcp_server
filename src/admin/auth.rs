@@ -15,7 +15,7 @@ use crate::admin::{
     jwt::AdminJwtManager,
     models::{AdminPermission, AdminTokenUsage, ValidatedAdminToken},
 };
-use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::database_plugins::factory::Database;
 use crate::errors::AppError;
 use anyhow::{Context, Result};
 use std::collections::HashMap;

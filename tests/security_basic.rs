@@ -16,7 +16,6 @@ use anyhow::Result;
 use pierre_mcp_server::{
     api_keys::{ApiKeyManager, ApiKeyTier, CreateApiKeyRequest},
     auth::AuthManager,
-    database_plugins::DatabaseProvider,
 };
 use uuid::Uuid;
 

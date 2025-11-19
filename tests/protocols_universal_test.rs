@@ -14,7 +14,6 @@
 use anyhow::Result;
 use pierre_mcp_server::{
     config::environment::*,
-    database_plugins::DatabaseProvider,
     intelligence::insights::{Insight, InsightType},
     intelligence::{
         ActivityIntelligence, ContextualFactors, ContextualWeeklyLoad, PerformanceMetrics,

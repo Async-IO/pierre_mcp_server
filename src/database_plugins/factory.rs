@@ -8,7 +8,8 @@
 //! This module provides automatic database type detection and creation
 //! based on connection strings.
 
-use super::DatabaseProvider;
+#![allow(missing_docs)]
+
 use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
@@ -16,13 +17,14 @@ use crate::errors::AppError;
 use crate::models::UserOAuthApp;
 use crate::rate_limiting::JwtUsage;
 use anyhow::Result;
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use tracing::{debug, info};
 use uuid::Uuid;
 
 #[cfg(feature = "postgresql")]
 use super::postgres::PostgresDatabase;
+#[cfg(feature = "postgresql")]
+use crate::database::repositories::ApiKeyRepository;
 // Phase 3: Use crate::database::Database directly (eliminates sqlite.rs wrapper)
 use crate::database::Database as SqliteDatabase;
 
@@ -94,7 +96,7 @@ impl Database {
     /// - Database connection fails
     /// - Database initialization or migration fails
     /// - Encryption key is invalid
-    async fn new_impl(
+    pub async fn new_impl(
         database_url: &str,
         encryption_key: Vec<u8>,
         #[cfg(feature = "postgresql")] pool_config: &crate::config::environment::PostgresPoolConfig,
@@ -151,76 +153,180 @@ impl Database {
             Self::new_impl(database_url, encryption_key).await
         }
     }
-}
-
-/// Automatically detect database type from connection string
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - Database URL format is not recognized (must start with 'sqlite:' or 'postgresql://')
-/// - `PostgreSQL` URL is provided but `PostgreSQL` feature is not enabled
-/// - Connection string is malformed or empty
-pub fn detect_database_type(database_url: &str) -> Result<DatabaseType> {
-    if database_url.starts_with("sqlite:") {
-        Ok(DatabaseType::SQLite)
-    } else if database_url.starts_with("postgresql://") || database_url.starts_with("postgres://") {
-        #[cfg(feature = "postgresql")]
-        return Ok(DatabaseType::PostgreSQL);
-
-        #[cfg(not(feature = "postgresql"))]
-        return Err(AppError::config(
-            "PostgreSQL connection string detected, but PostgreSQL support is not enabled. \
-             Enable the 'postgresql' feature flag in Cargo.toml",
-        )
-        .into());
-    } else {
-        Err(AppError::config(format!(
-            "Unsupported database URL format: {database_url}. \
-             Supported formats: sqlite:path/to/db.sqlite, postgresql://user:pass@host/db"
-        ))
-        .into())
-    }
-}
-
-// Implement DatabaseProvider for the enum by delegating to the appropriate implementation
-#[async_trait]
-impl DatabaseProvider for Database {
-    /// Create a new database provider instance
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - Database URL format is unsupported
-    /// - Database connection fails
-    /// - Migration process fails
-    /// - Encryption setup fails
-    async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
-        #[cfg(feature = "postgresql")]
-        {
-            let pool_config = crate::config::environment::PostgresPoolConfig::default();
-            Self::new_impl(database_url, encryption_key, &pool_config).await
-        }
-        #[cfg(not(feature = "postgresql"))]
-        {
-            Self::new_impl(database_url, encryption_key).await
-        }
-    }
 
     /// Run database migrations
     ///
     /// # Errors
     ///
     /// Returns an error if:
-    /// - SQL migration statements fail to execute
+    /// - Any migration fails
     /// - Database connection is lost during migration
-    /// - Migration scripts are malformed
     /// - Insufficient database permissions
-    async fn migrate(&self) -> Result<()> {
+    pub async fn migrate(&self) -> Result<()> {
         match self {
             Self::SQLite(db) => db.migrate().await,
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.migrate().await,
+        }
+    }
+
+    // ================================
+    // Repository Pattern Accessors
+    // ================================
+
+    /// Get `UserRepository` for user account management
+    #[must_use]
+    pub fn users(&self) -> crate::database::repositories::UserRepositoryImpl {
+        match self {
+            Self::SQLite(db) => db.users(),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                crate::database::repositories::UserRepositoryImpl::new(self.clone())
+            }
+        }
+    }
+
+    /// Get `OAuthTokenRepository` for OAuth token storage
+    #[must_use]
+    pub fn oauth_tokens(&self) -> crate::database::repositories::OAuthTokenRepositoryImpl {
+        match self {
+            Self::SQLite(db) => db.oauth_tokens(),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                crate::database::repositories::OAuthTokenRepositoryImpl::new(self.clone())
+            }
+        }
+    }
+
+    /// Get `ApiKeyRepository` for API key management
+    #[must_use]
+    pub fn api_keys(&self) -> crate::database::repositories::ApiKeyRepositoryImpl {
+        match self {
+            Self::SQLite(db) => db.api_keys(),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                crate::database::repositories::ApiKeyRepositoryImpl::new(self.clone())
+            }
+        }
+    }
+
+    /// Get `UsageRepository` for usage tracking and analytics
+    #[must_use]
+    pub fn usage(&self) -> crate::database::repositories::UsageRepositoryImpl {
+        match self {
+            Self::SQLite(db) => db.usage(),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                crate::database::repositories::UsageRepositoryImpl::new(self.clone())
+            }
+        }
+    }
+
+    /// Get `A2ARepository` for Agent-to-Agent management
+    #[must_use]
+    pub fn a2a(&self) -> crate::database::repositories::A2ARepositoryImpl {
+        match self {
+            Self::SQLite(db) => db.a2a(),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                crate::database::repositories::A2ARepositoryImpl::new(self.clone())
+            }
+        }
+    }
+
+    /// Get `ProfileRepository` for user profiles and goals
+    #[must_use]
+    pub fn profiles(&self) -> crate::database::repositories::ProfileRepositoryImpl {
+        match self {
+            Self::SQLite(db) => db.profiles(),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                crate::database::repositories::ProfileRepositoryImpl::new(self.clone())
+            }
+        }
+    }
+
+    /// Get `InsightRepository` for AI-generated insights
+    #[must_use]
+    pub fn insights(&self) -> crate::database::repositories::InsightRepositoryImpl {
+        match self {
+            Self::SQLite(db) => db.insights(),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                crate::database::repositories::InsightRepositoryImpl::new(self.clone())
+            }
+        }
+    }
+
+    /// Get `AdminRepository` for admin token management
+    #[must_use]
+    pub fn admin(&self) -> crate::database::repositories::AdminRepositoryImpl {
+        match self {
+            Self::SQLite(db) => db.admin(),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                crate::database::repositories::AdminRepositoryImpl::new(self.clone())
+            }
+        }
+    }
+
+    /// Get `TenantRepository` for multi-tenant management
+    #[must_use]
+    pub fn tenants(&self) -> crate::database::repositories::TenantRepositoryImpl {
+        match self {
+            Self::SQLite(db) => db.tenants(),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                crate::database::repositories::TenantRepositoryImpl::new(self.clone())
+            }
+        }
+    }
+
+    /// Get `OAuth2ServerRepository` for OAuth 2.0 server functionality
+    #[must_use]
+    pub fn oauth2_server(&self) -> crate::database::repositories::OAuth2ServerRepositoryImpl {
+        match self {
+            Self::SQLite(db) => db.oauth2_server(),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                crate::database::repositories::OAuth2ServerRepositoryImpl::new(self.clone())
+            }
+        }
+    }
+
+    /// Get `SecurityRepository` for key rotation and audit
+    #[must_use]
+    pub fn security(&self) -> crate::database::repositories::SecurityRepositoryImpl {
+        match self {
+            Self::SQLite(db) => db.security(),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                crate::database::repositories::SecurityRepositoryImpl::new(self.clone())
+            }
+        }
+    }
+
+    /// Get `NotificationRepository` for OAuth notifications
+    #[must_use]
+    pub fn notifications(&self) -> crate::database::repositories::NotificationRepositoryImpl {
+        match self {
+            Self::SQLite(db) => db.notifications(),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                crate::database::repositories::NotificationRepositoryImpl::new(self.clone())
+            }
+        }
+    }
+
+    /// Get `FitnessConfigRepository` for fitness configuration management
+    #[must_use]
+    pub fn fitness_configs(&self) -> crate::database::repositories::FitnessConfigRepositoryImpl {
+        match self {
+            Self::SQLite(db) => db.fitness_configs(),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => {
+                crate::database::repositories::FitnessConfigRepositoryImpl::new(self.clone())
+            }
         }
     }
 
@@ -234,7 +340,7 @@ impl DatabaseProvider for Database {
     /// - SQL execution fails
     /// - Database connection issues
     #[tracing::instrument(skip(self, user), fields(db_operation = "create_user", email = %user.email))]
-    async fn create_user(&self, user: &crate::models::User) -> Result<uuid::Uuid> {
+    pub async fn create_user(&self, user: &crate::models::User) -> Result<uuid::Uuid> {
         match self {
             Self::SQLite(db) => db.create_user(user).await,
             #[cfg(feature = "postgresql")]
@@ -251,7 +357,7 @@ impl DatabaseProvider for Database {
     /// - Data deserialization fails
     /// - Database connection issues
     #[tracing::instrument(skip(self), fields(db_operation = "get_user"))]
-    async fn get_user(&self, user_id: uuid::Uuid) -> Result<Option<crate::models::User>> {
+    pub async fn get_user(&self, user_id: uuid::Uuid) -> Result<Option<crate::models::User>> {
         match self {
             Self::SQLite(db) => db.get_user(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -268,7 +374,7 @@ impl DatabaseProvider for Database {
     /// - Data deserialization fails
     /// - Database connection issues
     /// - Email format validation fails
-    async fn get_user_by_email(&self, email: &str) -> Result<Option<crate::models::User>> {
+    pub async fn get_user_by_email(&self, email: &str) -> Result<Option<crate::models::User>> {
         match self {
             Self::SQLite(db) => db.get_user_by_email(email).await,
             #[cfg(feature = "postgresql")]
@@ -285,7 +391,7 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_user_by_email_required(&self, email: &str) -> Result<crate::models::User> {
+    pub async fn get_user_by_email_required(&self, email: &str) -> Result<crate::models::User> {
         match self {
             Self::SQLite(db) => db.get_user_by_email_required(email).await,
             #[cfg(feature = "postgresql")]
@@ -301,7 +407,7 @@ impl DatabaseProvider for Database {
     /// - User does not exist
     /// - Database update fails
     /// - Database connection issues
-    async fn update_last_active(&self, user_id: uuid::Uuid) -> Result<()> {
+    pub async fn update_last_active(&self, user_id: uuid::Uuid) -> Result<()> {
         match self {
             Self::SQLite(db) => db.update_last_active(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -317,7 +423,7 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Count aggregation fails
     /// - Database connection issues
-    async fn get_user_count(&self) -> Result<i64> {
+    pub async fn get_user_count(&self) -> Result<i64> {
         match self {
             Self::SQLite(db) => db.get_user_count().await,
             #[cfg(feature = "postgresql")]
@@ -325,7 +431,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_users_by_status(&self, status: &str) -> Result<Vec<crate::models::User>> {
+    /// Get all users with a specific status
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_users_by_status(&self, status: &str) -> Result<Vec<crate::models::User>> {
         match self {
             Self::SQLite(db) => db.get_users_by_status(status).await,
             #[cfg(feature = "postgresql")]
@@ -333,7 +447,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_users_by_status_cursor(
+    /// Get users with a specific status using cursor-based pagination
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Cursor parsing fails
+    /// - Database connection issues
+    pub async fn get_users_by_status_cursor(
         &self,
         status: &str,
         params: &crate::pagination::PaginationParams,
@@ -345,7 +468,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn update_user_status(
+    /// Update user status and record approval information
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User does not exist
+    /// - Database update fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn update_user_status(
         &self,
         user_id: uuid::Uuid,
         new_status: crate::models::UserStatus,
@@ -364,7 +496,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn update_user_tenant_id(&self, user_id: uuid::Uuid, tenant_id: &str) -> Result<()> {
+    /// Update user's tenant ID for multi-tenant support
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User does not exist
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn update_user_tenant_id(&self, user_id: uuid::Uuid, tenant_id: &str) -> Result<()> {
         match self {
             Self::SQLite(db) => db.update_user_tenant_id(user_id, tenant_id).await,
             #[cfg(feature = "postgresql")]
@@ -380,7 +520,7 @@ impl DatabaseProvider for Database {
     /// - Database operation fails
     /// - Data serialization fails
     /// - Database connection issues
-    async fn upsert_user_profile(
+    pub async fn upsert_user_profile(
         &self,
         user_id: uuid::Uuid,
         profile_data: serde_json::Value,
@@ -400,7 +540,7 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_user_profile(&self, user_id: uuid::Uuid) -> Result<Option<serde_json::Value>> {
+    pub async fn get_user_profile(&self, user_id: uuid::Uuid) -> Result<Option<serde_json::Value>> {
         match self {
             Self::SQLite(db) => db.get_user_profile(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -416,7 +556,7 @@ impl DatabaseProvider for Database {
     /// - Goal data validation fails
     /// - Database insertion fails
     /// - Database connection issues
-    async fn create_goal(
+    pub async fn create_goal(
         &self,
         user_id: uuid::Uuid,
         goal_data: serde_json::Value,
@@ -436,7 +576,7 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_user_goals(&self, user_id: uuid::Uuid) -> Result<Vec<serde_json::Value>> {
+    pub async fn get_user_goals(&self, user_id: uuid::Uuid) -> Result<Vec<serde_json::Value>> {
         match self {
             Self::SQLite(db) => db.get_user_goals(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -452,7 +592,7 @@ impl DatabaseProvider for Database {
     /// - Goal does not exist
     /// - Database update fails
     /// - Database connection issues
-    async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
+    pub async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
         match self {
             Self::SQLite(db) => db.update_goal_progress(goal_id, current_value).await,
             #[cfg(feature = "postgresql")]
@@ -468,7 +608,7 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
+    pub async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
         match self {
             Self::SQLite(db) => db.get_user_configuration(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -484,7 +624,7 @@ impl DatabaseProvider for Database {
     /// - Configuration validation fails
     /// - Database update fails
     /// - Database connection issues
-    async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()> {
+    pub async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()> {
         match self {
             Self::SQLite(db) => db.save_user_configuration(user_id, config_json).await,
             #[cfg(feature = "postgresql")]
@@ -500,7 +640,7 @@ impl DatabaseProvider for Database {
     /// - Insight data validation fails
     /// - Database insertion fails
     /// - Database connection issues
-    async fn store_insight(
+    pub async fn store_insight(
         &self,
         user_id: uuid::Uuid,
         insight_data: serde_json::Value,
@@ -520,7 +660,7 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_user_insights(
+    pub async fn get_user_insights(
         &self,
         user_id: uuid::Uuid,
         insight_type: Option<&str>,
@@ -542,7 +682,7 @@ impl DatabaseProvider for Database {
     /// - Database constraint violations (e.g., duplicate key)
     /// - SQL execution fails
     /// - Database connection issues
-    async fn create_api_key(&self, api_key: &crate::api_keys::ApiKey) -> Result<()> {
+    pub async fn create_api_key(&self, api_key: &crate::api_keys::ApiKey) -> Result<()> {
         match self {
             Self::SQLite(db) => db.create_api_key(api_key).await,
             #[cfg(feature = "postgresql")]
@@ -558,7 +698,7 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_api_key_by_prefix(
+    pub async fn get_api_key_by_prefix(
         &self,
         prefix: &str,
         hash: &str,
@@ -578,7 +718,10 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_user_api_keys(&self, user_id: uuid::Uuid) -> Result<Vec<crate::api_keys::ApiKey>> {
+    pub async fn get_user_api_keys(
+        &self,
+        user_id: uuid::Uuid,
+    ) -> Result<Vec<crate::api_keys::ApiKey>> {
         match self {
             Self::SQLite(db) => db.get_user_api_keys(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -594,7 +737,7 @@ impl DatabaseProvider for Database {
     /// - API key does not exist
     /// - Database update fails
     /// - Database connection issues
-    async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
+    pub async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
         match self {
             Self::SQLite(db) => db.update_api_key_last_used(api_key_id).await,
             #[cfg(feature = "postgresql")]
@@ -610,7 +753,7 @@ impl DatabaseProvider for Database {
     /// - API key does not exist or doesn't belong to user
     /// - Database update fails
     /// - Database connection issues
-    async fn deactivate_api_key(&self, api_key_id: &str, user_id: uuid::Uuid) -> Result<()> {
+    pub async fn deactivate_api_key(&self, api_key_id: &str, user_id: uuid::Uuid) -> Result<()> {
         match self {
             Self::SQLite(db) => db.deactivate_api_key(api_key_id, user_id).await,
             #[cfg(feature = "postgresql")]
@@ -626,7 +769,10 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<crate::api_keys::ApiKey>> {
+    pub async fn get_api_key_by_id(
+        &self,
+        api_key_id: &str,
+    ) -> Result<Option<crate::api_keys::ApiKey>> {
         match self {
             Self::SQLite(db) => db.get_api_key_by_id(api_key_id).await,
             #[cfg(feature = "postgresql")]
@@ -642,7 +788,7 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_api_keys_filtered(
+    pub async fn get_api_keys_filtered(
         &self,
         user_email: Option<&str>,
         active_only: bool,
@@ -651,18 +797,37 @@ impl DatabaseProvider for Database {
     ) -> Result<Vec<crate::api_keys::ApiKey>> {
         match self {
             Self::SQLite(db) => {
-                DatabaseProvider::get_api_keys_filtered(db, user_email, active_only, limit, offset)
-                    .await
+                // User email filtering requires user lookup (deferred to repository layer)
+                // Currently filtering by active status only
+                let _ = user_email; // Suppress unused variable warning
+                db.get_api_keys_filtered(
+                    None,                 // user_id (requires email lookup)
+                    None,                 // tier filter
+                    Some(active_only),    // is_active filter
+                    limit.unwrap_or(100), // limit with default
+                    offset.unwrap_or(0),  // offset with default
+                )
+                .await
             }
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => {
-                db.get_api_keys_filtered(user_email, active_only, limit, offset)
+                // PostgreSQL uses the new repository pattern via ApiKeyRepository
+                db.api_keys()
+                    .list_filtered(user_email, active_only, limit, offset)
                     .await
+                    .map_err(Into::into)
             }
         }
     }
 
-    async fn cleanup_expired_api_keys(&self) -> Result<u64> {
+    /// Remove expired API keys from the database
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Database connection issues
+    pub async fn cleanup_expired_api_keys(&self) -> Result<u64> {
         match self {
             Self::SQLite(db) => db.cleanup_expired_api_keys().await,
             #[cfg(feature = "postgresql")]
@@ -670,7 +835,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_expired_api_keys(&self) -> Result<Vec<crate::api_keys::ApiKey>> {
+    /// Get all expired API keys
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_expired_api_keys(&self) -> Result<Vec<crate::api_keys::ApiKey>> {
         match self {
             Self::SQLite(db) => db.get_expired_api_keys().await,
             #[cfg(feature = "postgresql")]
@@ -678,7 +851,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn record_api_key_usage(&self, usage: &crate::api_keys::ApiKeyUsage) -> Result<()> {
+    /// Record API key usage statistics
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insertion fails
+    /// - Data validation fails
+    /// - Database connection issues
+    pub async fn record_api_key_usage(&self, usage: &crate::api_keys::ApiKeyUsage) -> Result<()> {
         match self {
             Self::SQLite(db) => db.record_api_key_usage(usage).await,
             #[cfg(feature = "postgresql")]
@@ -686,7 +867,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
+    /// Get current usage count for an API key
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Count aggregation fails
+    /// - Database connection issues
+    pub async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
         match self {
             Self::SQLite(db) => db.get_api_key_current_usage(api_key_id).await,
             #[cfg(feature = "postgresql")]
@@ -694,7 +883,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_api_key_usage_stats(
+    /// Get detailed usage statistics for an API key within a date range
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Statistics aggregation fails
+    /// - Date range validation fails
+    /// - Database connection issues
+    pub async fn get_api_key_usage_stats(
         &self,
         api_key_id: &str,
         start_date: chrono::DateTime<chrono::Utc>,
@@ -713,7 +911,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
+    /// Record JWT token usage for rate limiting
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insertion fails
+    /// - Data validation fails
+    /// - Database connection issues
+    pub async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
         match self {
             Self::SQLite(db) => db.record_jwt_usage(usage).await,
             #[cfg(feature = "postgresql")]
@@ -721,7 +927,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_jwt_current_usage(&self, user_id: uuid::Uuid) -> Result<u32> {
+    /// Get current JWT usage count for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Count aggregation fails
+    /// - Database connection issues
+    pub async fn get_jwt_current_usage(&self, user_id: uuid::Uuid) -> Result<u32> {
         match self {
             Self::SQLite(db) => db.get_jwt_current_usage(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -729,7 +943,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_request_logs(
+    /// Get request logs with optional filters
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Date range validation fails
+    /// - Database connection issues
+    pub async fn get_request_logs(
         &self,
         api_key_id: Option<&str>,
         start_time: Option<chrono::DateTime<chrono::Utc>>,
@@ -739,8 +962,7 @@ impl DatabaseProvider for Database {
     ) -> Result<Vec<crate::dashboard_routes::RequestLog>> {
         match self {
             Self::SQLite(db) => {
-                DatabaseProvider::get_request_logs(
-                    db,
+                db.get_request_logs_with_filters(
                     api_key_id,
                     start_time,
                     end_time,
@@ -751,13 +973,27 @@ impl DatabaseProvider for Database {
             }
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => {
-                db.get_request_logs(api_key_id, start_time, end_time, status_filter, tool_filter)
-                    .await
+                db.get_request_logs_with_filters(
+                    api_key_id,
+                    start_time,
+                    end_time,
+                    status_filter,
+                    tool_filter,
+                )
+                .await
             }
         }
     }
 
-    async fn get_system_stats(&self) -> Result<(u64, u64)> {
+    /// Get system-wide statistics (user count, active API keys)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Count aggregation fails
+    /// - Database connection issues
+    pub async fn get_system_stats(&self) -> Result<(u64, u64)> {
         match self {
             Self::SQLite(db) => db.get_system_stats().await,
             #[cfg(feature = "postgresql")]
@@ -775,7 +1011,7 @@ impl DatabaseProvider for Database {
     /// - Secret encryption fails
     /// - SQL execution fails
     /// - Database connection issues
-    async fn create_a2a_client(
+    pub async fn create_a2a_client(
         &self,
         client: &A2AClient,
         client_secret: &str,
@@ -802,7 +1038,7 @@ impl DatabaseProvider for Database {
     /// - Database query execution fails
     /// - Data deserialization fails
     /// - Database connection issues
-    async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
+    pub async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
         match self {
             Self::SQLite(db) => db.get_a2a_client(client_id).await,
             #[cfg(feature = "postgresql")]
@@ -810,7 +1046,18 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_a2a_client_by_api_key_id(&self, api_key_id: &str) -> Result<Option<A2AClient>> {
+    /// Get A2A client by associated API key ID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_a2a_client_by_api_key_id(
+        &self,
+        api_key_id: &str,
+    ) -> Result<Option<A2AClient>> {
         match self {
             Self::SQLite(db) => db.get_a2a_client_by_api_key_id(api_key_id).await,
             #[cfg(feature = "postgresql")]
@@ -818,7 +1065,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
+    /// Get A2A client by name
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
         match self {
             Self::SQLite(db) => db.get_a2a_client_by_name(name).await,
             #[cfg(feature = "postgresql")]
@@ -826,7 +1081,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn list_a2a_clients(&self, user_id: &uuid::Uuid) -> Result<Vec<A2AClient>> {
+    /// List all A2A clients for a specific user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn list_a2a_clients(&self, user_id: &uuid::Uuid) -> Result<Vec<A2AClient>> {
         match self {
             Self::SQLite(db) => db.list_a2a_clients(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -834,7 +1097,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
+    /// Deactivate an A2A client
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client does not exist
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
         match self {
             Self::SQLite(db) => db.deactivate_a2a_client(client_id).await,
             #[cfg(feature = "postgresql")]
@@ -842,7 +1113,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_a2a_client_credentials(
+    /// Get A2A client credentials (client secret and hash)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client does not exist
+    /// - Database query execution fails
+    /// - Secret decryption fails
+    /// - Database connection issues
+    pub async fn get_a2a_client_credentials(
         &self,
         client_id: &str,
     ) -> Result<Option<(String, String)>> {
@@ -853,7 +1133,14 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
+    /// Invalidate all active sessions for an A2A client
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
         match self {
             Self::SQLite(db) => db.invalidate_a2a_client_sessions(client_id).await,
             #[cfg(feature = "postgresql")]
@@ -861,7 +1148,14 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
+    /// Deactivate all API keys associated with an A2A client
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
         match self {
             Self::SQLite(db) => db.deactivate_client_api_keys(client_id).await,
             #[cfg(feature = "postgresql")]
@@ -869,7 +1163,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn create_a2a_session(
+    /// Create a new A2A session
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client does not exist
+    /// - Session token generation fails
+    /// - Database insertion fails
+    /// - Database connection issues
+    pub async fn create_a2a_session(
         &self,
         client_id: &str,
         user_id: Option<&uuid::Uuid>,
@@ -889,7 +1192,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
+    /// Get an A2A session by token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
         match self {
             Self::SQLite(db) => db.get_a2a_session(session_token).await,
             #[cfg(feature = "postgresql")]
@@ -897,7 +1208,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()> {
+    /// Update last activity timestamp for an A2A session
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Session does not exist
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()> {
         match self {
             Self::SQLite(db) => db.update_a2a_session_activity(session_token).await,
             #[cfg(feature = "postgresql")]
@@ -905,7 +1224,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
+    /// Get all active sessions for an A2A client
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
         match self {
             Self::SQLite(db) => db.get_active_a2a_sessions(client_id).await,
             #[cfg(feature = "postgresql")]
@@ -913,7 +1240,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn create_a2a_task(
+    /// Create a new A2A task
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client or session does not exist
+    /// - Task data validation fails
+    /// - Database insertion fails
+    /// - Database connection issues
+    pub async fn create_a2a_task(
         &self,
         client_id: &str,
         session_id: Option<&str>,
@@ -933,7 +1269,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
+    /// Get an A2A task by ID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
         match self {
             Self::SQLite(db) => db.get_a2a_task(task_id).await,
             #[cfg(feature = "postgresql")]
@@ -941,7 +1285,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn list_a2a_tasks(
+    /// List A2A tasks with optional filters
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Pagination parameters are invalid
+    /// - Database connection issues
+    pub async fn list_a2a_tasks(
         &self,
         client_id: Option<&str>,
         status_filter: Option<&TaskStatus>,
@@ -961,7 +1314,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn update_a2a_task_status(
+    /// Update A2A task status and result
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Task does not exist
+    /// - Database update fails
+    /// - Data serialization fails
+    /// - Database connection issues
+    pub async fn update_a2a_task_status(
         &self,
         task_id: &str,
         status: &TaskStatus,
@@ -981,7 +1343,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn record_a2a_usage(&self, usage: &crate::database::A2AUsage) -> Result<()> {
+    /// Record A2A client usage statistics
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insertion fails
+    /// - Data validation fails
+    /// - Database connection issues
+    pub async fn record_a2a_usage(&self, usage: &crate::database::A2AUsage) -> Result<()> {
         match self {
             Self::SQLite(db) => db.record_a2a_usage(usage).await,
             #[cfg(feature = "postgresql")]
@@ -989,7 +1359,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
+    /// Get current usage count for an A2A client
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Count aggregation fails
+    /// - Database connection issues
+    pub async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
         match self {
             Self::SQLite(db) => db.get_a2a_client_current_usage(client_id).await,
             #[cfg(feature = "postgresql")]
@@ -997,7 +1375,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_a2a_usage_stats(
+    /// Get A2A usage statistics within a date range
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Statistics aggregation fails
+    /// - Date range validation fails
+    /// - Database connection issues
+    pub async fn get_a2a_usage_stats(
         &self,
         client_id: &str,
         start_date: chrono::DateTime<chrono::Utc>,
@@ -1016,7 +1403,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_a2a_client_usage_history(
+    /// Get A2A client usage history for specified number of days
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Statistics aggregation fails
+    /// - Database connection issues
+    pub async fn get_a2a_client_usage_history(
         &self,
         client_id: &str,
         days: u32,
@@ -1028,7 +1423,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_provider_last_sync(
+    /// Get last synchronization timestamp for a provider
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_provider_last_sync(
         &self,
         user_id: uuid::Uuid,
         provider: &str,
@@ -1040,7 +1443,14 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn update_provider_last_sync(
+    /// Update last synchronization timestamp for a provider
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn update_provider_last_sync(
         &self,
         user_id: uuid::Uuid,
         provider: &str,
@@ -1059,7 +1469,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_top_tools_analysis(
+    /// Get tool usage analytics for a user within a time range
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Statistics aggregation fails
+    /// - Date range validation fails
+    /// - Database connection issues
+    pub async fn get_top_tools_analysis(
         &self,
         user_id: uuid::Uuid,
         start_time: chrono::DateTime<chrono::Utc>,
@@ -1092,7 +1511,7 @@ impl DatabaseProvider for Database {
     /// - Token data validation fails
     /// - Hash generation fails
     /// - Database connection issues
-    async fn create_admin_token(
+    pub async fn create_admin_token(
         &self,
         request: &crate::admin::models::CreateAdminTokenRequest,
         admin_jwt_secret: &str,
@@ -1111,7 +1530,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_admin_token_by_id(
+    /// Get admin token by its ID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_admin_token_by_id(
         &self,
         token_id: &str,
     ) -> Result<Option<crate::admin::models::AdminToken>> {
@@ -1122,7 +1549,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_admin_token_by_prefix(
+    /// Get admin token by its prefix
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_admin_token_by_prefix(
         &self,
         token_prefix: &str,
     ) -> Result<Option<crate::admin::models::AdminToken>> {
@@ -1133,7 +1568,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn list_admin_tokens(
+    /// List all admin tokens with optional inactive filter
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn list_admin_tokens(
         &self,
         include_inactive: bool,
     ) -> Result<Vec<crate::admin::models::AdminToken>> {
@@ -1144,7 +1587,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
+    /// Deactivate an admin token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token does not exist
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
         match self {
             Self::SQLite(db) => db.deactivate_admin_token(token_id).await,
             #[cfg(feature = "postgresql")]
@@ -1152,7 +1603,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn update_admin_token_last_used(
+    /// Update last used timestamp and IP for an admin token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token does not exist
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn update_admin_token_last_used(
         &self,
         token_id: &str,
         ip_address: Option<&str>,
@@ -1164,7 +1623,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn record_admin_token_usage(
+    /// Record admin token usage event
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insertion fails
+    /// - Data validation fails
+    /// - Database connection issues
+    pub async fn record_admin_token_usage(
         &self,
         usage: &crate::admin::models::AdminTokenUsage,
     ) -> Result<()> {
@@ -1175,7 +1642,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_admin_token_usage_history(
+    /// Get admin token usage history within a date range
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Date range validation fails
+    /// - Database connection issues
+    pub async fn get_admin_token_usage_history(
         &self,
         token_id: &str,
         start_date: chrono::DateTime<chrono::Utc>,
@@ -1194,7 +1670,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn record_admin_provisioned_key(
+    /// Record an API key provisioned by an admin token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insertion fails
+    /// - Data validation fails
+    /// - Database connection issues
+    pub async fn record_admin_provisioned_key(
         &self,
         admin_token_id: &str,
         api_key_id: &str,
@@ -1230,7 +1714,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_admin_provisioned_keys(
+    /// Get API keys provisioned by admin tokens within a date range
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Date range validation fails
+    /// - Database connection issues
+    pub async fn get_admin_provisioned_keys(
         &self,
         admin_token_id: Option<&str>,
         start_date: chrono::DateTime<chrono::Utc>,
@@ -1250,7 +1743,16 @@ impl DatabaseProvider for Database {
     }
 
     // Multi-tenant management implementations
-    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
+    /// Create a new tenant
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Tenant data validation fails
+    /// - Database constraint violations (e.g., duplicate slug)
+    /// - Database insertion fails
+    /// - Database connection issues
+    pub async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
         match self {
             Self::SQLite(db) => db.create_tenant(tenant).await,
             #[cfg(feature = "postgresql")]
@@ -1258,7 +1760,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_tenant_by_id(&self, tenant_id: uuid::Uuid) -> Result<crate::models::Tenant> {
+    /// Get a tenant by its ID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Tenant does not exist
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_tenant_by_id(&self, tenant_id: uuid::Uuid) -> Result<crate::models::Tenant> {
         match self {
             Self::SQLite(db) => db.get_tenant_by_id(tenant_id).await,
             #[cfg(feature = "postgresql")]
@@ -1266,7 +1777,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
+    /// Get a tenant by its slug
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Tenant does not exist
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
         match self {
             Self::SQLite(db) => db.get_tenant_by_slug(slug).await,
             #[cfg(feature = "postgresql")]
@@ -1274,7 +1794,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn list_tenants_for_user(
+    /// List all tenants that a user has access to
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn list_tenants_for_user(
         &self,
         user_id: uuid::Uuid,
     ) -> Result<Vec<crate::models::Tenant>> {
@@ -1285,7 +1813,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn store_tenant_oauth_credentials(
+    /// Store OAuth credentials for a tenant
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Credentials validation fails
+    /// - Credentials encryption fails
+    /// - Database insertion fails
+    /// - Database connection issues
+    pub async fn store_tenant_oauth_credentials(
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
     ) -> Result<()> {
@@ -1296,7 +1833,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_tenant_oauth_providers(
+    /// Get all OAuth providers configured for a tenant
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Credentials decryption fails
+    /// - Database connection issues
+    pub async fn get_tenant_oauth_providers(
         &self,
         tenant_id: uuid::Uuid,
     ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
@@ -1307,7 +1853,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_tenant_oauth_credentials(
+    /// Get OAuth credentials for a specific provider and tenant
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Credentials decryption fails
+    /// - Database connection issues
+    pub async fn get_tenant_oauth_credentials(
         &self,
         tenant_id: uuid::Uuid,
         provider: &str,
@@ -1320,7 +1875,16 @@ impl DatabaseProvider for Database {
     }
 
     // OAuth app registration implementations
-    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()> {
+    /// Register a new OAuth application
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - OAuth app data validation fails
+    /// - Database constraint violations
+    /// - Database insertion fails
+    /// - Database connection issues
+    pub async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()> {
         match self {
             Self::SQLite(db) => db.create_oauth_app(app).await,
             #[cfg(feature = "postgresql")]
@@ -1328,7 +1892,19 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_oauth_app_by_client_id(&self, client_id: &str) -> Result<crate::models::OAuthApp> {
+    /// Get an OAuth app by its client ID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - OAuth app does not exist
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_oauth_app_by_client_id(
+        &self,
+        client_id: &str,
+    ) -> Result<crate::models::OAuthApp> {
         match self {
             Self::SQLite(db) => db.get_oauth_app_by_client_id(client_id).await,
             #[cfg(feature = "postgresql")]
@@ -1336,7 +1912,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn list_oauth_apps_for_user(
+    /// List all OAuth apps registered by a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn list_oauth_apps_for_user(
         &self,
         user_id: uuid::Uuid,
     ) -> Result<Vec<crate::models::OAuthApp>> {
@@ -1351,7 +1935,16 @@ impl DatabaseProvider for Database {
     // OAuth 2.0 Server (RFC 7591)
     // ================================
 
-    async fn store_oauth2_client(
+    /// Store an OAuth 2.0 client registration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client data validation fails
+    /// - Database constraint violations (e.g., duplicate `client_id`)
+    /// - SQL execution fails
+    /// - Database connection issues
+    pub async fn store_oauth2_client(
         &self,
         client: &crate::oauth2_server::models::OAuth2Client,
     ) -> Result<()> {
@@ -1362,7 +1955,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_oauth2_client(
+    /// Retrieve an OAuth 2.0 client by client ID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_oauth2_client(
         &self,
         client_id: &str,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>> {
@@ -1373,7 +1974,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn store_oauth2_auth_code(
+    /// Store an OAuth 2.0 authorization code
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authorization code already exists
+    /// - Database insertion fails
+    /// - Data serialization fails
+    /// - Database connection issues
+    pub async fn store_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
     ) -> Result<()> {
@@ -1384,7 +1994,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_oauth2_auth_code(
+    /// Retrieve an OAuth 2.0 authorization code by code value
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_oauth2_auth_code(
         &self,
         code: &str,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
@@ -1395,7 +2013,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn update_oauth2_auth_code(
+    /// Update an existing OAuth 2.0 authorization code
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authorization code does not exist
+    /// - Database update fails
+    /// - Data serialization fails
+    /// - Database connection issues
+    pub async fn update_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
     ) -> Result<()> {
@@ -1406,7 +2033,16 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn store_oauth2_refresh_token(
+    /// Store an OAuth 2.0 refresh token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Refresh token already exists
+    /// - Database insertion fails
+    /// - Data serialization fails
+    /// - Database connection issues
+    pub async fn store_oauth2_refresh_token(
         &self,
         refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
     ) -> Result<()> {
@@ -1417,7 +2053,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_oauth2_refresh_token(
+    /// Retrieve an OAuth 2.0 refresh token by token value
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_oauth2_refresh_token(
         &self,
         token: &str,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
@@ -1428,7 +2072,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()> {
+    /// Revoke an OAuth 2.0 refresh token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token does not exist
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()> {
         match self {
             Self::SQLite(db) => db.revoke_oauth2_refresh_token(token).await,
             #[cfg(feature = "postgresql")]
@@ -1436,7 +2088,18 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn consume_auth_code(
+    /// Consume an OAuth 2.0 authorization code (marks as used and validates)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Code does not exist
+    /// - Code has already been used
+    /// - Code has expired
+    /// - Client ID or redirect URI mismatch
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn consume_auth_code(
         &self,
         code: &str,
         client_id: &str,
@@ -1456,7 +2119,18 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn consume_refresh_token(
+    /// Consume an OAuth 2.0 refresh token (validates and optionally rotates)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token does not exist
+    /// - Token has been revoked
+    /// - Token has expired
+    /// - Client ID mismatch
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn consume_refresh_token(
         &self,
         token: &str,
         client_id: &str,
@@ -1469,7 +2143,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_refresh_token_by_value(
+    /// Retrieve an OAuth 2.0 refresh token by its token value
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_refresh_token_by_value(
         &self,
         token: &str,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
@@ -1480,44 +2162,93 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn store_authorization_code(
+    /// Store an OAuth 2.0 authorization code
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authorization code already exists
+    /// - Database insertion fails
+    /// - Data serialization fails
+    /// - Database connection issues
+    pub async fn store_authorization_code(
+        &self,
+        auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
+    ) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.store_authorization_code(auth_code).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.store_authorization_code(auth_code).await,
+        }
+    }
+
+    /// Retrieve and validate an OAuth 2.0 authorization code
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Code does not exist
+    /// - Client ID or redirect URI mismatch
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_authorization_code(
         &self,
         code: &str,
         client_id: &str,
         redirect_uri: &str,
-        scope: &str,
-        user_id: Uuid,
-    ) -> Result<()> {
+    ) -> Result<crate::oauth2_server::models::OAuth2AuthCode> {
         match self {
             Self::SQLite(db) => {
-                db.store_authorization_code(code, client_id, redirect_uri, scope, user_id)
+                db.get_authorization_code(code, client_id, redirect_uri)
                     .await
             }
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => {
-                db.store_authorization_code(code, client_id, redirect_uri, scope, user_id)
+                db.get_authorization_code(code, client_id, redirect_uri)
                     .await
             }
         }
     }
 
-    async fn get_authorization_code(&self, code: &str) -> Result<crate::models::AuthorizationCode> {
+    /// Delete an OAuth 2.0 authorization code
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Code does not exist
+    /// - Client ID or redirect URI mismatch
+    /// - Database deletion fails
+    /// - Database connection issues
+    pub async fn delete_authorization_code(
+        &self,
+        code: &str,
+        client_id: &str,
+        redirect_uri: &str,
+    ) -> Result<()> {
         match self {
-            Self::SQLite(db) => db.get_authorization_code(code).await,
+            Self::SQLite(db) => {
+                db.delete_authorization_code(code, client_id, redirect_uri)
+                    .await
+            }
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.get_authorization_code(code).await,
+            Self::PostgreSQL(db) => {
+                db.delete_authorization_code(code, client_id, redirect_uri)
+                    .await
+            }
         }
     }
 
-    async fn delete_authorization_code(&self, code: &str) -> Result<()> {
-        match self {
-            Self::SQLite(db) => db.delete_authorization_code(code).await,
-            #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.delete_authorization_code(code).await,
-        }
-    }
-
-    async fn store_oauth2_state(
+    /// Store an OAuth 2.0 state parameter for CSRF protection
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - State already exists
+    /// - Database insertion fails
+    /// - Data serialization fails
+    /// - Database connection issues
+    pub async fn store_oauth2_state(
         &self,
         state: &crate::oauth2_server::models::OAuth2State,
     ) -> Result<()> {
@@ -1528,16 +2259,27 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn consume_oauth2_state(
+    /// Consume an OAuth 2.0 state parameter (validates and marks as used)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - State does not exist
+    /// - State has already been used
+    /// - State has expired
+    /// - Client ID mismatch
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn consume_oauth2_state(
         &self,
-        state_value: &str,
+        state: &str,
         client_id: &str,
         now: DateTime<Utc>,
     ) -> Result<Option<crate::oauth2_server::models::OAuth2State>> {
         match self {
-            Self::SQLite(db) => db.consume_oauth2_state(state_value, client_id, now).await,
+            Self::SQLite(db) => db.consume_oauth2_state(state, client_id, now).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.consume_oauth2_state(state_value, client_id, now).await,
+            Self::PostgreSQL(db) => db.consume_oauth2_state(state, client_id, now).await,
         }
     }
 
@@ -1545,18 +2287,36 @@ impl DatabaseProvider for Database {
     // Key Rotation & Security
     // ================================
 
-    async fn store_key_version(
+    /// Store a new encryption key version for key rotation
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Key version already exists
+    /// - Database insertion fails
+    /// - Data serialization fails
+    /// - Database connection issues
+    pub async fn store_key_version(
         &self,
+        tenant_id: Option<Uuid>,
         version: &crate::security::key_rotation::KeyVersion,
     ) -> Result<()> {
         match self {
-            Self::SQLite(db) => db.store_key_version(version).await,
+            Self::SQLite(db) => db.store_key_version(tenant_id, version).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.store_key_version(version).await,
+            Self::PostgreSQL(db) => db.store_key_version(tenant_id, version).await,
         }
     }
 
-    async fn get_key_versions(
+    /// Retrieve all encryption key versions for a tenant
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_key_versions(
         &self,
         tenant_id: Option<uuid::Uuid>,
     ) -> Result<Vec<crate::security::key_rotation::KeyVersion>> {
@@ -1567,7 +2327,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_current_key_version(
+    /// Retrieve the currently active encryption key version for a tenant
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_current_key_version(
         &self,
         tenant_id: Option<uuid::Uuid>,
     ) -> Result<Option<crate::security::key_rotation::KeyVersion>> {
@@ -1578,7 +2346,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn update_key_version_status(
+    /// Update the active status of an encryption key version
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Key version does not exist
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn update_key_version_status(
         &self,
         tenant_id: Option<uuid::Uuid>,
         version: u32,
@@ -1597,7 +2373,14 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn delete_old_key_versions(
+    /// Delete old encryption key versions, keeping the most recent ones
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database deletion fails
+    /// - Database connection issues
+    pub async fn delete_old_key_versions(
         &self,
         tenant_id: Option<uuid::Uuid>,
         keep_count: u32,
@@ -1609,7 +2392,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
+    /// Retrieve all tenants in the system
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
         match self {
             Self::SQLite(db) => db.get_all_tenants().await,
             #[cfg(feature = "postgresql")]
@@ -1617,15 +2408,35 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> Result<()> {
+    /// Store a security audit event for compliance and monitoring
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insertion fails
+    /// - Data serialization fails
+    /// - Database connection issues
+    pub async fn store_audit_event(
+        &self,
+        tenant_id: Option<Uuid>,
+        event: &crate::security::audit::AuditEvent,
+    ) -> Result<()> {
         match self {
-            Self::SQLite(db) => db.store_audit_event(event).await,
+            Self::SQLite(db) => db.store_audit_event(tenant_id, event).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.store_audit_event(event).await,
+            Self::PostgreSQL(db) => db.store_audit_event(tenant_id, event).await,
         }
     }
 
-    async fn get_audit_events(
+    /// Retrieve audit events with optional filtering by tenant and event type
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_audit_events(
         &self,
         tenant_id: Option<uuid::Uuid>,
         event_type: Option<&str>,
@@ -1642,15 +2453,47 @@ impl DatabaseProvider for Database {
     // User OAuth Tokens (Multi-Tenant)
     // ================================
 
-    async fn upsert_user_oauth_token(&self, token: &crate::models::UserOAuthToken) -> Result<()> {
+    /// Upsert user OAuth token for multi-tenant OAuth management
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data serialization fails
+    /// - Database connection issues
+    pub async fn upsert_user_oauth_token(
+        &self,
+        token: &crate::models::UserOAuthToken,
+    ) -> Result<()> {
         match self {
-            Self::SQLite(db) => DatabaseProvider::upsert_user_oauth_token(db, token).await,
+            Self::SQLite(db) => {
+                let token_data = crate::database::user_oauth_tokens::OAuthTokenData {
+                    id: &token.id,
+                    user_id: token.user_id,
+                    tenant_id: &token.tenant_id,
+                    provider: &token.provider,
+                    access_token: &token.access_token,
+                    refresh_token: token.refresh_token.as_deref(),
+                    token_type: &token.token_type,
+                    expires_at: token.expires_at,
+                    scope: token.scope.as_deref().unwrap_or(""),
+                };
+                db.upsert_user_oauth_token(&token_data).await
+            }
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.upsert_user_oauth_token(token).await,
         }
     }
 
-    async fn get_user_oauth_token(
+    /// Get user OAuth token for a specific provider and tenant
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_user_oauth_token(
         &self,
         user_id: Uuid,
         tenant_id: &str,
@@ -1663,7 +2506,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_user_oauth_tokens(
+    /// Get all OAuth tokens for a user across all providers
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_user_oauth_tokens(
         &self,
         user_id: Uuid,
     ) -> Result<Vec<crate::models::UserOAuthToken>> {
@@ -1674,7 +2525,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn get_tenant_provider_tokens(
+    /// Get all OAuth tokens for a specific provider within a tenant
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_tenant_provider_tokens(
         &self,
         tenant_id: &str,
         provider: &str,
@@ -1686,7 +2545,14 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn delete_user_oauth_token(
+    /// Delete a specific OAuth token for a user, tenant, and provider
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database deletion fails
+    /// - Database connection issues
+    pub async fn delete_user_oauth_token(
         &self,
         user_id: Uuid,
         tenant_id: &str,
@@ -1705,7 +2571,14 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()> {
+    /// Delete all OAuth tokens for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database deletion fails
+    /// - Database connection issues
+    pub async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()> {
         match self {
             Self::SQLite(db) => db.delete_user_oauth_tokens(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -1713,7 +2586,15 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn refresh_user_oauth_token(
+    /// Refresh user OAuth token with new access and refresh tokens
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token does not exist
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn refresh_user_oauth_token(
         &self,
         user_id: Uuid,
         tenant_id: &str,
@@ -1750,10 +2631,21 @@ impl DatabaseProvider for Database {
     }
 
     /// Get user role for a specific tenant
-    async fn get_user_tenant_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<String>> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Database connection issues
+    pub async fn get_user_tenant_role(
+        &self,
+        user_id: Uuid,
+        tenant_id: Uuid,
+    ) -> Result<Option<String>> {
         match self {
             Self::SQLite(db) => {
-                DatabaseProvider::get_user_tenant_role(db, user_id, tenant_id).await
+                db.get_user_tenant_role(&user_id.to_string(), &tenant_id.to_string())
+                    .await
             }
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.get_user_tenant_role(user_id, tenant_id).await,
@@ -1765,7 +2657,14 @@ impl DatabaseProvider for Database {
     // ================================
 
     /// Store user OAuth app credentials (`client_id`, `client_secret`)
-    async fn store_user_oauth_app(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insertion fails
+    /// - Data encryption fails
+    /// - Database connection issues
+    pub async fn store_user_oauth_app(
         &self,
         user_id: Uuid,
         provider: &str,
@@ -1787,7 +2686,15 @@ impl DatabaseProvider for Database {
     }
 
     /// Get user OAuth app credentials for a provider
-    async fn get_user_oauth_app(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Data decryption fails
+    /// - Database connection issues
+    pub async fn get_user_oauth_app(
         &self,
         user_id: Uuid,
         provider: &str,
@@ -1800,7 +2707,14 @@ impl DatabaseProvider for Database {
     }
 
     /// List all OAuth app providers configured for a user
-    async fn list_user_oauth_apps(&self, user_id: Uuid) -> Result<Vec<UserOAuthApp>> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn list_user_oauth_apps(&self, user_id: Uuid) -> Result<Vec<UserOAuthApp>> {
         match self {
             Self::SQLite(db) => db.list_user_oauth_apps(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -1809,7 +2723,13 @@ impl DatabaseProvider for Database {
     }
 
     /// Remove user OAuth app credentials for a provider
-    async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> Result<()> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database deletion fails
+    /// - Database connection issues
+    pub async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> Result<()> {
         match self {
             Self::SQLite(db) => db.remove_user_oauth_app(user_id, provider).await,
             #[cfg(feature = "postgresql")]
@@ -1822,7 +2742,15 @@ impl DatabaseProvider for Database {
     // ================================
 
     /// Get or create system secret (generates if not exists)
-    async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Secret generation fails
+    /// - Database insertion fails
+    /// - Database query execution fails
+    /// - Database connection issues
+    pub async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
         match self {
             Self::SQLite(db) => db.get_or_create_system_secret(secret_type).await,
             #[cfg(feature = "postgresql")]
@@ -1831,7 +2759,14 @@ impl DatabaseProvider for Database {
     }
 
     /// Get existing system secret
-    async fn get_system_secret(&self, secret_type: &str) -> Result<String> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Secret does not exist
+    /// - Database query execution fails
+    /// - Database connection issues
+    pub async fn get_system_secret(&self, secret_type: &str) -> Result<String> {
         match self {
             Self::SQLite(db) => db.get_system_secret(secret_type).await,
             #[cfg(feature = "postgresql")]
@@ -1840,7 +2775,14 @@ impl DatabaseProvider for Database {
     }
 
     /// Update system secret (for rotation)
-    async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Secret does not exist
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()> {
         match self {
             Self::SQLite(db) => db.update_system_secret(secret_type, new_value).await,
             #[cfg(feature = "postgresql")]
@@ -1853,7 +2795,13 @@ impl DatabaseProvider for Database {
     // ================================
 
     /// Store OAuth completion notification for MCP resource delivery
-    async fn store_oauth_notification(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database insertion fails
+    /// - Database connection issues
+    pub async fn store_oauth_notification(
         &self,
         user_id: Uuid,
         provider: &str,
@@ -1875,7 +2823,14 @@ impl DatabaseProvider for Database {
     }
 
     /// Get unread OAuth notifications for a user
-    async fn get_unread_oauth_notifications(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_unread_oauth_notifications(
         &self,
         user_id: Uuid,
     ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
@@ -1887,7 +2842,14 @@ impl DatabaseProvider for Database {
     }
 
     /// Mark OAuth notification as read
-    async fn mark_oauth_notification_read(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Notification does not exist
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn mark_oauth_notification_read(
         &self,
         notification_id: &str,
         user_id: Uuid,
@@ -1906,7 +2868,13 @@ impl DatabaseProvider for Database {
     }
 
     /// Mark all OAuth notifications as read for a user
-    async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64> {
         match self {
             Self::SQLite(db) => db.mark_all_oauth_notifications_read(user_id).await,
             #[cfg(feature = "postgresql")]
@@ -1915,7 +2883,14 @@ impl DatabaseProvider for Database {
     }
 
     /// Get all OAuth notifications for a user (read and unread)
-    async fn get_all_oauth_notifications(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_all_oauth_notifications(
         &self,
         user_id: Uuid,
         limit: Option<i64>,
@@ -1932,7 +2907,15 @@ impl DatabaseProvider for Database {
     // ================================
 
     /// Save tenant-level fitness configuration
-    async fn save_tenant_fitness_config(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Configuration validation fails
+    /// - Database insertion fails
+    /// - Data serialization fails
+    /// - Database connection issues
+    pub async fn save_tenant_fitness_config(
         &self,
         tenant_id: &str,
         configuration_name: &str,
@@ -1952,7 +2935,15 @@ impl DatabaseProvider for Database {
     }
 
     /// Save user-specific fitness configuration
-    async fn save_user_fitness_config(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Configuration validation fails
+    /// - Database insertion fails
+    /// - Data serialization fails
+    /// - Database connection issues
+    pub async fn save_user_fitness_config(
         &self,
         tenant_id: &str,
         user_id: &str,
@@ -1973,7 +2964,14 @@ impl DatabaseProvider for Database {
     }
 
     /// Get tenant-level fitness configuration
-    async fn get_tenant_fitness_config(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_tenant_fitness_config(
         &self,
         tenant_id: &str,
         configuration_name: &str,
@@ -1992,7 +2990,14 @@ impl DatabaseProvider for Database {
     }
 
     /// Get user-specific fitness configuration
-    async fn get_user_fitness_config(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn get_user_fitness_config(
         &self,
         tenant_id: &str,
         user_id: &str,
@@ -2012,7 +3017,13 @@ impl DatabaseProvider for Database {
     }
 
     /// List all tenant-level fitness configuration names
-    async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> Result<Vec<String>> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Database connection issues
+    pub async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> Result<Vec<String>> {
         match self {
             Self::SQLite(db) => db.list_tenant_fitness_configurations(tenant_id).await,
             #[cfg(feature = "postgresql")]
@@ -2021,7 +3032,13 @@ impl DatabaseProvider for Database {
     }
 
     /// List all user-specific fitness configuration names
-    async fn list_user_fitness_configurations(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Database connection issues
+    pub async fn list_user_fitness_configurations(
         &self,
         tenant_id: &str,
         user_id: &str,
@@ -2040,7 +3057,14 @@ impl DatabaseProvider for Database {
     }
 
     /// Delete fitness configuration (tenant or user-specific)
-    async fn delete_fitness_config(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Configuration does not exist
+    /// - Database deletion fails
+    /// - Database connection issues
+    pub async fn delete_fitness_config(
         &self,
         tenant_id: &str,
         user_id: Option<&str>,
@@ -2060,7 +3084,14 @@ impl DatabaseProvider for Database {
     }
 
     /// Save RSA keypair to database
-    async fn save_rsa_keypair(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Keypair already exists
+    /// - Database insertion fails
+    /// - Database connection issues
+    pub async fn save_rsa_keypair(
         &self,
         kid: &str,
         private_key_pem: &str,
@@ -2097,7 +3128,14 @@ impl DatabaseProvider for Database {
     }
 
     /// Load all RSA keypairs from database
-    async fn load_rsa_keypairs(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    pub async fn load_rsa_keypairs(
         &self,
     ) -> Result<Vec<(String, String, String, chrono::DateTime<chrono::Utc>, bool)>> {
         match self {
@@ -2108,11 +3146,48 @@ impl DatabaseProvider for Database {
     }
 
     /// Update active status of RSA keypair
-    async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Keypair does not exist
+    /// - Database update fails
+    /// - Database connection issues
+    pub async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
         match self {
             Self::SQLite(db) => db.update_rsa_keypair_active_status(kid, is_active).await,
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.update_rsa_keypair_active_status(kid, is_active).await,
         }
+    }
+}
+
+/// Automatically detect database type from connection string
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Database URL format is not recognized (must start with 'sqlite:' or 'postgresql://')
+/// - `PostgreSQL` URL is provided but `PostgreSQL` feature is not enabled
+/// - Connection string is malformed or empty
+pub fn detect_database_type(database_url: &str) -> Result<DatabaseType> {
+    if database_url.starts_with("sqlite:") {
+        Ok(DatabaseType::SQLite)
+    } else if database_url.starts_with("postgresql://") || database_url.starts_with("postgres://") {
+        #[cfg(feature = "postgresql")]
+        return Ok(DatabaseType::PostgreSQL);
+
+        #[cfg(not(feature = "postgresql"))]
+        return Err(AppError::config(
+            "PostgreSQL connection string detected, but PostgreSQL support is not enabled. \
+             Enable the 'postgresql' feature flag in Cargo.toml",
+        )
+        .into());
+    } else {
+        Err(AppError::config(format!(
+            "Unsupported database URL format: {database_url}. \
+             Supported formats: sqlite:path/to/db.sqlite, postgresql://user:pass@host/db"
+        ))
+        .into())
     }
 }

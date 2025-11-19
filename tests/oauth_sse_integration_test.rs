@@ -8,7 +8,7 @@
 #![allow(missing_docs)]
 
 use anyhow::Result;
-use pierre_mcp_server::{database_plugins::DatabaseProvider, sse::manager::SseManager};
+use pierre_mcp_server::sse::manager::SseManager;
 use reqwest::Client;
 use serde_json::json;
 use std::sync::Arc;

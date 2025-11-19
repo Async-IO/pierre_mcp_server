@@ -6,7 +6,8 @@
 
 use super::resources::ServerResources;
 use crate::auth::AuthManager;
-use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::database::repositories::TenantRepository;
+use crate::database_plugins::factory::Database;
 use crate::errors::AppError;
 use crate::tenant::{TenantContext, TenantRole};
 use anyhow::Result;
@@ -89,7 +90,7 @@ impl TenantIsolation {
 
     /// Get tenant name by ID
     pub async fn get_tenant_name(&self, tenant_id: Uuid) -> String {
-        match self.resources.database.get_tenant_by_id(tenant_id).await {
+        match self.resources.database.tenants().get_by_id(tenant_id).await {
             Ok(tenant) => tenant.name,
             Err(e) => {
                 warn!(

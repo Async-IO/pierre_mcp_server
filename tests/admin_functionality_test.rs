@@ -26,7 +26,6 @@ use pierre_mcp_server::admin::{
 };
 
 const TEST_JWT_SECRET: &str = "test_jwt_secret_for_admin_token_creation_in_tests";
-use pierre_mcp_server::database_plugins::DatabaseProvider;
 use serial_test::serial;
 
 #[tokio::test]

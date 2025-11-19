@@ -21,7 +21,6 @@ use crate::constants::{
     },
     protocol::SERVER_VERSION,
 };
-use crate::database_plugins::DatabaseProvider;
 use crate::mcp::resources::ServerResources;
 use crate::mcp::schema::{get_tools, InitializeRequest, InitializeResponse};
 use crate::models::AuthRequest;

@@ -154,7 +154,6 @@ mod common;
 use anyhow::Result;
 use pierre_mcp_server::{
     admin::models::{AdminPermission, CreateAdminTokenRequest, GeneratedAdminToken},
-    database_plugins::DatabaseProvider,
     models::User,
     routes::admin::AdminApiContext,
 };

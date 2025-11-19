@@ -14,7 +14,7 @@ use super::models::{
 };
 use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
-use crate::database_plugins::DatabaseProvider;
+use crate::database::repositories::UserRepository;
 use crate::errors::AppError;
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine as _};
@@ -747,7 +747,7 @@ impl OAuth2AuthorizationServer {
         use super::models::{ValidateRefreshResponse, ValidationStatus};
 
         match Uuid::parse_str(&claims.sub) {
-            Ok(user_id) => match self.database.get_user(user_id).await {
+            Ok(user_id) => match self.database.users().get_by_id(user_id).await {
                 Ok(Some(_user)) => Ok(ValidateRefreshResponse {
                     status: ValidationStatus::Valid,
                     expires_in: Some(claims.exp - Utc::now().timestamp()),

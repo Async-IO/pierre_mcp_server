@@ -18,7 +18,7 @@ use pierre_mcp_server::{
     auth::AuthManager,
     cache::factory::Cache,
     config::environment::ServerConfig,
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::factory::Database,
     logging,
     mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
 };

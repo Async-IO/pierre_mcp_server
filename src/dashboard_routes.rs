@@ -10,7 +10,7 @@
 // - HashMap key ownership for statistics aggregation (tool_name.clone())
 
 use crate::auth::AuthResult;
-use crate::database_plugins::DatabaseProvider;
+use crate::database::repositories::{ApiKeyRepository, UsageRepository};
 use crate::errors::{AppError, AppResult};
 use crate::mcp::resources::ServerResources;
 use chrono::{Datelike, Duration, TimeZone, Utc};
@@ -202,7 +202,12 @@ impl DashboardRoutes {
         );
 
         // Get user's API keys
-        let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
+        let api_keys = self
+            .resources
+            .database
+            .api_keys()
+            .list_by_user(user_id)
+            .await?;
         let total_api_keys = u32::try_from(api_keys.len()).unwrap_or(0);
         let active_api_keys =
             u32::try_from(api_keys.iter().filter(|k| k.is_active).count()).unwrap_or(0);
@@ -230,6 +235,7 @@ impl DashboardRoutes {
             let today_stats = self
                 .resources
                 .database
+                .usage()
                 .get_api_key_usage_stats(&api_key.id, today_start, Utc::now())
                 .await?;
             total_requests_today += u64::from(today_stats.total_requests);
@@ -238,6 +244,7 @@ impl DashboardRoutes {
             let month_stats = self
                 .resources
                 .database
+                .usage()
                 .get_api_key_usage_stats(&api_key.id, month_start, Utc::now())
                 .await?;
             total_requests_this_month += u64::from(month_stats.total_requests);
@@ -251,6 +258,7 @@ impl DashboardRoutes {
             let month_stats = self
                 .resources
                 .database
+                .usage()
                 .get_api_key_usage_stats(&api_key.id, month_start, Utc::now())
                 .await?;
 
@@ -313,7 +321,12 @@ impl DashboardRoutes {
             days
         );
 
-        let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
+        let api_keys = self
+            .resources
+            .database
+            .api_keys()
+            .list_by_user(user_id)
+            .await?;
         let start_date = Utc::now() - Duration::days(i64::from(days));
 
         // Time series data (daily aggregates)
@@ -331,6 +344,7 @@ impl DashboardRoutes {
                 let stats = self
                     .resources
                     .database
+                    .usage()
                     .get_api_key_usage_stats(&api_key.id, day_start, day_end)
                     .await?;
 
@@ -418,13 +432,19 @@ impl DashboardRoutes {
             user_id
         );
 
-        let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
+        let api_keys = self
+            .resources
+            .database
+            .api_keys()
+            .list_by_user(user_id)
+            .await?;
         let mut overview = Vec::new();
 
         for api_key in api_keys {
             let current_usage = self
                 .resources
                 .database
+                .usage()
                 .get_api_key_current_usage(&api_key.id)
                 .await?;
 
@@ -479,7 +499,12 @@ impl DashboardRoutes {
         user_id: Uuid,
         limit: u32,
     ) -> AppResult<Vec<RecentActivity>> {
-        let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
+        let api_keys = self
+            .resources
+            .database
+            .api_keys()
+            .list_by_user(user_id)
+            .await?;
         let mut recent_activity = Vec::new();
 
         // Get recent usage for all user's API keys
@@ -522,7 +547,12 @@ impl DashboardRoutes {
         start_date: chrono::DateTime<Utc>,
         end_date: chrono::DateTime<Utc>,
     ) -> AppResult<Vec<ToolUsage>> {
-        let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
+        let api_keys = self
+            .resources
+            .database
+            .api_keys()
+            .list_by_user(user_id)
+            .await?;
         let mut tool_stats: std::collections::HashMap<String, (u64, u64, u64)> =
             std::collections::HashMap::new();
 
@@ -531,6 +561,7 @@ impl DashboardRoutes {
             let stats = self
                 .resources
                 .database
+                .usage()
                 .get_api_key_usage_stats(&api_key.id, start_date, end_date)
                 .await?;
 
@@ -611,7 +642,12 @@ impl DashboardRoutes {
         );
 
         // Get user's API keys to filter by
-        let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
+        let api_keys = self
+            .resources
+            .database
+            .api_keys()
+            .list_by_user(user_id)
+            .await?;
 
         // If specific API key is requested, verify user owns it
         if let Some(key_id) = api_key_id {
@@ -663,7 +699,12 @@ impl DashboardRoutes {
         );
 
         // Get user's API keys
-        let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
+        let api_keys = self
+            .resources
+            .database
+            .api_keys()
+            .list_by_user(user_id)
+            .await?;
 
         // If specific API key is requested, verify user owns it
         if let Some(key_id) = api_key_id {
@@ -696,6 +737,7 @@ impl DashboardRoutes {
             let stats = self
                 .resources
                 .database
+                .usage()
                 .get_api_key_usage_stats(&api_key.id, start_time, Utc::now())
                 .await?;
 

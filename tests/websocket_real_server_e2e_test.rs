@@ -13,9 +13,7 @@ mod common;
 use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
 use pierre_mcp_server::{
-    auth::AuthManager,
-    database_plugins::{factory::Database, DatabaseProvider},
-    websocket::WebSocketManager,
+    auth::AuthManager, database_plugins::factory::Database, websocket::WebSocketManager,
 };
 use rand::Rng;
 use serde_json::json;

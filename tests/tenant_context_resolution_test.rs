@@ -8,10 +8,7 @@
 #![allow(missing_docs)]
 
 use chrono::Utc;
-use pierre_mcp_server::{
-    database_plugins::{factory::Database, DatabaseProvider},
-    models::Tenant,
-};
+use pierre_mcp_server::{database_plugins::factory::Database, models::Tenant};
 use uuid::Uuid;
 
 mod common;

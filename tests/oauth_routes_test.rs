@@ -20,7 +20,7 @@ use pierre_mcp_server::{
         SecurityHeadersConfig, ServerConfig, StravaApiConfig, TlsConfig, WeatherServiceConfig,
     },
     database::generate_encryption_key,
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::factory::Database,
     mcp::resources::ServerResources,
     routes::{auth::AuthService, LoginRequest, RegisterRequest},
 };

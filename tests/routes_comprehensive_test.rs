@@ -13,7 +13,7 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::factory::Database,
     mcp::resources::ServerResources,
     models::{Tenant, User, UserStatus},
     routes::{

@@ -15,7 +15,8 @@
 //! for the multi-tenant Pierre MCP Server.
 
 use crate::constants::{limits::USER_SESSION_EXPIRY_HOURS, time_constants::SECONDS_PER_HOUR};
-use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::database::repositories::UserRepository;
+use crate::database_plugins::factory::Database;
 use crate::errors::AppError;
 use crate::models::{AuthRequest, AuthResponse, User, UserSession};
 use crate::rate_limiting::UnifiedRateLimitInfo;
@@ -542,7 +543,7 @@ impl AuthManager {
     ) -> Result<crate::routes::SetupStatusResponse> {
         const DEFAULT_ADMIN_EMAIL: &str = "admin@pierre.mcp";
 
-        match database.get_user_by_email(DEFAULT_ADMIN_EMAIL).await {
+        match database.users().get_by_email(DEFAULT_ADMIN_EMAIL).await {
             Ok(Some(_user)) => {
                 // Admin user exists, setup is complete
                 Ok(crate::routes::SetupStatusResponse {

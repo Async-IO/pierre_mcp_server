@@ -13,9 +13,7 @@ mod common;
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    auth::AuthManager,
-    database::generate_encryption_key,
-    database_plugins::{factory::Database, DatabaseProvider},
+    auth::AuthManager, database::generate_encryption_key, database_plugins::factory::Database,
     mcp::multitenant::MultiTenantMcpServer,
 };
 use rand::Rng;

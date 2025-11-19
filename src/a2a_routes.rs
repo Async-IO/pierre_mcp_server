@@ -14,7 +14,6 @@ use crate::a2a::{
     client::{A2AClientManager, ClientRegistrationRequest},
     protocol::A2AError,
 };
-use crate::database_plugins::DatabaseProvider;
 use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use crate::utils::auth::extract_bearer_token;
 use anyhow::Result;

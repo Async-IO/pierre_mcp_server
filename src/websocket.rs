@@ -14,7 +14,7 @@
 //! and system metrics via `WebSocket` connections.
 
 use crate::auth::{AuthManager, AuthResult};
-use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::database_plugins::factory::Database;
 use crate::middleware::McpAuthMiddleware;
 use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};

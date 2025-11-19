@@ -9,9 +9,7 @@
 
 use chrono::Utc;
 use pierre_mcp_server::{
-    database_plugins::{factory::Database, DatabaseProvider},
-    models::User,
-    rate_limiting::JwtUsage,
+    database_plugins::factory::Database, models::User, rate_limiting::JwtUsage,
 };
 use uuid::Uuid;
 

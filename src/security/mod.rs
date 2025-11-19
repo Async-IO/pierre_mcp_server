@@ -12,7 +12,6 @@
 //! - Comprehensive encryption for all sensitive data
 //! - Security audit logging
 
-use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
 use anyhow::{Context, Result};
 use ring::{
@@ -434,7 +433,9 @@ impl TenantEncryptionManager {
                 algorithm: "HKDF-SHA256".to_owned(),
             };
 
-            database.store_key_version(&key_version).await?;
+            database
+                .store_key_version(key_version.tenant_id, &key_version)
+                .await?;
 
             // Re-encrypt existing OAuth tokens and sensitive data with new key
             // This is a complex operation that requires careful implementation
