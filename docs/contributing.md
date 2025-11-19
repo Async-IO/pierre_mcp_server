@@ -32,6 +32,21 @@ cargo test
 
 ### error handling
 
+Use structured error types (no anyhow!):
+```rust
+// bad - anyhow not allowed
+use anyhow::Result;
+
+// good - use AppResult and structured errors
+use crate::errors::AppResult;
+
+pub async fn my_function() -> AppResult<Value> {
+    // errors automatically convert via From trait
+    let user = db.users().get_by_id(id).await?;
+    Ok(result)
+}
+```
+
 No panics in production code:
 ```rust
 // bad
@@ -40,6 +55,8 @@ let value = some_option.unwrap();
 // good
 let value = some_option.ok_or(MyError::NotFound)?;
 ```
+
+**Important**: The codebase enforces zero-tolerance for `impl From<anyhow::Error>` via static analysis (commits b592b5e, 3219f07).
 
 ### forbidden patterns
 
@@ -340,19 +357,30 @@ git add src/types.ts
 
 ### new database backend
 
-1. Implement `DatabaseProvider` trait in `src/database_plugins/`:
+1. Implement repository traits in `src/database_plugins/`:
 ```rust
+use crate::database::repositories::*;
+
 pub struct MyDbProvider { /* ... */ }
 
+// Implement each repository trait for your backend
 #[async_trait]
-impl DatabaseProvider for MyDbProvider {
-    // implement all methods
+impl UserRepository for MyDbProvider {
+    // implement user management methods
 }
+
+#[async_trait]
+impl OAuthTokenRepository for MyDbProvider {
+    // implement oauth token methods
+}
+// ... implement other 11 repository traits
 ```
 
 2. Add to factory in `src/database_plugins/factory.rs`
 3. Add migration support
 4. Add comprehensive tests
+
+**Note**: The codebase uses the repository pattern with 13 focused repository traits (commit 6f3efef). See `src/database/repositories/mod.rs` for the complete list.
 
 ## documentation
 
