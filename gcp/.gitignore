@@ -1,0 +1,41 @@
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+*.tfplan
+*.tfvars.backup
+**/.terraform.tfstate.lock.info
+
+# Sensitive files (never commit!)
+secrets.yaml
+secrets.json
+*secret*.txt
+*password*.txt
+credentials.json
+
+# Local development
+.env
+.envrc
+.direnv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
