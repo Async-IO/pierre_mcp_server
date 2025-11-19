@@ -70,10 +70,47 @@ Pierre Fitness Platform is a multi-protocol fitness data platform that connects 
 - training load calculation
 - goal feasibility analysis
 
-### database (`src/database_plugins/`)
-- pluggable backend (sqlite, postgresql)
+### database (`src/database/`)
+- **repository pattern**: 13 focused repositories following SOLID principles
+- repository accessors: `db.users()`, `db.oauth_tokens()`, `db.api_keys()`, `db.profiles()`, etc.
+- pluggable backend (sqlite, postgresql) via `src/database_plugins/`
 - encrypted token storage
 - multi-tenant isolation
+
+#### repository architecture
+
+The database layer implements the repository pattern to break down the monolithic `DatabaseProvider` god-trait into focused, cohesive repositories (commit 6f3efef):
+
+**13 focused repositories** (`src/database/repositories/`):
+1. `UserRepository` - user account management
+2. `OAuthTokenRepository` - oauth token storage (tenant-scoped)
+3. `ApiKeyRepository` - api key management
+4. `UsageRepository` - usage tracking and analytics
+5. `A2ARepository` - agent-to-agent management
+6. `ProfileRepository` - user profiles and goals
+7. `InsightRepository` - ai-generated insights
+8. `AdminRepository` - admin token management
+9. `TenantRepository` - multi-tenant management
+10. `OAuth2ServerRepository` - oauth 2.0 server functionality
+11. `SecurityRepository` - key rotation and audit
+12. `NotificationRepository` - oauth notifications
+13. `FitnessConfigRepository` - fitness configuration management
+
+**accessor pattern** (`src/database/mod.rs:139-245`):
+```rust
+let db = Database::new(database_url, encryption_key).await?;
+
+// Access repositories via typed accessors
+let user = db.users().get_by_id(user_id).await?;
+let token = db.oauth_tokens().get(user_id, tenant_id, provider).await?;
+let api_key = db.api_keys().get_by_key(key).await?;
+```
+
+**benefits**:
+- **single responsibility**: each repository handles one domain
+- **interface segregation**: consumers only depend on needed methods
+- **testability**: mock individual repositories independently
+- **maintainability**: changes isolated to specific repositories
 
 ### authentication (`src/auth.rs`)
 - jwt token generation/validation
@@ -82,7 +119,7 @@ Pierre Fitness Platform is a multi-protocol fitness data platform that connects 
 
 ## error handling
 
-Pierre Fitness Platform uses structured error types for precise error handling and propagation.
+Pierre Fitness Platform uses structured error types for precise error handling and propagation. The codebase **does not use anyhow** - all errors are structured types using `thiserror` (commits b592b5e, 3219f07).
 
 ### error type hierarchy
 
@@ -119,21 +156,28 @@ AppError (src/errors.rs)
 
 ### error propagation
 
-All fallible operations return `Result<T, E>` types:
+All fallible operations return `Result<T, E>` types with **structured error types only**:
 ```rust
 pub async fn get_user(db: &Database, user_id: &str) -> Result<User, DatabaseError>
 pub async fn fetch_activities(provider: &Strava) -> Result<Vec<Activity>, ProviderError>
 pub async fn process_request(req: Request) -> Result<Response, AppError>
 ```
 
-Errors propagate using `?` operator and convert automatically:
+**AppResult type alias** (`src/errors.rs`):
 ```rust
-// DatabaseError converts to AppError
-let user = db.get_user(user_id).await?;
+pub type AppResult<T> = Result<T, AppError>;
+```
 
-// ProviderError converts to AppError
+Errors propagate using `?` operator with automatic conversion via `From` trait implementations:
+```rust
+// DatabaseError converts to AppError via From<DatabaseError>
+let user = db.users().get_by_id(user_id).await?;
+
+// ProviderError converts to AppError via From<ProviderError>
 let activities = provider.fetch_activities().await?;
 ```
+
+**no blanket anyhow conversions**: the codebase enforces zero-tolerance for `impl From<anyhow::Error>` via static analysis (`scripts/lint-and-test.sh`) to prevent loss of type information.
 
 ### error responses
 
@@ -228,7 +272,10 @@ src/
 ├── a2a/                       # a2a protocol
 ├── providers/                 # fitness integrations
 ├── intelligence/              # activity analysis
-├── database_plugins/          # database backends
+├── database/                  # repository pattern (13 focused repositories)
+│   ├── repositories/          # repository trait definitions and implementations
+│   └── ...                    # user, oauth token, api key management modules
+├── database_plugins/          # database backends (sqlite, postgresql)
 ├── admin/                     # admin authentication
 ├── auth.rs                    # authentication
 ├── tenant/                    # multi-tenancy
