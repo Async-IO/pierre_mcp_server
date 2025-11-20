@@ -9,10 +9,13 @@ import { apiService } from '../../services/api'
 vi.mock('../../services/api', () => ({
   apiService: {
     login: vi.fn(),
-    getToken: vi.fn(),
-    setToken: vi.fn(),
-    clearToken: vi.fn(),
-    setAuthToken: vi.fn(),
+    logout: vi.fn().mockResolvedValue(undefined),
+    getCsrfToken: vi.fn(),
+    setCsrfToken: vi.fn(),
+    clearCsrfToken: vi.fn(),
+    getUser: vi.fn(),
+    setUser: vi.fn(),
+    clearUser: vi.fn(),
   }
 }))
 
@@ -50,8 +53,6 @@ describe('AuthContext', () => {
   })
 
   it('should render in unauthenticated state initially', () => {
-    vi.mocked(apiService.getToken).mockReturnValue(null)
-    
     renderWithAuth()
 
     expect(screen.getByTestId('authenticated')).toHaveTextContent('Not Authenticated')
@@ -59,13 +60,15 @@ describe('AuthContext', () => {
     expect(screen.queryByTestId('user-email')).not.toBeInTheDocument()
   })
 
-  it('should authenticate when token exists in localStorage', async () => {
-    vi.mocked(apiService.getToken).mockReturnValue('existing-token')
-    
+  it('should authenticate when user exists in localStorage', async () => {
+    const mockUser = { id: '1', email: 'test@example.com', display_name: 'Test User' }
+    localStorage.setItem('user', JSON.stringify(mockUser))
+
     renderWithAuth()
 
     await waitFor(() => {
       expect(screen.getByTestId('authenticated')).toHaveTextContent('Authenticated')
+      expect(screen.getByTestId('user-email')).toHaveTextContent('test@example.com')
     })
   })
 
@@ -74,10 +77,10 @@ describe('AuthContext', () => {
     const mockUser = { id: '1', email: 'test@example.com', display_name: 'Test User' }
     const mockLoginResponse = {
       user: mockUser,
-      jwt_token: 'new-token'
+      csrf_token: 'csrf-test-token',
+      expires_at: new Date(Date.now() + 86400000).toISOString()
     }
 
-    vi.mocked(apiService.getToken).mockReturnValue(null)
     vi.mocked(apiService.login).mockResolvedValue(mockLoginResponse)
 
     renderWithAuth()
@@ -95,14 +98,12 @@ describe('AuthContext', () => {
 
     expect(screen.getByTestId('user-email')).toHaveTextContent('test@example.com')
     expect(apiService.login).toHaveBeenCalledWith('test@example.com', 'password')
-    expect(apiService.setAuthToken).toHaveBeenCalledWith('new-token')
+    expect(apiService.setCsrfToken).toHaveBeenCalledWith('csrf-test-token')
   })
 
   it('should handle login failure gracefully', () => {
     // Test that login failure is handled properly in the component
     // This is a simplified test to avoid unhandled promise rejections
-    vi.mocked(apiService.getToken).mockReturnValue(null)
-
     renderWithAuth()
 
     expect(screen.getByTestId('authenticated')).toHaveTextContent('Not Authenticated')
@@ -111,8 +112,9 @@ describe('AuthContext', () => {
 
   it('should logout successfully', async () => {
     const user = userEvent.setup()
+    const mockUser = { id: '1', email: 'test@example.com', display_name: 'Test User' }
 
-    vi.mocked(apiService.getToken).mockReturnValue('existing-token')
+    localStorage.setItem('user', JSON.stringify(mockUser))
 
     renderWithAuth()
 
@@ -129,14 +131,15 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('authenticated')).toHaveTextContent('Not Authenticated')
     })
 
-    expect(apiService.setAuthToken).toHaveBeenCalledWith(null)
+    expect(apiService.clearCsrfToken).toHaveBeenCalled()
+    expect(apiService.clearUser).toHaveBeenCalled()
+    expect(apiService.logout).toHaveBeenCalled()
     expect(screen.queryByTestId('user-email')).not.toBeInTheDocument()
   })
 
   it('should show loading state during login', async () => {
     const user = userEvent.setup()
-    
-    vi.mocked(apiService.getToken).mockReturnValue(null)
+
     // Make login hang to test loading state
     vi.mocked(apiService.login).mockImplementation(() => new Promise(() => {}))
 

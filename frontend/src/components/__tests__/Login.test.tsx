@@ -8,10 +8,13 @@ import { AuthProvider } from '../../contexts/AuthContext'
 vi.mock('../../services/api', () => ({
   apiService: {
     login: vi.fn(),
-    getToken: vi.fn(),
-    setToken: vi.fn(),
-    clearToken: vi.fn(),
-    setAuthToken: vi.fn(),
+    logout: vi.fn().mockResolvedValue(undefined),
+    getCsrfToken: vi.fn(),
+    setCsrfToken: vi.fn(),
+    clearCsrfToken: vi.fn(),
+    getUser: vi.fn(),
+    setUser: vi.fn(),
+    clearUser: vi.fn(),
     getSetupStatus: vi.fn().mockResolvedValue({ needs_setup: false, admin_exists: true }),
   }
 }))

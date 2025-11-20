@@ -574,16 +574,19 @@ impl A2AServer {
         let base_url =
             std::env::var("PIERRE_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_owned());
 
-        // Extract task_id from params if provided, otherwise return generic streaming info
+        // Extract stream_id or task_id from params (support both for flexibility)
         let params = request.params.as_ref().unwrap_or(&serde_json::Value::Null);
-        let task_id = params.get("task_id").and_then(|v| v.as_str());
+        let stream_id = params
+            .get("stream_id")
+            .or_else(|| params.get("task_id"))
+            .and_then(|v| v.as_str());
 
-        if let Some(task_id) = task_id {
-            // Return SSE streaming endpoint for specific task
+        if let Some(id) = stream_id {
+            // Return SSE streaming endpoint for specific stream/task
             A2AResponse {
                 jsonrpc: "2.0".into(),
                 result: Some(serde_json::json!({
-                    "stream_url": format!("{}/a2a/tasks/{}/stream", base_url, task_id),
+                    "stream_url": format!("{}/a2a/tasks/{}/stream", base_url, id),
                     "stream_type": "text/event-stream",
                     "protocol": "SSE",
                     "keep_alive_interval_seconds": 15,
@@ -593,15 +596,16 @@ impl A2AServer {
                 id: request.id,
             }
         } else {
-            // Return error if no task_id provided
+            // Return generic streaming info if no specific ID provided
             A2AResponse {
                 jsonrpc: "2.0".into(),
-                result: None,
-                error: Some(A2AErrorResponse {
-                    code: -32602,
-                    message: "Missing required parameter: task_id".into(),
-                    data: None,
-                }),
+                result: Some(serde_json::json!({
+                    "streaming_supported": true,
+                    "stream_type": "text/event-stream",
+                    "protocol": "SSE",
+                    "status": "available"
+                })),
+                error: None,
                 id: request.id,
             }
         }

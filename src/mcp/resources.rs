@@ -77,6 +77,10 @@ pub struct ServerResources {
     pub redaction_config: Arc<RedactionConfig>,
     /// Rate limiter for `OAuth2` endpoints
     pub oauth2_rate_limiter: Arc<crate::oauth2_server::rate_limiting::OAuth2RateLimiter>,
+    /// CSRF token manager for request forgery protection
+    pub csrf_manager: Arc<crate::security::csrf::CsrfTokenManager>,
+    /// CSRF validation middleware
+    pub csrf_middleware: Arc<crate::middleware::CsrfMiddleware>,
     /// Optional sampling peer for server-initiated LLM requests (stdio transport only)
     pub sampling_peer: Option<Arc<SamplingPeer>>,
     /// Optional progress notification sender (stdio transport only)
@@ -185,6 +189,13 @@ impl ServerResources {
             ),
         );
 
+        // Create CSRF token manager for request forgery protection
+        let csrf_manager = Arc::new(crate::security::csrf::CsrfTokenManager::new());
+
+        // Create CSRF validation middleware
+        let csrf_middleware =
+            Arc::new(crate::middleware::CsrfMiddleware::new(csrf_manager.clone()));
+
         Self {
             database: database_arc,
             auth_manager: auth_manager_arc,
@@ -204,6 +215,8 @@ impl ServerResources {
             plugin_executor: None,
             redaction_config,
             oauth2_rate_limiter,
+            csrf_manager,
+            csrf_middleware,
             sampling_peer: None,
             progress_notification_sender: None,
             cancellation_registry: Arc::new(RwLock::new(HashMap::new())),

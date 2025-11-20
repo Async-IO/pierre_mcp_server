@@ -153,6 +153,7 @@ struct MultiTenantMcpClient {
     http_client: Client,
     base_url: String,
     jwt_token: Option<String>,
+    csrf_token: Option<String>,
 }
 
 impl MultiTenantMcpClient {
@@ -164,6 +165,7 @@ impl MultiTenantMcpClient {
                 .unwrap(),
             base_url: format!("http://127.0.0.1:{port}"),
             jwt_token: None,
+            csrf_token: None,
         }
     }
 
@@ -259,14 +261,36 @@ impl MultiTenantMcpClient {
         .await??;
 
         if response.status().is_success() {
+            // Extract JWT token from Set-Cookie header (for Bearer auth in tests)
+            let jwt_token = response
+                .headers()
+                .get("set-cookie")
+                .and_then(|cookie| cookie.to_str().ok())
+                .and_then(|cookie_str| {
+                    // Parse "auth_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Max-Age=86400; Path=/"
+                    cookie_str
+                        .split(';')
+                        .next()
+                        .and_then(|pair| pair.strip_prefix("auth_token="))
+                })
+                .map(std::borrow::ToOwned::to_owned);
+
             let data: Value = response.json().await?;
-            let token = data["jwt_token"].as_str().unwrap().to_owned();
+            // Extract CSRF token (required for state-changing requests)
+            let csrf_token = data["csrf_token"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("csrf_token missing from login response"))?
+                .to_owned();
+
+            eprintln!("DEBUG: Received CSRF token from login");
+            eprintln!("DEBUG: CSRF token length: {} characters", csrf_token.len());
             eprintln!(
-                "DEBUG: Received JWT token from login: {} (first 100 chars)",
-                &token[..std::cmp::min(100, token.len())]
+                "DEBUG: JWT token extracted from cookie: {}",
+                jwt_token.is_some()
             );
-            eprintln!("DEBUG: Token length: {} characters", token.len());
-            self.jwt_token = Some(token);
+
+            self.csrf_token = Some(csrf_token);
+            self.jwt_token = jwt_token;
             Ok(())
         } else {
             Err(anyhow::anyhow!("Login failed: {}", response.status()))
@@ -512,7 +536,7 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
 
     // Test 2: User Login
     client.login(email, password).await?;
-    assert!(client.jwt_token.is_some());
+    assert!(client.csrf_token.is_some());
 
     // Test 3: OAuth URL Generation
     let oauth_url = client.get_strava_oauth_url(&user_id).await?;
@@ -869,6 +893,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
             http_client: client.http_client.clone(),
             base_url: client.base_url.clone(),
             jwt_token: client.jwt_token.clone(),
+            csrf_token: client.csrf_token.clone(),
         };
 
         let handle = tokio::spawn(async move {
@@ -949,7 +974,7 @@ fn test_mcp_client_creation() {
     let client = MultiTenantMcpClient::new(8081);
 
     assert_eq!(client.base_url, "http://127.0.0.1:8081");
-    assert!(client.jwt_token.is_none());
+    assert!(client.csrf_token.is_none());
 
     println!("MCP client creation test passed!");
 }

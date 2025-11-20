@@ -25,6 +25,10 @@ use uuid::Uuid;
 
 /// Security audit logging
 pub mod audit;
+/// Secure HTTP cookie utilities
+pub mod cookies;
+/// CSRF protection token management
+pub mod csrf;
 /// Encryption key rotation management
 pub mod key_rotation;
 

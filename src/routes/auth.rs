@@ -67,8 +67,11 @@ pub struct UserInfo {
 /// User login response
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
-    /// JWT authentication token
-    pub jwt_token: String,
+    /// JWT authentication token (optional, set in httpOnly cookie)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jwt_token: Option<String>,
+    /// CSRF token for request validation (client must include in X-CSRF-Token header)
+    pub csrf_token: String,
     /// When the token expires (ISO 8601 format)
     pub expires_at: String,
     /// User information
@@ -270,7 +273,8 @@ impl AuthService {
         );
 
         Ok(LoginResponse {
-            jwt_token,
+            jwt_token: Some(jwt_token),
+            csrf_token: String::new(), // Will be set by HTTP handler
             expires_at: expires_at.to_rfc3339(),
             user: UserInfo {
                 user_id: user.id.to_string(),
@@ -330,7 +334,8 @@ impl AuthService {
         tracing::info!("Token refreshed successfully for user: {}", user.id);
 
         Ok(LoginResponse {
-            jwt_token: new_jwt_token,
+            jwt_token: Some(new_jwt_token),
+            csrf_token: String::new(), // Will be set by HTTP handler
             expires_at: expires_at.to_rfc3339(),
             user: UserInfo {
                 user_id: user.id.to_string(),
@@ -992,6 +997,7 @@ impl AuthRoutes {
         Router::new()
             .route("/api/auth/register", post(Self::handle_register))
             .route("/api/auth/login", post(Self::handle_login))
+            .route("/api/auth/logout", post(Self::handle_logout))
             .route("/api/auth/refresh", post(Self::handle_refresh))
             .route(
                 "/api/oauth/callback/:provider",
@@ -1035,11 +1041,44 @@ impl AuthRoutes {
         use axum::response::IntoResponse;
 
         let server_context = crate::context::ServerContext::from(resources.as_ref());
-        let auth_routes =
+        let auth_service =
             AuthService::new(server_context.auth().clone(), server_context.data().clone());
 
-        match auth_routes.login(request).await {
-            Ok(response) => Ok((axum::http::StatusCode::OK, axum::Json(response)).into_response()),
+        match auth_service.login(request).await {
+            Ok(mut response) => {
+                // Clone JWT for cookie (keep in response for backward compatibility)
+                let jwt_token = response
+                    .jwt_token
+                    .clone()
+                    .ok_or_else(|| AppError::internal("JWT token missing from login response"))?;
+
+                // Parse user ID for CSRF token generation
+                let user_id = uuid::Uuid::parse_str(&response.user.user_id)
+                    .map_err(|e| AppError::internal(format!("Invalid user ID format: {e}")))?;
+
+                // Generate CSRF token
+                let csrf_token = resources
+                    .csrf_manager
+                    .generate_token(user_id)
+                    .await
+                    .map_err(|e| {
+                        AppError::internal(format!("Failed to generate CSRF token: {e}"))
+                    })?;
+
+                // Set response CSRF token
+                response.csrf_token.clone_from(&csrf_token);
+
+                // Build response with secure cookies
+                let mut headers = axum::http::HeaderMap::new();
+
+                // Set httpOnly auth cookie (24 hour expiry to match JWT)
+                crate::security::cookies::set_auth_cookie(&mut headers, &jwt_token, 24 * 60 * 60);
+
+                // Set CSRF cookie (30 minute expiry to match CSRF token)
+                crate::security::cookies::set_csrf_cookie(&mut headers, &csrf_token, 30 * 60);
+
+                Ok((axum::http::StatusCode::OK, headers, axum::Json(response)).into_response())
+            }
             Err(e) => {
                 tracing::error!("Login failed: {}", e);
                 Err(e)
@@ -1055,16 +1094,73 @@ impl AuthRoutes {
         use axum::response::IntoResponse;
 
         let server_context = crate::context::ServerContext::from(resources.as_ref());
-        let auth_routes =
+        let auth_service =
             AuthService::new(server_context.auth().clone(), server_context.data().clone());
 
-        match auth_routes.refresh_token(request).await {
-            Ok(response) => Ok((axum::http::StatusCode::OK, axum::Json(response)).into_response()),
+        match auth_service.refresh_token(request).await {
+            Ok(mut response) => {
+                // Clone JWT for cookie (keep in response for backward compatibility)
+                let jwt_token = response
+                    .jwt_token
+                    .clone()
+                    .ok_or_else(|| AppError::internal("JWT token missing from refresh response"))?;
+
+                // Parse user ID for CSRF token generation
+                let user_id = uuid::Uuid::parse_str(&response.user.user_id)
+                    .map_err(|e| AppError::internal(format!("Invalid user ID format: {e}")))?;
+
+                // Generate new CSRF token
+                let csrf_token = resources
+                    .csrf_manager
+                    .generate_token(user_id)
+                    .await
+                    .map_err(|e| {
+                        AppError::internal(format!("Failed to generate CSRF token: {e}"))
+                    })?;
+
+                // Set response CSRF token
+                response.csrf_token.clone_from(&csrf_token);
+
+                // Build response with secure cookies
+                let mut headers = axum::http::HeaderMap::new();
+
+                // Set httpOnly auth cookie (24 hour expiry to match JWT)
+                crate::security::cookies::set_auth_cookie(&mut headers, &jwt_token, 24 * 60 * 60);
+
+                // Set CSRF cookie (30 minute expiry to match CSRF token)
+                crate::security::cookies::set_csrf_cookie(&mut headers, &csrf_token, 30 * 60);
+
+                Ok((axum::http::StatusCode::OK, headers, axum::Json(response)).into_response())
+            }
             Err(e) => {
                 tracing::error!("Token refresh failed: {}", e);
                 Err(e)
             }
         }
+    }
+
+    /// Handle user logout (Axum)
+    async fn handle_logout() -> Result<axum::response::Response, AppError> {
+        use axum::response::IntoResponse;
+
+        // Yield to allow async context (required for Axum handler)
+        tokio::task::yield_now().await;
+
+        // Build response with cleared cookies
+        let mut headers = axum::http::HeaderMap::new();
+
+        // Clear auth cookie
+        crate::security::cookies::clear_auth_cookie(&mut headers);
+
+        // Return success response
+        Ok((
+            axum::http::StatusCode::OK,
+            headers,
+            axum::Json(serde_json::json!({
+                "message": "Logged out successfully"
+            })),
+        )
+            .into_response())
     }
 
     /// Handle OAuth callback (Axum)
@@ -1147,27 +1243,13 @@ impl AuthRoutes {
     ) -> Result<axum::response::Response, AppError> {
         use axum::response::IntoResponse;
 
-        // Extract user from auth header
-        let auth_header = headers
-            .get("authorization")
-            .and_then(|h| h.to_str().ok())
-            .map(String::from);
+        // Authenticate using middleware (supports both cookies and Authorization header)
+        let auth_result = resources
+            .auth_middleware
+            .authenticate_request_with_headers(&headers)
+            .await?;
 
-        let user_id = match auth_header {
-            Some(header) => {
-                // Extract JWT and get user ID
-                let token = header.strip_prefix("Bearer ").unwrap_or(&header);
-                let claims = resources
-                    .auth_manager
-                    .validate_token(token, &resources.jwks_manager)
-                    .map_err(|_| AppError::auth_invalid("Invalid or expired token"))?;
-                uuid::Uuid::parse_str(&claims.sub)
-                    .map_err(|e| AppError::auth_invalid(e.to_string()))?
-            }
-            None => {
-                return Err(AppError::auth_required());
-            }
-        };
+        let user_id = auth_result.user_id;
 
         // Check OAuth provider connection status for the user
         let provider_statuses = resources

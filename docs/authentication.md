@@ -513,6 +513,237 @@ Response:
 }
 ```
 
+## web application security
+
+### cookie-based authentication (production web apps)
+
+Pierre implements secure cookie-based authentication for web applications using httpOnly cookies with CSRF protection.
+
+#### security model
+
+**httpOnly cookies** prevent JavaScript access to JWT tokens, eliminating XSS-based token theft:
+```
+Set-Cookie: auth_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Max-Age=86400
+```
+
+**CSRF protection** uses double-submit cookie pattern with cryptographic tokens:
+```
+Set-Cookie: csrf_token=<token>; Secure; SameSite=Strict; Max-Age=1800
+X-CSRF-Token: <token>  (sent in request header)
+```
+
+#### cookie security flags
+
+| flag | value | purpose |
+|------|-------|---------|
+| HttpOnly | true | prevents JavaScript access (XSS protection) |
+| Secure | true | requires HTTPS (prevents sniffing) |
+| SameSite | Strict | prevents cross-origin requests (CSRF mitigation) |
+| Max-Age | 86400 (auth), 1800 (csrf) | automatic expiration |
+
+#### authentication flow
+
+**login** (`POST /api/auth/login`):
+```bash
+curl -X POST http://localhost:8081/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "SecurePass123!"}'
+```
+
+response sets two cookies and returns csrf token:
+```json
+{
+  "jwt_token": "eyJ0eXAiOiJKV1Qi...",  // deprecated, for backward compatibility
+  "csrf_token": "cryptographic_random_32bytes",
+  "user": {"id": "uuid", "email": "user@example.com"},
+  "expires_at": "2025-01-20T18:00:00Z"
+}
+```
+
+cookies set automatically:
+```
+Set-Cookie: auth_token=eyJ0eXAiOiJKV1Qi...; HttpOnly; Secure; SameSite=Strict; Max-Age=86400
+Set-Cookie: csrf_token=cryptographic_random_32bytes; Secure; SameSite=Strict; Max-Age=1800
+```
+
+**authenticated requests**:
+
+browsers automatically include cookies. web apps must include csrf token header:
+```bash
+curl -X POST http://localhost:8081/api/something \
+  -H "X-CSRF-Token: cryptographic_random_32bytes" \
+  -H "Cookie: auth_token=...; csrf_token=..." \
+  -d '{"data": "value"}'
+```
+
+server validates:
+1. jwt token from `auth_token` cookie
+2. csrf token from `csrf_token` cookie matches `X-CSRF-Token` header
+3. csrf token is valid for authenticated user
+4. csrf token not expired (30 minute lifetime)
+
+**logout** (`POST /api/auth/logout`):
+```bash
+curl -X POST http://localhost:8081/api/auth/logout \
+  -H "Cookie: auth_token=..."
+```
+
+server clears cookies:
+```
+Set-Cookie: auth_token=; Max-Age=0
+Set-Cookie: csrf_token=; Max-Age=0
+```
+
+#### csrf protection details
+
+**token generation**:
+- 256-bit (32 byte) cryptographic randomness
+- user-scoped validation (token tied to specific user_id)
+- 30-minute expiration
+- stored in-memory (HashMap with automatic cleanup)
+
+**validation requirements**:
+- csrf validation required for: POST, PUT, DELETE, PATCH
+- csrf validation skipped for: GET, HEAD, OPTIONS
+- validation extracts:
+  1. user_id from jwt token (auth_token cookie)
+  2. csrf token from X-CSRF-Token header
+  3. verifies token valid for that user_id
+  4. verifies token not expired
+
+**double-submit cookie pattern**:
+```
+1. server generates csrf token
+2. server sets csrf_token cookie (JavaScript readable)
+3. server returns csrf_token in JSON response
+4. client stores csrf_token in memory
+5. client includes X-CSRF-Token header in state-changing requests
+6. server validates:
+   - csrf_token cookie matches X-CSRF-Token header
+   - token is valid for authenticated user_id
+   - token not expired
+```
+
+**security benefits**:
+- attacker cannot read csrf token (cross-origin restriction)
+- attacker cannot forge valid csrf token (cryptographic randomness)
+- attacker cannot reuse old token (user-scoped validation)
+- attacker cannot use expired token (30-minute lifetime)
+
+#### frontend integration (react/typescript)
+
+**axios configuration**:
+```typescript
+// enable automatic cookie handling
+axios.defaults.withCredentials = true;
+
+// request interceptor for csrf token
+axios.interceptors.request.use((config) => {
+  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(config.method?.toUpperCase() || '')) {
+    const csrfToken = apiService.getCsrfToken();
+    if (csrfToken && config.headers) {
+      config.headers['X-CSRF-Token'] = csrfToken;
+    }
+  }
+  return config;
+});
+
+// response interceptor for 401 errors
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      // clear csrf token and redirect to login
+      apiService.clearCsrfToken();
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+```
+
+**login flow**:
+```typescript
+async function login(email: string, password: string) {
+  const response = await axios.post('/api/auth/login', { email, password });
+
+  // store csrf token in memory (cookies set automatically)
+  apiService.setCsrfToken(response.data.csrf_token);
+
+  // store user info in localStorage (not sensitive)
+  localStorage.setItem('user', JSON.stringify(response.data.user));
+
+  return response.data;
+}
+```
+
+**logout flow**:
+```typescript
+async function logout() {
+  try {
+    // call backend to clear httpOnly cookies
+    await axios.post('/api/auth/logout');
+  } catch (error) {
+    console.error('Logout failed:', error);
+  } finally {
+    // clear client-side state
+    apiService.clearCsrfToken();
+    localStorage.removeItem('user');
+  }
+}
+```
+
+#### token refresh
+
+web apps can proactively refresh tokens using the refresh endpoint:
+
+```typescript
+async function refreshToken() {
+  const response = await axios.post('/api/auth/refresh');
+
+  // server sets new auth_token and csrf_token cookies
+  apiService.setCsrfToken(response.data.csrf_token);
+
+  return response.data;
+}
+```
+
+refresh generates:
+- new jwt token (24 hour expiry)
+- new csrf token (30 minute expiry)
+- both cookies updated automatically
+
+**when to refresh**:
+- proactively before jwt expires (24h default)
+- after csrf token expires (30min default)
+- after receiving 401 response with expired token
+
+#### implementation references
+
+**backend**:
+- csrf token manager: `src/security/csrf.rs`
+- secure cookie utilities: `src/security/cookies.rs`
+- csrf middleware: `src/middleware/csrf.rs`
+- authentication middleware: `src/middleware/auth.rs` (cookie-aware)
+- auth handlers: `src/routes/auth.rs` (login, refresh, logout)
+
+**frontend**:
+- api service: `frontend/src/services/api.ts`
+- auth context: `frontend/src/contexts/AuthContext.tsx`
+
+#### backward compatibility
+
+pierre supports both cookie-based and bearer token authentication simultaneously:
+
+1. **cookie-based** (web apps): jwt from httpOnly cookie
+2. **bearer token** (api clients): `Authorization: Bearer <token>` header
+
+middleware tries cookies first, falls back to authorization header.
+
+### api key authentication (service-to-service)
+
+for a2a systems and service-to-service communication, api keys provide simpler authentication without cookies or csrf.
+
 ## security features
 
 ### password hashing
@@ -589,9 +820,21 @@ Implementation: `src/rate_limiting.rs`, `src/oauth2/rate_limiting.rs`
 
 ### csrf protection
 
-- state parameter in oauth flows
-- pkce for oauth2 authorization
+pierre implements comprehensive csrf protection for web applications:
+
+**web application requests**:
+- double-submit cookie pattern (see "Web Application Security" section above)
+- 256-bit cryptographic csrf tokens
+- user-scoped validation
+- 30-minute token expiration
+- automatic header validation for POST/PUT/DELETE/PATCH
+
+**oauth flows**:
+- state parameter validation in oauth flows (prevents csrf in oauth redirects)
+- pkce for oauth2 authorization (code challenge verification)
 - origin validation for web requests
+
+see "Web Application Security" section above for detailed csrf implementation.
 
 ### atomic token operations
 

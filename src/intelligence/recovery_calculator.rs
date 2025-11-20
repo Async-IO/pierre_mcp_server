@@ -30,24 +30,6 @@ use crate::intelligence::sleep_analysis::{
 use crate::intelligence::training_load::TrainingLoad;
 use serde::{Deserialize, Serialize};
 
-/// Recovery score thresholds
-///
-/// Module kept for backward compatibility - use `SleepRecoveryConfig` for actual values
-#[deprecated(
-    since = "0.3.0",
-    note = "Use IntelligenceConfig::global().sleep_recovery instead"
-)]
-pub mod recovery_thresholds {}
-
-/// TSB (Training Stress Balance) thresholds for recovery interpretation
-///
-/// Module kept for backward compatibility - use `SleepRecoveryConfig` for actual values
-#[deprecated(
-    since = "0.3.0",
-    note = "Use IntelligenceConfig::global().sleep_recovery instead"
-)]
-pub mod tsb_thresholds {}
-
 /// Recovery recommendations and reasoning
 #[derive(Debug, Clone)]
 struct RecoveryRecommendations {

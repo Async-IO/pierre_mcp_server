@@ -578,7 +578,7 @@ async fn test_user_login_success() -> Result<()> {
 
     let response = auth_routes.login(login_request).await?;
 
-    assert!(!response.jwt_token.is_empty());
+    assert!(response.jwt_token.as_ref().is_some_and(|t| !t.is_empty()));
     assert!(!response.expires_at.is_empty());
     assert_eq!(response.user.email, "login@example.com");
     assert_eq!(response.user.display_name, Some("Login User".to_owned()));
@@ -839,7 +839,9 @@ async fn test_token_refresh_success() -> Result<()> {
     };
 
     let login_response = auth_routes.login(login_request).await?;
-    let original_token = login_response.jwt_token;
+    let original_token = login_response
+        .jwt_token
+        .ok_or_else(|| anyhow::anyhow!("JWT token not found in login response"))?;
 
     // Test token refresh
     let refresh_request = RefreshTokenRequest {
@@ -850,7 +852,10 @@ async fn test_token_refresh_success() -> Result<()> {
     let refresh_response = auth_routes.refresh_token(refresh_request).await?;
 
     // Token refresh should return a valid token (may be same or different depending on implementation)
-    assert!(!refresh_response.jwt_token.is_empty());
+    assert!(refresh_response
+        .jwt_token
+        .as_ref()
+        .is_some_and(|t| !t.is_empty()));
     assert_eq!(refresh_response.user.email, "refresh@example.com");
 
     Ok(())
@@ -1046,7 +1051,9 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
 
     // Try to refresh with different user ID
     let refresh_request = RefreshTokenRequest {
-        token: login_response.jwt_token,
+        token: login_response
+            .jwt_token
+            .ok_or_else(|| anyhow::anyhow!("JWT token not found in login response"))?,
         user_id: Uuid::new_v4().to_string(), // Different user ID
     };
 
@@ -1506,7 +1513,9 @@ async fn test_complete_auth_flow() -> Result<()> {
 
     // 3. Refresh token
     let refresh_request = RefreshTokenRequest {
-        token: login_response.jwt_token,
+        token: login_response
+            .jwt_token
+            .ok_or_else(|| anyhow::anyhow!("JWT token not found in login response"))?,
         user_id: user_id.to_string(),
     };
 
@@ -1568,7 +1577,10 @@ async fn test_complete_auth_flow() -> Result<()> {
 
     // Verify everything worked
     assert!(!register_response.user_id.is_empty());
-    assert!(!refresh_response.jwt_token.is_empty());
+    assert!(refresh_response
+        .jwt_token
+        .as_ref()
+        .is_some_and(|t| !t.is_empty()));
     assert!(!connections.is_empty());
     assert!(!auth_url.authorization_url.is_empty());
 
