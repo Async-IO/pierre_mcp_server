@@ -140,17 +140,22 @@ jobs:
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@main
         with:
-          # this might remove tools that are actually needed,
-          # if set to "true" but frees about 6 GB
           tool-cache: false
-          # all of these default to true, but feel free to set to
-          # "false" if necessary for your workflow
           android: true
           dotnet: true
           haskell: true
           large-packages: true
           docker-images: true
           swap-storage: true
+
+      - name: Additional disk cleanup
+        run: |
+          echo "Before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo docker system prune -af || true
+          echo "After cleanup:"
+          df -h
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.91.0
@@ -194,6 +199,12 @@ jobs:
           npm ci
           npm run build
 
+      - name: Clean previous build artifacts
+        run: |
+          cargo clean
+          echo "Disk space after cargo clean:"
+          df -h
+
       - name: Run database plugin tests (PostgreSQL)
         run: cargo test --features postgresql database_plugins_test --verbose -- --test-threads=1
         env:
@@ -223,7 +234,8 @@ jobs:
           POSTGRES_MAX_CONNECTIONS: "3"
           POSTGRES_MIN_CONNECTIONS: "1"
           POSTGRES_ACQUIRE_TIMEOUT: "20"
-          RUST_LOG: "debug"
+          RUST_LOG: "warn"
+          CARGO_INCREMENTAL: 0
 
       - name: Upload PostgreSQL coverage to Codecov
         uses: codecov/codecov-action@v3
