@@ -2053,3 +2053,26 @@ fn parse_origins(origins_str: &str) -> Vec<String> {
             .collect()
     }
 }
+
+/// Get the default provider from environment or use synthetic as fallback
+///
+/// Reads the `PIERRE_DEFAULT_PROVIDER` environment variable.
+/// Falls back to "synthetic" if not set, making it ideal for development.
+///
+/// # Examples
+///
+/// ```bash
+/// # Use Strava as default
+/// export PIERRE_DEFAULT_PROVIDER=strava
+///
+/// # Use synthetic (no export needed, this is the default)
+/// # PIERRE_DEFAULT_PROVIDER=synthetic
+/// ```
+#[must_use]
+pub fn default_provider() -> String {
+    use crate::constants::oauth_providers;
+    env::var("PIERRE_DEFAULT_PROVIDER")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| oauth_providers::SYNTHETIC.to_owned())
+}

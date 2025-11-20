@@ -21,7 +21,7 @@ pub const SYNTHETIC: &str = "synthetic";
 /// Get all supported OAuth providers
 #[must_use]
 pub const fn all() -> &'static [&'static str] {
-    &[STRAVA, FITBIT, GARMIN]
+    &[STRAVA, FITBIT, GARMIN, SYNTHETIC]
 }
 
 /// Check if a provider is supported

@@ -55,6 +55,8 @@ pub mod utils;
 pub mod garmin_provider;
 /// Strava API provider implementation
 pub mod strava_provider;
+/// Synthetic provider for development and testing
+pub mod synthetic_provider;
 
 // Re-export key types for convenience
 pub use core::{

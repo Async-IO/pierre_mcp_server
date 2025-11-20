@@ -7,6 +7,7 @@
 use super::core::{FitnessProvider, ProviderConfig, ProviderFactory, TenantProvider};
 use super::garmin_provider::GarminProvider;
 use super::strava_provider::StravaProvider;
+use super::synthetic_provider::SyntheticProvider;
 use crate::constants::oauth_providers;
 use crate::errors::{AppError, AppResult};
 use std::collections::HashMap;
@@ -36,6 +37,19 @@ impl ProviderFactory for GarminProviderFactory {
 
     fn supported_providers(&self) -> &'static [&'static str] {
         &[oauth_providers::GARMIN]
+    }
+}
+
+/// Factory for creating Synthetic providers
+pub struct SyntheticProviderFactory;
+
+impl ProviderFactory for SyntheticProviderFactory {
+    fn create(&self, _config: ProviderConfig) -> Box<dyn FitnessProvider> {
+        Box::new(SyntheticProvider::with_activities(Vec::new()))
+    }
+
+    fn supported_providers(&self) -> &'static [&'static str] {
+        &[oauth_providers::SYNTHETIC]
     }
 }
 
@@ -88,6 +102,23 @@ impl ProviderRegistry {
                     .split(',')
                     .map(str::to_owned)
                     .collect(),
+            },
+        );
+
+        // Register Synthetic provider (for development and testing)
+        registry.register_factory(
+            oauth_providers::SYNTHETIC,
+            Box::new(SyntheticProviderFactory),
+        );
+        registry.set_default_config(
+            oauth_providers::SYNTHETIC,
+            ProviderConfig {
+                name: oauth_providers::SYNTHETIC.to_owned(),
+                auth_url: "http://localhost/synthetic/auth".to_owned(),
+                token_url: "http://localhost/synthetic/token".to_owned(),
+                api_base_url: "http://localhost/synthetic/api".to_owned(),
+                revoke_url: None,
+                default_scopes: vec!["activity:read_all".to_owned()],
             },
         );
 
