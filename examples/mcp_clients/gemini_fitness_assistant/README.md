@@ -12,6 +12,32 @@ This demonstrates a **complete open-source AI fitness assistant** using:
 
 Unlike proprietary solutions (Claude Desktop, ChatGPT), this example uses a free, accessible LLM service that anyone can use.
 
+## TL;DR - Fastest Way to Run
+
+```bash
+# 1. Start Pierre server (in another terminal)
+cd pierre_mcp_server && cargo run --bin pierre-mcp-server
+
+# 2. Get your free Gemini API key: https://ai.google.dev/gemini-api/docs/api-key
+
+# 3. Run the automated setup script
+cd examples/mcp_clients/gemini_fitness_assistant
+./quick_start.sh
+
+# Follow the prompts to configure your API key and credentials
+```
+
+**That's it!** The script will:
+- ✅ Check Python installation
+- ✅ Verify Pierre server is running
+- ✅ Install dependencies
+- ✅ Validate configuration
+- ✅ Launch the assistant
+
+For manual setup or troubleshooting, see the [detailed Quick Start](#quick-start) below.
+
+---
+
 ## Features
 
 ### 🤖 AI-Powered Fitness Analysis
