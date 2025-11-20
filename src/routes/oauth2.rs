@@ -54,16 +54,25 @@ pub struct OAuth2Routes;
 
 /// Parameters for generating OAuth login HTML
 #[derive(Clone, Copy)]
-struct LoginHtmlParams<'a> {
-    client_id: &'a str,
-    redirect_uri: &'a str,
-    response_type: &'a str,
-    state: &'a str,
-    scope: &'a str,
-    code_challenge: &'a str,
-    code_challenge_method: &'a str,
-    default_email: &'a str,
-    default_password: &'a str,
+pub struct LoginHtmlParams<'a> {
+    /// OAuth client identifier
+    pub client_id: &'a str,
+    /// OAuth redirect URI after authorization
+    pub redirect_uri: &'a str,
+    /// OAuth response type (typically "code")
+    pub response_type: &'a str,
+    /// OAuth state parameter for CSRF protection
+    pub state: &'a str,
+    /// OAuth scope for requested permissions
+    pub scope: &'a str,
+    /// PKCE code challenge
+    pub code_challenge: &'a str,
+    /// PKCE code challenge method (e.g., "S256")
+    pub code_challenge_method: &'a str,
+    /// Default email to pre-fill in login form (dev/test only)
+    pub default_email: &'a str,
+    /// Default password to pre-fill in login form (dev/test only)
+    pub default_password: &'a str,
 }
 
 impl OAuth2Routes {
@@ -523,73 +532,24 @@ impl OAuth2Routes {
     }
 
     /// Generate OAuth login page HTML
-    fn generate_login_html(params: LoginHtmlParams<'_>) -> String {
-        let display_scope = if params.scope.is_empty() {
+    pub fn generate_login_html(params: LoginHtmlParams<'_>) -> String {
+        // Use embedded template - zero filesystem IO, guaranteed to exist at compile-time
+        let displayed_scope = if params.scope.is_empty() {
             "fitness:read activities:read profile:read"
         } else {
             params.scope
         };
 
-        format!(
-            r#"
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Pierre MCP Server - OAuth Login</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 40px; }}
-        .login-form {{ max-width: 400px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }}
-        .form-group {{ margin-bottom: 15px; }}
-        label {{ display: block; margin-bottom: 5px; font-weight: bold; }}
-        input {{ width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }}
-        button {{ background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }}
-        button:hover {{ background-color: #0056b3; }}
-        .oauth-info {{ background-color: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 20px; }}
-    </style>
-</head>
-<body>
-    <div class="login-form">
-        <h2>OAuth Login Required</h2>
-        <div class="oauth-info">
-            <strong>Application:</strong> {}<br>
-            <strong>Requested Permissions:</strong> {display_scope}
-        </div>
-        <form method="post" action="/oauth2/login">
-            <input type="hidden" name="client_id" value="{}">
-            <input type="hidden" name="redirect_uri" value="{}">
-            <input type="hidden" name="response_type" value="{}">
-            <input type="hidden" name="state" value="{}">
-            <input type="hidden" name="scope" value="{}">
-            <input type="hidden" name="code_challenge" value="{}">
-            <input type="hidden" name="code_challenge_method" value="{}">
-
-            <div class="form-group">
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email" value="{}" required>
-            </div>
-
-            <div class="form-group">
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password" value="{}" required>
-            </div>
-
-            <button type="submit">Login and Authorize</button>
-        </form>
-    </div>
-</body>
-</html>
-    "#,
-            params.client_id,
-            params.client_id,
-            params.redirect_uri,
-            params.response_type,
-            params.state,
-            params.scope,
-            params.code_challenge,
-            params.code_challenge_method,
-            params.default_email,
-            params.default_password
-        )
+        Self::OAUTH_LOGIN_TEMPLATE
+            .replace("{{CLIENT_ID}}", params.client_id)
+            .replace("{{REDIRECT_URI}}", params.redirect_uri)
+            .replace("{{RESPONSE_TYPE}}", params.response_type)
+            .replace("{{STATE}}", params.state)
+            .replace("{{SCOPE}}", displayed_scope)
+            .replace("{{CODE_CHALLENGE}}", params.code_challenge)
+            .replace("{{CODE_CHALLENGE_METHOD}}", params.code_challenge_method)
+            .replace("{{DEFAULT_EMAIL}}", params.default_email)
+            .replace("{{DEFAULT_PASSWORD}}", params.default_password)
     }
 
     /// Handle OAuth login page (GET /oauth2/login)
@@ -725,34 +685,34 @@ impl OAuth2Routes {
             Err(e) => {
                 tracing::warn!("Authentication failed for OAuth login: {}", e);
 
-                // Return to login page with error message
-                let error_html = format!(
-                    r#"
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Pierre MCP Server - Login Error</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 40px; }}
-        .error {{ color: red; background-color: #ffe6e6; padding: 15px; border-radius: 4px; margin-bottom: 20px; }}
-    </style>
-</head>
-<body>
-    <div class="error">
-        <strong>Authentication Failed:</strong> Invalid email or password. Please try again.
-    </div>
-    <a href="/oauth2/login?client_id={}&redirect_uri={}&response_type={}&state={}&scope={}&code_challenge={}&code_challenge_method={}">← Back to Login</a>
-</body>
-</html>
-            "#,
-                    form.get("client_id").map_or("", |v| v),
-                    urlencoding::encode(form.get("redirect_uri").map_or("", |v| v)),
-                    form.get("response_type").map_or("", |v| v),
-                    form.get("state").map_or("", |v| v),
-                    urlencoding::encode(form.get("scope").map_or("", |v| v)),
-                    urlencoding::encode(form.get("code_challenge").map_or("", |v| v)),
-                    form.get("code_challenge_method").map_or("", |v| v)
-                );
+                // Use embedded template - zero filesystem IO, guaranteed to exist at compile-time
+                let error_html = Self::OAUTH_LOGIN_ERROR_TEMPLATE
+                    .replace(
+                        "{{ERROR_MESSAGE}}",
+                        "Authentication Failed: Invalid email or password. Please try again.",
+                    )
+                    .replace("{{CLIENT_ID}}", form.get("client_id").map_or("", |v| v))
+                    .replace(
+                        "{{REDIRECT_URI}}",
+                        urlencoding::encode(form.get("redirect_uri").map_or("", |v| v)).as_ref(),
+                    )
+                    .replace(
+                        "{{RESPONSE_TYPE}}",
+                        form.get("response_type").map_or("", |v| v),
+                    )
+                    .replace("{{STATE}}", form.get("state").map_or("", |v| v))
+                    .replace(
+                        "{{SCOPE}}",
+                        urlencoding::encode(form.get("scope").map_or("", |v| v)).as_ref(),
+                    )
+                    .replace(
+                        "{{CODE_CHALLENGE}}",
+                        urlencoding::encode(form.get("code_challenge").map_or("", |v| v)).as_ref(),
+                    )
+                    .replace(
+                        "{{CODE_CHALLENGE_METHOD}}",
+                        form.get("code_challenge_method").map_or("", |v| v),
+                    );
 
                 (StatusCode::UNAUTHORIZED, Html(error_html)).into_response()
             }
@@ -1071,6 +1031,15 @@ impl OAuth2Routes {
 
     /// OAuth error template embedded at compile-time
     const OAUTH_ERROR_TEMPLATE: &'static str = include_str!("../../templates/oauth_error.html");
+
+    /// OAuth login page template embedded at compile-time
+    /// Loaded with `include_str`!() to avoid blocking filesystem IO at runtime
+    const OAUTH_LOGIN_TEMPLATE: &'static str = include_str!("../../templates/oauth_login.html");
+
+    /// OAuth login error template embedded at compile-time
+    /// Loaded with `include_str`!() to avoid blocking filesystem IO at runtime
+    const OAUTH_LOGIN_ERROR_TEMPLATE: &'static str =
+        include_str!("../../templates/oauth_login_error.html");
 
     /// Render HTML error page for OAuth errors shown in browser
     fn render_oauth_error_response(error: &OAuth2Error) -> Response {
