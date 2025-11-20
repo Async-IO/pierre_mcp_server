@@ -1,0 +1,19 @@
+# Gemini Fitness Assistant - Python Dependencies
+
+# Google Gemini API for LLM capabilities with function calling
+google-generativeai>=0.8.0
+
+# HTTP requests for MCP protocol communication
+requests>=2.31.0
+
+# Environment variable management (optional but recommended)
+python-dotenv>=1.0.0
+
+# Type hints and validation (optional)
+typing-extensions>=4.8.0
+
+# Development dependencies (optional)
+# pytest>=7.4.0
+# pytest-asyncio>=0.21.0
+# black>=23.0.0
+# mypy>=1.5.0
