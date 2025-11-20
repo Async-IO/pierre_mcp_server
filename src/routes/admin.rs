@@ -18,8 +18,7 @@ use crate::{
         tiers,
         time_constants::{SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MONTH, SECONDS_PER_WEEK},
     },
-    database::repositories::{AdminRepository, ApiKeyRepository, UserRepository},
-    database_plugins::factory::Database,
+    database_plugins::{factory::Database, DatabaseProvider},
     errors::{AppError, AppResult},
     models::{User, UserStatus},
 };
@@ -270,7 +269,7 @@ fn validate_tier(tier_str: &str) -> Result<ApiKeyTier, String> {
 
 /// Get existing user for API key provisioning (no automatic creation)
 async fn get_existing_user(database: &Database, email: &str) -> AppResult<User> {
-    match database.users().get_by_email(email).await {
+    match database.get_user_by_email(email).await {
         Ok(Some(user)) => Ok(user),
         Ok(None) => {
             tracing::warn!("API key provisioning failed: User {} does not exist", email);
@@ -331,7 +330,7 @@ async fn create_and_store_api_key(
     }
 
     // Store API key
-    if let Err(e) = context.database.api_keys().create(&final_api_key).await {
+    if let Err(e) = context.database.create_api_key(&final_api_key).await {
         return Err(format!("Failed to create API key: {e}"));
     }
 
@@ -464,7 +463,7 @@ async fn record_provisioning_audit(
 async fn check_no_admin_exists(
     database: &Database,
 ) -> AppResult<Option<(axum::http::StatusCode, Json<AdminResponse>)>> {
-    match database.users().list_by_status("active").await {
+    match database.get_users_by_status("active").await {
         Ok(users) => {
             let admin_exists = users.iter().any(|u| u.is_admin);
             if admin_exists {
@@ -528,7 +527,7 @@ async fn create_admin_user_record(
     admin_user.user_status = UserStatus::Active;
 
     // Persist to database
-    match database.users().create(&admin_user).await {
+    match database.create_user(&admin_user).await {
         Ok(_) => {
             tracing::info!("Admin user created successfully: {}", request.email);
             Ok(user_id)
@@ -817,7 +816,7 @@ impl AdminRoutes {
         let ctx = context.as_ref();
 
         // Get the API key to find the user_id
-        let api_key = match ctx.database.api_keys().get_by_id(&request.api_key_id).await {
+        let api_key = match ctx.database.get_api_key_by_id(&request.api_key_id).await {
             Ok(Some(key)) => key,
             Ok(None) => {
                 return Ok(json_response(
@@ -843,8 +842,7 @@ impl AdminRoutes {
 
         match ctx
             .database
-            .api_keys()
-            .deactivate(&request.api_key_id, api_key.user_id)
+            .deactivate_api_key(&request.api_key_id, api_key.user_id)
             .await
         {
             Ok(()) => {
@@ -1009,8 +1007,7 @@ impl AdminRoutes {
         // Fetch users from database by status
         let users = ctx
             .database
-            .users()
-            .list_by_status(status)
+            .get_users_by_status(status)
             .await
             .map_err(|e| {
                 tracing::error!(error = %e, "Failed to fetch users from database");
@@ -1078,8 +1075,7 @@ impl AdminRoutes {
         // Fetch users with Pending status
         let users = ctx
             .database
-            .users()
-            .list_by_status("pending")
+            .get_users_by_status("pending")
             .await
             .map_err(|e| {
                 tracing::error!(error = %e, "Failed to fetch pending users from database");
@@ -1162,8 +1158,7 @@ impl AdminRoutes {
         // Fetch user from database
         let user = ctx
             .database
-            .users()
-            .get_by_id(user_uuid)
+            .get_user(user_uuid)
             .await
             .map_err(|e| {
                 tracing::error!(error = %e, "Failed to fetch user from database");
@@ -1447,7 +1442,7 @@ impl AdminRoutes {
 
         let ctx = context.as_ref();
 
-        let tokens = ctx.database.admin().list_tokens(false).await.map_err(|e| {
+        let tokens = ctx.database.list_admin_tokens(false).await.map_err(|e| {
             tracing::error!(error = %e, "Failed to list admin tokens");
             AppError::internal(format!("Failed to list admin tokens: {e}"))
         })?;
@@ -1497,7 +1492,7 @@ impl AdminRoutes {
 
         let ctx = context.as_ref();
 
-        let token = match ctx.database.admin().get_token_by_id(&token_id).await {
+        let token = match ctx.database.get_admin_token_by_id(&token_id).await {
             Ok(Some(token)) => token,
             Ok(None) => {
                 return Ok(json_response(

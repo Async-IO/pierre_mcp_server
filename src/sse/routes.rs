@@ -6,6 +6,7 @@
 
 use super::manager::SseManager;
 use crate::config::environment::SseBufferStrategy;
+use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
 use crate::mcp::resources::ServerResources;
 use axum::{
@@ -31,6 +32,10 @@ impl SseRoutes {
             .route(
                 "/mcp/sse/:session_id",
                 axum::routing::get(Self::handle_protocol_sse),
+            )
+            .route(
+                "/a2a/tasks/:task_id/stream",
+                axum::routing::get(Self::handle_a2a_task_sse),
             )
             .with_state((manager, resources))
     }
@@ -178,6 +183,91 @@ impl SseRoutes {
 
             // Clean up connection
             manager_clone.unregister_protocol_stream(&session_id_clone).await;
+        };
+
+        // Configure keepalive with 15-second interval
+        Ok(Sse::new(stream).keep_alive(
+            KeepAlive::new()
+                .interval(Duration::from_secs(15))
+                .text("keepalive"),
+        ))
+    }
+
+    /// Handle A2A task SSE connection for task progress streaming
+    async fn handle_a2a_task_sse(
+        Path(task_id): Path<String>,
+        State((manager, resources)): State<(Arc<SseManager>, Arc<ServerResources>)>,
+    ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
+        tracing::info!("New A2A task SSE connection for task: {}", task_id);
+
+        // Verify task exists in database
+        let task = resources.database
+            .get_a2a_task(&task_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(task_id = %task_id, error = %e, "Failed to fetch task for SSE streaming");
+                AppError::internal(format!("Failed to fetch task: {e}"))
+            })?
+            .ok_or_else(|| {
+                tracing::warn!(task_id = %task_id, "Task not found for SSE streaming");
+                AppError::not_found(format!("Task {task_id} not found"))
+            })?;
+
+        let actual_client_id = task.client_id.clone();
+        let mut receiver = manager
+            .register_a2a_task_stream(task_id.clone(), actual_client_id)
+            .await;
+        let manager_clone = manager.clone();
+        let task_id_clone = task_id.clone();
+
+        let stream = async_stream::stream! {
+            // Send initial connection event with current task status
+            let mut event_id: u64 = 0;
+            event_id += 1;
+
+            // Send initial task state
+            let initial_state = serde_json::json!({
+                "task_id": task_id,
+                "status": task.status,
+                "created_at": task.created_at,
+                "updated_at": task.updated_at,
+            });
+
+            yield Ok::<_, Infallible>(
+                Event::default()
+                    .id(event_id.to_string())
+                    .data(serde_json::to_string(&initial_state).unwrap_or_else(|_| "{}".to_owned()))
+                    .event("task_status")
+            );
+
+            // Listen for task updates
+            loop {
+                match receiver.recv().await {
+                    Ok(message) => {
+                        event_id += 1;
+                        yield Ok(
+                            Event::default()
+                                .id(event_id.to_string())
+                                .data(message)
+                                .event("task_update")
+                        );
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                        tracing::warn!(
+                            "SSE buffer overflow for task {}: {} messages dropped",
+                            task_id_clone, skipped
+                        );
+                        // Continue operation
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        tracing::info!("SSE channel closed for task: {}", task_id_clone);
+                        break;
+                    }
+                }
+            }
+
+            // Clean up connection
+            manager_clone.unregister_a2a_task_stream(&task_id_clone).await;
         };
 
         // Configure keepalive with 15-second interval

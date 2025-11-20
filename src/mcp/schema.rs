@@ -189,6 +189,12 @@ pub struct ServerCapabilities {
     /// Server OAuth 2.0 capability
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oauth2: Option<OAuth2Capability>,
+    /// Server completion (auto-complete) capability
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completion: Option<CompletionCapability>,
+    /// Server sampling (LLM calls) capability
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sampling: Option<SamplingCapability>,
 }
 
 /// Tools capability
@@ -246,6 +252,10 @@ pub struct OAuth2Capability {
     #[serde(rename = "registrationEndpoint")]
     pub registration_endpoint: String,
 }
+
+/// Completion (auto-complete) capability
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompletionCapability {}
 
 /// Client capabilities (for processing client initialize requests)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -383,6 +393,8 @@ impl InitializeResponse {
                         registration_endpoint: format!("http://{host}:{http_port}/oauth2/register"),
                     }
                 }),
+                completion: Some(CompletionCapability {}),
+                sampling: Some(SamplingCapability {}),
             },
             instructions: Some("This server provides fitness data tools for Strava and Fitbit integration. OAuth must be configured at tenant level via REST API. Use `get_activities`, `get_athlete`, and other analytics tools to access your fitness data.".into()),
         }
@@ -492,6 +504,191 @@ impl OAuthCompletedNotification {
             },
         }
     }
+}
+
+// === MCP SAMPLING (LLM CALL) TYPES ===
+
+/// Request to create a message using the client's LLM
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateMessageRequest {
+    /// Messages to send to the LLM
+    pub messages: Vec<PromptMessage>,
+    /// Optional model preferences
+    #[serde(rename = "modelPreferences", skip_serializing_if = "Option::is_none")]
+    pub model_preferences: Option<ModelPreferences>,
+    /// Optional system prompt
+    #[serde(rename = "systemPrompt", skip_serializing_if = "Option::is_none")]
+    pub system_prompt: Option<String>,
+    /// Include context from MCP servers
+    #[serde(rename = "includeContext", skip_serializing_if = "Option::is_none")]
+    pub include_context: Option<String>,
+    /// Maximum tokens to generate
+    #[serde(rename = "maxTokens")]
+    pub max_tokens: i32,
+    /// Sampling temperature
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f64>,
+    /// Stop sequences
+    #[serde(rename = "stopSequences", skip_serializing_if = "Option::is_none")]
+    pub stop_sequences: Option<Vec<String>>,
+    /// Additional metadata
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
+}
+
+/// Result from create message request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateMessageResult {
+    /// Role of the message (usually "assistant")
+    pub role: String,
+    /// Content of the generated message
+    pub content: MessageContent,
+    /// Model that was used
+    pub model: String,
+    /// Stop reason for completion
+    #[serde(rename = "stopReason", skip_serializing_if = "Option::is_none")]
+    pub stop_reason: Option<String>,
+}
+
+/// Message content wrapper
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageContent {
+    /// Type of content (usually "text")
+    #[serde(rename = "type")]
+    pub content_type: String,
+    /// Text content
+    pub text: String,
+}
+
+/// Model preferences for sampling
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ModelPreferences {
+    /// Model hints in preference order
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hints: Option<Vec<ModelHint>>,
+    /// Cost priority (0.0-1.0, where 1.0 prefers cheaper models)
+    #[serde(rename = "costPriority", skip_serializing_if = "Option::is_none")]
+    pub cost_priority: Option<f64>,
+    /// Speed priority (0.0-1.0, where 1.0 prefers faster models)
+    #[serde(rename = "speedPriority", skip_serializing_if = "Option::is_none")]
+    pub speed_priority: Option<f64>,
+    /// Intelligence priority (0.0-1.0, where 1.0 prefers more capable models)
+    #[serde(
+        rename = "intelligencePriority",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub intelligence_priority: Option<f64>,
+}
+
+/// Hint for model selection
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelHint {
+    /// Model name (e.g., "claude-3-5-sonnet")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+/// Prompt message for LLM
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromptMessage {
+    /// Role of the message sender
+    pub role: String,
+    /// Content of the message
+    pub content: Content,
+}
+
+impl PromptMessage {
+    /// Create a user message
+    #[must_use]
+    pub fn user(content: Content) -> Self {
+        Self {
+            role: "user".to_owned(),
+            content,
+        }
+    }
+
+    /// Create an assistant message
+    #[must_use]
+    pub fn assistant(content: Content) -> Self {
+        Self {
+            role: "assistant".to_owned(),
+            content,
+        }
+    }
+}
+
+// === MCP COMPLETION (AUTO-COMPLETE) TYPES ===
+
+/// Request for completion suggestions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompleteRequest {
+    /// Reference to the item being completed
+    #[serde(rename = "ref")]
+    pub ref_: CompletionReference,
+    /// Current argument being completed
+    pub argument: ArgumentValue,
+}
+
+/// Reference to completion context
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompletionReference {
+    /// Type of reference
+    #[serde(rename = "type")]
+    pub type_: String,
+    /// Name of the tool/resource/prompt
+    pub name: String,
+}
+
+/// Argument value for completion
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArgumentValue {
+    /// Name of the argument
+    pub name: String,
+    /// Current value being typed
+    pub value: String,
+}
+
+/// Result from completion request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompleteResult {
+    /// Completion suggestions
+    pub completion: Completion,
+}
+
+impl Default for CompleteResult {
+    fn default() -> Self {
+        Self {
+            completion: Completion {
+                values: vec![],
+                total: Some(0),
+                has_more: Some(false),
+            },
+        }
+    }
+}
+
+/// Completion suggestion list
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Completion {
+    /// Suggested completion values
+    pub values: Vec<String>,
+    /// Total number of possible completions
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<usize>,
+    /// Whether there are more completions available
+    #[serde(rename = "hasMore", skip_serializing_if = "Option::is_none")]
+    pub has_more: Option<bool>,
+}
+
+// === MCP ROOTS TYPES ===
+
+/// Root directory entry
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Root {
+    /// URI of the root directory
+    pub uri: String,
+    /// Human-readable name
+    pub name: String,
 }
 
 /// Get all available tools (public interface for tests)

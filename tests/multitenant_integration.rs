@@ -149,7 +149,7 @@ use pierre_mcp_server::{
     auth::AuthManager,
     constants::oauth_providers,
     database::generate_encryption_key,
-    database_plugins::factory::Database,
+    database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::ServerResources,
     models::UserOAuthToken,
     routes::{auth::AuthService, LoginRequest, RegisterRequest},

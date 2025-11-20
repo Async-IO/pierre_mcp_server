@@ -13,6 +13,7 @@ use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::config::environment::ServerConfig;
 use crate::database_plugins::factory::Database;
+use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
 use crate::errors::AppResult;
 use crate::oauth2_server::{

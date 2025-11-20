@@ -17,7 +17,7 @@ mod common;
 mod helpers;
 
 use helpers::axum_test::AxumTestRequest;
-use pierre_mcp_server::mcp::resources::ServerResources;
+use pierre_mcp_server::{database_plugins::DatabaseProvider, mcp::resources::ServerResources};
 use serde_json::json;
 use std::sync::Arc;
 

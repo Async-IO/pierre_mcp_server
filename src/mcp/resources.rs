@@ -19,17 +19,21 @@ use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::cache::factory::Cache;
 use crate::database_plugins::factory::Database;
+use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
 use crate::intelligence::ActivityIntelligence;
-use crate::mcp::schema::OAuthCompletedNotification;
+use crate::mcp::sampling_peer::SamplingPeer;
+use crate::mcp::schema::{OAuthCompletedNotification, ProgressNotification};
 use crate::middleware::redaction::RedactionConfig;
 use crate::middleware::McpAuthMiddleware;
 use crate::plugins::executor::PluginToolExecutor;
+use crate::protocols::universal::types::CancellationToken;
 use crate::providers::ProviderRegistry;
 use crate::tenant::{oauth_manager::TenantOAuthManager, TenantOAuthClient};
 use crate::websocket::WebSocketManager;
+use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, mpsc, RwLock};
 
 /// Centralized resource container for dependency injection
 ///
@@ -73,6 +77,12 @@ pub struct ServerResources {
     pub redaction_config: Arc<RedactionConfig>,
     /// Rate limiter for `OAuth2` endpoints
     pub oauth2_rate_limiter: Arc<crate::oauth2_server::rate_limiting::OAuth2RateLimiter>,
+    /// Optional sampling peer for server-initiated LLM requests (stdio transport only)
+    pub sampling_peer: Option<Arc<SamplingPeer>>,
+    /// Optional progress notification sender (stdio transport only)
+    pub progress_notification_sender: Option<mpsc::UnboundedSender<ProgressNotification>>,
+    /// Cancellation token registry for progress token -> cancellation token mapping
+    pub cancellation_registry: Arc<RwLock<HashMap<String, CancellationToken>>>,
 }
 
 impl ServerResources {
@@ -194,6 +204,9 @@ impl ServerResources {
             plugin_executor: None,
             redaction_config,
             oauth2_rate_limiter,
+            sampling_peer: None,
+            progress_notification_sender: None,
+            cancellation_registry: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -294,6 +307,52 @@ impl ServerResources {
     /// Set the plugin executor after `ServerResources` is wrapped in Arc
     pub fn set_plugin_executor(&mut self, executor: Arc<PluginToolExecutor>) {
         self.plugin_executor = Some(executor);
+    }
+
+    /// Set the sampling peer for server-initiated LLM requests (stdio transport only)
+    pub fn set_sampling_peer(&mut self, peer: Arc<SamplingPeer>) {
+        self.sampling_peer = Some(peer);
+    }
+
+    /// Set the progress notification sender (stdio transport only)
+    pub fn set_progress_notification_sender(
+        &mut self,
+        sender: mpsc::UnboundedSender<ProgressNotification>,
+    ) {
+        self.progress_notification_sender = Some(sender);
+    }
+
+    /// Register a cancellation token for a progress token
+    pub async fn register_cancellation_token(
+        &self,
+        progress_token: String,
+        cancellation_token: CancellationToken,
+    ) {
+        let mut registry = self.cancellation_registry.write().await;
+        registry.insert(progress_token, cancellation_token);
+    }
+
+    /// Cancel an operation by progress token (called from MCP notifications/cancelled)
+    pub async fn cancel_by_progress_token(&self, progress_token: &str) {
+        let registry = self.cancellation_registry.read().await;
+        if let Some(token) = registry.get(progress_token) {
+            tracing::info!(
+                "Cancelling operation with progress token: {}",
+                progress_token
+            );
+            token.cancel().await;
+        } else {
+            tracing::warn!(
+                "Received cancellation for unknown progress token: {}",
+                progress_token
+            );
+        }
+    }
+
+    /// Cleanup a cancellation token after operation completes
+    pub async fn cleanup_cancellation_token(&self, progress_token: &str) {
+        let mut registry = self.cancellation_registry.write().await;
+        registry.remove(progress_token);
     }
 
     /// Create a new builder for `ServerResources`

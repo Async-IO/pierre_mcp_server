@@ -10,7 +10,7 @@
 mod common;
 
 use anyhow::Result;
-use pierre_mcp_server::database_plugins::factory::Database;
+use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::key_management::KeyManager;
 use tempfile::TempDir;
 

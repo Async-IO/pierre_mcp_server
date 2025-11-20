@@ -32,8 +32,8 @@ use bcrypt::{hash, DEFAULT_COST};
 use clap::{Parser, Subcommand};
 use pierre_mcp_server::{
     admin::models::{CreateAdminTokenRequest, GeneratedAdminToken},
-    database::repositories::UserRepository,
     database_plugins::factory::Database,
+    database_plugins::DatabaseProvider,
     errors::AppError,
 };
 use std::env;
@@ -612,7 +612,7 @@ async fn create_admin_user_command(
     info!("User Creating admin user: {}", email);
 
     // Check if user already exists
-    if let Ok(Some(existing_user)) = database.users().get_by_email(&email).await {
+    if let Ok(Some(existing_user)) = database.get_user_by_email(&email).await {
         if !force {
             error!("Error User '{}' already exists!", email);
             info!("Use --force flag to update existing user");
@@ -649,7 +649,7 @@ async fn create_admin_user_command(
             last_active: chrono::Utc::now(),
         };
 
-        database.users().create(&updated_user).await?;
+        database.create_user(&updated_user).await?;
     } else {
         info!("➕ Creating new admin user...");
 
@@ -672,7 +672,7 @@ async fn create_admin_user_command(
             last_active: chrono::Utc::now(),
         };
 
-        database.users().create(&new_user).await?;
+        database.create_user(&new_user).await?;
     }
 
     println!("\nSuccess Admin User Created Successfully!");

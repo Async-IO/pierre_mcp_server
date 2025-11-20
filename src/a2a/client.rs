@@ -17,6 +17,7 @@ use crate::a2a::auth::A2AClient;
 use crate::a2a::system_user::A2ASystemUserService;
 use crate::constants::tiers;
 use crate::crypto::A2AKeyManager;
+use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
 use chrono::Timelike;
 use chrono::{DateTime, Datelike, TimeZone, Utc};

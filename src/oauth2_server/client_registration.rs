@@ -7,6 +7,7 @@
 use super::models::{
     ClientRegistrationRequest, ClientRegistrationResponse, OAuth2Client, OAuth2Error,
 };
+use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},

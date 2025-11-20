@@ -162,7 +162,7 @@ async fn test_request_id_uuid_format() -> Result<(), Box<dyn std::error::Error>>
 /// Test JWT secret safety - verify no secrets in initialization
 #[tokio::test]
 async fn test_jwt_secret_not_logged() -> Result<(), Box<dyn std::error::Error>> {
-    use pierre_mcp_server::database_plugins::factory::Database;
+    use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
     use tempfile::TempDir;
 
     // Create temporary database
@@ -207,7 +207,7 @@ async fn test_jwt_secret_not_logged() -> Result<(), Box<dyn std::error::Error>> 
 /// Test that database operations can be instrumented
 #[tokio::test]
 async fn test_database_operation_instrumentation() -> Result<(), Box<dyn std::error::Error>> {
-    use pierre_mcp_server::database_plugins::factory::Database;
+    use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
     use pierre_mcp_server::models::{User, UserStatus, UserTier};
     use tempfile::TempDir;
     use uuid::Uuid;

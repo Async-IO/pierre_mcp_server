@@ -19,6 +19,7 @@ use pierre_mcp_server::{
     cache::factory::Cache,
     config::environment::ServerConfig,
     database_plugins::factory::Database,
+    database_plugins::DatabaseProvider,
     logging,
     mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
 };

@@ -11,7 +11,9 @@ mod common;
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    auth::AuthManager, database_plugins::factory::Database, mcp::multitenant::MultiTenantMcpServer,
+    auth::AuthManager,
+    database_plugins::{factory::Database, DatabaseProvider},
+    mcp::multitenant::MultiTenantMcpServer,
 };
 use rand::Rng;
 use reqwest::Client;

@@ -8,7 +8,7 @@
 #![allow(missing_docs)]
 
 use pierre_mcp_server::a2a::system_user::A2ASystemUserService;
-use pierre_mcp_server::database_plugins::factory::Database;
+use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use std::sync::{Arc, Once};
 
 static INIT: Once = Once::new();

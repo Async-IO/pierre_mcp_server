@@ -13,7 +13,7 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    database_plugins::factory::Database,
+    database_plugins::{factory::Database, DatabaseProvider},
     mcp::multitenant::{McpRequest, MultiTenantMcpServer},
     models::{Tenant, User},
 };

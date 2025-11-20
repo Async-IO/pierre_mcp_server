@@ -16,7 +16,7 @@ use pierre_mcp_server::{
     api_keys::{ApiKey, ApiKeyManager, ApiKeyTier, ApiKeyUsage},
     auth::AuthManager,
     database::generate_encryption_key,
-    database_plugins::factory::Database,
+    database_plugins::{factory::Database, DatabaseProvider},
     middleware::McpAuthMiddleware,
     models::User,
 };

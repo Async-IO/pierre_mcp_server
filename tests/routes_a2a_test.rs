@@ -160,7 +160,7 @@ use pierre_mcp_server::{
     auth::AuthManager,
     config::environment::ServerConfig,
     database::generate_encryption_key,
-    database_plugins::factory::Database,
+    database_plugins::{factory::Database, DatabaseProvider},
     models::User,
 };
 use serde_json::json;

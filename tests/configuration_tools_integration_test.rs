@@ -15,7 +15,7 @@ use anyhow::Result;
 use chrono::Utc;
 use pierre_mcp_server::{
     auth::AuthManager,
-    database_plugins::factory::Database,
+    database_plugins::{factory::Database, DatabaseProvider},
     mcp::{
         multitenant::{McpRequest, MultiTenantMcpServer},
         resources::ServerResources,

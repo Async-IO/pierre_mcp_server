@@ -11,7 +11,7 @@
 
 use anyhow::Result;
 use pierre_mcp_server::database::generate_encryption_key;
-use pierre_mcp_server::database_plugins::factory::Database;
+use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use std::fs;
 
 #[tokio::test]

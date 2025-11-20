@@ -10,6 +10,7 @@
 //! supporting API keys and `OAuth2` for agent-to-agent communication.
 
 use crate::auth::{AuthMethod, AuthResult};
+use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
 use crate::providers::errors::ProviderError;
 use serde::{Deserialize, Serialize};

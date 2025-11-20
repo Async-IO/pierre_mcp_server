@@ -10,7 +10,7 @@
 // - HashMap key ownership for statistics aggregation (tool_name.clone())
 
 use crate::auth::AuthResult;
-use crate::database::repositories::ApiKeyRepository;
+use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
 use crate::mcp::resources::ServerResources;
 use chrono::{Datelike, Duration, TimeZone, Utc};
@@ -205,9 +205,9 @@ impl DashboardRoutes {
         let api_keys = self
             .resources
             .database
-            .api_keys()
-            .list_by_user(user_id)
-            .await?;
+            .get_user_api_keys(user_id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user API keys: {e}")))?;
         let total_api_keys = u32::try_from(api_keys.len()).unwrap_or(0);
         let active_api_keys =
             u32::try_from(api_keys.iter().filter(|k| k.is_active).count()).unwrap_or(0);
@@ -726,9 +726,9 @@ impl DashboardRoutes {
         let api_keys = self
             .resources
             .database
-            .api_keys()
-            .list_by_user(user_id)
-            .await?;
+            .get_user_api_keys(user_id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user API keys: {e}")))?;
 
         // If specific API key is requested, verify user owns it
         if let Some(key_id) = api_key_id {

@@ -14,6 +14,7 @@
 use anyhow::Result;
 use pierre_mcp_server::{
     config::environment::*,
+    database_plugins::DatabaseProvider,
     intelligence::insights::{Insight, InsightType},
     intelligence::{
         ActivityIntelligence, ContextualFactors, ContextualWeeklyLoad, PerformanceMetrics,
@@ -284,6 +285,9 @@ async fn test_tool_execution_invalid_tool() -> Result<()> {
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let result = executor.execute_tool(request).await;
@@ -303,6 +307,9 @@ async fn test_connection_status_tool() -> Result<()> {
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -349,6 +356,9 @@ async fn test_connect_strava_tool() -> Result<()> {
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -376,6 +386,9 @@ async fn test_connect_fitbit_tool() -> Result<()> {
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -591,6 +604,9 @@ async fn test_set_goal_tool() -> Result<()> {
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -623,6 +639,9 @@ async fn test_calculate_metrics_tool() -> Result<()> {
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -664,6 +683,9 @@ async fn test_analyze_performance_trends_tool() -> Result<()> {
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -717,6 +739,9 @@ async fn test_compare_activities_tool() -> Result<()> {
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -754,6 +779,9 @@ async fn test_detect_patterns_tool() -> Result<()> {
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -790,6 +818,9 @@ async fn test_track_progress_tool() -> Result<()> {
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -831,6 +862,9 @@ async fn test_suggest_goals_tool() -> Result<()> {
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -859,6 +893,9 @@ async fn test_analyze_goal_feasibility_tool() -> Result<()> {
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -895,6 +932,9 @@ async fn test_generate_recommendations_tool() -> Result<()> {
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -939,6 +979,9 @@ async fn test_calculate_fitness_score_tool() -> Result<()> {
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -971,6 +1014,9 @@ async fn test_predict_performance_tool() -> Result<()> {
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -1022,6 +1068,9 @@ async fn test_analyze_training_load_tool() -> Result<()> {
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -1236,6 +1285,9 @@ async fn test_disconnect_provider_tool() -> Result<()> {
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -1284,6 +1336,9 @@ async fn test_get_activities_async_no_token() -> Result<()> {
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -1332,6 +1387,9 @@ async fn test_get_athlete_async_no_token() -> Result<()> {
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -1382,6 +1440,9 @@ async fn test_get_stats_async_no_token() -> Result<()> {
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -1411,6 +1472,9 @@ async fn test_invalid_protocol_handling() -> Result<()> {
         user_id: "invalid-uuid".to_owned(),
         protocol: "invalid_protocol".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     // Should handle gracefully and return error response
@@ -1447,6 +1511,9 @@ async fn test_empty_parameters() -> Result<()> {
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -1468,6 +1535,9 @@ async fn test_malformed_parameters() -> Result<()> {
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     // Should handle gracefully and return error response

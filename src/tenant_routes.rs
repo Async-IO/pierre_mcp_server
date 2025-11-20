@@ -11,7 +11,7 @@
 use crate::{
     auth::{AuthManager, AuthResult},
     constants::oauth_providers,
-    database_plugins::factory::Database,
+    database_plugins::{factory::Database, DatabaseProvider},
     errors::{AppError, AppResult},
     tenant::TenantOAuthCredentials,
 };
@@ -573,26 +573,18 @@ pub async fn oauth_authorize(
     }
 
     // Generate authorization code and store it temporarily
-    let auth_code_value = format!("code_{}", Uuid::new_v4().simple());
-
-    // Create OAuth2AuthCode struct
-    let auth_code = crate::oauth2_server::models::OAuth2AuthCode {
-        code: auth_code_value.clone(),
-        client_id: auth_params.client_id.clone(),
-        user_id: oauth_app.owner_user_id, // Use the OAuth app owner
-        tenant_id: "default".to_owned(),  // Default tenant for now
-        redirect_uri: auth_params.redirect_uri.clone(),
-        scope: Some(auth_params.scope.clone()),
-        expires_at: chrono::Utc::now() + chrono::Duration::minutes(10),
-        used: false,
-        state: auth_params.state.clone(),
-        code_challenge: None,
-        code_challenge_method: None,
-    };
+    let auth_code = format!("code_{}", Uuid::new_v4().simple());
 
     // Store auth code in database with expiration (10 minutes)
+    // Use the OAuth app owner as the user_id (validated through JWT authentication)
     database
-        .store_authorization_code(&auth_code)
+        .store_authorization_code(
+            &auth_code,
+            &auth_params.client_id,
+            &auth_params.redirect_uri,
+            &auth_params.scope,
+            oauth_app.owner_user_id, // Use the app owner's user_id
+        )
         .await
         .map_err(|e| AppError::database(e.to_string()))?;
 
@@ -600,7 +592,7 @@ pub async fn oauth_authorize(
     let auth_url = format!(
         "{}?code={}&state={}",
         auth_params.redirect_uri,
-        auth_code_value,
+        auth_code,
         auth_params.state.unwrap_or_default()
     );
 
@@ -657,21 +649,14 @@ pub async fn oauth_token(
                 .code
                 .ok_or_else(|| AppError::invalid_input("Missing authorization code".to_owned()))?;
 
-            database
-                .get_authorization_code(
-                    &code,
-                    &token_request.client_id,
-                    &oauth_app.redirect_uris[0],
-                )
-                .await
-                .map_err(|e| {
-                    tracing::warn!(
-                        code = %code,
-                        error = %e,
-                        "Failed to retrieve authorization code from database"
-                    );
-                    AppError::invalid_input("Invalid or expired authorization code".to_owned())
-                })?;
+            database.get_authorization_code(&code).await.map_err(|e| {
+                tracing::warn!(
+                    code = %code,
+                    error = %e,
+                    "Failed to retrieve authorization code from database"
+                );
+                AppError::invalid_input("Invalid or expired authorization code".to_owned())
+            })?;
 
             // Generate access token (JWT)
             let access_token = auth_manager
@@ -686,14 +671,7 @@ pub async fn oauth_token(
                 })?;
 
             // Clean up authorization code
-            if let Err(e) = database
-                .delete_authorization_code(
-                    &code,
-                    &token_request.client_id,
-                    &oauth_app.redirect_uris[0],
-                )
-                .await
-            {
+            if let Err(e) = database.delete_authorization_code(&code).await {
                 tracing::warn!(
                     code = %code,
                     client_id = %oauth_app.client_id,

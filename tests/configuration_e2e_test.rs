@@ -132,6 +132,9 @@ async fn test_get_configuration_catalog_e2e() {
         parameters: json!({}),
         protocol: "mcp".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor
@@ -181,6 +184,9 @@ async fn test_get_configuration_profiles_e2e() {
         parameters: json!({}),
         protocol: "mcp".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor
@@ -233,6 +239,9 @@ async fn test_calculate_personalized_zones_e2e() {
         }),
         protocol: "mcp".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor
@@ -287,6 +296,9 @@ async fn test_validate_configuration_e2e() {
         }),
         protocol: "mcp".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor
@@ -324,6 +336,9 @@ async fn test_update_user_configuration_e2e() {
         }),
         protocol: "mcp".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor
@@ -361,6 +376,9 @@ async fn test_get_user_configuration_e2e() {
         parameters: json!({}),
         protocol: "mcp".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor
@@ -399,6 +417,9 @@ async fn test_configuration_tools_via_different_protocols() {
         parameters: json!({}),
         protocol: "mcp".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let mcp_response = executor
@@ -414,6 +435,9 @@ async fn test_configuration_tools_via_different_protocols() {
         parameters: json!({}),
         protocol: "a2a".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let a2a_response = executor
@@ -446,6 +470,9 @@ async fn test_configuration_system_error_handling() {
         parameters: json!({}),
         protocol: "mcp".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await;
@@ -458,6 +485,9 @@ async fn test_configuration_system_error_handling() {
         parameters: json!({}), // Missing required vo2_max
         protocol: "mcp".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let invalid_response = executor.execute_tool(invalid_request).await;
@@ -474,6 +504,9 @@ async fn test_configuration_system_error_handling() {
         }),
         protocol: "mcp".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let validation_response = executor

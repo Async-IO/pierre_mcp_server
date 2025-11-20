@@ -13,7 +13,9 @@ mod helpers;
 use anyhow::Result;
 use helpers::axum_test::AxumTestRequest;
 use pierre_mcp_server::{
-    auth::AuthManager, database_plugins::factory::Database, routes::admin::AdminApiContext,
+    auth::AuthManager,
+    database_plugins::{factory::Database, DatabaseProvider},
+    routes::admin::AdminApiContext,
 };
 use serde_json::Value;
 use std::sync::Arc;

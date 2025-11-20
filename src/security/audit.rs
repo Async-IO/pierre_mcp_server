@@ -12,6 +12,7 @@
 //! - API key usage and authentication events
 //! - Encryption/decryption operations
 
+use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppResult;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -298,9 +299,7 @@ impl SecurityAuditor {
     /// Store audit event in database
     async fn store_audit_event(&self, event: &AuditEvent) -> AppResult<()> {
         // Store audit event in database
-        self.database
-            .store_audit_event(event.tenant_id, event)
-            .await?;
+        self.database.store_audit_event(event).await?;
 
         tracing::debug!(
             "Stored audit event {} in database: {}",

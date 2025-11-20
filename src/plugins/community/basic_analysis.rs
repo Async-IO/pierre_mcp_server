@@ -57,9 +57,7 @@ impl PluginImplementation for BasicAnalysisPlugin {
             .parameters
             .get("activity_id")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ProtocolError::InvalidParameters {
-                message: "activity_id is required".into(),
-            })?;
+            .ok_or_else(|| ProtocolError::InvalidParameters("activity_id is required".into()))?;
 
         let include_zones = request
             .parameters
@@ -77,9 +75,10 @@ impl PluginImplementation for BasicAnalysisPlugin {
         let provider = env
             .provider_registry
             .create_provider("strava")
-            .map_err(|e| ProtocolError::InternalError {
-                component: "provider_registry",
-                details: format!("Failed to create provider: {e}"),
+            .map_err(|e| {
+                ProtocolError::InternalError(format!(
+                    "provider_registry: Failed to create provider: {e}"
+                ))
             })?;
 
         // Attempt to fetch and analyze real activity data
@@ -143,10 +142,7 @@ async fn perform_basic_analysis(
                     },
                 );
         */
-        ProtocolError::InternalError {
-            component: "provider",
-            details: error_message,
-        }
+        ProtocolError::InternalError(format!("provider: {error_message}"))
     })?;
 
     // Calculate real pace metrics if distance and duration are available

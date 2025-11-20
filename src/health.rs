@@ -7,8 +7,7 @@
 //! Health check endpoints and monitoring utilities
 
 use crate::constants::service_names;
-use crate::database::repositories::{ApiKeyRepository, UserRepository};
-use crate::database_plugins::factory::Database;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::AppResult;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -118,7 +117,7 @@ impl HealthChecker {
         loop {
             interval.tick().await;
 
-            match database.api_keys().cleanup_expired().await {
+            match database.cleanup_expired_api_keys().await {
                 Ok(count) => {
                     if count > 0 {
                         info!("Cleaned up {} expired API keys", count);
@@ -423,7 +422,7 @@ impl HealthChecker {
         let start = Instant::now();
 
         // Perform an actual database connectivity test
-        let user_count = self.database.users().get_count().await?;
+        let user_count = self.database.get_user_count().await?;
 
         let query_duration = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
 

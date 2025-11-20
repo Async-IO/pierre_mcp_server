@@ -4,14 +4,8 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::errors::JsonResultExt;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
-use crate::types::json_schemas::{
-    AnalyzePerformanceTrendsParams, AnalyzeTrainingLoadParams, CalculateFitnessScoreParams,
-    CompareActivitiesParams, DetectPatternsParams, GenerateRecommendationsParams,
-    GetActivityIntelligenceParams, PredictPerformanceParams,
-};
 use chrono::{Duration, Utc};
 use std::future::Future;
 use std::pin::Pin;
@@ -43,14 +37,9 @@ struct ActivityParameters {
 fn parse_activity_parameters(
     request: &UniversalRequest,
 ) -> Result<ActivityParameters, ProtocolError> {
-    let activity =
-        request
-            .parameters
-            .get("activity")
-            .ok_or_else(|| ProtocolError::InvalidRequest {
-                protocol: crate::protocols::ProtocolType::MCP,
-                reason: "activity parameter is required".to_owned(),
-            })?;
+    let activity = request.parameters.get("activity").ok_or_else(|| {
+        ProtocolError::InvalidRequest("activity parameter is required".to_owned())
+    })?;
 
     let distance = activity
         .get("distance")
@@ -280,10 +269,7 @@ async fn fetch_and_calculate_metrics(
         .resources
         .provider_registry
         .create_provider(provider_name)
-        .map_err(|e| ProtocolError::InternalError {
-            component: "provider_registry",
-            details: format!("Failed to create provider: {e}"),
-        })?;
+        .map_err(|e| ProtocolError::InternalError(format!("Failed to create provider: {e}")))?;
 
     let credentials = crate::providers::OAuth2Credentials {
         client_id: executor
@@ -311,22 +297,14 @@ async fn fetch_and_calculate_metrics(
             .collect(),
     };
 
-    provider
-        .set_credentials(credentials)
-        .await
-        .map_err(|e| ProtocolError::ConfigurationError {
-            message: format!("Failed to set provider credentials: {e}"),
-        })?;
+    provider.set_credentials(credentials).await.map_err(|e| {
+        ProtocolError::ConfigurationError(format!("Failed to set provider credentials: {e}"))
+    })?;
 
     // Fetch activity from provider
-    let activity =
-        provider
-            .get_activity(activity_id)
-            .await
-            .map_err(|e| ProtocolError::InternalError {
-                component: "provider",
-                details: format!("Failed to fetch activity {activity_id}: {e}"),
-            })?;
+    let activity = provider.get_activity(activity_id).await.map_err(|e| {
+        ProtocolError::ExecutionFailed(format!("Failed to fetch activity {activity_id}: {e}"))
+    })?;
 
     // Convert Activity model to parameters format
     let mut request_with_activity = request.clone();
@@ -341,9 +319,9 @@ async fn fetch_and_calculate_metrics(
             }),
         );
     } else {
-        return Err(ProtocolError::InvalidParameters {
-            message: "parameters must be a JSON object".to_owned(),
-        });
+        return Err(ProtocolError::InvalidParameters(
+            "parameters must be a JSON object".to_owned(),
+        ));
     }
 
     // Parse parameters from converted activity
@@ -379,8 +357,10 @@ pub async fn handle_calculate_metrics(
             .parameters
             .get("provider")
             .and_then(serde_json::Value::as_str)
-            .ok_or_else(|| ProtocolError::InvalidParameters {
-                message: "provider parameter required when using activity_id".to_owned(),
+            .ok_or_else(|| {
+                ProtocolError::InvalidParameters(
+                    "provider parameter required when using activity_id".to_owned(),
+                )
             })?;
 
         return fetch_and_calculate_metrics(
@@ -490,13 +470,54 @@ fn build_intelligence_metadata(
     metadata
 }
 
-/// Create intelligence analysis JSON response
-fn create_intelligence_response(
+/// Create intelligence analysis JSON response with optional Claude sampling
+async fn create_intelligence_response(
     activity: &crate::models::Activity,
     activity_id: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
+    sampling_peer: Option<&std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>>,
 ) -> UniversalResponse {
+    // Try Claude sampling first if available (MCP Sampling feature)
+    if let Some(peer) = sampling_peer {
+        match generate_activity_intelligence_with_claude(peer, activity).await {
+            Ok(claude_analysis) => {
+                tracing::info!("Generated activity intelligence using Claude sampling");
+                return UniversalResponse {
+                    success: true,
+                    result: Some(claude_analysis),
+                    error: None,
+                    metadata: Some({
+                        let mut map = std::collections::HashMap::new();
+                        map.insert(
+                            "activity_id".to_owned(),
+                            serde_json::Value::String(activity_id.to_owned()),
+                        );
+                        map.insert(
+                            "user_id".to_owned(),
+                            serde_json::Value::String(user_uuid.to_string()),
+                        );
+                        if let Some(tid) = tenant_id.clone() {
+                            map.insert("tenant_id".to_owned(), serde_json::Value::String(tid));
+                        }
+                        map.insert(
+                            "analysis_source".to_owned(),
+                            serde_json::Value::String("claude_sampling".to_owned()),
+                        );
+                        map
+                    }),
+                };
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Claude sampling failed, falling back to static analysis: {}",
+                    e
+                );
+            }
+        }
+    }
+
+    // Fall back to static analysis
     let (insights, recommendations) = generate_activity_insights(activity);
 
     let summary = format!(
@@ -605,20 +626,13 @@ async fn create_authenticated_provider(
         .resources
         .provider_registry
         .create_provider(oauth_providers::STRAVA)
-        .map_err(|e| ProtocolError::InternalError {
-            component: "provider_registry",
-            details: format!("Failed to create provider: {e}"),
-        })?;
+        .map_err(|e| ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}")))?;
 
     let credentials = build_strava_credentials(executor, token_data);
 
-    provider
-        .set_credentials(credentials)
-        .await
-        .map_err(|e| ProtocolError::InternalError {
-            component: "provider",
-            details: format!("Failed to set provider credentials: {e}"),
-        })?;
+    provider.set_credentials(credentials).await.map_err(|e| {
+        ProtocolError::ExecutionFailed(format!("Failed to set provider credentials: {e}"))
+    })?;
 
     Ok(provider)
 }
@@ -641,13 +655,22 @@ async fn fetch_and_analyze_activity(
     activity_id: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
+    sampling_peer: Option<&std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>>,
 ) -> UniversalResponse {
     match provider.get_activity(activity_id).await {
-        Ok(activity) => create_intelligence_response(&activity, activity_id, user_uuid, tenant_id),
+        Ok(activity) => {
+            create_intelligence_response(
+                &activity,
+                activity_id,
+                user_uuid,
+                tenant_id,
+                sampling_peer,
+            )
+            .await
+        }
         Err(e) => {
             // Handle NotFound by auto-fetching recent activities
-            let err_str = e.to_string();
-            if err_str.contains("not found") || err_str.contains("NotFound") {
+            if e.code == crate::errors::ErrorCode::ResourceNotFound {
                 // Activity not found - fetch recent activities to show valid IDs
                 match provider.get_activities(Some(5), None).await {
                     Ok(activities) if !activities.is_empty() => {
@@ -672,12 +695,14 @@ async fn fetch_and_analyze_activity(
                             &most_recent.id,
                             user_uuid,
                             tenant_id,
-                        );
+                            None, // No sampling in fallback path
+                        )
+                        .await;
 
                         // Add auto-selection note to the result
                         if let Some(result) = response.result.as_mut() {
                             result["auto_selected"] = serde_json::json!({
-                                "reason": format!("Activity '{}' not found", activity_id),
+                                "reason": format!("Activity '{activity_id}' not found"),
                                 "selected_activity": most_recent.id.clone(),
                                 "selected_activity_name": most_recent.name.clone(),
                                 "selected_activity_date": most_recent.start_date.format("%Y-%m-%d").to_string(),
@@ -699,9 +724,7 @@ async fn fetch_and_analyze_activity(
                         return UniversalResponse {
                             success: false,
                             result: None,
-                            error: Some(format!(
-                                "Activity '{activity_id}' not found. Failed to fetch available activities: {fetch_err}"
-                            )),
+                            error: Some(format!("Activity '{activity_id}' not found. Failed to fetch available activities: {fetch_err}")),
                             metadata: None,
                         };
                     }
@@ -855,14 +878,42 @@ pub fn handle_get_activity_intelligence(
         use crate::constants::oauth_providers;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
-        let params: GetActivityIntelligenceParams =
-            serde_json::from_value(request.parameters.clone())
-                .json_context("get_activity_intelligence parameters")
-                .map_err(|e| ProtocolError::InvalidParameters {
-                    message: e.to_string(),
-                })?;
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "get_activity_intelligence cancelled by user".to_owned(),
+                ));
+            }
+        }
+
+        let activity_id = request
+            .parameters
+            .get("activity_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: activity_id".to_owned())
+            })?;
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+
+        // Report progress - starting authentication
+        if let Some(reporter) = &request.progress_reporter {
+            reporter.report(
+                25.0,
+                Some(100.0),
+                Some("Checking authentication...".to_owned()),
+            );
+        }
+
+        // Check cancellation before auth
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "get_activity_intelligence cancelled before authentication".to_owned(),
+                ));
+            }
+        }
 
         match executor
             .auth_service
@@ -874,14 +925,46 @@ pub fn handle_get_activity_intelligence(
             .await
         {
             Ok(Some(token_data)) => {
+                // Report progress after auth
+                if let Some(reporter) = &request.progress_reporter {
+                    reporter.report(
+                        50.0,
+                        Some(100.0),
+                        Some("Authenticated - analyzing activity...".to_owned()),
+                    );
+                }
+
+                // Check cancellation before analysis
+                if let Some(token) = &request.cancellation_token {
+                    if token.is_cancelled().await {
+                        return Err(ProtocolError::OperationCancelled(
+                            "get_activity_intelligence cancelled before analysis".to_owned(),
+                        ));
+                    }
+                }
+
                 let provider = create_authenticated_provider(executor, &token_data).await?;
-                Ok(fetch_and_analyze_activity(
+                let result = fetch_and_analyze_activity(
                     provider,
-                    &params.activity_id,
+                    activity_id,
                     user_uuid,
                     request.tenant_id,
+                    executor.resources.sampling_peer.as_ref(),
                 )
-                .await)
+                .await;
+
+                // Report completion on success
+                if result.success {
+                    if let Some(reporter) = &request.progress_reporter {
+                        reporter.report(
+                            100.0,
+                            Some(100.0),
+                            Some("Activity intelligence retrieved".to_owned()),
+                        );
+                    }
+                }
+
+                Ok(result)
             }
             Ok(None) => Ok(build_no_token_response()),
             Err(e) => Ok(UniversalResponse {
@@ -904,14 +987,44 @@ pub fn handle_analyze_performance_trends(
         use crate::constants::oauth_providers;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
-        let params: AnalyzePerformanceTrendsParams =
-            serde_json::from_value(request.parameters.clone())
-                .json_context("analyze_performance_trends parameters")
-                .map_err(|e| ProtocolError::InvalidParameters {
-                    message: e.to_string(),
-                })?;
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "analyze_performance_trends cancelled by user".to_owned(),
+                ));
+            }
+        }
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let metric = request
+            .parameters
+            .get("metric")
+            .and_then(|v| v.as_str())
+            .unwrap_or("pace");
+        let timeframe = request
+            .parameters
+            .get("timeframe")
+            .and_then(|v| v.as_str())
+            .unwrap_or("month");
+
+        // Report progress - starting authentication
+        if let Some(reporter) = &request.progress_reporter {
+            reporter.report(
+                25.0,
+                Some(100.0),
+                Some("Checking authentication...".to_owned()),
+            );
+        }
+
+        // Check cancellation before auth
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "analyze_performance_trends cancelled before authentication".to_owned(),
+                ));
+            }
+        }
 
         match executor
             .auth_service
@@ -923,16 +1036,41 @@ pub fn handle_analyze_performance_trends(
             .await
         {
             Ok(Some(token_data)) => {
+                // Report progress after auth
+                if let Some(reporter) = &request.progress_reporter {
+                    reporter.report(
+                        50.0,
+                        Some(100.0),
+                        Some(
+                            "Authenticated - fetching activities for trend analysis...".to_owned(),
+                        ),
+                    );
+                }
+
+                // Check cancellation before analysis
+                if let Some(token) = &request.cancellation_token {
+                    if token.is_cancelled().await {
+                        return Err(ProtocolError::OperationCancelled(
+                            "analyze_performance_trends cancelled before analysis".to_owned(),
+                        ));
+                    }
+                }
+
                 let provider = create_authenticated_provider(executor, &token_data).await?;
-                Ok(
-                    fetch_and_analyze_trends(
-                        provider,
-                        &params.metric,
-                        &params.timeframe,
-                        user_uuid,
-                    )
-                    .await,
-                )
+                let result = fetch_and_analyze_trends(provider, metric, timeframe, user_uuid).await;
+
+                // Report completion on success
+                if result.success {
+                    if let Some(reporter) = &request.progress_reporter {
+                        reporter.report(
+                            100.0,
+                            Some(100.0),
+                            Some("Performance trend analysis completed".to_owned()),
+                        );
+                    }
+                }
+
+                Ok(result)
             }
             Ok(None) => Ok(build_no_token_response()),
             Err(e) => Ok(UniversalResponse {
@@ -952,11 +1090,21 @@ async fn execute_activity_comparison(
     comparison_type: &str,
     compare_activity_id: Option<&str>,
     user_uuid: uuid::Uuid,
+    request: &UniversalRequest,
 ) -> UniversalResponse {
     use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
 
     match provider.get_activity(activity_id).await {
         Ok(target_activity) => {
+            // Report progress after getting target activity
+            if let Some(reporter) = &request.progress_reporter {
+                reporter.report(
+                    66.0,
+                    Some(100.0),
+                    Some("Target activity retrieved - comparing...".to_owned()),
+                );
+            }
+
             let all_activities = provider
                 .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
                 .await
@@ -968,6 +1116,15 @@ async fn execute_activity_comparison(
                 comparison_type,
                 compare_activity_id,
             );
+
+            // Report completion
+            if let Some(reporter) = &request.progress_reporter {
+                reporter.report(
+                    100.0,
+                    Some(100.0),
+                    Some("Comparison completed successfully".to_owned()),
+                );
+            }
 
             UniversalResponse {
                 success: true,
@@ -984,13 +1141,12 @@ async fn execute_activity_comparison(
             }
         }
         Err(e) => {
-            let error_message = {
-                let err_str = e.to_string();
-                if err_str.contains("not found") || err_str.contains("NotFound") {
-                    format!("Activity '{activity_id}' not found. Please use get_activities to retrieve your activity IDs first, then use compare_activities with a valid ID from the list.")
-                } else {
-                    format!("Failed to fetch activity {activity_id}: {e}")
-                }
+            let error_message = if e.code == crate::errors::ErrorCode::ResourceNotFound {
+                format!(
+                    "Activity '{activity_id}' not found. Please use get_activities to retrieve your activity IDs first, then use compare_activities with a valid ID from the list."
+                )
+            } else {
+                format!("Failed to fetch activity {activity_id}: {e}")
             };
 
             UniversalResponse {
@@ -1013,13 +1169,32 @@ pub fn handle_compare_activities(
         use crate::constants::oauth_providers;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
-        let params: CompareActivitiesParams = serde_json::from_value(request.parameters.clone())
-            .json_context("compare_activities parameters")
-            .map_err(|e| ProtocolError::InvalidParameters {
-                message: e.to_string(),
-            })?;
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "compare_activities cancelled by user".to_owned(),
+                ));
+            }
+        }
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let activity_id = request
+            .parameters
+            .get("activity_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: activity_id".to_owned())
+            })?;
+        let comparison_type = request
+            .parameters
+            .get("comparison_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("similar_activities");
+        let compare_activity_id = request
+            .parameters
+            .get("compare_activity_id")
+            .and_then(|v| v.as_str());
 
         match executor
             .auth_service
@@ -1032,10 +1207,7 @@ pub fn handle_compare_activities(
                     .provider_registry
                     .create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
-                        ProtocolError::InternalError {
-                            component: "provider_registry",
-                            details: format!("Failed to create provider: {e}"),
-                        }
+                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
@@ -1051,18 +1223,21 @@ pub fn handle_compare_activities(
                 };
 
                 provider.set_credentials(credentials).await.map_err(|e| {
-                    ProtocolError::InternalError {
-                        component: "provider",
-                        details: format!("Failed to set credentials: {e}"),
-                    }
+                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
                 })?;
+
+                // Report progress after auth
+                if let Some(reporter) = &request.progress_reporter {
+                    reporter.report(33.0, Some(100.0), Some("Authenticated - fetching activities for comparison...".to_owned()));
+                }
 
                 Ok(execute_activity_comparison(
                     provider,
-                    &params.activity_id,
-                    &params.comparison_type,
-                    params.compare_activity_id.as_deref(),
+                    activity_id,
+                    comparison_type,
+                    compare_activity_id,
                     user_uuid,
+                    &request,
                 )
                 .await)
             }
@@ -1092,13 +1267,41 @@ pub fn handle_detect_patterns(
         use crate::constants::oauth_providers;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
-        let params: DetectPatternsParams = serde_json::from_value(request.parameters.clone())
-            .json_context("detect_patterns parameters")
-            .map_err(|e| ProtocolError::InvalidParameters {
-                message: e.to_string(),
-            })?;
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "detect_patterns cancelled by user".to_owned(),
+                ));
+            }
+        }
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let pattern_type = request
+            .parameters
+            .get("pattern_type")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: pattern_type".to_owned())
+            })?;
+
+        // Report progress - starting authentication
+        if let Some(reporter) = &request.progress_reporter {
+            reporter.report(
+                25.0,
+                Some(100.0),
+                Some("Checking authentication...".to_owned()),
+            );
+        }
+
+        // Check cancellation before auth
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "detect_patterns cancelled before authentication".to_owned(),
+                ));
+            }
+        }
 
         match executor
             .auth_service
@@ -1110,8 +1313,39 @@ pub fn handle_detect_patterns(
             .await
         {
             Ok(Some(token_data)) => {
+                // Report progress after auth
+                if let Some(reporter) = &request.progress_reporter {
+                    reporter.report(
+                        50.0,
+                        Some(100.0),
+                        Some("Authenticated - analyzing activities for patterns...".to_owned()),
+                    );
+                }
+
+                // Check cancellation before pattern detection
+                if let Some(token) = &request.cancellation_token {
+                    if token.is_cancelled().await {
+                        return Err(ProtocolError::OperationCancelled(
+                            "detect_patterns cancelled before analysis".to_owned(),
+                        ));
+                    }
+                }
+
                 let provider = create_authenticated_provider(executor, &token_data).await?;
-                Ok(fetch_and_detect_patterns(provider, &params.pattern_type, user_uuid).await)
+                let result = fetch_and_detect_patterns(provider, pattern_type, user_uuid).await;
+
+                // Report completion on success
+                if result.success {
+                    if let Some(reporter) = &request.progress_reporter {
+                        reporter.report(
+                            100.0,
+                            Some(100.0),
+                            Some("Pattern detection completed".to_owned()),
+                        );
+                    }
+                }
+
+                Ok(result)
             }
             Ok(None) => Ok(build_no_token_response()),
             Err(e) => Ok(UniversalResponse {
@@ -1126,6 +1360,7 @@ pub fn handle_detect_patterns(
 
 /// Handle `generate_recommendations` tool - generate training recommendations
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn handle_generate_recommendations(
     executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
@@ -1135,14 +1370,39 @@ pub fn handle_generate_recommendations(
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
-        let params: GenerateRecommendationsParams =
-            serde_json::from_value(request.parameters.clone())
-                .json_context("generate_recommendations parameters")
-                .map_err(|e| ProtocolError::InvalidParameters {
-                    message: e.to_string(),
-                })?;
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "generate_recommendations cancelled by user".to_owned(),
+                ));
+            }
+        }
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let recommendation_type = request
+            .parameters
+            .get("recommendation_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("all");
+
+        // Report progress - starting authentication
+        if let Some(reporter) = &request.progress_reporter {
+            reporter.report(
+                20.0,
+                Some(100.0),
+                Some("Checking authentication...".to_owned()),
+            );
+        }
+
+        // Check cancellation before auth
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "generate_recommendations cancelled before authentication".to_owned(),
+                ));
+            }
+        }
 
         match executor
             .auth_service
@@ -1150,15 +1410,30 @@ pub fn handle_generate_recommendations(
             .await
         {
             Ok(Some(token_data)) => {
+                // Report progress after auth
+                if let Some(reporter) = &request.progress_reporter {
+                    reporter.report(
+                        40.0,
+                        Some(100.0),
+                        Some("Authenticated - fetching activities...".to_owned()),
+                    );
+                }
+
+                // Check cancellation before provider creation
+                if let Some(token) = &request.cancellation_token {
+                    if token.is_cancelled().await {
+                        return Err(ProtocolError::OperationCancelled(
+                            "generate_recommendations cancelled before fetch".to_owned(),
+                        ));
+                    }
+                }
+
                 let provider = executor
                     .resources
                     .provider_registry
                     .create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
-                        ProtocolError::InternalError {
-                            component: "provider_registry",
-                            details: format!("Failed to create provider: {e}"),
-                        }
+                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
@@ -1174,16 +1449,47 @@ pub fn handle_generate_recommendations(
                 };
 
                 provider.set_credentials(credentials).await.map_err(|e| {
-                    ProtocolError::InternalError {
-                        component: "provider",
-                        details: format!("Failed to set credentials: {e}"),
-                    }
+                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
                 })?;
 
                 match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
                     Ok(activities) => {
-                        let analysis =
-                            generate_training_recommendations(&activities, &params.recommendation_type);
+                        // Report progress before generating recommendations
+                        if let Some(reporter) = &request.progress_reporter {
+                            reporter.report(
+                                70.0,
+                                Some(100.0),
+                                Some("Generating training recommendations...".to_owned()),
+                            );
+                        }
+
+                        // Try to use Claude sampling if available, otherwise use static analysis
+                        let analysis = if let Some(sampling_peer) = &executor.resources.sampling_peer {
+                            // Use Claude to generate personalized recommendations
+                            match generate_recommendations_with_claude(
+                                sampling_peer,
+                                &activities,
+                                recommendation_type
+                            ).await {
+                                Ok(claude_recommendations) => claude_recommendations,
+                                Err(e) => {
+                                    tracing::warn!("Claude sampling failed, falling back to static recommendations: {}", e);
+                                    generate_training_recommendations(&activities, recommendation_type)
+                                }
+                            }
+                        } else {
+                            // Fall back to static recommendations
+                            generate_training_recommendations(&activities, recommendation_type)
+                        };
+
+                        // Report completion
+                        if let Some(reporter) = &request.progress_reporter {
+                            reporter.report(
+                                100.0,
+                                Some(100.0),
+                                Some("Recommendations generated successfully".to_owned()),
+                            );
+                        }
 
                         Ok(UniversalResponse {
                             success: true,
@@ -1225,6 +1531,7 @@ pub fn handle_generate_recommendations(
 
 /// Handle `calculate_fitness_score` tool - calculate overall fitness score
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn handle_calculate_fitness_score(
     executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
@@ -1234,14 +1541,39 @@ pub fn handle_calculate_fitness_score(
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
-        let params: CalculateFitnessScoreParams =
-            serde_json::from_value(request.parameters.clone())
-                .json_context("calculate_fitness_score parameters")
-                .map_err(|e| ProtocolError::InvalidParameters {
-                    message: e.to_string(),
-                })?;
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "calculate_fitness_score cancelled by user".to_owned(),
+                ));
+            }
+        }
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let timeframe = request
+            .parameters
+            .get("timeframe")
+            .and_then(|v| v.as_str())
+            .unwrap_or("month");
+
+        // Report progress - starting authentication
+        if let Some(reporter) = &request.progress_reporter {
+            reporter.report(
+                20.0,
+                Some(100.0),
+                Some("Checking authentication...".to_owned()),
+            );
+        }
+
+        // Check cancellation before auth
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "calculate_fitness_score cancelled before authentication".to_owned(),
+                ));
+            }
+        }
 
         match executor
             .auth_service
@@ -1249,15 +1581,30 @@ pub fn handle_calculate_fitness_score(
             .await
         {
             Ok(Some(token_data)) => {
+                // Report progress after auth
+                if let Some(reporter) = &request.progress_reporter {
+                    reporter.report(
+                        40.0,
+                        Some(100.0),
+                        Some("Authenticated - fetching activities...".to_owned()),
+                    );
+                }
+
+                // Check cancellation before provider creation
+                if let Some(token) = &request.cancellation_token {
+                    if token.is_cancelled().await {
+                        return Err(ProtocolError::OperationCancelled(
+                            "calculate_fitness_score cancelled before fetch".to_owned(),
+                        ));
+                    }
+                }
+
                 let provider = executor
                     .resources
                     .provider_registry
                     .create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
-                        ProtocolError::InternalError {
-                            component: "provider_registry",
-                            details: format!("Failed to create provider: {e}"),
-                        }
+                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
@@ -1273,15 +1620,30 @@ pub fn handle_calculate_fitness_score(
                 };
 
                 provider.set_credentials(credentials).await.map_err(|e| {
-                    ProtocolError::InternalError {
-                        component: "provider",
-                        details: format!("Failed to set credentials: {e}"),
-                    }
+                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
                 })?;
 
                 match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
                     Ok(activities) => {
-                        let analysis = calculate_fitness_metrics(&activities, &params.timeframe);
+                        // Report progress before calculation
+                        if let Some(reporter) = &request.progress_reporter {
+                            reporter.report(
+                                70.0,
+                                Some(100.0),
+                                Some("Calculating fitness metrics...".to_owned()),
+                            );
+                        }
+
+                        let analysis = calculate_fitness_metrics(&activities, timeframe);
+
+                        // Report completion
+                        if let Some(reporter) = &request.progress_reporter {
+                            reporter.report(
+                                100.0,
+                                Some(100.0),
+                                Some("Fitness score calculated".to_owned()),
+                            );
+                        }
 
                         Ok(UniversalResponse {
                             success: true,
@@ -1323,6 +1685,7 @@ pub fn handle_calculate_fitness_score(
 
 /// Handle `predict_performance` tool - predict future performance
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn handle_predict_performance(
     executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
@@ -1332,13 +1695,39 @@ pub fn handle_predict_performance(
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
-        let params: PredictPerformanceParams = serde_json::from_value(request.parameters.clone())
-            .json_context("predict_performance parameters")
-            .map_err(|e| ProtocolError::InvalidParameters {
-                message: e.to_string(),
-            })?;
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "predict_performance cancelled by user".to_owned(),
+                ));
+            }
+        }
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let target_sport = request
+            .parameters
+            .get("target_sport")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Run");
+
+        // Report progress - starting authentication
+        if let Some(reporter) = &request.progress_reporter {
+            reporter.report(
+                20.0,
+                Some(100.0),
+                Some("Checking authentication...".to_owned()),
+            );
+        }
+
+        // Check cancellation before auth
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "predict_performance cancelled before authentication".to_owned(),
+                ));
+            }
+        }
 
         match executor
             .auth_service
@@ -1346,15 +1735,30 @@ pub fn handle_predict_performance(
             .await
         {
             Ok(Some(token_data)) => {
+                // Report progress after auth
+                if let Some(reporter) = &request.progress_reporter {
+                    reporter.report(
+                        40.0,
+                        Some(100.0),
+                        Some("Authenticated - fetching activities...".to_owned()),
+                    );
+                }
+
+                // Check cancellation before provider creation
+                if let Some(token) = &request.cancellation_token {
+                    if token.is_cancelled().await {
+                        return Err(ProtocolError::OperationCancelled(
+                            "predict_performance cancelled before fetch".to_owned(),
+                        ));
+                    }
+                }
+
                 let provider = executor
                     .resources
                     .provider_registry
                     .create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
-                        ProtocolError::InternalError {
-                            component: "provider_registry",
-                            details: format!("Failed to create provider: {e}"),
-                        }
+                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
@@ -1370,15 +1774,30 @@ pub fn handle_predict_performance(
                 };
 
                 provider.set_credentials(credentials).await.map_err(|e| {
-                    ProtocolError::InternalError {
-                        component: "provider",
-                        details: format!("Failed to set credentials: {e}"),
-                    }
+                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
                 })?;
 
                 match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
                     Ok(activities) => {
-                        let prediction = predict_race_performance(&activities, &params.target_sport);
+                        // Report progress before prediction
+                        if let Some(reporter) = &request.progress_reporter {
+                            reporter.report(
+                                70.0,
+                                Some(100.0),
+                                Some("Predicting race performance...".to_owned()),
+                            );
+                        }
+
+                        let prediction = predict_race_performance(&activities, target_sport);
+
+                        // Report completion
+                        if let Some(reporter) = &request.progress_reporter {
+                            reporter.report(
+                                100.0,
+                                Some(100.0),
+                                Some("Performance prediction completed".to_owned()),
+                            );
+                        }
 
                         Ok(UniversalResponse {
                             success: true,
@@ -1420,6 +1839,7 @@ pub fn handle_predict_performance(
 
 /// Handle `analyze_training_load` tool - analyze training load and recovery
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn handle_analyze_training_load(
     executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
@@ -1429,13 +1849,39 @@ pub fn handle_analyze_training_load(
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
-        let params: AnalyzeTrainingLoadParams = serde_json::from_value(request.parameters.clone())
-            .json_context("analyze_training_load parameters")
-            .map_err(|e| ProtocolError::InvalidParameters {
-                message: e.to_string(),
-            })?;
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "analyze_training_load cancelled by user".to_owned(),
+                ));
+            }
+        }
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let timeframe = request
+            .parameters
+            .get("timeframe")
+            .and_then(|v| v.as_str())
+            .unwrap_or("week");
+
+        // Report progress - starting authentication
+        if let Some(reporter) = &request.progress_reporter {
+            reporter.report(
+                20.0,
+                Some(100.0),
+                Some("Checking authentication...".to_owned()),
+            );
+        }
+
+        // Check cancellation before auth
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "analyze_training_load cancelled before authentication".to_owned(),
+                ));
+            }
+        }
 
         match executor
             .auth_service
@@ -1443,15 +1889,30 @@ pub fn handle_analyze_training_load(
             .await
         {
             Ok(Some(token_data)) => {
+                // Report progress after auth
+                if let Some(reporter) = &request.progress_reporter {
+                    reporter.report(
+                        40.0,
+                        Some(100.0),
+                        Some("Authenticated - fetching activities...".to_owned()),
+                    );
+                }
+
+                // Check cancellation before provider creation
+                if let Some(token) = &request.cancellation_token {
+                    if token.is_cancelled().await {
+                        return Err(ProtocolError::OperationCancelled(
+                            "analyze_training_load cancelled before fetch".to_owned(),
+                        ));
+                    }
+                }
+
                 let provider = executor
                     .resources
                     .provider_registry
                     .create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
-                        ProtocolError::InternalError {
-                            component: "provider_registry",
-                            details: format!("Failed to create provider: {e}"),
-                        }
+                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
                     })?;
 
                 let credentials = crate::providers::OAuth2Credentials {
@@ -1467,15 +1928,30 @@ pub fn handle_analyze_training_load(
                 };
 
                 provider.set_credentials(credentials).await.map_err(|e| {
-                    ProtocolError::InternalError {
-                        component: "provider",
-                        details: format!("Failed to set credentials: {e}"),
-                    }
+                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
                 })?;
 
                 match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
                     Ok(activities) => {
-                        let analysis = analyze_detailed_training_load(&activities, &params.timeframe);
+                        // Report progress before analysis
+                        if let Some(reporter) = &request.progress_reporter {
+                            reporter.report(
+                                70.0,
+                                Some(100.0),
+                                Some(format!("Analyzing training load for {} activities...", activities.len())),
+                            );
+                        }
+
+                        let analysis = analyze_detailed_training_load(&activities, timeframe);
+
+                        // Report completion
+                        if let Some(reporter) = &request.progress_reporter {
+                            reporter.report(
+                                100.0,
+                                Some(100.0),
+                                Some("Training load analysis completed".to_owned()),
+                            );
+                        }
 
                         Ok(UniversalResponse {
                             success: true,
@@ -1628,7 +2104,8 @@ fn compute_trend_statistics(
 
     // Calculate simple average for comparison
     let sum: f64 = data_points_with_timestamp.iter().map(|(_, v)| v).sum();
-    #[allow(clippy::cast_precision_loss)]
+    // Cast is safe: data point count far below f64 precision limit (2^53)
+    #[allow(clippy::cast_precision_loss)] // Safe: realistic data point counts
     let moving_avg = sum / data_points_with_timestamp.len() as f64;
 
     // Determine trend direction using proper logic
@@ -2479,6 +2956,219 @@ fn format_overtraining_signals(
 // ============================================================================
 // Helper Functions for Training Recommendations
 // ============================================================================
+
+/// Generate activity intelligence using Claude sampling (MCP feature)
+///
+/// Analyzes a single activity using Claude for AI-powered insights.
+///
+/// # Arguments
+/// * `sampling_peer` - MCP sampling peer for LLM requests
+/// * `activity` - Activity to analyze
+///
+/// # Returns
+/// JSON response with Claude-generated activity analysis
+///
+/// # Errors
+/// Returns error if sampling request fails or response is invalid
+async fn generate_activity_intelligence_with_claude(
+    sampling_peer: &std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>,
+    activity: &crate::models::Activity,
+) -> anyhow::Result<serde_json::Value> {
+    use crate::mcp::schema::{
+        Content, CreateMessageRequest, ModelHint, ModelPreferences, PromptMessage,
+    };
+
+    // Prepare activity data for Claude
+    #[allow(clippy::cast_precision_loss)]
+    let duration_min = activity.duration_seconds as f64 / 60.0;
+    let distance_km = activity.distance_meters.map(|d| d / 1000.0);
+    let avg_pace = activity
+        .average_speed
+        .map(|s| if s > 0.0 { 1000.0 / (s * 60.0) } else { 0.0 });
+
+    let activity_summary = format!(
+        "Activity Type: {:?}\n\
+         Duration: {duration_min:.1} minutes\n\
+         Distance: {}\n\
+         Average Pace: {}\n\
+         Average Heart Rate: {}\n\
+         Calories: {}",
+        activity.sport_type,
+        distance_km.map_or_else(|| "N/A".to_owned(), |d| format!("{d:.2} km")),
+        avg_pace.map_or_else(|| "N/A".to_owned(), |p| format!("{p:.2} min/km")),
+        activity
+            .average_heart_rate
+            .map_or_else(|| "N/A".to_owned(), |hr| format!("{hr} bpm")),
+        activity
+            .calories
+            .map_or_else(|| "N/A".to_owned(), |c| c.to_string())
+    );
+
+    // Create prompt for Claude
+    let prompt = format!(
+        "You are an expert fitness coach analyzing an athlete's activity.\n\n\
+         {activity_summary}\n\n\
+         Provide AI-powered insights about this activity focusing on:\n\
+         1. Performance analysis (pacing, effort level)\n\
+         2. Training effectiveness\n\
+         3. Specific recommendations for improvement\n\
+         4. Recovery suggestions\n\n\
+         Format your response as JSON with this structure:\n\
+         {{\n\
+           \"summary\": \"brief overall assessment\",\n\
+           \"insights\": [\"insight 1\", \"insight 2\", ...],\n\
+           \"recommendations\": [\"recommendation 1\", \"recommendation 2\", ...],\n\
+           \"performance_score\": \"rating out of 10\",\n\
+           \"analysis_type\": \"ai_powered\"\n\
+         }}"
+    );
+
+    // Send sampling request
+    let request = CreateMessageRequest {
+        messages: vec![PromptMessage::user(Content::Text {
+            text: prompt,
+        })],
+        model_preferences: Some(ModelPreferences {
+            hints: Some(vec![ModelHint {
+                name: Some("claude-3-5-sonnet".to_owned()),
+            }]),
+            intelligence_priority: Some(0.9),
+            cost_priority: None,
+            speed_priority: None,
+        }),
+        max_tokens: 800,
+        temperature: Some(0.7),
+        system_prompt: Some("You are an expert fitness coach providing detailed activity analysis. Always respond with valid JSON.".to_owned()),
+        include_context: None,
+        stop_sequences: None,
+        metadata: None,
+    };
+
+    let result = sampling_peer.create_message(request).await?;
+
+    // Parse Claude's response
+    serde_json::from_str::<serde_json::Value>(&result.content.text).or_else(|_| {
+        // Wrap non-JSON response
+        Ok(serde_json::json!({
+            "summary": result.content.text,
+            "insights": [result.content.text],
+            "recommendations": [],
+            "analysis_type": "ai_powered",
+            "source": "claude_sampling"
+        }))
+    })
+}
+
+/// Generate training recommendations using Claude sampling (MCP feature)
+///
+/// Sends activity data to Claude via MCP sampling for AI-powered coaching advice.
+/// Returns natural language recommendations based on training patterns.
+///
+/// # Arguments
+/// * `sampling_peer` - MCP sampling peer for LLM requests
+/// * `activities` - Recent activity data
+/// * `recommendation_type` - Type of recommendations requested
+///
+/// # Returns
+/// JSON response with Claude-generated training recommendations
+///
+/// # Errors
+/// Returns error if sampling request fails or response is invalid
+async fn generate_recommendations_with_claude(
+    sampling_peer: &std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>,
+    activities: &[crate::models::Activity],
+    recommendation_type: &str,
+) -> anyhow::Result<serde_json::Value> {
+    use crate::mcp::schema::{
+        Content, CreateMessageRequest, ModelHint, ModelPreferences, PromptMessage,
+    };
+
+    // Prepare activity summary for Claude
+    let activity_summary = if activities.is_empty() {
+        "No recent training data available.".to_owned()
+    } else {
+        let recent_count = activities.len().min(10);
+        let recent_activities = &activities[..recent_count];
+
+        let total_distance: f64 = recent_activities
+            .iter()
+            .filter_map(|a| a.distance_meters)
+            .sum();
+        let total_duration: u64 = recent_activities.iter().map(|a| a.duration_seconds).sum();
+        let activity_types: Vec<String> = recent_activities
+            .iter()
+            .map(|a| format!("{:?}", a.sport_type))
+            .collect();
+
+        {
+            #[allow(clippy::cast_precision_loss)]
+            let duration_hours = total_duration as f64 / 3600.0;
+            #[allow(clippy::cast_precision_loss)]
+            let activities_per_week = recent_count as f64 / 4.0;
+
+            format!(
+                "Recent training data ({recent_count} activities):\n\
+                 - Total distance: {:.2} km\n\
+                 - Total duration: {duration_hours:.1} hours\n\
+                 - Activity types: {}\n\
+                 - Activities per week: {activities_per_week:.1}",
+                total_distance / 1000.0,
+                activity_types.join(", ")
+            )
+        }
+    };
+
+    // Create prompt for Claude
+    let prompt = format!(
+        "You are an expert fitness coach analyzing training data.\n\n\
+         {activity_summary}\n\n\
+         Please provide {recommendation_type} training recommendations based on this data. \
+         Focus on actionable advice for improving performance, preventing injury, \
+         and optimizing training load. Format your response as JSON with the following structure:\n\
+         {{\n\
+           \"recommendation_type\": \"{recommendation_type}\",\n\
+           \"recommendations\": [\"recommendation 1\", \"recommendation 2\", ...],\n\
+           \"priority\": \"high/medium/low\",\n\
+           \"reasoning\": \"brief explanation\"\n\
+         }}"
+    );
+
+    // Send sampling request to Claude
+    let request = CreateMessageRequest {
+        messages: vec![PromptMessage::user(Content::Text {
+            text: prompt,
+        })],
+        model_preferences: Some(ModelPreferences {
+            hints: Some(vec![ModelHint {
+                name: Some("claude-3-5-sonnet".to_owned()),
+            }]),
+            intelligence_priority: Some(0.8),
+            cost_priority: None,
+            speed_priority: None,
+        }),
+        max_tokens: 1024,
+        temperature: Some(0.7),
+        system_prompt: Some("You are an expert fitness coach providing personalized training advice. Always respond with valid JSON.".to_owned()),
+        include_context: None,
+        stop_sequences: None,
+        metadata: None,
+    };
+
+    let result = sampling_peer.create_message(request).await?;
+
+    // Parse Claude's response as JSON
+    let response_text = &result.content.text;
+    serde_json::from_str::<serde_json::Value>(response_text).or_else(|_| {
+        // If Claude didn't return pure JSON, wrap the text in a response structure
+        Ok(serde_json::json!({
+            "recommendation_type": recommendation_type,
+            "recommendations": [response_text],
+            "priority": "medium",
+            "reasoning": "Generated by Claude",
+            "source": "claude_sampling"
+        }))
+    })
+}
 
 /// Generate personalized training recommendations
 fn generate_training_recommendations(
@@ -3602,7 +4292,7 @@ fn predict_race_performance(
 /// - Recency of best performance (< 30 days = high confidence)
 /// - Training volume (high CTL = more confidence)
 /// - Number of recent races and consistency
-#[allow(clippy::cast_precision_loss)] // Safe: converting usize length to score values
+#[allow(clippy::cast_precision_loss, clippy::bool_to_int_with_if)] // Multi-level threshold scoring, not simple boolean conversion
 fn calculate_prediction_confidence(
     activities: &[&crate::models::Activity],
     best_activity_date: &chrono::DateTime<chrono::Utc>,
@@ -3612,7 +4302,6 @@ fn calculate_prediction_confidence(
 
     // Factor 1: Recency (< 30 days = high confidence)
     let days_since_best = (Utc::now() - *best_activity_date).num_days();
-    #[allow(clippy::bool_to_int_with_if)]
     let recency_score = if days_since_best < 30 {
         2 // Recent performance
     } else if days_since_best < 90 {
@@ -3624,7 +4313,6 @@ fn calculate_prediction_confidence(
     // Factor 2: Training volume (CTL)
     let owned_activities: Vec<_> = activities.iter().copied().cloned().collect();
     let calculator = TrainingLoadCalculator::new();
-    #[allow(clippy::bool_to_int_with_if)]
     let ctl_score = if let Ok(training_load) =
         calculator.calculate_training_load(&owned_activities, None, None, None, None, None)
     {
@@ -3640,7 +4328,6 @@ fn calculate_prediction_confidence(
     };
 
     // Factor 3: Number of activities
-    #[allow(clippy::bool_to_int_with_if)]
     let volume_score = if activities.len() >= 20 {
         2
     } else if activities.len() >= 10 {

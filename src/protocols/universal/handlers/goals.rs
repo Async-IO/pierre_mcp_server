@@ -4,15 +4,13 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::database::repositories::ProfileRepository;
 use crate::database_plugins::factory::Database;
+use crate::database_plugins::DatabaseProvider;
 use crate::errors::JsonResultExt;
 use crate::intelligence::goal_engine::GoalEngineTrait;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
-use crate::types::json_schemas::{
-    AnalyzeGoalFeasibilityParams, SetGoalParams, TrackProgressParams,
-};
+use crate::types::json_schemas::{AnalyzeGoalFeasibilityParams, SetGoalParams};
 use num_traits::ToPrimitive;
 use std::future::Future;
 use std::pin::Pin;
@@ -50,9 +48,7 @@ fn extract_feasibility_params(
 ) -> Result<(String, f64, u32), ProtocolError> {
     let params: AnalyzeGoalFeasibilityParams = serde_json::from_value(request.parameters.clone())
         .json_context("analyze_goal_feasibility parameters")
-        .map_err(|e| ProtocolError::InvalidParameters {
-            message: e.to_string(),
-        })?;
+        .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))?;
 
     let timeframe_days = params.timeframe_days.unwrap_or(
         crate::intelligence::physiological_constants::goal_feasibility::DEFAULT_TIMEFRAME_DAYS,
@@ -229,9 +225,7 @@ fn build_feasibility_response(params: &FeasibilityResponseParams) -> UniversalRe
 fn extract_goal_params(request: &UniversalRequest) -> Result<SetGoalParams, ProtocolError> {
     serde_json::from_value(request.parameters.clone())
         .json_context("set_goal parameters")
-        .map_err(|e| ProtocolError::InvalidParameters {
-            message: e.to_string(),
-        })
+        .map_err(|e| ProtocolError::InvalidParameters(e.to_string()))
 }
 
 /// Build goal creation response
@@ -281,6 +275,15 @@ pub fn handle_set_goal(
     Box::pin(async move {
         use crate::utils::uuid::parse_user_id_for_protocol;
 
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "handle_set_goal cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         let params = extract_goal_params(&request)?;
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -297,10 +300,7 @@ pub fn handle_set_goal(
         let goal_id = (*executor.resources.database)
             .create_goal(user_uuid, goal_data)
             .await
-            .map_err(|e| ProtocolError::InternalError {
-                component: "database",
-                details: format!("Database error: {e}"),
-            })?;
+            .map_err(|e| ProtocolError::InternalError(format!("Database error: {e}")))?;
 
         Ok(build_goal_creation_response(
             &goal_id,
@@ -331,7 +331,7 @@ async fn load_user_profile(
     user_id: &str,
     activities: &[crate::models::Activity],
 ) -> crate::intelligence::UserFitnessProfile {
-    match database.profiles().get_profile(user_uuid).await {
+    match database.get_user_profile(user_uuid).await {
         Ok(Some(profile_json)) => serde_json::from_value(profile_json).unwrap_or_else(|e| {
             tracing::warn!(
                 user_id = %user_id,
@@ -443,6 +443,15 @@ pub fn handle_suggest_goals(
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
         use crate::utils::uuid::parse_user_id_for_protocol;
+
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "handle_suggest_goals cancelled by user".to_owned(),
+                ));
+            }
+        }
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -568,6 +577,15 @@ pub fn handle_analyze_goal_feasibility(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "handle_analyze_goal_feasibility cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         let (goal_type, target_value, effective_timeframe) = extract_feasibility_params(&request)?;
         let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
@@ -802,6 +820,8 @@ fn calculate_training_history_months(activities: &[crate::models::Activity]) -> 
     let days = duration.num_days();
 
     // Convert days to months (using 30.44 days per month average)
+    // Cast is safe: human activity history in days fits well within f64 precision (±10^15)
+    // Result truncated to i32 is sufficient for months count (max realistic ~1200 months)
     #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
     ((days as f64 / 30.44).round() as i32).max(0)
 }
@@ -841,7 +861,8 @@ fn infer_fitness_level(
         activities,
         crate::constants::goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY,
     );
-    #[allow(clippy::cast_precision_loss)]
+    // Cast is safe: activity count (usize) far below f64 precision limit (2^53)
+    #[allow(clippy::cast_precision_loss)] // Safe: realistic activity counts
     let activities_per_week = activities.len() as f64 / training_weeks;
 
     // Classify based on training volume and consistency
@@ -1149,7 +1170,7 @@ async fn fetch_and_validate_goal(
     user_uuid: uuid::Uuid,
     goal_id: &str,
 ) -> Result<GoalDetails, UniversalResponse> {
-    let goals = match database.profiles().list_goals(user_uuid).await {
+    let goals = match database.get_user_goals(user_uuid).await {
         Ok(goals) => goals,
         Err(e) => {
             return Err(UniversalResponse {
@@ -1252,22 +1273,35 @@ pub fn handle_track_progress(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        let params: TrackProgressParams = serde_json::from_value(request.parameters.clone())
-            .json_context("track_progress parameters")
-            .map_err(|e| ProtocolError::InvalidParameters {
-                message: e.to_string(),
-            })?;
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "handle_track_progress cancelled by user".to_owned(),
+                ));
+            }
+        }
+
+        let goal_id = request
+            .parameters
+            .get("goal_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ProtocolError::InvalidParameters("goal_id is required".into()))?
+            .to_owned();
 
         let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
         // Fetch and validate goal
-        let details =
-            match fetch_and_validate_goal(&executor.resources.database, user_uuid, &params.goal_id)
-                .await
-            {
-                Ok(d) => d,
-                Err(err_response) => return Ok(err_response),
-            };
+        let details = match fetch_and_validate_goal(
+            &executor.resources.database,
+            user_uuid,
+            &goal_id,
+        )
+        .await
+        {
+            Ok(d) => d,
+            Err(err_response) => return Ok(err_response),
+        };
 
         let days_remaining = calculate_days_remaining(details.created_at, &details.timeframe);
 
@@ -1296,7 +1330,7 @@ pub fn handle_track_progress(
             calculate_projected_completion(current_value, details.goal_target, details.created_at);
 
         Ok(build_progress_response(&ProgressResponseParams {
-            goal_id: &params.goal_id,
+            goal_id: &goal_id,
             details: &details,
             current_value,
             unit,

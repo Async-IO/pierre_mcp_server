@@ -152,7 +152,7 @@ mod common;
 use pierre_mcp_server::{
     constants::oauth_providers,
     database::generate_encryption_key,
-    database_plugins::factory::Database,
+    database_plugins::{factory::Database, DatabaseProvider},
     intelligence::{
         ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
         TrendIndicators,
@@ -541,6 +541,9 @@ async fn test_get_activities_with_expired_token() {
         }),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     // Execute tool - it should attempt to refresh the token
@@ -607,6 +610,9 @@ async fn test_connection_status_with_oauth_manager() {
         parameters: json!({}),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     // Execute tool
@@ -690,6 +696,9 @@ async fn test_analyze_activity_token_refresh() {
         }),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     // Execute - should trigger refresh due to token expiring soon
@@ -781,6 +790,9 @@ async fn test_concurrent_token_operations() {
                 parameters: json!({}),
                 protocol: "test".to_owned(),
                 tenant_id: None,
+                progress_token: None,
+                cancellation_token: None,
+                progress_reporter: None,
             };
             executor_clone.execute_tool(request).await
         });
@@ -842,6 +854,9 @@ async fn test_oauth_provider_init_failure() {
         parameters: json!({}),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     // Execute - should handle provider initialization failure gracefully

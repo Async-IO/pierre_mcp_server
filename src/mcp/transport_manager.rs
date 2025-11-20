@@ -57,7 +57,28 @@ impl TransportManager {
         // Set up notification sender in resources for OAuth callbacks
         let mut resources_clone = (*self.resources).clone(); // Safe: ServerResources clone for notification setup
         resources_clone.set_oauth_notification_sender(self.notification_sender.clone()); // Safe: Sender clone for notification
+
+        // Create sampling peer for bidirectional stdio communication (MUST be done before Arc::new)
+        let stdout = Arc::new(tokio::sync::Mutex::new(tokio::io::stdout()));
+        let sampling_peer = Arc::new(super::sampling_peer::SamplingPeer::new(stdout));
+        resources_clone.set_sampling_peer(sampling_peer.clone());
+
+        // Create progress notification channel
+        let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
+        resources_clone.set_progress_notification_sender(progress_tx);
+
         let shared_resources = Arc::new(resources_clone);
+
+        // Spawn progress notification handler for stdio
+        tokio::spawn(async move {
+            while let Some(progress_notification) = progress_rx.recv().await {
+                // Send progress notification to stdout
+                // ProgressNotification already has the correct structure
+                if let Ok(json) = serde_json::to_string(&progress_notification) {
+                    println!("{json}");
+                }
+            }
+        });
 
         // Start stdio transport in background
         let resources_for_stdio = shared_resources.clone();
@@ -132,13 +153,17 @@ impl StdioTransport {
     pub async fn run(
         &self,
         notification_receiver: broadcast::Receiver<OAuthCompletedNotification>,
-    ) -> AppResult<()> {
+    ) -> anyhow::Result<()> {
+        use serde_json::Value;
         use tokio::io::{AsyncBufReadExt, BufReader};
 
-        info!("MCP stdio transport ready - listening on stdin/stdout");
+        info!("MCP stdio transport ready - listening on stdin/stdout with sampling support");
 
         let stdin = tokio::io::stdin();
         let mut lines = BufReader::new(stdin).lines();
+
+        // Get sampling peer from resources (will be Some if properly initialized)
+        let sampling_peer = self.resources.sampling_peer.clone();
 
         // Spawn notification handler for stdio transport
         let resources_for_notifications = self.resources.clone();
@@ -147,29 +172,75 @@ impl StdioTransport {
                 .await
         });
 
-        // Main stdio loop
-        while let Some(line) = lines
-            .next_line()
-            .await
-            .map_err(|e| AppError::internal(format!("Transport error: {e}")))?
-        {
+        // Main stdio loop with sampling response routing
+        while let Some(line) = lines.next_line().await? {
             if line.trim().is_empty() {
                 continue;
             }
 
-            match Self::process_stdio_line(&line) {
-                Ok(response) => {
-                    if let Some(resp) = response {
-                        println!("{resp}");
+            // Parse as generic JSON-RPC message
+            match serde_json::from_str::<Value>(&line) {
+                Ok(message) => {
+                    // Check if this is a response to a sampling request (has id, no method, has result/error)
+                    let is_sampling_response = message.get("id").is_some()
+                        && message.get("method").is_none()
+                        && (message.get("result").is_some() || message.get("error").is_some());
+
+                    if is_sampling_response {
+                        // Route to sampling peer if available
+                        if let Some(peer) = &sampling_peer {
+                            let id = message.get("id").cloned().unwrap_or(Value::Null);
+                            let result = message.get("result").cloned();
+                            let error = message.get("error").cloned();
+
+                            match peer.handle_response(id, result, error).await {
+                                Ok(handled) if !handled => {
+                                    warn!("Received response for unknown sampling request");
+                                }
+                                Ok(_) => {}
+                                Err(e) => {
+                                    warn!("Failed to handle sampling response: {}", e);
+                                }
+                            }
+                        } else {
+                            warn!("Received sampling response but no sampling peer available");
+                        }
+                    } else {
+                        // Parse and process as regular MCP request
+                        match serde_json::from_value::<super::multitenant::McpRequest>(message) {
+                            Ok(request) => {
+                                let processor =
+                                    super::mcp_request_processor::McpRequestProcessor::new(
+                                        self.resources.clone(),
+                                    );
+                                if let Some(response) = processor.handle_request(request).await {
+                                    if let Ok(json) = serde_json::to_string(&response) {
+                                        println!("{json}");
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                warn!("Failed to parse MCP request: {}", e);
+                                let error_response = serde_json::json!({
+                                    "jsonrpc": "2.0",
+                                    "error": {
+                                        "code": -32700,
+                                        "message": "Parse error"
+                                    },
+                                    "id": null
+                                });
+                                println!("{error_response}");
+                            }
+                        }
                     }
                 }
                 Err(e) => {
-                    warn!("Error processing stdio input: {}", e);
+                    warn!("Invalid JSON-RPC message: {}", e);
                     let error_response = serde_json::json!({
                         "jsonrpc": "2.0",
                         "error": {
-                            "code": -32603,
-                            "message": "Internal error"
+                            "code": -32700,
+                            "message": "Parse error"
                         },
                         "id": null
                     });
@@ -178,27 +249,12 @@ impl StdioTransport {
             }
         }
 
-        // Clean up notification handler
+        // Clean up sampling peer and notification handler
+        if let Some(peer) = &sampling_peer {
+            peer.cancel_all_pending().await;
+        }
         notification_handle.abort();
         Ok(())
-    }
-
-    fn process_stdio_line(line: &str) -> AppResult<Option<String>> {
-        // Parse JSON-RPC request to validate format
-        serde_json::from_str::<serde_json::Value>(line)
-            .map_err(|e| AppError::internal(format!("JSON parsing failed: {e}")))?;
-
-        // Process MCP request (processed by McpRequestProcessor in actual implementation)
-        // For now, return a simple response
-        let response = serde_json::json!({
-            "jsonrpc": "2.0",
-            "result": "transport_manager_active",
-            "id": 1
-        });
-
-        Ok(Some(serde_json::to_string(&response).map_err(|e| {
-            AppError::internal(format!("JSON serialization failed: {e}"))
-        })?))
     }
 
     async fn handle_stdio_notifications(

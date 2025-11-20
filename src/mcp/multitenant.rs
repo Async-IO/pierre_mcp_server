@@ -29,8 +29,7 @@ use crate::constants::{
         GET_ATHLETE, GET_STATS, PREDICT_PERFORMANCE, SET_GOAL, SUGGEST_GOALS, TRACK_PROGRESS,
     },
 };
-use crate::database::repositories::ProfileRepository;
-use crate::database_plugins::factory::Database;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
 use crate::providers::ProviderRegistry;
 use crate::routes::OAuthRoutes;
@@ -300,7 +299,7 @@ impl MultiTenantMcpServer {
     ) -> Result<Value, McpResponse> {
         let goal_data = args.clone();
 
-        match database.profiles().create_goal(user_id, goal_data).await {
+        match database.create_goal(user_id, goal_data).await {
             Ok(goal_id) => {
                 let response = serde_json::json!({
                     "goal_created": {
@@ -333,7 +332,7 @@ impl MultiTenantMcpServer {
     ) -> Result<Value, McpResponse> {
         let goal_id = args[GOAL_ID].as_str().unwrap_or("");
 
-        match database.profiles().list_goals(user_id).await {
+        match database.get_user_goals(user_id).await {
             Ok(goals) => goals.iter().find(|g| g["id"] == goal_id).map_or_else(
                 || {
                     Err(McpResponse {
@@ -918,8 +917,14 @@ impl MultiTenantMcpServer {
         );
 
         // Create Universal protocol request
-        let universal_request =
-            Self::create_universal_request(tool_name, args, auth_result, tenant_context);
+        let universal_request = Self::create_universal_request(
+            tool_name,
+            args,
+            auth_result,
+            tenant_context,
+            resources,
+            &request_id,
+        );
 
         // Execute tool through Universal protocol
         Self::execute_and_convert_tool(
@@ -956,13 +961,43 @@ impl MultiTenantMcpServer {
         args: &Value,
         auth_result: &AuthResult,
         tenant_context: &TenantContext,
+        resources: &Arc<ServerResources>,
+        request_id: &Value,
     ) -> crate::protocols::universal::UniversalRequest {
+        use crate::protocols::universal::types::{CancellationToken, ProgressReporter};
+
+        // Create progress reporter if notification sender is available
+        let progress_reporter = resources
+            .progress_notification_sender
+            .as_ref()
+            .map(|sender| {
+                let progress_token = format!("mcp-{request_id}");
+                let mut reporter = ProgressReporter::new(progress_token.clone());
+
+                // Set callback to send progress notifications
+                let sender_clone = sender.clone();
+                reporter.set_callback(move |progress, total, message| {
+                    use crate::mcp::schema::ProgressNotification;
+                    let notification =
+                        ProgressNotification::new(progress_token.clone(), progress, total, message);
+                    let _ = sender_clone.send(notification);
+                });
+
+                reporter
+            });
+
+        // Create cancellation token for this operation
+        let cancellation_token = Some(CancellationToken::new());
+
         crate::protocols::universal::UniversalRequest {
             tool_name: tool_name.to_owned(),
             parameters: args.clone(),
             user_id: auth_result.user_id.to_string(),
             protocol: "mcp".to_owned(),
             tenant_id: Some(tenant_context.tenant_id.to_string()),
+            progress_token: progress_reporter.as_ref().map(|r| r.progress_token.clone()),
+            cancellation_token,
+            progress_reporter,
         }
     }
 
@@ -974,9 +1009,26 @@ impl MultiTenantMcpServer {
         provider_name: &str,
         request_id: Value,
     ) -> McpResponse {
+        // Register cancellation token if present
+        if let (Some(progress_token), Some(cancellation_token)) = (
+            &universal_request.progress_token,
+            &universal_request.cancellation_token,
+        ) {
+            resources
+                .register_cancellation_token(progress_token.clone(), cancellation_token.clone())
+                .await;
+        }
+
         let executor = crate::protocols::universal::UniversalToolExecutor::new(resources.clone());
 
-        match executor.execute_tool(universal_request).await {
+        let result = executor.execute_tool(universal_request.clone()).await;
+
+        // Cleanup cancellation token after execution
+        if let Some(progress_token) = &universal_request.progress_token {
+            resources.cleanup_cancellation_token(progress_token).await;
+        }
+
+        match result {
             Ok(response) => {
                 // Convert UniversalResponse to proper MCP ToolResponse format
                 let tool_response =

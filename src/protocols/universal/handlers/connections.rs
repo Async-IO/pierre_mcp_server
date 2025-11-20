@@ -5,7 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::constants::oauth_providers;
-use crate::database::repositories::UserRepository;
+use crate::database_plugins::DatabaseProvider;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
 use crate::tenant::TenantContext;
@@ -20,6 +20,15 @@ pub fn handle_get_connection_status(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "handle_get_connection_status cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         // Parse user ID from request
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -132,6 +141,15 @@ pub fn handle_disconnect_provider(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "handle_disconnect_provider cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         // Parse user ID from request
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -294,6 +312,15 @@ pub fn handle_connect_provider(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "handle_connect_provider cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         let provider = request
@@ -308,13 +335,7 @@ pub fn handle_connect_provider(
             )));
         }
 
-        let user = match executor
-            .resources
-            .database
-            .users()
-            .get_by_id(user_uuid)
-            .await
-        {
+        let user = match executor.resources.database.get_user(user_uuid).await {
             Ok(Some(user)) => user,
             Ok(None) => return Ok(connection_error(format!("User {user_uuid} not found"))),
             Err(e) => return Ok(connection_error(format!("Database error: {e}"))),

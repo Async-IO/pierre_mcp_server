@@ -13,7 +13,7 @@ use anyhow::Result;
 use pierre_mcp_server::{
     auth::AuthManager,
     database::generate_encryption_key,
-    database_plugins::factory::Database,
+    database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::ServerResources,
     models::{Tenant, User, UserStatus},
     routes::auth::{AuthService, OAuthService},

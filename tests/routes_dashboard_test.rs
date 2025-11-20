@@ -156,6 +156,7 @@ use chrono::{Duration, Utc};
 use pierre_mcp_server::{
     api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage, CreateApiKeyRequest},
     dashboard_routes::DashboardRoutes,
+    database_plugins::DatabaseProvider,
 };
 use std::sync::Arc;
 use uuid::Uuid;

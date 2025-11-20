@@ -16,7 +16,7 @@ mod common;
 
 use pierre_mcp_server::auth::AuthManager;
 use pierre_mcp_server::database::generate_encryption_key;
-use pierre_mcp_server::database_plugins::factory::Database;
+use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::middleware::McpAuthMiddleware;
 use pierre_mcp_server::models::User;
 use std::sync::Arc;

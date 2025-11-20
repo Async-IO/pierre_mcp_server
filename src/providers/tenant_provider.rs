@@ -4,7 +4,7 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::database_plugins::factory::Database;
+use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
 use crate::models::{Activity, Athlete, PersonalRecord, Stats};
 use crate::tenant::{TenantContext, TenantOAuthClient};
@@ -19,7 +19,7 @@ pub trait TenantFitnessProvider: Send + Sync {
         &mut self,
         tenant_context: &TenantContext,
         provider: &str,
-        database: &Database,
+        database: &dyn DatabaseProvider,
     ) -> AppResult<()>;
 
     /// Get athlete information for the authenticated tenant user

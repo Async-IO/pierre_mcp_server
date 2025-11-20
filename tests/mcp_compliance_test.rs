@@ -341,6 +341,8 @@ fn test_server_capabilities() {
         }),
         auth: None,
         oauth2: None,
+        completion: None,
+        sampling: None,
     };
 
     let json_value = serde_json::to_value(&capabilities).expect("Should serialize");

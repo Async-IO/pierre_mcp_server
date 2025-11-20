@@ -42,7 +42,7 @@ impl McpRequestProcessor {
 
         // Handle notifications (no response needed)
         if request.method.starts_with("notifications/") {
-            Self::handle_notification(&request);
+            self.handle_notification(&request).await;
             Self::log_completion("notification", start_time);
             return None;
         }
@@ -88,6 +88,9 @@ impl McpRequestProcessor {
             "authenticate" => Ok(Self::handle_authenticate(&request)),
             method if method.starts_with("resources/") => Ok(Self::handle_resources(&request)),
             method if method.starts_with("prompts/") => Ok(Self::handle_prompts(&request)),
+            method if method.starts_with("sampling/") => self.handle_sampling(&request).await,
+            method if method.starts_with("completion/") => Ok(Self::handle_completion(&request)),
+            method if method.starts_with("roots/") => Ok(Self::handle_roots(&request)),
             _ => Ok(Self::handle_unknown_method(&request)),
         }
     }
@@ -124,7 +127,8 @@ impl McpRequestProcessor {
                 },
                 "prompts": {
                     "listChanged": true
-                }
+                },
+                "sampling": {}
             },
             "serverInfo": {
                 "name": "pierre-mcp-server",
@@ -240,6 +244,125 @@ impl McpRequestProcessor {
         }
     }
 
+    /// Handle completion requests
+    fn handle_completion(request: &McpRequest) -> McpResponse {
+        debug!("Handling completion request: {}", request.method);
+
+        match request.method.as_str() {
+            "completion/complete" => {
+                // Delegate to protocol handler
+                crate::mcp::protocol::ProtocolHandler::handle_completion_complete(request.clone())
+            }
+            _ => Self::handle_unknown_method(request),
+        }
+    }
+
+    /// Handle roots requests
+    fn handle_roots(request: &McpRequest) -> McpResponse {
+        debug!("Handling roots request: {}", request.method);
+
+        match request.method.as_str() {
+            "roots/list" => {
+                // Delegate to protocol handler
+                crate::mcp::protocol::ProtocolHandler::handle_roots_list(request.clone())
+            }
+            _ => Self::handle_unknown_method(request),
+        }
+    }
+
+    /// Handle sampling requests (server-initiated LLM calls)
+    async fn handle_sampling(&self, request: &McpRequest) -> Result<McpResponse, AppError> {
+        debug!("Handling sampling request: {}", request.method);
+
+        match request.method.as_str() {
+            "sampling/createMessage" => {
+                // Check if sampling peer is available (only for stdio transport)
+                let Some(sampling_peer) = &self.resources.sampling_peer else {
+                    return Ok(McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_owned(),
+                        id: request.id.clone(),
+                        result: None,
+                        error: Some(McpError {
+                            code: ERROR_METHOD_NOT_FOUND,
+                            message: "Sampling not available (stdio transport only)".to_owned(),
+                            data: None,
+                        }),
+                    });
+                };
+
+                // Parse request parameters
+                let create_message_request = match &request.params {
+                    Some(params) => match serde_json::from_value::<
+                        crate::mcp::schema::CreateMessageRequest,
+                    >(params.clone())
+                    {
+                        Ok(req) => req,
+                        Err(e) => {
+                            return Ok(McpResponse {
+                                jsonrpc: JSONRPC_VERSION.to_owned(),
+                                id: request.id.clone(),
+                                result: None,
+                                error: Some(McpError {
+                                    code: -32602, // Invalid params
+                                    message: format!("Invalid sampling parameters: {e}"),
+                                    data: None,
+                                }),
+                            });
+                        }
+                    },
+                    None => {
+                        return Ok(McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_owned(),
+                            id: request.id.clone(),
+                            result: None,
+                            error: Some(McpError {
+                                code: -32602,
+                                message: "Missing sampling parameters".to_owned(),
+                                data: None,
+                            }),
+                        });
+                    }
+                };
+
+                // Send sampling request to client and await response
+                match sampling_peer.create_message(create_message_request).await {
+                    Ok(result) => match serde_json::to_value(&result) {
+                        Ok(result_value) => Ok(McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_owned(),
+                            id: request.id.clone(),
+                            result: Some(result_value),
+                            error: None,
+                        }),
+                        Err(e) => Ok(McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_owned(),
+                            id: request.id.clone(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Failed to serialize sampling result: {e}"),
+                                data: None,
+                            }),
+                        }),
+                    },
+                    Err(e) => {
+                        warn!("Sampling request failed: {e}");
+                        Ok(McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_owned(),
+                            id: request.id.clone(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Sampling failed: {e}"),
+                                data: None,
+                            }),
+                        })
+                    }
+                }
+            }
+            _ => Ok(Self::handle_unknown_method(request)),
+        }
+    }
+
     /// Handle unknown method
     fn handle_unknown_method(request: &McpRequest) -> McpResponse {
         warn!("Unknown MCP method: {}", request.method);
@@ -257,19 +380,32 @@ impl McpRequestProcessor {
     }
 
     /// Handle notification (no response required)
-    fn handle_notification(request: &McpRequest) {
+    async fn handle_notification(&self, request: &McpRequest) {
         debug!("Handling notification: {}", request.method);
 
         match request.method.as_str() {
-            "notifications/cancelled" => Self::handle_cancelled_notification(),
+            "notifications/cancelled" => self.handle_cancelled_notification(request).await,
             "notifications/progress" => Self::handle_progress_notification(),
             _ => Self::handle_unknown_notification(&request.method),
         }
     }
 
     /// Handle cancelled notification
-    fn handle_cancelled_notification() {
+    async fn handle_cancelled_notification(&self, request: &McpRequest) {
         debug!("Request cancelled notification received");
+
+        // Extract progress token from params
+        if let Some(params) = &request.params {
+            if let Some(progress_token) = params.get("progressToken").and_then(|v| v.as_str()) {
+                self.resources
+                    .cancel_by_progress_token(progress_token)
+                    .await;
+            } else {
+                warn!("Cancelled notification missing progressToken parameter");
+            }
+        } else {
+            warn!("Cancelled notification missing params");
+        }
     }
 
     /// Handle progress notification

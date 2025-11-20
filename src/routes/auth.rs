@@ -13,6 +13,7 @@
 use crate::{
     constants::{error_messages, limits},
     context::{AuthContext, ConfigContext, DataContext, NotificationContext},
+    database_plugins::DatabaseProvider,
     errors::{AppError, AppResult},
     mcp::resources::ServerResources,
     models::User,

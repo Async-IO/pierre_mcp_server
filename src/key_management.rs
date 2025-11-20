@@ -4,6 +4,7 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
 use base64::Engine;
 use std::env;

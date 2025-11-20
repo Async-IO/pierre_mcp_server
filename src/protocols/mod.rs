@@ -66,28 +66,11 @@ pub enum ProtocolError {
         parameter: &'static str,
     },
 
-    /// Generic invalid parameters error (for backward compatibility during migration)
-    #[error("Invalid parameters: {message}")]
-    InvalidParameters {
-        /// Error message
-        message: String,
-    },
-
     /// Configuration error occurred during protocol setup
     #[error("Missing configuration: {key}")]
     ConfigMissing {
         /// Configuration key that is missing
         key: &'static str,
-    },
-
-    /// Tool execution failed with underlying error
-    #[error("Tool '{tool_id}' execution failed")]
-    ExecutionFailed {
-        /// ID of the tool that failed
-        tool_id: String,
-        /// Underlying error
-        #[source]
-        source: Box<dyn std::error::Error + Send + Sync>,
     },
 
     /// Failed to convert between protocol formats
@@ -162,35 +145,64 @@ pub enum ProtocolError {
         window_secs: u32,
     },
 
-    /// Invalid request structure
+    /// Invalid request structure (detailed)
     #[error("Invalid {protocol:?} request: {reason}")]
-    InvalidRequest {
+    InvalidRequestDetailed {
         /// Protocol type
         protocol: ProtocolType,
         /// Reason why request is invalid
         reason: String,
     },
 
-    /// Internal server error
-    #[error("Internal error in {component}: {details}")]
-    InternalError {
-        /// Component where error occurred
-        component: &'static str,
-        /// Error details
-        details: String,
-    },
+    /// Invalid request (simple)
+    #[error("Invalid request: {0}")]
+    InvalidRequest(String),
 
-    /// Configuration error (generic)
+    /// Configuration error (detailed)
     #[error("Configuration error: {message}")]
-    ConfigurationError {
+    ConfigurationErrorDetailed {
         /// Error message
         message: String,
     },
 
-    /// Serialization error (generic, for backward compatibility)
+    /// Configuration error (simple)
+    #[error("Configuration error: {0}")]
+    ConfigurationError(String),
+
+    /// Serialization error (detailed, for backward compatibility)
     #[error("Serialization failed: {message}")]
-    SerializationError {
+    SerializationErrorDetailed {
         /// Error message
         message: String,
     },
+
+    /// Serialization error (simple)
+    #[error("Serialization failed: {0}")]
+    SerializationError(String),
+
+    /// Invalid parameters (simple)
+    #[error("Invalid parameters: {0}")]
+    InvalidParameters(String),
+
+    /// Tool execution failed (detailed)
+    #[error("Tool '{tool_id}' execution failed")]
+    ExecutionFailedDetailed {
+        /// ID of the tool that failed
+        tool_id: String,
+        /// Underlying error
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
+    /// Tool execution failed (simple)
+    #[error("Tool execution failed: {0}")]
+    ExecutionFailed(String),
+
+    /// Internal server error
+    #[error("Internal error: {0}")]
+    InternalError(String),
+
+    /// Operation was cancelled by user request
+    #[error("Operation cancelled: {0}")]
+    OperationCancelled(String),
 }

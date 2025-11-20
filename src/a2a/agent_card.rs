@@ -24,6 +24,8 @@ pub struct AgentCard {
     pub version: String,
     /// List of high-level capabilities (e.g., "fitness-data-analysis")
     pub capabilities: Vec<String>,
+    /// Supported transport protocols
+    pub transports: Vec<TransportInfo>,
     /// Authentication methods supported
     pub authentication: AuthenticationInfo,
     /// Available tools/endpoints with schemas
@@ -31,6 +33,21 @@ pub struct AgentCard {
     /// Optional additional metadata
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<HashMap<String, Value>>,
+}
+
+/// Transport protocol information for A2A communication
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransportInfo {
+    /// Transport type ("jsonrpc", "grpc", "rest")
+    #[serde(rename = "type")]
+    pub transport_type: String,
+    /// Protocol version
+    pub version: String,
+    /// Endpoint URL for this transport
+    pub endpoint: String,
+    /// Additional transport-specific configuration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config: Option<HashMap<String, Value>>,
 }
 
 /// Authentication information for the agent
@@ -111,6 +128,7 @@ impl AgentCard {
                 "training-analytics".into(),
                 "provider-integration".into(),
             ],
+            transports: Self::create_transport_definitions(),
             authentication: AuthenticationInfo {
                 schemes: vec!["api-key".into(), "oauth2".into()],
                 oauth2: Some(OAuth2Info {
@@ -132,6 +150,35 @@ impl AgentCard {
             tools: Self::create_tool_definitions(),
             metadata: Some(Self::create_metadata()),
         }
+    }
+
+    /// Create transport definitions for the agent card
+    fn create_transport_definitions() -> Vec<TransportInfo> {
+        // Get base URL from environment or use default
+        let base_url =
+            std::env::var("PIERRE_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_owned());
+
+        let mut config_map = HashMap::new();
+        config_map.insert(
+            "capabilities".to_owned(),
+            serde_json::json!([
+                "tasks/create",
+                "tasks/get",
+                "tasks/list",
+                "tasks/cancel",
+                "message/send",
+                "tools/list",
+                "tools/call"
+            ]),
+        );
+        config_map.insert("streaming_supported".to_owned(), serde_json::json!(true));
+
+        vec![TransportInfo {
+            transport_type: "jsonrpc".into(),
+            version: "2.0".into(),
+            endpoint: format!("{base_url}/a2a/jsonrpc"),
+            config: Some(config_map),
+        }]
     }
 
     /// Create tool definitions for the agent card

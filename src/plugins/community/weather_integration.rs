@@ -63,9 +63,7 @@ impl PluginImplementation for WeatherIntegrationPlugin {
             .parameters
             .get("activity_id")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ProtocolError::InvalidParameters {
-                message: "activity_id is required".into(),
-            })?;
+            .ok_or_else(|| ProtocolError::InvalidParameters("activity_id is required".into()))?;
 
         let include_forecast = request
             .parameters
@@ -119,9 +117,7 @@ fn perform_weather_analysis(
 ) -> Result<Value, ProtocolError> {
     // Weather analysis requires external API integration (OpenWeatherMap, etc.)
     // Return error indicating the service needs proper configuration
-    Err(ProtocolError::ConfigurationError {
-        message: "Weather analysis requires external weather API configuration. Please configure OPENWEATHER_API_KEY or similar weather service.".to_owned(),
-    })
+    Err(ProtocolError::ConfigurationError("Weather analysis requires external weather API configuration. Please configure OPENWEATHER_API_KEY or similar weather service.".to_owned()))
 }
 
 fn generate_weather_insights(_weather_analysis: &Value) -> Vec<String> {

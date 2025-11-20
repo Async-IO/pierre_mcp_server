@@ -7,8 +7,7 @@
 use crate::api_keys::ApiKeyManager;
 use crate::auth::{AuthManager, AuthMethod, AuthResult};
 use crate::constants::key_prefixes;
-use crate::database::repositories::{ApiKeyRepository, UsageRepository, UserRepository};
-use crate::database_plugins::factory::Database;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
 use crate::providers::errors::ProviderError;
 use crate::rate_limiting::UnifiedRateLimitCalculator;
@@ -147,8 +146,7 @@ impl McpAuthMiddleware {
         // Look up the API key in database
         let db_key = self
             .database
-            .api_keys()
-            .get_by_prefix(&key_prefix, &key_hash)
+            .get_api_key_by_prefix(&key_prefix, &key_hash)
             .await?
             .ok_or_else(|| {
                 AppError::auth_invalid(format!("API key not found or invalid: {key_prefix}"))
@@ -158,11 +156,7 @@ impl McpAuthMiddleware {
         self.api_key_manager.is_key_valid(&db_key)?;
 
         // Get current usage for rate limiting
-        let current_usage = self
-            .database
-            .usage()
-            .get_api_key_current_usage(&db_key.id)
-            .await?;
+        let current_usage = self.database.get_api_key_current_usage(&db_key.id).await?;
         let rate_limit = self
             .rate_limit_calculator
             .calculate_api_key_rate_limit(&db_key, current_usage);
@@ -189,10 +183,7 @@ impl McpAuthMiddleware {
         }
 
         // Update last used timestamp
-        self.database
-            .api_keys()
-            .update_last_used(&db_key.id)
-            .await?;
+        self.database.update_api_key_last_used(&db_key.id).await?;
 
         Ok(AuthResult {
             user_id: db_key.user_id,
@@ -217,13 +208,12 @@ impl McpAuthMiddleware {
         // Get user from database to check tier and rate limits
         let user = self
             .database
-            .users()
-            .get_by_id(user_id)
+            .get_user(user_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
 
         // Get current usage for rate limiting
-        let current_usage = self.database.usage().get_jwt_current_usage(user_id).await?;
+        let current_usage = self.database.get_jwt_current_usage(user_id).await?;
         let rate_limit = self
             .rate_limit_calculator
             .calculate_jwt_rate_limit(&user, current_usage);

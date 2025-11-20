@@ -511,21 +511,25 @@ impl From<crate::protocols::ProtocolError> for AppError {
                     "Missing required parameter '{parameter}' for tool '{tool_id}'"
                 ))
             }
-            crate::protocols::ProtocolError::InvalidParameters { message } => {
+            crate::protocols::ProtocolError::InvalidParameters(message) => {
                 Self::invalid_input(message)
             }
-            crate::protocols::ProtocolError::InvalidRequest { reason, .. } => {
+            crate::protocols::ProtocolError::InvalidRequestDetailed { reason, .. } => {
                 Self::invalid_input(reason)
             }
+            crate::protocols::ProtocolError::InvalidRequest(reason) => Self::invalid_input(reason),
             crate::protocols::ProtocolError::ConfigMissing { key } => {
                 Self::config(format!("Missing configuration: {key}"))
             }
-            crate::protocols::ProtocolError::ConfigurationError { message } => {
+            crate::protocols::ProtocolError::ConfigurationErrorDetailed { message } => {
                 Self::config(message)
             }
-            crate::protocols::ProtocolError::ExecutionFailed { tool_id, .. } => {
+            crate::protocols::ProtocolError::ConfigurationError(message) => Self::config(message),
+            crate::protocols::ProtocolError::ExecutionFailedDetailed { tool_id, .. } => {
                 Self::internal(format!("Tool '{tool_id}' execution failed"))
             }
+            crate::protocols::ProtocolError::ExecutionFailed(message)
+            | crate::protocols::ProtocolError::InternalError(message) => Self::internal(message),
             crate::protocols::ProtocolError::ConversionFailed { from, to, reason } => {
                 Self::internal(format!(
                     "Protocol conversion failed from {from:?} to {to:?}: {reason}"
@@ -534,7 +538,8 @@ impl From<crate::protocols::ProtocolError> for AppError {
             crate::protocols::ProtocolError::Serialization { context, .. } => {
                 Self::internal(format!("Serialization failed for {context}"))
             }
-            crate::protocols::ProtocolError::SerializationError { message } => {
+            crate::protocols::ProtocolError::SerializationErrorDetailed { message }
+            | crate::protocols::ProtocolError::SerializationError(message) => {
                 Self::internal(format!("Serialization failed: {message}"))
             }
             crate::protocols::ProtocolError::Database { source } => {
@@ -560,8 +565,8 @@ impl From<crate::protocols::ProtocolError> for AppError {
             } => Self::invalid_input(format!(
                 "Rate limit exceeded: {requests} requests in {window_secs}s"
             )),
-            crate::protocols::ProtocolError::InternalError { component, details } => {
-                Self::internal(format!("Internal error in {component}: {details}"))
+            crate::protocols::ProtocolError::OperationCancelled(message) => {
+                Self::invalid_input(format!("Operation cancelled: {message}"))
             }
         }
     }

@@ -154,7 +154,7 @@ use futures_util::future;
 use pierre_mcp_server::{
     auth::{AuthManager, JwtValidationError},
     constants::oauth_providers,
-    database_plugins::factory::Database,
+    database_plugins::{factory::Database, DatabaseProvider},
     mcp::multitenant::MultiTenantMcpServer,
     middleware::McpAuthMiddleware,
     models::{User, UserOAuthToken, UserTier},

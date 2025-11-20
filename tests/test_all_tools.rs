@@ -17,7 +17,7 @@ use uuid::Uuid;
 // Import necessary modules from the main crate
 use pierre_mcp_server::config::environment::*;
 use pierre_mcp_server::constants::oauth_providers;
-use pierre_mcp_server::database_plugins::factory::Database;
+use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::intelligence::insights::{Insight, InsightType};
 use pierre_mcp_server::intelligence::{
     ActivityIntelligence, ContextualFactors, ContextualWeeklyLoad, PerformanceMetrics, TimeOfDay,
@@ -544,6 +544,9 @@ fn create_request(
         user_id: user_id.to_owned(),
         protocol: "test".to_owned(),
         tenant_id: Some(tenant_id.to_owned()),
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     }
 }
 
@@ -568,6 +571,9 @@ fn create_request_with_client_credentials(
         user_id: user_id.to_owned(),
         protocol: "test".to_owned(),
         tenant_id: Some(tenant_id.to_owned()),
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     }
 }
 
@@ -615,7 +621,10 @@ async fn test_get_athlete(
         parameters: json!({"provider": "strava"}),
         user_id: user_id.to_owned(),
         protocol: "test".to_owned(),
-        tenant_id: None, // Use direct user tokens
+        tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None, // Use direct user tokens
     };
     let result = execute_and_evaluate(executor, request_direct, "get_athlete").await;
 
@@ -651,7 +660,10 @@ async fn test_get_stats(
         parameters: json!({"provider": "strava"}),
         user_id: user_id.to_owned(),
         protocol: "test".to_owned(),
-        tenant_id: None, // Use direct user tokens
+        tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None, // Use direct user tokens
     };
     let result = execute_and_evaluate(executor, request_direct, "get_stats").await;
     handle_ci_mode_result(result, "get_stats")
@@ -734,7 +746,10 @@ async fn test_analyze_performance_trends(
         parameters: json!({"provider": "strava", "period_days": 30}),
         user_id: user_id.to_owned(),
         protocol: "test".to_owned(),
-        tenant_id: None, // Use direct user tokens
+        tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None, // Use direct user tokens
     };
     let result = execute_and_evaluate(executor, request_direct, "analyze_performance_trends").await;
     handle_ci_mode_result(result, "analyze_performance_trends")
@@ -769,7 +784,10 @@ async fn test_compare_activities(
         parameters: json!({"provider": "strava", "activity_id1": activity_id, "activity_id2": activity_id}),
         user_id: user_id.to_owned(),
         protocol: "test".to_owned(),
-        tenant_id: None, // Use direct user tokens
+        tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None, // Use direct user tokens
     };
     let result = execute_and_evaluate(executor, request_direct, "compare_activities").await;
     handle_ci_mode_result(result, "compare_activities")

@@ -112,9 +112,9 @@ pub trait PluginTool: Send + Sync {
                 for field in required_fields {
                     if let Some(field_name) = field.as_str() {
                         if params.get(field_name).is_none() {
-                            return Err(ProtocolError::InvalidParameters {
-                                message: format!("Missing required parameter: {field_name}"),
-                            });
+                            return Err(ProtocolError::InvalidParameters(format!(
+                                "Missing required parameter: {field_name}"
+                            )));
                         }
                     }
                 }

@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::configuration::{catalog::CatalogBuilder, profiles::ProfileTemplates};
+use crate::database_plugins::DatabaseProvider;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
 use crate::utils::uuid::parse_user_id_for_protocol;
@@ -162,6 +163,15 @@ pub fn handle_get_user_configuration(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "get_user_configuration cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         // Parse user ID from request
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -221,6 +231,15 @@ pub fn handle_update_user_configuration(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "update_user_configuration cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         // Parse user ID from request
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -251,9 +270,7 @@ pub fn handle_update_user_configuration(
 
         // Save user configuration in database
         let config_json = serde_json::to_string(&configuration).map_err(|e| {
-            ProtocolError::SerializationError {
-                message: format!("Failed to serialize config: {e}"),
-            }
+            ProtocolError::SerializationError(format!("Failed to serialize config: {e}"))
         })?;
 
         match (*executor.resources.database)
@@ -321,7 +338,7 @@ fn calculate_pace_zones_from_vo2max(
             crate::constants::limits::METERS_PER_KILOMETER / velocity_m_per_min.max(1.0);
 
         // Saturating conversion from f64 to u32 with explicit bounds checking
-        // Note: clippy::cast_possible_truncation will warn in ultra-strict mode but conversion is validated
+        // Cast is safe: validated finite, non-negative, and within u32::MAX range before conversion
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let total_secs = if !seconds_per_km.is_finite() || seconds_per_km < 0.0 {
             0_u32
@@ -476,10 +493,7 @@ fn extract_zone_parameters(request: &UniversalRequest) -> Result<ZoneParams, Pro
         .parameters
         .get("vo2_max")
         .and_then(serde_json::Value::as_f64)
-        .ok_or_else(|| ProtocolError::InvalidRequest {
-            protocol: crate::protocols::ProtocolType::MCP,
-            reason: "vo2_max parameter required".to_owned(),
-        })?;
+        .ok_or_else(|| ProtocolError::InvalidRequest("vo2_max parameter required".to_owned()))?;
 
     let resting_hr = request
         .parameters
@@ -777,14 +791,10 @@ pub fn handle_validate_configuration(
     request: &UniversalRequest,
 ) -> Result<UniversalResponse, ProtocolError> {
     // Extract parameters to validate
-    let parameters =
-        request
-            .parameters
-            .get("parameters")
-            .ok_or_else(|| ProtocolError::InvalidRequest {
-                protocol: crate::protocols::ProtocolType::MCP,
-                reason: "parameters field required".to_owned(),
-            })?;
+    let parameters = request
+        .parameters
+        .get("parameters")
+        .ok_or_else(|| ProtocolError::InvalidRequest("parameters field required".to_owned()))?;
 
     // Validate parameters structure and content
     if parameters.is_object() {
