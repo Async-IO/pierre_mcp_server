@@ -30,6 +30,7 @@ use uuid::Uuid;
 type Message = axum::extract::ws::Message;
 
 /// WebSocket message types for real-time communication
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum WebSocketMessage {

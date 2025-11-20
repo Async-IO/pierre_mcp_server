@@ -824,11 +824,13 @@ async fn test_user_tier_handling() -> Result<()> {
                 UserTier::Starter => ApiKeyTier::Starter,
                 UserTier::Professional => ApiKeyTier::Professional,
                 UserTier::Enterprise => ApiKeyTier::Enterprise,
+                _ => unreachable!("Unknown tier variant"),
             },
             rate_limit_requests: match tier {
                 UserTier::Starter => 1000,
                 UserTier::Professional => 10000,
                 UserTier::Enterprise => 0, // Unlimited
+                _ => unreachable!("Unknown tier variant"),
             },
             rate_limit_window_seconds: 30 * 24 * 3600,
             is_active: true,
@@ -845,6 +847,7 @@ async fn test_user_tier_handling() -> Result<()> {
             UserTier::Starter => ApiKeyTier::Starter,
             UserTier::Professional => ApiKeyTier::Professional,
             UserTier::Enterprise => ApiKeyTier::Enterprise,
+            _ => unreachable!("Unknown tier variant"),
         };
         assert_eq!(retrieved_keys[0].tier, expected_api_tier);
 
@@ -1067,6 +1070,7 @@ mod postgres_tests {
                     ApiKeyTier::Trial | ApiKeyTier::Starter => 1000,
                     ApiKeyTier::Professional => 10000,
                     ApiKeyTier::Enterprise => 0,
+                    _ => unreachable!("Unknown tier variant"),
                 },
                 rate_limit_window_seconds: 86400, // 24 hours
                 is_active: true,

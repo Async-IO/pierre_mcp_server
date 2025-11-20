@@ -63,6 +63,7 @@ struct AdminSetupArgs {
     verbose: bool,
 }
 
+#[non_exhaustive]
 #[derive(Subcommand)]
 enum AdminCommand {
     /// Generate a new admin token

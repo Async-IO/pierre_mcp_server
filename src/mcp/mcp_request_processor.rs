@@ -204,15 +204,9 @@ impl McpRequestProcessor {
             .ok_or_else(|| AppError::invalid_input("Missing parameters for tools/call"))?;
 
         // Execute tool using static method - delegate to ToolHandlers
-        let handler_request = McpRequest {
-            jsonrpc: request.jsonrpc.clone(),
-            method: request.method.clone(),
-            params: request.params.clone(),
-            id: request.id.clone(),
-            auth_token: request.auth_token.clone(),
-            headers: request.headers.clone(),
-            metadata: HashMap::new(),
-        };
+        // Clone the entire request and reset metadata
+        let mut handler_request = request.clone();
+        handler_request.metadata = HashMap::new();
         let response =
             ToolHandlers::handle_tools_call_with_resources(handler_request, &self.resources).await;
         Ok(response)

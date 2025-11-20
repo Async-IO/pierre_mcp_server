@@ -15,6 +15,7 @@ use std::fmt;
 use thiserror::Error;
 
 /// Standard error codes used throughout the application
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
     // Authentication & Authorization

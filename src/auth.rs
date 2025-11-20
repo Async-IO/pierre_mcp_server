@@ -40,6 +40,7 @@ fn humanize_duration(duration: Duration) -> String {
 }
 
 /// `JWT` validation error with detailed information
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum JwtValidationError {
     /// Token has expired
@@ -140,6 +141,7 @@ pub struct AuthResult {
 }
 
 /// Authentication method used
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum AuthMethod {
     /// `JWT` token authentication

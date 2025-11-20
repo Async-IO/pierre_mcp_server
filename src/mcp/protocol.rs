@@ -25,6 +25,7 @@ use crate::database_plugins::DatabaseProvider;
 use crate::mcp::resources::ServerResources;
 use crate::mcp::schema::{get_tools, InitializeRequest, InitializeResponse};
 use crate::models::AuthRequest;
+use crate::types::json_schemas;
 use serde_json::Value;
 use std::sync::Arc;
 use tracing::{error, info, warn};
@@ -277,18 +278,8 @@ impl ProtocolHandler {
             );
         };
 
-        // Extract resource URI from params
-        let uri = if let Some(params) = &request.params {
-            if let Some(uri_value) = params.get("uri") {
-                uri_value.as_str().unwrap_or_default()
-            } else {
-                return McpResponse::error(
-                    Some(request_id),
-                    ERROR_INVALID_PARAMS,
-                    "Missing uri parameter".to_owned(),
-                );
-            }
-        } else {
+        // Extract resource URI from params with type safety
+        let Some(params) = &request.params else {
             return McpResponse::error(
                 Some(request_id),
                 ERROR_INVALID_PARAMS,
@@ -296,7 +287,21 @@ impl ProtocolHandler {
             );
         };
 
-        match uri {
+        let resource_params =
+            match serde_json::from_value::<json_schemas::ResourceReadParams>(params.clone()) {
+                Ok(p) => p,
+                Err(e) => {
+                    return McpResponse::error(
+                        Some(request_id),
+                        ERROR_INVALID_PARAMS,
+                        format!("Invalid resource read parameters: {e}"),
+                    );
+                }
+            };
+
+        let uri = &resource_params.uri;
+
+        match uri.as_str() {
             "oauth://notifications" => {
                 // Get unread notifications
                 match resources

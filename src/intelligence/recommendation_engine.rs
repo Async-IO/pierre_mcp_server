@@ -920,6 +920,7 @@ struct TrainingGap {
 }
 
 /// Types of training gaps
+#[non_exhaustive]
 #[derive(Debug)]
 enum GapType {
     LongRest,

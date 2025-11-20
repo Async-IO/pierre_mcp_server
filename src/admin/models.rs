@@ -135,6 +135,7 @@ impl AdminPermissions {
 }
 
 /// Individual admin permissions
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum AdminPermission {
@@ -275,6 +276,7 @@ pub struct AdminTokenUsage {
 }
 
 /// Admin actions for audit logging
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum AdminAction {
@@ -349,6 +351,7 @@ pub struct ApiKeyProvisionRequest {
 }
 
 /// Rate limit periods for API keys
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RateLimitPeriod {

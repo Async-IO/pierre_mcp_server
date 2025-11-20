@@ -76,6 +76,7 @@ pub struct ClientUsageStats {
 }
 
 /// A2A Client rate limit tiers
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum A2AClientTier {
     /// Trial tier - 1,000 requests/month, auto-expires in 30 days

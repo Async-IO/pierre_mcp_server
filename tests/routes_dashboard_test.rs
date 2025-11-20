@@ -407,6 +407,7 @@ impl DashboardTestSetup {
                     ApiKeyTier::Starter => 25,
                     ApiKeyTier::Professional => 100,
                     ApiKeyTier::Enterprise => 500,
+                    _ => unreachable!("Unknown tier variant"),
                 };
 
                 let request_count = base_requests + (i as u32 * 5) + (days_ago as u32 % 10);

@@ -74,6 +74,7 @@ pub struct SleepStage {
 }
 
 /// Types of sleep stages
+#[non_exhaustive]
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum SleepStageType {
@@ -145,6 +146,7 @@ pub struct SegmentEffort {
 }
 
 /// User tier for rate limiting - same as `API` key tiers for consistency
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum UserTier {
@@ -168,6 +170,7 @@ impl std::fmt::Display for UserTier {
 
 /// User account status for admin approval workflow
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
 pub enum UserStatus {
@@ -677,6 +680,7 @@ impl Default for Activity {
 /// This enum covers the most common fitness activities across all providers.
 /// The `Other` variant handles provider-specific activity types that don't
 /// map to the standard categories.
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum SportType {
@@ -995,6 +999,7 @@ pub struct PersonalRecord {
 ///
 /// Each metric represents a different aspect of athletic performance
 /// that can be optimized and tracked over time.
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum PrMetric {

@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 /// Cache backend enum for pluggable implementations
+#[non_exhaustive]
 #[derive(Clone)]
 enum CacheBackend {
     InMemory(InMemoryCache),

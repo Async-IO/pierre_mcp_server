@@ -155,6 +155,7 @@ impl PaginationParams {
 }
 
 /// Direction for pagination
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum PaginationDirection {
     /// Paginate forward (older to newer)

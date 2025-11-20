@@ -11,15 +11,60 @@
 use crate::a2a::protocol::{A2ARequest, A2AResponse};
 use crate::mcp::schema::{ToolCall, ToolResponse};
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// Supported protocol types
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProtocolType {
     /// Model Context Protocol
     MCP,
     /// Agent-to-Agent protocol
     A2A,
+}
+
+/// Individual activity response from fitness platforms
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActivityResponse {
+    /// Activity identifier
+    #[serde(default)]
+    pub id: String,
+    /// Activity name
+    #[serde(default)]
+    pub name: String,
+    /// Sport/activity type
+    #[serde(default)]
+    pub sport_type: String,
+    /// Distance in meters
+    #[serde(default)]
+    pub distance_meters: Option<f64>,
+    /// Duration in seconds
+    #[serde(default)]
+    pub duration_seconds: Option<u64>,
+}
+
+/// Response containing multiple activities
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActivitiesResponse {
+    /// List of activities
+    pub activities: Vec<ActivityResponse>,
+}
+
+/// Athlete profile response from fitness platforms
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AthleteResponse {
+    /// Athlete identifier
+    pub id: u64,
+    /// First name
+    #[serde(default)]
+    pub firstname: String,
+    /// Last name
+    #[serde(default)]
+    pub lastname: String,
+    /// Username
+    #[serde(default)]
+    pub username: String,
 }
 
 /// Protocol converter for translating between protocol formats
@@ -159,44 +204,42 @@ impl ProtocolConverter {
             return "No data available".to_owned();
         };
 
-        // Handle activities response
-        if let Some(activities) = data.get("activities").and_then(Value::as_array) {
-            let count = activities.len();
+        // Try to deserialize as activities response
+        if let Ok(activities_resp) = serde_json::from_value::<ActivitiesResponse>(data.clone()) {
+            let count = activities_resp.activities.len();
             let mut text = format!("Retrieved {count} activities:\n\n");
 
-            for (i, activity) in activities.iter().enumerate().take(10) {
-                let name = activity
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .unwrap_or("Unnamed Activity");
-                let activity_type = activity
-                    .get("sport_type")
-                    .and_then(Value::as_str)
-                    .unwrap_or("Unknown");
+            for (i, activity) in activities_resp.activities.iter().enumerate().take(10) {
+                let name = if activity.name.is_empty() {
+                    "Unnamed Activity"
+                } else {
+                    &activity.name
+                };
+                let activity_type = if activity.sport_type.is_empty() {
+                    "Unknown"
+                } else {
+                    &activity.sport_type
+                };
                 let distance = activity
-                    .get("distance_meters")
-                    .and_then(Value::as_f64)
+                    .distance_meters
                     .map_or_else(|| "N/A".to_owned(), |d| format!("{:.2} km", d / 1000.0));
-                let moving_time = activity
-                    .get("duration_seconds")
-                    .and_then(Value::as_u64)
-                    .map_or_else(
-                        || "N/A".to_owned(),
-                        |t| {
-                            let hours = t / 3600;
-                            let minutes = (t % 3600) / 60;
-                            if hours > 0 {
-                                format!("{hours}h {minutes}m")
-                            } else {
-                                format!("{minutes}m")
-                            }
-                        },
-                    );
-
-                let activity_id = activity
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or("unknown");
+                let moving_time = activity.duration_seconds.map_or_else(
+                    || "N/A".to_owned(),
+                    |t| {
+                        let hours = t / 3600;
+                        let minutes = (t % 3600) / 60;
+                        if hours > 0 {
+                            format!("{hours}h {minutes}m")
+                        } else {
+                            format!("{minutes}m")
+                        }
+                    },
+                );
+                let activity_id = if activity.id.is_empty() {
+                    "unknown"
+                } else {
+                    &activity.id
+                };
 
                 writeln!(
                     &mut text,
@@ -219,28 +262,21 @@ impl ProtocolConverter {
             return text;
         }
 
-        // Handle athlete response
-        if let Some(athlete) = data.get("id").map(|_| data) {
-            let name = format!(
-                "{} {}",
-                athlete
-                    .get("firstname")
-                    .and_then(Value::as_str)
-                    .unwrap_or(""),
-                athlete
-                    .get("lastname")
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-            )
-            .trim()
-            .to_owned();
-            let username = athlete
-                .get("username")
-                .and_then(Value::as_str)
-                .unwrap_or("N/A");
-            let id = athlete.get("id").and_then(Value::as_u64).unwrap_or(0);
+        // Try to deserialize as athlete response
+        if let Ok(athlete) = serde_json::from_value::<AthleteResponse>(data.clone()) {
+            let name = format!("{} {}", athlete.firstname, athlete.lastname)
+                .trim()
+                .to_owned();
+            let username = if athlete.username.is_empty() {
+                "N/A"
+            } else {
+                &athlete.username
+            };
 
-            return format!("Athlete Profile:\nName: {name}\nUsername: @{username}\nID: {id}");
+            return format!(
+                "Athlete Profile:\nName: {name}\nUsername: @{username}\nID: {}",
+                athlete.id
+            );
         }
 
         // Default: pretty-print JSON

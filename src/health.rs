@@ -16,6 +16,7 @@ use tokio::sync::RwLock;
 use tracing::{error, info};
 
 /// Overall health status
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum HealthStatus {

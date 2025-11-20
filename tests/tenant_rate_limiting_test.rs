@@ -45,6 +45,7 @@ fn create_test_api_key(tier: &ApiKeyTier) -> ApiKey {
             ApiKeyTier::Starter => 10_000,
             ApiKeyTier::Professional => 100_000,
             ApiKeyTier::Enterprise => u32::MAX,
+            _ => unreachable!("Unknown tier variant"),
         },
         rate_limit_window_seconds: 2_592_000, // 30 days
         created_at: Utc::now(),

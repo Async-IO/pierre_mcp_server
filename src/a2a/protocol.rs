@@ -29,6 +29,7 @@ pub type A2ARequest = crate::jsonrpc::JsonRpcRequest;
 pub type A2AResponse = crate::jsonrpc::JsonRpcResponse;
 
 /// A2A Protocol Error types
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize, thiserror::Error)]
 pub enum A2AError {
     /// Invalid request parameters or format
@@ -200,6 +201,7 @@ pub struct A2AMessage {
 }
 
 /// A2A Message Part types
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum MessagePart {
@@ -262,6 +264,7 @@ pub struct A2ATask {
 }
 
 /// Task status enumeration
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum TaskStatus {

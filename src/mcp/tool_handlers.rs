@@ -12,7 +12,6 @@ use crate::constants::{
         ERROR_AUTHENTICATION, ERROR_INTERNAL_ERROR, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND,
         ERROR_TOOL_EXECUTION, ERROR_UNAUTHORIZED, MSG_AUTHENTICATION, MSG_TOOL_EXECUTION,
     },
-    json_fields::PROVIDER,
     protocol::JSONRPC_VERSION,
     tools::{
         ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, CONNECT_PROVIDER, CONNECT_TO_PIERRE,
@@ -191,12 +190,31 @@ impl ToolHandlers {
                 }),
             };
         };
-        let tool_name = params["name"].as_str().unwrap_or("");
-        let args = &params["arguments"];
+
+        // Parse tool call parameters with type safety
+        let tool_params = match serde_json::from_value::<json_schemas::ToolCallParams>(params) {
+            Ok(p) => p,
+            Err(e) => {
+                error!("Failed to parse tool call parameters: {}", e);
+                return McpResponse {
+                    jsonrpc: "2.0".to_owned(),
+                    id: request.id,
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INVALID_PARAMS,
+                        message: format!("Invalid tool call parameters: {e}"),
+                        data: None,
+                    }),
+                };
+            }
+        };
+
+        let tool_name = &tool_params.name;
+        let args = &tool_params.arguments;
         let user_id = auth_result.user_id;
 
         // Record tool name in span
-        tracing::Span::current().record("tool_name", tool_name);
+        tracing::Span::current().record("tool_name", tool_name.as_str());
 
         let start_time = std::time::Instant::now();
 
@@ -421,9 +439,30 @@ impl ToolHandlers {
                 }
             }
             DISCONNECT_PROVIDER => {
-                let provider_name = args[PROVIDER].as_str().unwrap_or("");
-                MultiTenantMcpServer::route_disconnect_tool(provider_name, user_id, request_id, ctx)
-                    .await
+                let params = match serde_json::from_value::<json_schemas::DisconnectProviderParams>(
+                    args.clone(),
+                ) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_owned(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INVALID_PARAMS,
+                                message: format!("Invalid disconnect_provider parameters: {e}"),
+                                data: None,
+                            }),
+                            id: Some(request_id),
+                        };
+                    }
+                };
+                MultiTenantMcpServer::route_disconnect_tool(
+                    &params.provider,
+                    user_id,
+                    request_id,
+                    ctx,
+                )
+                .await
             }
             MARK_NOTIFICATIONS_READ => {
                 let params = serde_json::from_value::<json_schemas::MarkNotificationsReadParams>(

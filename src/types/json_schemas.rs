@@ -524,3 +524,113 @@ pub struct TrackProgressParams {
     /// ID of the goal to track
     pub goal_id: String,
 }
+
+// ============================================================================
+// MCP Protocol Handler Types
+// ============================================================================
+
+/// Parameters for `tools/call` requests
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCallParams {
+    /// Name of the tool to execute
+    pub name: String,
+    /// Tool-specific arguments
+    pub arguments: serde_json::Value,
+}
+
+/// Parameters for `resources/read` requests
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceReadParams {
+    /// URI of the resource to read
+    pub uri: String,
+}
+
+/// Parameters for provider-based tool calls
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderParams {
+    /// Provider name (e.g., "strava", "fitbit")
+    /// Optional because not all tools require a provider parameter
+    #[serde(default)]
+    pub provider: Option<String>,
+}
+
+// ============================================================================
+// MCP Response Types
+// ============================================================================
+
+/// Response for disconnecting a fitness provider
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DisconnectProviderResponse {
+    /// Whether the disconnect was successful
+    pub success: bool,
+    /// Human-readable message
+    pub message: String,
+    /// Provider that was disconnected
+    pub provider: String,
+}
+
+/// Details of a created goal
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GoalCreatedDetails {
+    /// ID of the created goal
+    pub goal_id: String,
+    /// Goal status
+    pub status: String,
+    /// Human-readable message
+    pub message: String,
+}
+
+/// Response for goal creation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GoalCreatedResponse {
+    /// Details about the created goal
+    pub goal_created: GoalCreatedDetails,
+}
+
+/// Progress report details for a goal
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgressReportDetails {
+    /// Goal identifier
+    pub goal_id: String,
+    /// Goal data as JSON value
+    pub goal: serde_json::Value,
+    /// Progress percentage (0-100)
+    pub progress_percentage: f64,
+    /// Whether the goal is on track
+    pub on_track: bool,
+    /// Insights about the progress
+    pub insights: Vec<String>,
+}
+
+/// Response for progress tracking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgressReportResponse {
+    /// Progress report details
+    pub progress_report: ProgressReportDetails,
+}
+
+/// Individual notification
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotificationItem {
+    /// Notification identifier
+    pub id: String,
+    /// Provider name
+    pub provider: String,
+    /// Whether the notification indicates success
+    pub success: bool,
+    /// Notification message
+    pub message: String,
+    /// When the notification was created
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Connection help information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectionHelp {
+    /// Help message
+    pub message: String,
+    /// List of supported providers
+    pub supported_providers: Vec<String>,
+    /// Additional note
+    pub note: String,
+}

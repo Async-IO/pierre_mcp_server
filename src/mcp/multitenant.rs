@@ -20,7 +20,6 @@ use super::{
 use crate::auth::{AuthManager, AuthResult};
 use crate::constants::{
     errors::{ERROR_INTERNAL_ERROR, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND},
-    json_fields::{GOAL_ID, PROVIDER},
     protocol::JSONRPC_VERSION,
     tools::{
         ANALYZE_ACTIVITY, ANALYZE_GOAL_FEASIBILITY, ANALYZE_PERFORMANCE_TRENDS,
@@ -35,6 +34,7 @@ use crate::providers::ProviderRegistry;
 use crate::routes::OAuthRoutes;
 use crate::security::headers::SecurityConfig;
 use crate::tenant::{TenantContext, TenantOAuthClient};
+use crate::types::json_schemas;
 // Removed unused imports - now using AppError directly
 
 use chrono::Utc;
@@ -216,15 +216,15 @@ impl MultiTenantMcpServer {
 
         match oauth_routes.disconnect_provider(user_id, provider).await {
             Ok(()) => {
-                let response = serde_json::json!({
-                    "success": true,
-                    "message": format!("Successfully disconnected {provider}"),
-                    "provider": provider
-                });
+                let response = json_schemas::DisconnectProviderResponse {
+                    success: true,
+                    message: format!("Successfully disconnected {provider}"),
+                    provider: provider.to_owned(),
+                };
 
                 McpResponse {
                     jsonrpc: JSONRPC_VERSION.to_owned(),
-                    result: Some(response),
+                    result: serde_json::to_value(response).ok(),
                     error: None,
                     id: Some(id),
                 }
@@ -301,14 +301,14 @@ impl MultiTenantMcpServer {
 
         match database.create_goal(user_id, goal_data).await {
             Ok(goal_id) => {
-                let response = serde_json::json!({
-                    "goal_created": {
-                        "goal_id": goal_id,
-                        "status": "active",
-                        "message": "Goal successfully created"
-                    }
-                });
-                Ok(response)
+                let response = json_schemas::GoalCreatedResponse {
+                    goal_created: json_schemas::GoalCreatedDetails {
+                        goal_id,
+                        status: "active".to_owned(),
+                        message: "Goal successfully created".to_owned(),
+                    },
+                };
+                Ok(serde_json::to_value(response).unwrap_or_else(|_| serde_json::json!({})))
             }
             Err(e) => Err(McpResponse {
                 jsonrpc: JSONRPC_VERSION.to_owned(),
@@ -330,38 +330,60 @@ impl MultiTenantMcpServer {
         database: &Arc<Database>,
         id: &Value,
     ) -> Result<Value, McpResponse> {
-        let goal_id = args[GOAL_ID].as_str().unwrap_or("");
+        let params = match serde_json::from_value::<json_schemas::TrackProgressParams>(args.clone())
+        {
+            Ok(p) => p,
+            Err(e) => {
+                return Err(McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INVALID_PARAMS,
+                        message: format!("Invalid track_progress parameters: {e}"),
+                        data: None,
+                    }),
+                    id: Some(id.clone()),
+                });
+            }
+        };
+        let goal_id = &params.goal_id;
 
         match database.get_user_goals(user_id).await {
-            Ok(goals) => goals.iter().find(|g| g["id"] == goal_id).map_or_else(
-                || {
-                    Err(McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_owned(),
-                        result: None,
-                        error: Some(McpError {
-                            code: ERROR_INVALID_PARAMS,
-                            message: format!("Goal with ID '{goal_id}' not found"),
-                            data: None,
-                        }),
-                        id: Some(id.clone()),
-                    })
-                },
-                |goal| {
-                    let response = serde_json::json!({
-                        "progress_report": {
-                            "goal_id": goal_id,
-                            "goal": goal,
-                            "progress_percentage": 65.0,
-                            "on_track": true,
-                            "insights": [
-                                "Making good progress toward your goal",
-                                "Maintain current training frequency"
-                            ]
-                        }
-                    });
-                    Ok(response)
-                },
-            ),
+            Ok(goals) => {
+                goals
+                    .iter()
+                    .find(|g| g["id"].as_str() == Some(goal_id.as_str()))
+                    .map_or_else(
+                        || {
+                            Err(McpResponse {
+                                jsonrpc: JSONRPC_VERSION.to_owned(),
+                                result: None,
+                                error: Some(McpError {
+                                    code: ERROR_INVALID_PARAMS,
+                                    message: format!("Goal with ID '{goal_id}' not found"),
+                                    data: None,
+                                }),
+                                id: Some(id.clone()),
+                            })
+                        },
+                        |goal| {
+                            let response = json_schemas::ProgressReportResponse {
+                                progress_report: json_schemas::ProgressReportDetails {
+                                    goal_id: goal_id.to_owned(),
+                                    goal: goal.clone(),
+                                    progress_percentage: 65.0,
+                                    on_track: true,
+                                    insights: vec![
+                                        "Making good progress toward your goal".to_owned(),
+                                        "Maintain current training frequency".to_owned(),
+                                    ],
+                                },
+                            };
+                            Ok(serde_json::to_value(response)
+                                .unwrap_or_else(|_| serde_json::json!({})))
+                        },
+                    )
+            }
             Err(e) => Err(McpResponse {
                 jsonrpc: JSONRPC_VERSION.to_owned(),
                 result: None,
@@ -735,18 +757,20 @@ impl MultiTenantMcpServer {
                 "tenant_id": tenant_context.tenant_id,
                 "tenant_name": tenant_context.tenant_name
             },
-            "connection_help": {
-                "message": "To connect a fitness provider, click the connect_url for the provider you want to use. You'll be redirected to their website to authorize access, then redirected back to complete the connection.",
-                "supported_providers": ["strava", "fitbit"],
-                "note": "After connecting, you can use fitness tools like get_activities, get_athlete, and get_stats with the connected provider."
-            },
-            "recent_notifications": unread_notifications.iter().map(|n| serde_json::json!({
-                "id": n.id,
-                "provider": n.provider,
-                "success": n.success,
-                "message": n.message,
-                "created_at": n.created_at
-            })).collect::<Vec<_>>()
+            "connection_help": serde_json::to_value(json_schemas::ConnectionHelp {
+                message: "To connect a fitness provider, click the connect_url for the provider you want to use. You'll be redirected to their website to authorize access, then redirected back to complete the connection.".to_owned(),
+                supported_providers: vec!["strava".to_owned(), "fitbit".to_owned()],
+                note: "After connecting, you can use fitness tools like get_activities, get_athlete, and get_stats with the connected provider.".to_owned(),
+            }).unwrap_or_else(|_| serde_json::json!({})),
+            "recent_notifications": unread_notifications.iter().map(|n| {
+                json_schemas::NotificationItem {
+                    id: n.id.clone(),
+                    provider: n.provider.clone(),
+                    success: n.success,
+                    message: n.message.clone(),
+                    created_at: n.created_at,
+                }
+            }).collect::<Vec<_>>()
         })
     }
 
@@ -906,7 +930,22 @@ impl MultiTenantMcpServer {
             return error_response;
         }
 
-        let provider_name = args[PROVIDER].as_str().unwrap_or("");
+        let params = match serde_json::from_value::<json_schemas::ProviderParams>(args.clone()) {
+            Ok(p) => p,
+            Err(e) => {
+                return McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_owned(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INVALID_PARAMS,
+                        message: format!("Invalid provider parameters: {e}"),
+                        data: None,
+                    }),
+                    id: Some(request_id),
+                };
+            }
+        };
+        let provider_name = params.provider.as_deref().unwrap_or("");
 
         tracing::info!(
             "Executing tenant tool {} with provider {} for tenant {} user {}",
