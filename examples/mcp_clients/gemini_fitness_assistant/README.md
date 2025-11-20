@@ -469,6 +469,48 @@ for chunk in response:
     print(chunk.text, end='', flush=True)
 ```
 
+### Advanced MCP Features
+
+Pierre MCP Server supports the complete MCP specification including advanced features. This basic example demonstrates core functionality, but you can extend it to support:
+
+**1. Sampling (Bidirectional LLM Requests)**
+- Pierre can request LLM inference from the client
+- Useful for server-initiated analysis or recommendations
+- Enables collaborative reasoning between server and client LLMs
+
+**2. Argument Completion**
+- Auto-completion for tool parameters
+- Pierre suggests values for 8+ tool parameters
+- Improves UX by helping users discover valid inputs
+
+**3. Progress Notifications**
+- Real-time progress updates during long-running operations
+- 44+ calls across intelligence handlers support progress reporting
+- Allows clients to show progress bars and status updates
+
+**4. Cancellation Support**
+- Ability to cancel long-running operations
+- 51+ cancellation token checks throughout codebase
+- Prevents wasted computation on abandoned requests
+
+**To implement these in your client:**
+```python
+# Example: Progress notifications
+def on_progress(notification):
+    progress = notification.get('progress', 0)
+    total = notification.get('total', 100)
+    print(f"Progress: {progress}/{total}")
+
+# Example: Cancellation
+import asyncio
+cancellation_token = asyncio.Event()
+
+# Set cancellation_token in request headers
+# Pierre will check and abort if cancelled
+```
+
+See the [MCP Specification](https://spec.modelcontextprotocol.io/) for full details on implementing these features.
+
 ## Production Considerations
 
 ### Security
