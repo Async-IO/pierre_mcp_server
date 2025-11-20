@@ -1,6 +1,10 @@
 # Pierre MCP Server - Development Environment
 # Copy this to .envrc for local development settings
 
+# Default Provider Configuration
+# Set to "strava" for real OAuth testing, "synthetic" for development without OAuth
+export PIERRE_DEFAULT_PROVIDER=strava
+
 # OAuth Provider Configuration (optional - can be set per-tenant via admin API)
 export STRAVA_CLIENT_ID=your-strava-client-id
 export STRAVA_CLIENT_SECRET=your-strava-client-secret
