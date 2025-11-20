@@ -4,7 +4,9 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use super::{notifications::NotificationStream, protocol::McpProtocolStream};
+use super::{
+    a2a_task_stream::A2ATaskStream, notifications::NotificationStream, protocol::McpProtocolStream,
+};
 use crate::{
     database::oauth_notifications::OAuthNotification,
     errors::AppError,
@@ -27,6 +29,13 @@ pub enum ConnectionType {
         /// Session ID for the protocol stream
         session_id: String,
     },
+    /// A2A task stream for tracking task progress
+    A2ATask {
+        /// Task ID being streamed
+        task_id: String,
+        /// Client ID that owns the task
+        client_id: String,
+    },
 }
 
 /// SSE connection metadata
@@ -40,11 +49,12 @@ pub struct ConnectionMetadata {
     pub last_activity: chrono::DateTime<chrono::Utc>,
 }
 
-/// Unified SSE manager handling both notification and protocol streams
+/// Unified SSE manager handling notification, protocol, and A2A task streams
 #[derive(Clone)]
 pub struct SseManager {
     notification_streams: Arc<RwLock<HashMap<Uuid, NotificationStream>>>,
     protocol_streams: Arc<RwLock<HashMap<String, McpProtocolStream>>>,
+    a2a_task_streams: Arc<RwLock<HashMap<String, A2ATaskStream>>>,
     connection_metadata: Arc<RwLock<HashMap<String, ConnectionMetadata>>>,
     /// Maps `user_id` to their active `session_ids` for protocol streams
     user_sessions: Arc<RwLock<HashMap<Uuid, Vec<String>>>>,
@@ -59,6 +69,7 @@ impl SseManager {
         Self {
             notification_streams: Arc::new(RwLock::new(HashMap::new())),
             protocol_streams: Arc::new(RwLock::new(HashMap::new())),
+            a2a_task_streams: Arc::new(RwLock::new(HashMap::new())),
             connection_metadata: Arc::new(RwLock::new(HashMap::new())),
             user_sessions: Arc::new(RwLock::new(HashMap::new())),
             buffer_size,
@@ -373,8 +384,102 @@ impl SseManager {
                 ConnectionType::Protocol { session_id } => {
                     self.unregister_protocol_stream(&session_id).await;
                 }
+                ConnectionType::A2ATask { task_id, .. } => {
+                    self.unregister_a2a_task_stream(&task_id).await;
+                }
             }
             tracing::info!("Cleaned up inactive connection: {}", connection_id);
         }
+    }
+
+    /// Register a new A2A task stream for a task
+    pub async fn register_a2a_task_stream(
+        &self,
+        task_id: String,
+        client_id: String,
+    ) -> broadcast::Receiver<String> {
+        let stream = A2ATaskStream::new(self.buffer_size);
+        let receiver = stream.subscribe();
+
+        {
+            let mut streams = self.a2a_task_streams.write().await;
+            streams.insert(task_id.clone(), stream);
+        }
+
+        let connection_id = format!("a2a_task_{task_id}");
+        let metadata = ConnectionMetadata {
+            connection_type: ConnectionType::A2ATask {
+                task_id: task_id.clone(),
+                client_id,
+            },
+            created_at: chrono::Utc::now(),
+            last_activity: chrono::Utc::now(),
+        };
+
+        {
+            let mut metadata_map = self.connection_metadata.write().await;
+            metadata_map.insert(connection_id.clone(), metadata);
+        }
+
+        tracing::info!("Registered A2A task stream for task: {}", task_id);
+        receiver
+    }
+
+    /// Send task status update to A2A task stream
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - No task stream is found for the specified `task_id`
+    /// - The underlying stream fails to send the update
+    pub async fn send_a2a_task_update(
+        &self,
+        task_id: &str,
+        event_data: String,
+    ) -> Result<(), AppError> {
+        let streams = self.a2a_task_streams.read().await;
+
+        if let Some(stream) = streams.get(task_id) {
+            stream
+                .send_update(event_data)
+                .map_err(|e| AppError::internal(format!("Failed to send task update: {e}")))?;
+
+            // Update last activity
+            let connection_id = format!("a2a_task_{task_id}");
+            {
+                let mut metadata_map = self.connection_metadata.write().await;
+                if let Some(metadata) = metadata_map.get_mut(&connection_id) {
+                    metadata.last_activity = chrono::Utc::now();
+                }
+            }
+
+            Ok(())
+        } else {
+            Err(AppError::not_found(format!(
+                "A2A task stream for task {task_id}"
+            )))
+        }
+    }
+
+    /// Unregister an A2A task stream
+    pub async fn unregister_a2a_task_stream(&self, task_id: &str) {
+        {
+            let mut streams = self.a2a_task_streams.write().await;
+            streams.remove(task_id);
+        }
+
+        let connection_id = format!("a2a_task_{task_id}");
+        {
+            let mut metadata_map = self.connection_metadata.write().await;
+            metadata_map.remove(&connection_id);
+        }
+
+        tracing::info!("Unregistered A2A task stream for task: {}", task_id);
+    }
+
+    /// Get count of active A2A task streams
+    pub async fn active_a2a_task_streams(&self) -> usize {
+        let streams = self.a2a_task_streams.read().await;
+        streams.len()
     }
 }

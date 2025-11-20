@@ -18,9 +18,8 @@ use crate::{
     auth::AuthManager,
     cache::factory::Cache,
     database_plugins::{factory::Database, DatabaseProvider},
-    errors::AppError,
+    errors::{AppError, AppResult},
 };
-use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::{Arc, RwLock};
 
@@ -50,20 +49,20 @@ impl DatabasePlugin {
     ///
     /// # Errors
     /// Returns error if database is not initialized
-    pub fn get_database(&self) -> Result<&Database> {
+    pub fn get_database(&self) -> AppResult<&Database> {
         self.database
             .as_ref()
-            .ok_or_else(|| AppError::internal("Database not initialized").into())
+            .ok_or_else(|| AppError::internal("Database not initialized"))
     }
 
     /// Take ownership of database instance
     ///
     /// # Errors
     /// Returns error if database is not initialized
-    pub fn take_database(mut self) -> Result<Database> {
+    pub fn take_database(mut self) -> AppResult<Database> {
         self.database
             .take()
-            .ok_or_else(|| AppError::internal("Database not initialized").into())
+            .ok_or_else(|| AppError::internal("Database not initialized"))
     }
 }
 
@@ -77,11 +76,11 @@ impl Plugin for DatabasePlugin {
         10 // High priority - database needed first
     }
 
-    async fn initialize(&mut self) -> Result<()> {
+    async fn initialize(&mut self) -> AppResult<()> {
         *self
             .state
             .write()
-            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            .map_err(|e| AppError::internal(format!("Lock poisoned: {e}")))? =
             PluginState::Initializing;
 
         self.database = Some(
@@ -96,16 +95,16 @@ impl Plugin for DatabasePlugin {
         *self
             .state
             .write()
-            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? = PluginState::Ready;
+            .map_err(|e| AppError::internal(format!("Lock poisoned: {e}")))? = PluginState::Ready;
 
         Ok(())
     }
 
-    async fn health_check(&self) -> Result<PluginHealth> {
+    async fn health_check(&self) -> AppResult<PluginHealth> {
         let state = *self
             .state
             .read()
-            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))?;
+            .map_err(|e| AppError::internal(format!("Lock poisoned: {e}")))?;
 
         let healthy = if let Some(db) = &self.database {
             // Perform basic health check by querying user count
@@ -132,11 +131,11 @@ impl Plugin for DatabasePlugin {
         })
     }
 
-    async fn shutdown(&mut self) -> Result<()> {
+    async fn shutdown(&mut self) -> AppResult<()> {
         *self
             .state
             .write()
-            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            .map_err(|e| AppError::internal(format!("Lock poisoned: {e}")))? =
             PluginState::ShuttingDown;
 
         // Database cleanup - just drop the connection
@@ -145,7 +144,7 @@ impl Plugin for DatabasePlugin {
         *self
             .state
             .write()
-            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            .map_err(|e| AppError::internal(format!("Lock poisoned: {e}")))? =
             PluginState::Shutdown;
         Ok(())
     }
@@ -183,20 +182,20 @@ impl CachePlugin {
     ///
     /// # Errors
     /// Returns error if cache is not initialized
-    pub fn get_cache(&self) -> Result<&Cache> {
+    pub fn get_cache(&self) -> AppResult<&Cache> {
         self.cache
             .as_ref()
-            .ok_or_else(|| AppError::internal("Cache not initialized").into())
+            .ok_or_else(|| AppError::internal("Cache not initialized"))
     }
 
     /// Take ownership of cache instance
     ///
     /// # Errors
     /// Returns error if cache is not initialized
-    pub fn take_cache(mut self) -> Result<Cache> {
+    pub fn take_cache(mut self) -> AppResult<Cache> {
         self.cache
             .take()
-            .ok_or_else(|| AppError::internal("Cache not initialized").into())
+            .ok_or_else(|| AppError::internal("Cache not initialized"))
     }
 }
 
@@ -216,27 +215,27 @@ impl Plugin for CachePlugin {
         20 // Medium-high priority - cache needed early
     }
 
-    async fn initialize(&mut self) -> Result<()> {
+    async fn initialize(&mut self) -> AppResult<()> {
         *self
             .state
             .write()
-            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            .map_err(|e| AppError::internal(format!("Lock poisoned: {e}")))? =
             PluginState::Initializing;
 
         self.cache = Some(Cache::from_env().await?);
         *self
             .state
             .write()
-            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? = PluginState::Ready;
+            .map_err(|e| AppError::internal(format!("Lock poisoned: {e}")))? = PluginState::Ready;
 
         Ok(())
     }
 
-    async fn health_check(&self) -> Result<PluginHealth> {
+    async fn health_check(&self) -> AppResult<PluginHealth> {
         let state = *self
             .state
             .read()
-            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))?;
+            .map_err(|e| AppError::internal(format!("Lock poisoned: {e}")))?;
 
         let healthy = self.cache.is_some();
 
@@ -253,11 +252,11 @@ impl Plugin for CachePlugin {
         })
     }
 
-    async fn shutdown(&mut self) -> Result<()> {
+    async fn shutdown(&mut self) -> AppResult<()> {
         *self
             .state
             .write()
-            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            .map_err(|e| AppError::internal(format!("Lock poisoned: {e}")))? =
             PluginState::ShuttingDown;
 
         self.cache = None;
@@ -265,7 +264,7 @@ impl Plugin for CachePlugin {
         *self
             .state
             .write()
-            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            .map_err(|e| AppError::internal(format!("Lock poisoned: {e}")))? =
             PluginState::Shutdown;
         Ok(())
     }
@@ -303,20 +302,20 @@ impl AuthPlugin {
     ///
     /// # Errors
     /// Returns error if auth manager is not initialized
-    pub fn get_auth_manager(&self) -> Result<&AuthManager> {
+    pub fn get_auth_manager(&self) -> AppResult<&AuthManager> {
         self.auth_manager
             .as_ref()
-            .ok_or_else(|| AppError::internal("Auth manager not initialized").into())
+            .ok_or_else(|| AppError::internal("Auth manager not initialized"))
     }
 
     /// Take ownership of auth manager instance
     ///
     /// # Errors
     /// Returns error if auth manager is not initialized
-    pub fn take_auth_manager(mut self) -> Result<AuthManager> {
+    pub fn take_auth_manager(mut self) -> AppResult<AuthManager> {
         self.auth_manager
             .take()
-            .ok_or_else(|| AppError::internal("Auth manager not initialized").into())
+            .ok_or_else(|| AppError::internal("Auth manager not initialized"))
     }
 }
 
@@ -330,27 +329,27 @@ impl Plugin for AuthPlugin {
         30 // Medium priority - auth depends on database
     }
 
-    async fn initialize(&mut self) -> Result<()> {
+    async fn initialize(&mut self) -> AppResult<()> {
         *self
             .state
             .write()
-            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            .map_err(|e| AppError::internal(format!("Lock poisoned: {e}")))? =
             PluginState::Initializing;
 
         // AuthManager already injected via constructor - just mark as ready
         *self
             .state
             .write()
-            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? = PluginState::Ready;
+            .map_err(|e| AppError::internal(format!("Lock poisoned: {e}")))? = PluginState::Ready;
 
         Ok(())
     }
 
-    async fn health_check(&self) -> Result<PluginHealth> {
+    async fn health_check(&self) -> AppResult<PluginHealth> {
         let state = *self
             .state
             .read()
-            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))?;
+            .map_err(|e| AppError::internal(format!("Lock poisoned: {e}")))?;
 
         let healthy = self.auth_manager.is_some();
 
@@ -367,11 +366,11 @@ impl Plugin for AuthPlugin {
         })
     }
 
-    async fn shutdown(&mut self) -> Result<()> {
+    async fn shutdown(&mut self) -> AppResult<()> {
         *self
             .state
             .write()
-            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            .map_err(|e| AppError::internal(format!("Lock poisoned: {e}")))? =
             PluginState::ShuttingDown;
 
         self.auth_manager = None;
@@ -379,7 +378,7 @@ impl Plugin for AuthPlugin {
         *self
             .state
             .write()
-            .map_err(|e| anyhow::Error::msg(format!("Lock poisoned: {e}")))? =
+            .map_err(|e| AppError::internal(format!("Lock poisoned: {e}")))? =
             PluginState::Shutdown;
         Ok(())
     }

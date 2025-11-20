@@ -157,14 +157,97 @@ cargo test                  # All tests pass
 
 ## Development Workflow
 
+### Automated Git Hooks (Zero Manual Commands Required!)
+
+Pierre uses automated git hooks to ensure code quality. **You don't need to run any commands manually!**
+
+#### Initial Setup (One Time)
+```bash
+# Install git hooks (run once after cloning)
+./scripts/setup-git-hooks.sh
+```
+
+#### Your Daily Workflow
+```bash
+# 1. Write code as normal
+
+# 2. Commit (hook runs automatically: 2-3 min)
+git commit -m "feat: add new feature"
+# ✅ Auto-runs: format check, clippy, unit tests
+
+# 3. Push (hook runs automatically: 5-10 min)
+git push origin your-branch
+# ✅ Auto-runs: 20 critical path tests
+
+# 4. CI validates everything (30-60 min, in background)
+# ✅ Full test suite, security checks, cross-platform
+```
+
+**Total time YOU wait: 7-13 minutes** (vs 30-60 for full suite!)
+
+#### What Hooks Do
+
+**Pre-Commit Hook** (2-3 minutes):
+- Format check (`cargo fmt --check`)
+- Clippy on lib + bins
+- Unit tests
+- Blocks commit if fails
+
+**Commit-Msg Hook** (instant):
+- Enforces 1-2 line commit messages (no novels!)
+- Blocks AI-generated commit signatures
+- Validates first line length (max 100 chars)
+- Encourages conventional commit format
+- Blocks commit if message invalid
+
+**Pre-Push Hook** (5-10 minutes):
+- 20 critical path tests:
+  - Infrastructure (health, database, encryption)
+  - Security (auth, API keys, JWT, OAuth2)
+  - MCP protocol compliance
+  - Error handling (validates AppResult refactoring)
+  - Multi-tenancy isolation
+  - A2A protocol & algorithms
+- Blocks push if fails (catches 80% of issues before CI!)
+
+#### Skipping Hooks (When Needed)
+```bash
+# Skip pre-commit (use sparingly!)
+git commit --no-verify -m "WIP: quick iteration"
+
+# Skip pre-push (use sparingly!)
+git push --no-verify
+```
+
+⚠️ **Warning:** CI will still run and catch issues, but you'll wait longer for feedback.
+
+#### Manual Testing (Optional)
+If you want to run tests manually:
+```bash
+# Quick smoke test (what pre-commit runs)
+./scripts/smoke-test.sh
+
+# Fast tests (during active development)
+./scripts/fast-tests.sh
+
+# Pre-push tests (what will run on push)
+./scripts/pre-push-tests.sh
+
+# Full test suite (comprehensive, 15-25 min)
+./scripts/lint-and-test.sh
+```
+
+See [docs/testing-strategy.md](docs/testing-strategy.md) for complete testing guide.
+
 ### Before Starting Work
 1. **Check existing issues** - Avoid duplicate work
 2. **Discuss big changes** - Comment on issue or create discussion
 3. **Update dependencies** - `cargo update && npm update`
+4. **Install git hooks** - `./scripts/setup-git-hooks.sh` (one time)
 
 ### While Developing
 ```bash
-# Continuous testing during development
+# Continuous testing during development (optional)
 cargo watch -x test           # Auto-run tests on changes
 cargo watch -x clippy          # Auto-run linting
 npm run dev                    # Frontend dev server with hot reload
@@ -172,12 +255,11 @@ npm run dev                    # Frontend dev server with hot reload
 
 ### Before Submitting PR
 ```bash
-# This is what CI will run - make sure it passes
-./scripts/lint-and-test.sh
+# Git hooks handle this automatically!
+# Just commit and push - hooks will validate
 
-# Check your changes don't break anything
-cargo build --release
-cargo run --bin pierre-mcp-server  # Should start without errors
+# Optional: Run full validation manually
+./scripts/lint-and-test.sh
 ```
 
 ## Pull Request Process

@@ -1,0 +1,16 @@
+[package]
+name = "agent-discovery-example"
+version = "1.0.0"
+edition = "2021"
+authors = ["Async-IO.org"]
+license = "MIT OR Apache-2.0"
+description = "Demonstrates A2A agent card discovery and capability negotiation"
+
+[dependencies]
+tokio = { version = "1.42", features = ["full"] }
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

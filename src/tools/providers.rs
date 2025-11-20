@@ -137,7 +137,8 @@ impl ProviderManager {
         let user = self
             .database
             .get_user(user_id)
-            .await?
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
             .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
         let tenant_id = user
             .tenant_id
@@ -145,24 +146,28 @@ impl ProviderManager {
             .ok_or_else(|| AppError::invalid_input("User has no tenant_id"))?;
 
         let token = match provider_type {
-            ProviderType::Strava => {
-                self.database
-                    .get_user_oauth_token(
-                        user_id,
-                        tenant_id,
-                        crate::constants::oauth_providers::STRAVA,
-                    )
-                    .await?
-            }
-            ProviderType::Fitbit => {
-                self.database
-                    .get_user_oauth_token(
-                        user_id,
-                        tenant_id,
-                        crate::constants::oauth_providers::FITBIT,
-                    )
-                    .await?
-            }
+            ProviderType::Strava => self
+                .database
+                .get_user_oauth_token(
+                    user_id,
+                    tenant_id,
+                    crate::constants::oauth_providers::STRAVA,
+                )
+                .await
+                .map_err(|e| {
+                    AppError::database(format!("Failed to get Strava OAuth token: {e}"))
+                })?,
+            ProviderType::Fitbit => self
+                .database
+                .get_user_oauth_token(
+                    user_id,
+                    tenant_id,
+                    crate::constants::oauth_providers::FITBIT,
+                )
+                .await
+                .map_err(|e| {
+                    AppError::database(format!("Failed to get Fitbit OAuth token: {e}"))
+                })?,
         };
 
         let status = match token {
@@ -221,7 +226,8 @@ impl ProviderManager {
         let user = self
             .database
             .get_user(user_id)
-            .await?
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
             .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
         let tenant_id = user
             .tenant_id
@@ -237,7 +243,10 @@ impl ProviderManager {
                         tenant_id,
                         crate::constants::oauth_providers::STRAVA,
                     )
-                    .await?;
+                    .await
+                    .map_err(|e| {
+                        AppError::database(format!("Failed to delete Strava OAuth token: {e}"))
+                    })?;
             }
             ProviderType::Fitbit => {
                 self.database
@@ -246,7 +255,10 @@ impl ProviderManager {
                         tenant_id,
                         crate::constants::oauth_providers::FITBIT,
                     )
-                    .await?;
+                    .await
+                    .map_err(|e| {
+                        AppError::database(format!("Failed to delete Fitbit OAuth token: {e}"))
+                    })?;
             }
         }
 

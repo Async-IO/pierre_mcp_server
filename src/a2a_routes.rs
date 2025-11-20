@@ -17,7 +17,6 @@ use crate::a2a::{
 use crate::database_plugins::DatabaseProvider;
 use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use crate::utils::auth::extract_bearer_token;
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
@@ -428,6 +427,9 @@ impl A2ARoutes {
             user_id,
             protocol: "a2a".into(),
             tenant_id: None, // A2A doesn't have tenant context yet
+            progress_token: None,
+            cancellation_token: None,
+            progress_reporter: None,
         };
 
         // Execute the tool

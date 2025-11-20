@@ -7,9 +7,8 @@
 use super::resources::ServerResources;
 use crate::auth::AuthManager;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::tenant::{TenantContext, TenantRole};
-use anyhow::Result;
 use http::HeaderMap;
 use std::sync::Arc;
 use tracing::warn;
@@ -31,11 +30,12 @@ impl TenantIsolation {
     ///
     /// # Errors
     /// Returns an error if JWT validation fails or tenant information cannot be retrieved
-    pub async fn validate_tenant_access(&self, jwt_token: &str) -> Result<TenantContext> {
+    pub async fn validate_tenant_access(&self, jwt_token: &str) -> AppResult<TenantContext> {
         let auth_result = self
             .resources
             .auth_manager
-            .validate_token(jwt_token, &self.resources.jwks_manager)?;
+            .validate_token(jwt_token, &self.resources.jwks_manager)
+            .map_err(|e| AppError::auth_invalid(format!("Failed to validate token: {e}")))?;
 
         // Parse user ID from claims
         let user_id = crate::utils::uuid::parse_uuid(&auth_result.sub)
@@ -61,29 +61,27 @@ impl TenantIsolation {
     ///
     /// # Errors
     /// Returns an error if user lookup fails
-    pub async fn get_user_with_tenant(&self, user_id: Uuid) -> Result<crate::models::User> {
+    pub async fn get_user_with_tenant(&self, user_id: Uuid) -> AppResult<crate::models::User> {
         self.resources
             .database
             .get_user(user_id)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
-            .ok_or_else(|| AppError::not_found("User").into())
+            .ok_or_else(|| AppError::not_found("User"))
     }
 
     /// Extract tenant ID from user
     ///
     /// # Errors
     /// Returns an error if tenant ID is missing or invalid
-    pub fn extract_tenant_id(&self, user: &crate::models::User) -> Result<Uuid> {
+    pub fn extract_tenant_id(&self, user: &crate::models::User) -> AppResult<Uuid> {
         user.tenant_id
             .clone() // Safe: Option<String> ownership for UUID parsing
-            .ok_or_else(|| -> anyhow::Error {
-                AppError::auth_invalid("User does not belong to any tenant").into()
-            })?
+            .ok_or_else(|| AppError::auth_invalid("User does not belong to any tenant"))?
             .parse()
-            .map_err(|e| -> anyhow::Error {
+            .map_err(|e| {
                 tracing::warn!(user_id = %user.id, tenant_id = ?user.tenant_id, error = %e, "Invalid tenant ID format for user");
-                AppError::invalid_input("Invalid tenant ID format").into()
+                AppError::invalid_input("Invalid tenant ID format")
             })
     }
 
@@ -109,15 +107,14 @@ impl TenantIsolation {
         &self,
         user_id: Uuid,
         tenant_id: Uuid,
-    ) -> Result<TenantRole> {
+    ) -> AppResult<TenantRole> {
         // Check if user belongs to the tenant
         let user = self.get_user_with_tenant(user_id).await?;
 
         if user.tenant_id != Some(tenant_id.to_string()) {
             return Err(AppError::auth_invalid(format!(
                 "User {user_id} does not belong to tenant {tenant_id}"
-            ))
-            .into());
+            )));
         }
 
         // Query database for user's actual role in the tenant
@@ -125,23 +122,24 @@ impl TenantIsolation {
             .resources
             .database
             .get_user_tenant_role(user_id, tenant_id)
-            .await?)
-            .map_or_else(
-                || Ok(TenantRole::Member),
-                |role_str| match role_str.to_lowercase().as_str() {
-                    "owner" => Ok(TenantRole::Owner),
-                    "admin" => Ok(TenantRole::Admin),
-                    "billing" => Ok(TenantRole::Billing),
-                    "member" => Ok(TenantRole::Member),
-                    _ => {
-                        warn!(
-                            "Unknown role '{}' for user {} in tenant {}, defaulting to Member",
-                            role_str, user_id, tenant_id
-                        );
-                        Ok(TenantRole::Member)
-                    }
-                },
-            )
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user tenant role: {e}")))?)
+        .map_or_else(
+            || Ok(TenantRole::Member),
+            |role_str| match role_str.to_lowercase().as_str() {
+                "owner" => Ok(TenantRole::Owner),
+                "admin" => Ok(TenantRole::Admin),
+                "billing" => Ok(TenantRole::Billing),
+                "member" => Ok(TenantRole::Member),
+                _ => {
+                    warn!(
+                        "Unknown role '{}' for user {} in tenant {}, defaulting to Member",
+                        role_str, user_id, tenant_id
+                    );
+                    Ok(TenantRole::Member)
+                }
+            },
+        )
     }
 
     /// Extract tenant context from request headers
@@ -151,7 +149,7 @@ impl TenantIsolation {
     pub async fn extract_tenant_from_header(
         &self,
         headers: &HeaderMap,
-    ) -> Result<Option<TenantContext>> {
+    ) -> AppResult<Option<TenantContext>> {
         // Look for tenant ID in headers
         if let Some(tenant_id_header) = headers.get("x-tenant-id") {
             let tenant_id_str = tenant_id_header.to_str().map_err(|e| {
@@ -184,7 +182,7 @@ impl TenantIsolation {
     ///
     /// # Errors
     /// Returns an error if user lookup or tenant extraction fails
-    pub async fn extract_tenant_from_user(&self, user_id: Uuid) -> Result<TenantContext> {
+    pub async fn extract_tenant_from_user(&self, user_id: Uuid) -> AppResult<TenantContext> {
         let user = self.get_user_with_tenant(user_id).await?;
         let tenant_id = self.extract_tenant_id(&user)?;
         let tenant_name = self.get_tenant_name(tenant_id).await;
@@ -207,7 +205,7 @@ impl TenantIsolation {
         user_id: Uuid,
         tenant_id: Uuid,
         resource_type: &str,
-    ) -> Result<bool> {
+    ) -> AppResult<bool> {
         // Verify user belongs to the tenant
         let user_role = self.get_user_role_for_tenant(user_id, tenant_id).await?;
 
@@ -227,7 +225,7 @@ impl TenantIsolation {
     ///
     /// # Errors
     /// Returns an error if resource isolation fails
-    pub fn isolate_resources(&self, tenant_id: Uuid) -> Result<TenantResources> {
+    pub fn isolate_resources(&self, tenant_id: Uuid) -> AppResult<TenantResources> {
         // Create tenant-scoped resource accessor
         Ok(TenantResources {
             tenant_id,
@@ -244,7 +242,7 @@ impl TenantIsolation {
         user_id: Uuid,
         tenant_id: Uuid,
         action: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let user_role = self.get_user_role_for_tenant(user_id, tenant_id).await?;
 
         match action {
@@ -254,8 +252,7 @@ impl TenantIsolation {
                 } else {
                     Err(AppError::auth_invalid(format!(
                         "User {user_id} does not have permission to {action} for tenant {tenant_id}"
-                    ))
-                    .into())
+                    )))
                 }
             }
             "modify_tenant_settings" => {
@@ -264,13 +261,12 @@ impl TenantIsolation {
                 } else {
                     Err(AppError::auth_invalid(format!(
                         "User {user_id} does not have owner permission for tenant {tenant_id}"
-                    ))
-                    .into())
+                    )))
                 }
             }
             _ => {
                 warn!("Unknown action for validation: {}", action);
-                Err(AppError::invalid_input(format!("Unknown action: {action}")).into())
+                Err(AppError::invalid_input(format!("Unknown action: {action}")))
             }
         }
     }
@@ -292,10 +288,11 @@ impl TenantResources {
     pub async fn get_oauth_credentials(
         &self,
         provider: &str,
-    ) -> Result<Option<crate::tenant::oauth_manager::TenantOAuthCredentials>> {
+    ) -> AppResult<Option<crate::tenant::oauth_manager::TenantOAuthCredentials>> {
         self.database
             .get_tenant_oauth_credentials(self.tenant_id, provider)
             .await
+            .map_err(|e| AppError::database(format!("Failed to get tenant OAuth credentials: {e}")))
     }
 
     /// Store OAuth credentials for this tenant
@@ -305,19 +302,21 @@ impl TenantResources {
     pub async fn store_oauth_credentials(
         &self,
         credential: &crate::tenant::oauth_manager::TenantOAuthCredentials,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         // Ensure the credential belongs to this tenant
         if credential.tenant_id != self.tenant_id {
             return Err(AppError::invalid_input(format!(
                 "Credential tenant ID mismatch: expected {}, got {}",
                 self.tenant_id, credential.tenant_id
-            ))
-            .into());
+            )));
         }
 
         self.database
             .store_tenant_oauth_credentials(credential)
             .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to store tenant OAuth credentials: {e}"))
+            })
     }
 
     /// Get user OAuth tokens for this tenant
@@ -328,12 +327,13 @@ impl TenantResources {
         &self,
         user_id: Uuid,
         provider: &str,
-    ) -> Result<Option<crate::models::UserOAuthToken>> {
+    ) -> AppResult<Option<crate::models::UserOAuthToken>> {
         // Convert tenant_id to string for database query
         let tenant_id_str = self.tenant_id.to_string();
         self.database
             .get_user_oauth_token(user_id, &tenant_id_str, provider)
             .await
+            .map_err(|e| AppError::database(format!("Failed to get user OAuth token: {e}")))
     }
 
     /// Store user OAuth token for this tenant
@@ -343,7 +343,7 @@ impl TenantResources {
     pub async fn store_user_oauth_token(
         &self,
         token: &crate::models::UserOAuthToken,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         // Additional validation could be added here to ensure
         // the user belongs to this tenant
         // For now, store using the user's OAuth app approach
@@ -356,6 +356,7 @@ impl TenantResources {
                 "", // redirect_uri not available in UserOAuthToken
             )
             .await
+            .map_err(|e| AppError::database(format!("Failed to store user OAuth app: {e}")))
     }
 }
 
@@ -379,8 +380,10 @@ pub async fn validate_jwt_token_for_mcp(
     auth_manager: &AuthManager,
     jwks_manager: &crate::admin::jwks::JwksManager,
     database: &Arc<Database>,
-) -> Result<JwtValidationResult> {
-    let auth_result = auth_manager.validate_token(token, jwks_manager)?;
+) -> AppResult<JwtValidationResult> {
+    let auth_result = auth_manager
+        .validate_token(token, jwks_manager)
+        .map_err(|e| AppError::auth_invalid(format!("Failed to validate token: {e}")))?;
 
     // Parse user ID from claims
     let user_id = crate::utils::uuid::parse_uuid(&auth_result.sub)
@@ -437,7 +440,7 @@ pub async fn extract_tenant_context_internal(
     user_id: Option<Uuid>,
     tenant_id: Option<Uuid>,
     headers: Option<&HeaderMap>,
-) -> Result<Option<TenantContext>> {
+) -> AppResult<Option<TenantContext>> {
     // Try to extract from user ID first
     if let Some(user_id) = user_id {
         let user = database

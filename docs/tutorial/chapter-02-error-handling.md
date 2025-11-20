@@ -241,7 +241,7 @@ match error {
 
 ### pattern 2: tuple variants for simple errors
 
-**Source**: `src/database/errors.rs:58-59`
+**Source**: `src/database/errors.rs:57-59`
 
 ```rust
 #[derive(Error, Debug)]
@@ -249,6 +249,12 @@ pub enum DatabaseError {
     /// Database connection error
     #[error("Database connection error: {0}")]
     ConnectionError(String),
+
+    // More examples:
+
+    /// Database query error
+    #[error("Query execution error: {context}")]
+    QueryError { context: String },
 }
 ```
 
@@ -295,6 +301,8 @@ pub enum DatabaseError {
     /// UUID parsing error
     #[error("Invalid UUID: {0}")]
     InvalidUuid(#[from] uuid::Error),
+
+    // Note: No blanket anyhow::Error conversion - all errors are structured!
 }
 ```
 
@@ -476,20 +484,6 @@ impl ErrorCode {
 ## error conversion with From/Into
 
 Rust's `?` operator relies on `From` trait implementations for automatic error conversion.
-
-### manual From implementation
-
-**Source**: `src/database/errors.rs:103-107`
-
-```rust
-impl From<anyhow::Error> for DatabaseError {
-    fn from(err: anyhow::Error) -> Self {
-        Self::Other(err.to_string())
-    }
-}
-```
-
-**Why needed**: Legacy code may still use `anyhow`, this converts it to structured errors at boundaries.
 
 ### automatic From with #[from]
 

@@ -15,13 +15,11 @@ use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
 use crate::constants::oauth_providers;
 use crate::constants::tiers;
-use crate::database::errors::DatabaseError;
 use crate::database::A2AUsage;
 use crate::database_plugins::shared::encryption::HasEncryption;
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::models::{User, UserTier};
 use crate::rate_limiting::JwtUsage;
-use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
@@ -44,7 +42,7 @@ impl PostgresDatabase {
     }
 
     /// Helper function to parse User from database row
-    fn parse_user_from_row(row: &sqlx::postgres::PgRow) -> Result<User> {
+    fn parse_user_from_row(row: &sqlx::postgres::PgRow) -> AppResult<User> {
         shared::mappers::parse_user_from_row(row)
     }
 
@@ -54,7 +52,7 @@ impl PostgresDatabase {
         status_filter: Option<&TaskStatus>,
         limit: Option<u32>,
         offset: Option<u32>,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         use std::fmt::Write;
         let mut query = String::from(
             r"
@@ -86,15 +84,15 @@ impl PostgresDatabase {
 
         if limit.is_some() {
             bind_count += 1;
-            write!(query, " LIMIT ${bind_count}").map_err(|_| DatabaseError::QueryError {
-                context: "Failed to write LIMIT clause to query".to_owned(),
+            write!(query, " LIMIT ${bind_count}").map_err(|e| {
+                AppError::database(format!("Failed to write LIMIT clause to query: {e}"))
             })?;
         }
 
         if offset.is_some() {
             bind_count += 1;
-            write!(query, " OFFSET ${bind_count}").map_err(|_| DatabaseError::QueryError {
-                context: "Failed to write OFFSET clause to query".to_owned(),
+            write!(query, " OFFSET ${bind_count}").map_err(|e| {
+                AppError::database(format!("Failed to write OFFSET clause to query: {e}"))
             })?;
         }
 
@@ -102,7 +100,7 @@ impl PostgresDatabase {
     }
 
     /// Helper function to parse A2A task from database row
-    fn parse_a2a_task_from_row(row: &sqlx::postgres::PgRow) -> Result<A2ATask> {
+    fn parse_a2a_task_from_row(row: &sqlx::postgres::PgRow) -> AppResult<A2ATask> {
         shared::mappers::parse_a2a_task_from_row(row)
     }
 }
@@ -118,7 +116,7 @@ impl PostgresDatabase {
         database_url: &str,
         encryption_key: Vec<u8>,
         pool_config: &crate::config::environment::PostgresPoolConfig,
-    ) -> Result<Self> {
+    ) -> AppResult<Self> {
         // Use pool configuration from ServerConfig (read once at startup)
         let max_connections = pool_config.max_connections;
         let min_connections = pool_config.min_connections;
@@ -137,8 +135,10 @@ impl PostgresDatabase {
             .max_lifetime(Some(Duration::from_secs(600)))
             .connect(database_url)
             .await
-            .with_context(|| {
-                format!("Failed to connect to PostgreSQL with {max_connections} max connections")
+            .map_err(|e| {
+                AppError::database(format!(
+                    "Failed to connect to PostgreSQL with {max_connections} max connections: {e}"
+                ))
             })?;
 
         let db = Self {
@@ -162,21 +162,21 @@ impl PostgresDatabase {
         database_url: &str,
         encryption_key: Vec<u8>,
         pool_config: &crate::config::environment::PostgresPoolConfig,
-    ) -> Result<Self> {
+    ) -> AppResult<Self> {
         Self::new_impl(database_url, encryption_key, pool_config).await
     }
 }
 
 #[async_trait]
 impl DatabaseProvider for PostgresDatabase {
-    async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
+    async fn new(database_url: &str, encryption_key: Vec<u8>) -> AppResult<Self> {
         // Use default pool configuration when called through trait
         // In practice, the Database factory calls the inherent impl's new() directly with config
         let pool_config = crate::config::environment::PostgresPoolConfig::default();
         Self::new_impl(database_url, encryption_key, &pool_config).await
     }
 
-    async fn migrate(&self) -> Result<()> {
+    async fn migrate(&self) -> AppResult<()> {
         self.create_users_table().await?;
         self.create_user_profiles_table().await?;
         self.create_goals_table().await?;
@@ -192,7 +192,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
-    async fn create_user(&self, user: &User) -> Result<Uuid> {
+    async fn create_user(&self, user: &User) -> AppResult<Uuid> {
         sqlx::query(
             r"
             INSERT INTO users (id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin, user_status, approved_by, approved_at, created_at, last_active)
@@ -213,15 +213,16 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(user.created_at)
         .bind(user.last_active)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create user: {e}")))?;
 
         Ok(user.id)
     }
 
-    async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
+    async fn get_user(&self, user_id: Uuid) -> AppResult<Option<User>> {
         let row = sqlx::query(
             r"
-            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin, 
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
                    user_status, approved_by, approved_at, created_at, last_active
             FROM users
             WHERE id = $1
@@ -229,7 +230,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get user by ID: {e}")))?;
 
         row.map_or_else(
             || Ok(None),
@@ -265,10 +267,10 @@ impl DatabaseProvider for PostgresDatabase {
         )
     }
 
-    async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
+    async fn get_user_by_email(&self, email: &str) -> AppResult<Option<User>> {
         let row = sqlx::query(
             r"
-            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin, 
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
                    user_status, approved_by, approved_at, created_at, last_active
             FROM users
             WHERE email = $1
@@ -276,7 +278,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(email)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get user by email: {e}")))?;
 
         row.map_or_else(
             || Ok(None),
@@ -312,13 +315,13 @@ impl DatabaseProvider for PostgresDatabase {
         )
     }
 
-    async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
+    async fn get_user_by_email_required(&self, email: &str) -> AppResult<User> {
         self.get_user_by_email(email)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("User with email {email}")).into())
+            .ok_or_else(|| AppError::not_found(format!("User with email {email}")))
     }
 
-    async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
+    async fn update_last_active(&self, user_id: Uuid) -> AppResult<()> {
         sqlx::query(
             r"
             UPDATE users
@@ -328,29 +331,31 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(user_id)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update last active timestamp: {e}")))?;
 
         Ok(())
     }
 
-    async fn get_user_count(&self) -> Result<i64> {
+    async fn get_user_count(&self) -> AppResult<i64> {
         let row = sqlx::query("SELECT COUNT(*) as count FROM users")
             .fetch_one(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user count: {e}")))?;
 
         Ok(row.get("count"))
     }
 
-    async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
+    async fn get_users_by_status(&self, status: &str) -> AppResult<Vec<User>> {
         // Query users by status from PostgreSQL
         let status_enum = match status {
             "active" => "active",
             "pending" => "pending",
             "suspended" => "suspended",
             _ => {
-                return Err(
-                    AppError::invalid_input(format!("Invalid user status: {status}")).into(),
-                )
+                return Err(AppError::invalid_input(format!(
+                    "Invalid user status: {status}"
+                )))
             }
         };
 
@@ -365,7 +370,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(status_enum)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get users by status: {e}")))?;
 
         let mut users = Vec::new();
         for row in rows {
@@ -409,7 +415,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         status: &str,
         params: &crate::pagination::PaginationParams,
-    ) -> Result<crate::pagination::CursorPage<User>> {
+    ) -> AppResult<crate::pagination::CursorPage<User>> {
         use crate::pagination::{Cursor, CursorPage};
 
         const QUERY_WITH_CURSOR: &str = r"
@@ -437,9 +443,9 @@ impl DatabaseProvider for PostgresDatabase {
             "pending" => "pending",
             "suspended" => "suspended",
             _ => {
-                return Err(
-                    AppError::invalid_input(format!("Invalid user status: {status}")).into(),
-                )
+                return Err(AppError::invalid_input(format!(
+                    "Invalid user status: {status}"
+                )))
             }
         };
 
@@ -469,20 +475,24 @@ impl DatabaseProvider for PostgresDatabase {
                 .bind(id)
                 .bind(fetch_limit_i64)
                 .fetch_all(&self.pool)
-                .await?
+                .await
+                .map_err(|e| {
+                    AppError::database(format!("Failed to get users by status with cursor: {e}"))
+                })?
         } else {
             sqlx::query(QUERY_WITHOUT_CURSOR)
                 .bind(status_enum)
                 .bind(fetch_limit_i64)
                 .fetch_all(&self.pool)
-                .await?
+                .await
+                .map_err(|e| AppError::database(format!("Failed to get users by status: {e}")))?
         };
 
         // Parse rows into User structs
         let mut users: Vec<User> = rows
             .iter()
             .map(Self::parse_user_from_row)
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<AppResult<Vec<_>>>()?;
 
         // Determine if there are more items
         let has_more = users.len() > params.limit;
@@ -507,7 +517,7 @@ impl DatabaseProvider for PostgresDatabase {
         user_id: Uuid,
         new_status: crate::models::UserStatus,
         admin_token_id: &str,
-    ) -> Result<User> {
+    ) -> AppResult<User> {
         let status_str = shared::enums::user_status_to_str(&new_status);
 
         let admin_uuid =
@@ -526,7 +536,7 @@ impl DatabaseProvider for PostgresDatabase {
         // Update user status
         sqlx::query(
             r"
-            UPDATE users 
+            UPDATE users
             SET user_status = $1, approved_by = $2, approved_at = $3
             WHERE id = $4
             ",
@@ -536,18 +546,19 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(approved_at)
         .bind(user_id)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update user status: {e}")))?;
 
         // Return updated user
         self.get_user(user_id)
             .await?
-            .ok_or_else(|| AppError::not_found("User after status update").into())
+            .ok_or_else(|| AppError::not_found("User after status update"))
     }
 
-    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
+    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()> {
         let result = sqlx::query(
             r"
-            UPDATE users 
+            UPDATE users
             SET tenant_id = $1
             WHERE id = $2
             ",
@@ -555,16 +566,17 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(tenant_id)
         .bind(user_id)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update user tenant ID: {e}")))?;
 
         if result.rows_affected() == 0 {
-            return Err(AppError::not_found(format!("User with ID: {user_id}")).into());
+            return Err(AppError::not_found(format!("User with ID: {user_id}")));
         }
 
         Ok(())
     }
 
-    async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> Result<()> {
+    async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO user_profiles (user_id, profile_data, updated_at)
@@ -576,12 +588,13 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(user_id)
         .bind(&profile_data)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to upsert user profile: {e}")))?;
 
         Ok(())
     }
 
-    async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<Value>> {
+    async fn get_user_profile(&self, user_id: Uuid) -> AppResult<Option<Value>> {
         let row = sqlx::query(
             r"
             SELECT profile_data
@@ -591,12 +604,13 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get user profile: {e}")))?;
 
         row.map_or_else(|| Ok(None), |row| Ok(Some(row.get("profile_data"))))
     }
 
-    async fn create_goal(&self, user_id: Uuid, goal_data: Value) -> Result<String> {
+    async fn create_goal(&self, user_id: Uuid, goal_data: Value) -> AppResult<String> {
         let goal_id = Uuid::new_v4().to_string();
 
         sqlx::query(
@@ -609,12 +623,13 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(user_id)
         .bind(&goal_data)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create goal: {e}")))?;
 
         Ok(goal_id)
     }
 
-    async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<Value>> {
+    async fn get_user_goals(&self, user_id: Uuid) -> AppResult<Vec<Value>> {
         let rows = sqlx::query(
             r"
             SELECT goal_data
@@ -625,12 +640,13 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(user_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get user goals: {e}")))?;
 
         Ok(rows.into_iter().map(|row| row.get("goal_data")).collect())
     }
 
-    async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
+    async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> AppResult<()> {
         // This would need to update the JSONB field - simplified implementation
         // Use const to avoid clippy warning about format-like strings
         const JSON_PATH: &str = "{current_value}";
@@ -646,12 +662,13 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(goal_id)
         .bind(JSON_PATH)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update goal progress: {e}")))?;
 
         Ok(())
     }
 
-    async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
+    async fn get_user_configuration(&self, user_id: &str) -> AppResult<Option<String>> {
         // First ensure the user_configurations table exists
         sqlx::query(
             r"
@@ -664,23 +681,29 @@ impl DatabaseProvider for PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to create user_configurations table: {e}"))
+        })?;
 
         let query = "SELECT config_data FROM user_configurations WHERE user_id = $1";
 
         let row = sqlx::query(query)
             .bind(user_id)
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user configuration: {e}")))?;
 
         if let Some(row) = row {
-            Ok(Some(row.try_get("config_data")?))
+            Ok(Some(row.try_get("config_data").map_err(|e| {
+                AppError::database(format!("Failed to parse config_data column: {e}"))
+            })?))
         } else {
             Ok(None)
         }
     }
 
-    async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()> {
+    async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> AppResult<()> {
         // First ensure the user_configurations table exists
         sqlx::query(
             r"
@@ -693,13 +716,16 @@ impl DatabaseProvider for PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to create user_configurations table: {e}"))
+        })?;
 
         // Insert or update configuration using PostgreSQL syntax
         let query = r"
-            INSERT INTO user_configurations (user_id, config_data, updated_at) 
+            INSERT INTO user_configurations (user_id, config_data, updated_at)
             VALUES ($1, $2, CURRENT_TIMESTAMP)
-            ON CONFLICT(user_id) DO UPDATE SET 
+            ON CONFLICT(user_id) DO UPDATE SET
                 config_data = EXCLUDED.config_data,
                 updated_at = CURRENT_TIMESTAMP
         ";
@@ -708,12 +734,13 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(user_id)
             .bind(config_json)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to save user configuration: {e}")))?;
 
         Ok(())
     }
 
-    async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> Result<String> {
+    async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> AppResult<String> {
         let insight_id = Uuid::new_v4().to_string();
 
         sqlx::query(
@@ -728,7 +755,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&insight_data)
         .bind(None::<Value>) // No separate metadata
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to store insight: {e}")))?;
 
         Ok(insight_id)
     }
@@ -738,7 +766,7 @@ impl DatabaseProvider for PostgresDatabase {
         user_id: Uuid,
         insight_type: Option<&str>,
         limit: Option<u32>,
-    ) -> Result<Vec<Value>> {
+    ) -> AppResult<Vec<Value>> {
         let limit = limit.unwrap_or(50);
 
         let rows = if let Some(insight_type) = insight_type {
@@ -755,7 +783,8 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(insight_type)
             .bind(i64::from(limit))
             .fetch_all(&self.pool)
-            .await?
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user insights by type: {e}")))?
         } else {
             sqlx::query(
                 r"
@@ -769,13 +798,14 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(user_id)
             .bind(i64::from(limit))
             .fetch_all(&self.pool)
-            .await?
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user insights: {e}")))?
         };
 
         Ok(rows.into_iter().map(|row| row.get("content")).collect())
     }
 
-    async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
+    async fn create_api_key(&self, api_key: &ApiKey) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO api_keys (id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests, rate_limit_window_seconds, expires_at)
@@ -794,24 +824,26 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(i32::try_from(api_key.rate_limit_window_seconds).unwrap_or(i32::MAX))
         .bind(api_key.expires_at)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create API key: {e}")))?;
 
         Ok(())
     }
 
-    async fn get_api_key_by_prefix(&self, prefix: &str, hash: &str) -> Result<Option<ApiKey>> {
+    async fn get_api_key_by_prefix(&self, prefix: &str, hash: &str) -> AppResult<Option<ApiKey>> {
         let row = sqlx::query(
             r"
-            SELECT id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests, 
+            SELECT id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests,
                    rate_limit_window_seconds, created_at, expires_at, last_used_at, updated_at
-            FROM api_keys 
+            FROM api_keys
             WHERE id LIKE $1 AND key_hash = $2 AND is_active = true
             ",
         )
         .bind(format!("{prefix}%"))
         .bind(hash)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get API key by prefix: {e}")))?;
 
         row.map_or_else(
             || Ok(None),
@@ -848,19 +880,20 @@ impl DatabaseProvider for PostgresDatabase {
 
     // Remaining database methods follow the same PostgreSQL implementation pattern
 
-    async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
+    async fn get_user_api_keys(&self, user_id: Uuid) -> AppResult<Vec<ApiKey>> {
         let rows = sqlx::query(
             r"
-            SELECT id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests, 
+            SELECT id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests,
                    rate_limit_window_seconds, created_at, expires_at, last_used_at, updated_at
-            FROM api_keys 
+            FROM api_keys
             WHERE user_id = $1
             ORDER BY created_at DESC
             ",
         )
         .bind(user_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get user API keys: {e}")))?;
 
         Ok(rows
             .into_iter()
@@ -891,42 +924,44 @@ impl DatabaseProvider for PostgresDatabase {
             .collect())
     }
 
-    async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
+    async fn update_api_key_last_used(&self, api_key_id: &str) -> AppResult<()> {
         sqlx::query(
             r"
-            UPDATE api_keys 
-            SET last_used_at = CURRENT_TIMESTAMP 
+            UPDATE api_keys
+            SET last_used_at = CURRENT_TIMESTAMP
             WHERE id = $1
             ",
         )
         .bind(api_key_id)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update API key last used: {e}")))?;
 
         Ok(())
     }
 
-    async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
+    async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> AppResult<()> {
         sqlx::query(
             r"
-            UPDATE api_keys 
-            SET is_active = false 
+            UPDATE api_keys
+            SET is_active = false
             WHERE id = $1 AND user_id = $2
             ",
         )
         .bind(api_key_id)
         .bind(user_id)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to deactivate API key: {e}")))?;
 
         Ok(())
     }
 
-    async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
+    async fn get_api_key_by_id(&self, api_key_id: &str) -> AppResult<Option<ApiKey>> {
         let row = sqlx::query(
             r"
-            SELECT id, user_id, name, description, key_prefix, key_hash, tier, 
-                   rate_limit_requests, rate_limit_window_seconds, is_active, 
+            SELECT id, user_id, name, description, key_prefix, key_hash, tier,
+                   rate_limit_requests, rate_limit_window_seconds, is_active,
                    created_at, last_used_at, expires_at, updated_at
             FROM api_keys
             WHERE id = $1
@@ -934,7 +969,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(api_key_id)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get API key by ID: {e}")))?;
 
         row.map_or_else(
             || Ok(None),
@@ -979,7 +1015,7 @@ impl DatabaseProvider for PostgresDatabase {
         active_only: bool,
         limit: Option<i32>,
         offset: Option<i32>,
-    ) -> Result<Vec<ApiKey>> {
+    ) -> AppResult<Vec<ApiKey>> {
         let mut query: String = "SELECT ak.id, ak.user_id, ak.name, ak.description, ak.key_prefix, ak.key_hash, ak.tier, ak.rate_limit_requests, ak.rate_limit_window_seconds, ak.is_active, ak.created_at, ak.last_used_at, ak.expires_at, ak.updated_at FROM api_keys ak".into();
 
         let mut conditions = Vec::new();
@@ -1004,15 +1040,12 @@ impl DatabaseProvider for PostgresDatabase {
 
         if let Some(_limit) = limit {
             param_count += 1;
-            write!(&mut query, " LIMIT ${param_count}").map_err(|e| DatabaseError::QueryError {
-                context: format!("Failed to write LIMIT clause: {e}"),
-            })?;
+            write!(&mut query, " LIMIT ${param_count}")
+                .map_err(|e| AppError::database(format!("Failed to write LIMIT clause: {e}")))?;
             if let Some(_offset) = offset {
                 param_count += 1;
                 write!(&mut query, " OFFSET ${param_count}").map_err(|e| {
-                    DatabaseError::QueryError {
-                        context: format!("Failed to write OFFSET clause: {e}"),
-                    }
+                    AppError::database(format!("Failed to write OFFSET clause: {e}"))
                 })?;
             }
         }
@@ -1030,7 +1063,10 @@ impl DatabaseProvider for PostgresDatabase {
             }
         }
 
-        let rows = sqlx_query.fetch_all(&self.pool).await?;
+        let rows = sqlx_query
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to list API keys: {e}")))?;
 
         let mut api_keys = Vec::with_capacity(rows.len());
         for row in rows {
@@ -1066,32 +1102,34 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(api_keys)
     }
 
-    async fn cleanup_expired_api_keys(&self) -> Result<u64> {
+    async fn cleanup_expired_api_keys(&self) -> AppResult<u64> {
         let result = sqlx::query(
             r"
-            UPDATE api_keys 
-            SET is_active = false 
+            UPDATE api_keys
+            SET is_active = false
             WHERE expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP AND is_active = true
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to cleanup expired API keys: {e}")))?;
 
         Ok(result.rows_affected())
     }
 
-    async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>> {
+    async fn get_expired_api_keys(&self) -> AppResult<Vec<ApiKey>> {
         let rows = sqlx::query(
             r"
-            SELECT id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests, 
+            SELECT id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests,
                    rate_limit_window_seconds, created_at, expires_at, last_used_at, updated_at
-            FROM api_keys 
+            FROM api_keys
             WHERE expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP
             ORDER BY expires_at ASC
             ",
         )
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get expired API keys: {e}")))?;
 
         Ok(rows
             .into_iter()
@@ -1122,7 +1160,7 @@ impl DatabaseProvider for PostgresDatabase {
             .collect())
     }
 
-    async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
+    async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO api_key_usage (api_key_id, timestamp, endpoint, response_time_ms, status_code, 
@@ -1141,22 +1179,24 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&usage.ip_address)
         .bind(&usage.user_agent)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to record API key usage: {e}")))?;
 
         Ok(())
     }
 
-    async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
+    async fn get_api_key_current_usage(&self, api_key_id: &str) -> AppResult<u32> {
         let row = sqlx::query(
             r"
             SELECT COUNT(*) as count
-            FROM api_key_usage 
+            FROM api_key_usage
             WHERE api_key_id = $1 AND timestamp >= CURRENT_DATE
             ",
         )
         .bind(api_key_id)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get API key current usage: {e}")))?;
 
         Ok(u32::try_from(row.get::<i64, _>("count").max(0)).unwrap_or(0))
     }
@@ -1166,7 +1206,7 @@ impl DatabaseProvider for PostgresDatabase {
         api_key_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<ApiKeyUsageStats> {
+    ) -> AppResult<ApiKeyUsageStats> {
         let row = sqlx::query_as::<Postgres, (i64, i64, i64, Option<i64>, Option<i64>, Option<i64>)>(
             r"
             SELECT 
@@ -1187,12 +1227,13 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(start_date)
         .bind(end_date)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get API key usage stats: {e}")))?;
 
         // Get tool usage aggregation
         let tool_usage_stats = sqlx::query_as::<Postgres, (String, i64, Option<f64>, i64)>(
             r"
-            SELECT tool_name, 
+            SELECT tool_name,
                    COUNT(*) as tool_count,
                    AVG(response_time_ms) as avg_response_time,
                    COUNT(CASE WHEN status_code >= $1 AND status_code <= $2 THEN 1 END) as success_count
@@ -1208,7 +1249,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(start_date)
         .bind(end_date)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get tool usage stats: {e}")))?;
 
         let mut tool_usage = serde_json::Map::new();
         for (tool_name, tool_count, avg_response_time, success_count) in tool_usage_stats {
@@ -1237,7 +1279,7 @@ impl DatabaseProvider for PostgresDatabase {
         })
     }
 
-    async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
+    async fn record_jwt_usage(&self, usage: &JwtUsage) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO jwt_usage (
@@ -1270,22 +1312,24 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&usage.ip_address)
         .bind(&usage.user_agent)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to record JWT usage: {e}")))?;
 
         Ok(())
     }
 
-    async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
+    async fn get_jwt_current_usage(&self, user_id: Uuid) -> AppResult<u32> {
         let row = sqlx::query(
             r"
             SELECT COUNT(*) as count
-            FROM jwt_usage 
+            FROM jwt_usage
             WHERE user_id = $1 AND timestamp >= DATE_TRUNC('month', CURRENT_DATE)
             ",
         )
         .bind(user_id)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get JWT current usage: {e}")))?;
 
         Ok(u32::try_from(row.get::<i64, _>("count").max(0)).unwrap_or(0))
     }
@@ -1297,7 +1341,7 @@ impl DatabaseProvider for PostgresDatabase {
         end_time: Option<DateTime<Utc>>,
         status_filter: Option<&str>,
         tool_filter: Option<&str>,
-    ) -> Result<Vec<crate::dashboard_routes::RequestLog>> {
+    ) -> AppResult<Vec<crate::dashboard_routes::RequestLog>> {
         // Build query with proper column mapping for RequestLog struct
         let base_query = r"
             SELECT 
@@ -1370,19 +1414,28 @@ impl DatabaseProvider for PostgresDatabase {
             query_builder = query_builder.bind(format!("%{tool}%"));
         }
 
-        let results = query_builder.fetch_all(&self.pool).await?;
+        let results = query_builder
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get request logs: {e}")))?;
         Ok(results)
     }
 
-    async fn get_system_stats(&self) -> Result<(u64, u64)> {
+    async fn get_system_stats(&self) -> AppResult<(u64, u64)> {
         let user_count_row = sqlx::query("SELECT COUNT(*) as count FROM users")
             .fetch_one(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to get user count for system stats: {e}"))
+            })?;
 
         let api_key_count_row =
             sqlx::query("SELECT COUNT(*) as count FROM api_keys WHERE is_active = true")
                 .fetch_one(&self.pool)
-                .await?;
+                .await
+                .map_err(|e| {
+                    AppError::database(format!("Failed to get API key count for system stats: {e}"))
+                })?;
 
         let user_count = u64::try_from(user_count_row.get::<i64, _>("count").max(0)).unwrap_or(0);
         let api_key_count =
@@ -1397,7 +1450,7 @@ impl DatabaseProvider for PostgresDatabase {
         client: &A2AClient,
         client_secret: &str,
         api_key_id: &str,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         sqlx::query(
             r"
             INSERT INTO a2a_clients (client_id, user_id, name, description, client_secret_hash, 
@@ -1418,16 +1471,17 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(100i32) // Default rate limit
         .bind(10000i32) // Default daily rate limit
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create A2A client: {e}")))?;
 
         Ok(client.id.clone()) // Safe: String ownership for return value
     }
 
-    async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
+    async fn get_a2a_client(&self, client_id: &str) -> AppResult<Option<A2AClient>> {
         let row = sqlx::query(
             r"
-            SELECT client_id, user_id, name, description, client_secret_hash, capabilities, 
-                   redirect_uris, contact_email, is_active, rate_limit_per_minute, 
+            SELECT client_id, user_id, name, description, client_secret_hash, capabilities,
+                   redirect_uris, contact_email, is_active, rate_limit_per_minute,
                    rate_limit_per_day, created_at, updated_at
             FROM a2a_clients
             WHERE client_id = $1
@@ -1435,7 +1489,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(client_id)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get A2A client: {e}")))?;
 
         row.map_or_else(
             || Ok(None),
@@ -1462,7 +1517,7 @@ impl DatabaseProvider for PostgresDatabase {
         )
     }
 
-    async fn get_a2a_client_by_api_key_id(&self, api_key_id: &str) -> Result<Option<A2AClient>> {
+    async fn get_a2a_client_by_api_key_id(&self, api_key_id: &str) -> AppResult<Option<A2AClient>> {
         let row = sqlx::query(
             r"
             SELECT c.client_id, c.user_id, c.name, c.description, c.client_secret_hash, c.capabilities,
@@ -1475,7 +1530,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(api_key_id)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get A2A client by API key ID: {e}")))?;
 
         row.map_or_else(
             || Ok(None),
@@ -1502,7 +1558,7 @@ impl DatabaseProvider for PostgresDatabase {
         )
     }
 
-    async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
+    async fn get_a2a_client_by_name(&self, name: &str) -> AppResult<Option<A2AClient>> {
         let row = sqlx::query(
             r"
             SELECT client_id, user_id, name, description, client_secret_hash, capabilities,
@@ -1514,7 +1570,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(name)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get A2A client by name: {e}")))?;
 
         row.map_or_else(
             || Ok(None),
@@ -1541,7 +1598,7 @@ impl DatabaseProvider for PostgresDatabase {
         )
     }
 
-    async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
+    async fn list_a2a_clients(&self, user_id: &Uuid) -> AppResult<Vec<A2AClient>> {
         let rows = sqlx::query(
             r"
             SELECT client_id, user_id, name, description, client_secret_hash, capabilities, 
@@ -1554,7 +1611,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(user_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to list A2A clients: {e}")))?;
 
         let mut clients = Vec::new();
         for row in rows {
@@ -1581,21 +1639,18 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(clients)
     }
 
-    async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
+    async fn deactivate_a2a_client(&self, client_id: &str) -> AppResult<()> {
         let query =
             "UPDATE a2a_clients SET is_active = false, updated_at = NOW() WHERE client_id = $1";
 
         let result = sqlx::query(query)
             .bind(client_id)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to deactivate A2A client: {e}")))?;
 
         if result.rows_affected() == 0 {
-            return Err(DatabaseError::NotFound {
-                entity_type: "A2A client",
-                entity_id: client_id.to_owned(),
-            }
-            .into());
+            return Err(AppError::not_found(format!("A2A client {client_id}")));
         }
 
         Ok(())
@@ -1604,13 +1659,16 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_a2a_client_credentials(
         &self,
         client_id: &str,
-    ) -> Result<Option<(String, String)>> {
+    ) -> AppResult<Option<(String, String)>> {
         let query = "SELECT client_id, client_secret_hash FROM a2a_clients WHERE client_id = $1 AND is_active = true";
 
         let row = sqlx::query(query)
             .bind(client_id)
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to get A2A client credentials: {e}"))
+            })?;
 
         row.map_or_else(
             || Ok(None),
@@ -1622,25 +1680,31 @@ impl DatabaseProvider for PostgresDatabase {
         )
     }
 
-    async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
+    async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> AppResult<()> {
         let query =
             "UPDATE a2a_sessions SET expires_at = NOW() - INTERVAL '1 hour' WHERE client_id = $1";
 
         sqlx::query(query)
             .bind(client_id)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to invalidate A2A client sessions: {e}"))
+            })?;
 
         Ok(())
     }
 
-    async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
+    async fn deactivate_client_api_keys(&self, client_id: &str) -> AppResult<()> {
         let query = "UPDATE api_keys SET is_active = false WHERE id IN (SELECT api_key_id FROM a2a_client_api_keys WHERE client_id = $1)";
 
         sqlx::query(query)
             .bind(client_id)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to deactivate client API keys: {e}"))
+            })?;
 
         Ok(())
     }
@@ -1651,7 +1715,7 @@ impl DatabaseProvider for PostgresDatabase {
         user_id: Option<&Uuid>,
         granted_scopes: &[String],
         expires_in_hours: i64,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let session_id = uuid::Uuid::new_v4().to_string();
         let expires_at = chrono::Utc::now() + chrono::Duration::hours(expires_in_hours);
         let scopes_json = serde_json::to_string(granted_scopes)?;
@@ -1670,15 +1734,16 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(chrono::Utc::now())
         .bind(expires_at)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create A2A session: {e}")))?;
 
         Ok(session_id)
     }
 
-    async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
+    async fn get_a2a_session(&self, session_token: &str) -> AppResult<Option<A2ASession>> {
         let row = sqlx::query(
             r"
-            SELECT session_token, client_id, user_id, granted_scopes, 
+            SELECT session_token, client_id, user_id, granted_scopes,
                    expires_at, last_activity, created_at
             FROM a2a_sessions
             WHERE session_token = $1 AND expires_at > NOW()
@@ -1686,21 +1751,36 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(session_token)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get A2A session: {e}")))?;
 
         if let Some(row) = row {
             use sqlx::Row;
-            let scopes_str: String = row.try_get("granted_scopes")?;
+            let scopes_str: String = row.try_get("granted_scopes").map_err(|e| {
+                AppError::database(format!("Failed to parse granted_scopes column: {e}"))
+            })?;
             let scopes: Vec<String> = serde_json::from_str(&scopes_str).unwrap_or_else(|_| vec![]);
 
             Ok(Some(A2ASession {
-                id: row.try_get("session_token")?,
-                client_id: row.try_get("client_id")?,
-                user_id: row.try_get("user_id")?,
+                id: row.try_get("session_token").map_err(|e| {
+                    AppError::database(format!("Failed to parse session_token column: {e}"))
+                })?,
+                client_id: row.try_get("client_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse client_id column: {e}"))
+                })?,
+                user_id: row.try_get("user_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse user_id column: {e}"))
+                })?,
                 granted_scopes: scopes,
-                expires_at: row.try_get("expires_at")?,
-                last_activity: row.try_get("last_activity")?,
-                created_at: row.try_get("created_at")?,
+                expires_at: row.try_get("expires_at").map_err(|e| {
+                    AppError::database(format!("Failed to parse expires_at column: {e}"))
+                })?,
+                last_activity: row.try_get("last_activity").map_err(|e| {
+                    AppError::database(format!("Failed to parse last_activity column: {e}"))
+                })?,
+                created_at: row.try_get("created_at").map_err(|e| {
+                    AppError::database(format!("Failed to parse created_at column: {e}"))
+                })?,
                 requests_count: 0, // Would need to be tracked separately
             }))
         } else {
@@ -1708,19 +1788,22 @@ impl DatabaseProvider for PostgresDatabase {
         }
     }
 
-    async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()> {
+    async fn update_a2a_session_activity(&self, session_token: &str) -> AppResult<()> {
         sqlx::query("UPDATE a2a_sessions SET last_activity = NOW() WHERE session_token = $1")
             .bind(session_token)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to update A2A session activity: {e}"))
+            })?;
 
         Ok(())
     }
 
-    async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
+    async fn get_active_a2a_sessions(&self, client_id: &str) -> AppResult<Vec<A2ASession>> {
         let rows = sqlx::query(
             r"
-            SELECT session_token, client_id, user_id, granted_scopes, 
+            SELECT session_token, client_id, user_id, granted_scopes,
                    expires_at, last_activity, created_at, requests_count
             FROM a2a_sessions
             WHERE client_id = $1 AND expires_at > NOW()
@@ -1729,7 +1812,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(client_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get active A2A sessions: {e}")))?;
 
         let mut sessions = Vec::new();
         for row in rows {
@@ -1764,7 +1848,7 @@ impl DatabaseProvider for PostgresDatabase {
         session_id: Option<&str>,
         task_type: &str,
         input_data: &Value,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         use uuid::Uuid;
 
         let uuid = Uuid::new_v4().simple();
@@ -1785,12 +1869,13 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&input_json)
         .bind("pending")
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create A2A task: {e}")))?;
 
         Ok(task_id)
     }
 
-    async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
+    async fn get_a2a_task(&self, task_id: &str) -> AppResult<Option<A2ATask>> {
         let row = sqlx::query(
             r"
             SELECT task_id, client_id, session_id, task_type, input_data,
@@ -1801,11 +1886,14 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(task_id)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get A2A task: {e}")))?;
 
         if let Some(row) = row {
             use sqlx::Row;
-            let input_str: String = row.try_get("input_data")?;
+            let input_str: String = row.try_get("input_data").map_err(|e| {
+                AppError::database(format!("Failed to parse input_data column: {e}"))
+            })?;
             let input_data: Value = serde_json::from_str(&input_str).unwrap_or_else(|e| {
                 tracing::warn!(
                     task_id = %task_id,
@@ -1839,24 +1927,40 @@ impl DatabaseProvider for PostgresDatabase {
                         })
                     });
 
-            let status_str: String = row.try_get("status")?;
+            let status_str: String = row
+                .try_get("status")
+                .map_err(|e| AppError::database(format!("Failed to parse status column: {e}")))?;
             let status = shared::enums::str_to_task_status(&status_str);
 
             Ok(Some(A2ATask {
-                id: row.try_get("task_id")?,
+                id: row.try_get("task_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse task_id column: {e}"))
+                })?,
                 status,
-                created_at: row.try_get("created_at")?,
-                completed_at: row.try_get("updated_at")?,
+                created_at: row.try_get("created_at").map_err(|e| {
+                    AppError::database(format!("Failed to parse created_at column: {e}"))
+                })?,
+                completed_at: row.try_get("updated_at").map_err(|e| {
+                    AppError::database(format!("Failed to parse updated_at column: {e}"))
+                })?,
                 result: result_data.clone(), // Safe: JSON value ownership for A2ATask struct
-                error: row.try_get("method")?,
+                error: row.try_get("method").map_err(|e| {
+                    AppError::database(format!("Failed to parse method column: {e}"))
+                })?,
                 client_id: row
                     .try_get("client_id")
                     .unwrap_or_else(|_| "unknown".into()),
-                task_type: row.try_get("task_type")?,
+                task_type: row.try_get("task_type").map_err(|e| {
+                    AppError::database(format!("Failed to parse task_type column: {e}"))
+                })?,
                 input_data,
                 output_data: result_data,
-                error_message: row.try_get("method")?,
-                updated_at: row.try_get("updated_at")?,
+                error_message: row.try_get("method").map_err(|e| {
+                    AppError::database(format!("Failed to parse method column: {e}"))
+                })?,
+                updated_at: row.try_get("updated_at").map_err(|e| {
+                    AppError::database(format!("Failed to parse updated_at column: {e}"))
+                })?,
             }))
         } else {
             Ok(None)
@@ -1869,7 +1973,7 @@ impl DatabaseProvider for PostgresDatabase {
         status_filter: Option<&TaskStatus>,
         limit: Option<u32>,
         offset: Option<u32>,
-    ) -> Result<Vec<A2ATask>> {
+    ) -> AppResult<Vec<A2ATask>> {
         let query = Self::build_a2a_tasks_query(client_id, status_filter, limit, offset)?;
 
         let mut sql_query = sqlx::query(&query);
@@ -1891,10 +1995,13 @@ impl DatabaseProvider for PostgresDatabase {
             sql_query = sql_query.bind(i64::from(offset_val));
         }
 
-        let rows = sql_query.fetch_all(&self.pool).await?;
+        let rows = sql_query
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to list A2A tasks: {e}")))?;
         rows.iter()
             .map(Self::parse_a2a_task_from_row)
-            .collect::<Result<Vec<_>>>()
+            .collect::<AppResult<Vec<_>>>()
     }
 
     async fn update_a2a_task_status(
@@ -1903,7 +2010,7 @@ impl DatabaseProvider for PostgresDatabase {
         status: &TaskStatus,
         result: Option<&Value>,
         error: Option<&str>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let status_str = shared::enums::task_status_to_str(status);
 
         let result_json = result.map(serde_json::to_string).transpose()?;
@@ -1920,12 +2027,13 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(error)
         .bind(task_id)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update A2A task status: {e}")))?;
 
         Ok(())
     }
 
-    async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()> {
+    async fn record_a2a_usage(&self, usage: &A2AUsage) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO a2a_usage
@@ -1969,12 +2077,13 @@ impl DatabaseProvider for PostgresDatabase {
                 error = %e,
                 "Failed to record A2A usage tracking (affects billing/analytics)"
             );
-        })?;
+        })
+        .map_err(|e| AppError::database(format!("Failed to record A2A usage: {e}")))?;
 
         Ok(())
     }
 
-    async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
+    async fn get_a2a_client_current_usage(&self, client_id: &str) -> AppResult<u32> {
         let row = sqlx::query(
             r"
             SELECT COUNT(*) as usage_count
@@ -1984,9 +2093,12 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(client_id)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get A2A client current usage: {e}")))?;
 
-        let count: i64 = row.try_get("usage_count")?;
+        let count: i64 = row
+            .try_get("usage_count")
+            .map_err(|e| AppError::database(format!("Failed to parse usage_count column: {e}")))?;
         Ok(u32::try_from(count.max(0)).unwrap_or(0))
     }
 
@@ -1995,7 +2107,7 @@ impl DatabaseProvider for PostgresDatabase {
         client_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<crate::database::A2AUsageStats> {
+    ) -> AppResult<crate::database::A2AUsageStats> {
         use sqlx::Row;
 
         let row = sqlx::query(
@@ -2015,14 +2127,28 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(start_date)
         .bind(end_date)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get A2A usage stats: {e}")))?;
 
-        let total_requests: i64 = row.try_get("total_requests")?;
-        let successful_requests: i64 = row.try_get("successful_requests")?;
-        let failed_requests: i64 = row.try_get("failed_requests")?;
-        let avg_response_time: Option<f64> = row.try_get("avg_response_time")?;
-        let total_request_bytes: Option<i64> = row.try_get("total_request_bytes")?;
-        let total_response_bytes: Option<i64> = row.try_get("total_response_bytes")?;
+        let total_requests: i64 = row.try_get("total_requests").map_err(|e| {
+            AppError::database(format!("Failed to parse total_requests column: {e}"))
+        })?;
+        let successful_requests: i64 = row.try_get("successful_requests").map_err(|e| {
+            AppError::database(format!("Failed to parse successful_requests column: {e}"))
+        })?;
+        let failed_requests: i64 = row.try_get("failed_requests").map_err(|e| {
+            AppError::database(format!("Failed to parse failed_requests column: {e}"))
+        })?;
+        let avg_response_time: Option<f64> = row.try_get("avg_response_time").map_err(|e| {
+            AppError::database(format!("Failed to parse avg_response_time column: {e}"))
+        })?;
+        let total_request_bytes: Option<i64> = row.try_get("total_request_bytes").map_err(|e| {
+            AppError::database(format!("Failed to parse total_request_bytes column: {e}"))
+        })?;
+        let total_response_bytes: Option<i64> =
+            row.try_get("total_response_bytes").map_err(|e| {
+                AppError::database(format!("Failed to parse total_response_bytes column: {e}"))
+            })?;
 
         // Log byte usage for monitoring
         if let (Some(req_bytes), Some(resp_bytes)) = (total_request_bytes, total_response_bytes) {
@@ -2063,7 +2189,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         client_id: &str,
         days: u32,
-    ) -> Result<Vec<(DateTime<Utc>, u32, u32)>> {
+    ) -> AppResult<Vec<(DateTime<Utc>, u32, u32)>> {
         let rows = sqlx::query(
             r"
             SELECT 
@@ -2080,14 +2206,21 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(client_id)
         .bind(i32::try_from(days).unwrap_or(i32::MAX))
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get A2A client usage history: {e}")))?;
 
         let mut result = Vec::new();
         for row in rows {
             use sqlx::Row;
-            let day: DateTime<Utc> = row.try_get("day")?;
-            let success_count: i64 = row.try_get("success_count")?;
-            let error_count: i64 = row.try_get("error_count")?;
+            let day: DateTime<Utc> = row
+                .try_get("day")
+                .map_err(|e| AppError::database(format!("Failed to parse day column: {e}")))?;
+            let success_count: i64 = row.try_get("success_count").map_err(|e| {
+                AppError::database(format!("Failed to parse success_count column: {e}"))
+            })?;
+            let error_count: i64 = row.try_get("error_count").map_err(|e| {
+                AppError::database(format!("Failed to parse error_count column: {e}"))
+            })?;
 
             result.push((
                 day,
@@ -2103,14 +2236,14 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         user_id: Uuid,
         provider: &str,
-    ) -> Result<Option<DateTime<Utc>>> {
+    ) -> AppResult<Option<DateTime<Utc>>> {
         let column = match provider {
             oauth_providers::STRAVA => "strava_last_sync",
             oauth_providers::FITBIT => "fitbit_last_sync",
             _ => {
-                return Err(
-                    AppError::invalid_input(format!("Unsupported provider: {provider}")).into(),
-                )
+                return Err(AppError::invalid_input(format!(
+                    "Unsupported provider: {provider}"
+                )))
             }
         };
 
@@ -2118,7 +2251,8 @@ impl DatabaseProvider for PostgresDatabase {
         let last_sync: Option<DateTime<Utc>> = sqlx::query_scalar(&query)
             .bind(user_id)
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get provider last sync: {e}")))?;
 
         Ok(last_sync)
     }
@@ -2128,14 +2262,14 @@ impl DatabaseProvider for PostgresDatabase {
         user_id: Uuid,
         provider: &str,
         sync_time: DateTime<Utc>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let column = match provider {
             oauth_providers::STRAVA => "strava_last_sync",
             oauth_providers::FITBIT => "fitbit_last_sync",
             _ => {
-                return Err(
-                    AppError::invalid_input(format!("Unsupported provider: {provider}")).into(),
-                )
+                return Err(AppError::invalid_input(format!(
+                    "Unsupported provider: {provider}"
+                )))
             }
         };
 
@@ -2144,7 +2278,8 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(sync_time)
             .bind(user_id)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to update provider last sync: {e}")))?;
 
         Ok(())
     }
@@ -2154,7 +2289,7 @@ impl DatabaseProvider for PostgresDatabase {
         user_id: Uuid,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
-    ) -> Result<Vec<crate::dashboard_routes::ToolUsage>> {
+    ) -> AppResult<Vec<crate::dashboard_routes::ToolUsage>> {
         let rows = sqlx::query(
             r"
             SELECT endpoint, COUNT(*) as usage_count,
@@ -2173,7 +2308,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(start_time)
         .bind(end_time)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get top tools analysis: {e}")))?;
 
         let mut tool_usage = Vec::new();
         for row in rows {
@@ -2225,7 +2361,7 @@ impl DatabaseProvider for PostgresDatabase {
         request: &crate::admin::models::CreateAdminTokenRequest,
         admin_jwt_secret: &str,
         jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> Result<crate::admin::models::GeneratedAdminToken> {
+    ) -> AppResult<crate::admin::models::GeneratedAdminToken> {
         use crate::admin::{
             jwt::AdminJwtManager,
             models::{AdminPermissions, GeneratedAdminToken},
@@ -2300,7 +2436,8 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(expires_at)
             .bind(0i64) // usage_count
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(GeneratedAdminToken {
             token_id,
@@ -2317,7 +2454,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_admin_token_by_id(
         &self,
         token_id: &str,
-    ) -> Result<Option<crate::admin::models::AdminToken>> {
+    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
         let query = r"
             SELECT id, service_name, service_description, token_hash, token_prefix,
                    jwt_secret_hash, permissions, is_super_admin, is_active,
@@ -2328,7 +2465,8 @@ impl DatabaseProvider for PostgresDatabase {
         let row = sqlx::query(query)
             .bind(token_id)
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         if let Some(row) = row {
             Ok(Some(Self::row_to_admin_token(&row)?))
@@ -2340,7 +2478,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_admin_token_by_prefix(
         &self,
         token_prefix: &str,
-    ) -> Result<Option<crate::admin::models::AdminToken>> {
+    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
         let query = r"
             SELECT id, service_name, service_description, token_hash, token_prefix,
                    jwt_secret_hash, permissions, is_super_admin, is_active,
@@ -2351,7 +2489,8 @@ impl DatabaseProvider for PostgresDatabase {
         let row = sqlx::query(query)
             .bind(token_prefix)
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         if let Some(row) = row {
             Ok(Some(Self::row_to_admin_token(&row)?))
@@ -2363,7 +2502,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn list_admin_tokens(
         &self,
         include_inactive: bool,
-    ) -> Result<Vec<crate::admin::models::AdminToken>> {
+    ) -> AppResult<Vec<crate::admin::models::AdminToken>> {
         let query = if include_inactive {
             r"
                 SELECT id, service_name, service_description, token_hash, token_prefix,
@@ -2380,7 +2519,10 @@ impl DatabaseProvider for PostgresDatabase {
             "
         };
 
-        let rows = sqlx::query(query).fetch_all(&self.pool).await?;
+        let rows = sqlx::query(query)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
         let mut tokens = Vec::with_capacity(rows.len());
         for row in rows {
@@ -2390,13 +2532,14 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(tokens)
     }
 
-    async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
+    async fn deactivate_admin_token(&self, token_id: &str) -> AppResult<()> {
         let query = "UPDATE admin_tokens SET is_active = false WHERE id = $1";
 
         sqlx::query(query)
             .bind(token_id)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -2405,7 +2548,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         token_id: &str,
         ip_address: Option<&str>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let query = r"
             UPDATE admin_tokens 
             SET last_used_at = CURRENT_TIMESTAMP, last_used_ip = $1, usage_count = usage_count + 1
@@ -2416,7 +2559,8 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(ip_address)
             .bind(token_id)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -2424,7 +2568,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn record_admin_token_usage(
         &self,
         usage: &crate::admin::models::AdminTokenUsage,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let query = r"
             INSERT INTO admin_token_usage (
                 admin_token_id, timestamp, action, target_resource,
@@ -2453,7 +2597,8 @@ impl DatabaseProvider for PostgresDatabase {
                     .map(|x| i32::try_from(x).unwrap_or(i32::MAX)),
             )
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -2463,7 +2608,7 @@ impl DatabaseProvider for PostgresDatabase {
         token_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<Vec<crate::admin::models::AdminTokenUsage>> {
+    ) -> AppResult<Vec<crate::admin::models::AdminTokenUsage>> {
         let query = r"
             SELECT id, admin_token_id, timestamp, action, target_resource,
                    ip_address, user_agent, request_size_bytes, success,
@@ -2478,7 +2623,8 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(start_date)
             .bind(end_date)
             .fetch_all(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
         let mut usage_history = Vec::new();
         for row in rows {
@@ -2496,7 +2642,7 @@ impl DatabaseProvider for PostgresDatabase {
         tier: &str,
         rate_limit_requests: u32,
         rate_limit_period: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let query = r"
             INSERT INTO admin_provisioned_keys (
                 admin_token_id, api_key_id, user_email, requested_tier,
@@ -2523,7 +2669,8 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(rate_limit_period)
             .bind("active")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -2533,7 +2680,7 @@ impl DatabaseProvider for PostgresDatabase {
         admin_token_id: Option<&str>,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<Vec<serde_json::Value>> {
+    ) -> AppResult<Vec<serde_json::Value>> {
         // Simplified implementation using direct queries instead of complex dynamic binding
         if let Some(token_id) = admin_token_id {
             let rows = sqlx::query(
@@ -2550,7 +2697,8 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(start_date)
             .bind(end_date)
             .fetch_all(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
             let mut results = Vec::new();
             for row in rows {
@@ -2585,7 +2733,8 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(start_date)
             .bind(end_date)
             .fetch_all(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
             let mut results = Vec::new();
             for row in rows {
@@ -2622,7 +2771,7 @@ impl DatabaseProvider for PostgresDatabase {
         created_at: DateTime<Utc>,
         is_active: bool,
         key_size_bits: i32,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO rsa_keypairs (kid, private_key_pem, public_key_pem, created_at, is_active, key_size_bits)
@@ -2639,8 +2788,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(created_at)
         .bind(is_active)
         .bind(key_size_bits)
-        .execute(&self.pool)
-        .await?;
+        .execute(&self.pool).await.map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -2648,12 +2796,11 @@ impl DatabaseProvider for PostgresDatabase {
     /// Load all RSA keypairs from database
     async fn load_rsa_keypairs(
         &self,
-    ) -> Result<Vec<(String, String, String, DateTime<Utc>, bool)>> {
+    ) -> AppResult<Vec<(String, String, String, DateTime<Utc>, bool)>> {
         let rows = sqlx::query(
             "SELECT kid, private_key_pem, public_key_pem, created_at, is_active FROM rsa_keypairs ORDER BY created_at DESC",
         )
-        .fetch_all(&self.pool)
-        .await?;
+        .fetch_all(&self.pool).await.map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
         let mut keypairs = Vec::new();
         for row in rows {
@@ -2670,12 +2817,13 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// Update active status of RSA keypair
-    async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
+    async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> AppResult<()> {
         sqlx::query("UPDATE rsa_keypairs SET is_active = $1 WHERE kid = $2")
             .bind(is_active)
             .bind(kid)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -2685,7 +2833,7 @@ impl DatabaseProvider for PostgresDatabase {
     // ================================
 
     /// Create a new tenant
-    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
+    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO tenants (id, name, slug, domain, subscription_tier, is_active, created_at, updated_at)
@@ -2701,9 +2849,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(tenant.updated_at)
         .execute(&self.pool)
         .await
-        .map_err(|e| DatabaseError::QueryError {
-            context: format!("Failed to create tenant: {e}"),
-        })?;
+        .map_err(|e| AppError::database(format!("Failed to create tenant: {e}")))?;
 
         // Add the owner as an admin of the tenant
         sqlx::query(
@@ -2716,9 +2862,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(tenant.owner_user_id)
         .execute(&self.pool)
         .await
-        .map_err(|e| DatabaseError::QueryError {
-            context: format!("Failed to add owner to tenant: {e}"),
-        })?;
+        .map_err(|e| AppError::database(format!("Failed to add owner to tenant: {e}")))?;
 
         tracing::info!(
             "Created tenant: {} ({}) and added owner to tenant_users",
@@ -2729,7 +2873,7 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// Get tenant by ID
-    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> Result<crate::models::Tenant> {
+    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> AppResult<crate::models::Tenant> {
         let row = sqlx::query_as::<_, (Uuid, String, String, Option<String>, String, Uuid, DateTime<Utc>, DateTime<Utc>)>(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.subscription_tier, tu.user_id, t.created_at, t.updated_at
@@ -2739,8 +2883,7 @@ impl DatabaseProvider for PostgresDatabase {
             ",
         )
         .bind(tenant_id)
-        .fetch_optional(&self.pool)
-        .await?;
+        .fetch_optional(&self.pool).await.map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         match row {
             Some((id, name, slug, domain, plan, owner_user_id, created_at, updated_at)) => {
@@ -2755,16 +2898,12 @@ impl DatabaseProvider for PostgresDatabase {
                     updated_at,
                 })
             }
-            None => Err(DatabaseError::NotFound {
-                entity_type: "Tenant",
-                entity_id: tenant_id.to_string(),
-            }
-            .into()),
+            None => Err(AppError::not_found(format!("Tenant {tenant_id}"))),
         }
     }
 
     /// Get tenant by slug
-    async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
+    async fn get_tenant_by_slug(&self, slug: &str) -> AppResult<crate::models::Tenant> {
         let row = sqlx::query_as::<_, (Uuid, String, String, Option<String>, String, Uuid, DateTime<Utc>, DateTime<Utc>)>(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.subscription_tier, tu.user_id, t.created_at, t.updated_at
@@ -2774,8 +2913,7 @@ impl DatabaseProvider for PostgresDatabase {
             ",
         )
         .bind(slug)
-        .fetch_optional(&self.pool)
-        .await?;
+        .fetch_optional(&self.pool).await.map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         match row {
             Some((id, name, slug, domain, plan, owner_user_id, created_at, updated_at)) => {
@@ -2790,16 +2928,12 @@ impl DatabaseProvider for PostgresDatabase {
                     updated_at,
                 })
             }
-            None => Err(DatabaseError::NotFound {
-                entity_type: "Tenant",
-                entity_id: slug.to_owned(),
-            }
-            .into()),
+            None => Err(AppError::not_found(format!("Tenant {slug}"))),
         }
     }
 
     /// List tenants for a user
-    async fn list_tenants_for_user(&self, user_id: Uuid) -> Result<Vec<crate::models::Tenant>> {
+    async fn list_tenants_for_user(&self, user_id: Uuid) -> AppResult<Vec<crate::models::Tenant>> {
         let rows = sqlx::query_as::<
             _,
             (
@@ -2825,7 +2959,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(user_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
         let tenants = rows
             .into_iter()
@@ -2852,7 +2987,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn store_tenant_oauth_credentials(
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         // Encrypt the client secret using AES-256-GCM with AAD binding
         // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
         let aad_context = format!(
@@ -2894,9 +3029,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(i32::try_from(credentials.rate_limit_per_day).unwrap_or(i32::MAX))
         .execute(&self.pool)
         .await
-        .map_err(|e| DatabaseError::QueryError {
-            context: format!("Failed to store OAuth credentials: {e}"),
-        })?;
+        .map_err(|e| AppError::database(format!("Failed to store OAuth credentials: {e}")))?;
 
         Ok(())
     }
@@ -2905,7 +3038,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_tenant_oauth_providers(
         &self,
         tenant_id: Uuid,
-    ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Vec<crate::tenant::TenantOAuthCredentials>> {
         let rows = sqlx::query_as::<_, (String, String, String, String, Vec<String>, i32)>(
             r"
             SELECT provider, client_id, client_secret_encrypted,
@@ -2917,7 +3050,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(tenant_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
         let credentials = rows
             .into_iter()
@@ -2940,7 +3074,7 @@ impl DatabaseProvider for PostgresDatabase {
                     })
                 },
             )
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<AppResult<Vec<_>>>()?;
 
         Ok(credentials)
     }
@@ -2950,7 +3084,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         tenant_id: Uuid,
         provider: &str,
-    ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Option<crate::tenant::TenantOAuthCredentials>> {
         let row = sqlx::query_as::<_, (String, String, String, Vec<String>, i32)>(
             r"
             SELECT client_id, client_secret_encrypted,
@@ -2962,7 +3096,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(tenant_id)
         .bind(provider)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         match row {
             Some((client_id, encrypted_secret, redirect_uri, scopes, rate_limit)) => {
@@ -2990,7 +3125,7 @@ impl DatabaseProvider for PostgresDatabase {
     // ================================
 
     /// Create OAuth application
-    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()> {
+    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> AppResult<()> {
         let redirect_uris: Vec<&str> = app
             .redirect_uris
             .iter()
@@ -3019,15 +3154,16 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(app.updated_at)
         .execute(&self.pool)
         .await
-        .map_err(|e| DatabaseError::QueryError {
-            context: format!("Failed to create OAuth app: {e}"),
-        })?;
+        .map_err(|e| AppError::database(format!("Failed to create OAuth app: {e}")))?;
 
         Ok(())
     }
 
     /// Get OAuth app by client ID
-    async fn get_oauth_app_by_client_id(&self, client_id: &str) -> Result<crate::models::OAuthApp> {
+    async fn get_oauth_app_by_client_id(
+        &self,
+        client_id: &str,
+    ) -> AppResult<crate::models::OAuthApp> {
         let row = sqlx::query_as::<
             _,
             (
@@ -3053,7 +3189,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(client_id)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         match row {
             Some((
@@ -3081,11 +3218,7 @@ impl DatabaseProvider for PostgresDatabase {
                 created_at,
                 updated_at,
             }),
-            None => Err(DatabaseError::NotFound {
-                entity_type: "OAuth app",
-                entity_id: client_id.to_owned(),
-            }
-            .into()),
+            None => Err(AppError::not_found(format!("OAuth app {client_id}"))),
         }
     }
 
@@ -3093,7 +3226,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn list_oauth_apps_for_user(
         &self,
         user_id: Uuid,
-    ) -> Result<Vec<crate::models::OAuthApp>> {
+    ) -> AppResult<Vec<crate::models::OAuthApp>> {
         let rows = sqlx::query_as::<
             _,
             (
@@ -3120,7 +3253,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(user_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
         let apps = rows
             .into_iter()
@@ -3166,7 +3300,7 @@ impl DatabaseProvider for PostgresDatabase {
         redirect_uri: &str,
         scope: &str,
         user_id: Uuid,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         // Use the provided user_id from auth context
         let expires_at = Utc::now() + chrono::Duration::minutes(10); // OAuth codes expire in 10 minutes
 
@@ -3185,15 +3319,16 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(expires_at)
         .execute(&self.pool)
         .await
-        .map_err(|e| DatabaseError::QueryError {
-            context: format!("Failed to store authorization code: {e}"),
-        })?;
+        .map_err(|e| AppError::database(format!("Failed to store authorization code: {e}")))?;
 
         Ok(())
     }
 
     /// Get authorization code data
-    async fn get_authorization_code(&self, code: &str) -> Result<crate::models::AuthorizationCode> {
+    async fn get_authorization_code(
+        &self,
+        code: &str,
+    ) -> AppResult<crate::models::AuthorizationCode> {
         let row = sqlx::query_as::<
             _,
             (
@@ -3214,7 +3349,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(code)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         match row {
             Some((code, client_id, user_id, redirect_uri, scope, created_at, expires_at)) => {
@@ -3229,16 +3365,12 @@ impl DatabaseProvider for PostgresDatabase {
                     is_used: false, // Will be marked as used when deleted
                 })
             }
-            None => Err(DatabaseError::NotFound {
-                entity_type: "Authorization code",
-                entity_id: code.to_owned(),
-            }
-            .into()),
+            None => Err(AppError::not_found(format!("Authorization code {code}"))),
         }
     }
 
     /// Delete authorization code
-    async fn delete_authorization_code(&self, code: &str) -> Result<()> {
+    async fn delete_authorization_code(&self, code: &str) -> AppResult<()> {
         let result = sqlx::query(
             r"
             DELETE FROM authorization_codes
@@ -3248,9 +3380,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(code)
         .execute(&self.pool)
         .await
-        .map_err(|e| DatabaseError::QueryError {
-            context: format!("Failed to delete authorization code: {e}"),
-        })?;
+        .map_err(|e| AppError::database(format!("Failed to delete authorization code: {e}")))?;
 
         if result.rows_affected() == 0 {
             tracing::warn!("Authorization code not found for deletion: {}", code);
@@ -3266,7 +3396,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn store_key_version(
         &self,
         version: &crate::security::key_rotation::KeyVersion,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let query = r"
             INSERT INTO key_versions (tenant_id, version, created_at, expires_at, is_active, algorithm)
             VALUES ($1, $2, $3, $4, $5, $6)
@@ -3285,7 +3415,7 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(&version.algorithm)
             .execute(&self.pool)
             .await
-            .context("Failed to store key version")?;
+            .map_err(|e| AppError::database(format!("Failed to store key version: {e}")))?;
 
         tracing::debug!(
             "Stored key version {} for tenant {:?}",
@@ -3298,7 +3428,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_key_versions(
         &self,
         tenant_id: Option<Uuid>,
-    ) -> Result<Vec<crate::security::key_rotation::KeyVersion>> {
+    ) -> AppResult<Vec<crate::security::key_rotation::KeyVersion>> {
         let query = match tenant_id {
             Some(_) => {
                 r"
@@ -3326,7 +3456,7 @@ impl DatabaseProvider for PostgresDatabase {
         } else {
             sqlx::query(query).fetch_all(&self.pool).await
         }
-        .context("Failed to fetch key versions")?;
+        .map_err(|e| AppError::database(format!("Failed to fetch key versions: {e}")))?;
 
         let mut versions = Vec::new();
         for row in rows {
@@ -3354,7 +3484,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_current_key_version(
         &self,
         tenant_id: Option<Uuid>,
-    ) -> Result<Option<crate::security::key_rotation::KeyVersion>> {
+    ) -> AppResult<Option<crate::security::key_rotation::KeyVersion>> {
         let query = match tenant_id {
             Some(_) => {
                 r"
@@ -3384,7 +3514,7 @@ impl DatabaseProvider for PostgresDatabase {
         } else {
             sqlx::query(query).fetch_optional(&self.pool).await
         }
-        .context("Failed to fetch current key version")?;
+        .map_err(|e| AppError::database(format!("Failed to fetch current key version: {e}")))?;
 
         if let Some(row) = row {
             let tenant_id_str: Option<String> = row.get("tenant_id");
@@ -3413,7 +3543,7 @@ impl DatabaseProvider for PostgresDatabase {
         tenant_id: Option<Uuid>,
         version: u32,
         is_active: bool,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let query = match tenant_id {
             Some(_) => {
                 r"
@@ -3445,7 +3575,7 @@ impl DatabaseProvider for PostgresDatabase {
                 .execute(&self.pool)
                 .await
         }
-        .context("Failed to update key version status")?;
+        .map_err(|e| AppError::database(format!("Failed to update key version status: {e}")))?;
 
         if result.rows_affected() == 0 {
             tracing::warn!(
@@ -3469,7 +3599,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         tenant_id: Option<Uuid>,
         keep_count: u32,
-    ) -> Result<u64> {
+    ) -> AppResult<u64> {
         let query = match tenant_id {
             Some(_) => {
                 r"
@@ -3509,7 +3639,7 @@ impl DatabaseProvider for PostgresDatabase {
                 .execute(&self.pool)
                 .await
         }
-        .context("Failed to delete old key versions")?;
+        .map_err(|e| AppError::database(format!("Failed to delete old key versions: {e}")))?;
 
         let deleted_count = result.rows_affected();
         tracing::debug!(
@@ -3522,7 +3652,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(deleted_count)
     }
 
-    async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
+    async fn get_all_tenants(&self) -> AppResult<Vec<crate::models::Tenant>> {
         let query = r"
             SELECT id, slug, name, domain, plan, owner_user_id, created_at, updated_at
             FROM tenants
@@ -3533,33 +3663,49 @@ impl DatabaseProvider for PostgresDatabase {
         let rows = sqlx::query(query)
             .fetch_all(&self.pool)
             .await
-            .context("Failed to get all tenants")?;
+            .map_err(|e| AppError::database(format!("Failed to get all tenants: {e}")))?;
 
         let tenants = rows
             .iter()
             .map(|row| {
                 use sqlx::Row;
                 Ok(crate::models::Tenant {
-                    id: uuid::Uuid::parse_str(&row.try_get::<String, _>("id")?)
-                        .context("Invalid tenant UUID")?,
-                    name: row.try_get("name")?,
-                    slug: row.try_get("slug")?,
-                    domain: row.try_get("domain")?,
-                    plan: row.try_get("plan")?,
+                    id: uuid::Uuid::parse_str(&row.try_get::<String, _>("id").map_err(|e| {
+                        AppError::database(format!("Failed to parse id column: {e}"))
+                    })?)
+                    .map_err(|e| AppError::database(format!("Invalid tenant UUID: {e}")))?,
+                    name: row.try_get("name").map_err(|e| {
+                        AppError::database(format!("Failed to parse name column: {e}"))
+                    })?,
+                    slug: row.try_get("slug").map_err(|e| {
+                        AppError::database(format!("Failed to parse slug column: {e}"))
+                    })?,
+                    domain: row.try_get("domain").map_err(|e| {
+                        AppError::database(format!("Failed to parse domain column: {e}"))
+                    })?,
+                    plan: row.try_get("plan").map_err(|e| {
+                        AppError::database(format!("Failed to parse plan column: {e}"))
+                    })?,
                     owner_user_id: uuid::Uuid::parse_str(
-                        &row.try_get::<String, _>("owner_user_id")?,
+                        &row.try_get::<String, _>("owner_user_id").map_err(|e| {
+                            AppError::database(format!("Failed to parse owner_user_id column: {e}"))
+                        })?,
                     )
-                    .context("Invalid user UUID")?,
-                    created_at: row.try_get("created_at")?,
-                    updated_at: row.try_get("updated_at")?,
+                    .map_err(|e| AppError::database(format!("Invalid user UUID: {e}")))?,
+                    created_at: row.try_get("created_at").map_err(|e| {
+                        AppError::database(format!("Failed to parse created_at column: {e}"))
+                    })?,
+                    updated_at: row.try_get("updated_at").map_err(|e| {
+                        AppError::database(format!("Failed to parse updated_at column: {e}"))
+                    })?,
                 })
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<AppResult<Vec<_>>>()?;
 
         Ok(tenants)
     }
 
-    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> Result<()> {
+    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> AppResult<()> {
         let query = r"
             INSERT INTO audit_events (
                 id, event_type, severity, message, source, result, 
@@ -3585,7 +3731,8 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(&metadata_json)
             .bind(event.timestamp)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -3604,7 +3751,7 @@ impl DatabaseProvider for PostgresDatabase {
         tenant_id: Option<Uuid>,
         event_type: Option<&str>,
         limit: Option<u32>,
-    ) -> Result<Vec<crate::security::audit::AuditEvent>> {
+    ) -> AppResult<Vec<crate::security::audit::AuditEvent>> {
         use std::fmt::Write;
 
         let mut query = r"
@@ -3619,19 +3766,17 @@ impl DatabaseProvider for PostgresDatabase {
         if tenant_id.is_some() {
             bind_count += 1;
             if write!(query, " AND tenant_id = ${bind_count}").is_err() {
-                return Err(DatabaseError::QueryError {
-                    context: "Failed to write tenant_id clause to query".to_owned(),
-                }
-                .into());
+                return Err(AppError::database(
+                    "Failed to write tenant_id clause to query".to_owned(),
+                ));
             }
         }
         if event_type.is_some() {
             bind_count += 1;
             if write!(query, " AND event_type = ${bind_count}").is_err() {
-                return Err(DatabaseError::QueryError {
-                    context: "Failed to write event_type clause to query".to_owned(),
-                }
-                .into());
+                return Err(AppError::database(
+                    "Failed to write event_type clause to query".to_owned(),
+                ));
             }
         }
 
@@ -3640,10 +3785,9 @@ impl DatabaseProvider for PostgresDatabase {
         if limit.is_some() {
             bind_count += 1;
             if write!(query, " LIMIT ${bind_count}").is_err() {
-                return Err(DatabaseError::QueryError {
-                    context: "Failed to write LIMIT clause to query".to_owned(),
-                }
-                .into());
+                return Err(AppError::database(
+                    "Failed to write LIMIT clause to query".to_owned(),
+                ));
             }
         }
 
@@ -3662,13 +3806,13 @@ impl DatabaseProvider for PostgresDatabase {
         let rows = sql_query
             .fetch_all(&self.pool)
             .await
-            .context("Failed to get audit events")?;
+            .map_err(|e| AppError::database(format!("Failed to get audit events: {e}")))?;
 
         let mut events = Vec::new();
         for row in rows {
             let event_id_str: String = row.get("id");
-            let event_id =
-                uuid::Uuid::parse_str(&event_id_str).context("Invalid audit event UUID")?;
+            let event_id = uuid::Uuid::parse_str(&event_id_str)
+                .map_err(|e| AppError::database(format!("Invalid audit event UUID: {e}")))?;
 
             let event_type_str: String = row.get("event_type");
             let event_type = match event_type_str.as_str() {
@@ -3768,7 +3912,10 @@ impl DatabaseProvider for PostgresDatabase {
     // UserOAuthToken Methods - PostgreSQL implementations
     // ================================
 
-    async fn upsert_user_oauth_token(&self, token: &crate::models::UserOAuthToken) -> Result<()> {
+    async fn upsert_user_oauth_token(
+        &self,
+        token: &crate::models::UserOAuthToken,
+    ) -> AppResult<()> {
         // SECURITY: Encrypt OAuth tokens at rest with AAD binding (AES-256-GCM)
         let encrypted_access_token = shared::encryption::encrypt_oauth_token(
             self,
@@ -3821,7 +3968,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(token.created_at)
         .bind(token.updated_at)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -3831,7 +3979,7 @@ impl DatabaseProvider for PostgresDatabase {
         user_id: uuid::Uuid,
         tenant_id: &str,
         provider: &str,
-    ) -> Result<Option<crate::models::UserOAuthToken>> {
+    ) -> AppResult<Option<crate::models::UserOAuthToken>> {
         let row = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
@@ -3844,7 +3992,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(tenant_id)
         .bind(provider)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         row.map_or_else(
             || Ok(None),
@@ -3855,7 +4004,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_user_oauth_tokens(
         &self,
         user_id: uuid::Uuid,
-    ) -> Result<Vec<crate::models::UserOAuthToken>> {
+    ) -> AppResult<Vec<crate::models::UserOAuthToken>> {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
@@ -3867,7 +4016,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(user_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
         let mut tokens = Vec::with_capacity(rows.len());
         for row in rows {
@@ -3880,7 +4030,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         tenant_id: &str,
         provider: &str,
-    ) -> Result<Vec<crate::models::UserOAuthToken>> {
+    ) -> AppResult<Vec<crate::models::UserOAuthToken>> {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
@@ -3893,7 +4043,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(tenant_id)
         .bind(provider)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
         let mut tokens = Vec::with_capacity(rows.len());
         for row in rows {
@@ -3907,7 +4058,7 @@ impl DatabaseProvider for PostgresDatabase {
         user_id: uuid::Uuid,
         tenant_id: &str,
         provider: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             DELETE FROM user_oauth_tokens
@@ -3918,12 +4069,13 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(tenant_id)
         .bind(provider)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
 
-    async fn delete_user_oauth_tokens(&self, user_id: uuid::Uuid) -> Result<()> {
+    async fn delete_user_oauth_tokens(&self, user_id: uuid::Uuid) -> AppResult<()> {
         sqlx::query(
             r"
             DELETE FROM user_oauth_tokens
@@ -3932,7 +4084,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(user_id)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -3945,7 +4098,7 @@ impl DatabaseProvider for PostgresDatabase {
         access_token: &str,
         refresh_token: Option<&str>,
         expires_at: Option<DateTime<Utc>>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         // SECURITY: Encrypt OAuth tokens at rest with AAD binding (AES-256-GCM)
         let encrypted_access_token = shared::encryption::encrypt_oauth_token(
             self,
@@ -3978,20 +4131,26 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(encrypted_refresh_token.as_deref())
         .bind(expires_at)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
 
     /// Get user role for a specific tenant
-    async fn get_user_tenant_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<String>> {
+    async fn get_user_tenant_role(
+        &self,
+        user_id: Uuid,
+        tenant_id: Uuid,
+    ) -> AppResult<Option<String>> {
         let row = sqlx::query_as::<_, (String,)>(
             "SELECT role FROM tenant_users WHERE user_id = $1 AND tenant_id = $2",
         )
         .bind(user_id)
         .bind(tenant_id)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         Ok(row.map(|r| r.0))
     }
@@ -4008,7 +4167,7 @@ impl DatabaseProvider for PostgresDatabase {
         client_id: &str,
         client_secret: &str,
         redirect_uri: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         // Create user_oauth_apps table if it doesn't exist
         sqlx::query(
             r"
@@ -4026,7 +4185,8 @@ impl DatabaseProvider for PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Insert or update OAuth app credentials
         sqlx::query(
@@ -4047,7 +4207,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(client_secret)
         .bind(redirect_uri)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -4057,7 +4218,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         user_id: Uuid,
         provider: &str,
-    ) -> Result<Option<crate::models::UserOAuthApp>> {
+    ) -> AppResult<Option<crate::models::UserOAuthApp>> {
         let row = sqlx::query(
             r"
             SELECT id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at
@@ -4067,8 +4228,7 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(user_id)
         .bind(provider)
-        .fetch_optional(&self.pool)
-        .await?;
+        .fetch_optional(&self.pool).await.map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         row.map_or_else(
             || Ok(None),
@@ -4091,7 +4251,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn list_user_oauth_apps(
         &self,
         user_id: Uuid,
-    ) -> Result<Vec<crate::models::UserOAuthApp>> {
+    ) -> AppResult<Vec<crate::models::UserOAuthApp>> {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at
@@ -4101,8 +4261,7 @@ impl DatabaseProvider for PostgresDatabase {
             "
         )
         .bind(user_id)
-        .fetch_all(&self.pool)
-        .await?;
+        .fetch_all(&self.pool).await.map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
         let mut apps = Vec::new();
         for row in rows {
@@ -4122,7 +4281,7 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// Remove user OAuth app credentials for a provider
-    async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> Result<()> {
+    async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> AppResult<()> {
         sqlx::query(
             r"
             DELETE FROM user_oauth_apps
@@ -4132,7 +4291,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(user_id)
         .bind(provider)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -4142,7 +4302,7 @@ impl DatabaseProvider for PostgresDatabase {
     // ================================
 
     /// Get or create system secret (generates if not exists)
-    async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
+    async fn get_or_create_system_secret(&self, secret_type: &str) -> AppResult<String> {
         // Try to get existing secret
         if let Ok(secret) = self.get_system_secret(secret_type).await {
             return Ok(secret);
@@ -4152,11 +4312,9 @@ impl DatabaseProvider for PostgresDatabase {
         let secret_value = match secret_type {
             "admin_jwt_secret" => crate::admin::jwt::AdminJwtManager::generate_jwt_secret(),
             _ => {
-                return Err(DatabaseError::InvalidData {
-                    field: "secret_type".to_owned(),
-                    reason: format!("Unknown secret type: {secret_type}"),
-                }
-                .into())
+                return Err(AppError::invalid_input(format!(
+                    "Unknown secret type: {secret_type}"
+                )))
             }
         };
 
@@ -4165,30 +4323,33 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(secret_type)
             .bind(&secret_value)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(secret_value)
     }
 
     /// Get existing system secret
-    async fn get_system_secret(&self, secret_type: &str) -> Result<String> {
+    async fn get_system_secret(&self, secret_type: &str) -> AppResult<String> {
         let row = sqlx::query("SELECT secret_value FROM system_secrets WHERE secret_type = $1")
             .bind(secret_type)
             .fetch_one(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to fetch record: {e}")))?;
 
-        Ok(row.try_get("secret_value")?)
+        Ok(row
+            .try_get("secret_value")
+            .map_err(|e| AppError::database(format!("Failed to parse secret_value column: {e}")))?)
     }
 
     /// Update system secret (for rotation)
-    async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()> {
+    async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> AppResult<()> {
         sqlx::query(
             "UPDATE system_secrets SET secret_value = $1, updated_at = CURRENT_TIMESTAMP WHERE secret_type = $2",
         )
         .bind(new_value)
         .bind(secret_type)
-        .execute(&self.pool)
-        .await?;
+        .execute(&self.pool).await.map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -4204,7 +4365,7 @@ impl DatabaseProvider for PostgresDatabase {
         success: bool,
         message: &str,
         expires_at: Option<&str>,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let notification_id = Uuid::new_v4().to_string();
 
         sqlx::query(
@@ -4220,7 +4381,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(message)
         .bind(expires_at)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(notification_id)
     }
@@ -4228,7 +4390,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_unread_oauth_notifications(
         &self,
         user_id: Uuid,
-    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>> {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, provider, success, message, expires_at, created_at, read_at
@@ -4239,7 +4401,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(user_id.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
         let mut notifications = Vec::new();
         for row in rows {
@@ -4262,7 +4425,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         notification_id: &str,
         user_id: Uuid,
-    ) -> Result<bool> {
+    ) -> AppResult<bool> {
         let result = sqlx::query(
             r"
             UPDATE oauth_notifications 
@@ -4273,12 +4436,13 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(notification_id)
         .bind(user_id.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(result.rows_affected() > 0)
     }
 
-    async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64> {
+    async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> AppResult<u64> {
         let result = sqlx::query(
             r"
             UPDATE oauth_notifications 
@@ -4288,7 +4452,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(user_id.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(result.rows_affected())
     }
@@ -4297,7 +4462,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         user_id: Uuid,
         limit: Option<i64>,
-    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>> {
         let mut query_str = String::from(
             r"
             SELECT id, user_id, provider, success, message, expires_at, created_at, read_at
@@ -4315,7 +4480,8 @@ impl DatabaseProvider for PostgresDatabase {
         let rows = sqlx::query(&query_str)
             .bind(user_id.to_string())
             .fetch_all(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
         let mut notifications = Vec::new();
         for row in rows {
@@ -4344,7 +4510,7 @@ impl DatabaseProvider for PostgresDatabase {
         tenant_id: &str,
         configuration_name: &str,
         config: &crate::config::fitness_config::FitnessConfig,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let config_json = serde_json::to_string(config)?;
 
         let result = sqlx::query(
@@ -4362,7 +4528,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(configuration_name)
         .bind(&config_json)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch record: {e}")))?;
 
         Ok(result.get("id"))
     }
@@ -4374,7 +4541,7 @@ impl DatabaseProvider for PostgresDatabase {
         user_id: &str,
         configuration_name: &str,
         config: &crate::config::fitness_config::FitnessConfig,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let config_json = serde_json::to_string(config)?;
 
         let result = sqlx::query(
@@ -4393,7 +4560,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(configuration_name)
         .bind(&config_json)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch record: {e}")))?;
 
         Ok(result.get("id"))
     }
@@ -4403,7 +4571,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
+    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>> {
         let result = sqlx::query(
             r"
             SELECT config_data FROM fitness_configurations
@@ -4413,7 +4581,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(tenant_id)
         .bind(configuration_name)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         if let Some(row) = result {
             let config_json: String = row.get("config_data");
@@ -4431,7 +4600,7 @@ impl DatabaseProvider for PostgresDatabase {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
+    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>> {
         // First try to get user-specific configuration
         let result = sqlx::query(
             r"
@@ -4443,7 +4612,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(user_id)
         .bind(configuration_name)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         if let Some(row) = result {
             let config_json: String = row.get("config_data");
@@ -4462,7 +4632,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(tenant_id)
         .bind(configuration_name)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         if let Some(row) = result {
             let config_json: String = row.get("config_data");
@@ -4475,7 +4646,7 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// List all tenant-level fitness configuration names
-    async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> Result<Vec<String>> {
+    async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> AppResult<Vec<String>> {
         let rows = sqlx::query(
             r"
             SELECT DISTINCT configuration_name FROM fitness_configurations
@@ -4485,7 +4656,8 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(tenant_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
         let configurations = rows
             .into_iter()
@@ -4500,7 +4672,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         tenant_id: &str,
         user_id: &str,
-    ) -> Result<Vec<String>> {
+    ) -> AppResult<Vec<String>> {
         let rows = sqlx::query(
             r"
             SELECT DISTINCT configuration_name FROM fitness_configurations
@@ -4511,7 +4683,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(tenant_id)
         .bind(user_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch records: {e}")))?;
 
         let configurations = rows
             .into_iter()
@@ -4527,7 +4700,7 @@ impl DatabaseProvider for PostgresDatabase {
         tenant_id: &str,
         user_id: Option<&str>,
         configuration_name: &str,
-    ) -> Result<bool> {
+    ) -> AppResult<bool> {
         let rows_affected = if let Some(uid) = user_id {
             sqlx::query(
                 r"
@@ -4539,7 +4712,8 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(uid)
             .bind(configuration_name)
             .execute(&self.pool)
-            .await?
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?
         } else {
             sqlx::query(
                 r"
@@ -4550,7 +4724,8 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(tenant_id)
             .bind(configuration_name)
             .execute(&self.pool)
-            .await?
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?
         };
 
         Ok(rows_affected.rows_affected() > 0)
@@ -4559,7 +4734,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn store_oauth2_client(
         &self,
         client: &crate::oauth2_server::models::OAuth2Client,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             "INSERT INTO oauth2_clients (id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)"
@@ -4575,8 +4750,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&client.scope)
         .bind(client.created_at)
         .bind(client.expires_at)
-        .execute(&self.pool)
-        .await?;
+        .execute(&self.pool).await.map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -4584,14 +4758,13 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_oauth2_client(
         &self,
         client_id: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2Client>> {
         let row = sqlx::query(
             "SELECT id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at
              FROM oauth2_clients WHERE client_id = $1"
         )
         .bind(client_id)
-        .fetch_optional(&self.pool)
-        .await?;
+        .fetch_optional(&self.pool).await.map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         if let Some(row) = row {
             let redirect_uris: Vec<String> =
@@ -4622,7 +4795,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn store_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             "INSERT INTO oauth2_auth_codes (code, client_id, user_id, tenant_id, redirect_uri, scope, expires_at, used, state, code_challenge, code_challenge_method)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)"
@@ -4638,8 +4811,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&auth_code.state)
         .bind(&auth_code.code_challenge)
         .bind(&auth_code.code_challenge_method)
-        .execute(&self.pool)
-        .await?;
+        .execute(&self.pool).await.map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -4647,14 +4819,13 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_oauth2_auth_code(
         &self,
         code: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         let row = sqlx::query(
             "SELECT code, client_id, user_id, tenant_id, redirect_uri, scope, expires_at, used, state, code_challenge, code_challenge_method
              FROM oauth2_auth_codes WHERE code = $1",
         )
         .bind(code)
-        .fetch_optional(&self.pool)
-        .await?;
+        .fetch_optional(&self.pool).await.map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         row.map_or_else(
             || Ok(None),
@@ -4679,12 +4850,13 @@ impl DatabaseProvider for PostgresDatabase {
     async fn update_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query("UPDATE oauth2_auth_codes SET used = $1 WHERE code = $2")
             .bind(auth_code.used)
             .bind(&auth_code.code)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -4693,7 +4865,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn store_oauth2_refresh_token(
         &self,
         refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             "INSERT INTO oauth2_refresh_tokens (token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
@@ -4706,8 +4878,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(refresh_token.expires_at)
         .bind(refresh_token.created_at)
         .bind(refresh_token.revoked)
-        .execute(&self.pool)
-        .await?;
+        .execute(&self.pool).await.map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -4716,7 +4887,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_oauth2_refresh_token(
         &self,
         token: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         let row = sqlx::query(
             "SELECT token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
              FROM oauth2_refresh_tokens
@@ -4724,19 +4895,36 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(token)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         if let Some(row) = row {
             use sqlx::Row;
             Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
-                token: row.try_get("token")?,
-                client_id: row.try_get("client_id")?,
-                user_id: row.try_get("user_id")?,
-                tenant_id: row.try_get("tenant_id")?,
-                scope: row.try_get("scope")?,
-                expires_at: row.try_get("expires_at")?,
-                created_at: row.try_get("created_at")?,
-                revoked: row.try_get("revoked")?,
+                token: row.try_get("token").map_err(|e| {
+                    AppError::database(format!("Failed to parse token column: {e}"))
+                })?,
+                client_id: row.try_get("client_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse client_id column: {e}"))
+                })?,
+                user_id: row.try_get("user_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse user_id column: {e}"))
+                })?,
+                tenant_id: row.try_get("tenant_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse tenant_id column: {e}"))
+                })?,
+                scope: row.try_get("scope").map_err(|e| {
+                    AppError::database(format!("Failed to parse scope column: {e}"))
+                })?,
+                expires_at: row.try_get("expires_at").map_err(|e| {
+                    AppError::database(format!("Failed to parse expires_at column: {e}"))
+                })?,
+                created_at: row.try_get("created_at").map_err(|e| {
+                    AppError::database(format!("Failed to parse created_at column: {e}"))
+                })?,
+                revoked: row.try_get("revoked").map_err(|e| {
+                    AppError::database(format!("Failed to parse revoked column: {e}"))
+                })?,
             }))
         } else {
             Ok(None)
@@ -4744,11 +4932,12 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     /// Revoke OAuth 2.0 refresh token
-    async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()> {
+    async fn revoke_oauth2_refresh_token(&self, token: &str) -> AppResult<()> {
         sqlx::query("UPDATE oauth2_refresh_tokens SET revoked = true WHERE token = $1")
             .bind(token)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -4763,7 +4952,7 @@ impl DatabaseProvider for PostgresDatabase {
         client_id: &str,
         redirect_uri: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         let row = sqlx::query(
             "UPDATE oauth2_auth_codes
              SET used = true
@@ -4778,8 +4967,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(client_id)
         .bind(redirect_uri)
         .bind(now)
-        .fetch_optional(&self.pool)
-        .await?;
+        .fetch_optional(&self.pool).await.map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         row.map_or_else(
             || Ok(None),
@@ -4811,7 +4999,7 @@ impl DatabaseProvider for PostgresDatabase {
         token: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         let row = sqlx::query(
             "UPDATE oauth2_refresh_tokens
              SET revoked = true
@@ -4824,20 +5012,35 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(token)
         .bind(client_id)
         .bind(now)
-        .fetch_optional(&self.pool)
-        .await?;
+        .fetch_optional(&self.pool).await.map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         if let Some(row) = row {
             use sqlx::Row;
             Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
-                token: row.try_get("token")?,
-                client_id: row.try_get("client_id")?,
-                user_id: row.try_get("user_id")?,
-                tenant_id: row.try_get("tenant_id")?,
-                scope: row.try_get("scope")?,
-                expires_at: row.try_get("expires_at")?,
-                created_at: row.try_get("created_at")?,
-                revoked: row.try_get("revoked")?,
+                token: row.try_get("token").map_err(|e| {
+                    AppError::database(format!("Failed to parse token column: {e}"))
+                })?,
+                client_id: row.try_get("client_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse client_id column: {e}"))
+                })?,
+                user_id: row.try_get("user_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse user_id column: {e}"))
+                })?,
+                tenant_id: row.try_get("tenant_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse tenant_id column: {e}"))
+                })?,
+                scope: row.try_get("scope").map_err(|e| {
+                    AppError::database(format!("Failed to parse scope column: {e}"))
+                })?,
+                expires_at: row.try_get("expires_at").map_err(|e| {
+                    AppError::database(format!("Failed to parse expires_at column: {e}"))
+                })?,
+                created_at: row.try_get("created_at").map_err(|e| {
+                    AppError::database(format!("Failed to parse created_at column: {e}"))
+                })?,
+                revoked: row.try_get("revoked").map_err(|e| {
+                    AppError::database(format!("Failed to parse revoked column: {e}"))
+                })?,
             }))
         } else {
             Ok(None)
@@ -4847,7 +5050,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_refresh_token_by_value(
         &self,
         token: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         let row = sqlx::query(
             "SELECT token, client_id, user_id, tenant_id, scope, expires_at, created_at, revoked
              FROM oauth2_refresh_tokens
@@ -4855,19 +5058,36 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(token)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         if let Some(row) = row {
             use sqlx::Row;
             Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
-                token: row.try_get("token")?,
-                client_id: row.try_get("client_id")?,
-                user_id: row.try_get("user_id")?,
-                tenant_id: row.try_get("tenant_id")?,
-                scope: row.try_get("scope")?,
-                expires_at: row.try_get("expires_at")?,
-                created_at: row.try_get("created_at")?,
-                revoked: row.try_get("revoked")?,
+                token: row.try_get("token").map_err(|e| {
+                    AppError::database(format!("Failed to parse token column: {e}"))
+                })?,
+                client_id: row.try_get("client_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse client_id column: {e}"))
+                })?,
+                user_id: row.try_get("user_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse user_id column: {e}"))
+                })?,
+                tenant_id: row.try_get("tenant_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse tenant_id column: {e}"))
+                })?,
+                scope: row.try_get("scope").map_err(|e| {
+                    AppError::database(format!("Failed to parse scope column: {e}"))
+                })?,
+                expires_at: row.try_get("expires_at").map_err(|e| {
+                    AppError::database(format!("Failed to parse expires_at column: {e}"))
+                })?,
+                created_at: row.try_get("created_at").map_err(|e| {
+                    AppError::database(format!("Failed to parse created_at column: {e}"))
+                })?,
+                revoked: row.try_get("revoked").map_err(|e| {
+                    AppError::database(format!("Failed to parse revoked column: {e}"))
+                })?,
             }))
         } else {
             Ok(None)
@@ -4878,7 +5098,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn store_oauth2_state(
         &self,
         state: &crate::oauth2_server::models::OAuth2State,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             "INSERT INTO oauth2_states (state, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, created_at, expires_at, used)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)"
@@ -4894,8 +5114,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(state.created_at)
         .bind(state.expires_at)
         .bind(state.used)
-        .execute(&self.pool)
-        .await?;
+        .execute(&self.pool).await.map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -4906,7 +5125,7 @@ impl DatabaseProvider for PostgresDatabase {
         state_value: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2State>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2State>> {
         let row = sqlx::query(
             "UPDATE oauth2_states
              SET used = true
@@ -4919,23 +5138,44 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(state_value)
         .bind(client_id)
         .bind(now)
-        .fetch_optional(&self.pool)
-        .await?;
+        .fetch_optional(&self.pool).await.map_err(|e| AppError::database(format!("Failed to fetch optional record: {e}")))?;
 
         if let Some(row) = row {
             use sqlx::Row;
             Ok(Some(crate::oauth2_server::models::OAuth2State {
-                state: row.try_get("state")?,
-                client_id: row.try_get("client_id")?,
-                user_id: row.try_get("user_id")?,
-                tenant_id: row.try_get("tenant_id")?,
-                redirect_uri: row.try_get("redirect_uri")?,
-                scope: row.try_get("scope")?,
-                code_challenge: row.try_get("code_challenge")?,
-                code_challenge_method: row.try_get("code_challenge_method")?,
-                created_at: row.try_get("created_at")?,
-                expires_at: row.try_get("expires_at")?,
-                used: row.try_get("used")?,
+                state: row.try_get("state").map_err(|e| {
+                    AppError::database(format!("Failed to parse state column: {e}"))
+                })?,
+                client_id: row.try_get("client_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse client_id column: {e}"))
+                })?,
+                user_id: row.try_get("user_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse user_id column: {e}"))
+                })?,
+                tenant_id: row.try_get("tenant_id").map_err(|e| {
+                    AppError::database(format!("Failed to parse tenant_id column: {e}"))
+                })?,
+                redirect_uri: row.try_get("redirect_uri").map_err(|e| {
+                    AppError::database(format!("Failed to parse redirect_uri column: {e}"))
+                })?,
+                scope: row.try_get("scope").map_err(|e| {
+                    AppError::database(format!("Failed to parse scope column: {e}"))
+                })?,
+                code_challenge: row.try_get("code_challenge").map_err(|e| {
+                    AppError::database(format!("Failed to parse code_challenge column: {e}"))
+                })?,
+                code_challenge_method: row.try_get("code_challenge_method").map_err(|e| {
+                    AppError::database(format!("Failed to parse code_challenge_method column: {e}"))
+                })?,
+                created_at: row.try_get("created_at").map_err(|e| {
+                    AppError::database(format!("Failed to parse created_at column: {e}"))
+                })?,
+                expires_at: row.try_get("expires_at").map_err(|e| {
+                    AppError::database(format!("Failed to parse expires_at column: {e}"))
+                })?,
+                used: row
+                    .try_get("used")
+                    .map_err(|e| AppError::database(format!("Failed to parse used column: {e}")))?,
             }))
         } else {
             Ok(None)
@@ -4950,15 +5190,23 @@ impl PostgresDatabase {
     fn row_to_user_oauth_token(
         &self,
         row: &sqlx::postgres::PgRow,
-    ) -> Result<crate::models::UserOAuthToken> {
+    ) -> AppResult<crate::models::UserOAuthToken> {
         use sqlx::Row;
 
-        let user_id: uuid::Uuid = row.try_get("user_id")?;
-        let tenant_id: String = row.try_get("tenant_id")?;
-        let provider: String = row.try_get("provider")?;
+        let user_id: uuid::Uuid = row
+            .try_get("user_id")
+            .map_err(|e| AppError::database(format!("Failed to parse user_id column: {e}")))?;
+        let tenant_id: String = row
+            .try_get("tenant_id")
+            .map_err(|e| AppError::database(format!("Failed to parse tenant_id column: {e}")))?;
+        let provider: String = row
+            .try_get("provider")
+            .map_err(|e| AppError::database(format!("Failed to parse provider column: {e}")))?;
 
         // Decrypt access token
-        let encrypted_access_token: String = row.try_get("access_token")?;
+        let encrypted_access_token: String = row
+            .try_get("access_token")
+            .map_err(|e| AppError::database(format!("Failed to parse access_token column: {e}")))?;
         let access_token = shared::encryption::decrypt_oauth_token(
             self,
             &encrypted_access_token,
@@ -4969,7 +5217,8 @@ impl PostgresDatabase {
 
         // Decrypt refresh token (optional)
         let refresh_token = row
-            .try_get::<Option<String>, _>("refresh_token")?
+            .try_get::<Option<String>, _>("refresh_token")
+            .map_err(|e| AppError::database(format!("Failed to parse refresh_token column: {e}")))?
             .map(|encrypted_rt| {
                 shared::encryption::decrypt_oauth_token(
                     self,
@@ -4982,78 +5231,146 @@ impl PostgresDatabase {
             .transpose()?;
 
         Ok(crate::models::UserOAuthToken {
-            id: row.try_get("id")?,
+            id: row
+                .try_get("id")
+                .map_err(|e| AppError::database(format!("Failed to parse id column: {e}")))?,
             user_id,
             tenant_id,
             provider,
             access_token,
             refresh_token,
-            token_type: row.try_get("token_type")?,
-            expires_at: row.try_get("expires_at")?,
+            token_type: row.try_get("token_type").map_err(|e| {
+                AppError::database(format!("Failed to parse token_type column: {e}"))
+            })?,
+            expires_at: row.try_get("expires_at").map_err(|e| {
+                AppError::database(format!("Failed to parse expires_at column: {e}"))
+            })?,
             scope: row.try_get("scope").ok(),
-            created_at: row.try_get("created_at")?,
-            updated_at: row.try_get("updated_at")?,
+            created_at: row.try_get("created_at").map_err(|e| {
+                AppError::database(format!("Failed to parse created_at column: {e}"))
+            })?,
+            updated_at: row.try_get("updated_at").map_err(|e| {
+                AppError::database(format!("Failed to parse updated_at column: {e}"))
+            })?,
         })
     }
 
     /// Convert database row to `AdminToken`
-    fn row_to_admin_token(row: &sqlx::postgres::PgRow) -> Result<crate::admin::models::AdminToken> {
+    fn row_to_admin_token(
+        row: &sqlx::postgres::PgRow,
+    ) -> AppResult<crate::admin::models::AdminToken> {
         use crate::admin::models::{AdminPermissions, AdminToken};
         use sqlx::Row;
 
-        let permissions_json: String = row.try_get("permissions")?;
+        let permissions_json: String = row
+            .try_get("permissions")
+            .map_err(|e| AppError::database(format!("Failed to parse permissions column: {e}")))?;
         let permissions = AdminPermissions::from_json(&permissions_json)?;
 
         Ok(AdminToken {
-            id: row.try_get("id")?,
-            service_name: row.try_get("service_name")?,
-            service_description: row.try_get("service_description")?,
-            token_hash: row.try_get("token_hash")?,
-            token_prefix: row.try_get("token_prefix")?,
-            jwt_secret_hash: row.try_get("jwt_secret_hash")?,
+            id: row
+                .try_get("id")
+                .map_err(|e| AppError::database(format!("Failed to parse id column: {e}")))?,
+            service_name: row.try_get("service_name").map_err(|e| {
+                AppError::database(format!("Failed to parse service_name column: {e}"))
+            })?,
+            service_description: row.try_get("service_description").map_err(|e| {
+                AppError::database(format!("Failed to parse service_description column: {e}"))
+            })?,
+            token_hash: row.try_get("token_hash").map_err(|e| {
+                AppError::database(format!("Failed to parse token_hash column: {e}"))
+            })?,
+            token_prefix: row.try_get("token_prefix").map_err(|e| {
+                AppError::database(format!("Failed to parse token_prefix column: {e}"))
+            })?,
+            jwt_secret_hash: row.try_get("jwt_secret_hash").map_err(|e| {
+                AppError::database(format!("Failed to parse jwt_secret_hash column: {e}"))
+            })?,
             permissions,
-            is_super_admin: row.try_get("is_super_admin")?,
-            is_active: row.try_get("is_active")?,
-            created_at: row.try_get("created_at")?,
-            expires_at: row.try_get("expires_at")?,
-            last_used_at: row.try_get("last_used_at")?,
-            last_used_ip: row.try_get("last_used_ip")?,
-            usage_count: u64::try_from(row.try_get::<i64, _>("usage_count")?.max(0)).unwrap_or(0),
+            is_super_admin: row.try_get("is_super_admin").map_err(|e| {
+                AppError::database(format!("Failed to parse is_super_admin column: {e}"))
+            })?,
+            is_active: row.try_get("is_active").map_err(|e| {
+                AppError::database(format!("Failed to parse is_active column: {e}"))
+            })?,
+            created_at: row.try_get("created_at").map_err(|e| {
+                AppError::database(format!("Failed to parse created_at column: {e}"))
+            })?,
+            expires_at: row.try_get("expires_at").map_err(|e| {
+                AppError::database(format!("Failed to parse expires_at column: {e}"))
+            })?,
+            last_used_at: row.try_get("last_used_at").map_err(|e| {
+                AppError::database(format!("Failed to parse last_used_at column: {e}"))
+            })?,
+            last_used_ip: row.try_get("last_used_ip").map_err(|e| {
+                AppError::database(format!("Failed to parse last_used_ip column: {e}"))
+            })?,
+            usage_count: u64::try_from(
+                row.try_get::<i64, _>("usage_count")
+                    .map_err(|e| {
+                        AppError::database(format!("Failed to parse usage_count column: {e}"))
+                    })?
+                    .max(0),
+            )
+            .unwrap_or(0),
         })
     }
 
     /// Convert database row to `AdminTokenUsage`
     fn row_to_admin_token_usage(
         row: &sqlx::postgres::PgRow,
-    ) -> Result<crate::admin::models::AdminTokenUsage> {
+    ) -> AppResult<crate::admin::models::AdminTokenUsage> {
         use crate::admin::models::{AdminAction, AdminTokenUsage};
         use sqlx::Row;
 
-        let action_str: String = row.try_get("action")?;
+        let action_str: String = row
+            .try_get("action")
+            .map_err(|e| AppError::database(format!("Failed to parse action column: {e}")))?;
         let action = action_str
             .parse::<AdminAction>()
             .unwrap_or(AdminAction::ProvisionKey);
 
         Ok(AdminTokenUsage {
-            id: Some(row.try_get::<i64, _>("id")?),
-            admin_token_id: row.try_get("admin_token_id")?,
-            timestamp: row.try_get("timestamp")?,
+            id: Some(
+                row.try_get::<i64, _>("id")
+                    .map_err(|e| AppError::database(format!("Failed to parse id column: {e}")))?,
+            ),
+            admin_token_id: row.try_get("admin_token_id").map_err(|e| {
+                AppError::database(format!("Failed to parse admin_token_id column: {e}"))
+            })?,
+            timestamp: row.try_get("timestamp").map_err(|e| {
+                AppError::database(format!("Failed to parse timestamp column: {e}"))
+            })?,
             action,
-            target_resource: row.try_get("target_resource")?,
-            ip_address: row.try_get("ip_address")?,
-            user_agent: row.try_get("user_agent")?,
+            target_resource: row.try_get("target_resource").map_err(|e| {
+                AppError::database(format!("Failed to parse target_resource column: {e}"))
+            })?,
+            ip_address: row.try_get("ip_address").map_err(|e| {
+                AppError::database(format!("Failed to parse ip_address column: {e}"))
+            })?,
+            user_agent: row.try_get("user_agent").map_err(|e| {
+                AppError::database(format!("Failed to parse user_agent column: {e}"))
+            })?,
             request_size_bytes: row
-                .try_get::<Option<i32>, _>("request_size_bytes")?
+                .try_get::<Option<i32>, _>("request_size_bytes")
+                .map_err(|e| {
+                    AppError::database(format!("Failed to parse request_size_bytes column: {e}"))
+                })?
                 .map(|v| u32::try_from(v.max(0)).unwrap_or(0)),
-            success: row.try_get("success")?,
+            success: row
+                .try_get("success")
+                .map_err(|e| AppError::database(format!("Failed to parse success column: {e}")))?,
             error_message: None, // Add the missing field
             response_time_ms: row
-                .try_get::<Option<i32>, _>("response_time_ms")?
+                .try_get::<Option<i32>, _>("response_time_ms")
+                .map_err(|e| {
+                    AppError::database(format!("Failed to parse response_time_ms column: {e}"))
+                })?
                 .map(|v| u32::try_from(v.max(0)).unwrap_or(0)),
         })
     }
 
-    async fn create_users_table(&self) -> Result<()> {
+    async fn create_users_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS users (
@@ -5084,11 +5401,12 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create users table: {e}")))?;
         Ok(())
     }
 
-    async fn create_user_profiles_table(&self) -> Result<()> {
+    async fn create_user_profiles_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS user_profiles (
@@ -5100,11 +5418,12 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create user_profiles table: {e}")))?;
         Ok(())
     }
 
-    async fn create_goals_table(&self) -> Result<()> {
+    async fn create_goals_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS goals (
@@ -5117,11 +5436,12 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create goals table: {e}")))?;
         Ok(())
     }
 
-    async fn create_insights_table(&self) -> Result<()> {
+    async fn create_insights_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS insights (
@@ -5135,11 +5455,12 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create insights table: {e}")))?;
         Ok(())
     }
 
-    async fn create_api_keys_tables(&self) -> Result<()> {
+    async fn create_api_keys_tables(&self) -> AppResult<()> {
         // Create api_keys table
         sqlx::query(
             r"
@@ -5162,7 +5483,8 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create api_keys table: {e}")))?;
 
         // Create api_key_usage table
         sqlx::query(
@@ -5183,11 +5505,12 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create api_key_usage table: {e}")))?;
         Ok(())
     }
 
-    async fn create_a2a_tables(&self) -> Result<()> {
+    async fn create_a2a_tables(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS a2a_clients (
@@ -5209,7 +5532,8 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create a2a_clients table: {e}")))?;
 
         sqlx::query(
             r"
@@ -5226,7 +5550,8 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create a2a_sessions table: {e}")))?;
 
         sqlx::query(
             r"
@@ -5243,7 +5568,8 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create a2a_tasks table: {e}")))?;
 
         sqlx::query(
             r"
@@ -5267,11 +5593,12 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create a2a_usage table: {e}")))?;
         Ok(())
     }
 
-    async fn create_admin_tables(&self) -> Result<()> {
+    async fn create_admin_tables(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS admin_tokens (
@@ -5293,7 +5620,8 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create admin_tokens table: {e}")))?;
 
         sqlx::query(
             r"
@@ -5313,7 +5641,10 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to create admin_token_usage table: {e}"))
+        })?;
 
         sqlx::query(
             r"
@@ -5334,11 +5665,16 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create admin_provisioned_keys table: {e}"
+            ))
+        })?;
         Ok(())
     }
 
-    async fn create_jwt_usage_table(&self) -> Result<()> {
+    async fn create_jwt_usage_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS jwt_usage (
@@ -5357,12 +5693,13 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create jwt_usage table: {e}")))?;
         Ok(())
     }
 
     /// Create OAuth notifications table for MCP resource delivery
-    async fn create_oauth_notifications_table(&self) -> Result<()> {
+    async fn create_oauth_notifications_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS oauth_notifications (
@@ -5379,33 +5716,46 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to create oauth_notifications table: {e}"))
+        })?;
 
         // Create indices for efficient queries
         sqlx::query(
             r"
-            CREATE INDEX IF NOT EXISTS idx_oauth_notifications_user_id 
+            CREATE INDEX IF NOT EXISTS idx_oauth_notifications_user_id
             ON oauth_notifications (user_id)
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_oauth_notifications_user_id: {e}"
+            ))
+        })?;
 
         sqlx::query(
             r"
-            CREATE INDEX IF NOT EXISTS idx_oauth_notifications_user_unread 
-            ON oauth_notifications (user_id, read_at) 
+            CREATE INDEX IF NOT EXISTS idx_oauth_notifications_user_unread
+            ON oauth_notifications (user_id, read_at)
             WHERE read_at IS NULL
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_oauth_notifications_user_unread: {e}"
+            ))
+        })?;
 
         Ok(())
     }
 
     /// Create RSA keypairs table for JWT signing key persistence
-    async fn create_rsa_keypairs_table(&self) -> Result<()> {
+    async fn create_rsa_keypairs_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS rsa_keypairs (
@@ -5419,7 +5769,8 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create rsa_keypairs table: {e}")))?;
 
         // Create index for active key lookup
         sqlx::query(
@@ -5430,7 +5781,12 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_rsa_keypairs_active: {e}"
+            ))
+        })?;
 
         Ok(())
     }
@@ -5445,7 +5801,7 @@ impl PostgresDatabase {
     /// - Tables: `tenants`, `tenant_oauth_credentials`, `tenant_users`, `tenant_provider_usage`,
     ///   `oauth_apps`, `authorization_codes`, `user_oauth_tokens`
     #[allow(clippy::too_many_lines)]
-    async fn create_tenant_tables(&self) -> Result<()> {
+    async fn create_tenant_tables(&self) -> AppResult<()> {
         // Create tenants table
         sqlx::query(
             r"
@@ -5462,7 +5818,8 @@ impl PostgresDatabase {
             "
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create tenants table: {e}")))?;
 
         // Create tenant_oauth_credentials table
         sqlx::query(
@@ -5485,7 +5842,12 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create tenant_oauth_credentials table: {e}"
+            ))
+        })?;
 
         // Create tenant_users table
         sqlx::query(
@@ -5501,7 +5863,8 @@ impl PostgresDatabase {
             "
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create tenant_users table: {e}")))?;
 
         // Create tenant_provider_usage table
         sqlx::query(
@@ -5520,7 +5883,10 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to create tenant_provider_usage table: {e}"))
+        })?;
 
         // Create OAuth Apps table for app registration
         sqlx::query(
@@ -5542,7 +5908,8 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create oauth_apps table: {e}")))?;
 
         // Create Authorization Code table
         sqlx::query(
@@ -5559,7 +5926,10 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to create authorization_codes table: {e}"))
+        })?;
 
         // Create user_oauth_tokens table for per-user, per-tenant OAuth tokens
         sqlx::query(
@@ -5581,111 +5951,217 @@ impl PostgresDatabase {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to create user_oauth_tokens table: {e}"))
+        })?;
 
         Ok(())
     }
 
-    async fn create_indexes(&self) -> Result<()> {
+    async fn create_user_indexes(&self) -> AppResult<()> {
         // User and profile indexes
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to create index idx_users_email: {e}"))
+            })?;
 
+        Ok(())
+    }
+
+    async fn create_api_key_indexes(&self) -> AppResult<()> {
         // API key indexes
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to create index idx_api_keys_user_id: {e}"))
+            })?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_api_key_usage_api_key_id ON api_key_usage(api_key_id)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_api_key_usage_api_key_id: {e}"
+            ))
+        })?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_api_key_usage_timestamp ON api_key_usage(timestamp)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_api_key_usage_timestamp: {e}"
+            ))
+        })?;
 
+        Ok(())
+    }
+
+    async fn create_a2a_indexes(&self) -> AppResult<()> {
         // A2A indexes
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_clients_user_id ON a2a_clients(user_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!(
+                    "Failed to create index idx_a2a_clients_user_id: {e}"
+                ))
+            })?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_client_id ON a2a_usage(client_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!(
+                    "Failed to create index idx_a2a_usage_client_id: {e}"
+                ))
+            })?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_timestamp ON a2a_usage(timestamp)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!(
+                    "Failed to create index idx_a2a_usage_timestamp: {e}"
+                ))
+            })?;
 
+        Ok(())
+    }
+
+    async fn create_admin_token_indexes(&self) -> AppResult<()> {
         // Admin token indexes
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_admin_tokens_service ON admin_tokens(service_name)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_admin_tokens_service: {e}"
+            ))
+        })?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_admin_tokens_prefix ON admin_tokens(token_prefix)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_admin_tokens_prefix: {e}"
+            ))
+        })?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_usage_token_id ON admin_token_usage(admin_token_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to create index idx_admin_usage_token_id: {e}")))?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_admin_usage_timestamp ON admin_token_usage(timestamp)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_admin_usage_timestamp: {e}"
+            ))
+        })?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_provisioned_token ON admin_provisioned_keys(admin_token_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to create index idx_admin_provisioned_token: {e}")))?;
 
+        Ok(())
+    }
+
+    async fn create_jwt_usage_indexes(&self) -> AppResult<()> {
         // JWT usage indexes
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_user_id ON jwt_usage(user_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to create index idx_jwt_usage_user_id: {e}"))
+            })?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_timestamp ON jwt_usage(timestamp)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!(
+                    "Failed to create index idx_jwt_usage_timestamp: {e}"
+                ))
+            })?;
 
+        Ok(())
+    }
+
+    async fn create_tenant_indexes(&self) -> AppResult<()> {
         // Tenant indexes
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_oauth_credentials_tenant_provider ON tenant_oauth_credentials(tenant_id, provider)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to create index idx_tenant_oauth_credentials_tenant_provider: {e}")))?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_tenant_users_tenant ON tenant_users(tenant_id)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_tenant_users_tenant: {e}"
+            ))
+        })?;
 
         // UserOAuthToken indexes
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_user_oauth_tokens_user ON user_oauth_tokens(user_id)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_user_oauth_tokens_user: {e}"
+            ))
+        })?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_oauth_tokens_tenant_provider ON user_oauth_tokens(tenant_id, provider)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to create index idx_user_oauth_tokens_tenant_provider: {e}")))?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_users_user ON tenant_users(user_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to create index idx_tenant_users_user: {e}"))
+            })?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_usage_date ON tenant_provider_usage(tenant_id, provider, usage_date)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to create index idx_tenant_usage_date: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn create_indexes(&self) -> AppResult<()> {
+        self.create_user_indexes().await?;
+        self.create_api_key_indexes().await?;
+        self.create_a2a_indexes().await?;
+        self.create_admin_token_indexes().await?;
+        self.create_jwt_usage_indexes().await?;
+        self.create_tenant_indexes().await?;
 
         Ok(())
     }
@@ -5703,7 +6179,7 @@ impl shared::encryption::HasEncryption for PostgresDatabase {
     /// - Generates unique 96-bit nonce per encryption
     /// - Binds AAD to prevent cross-tenant token reuse
     /// - Output: base64(nonce || ciphertext || `auth_tag`)
-    fn encrypt_data_with_aad(&self, data: &str, aad_context: &str) -> Result<String> {
+    fn encrypt_data_with_aad(&self, data: &str, aad_context: &str) -> AppResult<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
         use ring::rand::{SecureRandom, SystemRandom};
@@ -5712,17 +6188,20 @@ impl shared::encryption::HasEncryption for PostgresDatabase {
 
         // Generate unique nonce (96 bits for GCM)
         let mut nonce_bytes = [0u8; 12];
-        rng.fill(&mut nonce_bytes)?;
+        rng.fill(&mut nonce_bytes)
+            .map_err(|e| AppError::database(format!("Failed to generate nonce: {e:?}")))?;
         let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
         // Create encryption key
-        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)
+            .map_err(|e| AppError::database(format!("Failed to create encryption key: {e:?}")))?;
         let key = LessSafeKey::new(unbound_key);
 
         // Encrypt data with AAD binding
         let mut data_bytes = data.as_bytes().to_vec();
         let aad = Aad::from(aad_context.as_bytes());
-        key.seal_in_place_append_tag(nonce, aad, &mut data_bytes)?;
+        key.seal_in_place_append_tag(nonce, aad, &mut data_bytes)
+            .map_err(|e| AppError::database(format!("Encryption failed: {e:?}")))?;
 
         // Combine nonce and encrypted data, then base64 encode
         let mut combined = nonce_bytes.to_vec();
@@ -5739,26 +6218,32 @@ impl shared::encryption::HasEncryption for PostgresDatabase {
     /// - Verifies AAD matches (prevents token context switching)
     /// - Authenticates ciphertext hasn't been tampered
     /// - Fails safely on any mismatch/corruption
-    fn decrypt_data_with_aad(&self, encrypted_data: &str, aad_context: &str) -> Result<String> {
+    fn decrypt_data_with_aad(&self, encrypted_data: &str, aad_context: &str) -> AppResult<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
         // Decode from base64
-        let combined = general_purpose::STANDARD.decode(encrypted_data)?;
+        let combined = general_purpose::STANDARD
+            .decode(encrypted_data)
+            .map_err(|e| AppError::database(format!("Failed to decode base64 data: {e}")))?;
 
         if combined.len() < 12 {
-            return Err(DatabaseError::QueryError {
-                context: "Invalid encrypted data: too short".to_owned(),
-            }
-            .into());
+            return Err(AppError::database(
+                "Invalid encrypted data: too short".to_owned(),
+            ));
         }
 
         // Extract nonce and encrypted data
         let (nonce_bytes, encrypted_bytes) = combined.split_at(12);
-        let nonce = Nonce::assume_unique_for_key(nonce_bytes.try_into()?);
+        let nonce = Nonce::assume_unique_for_key(
+            nonce_bytes
+                .try_into()
+                .map_err(|e| AppError::database(format!("Invalid nonce size: {e:?}")))?,
+        );
 
         // Create decryption key
-        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)
+            .map_err(|e| AppError::database(format!("Failed to create decryption key: {e:?}")))?;
         let key = LessSafeKey::new(unbound_key);
 
         // Decrypt data with AAD verification
@@ -5766,17 +6251,14 @@ impl shared::encryption::HasEncryption for PostgresDatabase {
         let aad = Aad::from(aad_context.as_bytes());
         let decrypted = key
             .open_in_place(nonce, aad, &mut decrypted_data)
-            .map_err(|e| DatabaseError::QueryError {
-                context: format!(
+            .map_err(|e| {
+                AppError::database(format!(
                     "Decryption failed (possible AAD mismatch or tampered data): {e:?}"
-                ),
+                ))
             })?;
 
         String::from_utf8(decrypted.to_vec()).map_err(|e| {
-            DatabaseError::QueryError {
-                context: format!("Failed to convert decrypted data to string: {e}"),
-            }
-            .into()
+            AppError::database(format!("Failed to convert decrypted data to string: {e}"))
         })
     }
 }

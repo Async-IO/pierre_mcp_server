@@ -7,9 +7,8 @@
 //! Environment-based configuration management for production deployment
 
 use crate::constants::{defaults, limits, oauth};
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::middleware::redaction::RedactionFeatures;
-use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::PathBuf;
@@ -146,7 +145,7 @@ impl DatabaseUrl {
     /// # Errors
     ///
     /// Returns an error if the database URL format is invalid or unsupported
-    pub fn parse_url(s: &str) -> Result<Self> {
+    pub fn parse_url(s: &str) -> AppResult<Self> {
         if s.starts_with("sqlite:") {
             let path_str = s.strip_prefix("sqlite:").unwrap_or(s);
             if path_str == ":memory:" {
@@ -1067,7 +1066,7 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if environment variables contain invalid values or required configuration is missing
-    pub fn from_env() -> Result<Self> {
+    pub fn from_env() -> AppResult<Self> {
         Self::initialize_environment();
 
         let config = Self {
@@ -1116,7 +1115,7 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if configuration values are invalid or conflicting
-    pub fn validate(&self) -> Result<()> {
+    pub fn validate(&self) -> AppResult<()> {
         // Single-port architecture - no port conflicts possible
         // Database validation - URLs are now type-safe, so no need to check emptiness
 
@@ -1147,14 +1146,14 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if production issuer URL doesn't use HTTPS
-    fn validate_oauth2_issuer_url(&self) -> Result<()> {
+    fn validate_oauth2_issuer_url(&self) -> AppResult<()> {
         // In production, issuer MUST use HTTPS to prevent token theft and MITM attacks
         if self.security.headers.environment.is_production() {
             if !self.oauth2_server.issuer_url.starts_with("https://") {
                 return Err(AppError::invalid_input(format!(
                     "OAuth2 issuer URL must use HTTPS in production (RFC 8414 security requirement). Current: {}",
                     self.oauth2_server.issuer_url
-                )).into());
+                )));
             }
         } else if !self
             .oauth2_server
@@ -1176,14 +1175,13 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if TLS is enabled but certificate or key path is missing
-    fn validate_tls_config(&self) -> Result<()> {
+    fn validate_tls_config(&self) -> AppResult<()> {
         if self.security.tls.enabled
             && (self.security.tls.cert_path.is_none() || self.security.tls.key_path.is_none())
         {
             return Err(AppError::invalid_input(
                 "TLS is enabled but cert_path or key_path is missing",
-            )
-            .into());
+            ));
         }
         Ok(())
     }
@@ -1193,7 +1191,7 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if intelligence configuration cannot be loaded or validated
-    pub fn init_all_configs(&self) -> Result<()> {
+    pub fn init_all_configs(&self) -> AppResult<()> {
         // Initialize intelligence configuration
         let intelligence_config = crate::config::intelligence_config::IntelligenceConfig::global();
 
@@ -1319,7 +1317,7 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if database environment variables are invalid
-    fn load_database_config() -> Result<DatabaseConfig> {
+    fn load_database_config() -> AppResult<DatabaseConfig> {
         Ok(DatabaseConfig {
             url: DatabaseUrl::parse_url(
                 &env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_owned()),
@@ -1327,7 +1325,7 @@ impl ServerConfig {
             .unwrap_or_else(|_| DatabaseUrl::default()),
             auto_migrate: env_var_or("AUTO_MIGRATE", "true")
                 .parse()
-                .context("Invalid AUTO_MIGRATE value")?,
+                .map_err(|e| AppError::invalid_input(format!("Invalid AUTO_MIGRATE value: {e}")))?,
             backup: Self::load_backup_config()?,
             postgres_pool: Self::load_postgres_pool_config(),
         })
@@ -1357,23 +1355,23 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if backup environment variables are invalid
-    fn load_backup_config() -> Result<BackupConfig> {
+    fn load_backup_config() -> AppResult<BackupConfig> {
         Ok(BackupConfig {
-            enabled: env_var_or("BACKUP_ENABLED", "true")
-                .parse()
-                .context("Invalid BACKUP_ENABLED value")?,
+            enabled: env_var_or("BACKUP_ENABLED", "true").parse().map_err(|e| {
+                AppError::invalid_input(format!("Invalid BACKUP_ENABLED value: {e}"))
+            })?,
             interval_seconds: env_var_or(
                 "BACKUP_INTERVAL",
                 &limits::DEFAULT_BACKUP_INTERVAL_SECS.to_string(),
             )
             .parse()
-            .context("Invalid BACKUP_INTERVAL value")?,
+            .map_err(|e| AppError::invalid_input(format!("Invalid BACKUP_INTERVAL value: {e}")))?,
             retention_count: env_var_or(
                 "BACKUP_RETENTION",
                 &limits::DEFAULT_BACKUP_RETENTION_COUNT.to_string(),
             )
             .parse()
-            .context("Invalid BACKUP_RETENTION value")?,
+            .map_err(|e| AppError::invalid_input(format!("Invalid BACKUP_RETENTION value: {e}")))?,
             directory: PathBuf::from(env_var_or("BACKUP_DIRECTORY", defaults::DEFAULT_BACKUP_DIR)),
         })
     }
@@ -1383,7 +1381,7 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if auth environment variables are invalid
-    fn load_auth_config() -> Result<AuthConfig> {
+    fn load_auth_config() -> AppResult<AuthConfig> {
         Ok(AuthConfig {
             jwt_expiry_hours: u64::try_from(
                 env::var("JWT_EXPIRY_HOURS")
@@ -1395,7 +1393,9 @@ impl ServerConfig {
             .unwrap_or(24),
             enable_refresh_tokens: env_var_or("ENABLE_REFRESH_TOKENS", "false")
                 .parse()
-                .context("Invalid ENABLE_REFRESH_TOKENS value")?,
+                .map_err(|e| {
+                    AppError::invalid_input(format!("Invalid ENABLE_REFRESH_TOKENS value: {e}"))
+                })?,
         })
     }
 
@@ -1520,7 +1520,7 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if security environment variables are invalid
-    fn load_security_config() -> Result<SecurityConfig> {
+    fn load_security_config() -> AppResult<SecurityConfig> {
         Ok(SecurityConfig {
             cors_origins: parse_origins(&env_var_or("CORS_ORIGINS", "*")),
             tls: Self::load_tls_config()?,
@@ -1533,11 +1533,11 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if TLS environment variables are invalid
-    fn load_tls_config() -> Result<TlsConfig> {
+    fn load_tls_config() -> AppResult<TlsConfig> {
         Ok(TlsConfig {
             enabled: env_var_or("TLS_ENABLED", "false")
                 .parse()
-                .context("Invalid TLS_ENABLED value")?,
+                .map_err(|e| AppError::invalid_input(format!("Invalid TLS_ENABLED value: {e}")))?,
             cert_path: env::var("TLS_CERT_PATH").ok().map(PathBuf::from),
             key_path: env::var("TLS_KEY_PATH").ok().map(PathBuf::from),
         })
@@ -1558,7 +1558,7 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if external services environment variables are invalid
-    fn load_external_services_config() -> Result<ExternalServicesConfig> {
+    fn load_external_services_config() -> AppResult<ExternalServicesConfig> {
         Ok(ExternalServicesConfig {
             weather: Self::load_weather_service_config()?,
             geocoding: Self::load_geocoding_service_config()?,
@@ -1573,7 +1573,7 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if weather service environment variables are invalid
-    fn load_weather_service_config() -> Result<WeatherServiceConfig> {
+    fn load_weather_service_config() -> AppResult<WeatherServiceConfig> {
         Ok(WeatherServiceConfig {
             api_key: env::var("OPENWEATHER_API_KEY").ok(),
             base_url: env_var_or(
@@ -1582,7 +1582,9 @@ impl ServerConfig {
             ),
             enabled: env_var_or("WEATHER_SERVICE_ENABLED", "true")
                 .parse()
-                .context("Invalid WEATHER_SERVICE_ENABLED value")?,
+                .map_err(|e| {
+                    AppError::invalid_input(format!("Invalid WEATHER_SERVICE_ENABLED value: {e}"))
+                })?,
         })
     }
 
@@ -1591,12 +1593,14 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if geocoding service environment variables are invalid
-    fn load_geocoding_service_config() -> Result<GeocodingServiceConfig> {
+    fn load_geocoding_service_config() -> AppResult<GeocodingServiceConfig> {
         Ok(GeocodingServiceConfig {
             base_url: env_var_or("GEOCODING_BASE_URL", "https://nominatim.openstreetmap.org"),
             enabled: env_var_or("GEOCODING_SERVICE_ENABLED", "true")
                 .parse()
-                .context("Invalid GEOCODING_SERVICE_ENABLED value")?,
+                .map_err(|e| {
+                    AppError::invalid_input(format!("Invalid GEOCODING_SERVICE_ENABLED value: {e}"))
+                })?,
         })
     }
 
@@ -1887,17 +1891,19 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if application behavior environment variables are invalid
-    fn load_app_behavior_config() -> Result<AppBehaviorConfig> {
+    fn load_app_behavior_config() -> AppResult<AppBehaviorConfig> {
         Ok(AppBehaviorConfig {
-            max_activities_fetch: env_var_or("MAX_ACTIVITIES_FETCH", "100")
-                .parse()
-                .context("Invalid MAX_ACTIVITIES_FETCH value")?,
+            max_activities_fetch: env_var_or("MAX_ACTIVITIES_FETCH", "100").parse().map_err(
+                |e| AppError::invalid_input(format!("Invalid MAX_ACTIVITIES_FETCH value: {e}")),
+            )?,
             default_activities_limit: env_var_or("DEFAULT_ACTIVITIES_LIMIT", "20")
                 .parse()
-                .context("Invalid DEFAULT_ACTIVITIES_LIMIT value")?,
+                .map_err(|e| {
+                    AppError::invalid_input(format!("Invalid DEFAULT_ACTIVITIES_LIMIT value: {e}"))
+                })?,
             ci_mode: env_var_or("CI", "false")
                 .parse()
-                .context("Invalid CI value")?,
+                .map_err(|e| AppError::invalid_input(format!("Invalid CI value: {e}")))?,
             protocol: Self::load_protocol_config(),
         })
     }
@@ -1971,7 +1977,7 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if SSE environment variables are invalid
-    fn load_sse_config() -> Result<SseConfig> {
+    fn load_sse_config() -> AppResult<SseConfig> {
         let strategy_str = env_var_or("SSE_BUFFER_OVERFLOW_STRATEGY", "drop_oldest");
         let buffer_overflow_strategy = match strategy_str.as_str() {
             "drop_new" => SseBufferStrategy::DropNew,
@@ -1985,25 +1991,35 @@ impl ServerConfig {
                 &crate::constants::timeouts::SSE_CLEANUP_INTERVAL_SECS.to_string(),
             )
             .parse()
-            .context("Invalid SSE_CLEANUP_INTERVAL_SECS value")?,
+            .map_err(|e| {
+                AppError::invalid_input(format!("Invalid SSE_CLEANUP_INTERVAL_SECS value: {e}"))
+            })?,
             connection_timeout_secs: env_var_or(
                 "SSE_CONNECTION_TIMEOUT_SECS",
                 &crate::constants::timeouts::SSE_CONNECTION_TIMEOUT_SECS.to_string(),
             )
             .parse()
-            .context("Invalid SSE_CONNECTION_TIMEOUT_SECS value")?,
+            .map_err(|e| {
+                AppError::invalid_input(format!("Invalid SSE_CONNECTION_TIMEOUT_SECS value: {e}"))
+            })?,
             session_cookie_max_age_secs: env_var_or(
                 "SESSION_COOKIE_MAX_AGE_SECS",
                 &crate::constants::timeouts::SESSION_COOKIE_MAX_AGE_SECS.to_string(),
             )
             .parse()
-            .context("Invalid SESSION_COOKIE_MAX_AGE_SECS value")?,
+            .map_err(|e| {
+                AppError::invalid_input(format!("Invalid SESSION_COOKIE_MAX_AGE_SECS value: {e}"))
+            })?,
             session_cookie_secure: env_var_or("SESSION_COOKIE_SECURE", "false")
                 .parse()
-                .context("Invalid SESSION_COOKIE_SECURE value")?,
+                .map_err(|e| {
+                    AppError::invalid_input(format!("Invalid SESSION_COOKIE_SECURE value: {e}"))
+                })?,
             max_buffer_size: env_var_or("SSE_MAX_BUFFER_SIZE", "1000")
                 .parse()
-                .context("Invalid SSE_MAX_BUFFER_SIZE value")?,
+                .map_err(|e| {
+                    AppError::invalid_input(format!("Invalid SSE_MAX_BUFFER_SIZE value: {e}"))
+                })?,
             buffer_overflow_strategy,
         })
     }

@@ -22,7 +22,7 @@ use crate::models::{Activity, Athlete, HeartRateZone, PersonalRecord, SportType,
 use crate::oauth2_client::client::PkceParams;
 use crate::pagination::{CursorPage, PaginationParams};
 use crate::utils::http_client::api_client;
-use anyhow::{Context, Result};
+use crate::errors::{AppError, AppResult};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
@@ -74,7 +74,7 @@ impl FitbitProvider {
     ///
     /// # Errors
     /// Returns an error if `client_id` is not configured
-    pub fn get_auth_url(&self, redirect_uri: &str, state: &str) -> Result<String> {
+    pub fn get_auth_url(&self, redirect_uri: &str, state: &str) -> AppResult<String> {
         let client_id = self
             .client_id
             .as_ref()
@@ -105,7 +105,7 @@ impl FitbitProvider {
         redirect_uri: &str,
         state: &str,
         pkce: &PkceParams,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let client_id = self
             .client_id
             .as_ref()
@@ -263,7 +263,7 @@ impl FitbitProvider {
         &self,
         start_date: &str,
         end_date: &str,
-    ) -> Result<Vec<FitbitActivity>> {
+    ) -> AppResult<Vec<FitbitActivity>> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
         let response: FitbitActivitiesResponse = self
@@ -288,7 +288,7 @@ impl FitbitProvider {
 
 #[async_trait]
 impl FitnessProvider for FitbitProvider {
-    async fn authenticate(&mut self, auth_data: AuthData) -> Result<()> {
+    async fn authenticate(&mut self, auth_data: AuthData) -> AppResult<()> {
         match auth_data {
             AuthData::OAuth2 {
                 client_id,
@@ -307,7 +307,7 @@ impl FitnessProvider for FitbitProvider {
     }
 
     #[tracing::instrument(skip(self), fields(provider = "fitbit", api_call = "get_athlete"))]
-    async fn get_athlete(&self) -> Result<Athlete> {
+    async fn get_athlete(&self) -> AppResult<Athlete> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
         let response: FitbitUser = self
@@ -334,7 +334,7 @@ impl FitnessProvider for FitbitProvider {
         &self,
         limit: Option<usize>,
         _offset: Option<usize>,
-    ) -> Result<Vec<Activity>> {
+    ) -> AppResult<Vec<Activity>> {
         // Fitbit API works with date ranges rather than offset pagination
         // Get activities from the last 30 days by default
         let end_date = chrono::Utc::now().date_naive();
@@ -363,13 +363,13 @@ impl FitnessProvider for FitbitProvider {
     async fn get_activities_cursor(
         &self,
         params: &PaginationParams,
-    ) -> Result<CursorPage<Activity>> {
+    ) -> AppResult<CursorPage<Activity>> {
         // Fitbit API uses date-based pagination - delegate to offset-based approach
         let activities = self.get_activities(Some(params.limit), None).await?;
         Ok(CursorPage::new(activities, None, None, false))
     }
 
-    async fn get_activity(&self, id: &str) -> Result<Activity> {
+    async fn get_activity(&self, id: &str) -> AppResult<Activity> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
         let response: FitbitActivityDetail = self
@@ -384,7 +384,7 @@ impl FitnessProvider for FitbitProvider {
         Ok(response.activity.into())
     }
 
-    async fn get_stats(&self) -> Result<Stats> {
+    async fn get_stats(&self) -> AppResult<Stats> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
         // Get lifetime stats from Fitbit
@@ -406,7 +406,7 @@ impl FitnessProvider for FitbitProvider {
         })
     }
 
-    async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>> {
+    async fn get_personal_records(&self) -> AppResult<Vec<PersonalRecord>> {
         // Fitbit doesn't have a direct personal records API
         // This would need to be calculated from activity history
         Ok(vec![])

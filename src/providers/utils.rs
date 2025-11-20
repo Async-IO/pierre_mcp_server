@@ -4,7 +4,7 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use anyhow::{Context, Result};
+use crate::errors::{AppError, AppResult};
 use chrono::{TimeZone, Utc};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
@@ -100,7 +100,7 @@ pub async fn api_request_with_retry<T>(
     access_token: &str,
     provider_name: &str,
     retry_config: &RetryConfig,
-) -> Result<T>
+) -> AppResult<T>
 where
     T: for<'de> Deserialize<'de>,
 {
@@ -113,7 +113,9 @@ where
             .header("Authorization", format!("Bearer {access_token}"))
             .send()
             .await
-            .with_context(|| format!("Failed to send request to {provider_name} API"))?;
+            .map_err(|e| {
+                AppError::external_service(provider_name, format!("Failed to send request: {e}"))
+            })?;
 
         let status = response.status();
         tracing::info!("Received HTTP response with status: {status}");
@@ -127,13 +129,14 @@ where
                 );
                 let minutes = retry_config.estimated_block_duration_secs / 60;
                 let status_code = status.as_u16();
-                return Err(ProviderError::RateLimitExceeded {
+                let err = ProviderError::RateLimitExceeded {
                     provider: provider_name.to_owned(),
                     retry_after_secs: retry_config.estimated_block_duration_secs,
                     limit_type: format!(
                         "API rate limit ({status_code}) - max retries reached - wait ~{minutes} minutes"
                     ),
-                }.into());
+                };
+                return Err(AppError::external_service(provider_name, err.to_string()));
             }
 
             let backoff_ms = retry_config.initial_backoff_ms * 2_u64.pow(attempt - 1);
@@ -150,20 +153,19 @@ where
         if !status.is_success() {
             let text = response.text().await.unwrap_or_default();
             tracing::error!("{provider_name} API request failed - status: {status}, body: {text}");
-            return Err(ProviderError::ApiError {
+            let err = ProviderError::ApiError {
                 provider: provider_name.to_owned(),
                 status_code: status.as_u16(),
                 message: format!("{provider_name} API request failed with status {status}: {text}"),
                 retryable: false,
-            }
-            .into());
+            };
+            return Err(AppError::external_service(provider_name, err.to_string()));
         }
 
         tracing::info!("Parsing JSON response from {provider_name} API");
-        let result = response
-            .json()
-            .await
-            .with_context(|| format!("Failed to parse {provider_name} API response"));
+        let result = response.json().await.map_err(|e| {
+            AppError::external_service(provider_name, format!("Failed to parse API response: {e}"))
+        });
 
         match &result {
             Ok(_) => tracing::info!("Successfully parsed JSON response"),
@@ -204,7 +206,7 @@ pub async fn refresh_oauth_token(
     client_secret: &str,
     refresh_token: &str,
     provider_name: &str,
-) -> Result<OAuth2Credentials> {
+) -> AppResult<OAuth2Credentials> {
     tracing::info!("Refreshing {provider_name} access token");
 
     let params = [
@@ -219,21 +221,28 @@ pub async fn refresh_oauth_token(
         .form(&params)
         .send()
         .await
-        .with_context(|| format!("Failed to send token refresh request to {provider_name}"))?;
+        .map_err(|e| {
+            AppError::external_service(
+                provider_name,
+                format!("Failed to send token refresh request: {e}"),
+            )
+        })?;
 
     if !response.status().is_success() {
         let status = response.status();
-        return Err(ProviderError::AuthenticationFailed {
+        let err = ProviderError::AuthenticationFailed {
             provider: provider_name.to_owned(),
             reason: format!("token refresh failed with status: {status}"),
-        }
-        .into());
+        };
+        return Err(AppError::external_service(provider_name, err.to_string()));
     }
 
-    let token_response: TokenRefreshResponse = response
-        .json()
-        .await
-        .with_context(|| format!("Failed to parse {provider_name} token refresh response"))?;
+    let token_response: TokenRefreshResponse = response.json().await.map_err(|e| {
+        AppError::external_service(
+            provider_name,
+            format!("Failed to parse token refresh response: {e}"),
+        )
+    })?;
 
     // Calculate expiry time
     let expires_at = token_response

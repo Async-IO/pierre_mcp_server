@@ -167,7 +167,7 @@ async fn create_test_tenant_user(
         created_at: Utc::now(),
         last_active: Utc::now(),
     };
-    database.create_user(&user).await
+    database.create_user(&user).await.map_err(Into::into)
 }
 
 /// Test that users cannot access API keys from other tenants

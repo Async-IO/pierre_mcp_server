@@ -97,23 +97,24 @@ pub fn handle_analyze_sleep_quality(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "handle_analyze_sleep_quality cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         // Extract sleep data from parameters
-        let sleep_data_json =
-            request
-                .parameters
-                .get("sleep_data")
-                .ok_or_else(|| ProtocolError::InvalidRequest {
-                    protocol: crate::protocols::ProtocolType::MCP,
-                    reason: "sleep_data parameter is required".to_owned(),
-                })?;
+        let sleep_data_json = request.parameters.get("sleep_data").ok_or_else(|| {
+            ProtocolError::InvalidRequest("sleep_data parameter is required".to_owned())
+        })?;
 
         // Parse sleep data
         let sleep_data: SleepData =
             serde_json::from_value(sleep_data_json.clone()).map_err(|e| {
-                ProtocolError::InvalidRequest {
-                    protocol: crate::protocols::ProtocolType::MCP,
-                    reason: format!("Invalid sleep_data format: {e}"),
-                }
+                ProtocolError::InvalidRequest(format!("Invalid sleep_data format: {e}"))
             })?;
 
         // Get sleep/recovery config
@@ -123,10 +124,9 @@ pub fn handle_analyze_sleep_quality(
         // Calculate sleep quality using foundation module
         let sleep_quality =
             SleepAnalyzer::calculate_sleep_quality(&sleep_data, config).map_err(|e| {
-                ProtocolError::InternalError {
-                    component: "sleep_analyzer",
-                    details: format!("Sleep quality calculation failed: {e}"),
-                }
+                ProtocolError::InternalError(format!(
+                    "sleep_analyzer: Sleep quality calculation failed: {e}"
+                ))
             })?;
 
         // Analyze HRV if available
@@ -154,9 +154,10 @@ pub fn handle_analyze_sleep_quality(
 
             Some(
                 SleepAnalyzer::analyze_hrv_trends(rmssd, &recent_hrv, baseline_hrv, config)
-                    .map_err(|e| ProtocolError::InternalError {
-                        component: "sleep_analyzer",
-                        details: format!("HRV analysis failed: {e}"),
+                    .map_err(|e| {
+                        ProtocolError::InternalError(format!(
+                            "sleep_analyzer: HRV analysis failed: {e}"
+                        ))
                     })?,
             )
         } else {
@@ -211,6 +212,15 @@ pub fn handle_calculate_recovery_score(
     Box::pin(async move {
         use crate::utils::uuid::parse_user_id_for_protocol;
 
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "handle_calculate_recovery_score cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get valid token and fetch activities from provider
@@ -250,27 +260,20 @@ pub fn handle_calculate_recovery_score(
         let training_load_calculator = TrainingLoadCalculator::new();
         let training_load = training_load_calculator
             .calculate_training_load(&activities, ftp, lthr, max_hr, resting_hr, weight_kg)
-            .map_err(|e| ProtocolError::InternalError {
-                component: "sleep_analyzer",
-                details: format!("Training load calculation failed: {e}"),
+            .map_err(|e| {
+                ProtocolError::InternalError(format!(
+                    "sleep_analyzer: Training load calculation failed: {e}"
+                ))
             })?;
 
         // Get sleep quality data
-        let sleep_data_json =
-            request
-                .parameters
-                .get("sleep_data")
-                .ok_or_else(|| ProtocolError::InvalidRequest {
-                    protocol: crate::protocols::ProtocolType::MCP,
-                    reason: "sleep_data parameter is required".to_owned(),
-                })?;
+        let sleep_data_json = request.parameters.get("sleep_data").ok_or_else(|| {
+            ProtocolError::InvalidRequest("sleep_data parameter is required".to_owned())
+        })?;
 
         let sleep_data: SleepData =
             serde_json::from_value(sleep_data_json.clone()).map_err(|e| {
-                ProtocolError::InvalidRequest {
-                    protocol: crate::protocols::ProtocolType::MCP,
-                    reason: format!("Invalid sleep_data format: {e}"),
-                }
+                ProtocolError::InvalidRequest(format!("Invalid sleep_data format: {e}"))
             })?;
 
         // Get sleep/recovery config
@@ -279,10 +282,9 @@ pub fn handle_calculate_recovery_score(
 
         let sleep_quality =
             SleepAnalyzer::calculate_sleep_quality(&sleep_data, config).map_err(|e| {
-                ProtocolError::InternalError {
-                    component: "sleep_analyzer",
-                    details: format!("Sleep quality calculation failed: {e}"),
-                }
+                ProtocolError::InternalError(format!(
+                    "sleep_analyzer: Sleep quality calculation failed: {e}"
+                ))
             })?;
 
         // Get HRV analysis if available
@@ -309,9 +311,10 @@ pub fn handle_calculate_recovery_score(
 
             Some(
                 SleepAnalyzer::analyze_hrv_trends(rmssd, &recent_hrv, baseline_hrv, config)
-                    .map_err(|e| ProtocolError::InternalError {
-                        component: "sleep_analyzer",
-                        details: format!("HRV analysis failed: {e}"),
+                    .map_err(|e| {
+                        ProtocolError::InternalError(format!(
+                            "sleep_analyzer: HRV analysis failed: {e}"
+                        ))
                     })?,
             )
         } else {
@@ -339,9 +342,10 @@ pub fn handle_calculate_recovery_score(
             config,
             &algorithm,
         )
-        .map_err(|e| ProtocolError::InternalError {
-            component: "sleep_analyzer",
-            details: format!("Recovery score calculation failed: {e}"),
+        .map_err(|e| {
+            ProtocolError::InternalError(format!(
+                "sleep_analyzer: Recovery score calculation failed: {e}"
+            ))
         })?;
 
         Ok(UniversalResponse {
@@ -391,6 +395,15 @@ pub fn handle_suggest_rest_day(
     Box::pin(async move {
         use crate::utils::uuid::parse_user_id_for_protocol;
 
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "handle_suggest_rest_day cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get recent activities from provider
@@ -430,27 +443,20 @@ pub fn handle_suggest_rest_day(
         let training_load_calculator = TrainingLoadCalculator::new();
         let training_load = training_load_calculator
             .calculate_training_load(&activities, ftp, lthr, max_hr, resting_hr, weight_kg)
-            .map_err(|e| ProtocolError::InternalError {
-                component: "sleep_analyzer",
-                details: format!("Training load calculation failed: {e}"),
+            .map_err(|e| {
+                ProtocolError::InternalError(format!(
+                    "sleep_analyzer: Training load calculation failed: {e}"
+                ))
             })?;
 
         // Get sleep data
-        let sleep_data_json =
-            request
-                .parameters
-                .get("sleep_data")
-                .ok_or_else(|| ProtocolError::InvalidRequest {
-                    protocol: crate::protocols::ProtocolType::MCP,
-                    reason: "sleep_data parameter is required".to_owned(),
-                })?;
+        let sleep_data_json = request.parameters.get("sleep_data").ok_or_else(|| {
+            ProtocolError::InvalidRequest("sleep_data parameter is required".to_owned())
+        })?;
 
         let sleep_data: SleepData =
             serde_json::from_value(sleep_data_json.clone()).map_err(|e| {
-                ProtocolError::InvalidRequest {
-                    protocol: crate::protocols::ProtocolType::MCP,
-                    reason: format!("Invalid sleep_data format: {e}"),
-                }
+                ProtocolError::InvalidRequest(format!("Invalid sleep_data format: {e}"))
             })?;
 
         // Get sleep/recovery config
@@ -459,10 +465,9 @@ pub fn handle_suggest_rest_day(
 
         let sleep_quality =
             SleepAnalyzer::calculate_sleep_quality(&sleep_data, config).map_err(|e| {
-                ProtocolError::InternalError {
-                    component: "sleep_analyzer",
-                    details: format!("Sleep quality calculation failed: {e}"),
-                }
+                ProtocolError::InternalError(format!(
+                    "sleep_analyzer: Sleep quality calculation failed: {e}"
+                ))
             })?;
 
         // HRV analysis
@@ -489,9 +494,10 @@ pub fn handle_suggest_rest_day(
 
             Some(
                 SleepAnalyzer::analyze_hrv_trends(rmssd, &recent_hrv, baseline_hrv, config)
-                    .map_err(|e| ProtocolError::InternalError {
-                        component: "sleep_analyzer",
-                        details: format!("HRV analysis failed: {e}"),
+                    .map_err(|e| {
+                        ProtocolError::InternalError(format!(
+                            "sleep_analyzer: HRV analysis failed: {e}"
+                        ))
                     })?,
             )
         } else {
@@ -519,9 +525,10 @@ pub fn handle_suggest_rest_day(
             config,
             &algorithm,
         )
-        .map_err(|e| ProtocolError::InternalError {
-            component: "sleep_analyzer",
-            details: format!("Recovery score calculation failed: {e}"),
+        .map_err(|e| {
+            ProtocolError::InternalError(format!(
+                "sleep_analyzer: Recovery score calculation failed: {e}"
+            ))
         })?;
 
         // Generate rest day recommendation
@@ -531,9 +538,10 @@ pub fn handle_suggest_rest_day(
             &training_load,
             config,
         )
-        .map_err(|e| ProtocolError::InternalError {
-            component: "sleep_analyzer",
-            details: format!("Rest day recommendation failed: {e}"),
+        .map_err(|e| {
+            ProtocolError::InternalError(format!(
+                "sleep_analyzer: Rest day recommendation failed: {e}"
+            ))
         })?;
 
         Ok(UniversalResponse {
@@ -593,28 +601,30 @@ pub fn handle_track_sleep_trends(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "handle_track_sleep_trends cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         // Get sleep history
         let sleep_history_json = request.parameters.get("sleep_history").ok_or_else(|| {
-            ProtocolError::InvalidRequest {
-                protocol: crate::protocols::ProtocolType::MCP,
-                reason: "sleep_history parameter is required".to_owned(),
-            }
+            ProtocolError::InvalidRequest("sleep_history parameter is required".to_owned())
         })?;
 
         let sleep_history: Vec<SleepData> = serde_json::from_value(sleep_history_json.clone())
-            .map_err(|e| ProtocolError::InvalidRequest {
-                protocol: crate::protocols::ProtocolType::MCP,
-                reason: format!("Invalid sleep_history format: {e}"),
+            .map_err(|e| {
+                ProtocolError::InvalidRequest(format!("Invalid sleep_history format: {e}"))
             })?;
 
         let trend_min_days = executor.resources.config.sleep_recovery.trend_min_days;
         if sleep_history.len() < trend_min_days {
-            return Err(ProtocolError::InvalidRequest {
-                protocol: crate::protocols::ProtocolType::MCP,
-                reason: format!(
-                    "At least {trend_min_days} days of sleep data required for trend analysis"
-                ),
-            });
+            return Err(ProtocolError::InvalidRequest(format!(
+                "At least {trend_min_days} days of sleep data required for trend analysis"
+            )));
         }
 
         // Calculate average sleep metrics
@@ -799,9 +809,10 @@ pub fn handle_optimize_sleep_schedule(
         let training_load_calculator = TrainingLoadCalculator::new();
         let training_load = training_load_calculator
             .calculate_training_load(&activities, ftp, lthr, max_hr, resting_hr, weight_kg)
-            .map_err(|e| ProtocolError::InternalError {
-                component: "sleep_analyzer",
-                details: format!("Training load calculation failed: {e}"),
+            .map_err(|e| {
+                ProtocolError::InternalError(format!(
+                    "sleep_analyzer: Training load calculation failed: {e}"
+                ))
             })?;
 
         // Get sleep/recovery config

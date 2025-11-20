@@ -6,7 +6,7 @@
 
 //! Fitness-specific configuration for sport types and intelligence parameters
 
-use anyhow::Result;
+use crate::errors::AppResult;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -108,7 +108,7 @@ impl FitnessConfig {
     /// # Errors
     ///
     /// Returns an error if environment variable parsing fails
-    pub fn load() -> Result<Self> {
+    pub fn load() -> AppResult<Self> {
         let mut config = Self::default();
 
         // Load sport type mappings from environment variables
@@ -207,7 +207,7 @@ impl FitnessConfig {
         tenant_id: Option<&str>,
         user_id: Option<&str>,
         configuration_name: Option<&str>,
-    ) -> Result<Self> {
+    ) -> AppResult<Self> {
         let config_name = configuration_name.unwrap_or("default");
 
         // Try database first if available

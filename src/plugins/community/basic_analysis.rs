@@ -57,9 +57,7 @@ impl PluginImplementation for BasicAnalysisPlugin {
             .parameters
             .get("activity_id")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ProtocolError::InvalidParameters {
-                message: "activity_id is required".into(),
-            })?;
+            .ok_or_else(|| ProtocolError::InvalidParameters("activity_id is required".into()))?;
 
         let include_zones = request
             .parameters
@@ -77,9 +75,10 @@ impl PluginImplementation for BasicAnalysisPlugin {
         let provider = env
             .provider_registry
             .create_provider("strava")
-            .map_err(|e| ProtocolError::InternalError {
-                component: "provider_registry",
-                details: format!("Failed to create provider: {e}"),
+            .map_err(|e| {
+                ProtocolError::InternalError(format!(
+                    "provider_registry: Failed to create provider: {e}"
+                ))
             })?;
 
         // Attempt to fetch and analyze real activity data
@@ -115,11 +114,21 @@ async fn perform_basic_analysis(
     // Fetch actual activity data from the provider
     let activity = provider.get_activity(activity_id).await.map_err(|e| {
         // Provide helpful error message for NotFound errors
-        let error_message =
-            e.downcast_ref::<crate::providers::errors::ProviderError>()
-                .map_or_else(
-                    || format!("Failed to fetch activity {activity_id}: {e}"),
-                    |provider_err| match provider_err {
+        let error_message = {
+            let err_str = e.to_string();
+            if err_str.contains("not found") || err_str.contains("NotFound") {
+                format!("Activity {activity_id} not found in provider. The activity may have been deleted, made private, or the ID may be incorrect.")
+            } else {
+                format!("Failed to fetch activity {activity_id}: {e}")
+            }
+        };
+
+        // Legacy code kept for reference - AppError doesn't support downcast_ref
+        /*
+        e.downcast_ref::<crate::providers::errors::ProviderError>()
+            .map_or_else(
+                || format!("Failed to fetch activity {activity_id}: {e}"),
+                |provider_err| match provider_err {
                         crate::providers::errors::ProviderError::NotFound {
                             resource_type,
                             resource_id,
@@ -132,10 +141,8 @@ async fn perform_basic_analysis(
                         _ => format!("Failed to fetch activity {activity_id}: {e}"),
                     },
                 );
-        ProtocolError::InternalError {
-            component: "provider",
-            details: error_message,
-        }
+        */
+        ProtocolError::InternalError(format!("provider: {error_message}"))
     })?;
 
     // Calculate real pace metrics if distance and duration are available

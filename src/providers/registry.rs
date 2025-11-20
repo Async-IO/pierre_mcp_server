@@ -8,7 +8,7 @@ use super::core::{FitnessProvider, ProviderConfig, ProviderFactory, TenantProvid
 use super::garmin_provider::GarminProvider;
 use super::strava_provider::StravaProvider;
 use crate::constants::oauth_providers;
-use anyhow::{Context, Result};
+use crate::errors::{AppError, AppResult};
 use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -128,16 +128,19 @@ impl ProviderRegistry {
     /// # Errors
     ///
     /// Returns an error if the provider is not supported or no default configuration exists.
-    pub fn create_provider(&self, provider_name: &str) -> Result<Box<dyn FitnessProvider>> {
-        let factory = self
-            .factories
-            .get(provider_name)
-            .with_context(|| format!("Unsupported provider: {provider_name}"))?;
+    pub fn create_provider(&self, provider_name: &str) -> AppResult<Box<dyn FitnessProvider>> {
+        let factory = self.factories.get(provider_name).ok_or_else(|| {
+            AppError::invalid_input(format!("Unsupported provider: {provider_name}"))
+        })?;
 
         let config = self
             .default_configs
             .get(provider_name)
-            .with_context(|| format!("No default configuration for provider: {provider_name}"))?
+            .ok_or_else(|| {
+                AppError::invalid_input(format!(
+                    "No default configuration for provider: {provider_name}"
+                ))
+            })?
             .clone();
 
         Ok(factory.create(config))
@@ -152,11 +155,10 @@ impl ProviderRegistry {
         &self,
         provider_name: &str,
         config: ProviderConfig,
-    ) -> Result<Box<dyn FitnessProvider>> {
-        let factory = self
-            .factories
-            .get(provider_name)
-            .with_context(|| format!("Unsupported provider: {provider_name}"))?;
+    ) -> AppResult<Box<dyn FitnessProvider>> {
+        let factory = self.factories.get(provider_name).ok_or_else(|| {
+            AppError::invalid_input(format!("Unsupported provider: {provider_name}"))
+        })?;
 
         Ok(factory.create(config))
     }
@@ -171,7 +173,7 @@ impl ProviderRegistry {
         provider_name: &str,
         tenant_id: Uuid,
         user_id: Uuid,
-    ) -> Result<TenantProvider> {
+    ) -> AppResult<TenantProvider> {
         let provider = self.create_provider(provider_name)?;
         Ok(TenantProvider::new(provider, tenant_id, user_id))
     }
@@ -187,7 +189,7 @@ impl ProviderRegistry {
         config: ProviderConfig,
         tenant_id: Uuid,
         user_id: Uuid,
-    ) -> Result<TenantProvider> {
+    ) -> AppResult<TenantProvider> {
         let provider = self.create_provider_with_config(provider_name, config)?;
         Ok(TenantProvider::new(provider, tenant_id, user_id))
     }
@@ -225,7 +227,7 @@ pub fn global_registry() -> Arc<ProviderRegistry> {
 /// # Errors
 ///
 /// Returns an error if the provider is not supported or no default configuration exists.
-pub fn create_provider(provider_name: &str) -> Result<Box<dyn FitnessProvider>> {
+pub fn create_provider(provider_name: &str) -> AppResult<Box<dyn FitnessProvider>> {
     global_registry().create_provider(provider_name)
 }
 
@@ -241,7 +243,7 @@ pub fn create_tenant_provider(
     provider_name: &str,
     tenant_id: Uuid,
     user_id: Uuid,
-) -> Result<TenantProvider> {
+) -> AppResult<TenantProvider> {
     global_registry().create_tenant_provider(provider_name, tenant_id, user_id)
 }
 

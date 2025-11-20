@@ -4,11 +4,10 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use anyhow::Result;
+use crate::config::fitness_config::FitnessConfig;
+use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqlitePool};
-
-use crate::config::fitness_config::FitnessConfig;
 
 /// Database representation of a fitness configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,7 +50,7 @@ impl FitnessConfigurationManager {
         tenant_id: &str,
         configuration_name: &str,
         config: &FitnessConfig,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let config_json = serde_json::to_string(config)?;
 
         let result = sqlx::query(
@@ -69,7 +68,8 @@ impl FitnessConfigurationManager {
         .bind(configuration_name)
         .bind(&config_json)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to save tenant fitness config: {e}")))?;
 
         Ok(result.get("id"))
     }
@@ -85,7 +85,7 @@ impl FitnessConfigurationManager {
         user_id: &str,
         configuration_name: &str,
         config: &FitnessConfig,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let config_json = serde_json::to_string(config)?;
 
         let result = sqlx::query(
@@ -104,7 +104,8 @@ impl FitnessConfigurationManager {
         .bind(configuration_name)
         .bind(&config_json)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to save user fitness config: {e}")))?;
 
         Ok(result.get("id"))
     }
@@ -119,7 +120,7 @@ impl FitnessConfigurationManager {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<FitnessConfig>> {
+    ) -> AppResult<Option<FitnessConfig>> {
         // First try to get user-specific configuration
         if let Some(config) = self
             .get_config_internal(tenant_id, Some(user_id), configuration_name)
@@ -142,7 +143,7 @@ impl FitnessConfigurationManager {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<FitnessConfig>> {
+    ) -> AppResult<Option<FitnessConfig>> {
         self.get_config_internal(tenant_id, None, configuration_name)
             .await
     }
@@ -153,7 +154,7 @@ impl FitnessConfigurationManager {
         tenant_id: &str,
         user_id: Option<&str>,
         configuration_name: &str,
-    ) -> Result<Option<FitnessConfig>> {
+    ) -> AppResult<Option<FitnessConfig>> {
         let result = if let Some(uid) = user_id {
             sqlx::query(
                 r"
@@ -165,7 +166,8 @@ impl FitnessConfigurationManager {
             .bind(uid)
             .bind(configuration_name)
             .fetch_optional(&self.pool)
-            .await?
+            .await
+            .map_err(|e| AppError::database(format!("Failed to query user fitness config: {e}")))?
         } else {
             sqlx::query(
                 r"
@@ -176,7 +178,10 @@ impl FitnessConfigurationManager {
             .bind(tenant_id)
             .bind(configuration_name)
             .fetch_optional(&self.pool)
-            .await?
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to query tenant fitness config: {e}"))
+            })?
         };
 
         if let Some(row) = result {
@@ -193,7 +198,7 @@ impl FitnessConfigurationManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails
-    pub async fn list_tenant_configurations(&self, tenant_id: &str) -> Result<Vec<String>> {
+    pub async fn list_tenant_configurations(&self, tenant_id: &str) -> AppResult<Vec<String>> {
         let rows = sqlx::query(
             r"
             SELECT DISTINCT configuration_name FROM fitness_configurations
@@ -203,7 +208,10 @@ impl FitnessConfigurationManager {
         )
         .bind(tenant_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to list tenant fitness configurations: {e}"))
+        })?;
 
         let configurations = rows
             .into_iter()
@@ -222,7 +230,7 @@ impl FitnessConfigurationManager {
         &self,
         tenant_id: &str,
         user_id: &str,
-    ) -> Result<Vec<String>> {
+    ) -> AppResult<Vec<String>> {
         let rows = sqlx::query(
             r"
             SELECT DISTINCT configuration_name FROM fitness_configurations
@@ -233,7 +241,10 @@ impl FitnessConfigurationManager {
         .bind(tenant_id)
         .bind(user_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to list user fitness configurations: {e}"))
+        })?;
 
         let configurations = rows
             .into_iter()
@@ -253,7 +264,7 @@ impl FitnessConfigurationManager {
         tenant_id: &str,
         user_id: Option<&str>,
         configuration_name: &str,
-    ) -> Result<bool> {
+    ) -> AppResult<bool> {
         let rows_affected = if let Some(uid) = user_id {
             sqlx::query(
                 r"
@@ -265,7 +276,8 @@ impl FitnessConfigurationManager {
             .bind(uid)
             .bind(configuration_name)
             .execute(&self.pool)
-            .await?
+            .await
+            .map_err(|e| AppError::database(format!("Failed to delete user fitness config: {e}")))?
         } else {
             sqlx::query(
                 r"
@@ -276,7 +288,10 @@ impl FitnessConfigurationManager {
             .bind(tenant_id)
             .bind(configuration_name)
             .execute(&self.pool)
-            .await?
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to delete tenant fitness config: {e}"))
+            })?
         };
 
         Ok(rows_affected.rows_affected() > 0)
@@ -290,7 +305,7 @@ impl FitnessConfigurationManager {
     pub async fn get_all_tenant_records(
         &self,
         tenant_id: &str,
-    ) -> Result<Vec<FitnessConfigurationRecord>> {
+    ) -> AppResult<Vec<FitnessConfigurationRecord>> {
         let rows = sqlx::query(
             r"
             SELECT id, tenant_id, user_id, configuration_name, config_data, created_at, updated_at
@@ -301,7 +316,10 @@ impl FitnessConfigurationManager {
         )
         .bind(tenant_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to get all tenant fitness records: {e}"))
+        })?;
 
         let mut records = Vec::with_capacity(rows.len());
         for row in rows {

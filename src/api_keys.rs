@@ -17,8 +17,7 @@ use crate::constants::{
     },
     tiers,
 };
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
@@ -97,15 +96,17 @@ impl ApiKeyTier {
 }
 
 impl std::str::FromStr for ApiKeyTier {
-    type Err = anyhow::Error;
+    type Err = AppError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
             tiers::TRIAL => Ok(Self::Trial),
             tiers::STARTER => Ok(Self::Starter),
             tiers::PROFESSIONAL => Ok(Self::Professional),
             tiers::ENTERPRISE => Ok(Self::Enterprise),
-            _ => Err(AppError::invalid_input(format!("Invalid API key tier: {s}")).into()),
+            _ => Err(AppError::invalid_input(format!(
+                "Invalid API key tier: {s}"
+            ))),
         }
     }
 }
@@ -326,9 +327,9 @@ impl ApiKeyManager {
     /// # Errors
     ///
     /// Returns an error if the API key format is invalid or has incorrect length
-    pub fn validate_key_format(&self, api_key: &str) -> Result<()> {
+    pub fn validate_key_format(&self, api_key: &str) -> AppResult<()> {
         if !api_key.starts_with(self.key_prefix) && !api_key.starts_with("pk_trial_") {
-            anyhow::bail!("Invalid API key format");
+            return Err(AppError::invalid_input("Invalid API key format"));
         }
 
         let expected_len = if api_key.starts_with("pk_trial_") {
@@ -338,7 +339,7 @@ impl ApiKeyManager {
         };
 
         if api_key.len() != expected_len {
-            anyhow::bail!("Invalid API key length");
+            return Err(AppError::invalid_input("Invalid API key length"));
         }
 
         Ok(())
@@ -373,7 +374,7 @@ impl ApiKeyManager {
         &self,
         user_id: Uuid,
         request: CreateApiKeyRequestSimple,
-    ) -> Result<(ApiKey, String)> {
+    ) -> AppResult<(ApiKey, String)> {
         // Determine tier based on rate limit (keep trial functionality but don't expose in UI)
         let tier = if request.rate_limit_requests <= 1_000 {
             ApiKeyTier::Trial
@@ -443,7 +444,7 @@ impl ApiKeyManager {
         &self,
         user_id: Uuid,
         request: CreateApiKeyRequest,
-    ) -> Result<(ApiKey, String)> {
+    ) -> AppResult<(ApiKey, String)> {
         // Check if this is a trial key
         let is_trial = request.tier.is_trial();
 
@@ -504,7 +505,7 @@ impl ApiKeyManager {
         user_id: Uuid,
         name: String,
         description: Option<String>,
-    ) -> Result<(ApiKey, String)> {
+    ) -> AppResult<(ApiKey, String)> {
         let request = CreateApiKeyRequest {
             name,
             description,
@@ -521,14 +522,14 @@ impl ApiKeyManager {
     /// # Errors
     ///
     /// Returns an error if the API key is inactive or expired
-    pub fn is_key_valid(&self, api_key: &ApiKey) -> Result<()> {
+    pub fn is_key_valid(&self, api_key: &ApiKey) -> AppResult<()> {
         if !api_key.is_active {
-            anyhow::bail!("API key is inactive");
+            return Err(AppError::invalid_input("API key is inactive"));
         }
 
         if let Some(expires_at) = api_key.expires_at {
             if Utc::now() > expires_at {
-                anyhow::bail!("API key has expired");
+                return Err(AppError::invalid_input("API key has expired"));
             }
         }
 

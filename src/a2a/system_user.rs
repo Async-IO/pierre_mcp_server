@@ -8,8 +8,8 @@
 // NOTE: All `.clone()` calls in this file are Safe - Arc/String ownership for A2A operations
 
 use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::errors::{AppError, AppResult};
 use crate::models::User;
-use anyhow::Result;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -40,11 +40,16 @@ impl A2ASystemUserService {
         &self,
         client_id: &str,
         contact_email: &str,
-    ) -> Result<Uuid> {
+    ) -> AppResult<Uuid> {
         let system_email = format!("a2a-system-{client_id}@pierre.ai");
 
         // Check if system user already exists
-        if let Some(existing_user) = self.database.get_user_by_email(&system_email).await? {
+        if let Some(existing_user) = self
+            .database
+            .get_user_by_email(&system_email)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user by email: {e}")))?
+        {
             return Ok(existing_user.id);
         }
 
@@ -61,7 +66,8 @@ impl A2ASystemUserService {
             bcrypt::DEFAULT_COST // Secure hashing for production (12)
         };
 
-        let hashed_password = bcrypt::hash(secure_password, bcrypt_cost)?;
+        let hashed_password = bcrypt::hash(secure_password, bcrypt_cost)
+            .map_err(|e| AppError::internal(format!("Failed to hash password: {e}")))?;
 
         let system_user = User::new(
             system_email.clone(),
@@ -69,7 +75,11 @@ impl A2ASystemUserService {
             Some(format!("A2A System User for {client_id}")),
         );
 
-        let user_id = self.database.create_user(&system_user).await?;
+        let user_id = self
+            .database
+            .create_user(&system_user)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to create user: {e}")))?;
 
         // Store metadata about this being a system user
         Self::store_system_user_metadata(user_id, client_id, contact_email);
@@ -115,8 +125,13 @@ impl A2ASystemUserService {
     /// # Errors
     ///
     /// Returns an error if database operations fail
-    pub async fn is_system_user(&self, user_id: Uuid) -> Result<bool> {
-        if let Some(user) = self.database.get_user(user_id).await? {
+    pub async fn is_system_user(&self, user_id: Uuid) -> AppResult<bool> {
+        if let Some(user) = self
+            .database
+            .get_user(user_id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
+        {
             // System users have emails following the pattern a2a-system-{client_id}@pierre.ai
             Ok(user.email.starts_with("a2a-system-") && user.email.ends_with("@pierre.ai"))
         } else {
@@ -129,8 +144,13 @@ impl A2ASystemUserService {
     /// # Errors
     ///
     /// Returns an error if database operations fail
-    pub async fn get_client_id_for_system_user(&self, user_id: Uuid) -> Result<Option<String>> {
-        if let Some(user) = self.database.get_user(user_id).await? {
+    pub async fn get_client_id_for_system_user(&self, user_id: Uuid) -> AppResult<Option<String>> {
+        if let Some(user) = self
+            .database
+            .get_user(user_id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
+        {
             if user.email.starts_with("a2a-system-") && user.email.ends_with("@pierre.ai") {
                 // Extract client ID from email: a2a-system-{client_id}@pierre.ai
                 let email_part = user
@@ -148,10 +168,15 @@ impl A2ASystemUserService {
     /// # Errors
     ///
     /// Returns an error if database operations fail
-    pub async fn deactivate_system_user(&self, client_id: &str) -> Result<()> {
+    pub async fn deactivate_system_user(&self, client_id: &str) -> AppResult<()> {
         let system_email = format!("a2a-system-{client_id}@pierre.ai");
 
-        if let Some(user) = self.database.get_user_by_email(&system_email).await? {
+        if let Some(user) = self
+            .database
+            .get_user_by_email(&system_email)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user by email: {e}")))?
+        {
             // Instead of deleting, we could mark as inactive
             // Log system user deactivation
             tracing::info!(

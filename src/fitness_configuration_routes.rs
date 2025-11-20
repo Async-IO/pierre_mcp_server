@@ -117,7 +117,8 @@ impl FitnessConfigurationRoutes {
             .resources
             .database
             .get_user(user_id)
-            .await?
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user {user_id}: {e}")))?
             .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
 
         let tenant_id = user
@@ -168,13 +169,19 @@ impl FitnessConfigurationRoutes {
             .resources
             .database
             .list_user_fitness_configurations(&tenant_id_str, &user_id_str)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to list user fitness configurations: {e}"))
+            })?;
 
         let tenant_configs = self
             .resources
             .database
             .list_tenant_fitness_configurations(&tenant_id_str)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to list tenant fitness configurations: {e}"))
+            })?;
 
         // Combine and deduplicate
         configurations.extend(tenant_configs);
@@ -214,7 +221,8 @@ impl FitnessConfigurationRoutes {
             .resources
             .database
             .get_user_fitness_config(&tenant_id_str, &user_id_str, configuration_name)
-            .await?
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user fitness config: {e}")))?
         {
             Some(config) => config,
             None => {
@@ -222,7 +230,10 @@ impl FitnessConfigurationRoutes {
                 self.resources
                     .database
                     .get_tenant_fitness_config(&tenant_id_str, configuration_name)
-                    .await?
+                    .await
+                    .map_err(|e| {
+                        AppError::database(format!("Failed to get tenant fitness config: {e}"))
+                    })?
                     .unwrap_or_default()
             }
         };
@@ -274,7 +285,8 @@ impl FitnessConfigurationRoutes {
                 &configuration_name,
                 &request.configuration,
             )
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to save user fitness config: {e}")))?;
 
         Ok(FitnessConfigurationSaveResponse {
             id: config_id,
@@ -306,7 +318,8 @@ impl FitnessConfigurationRoutes {
             .resources
             .database
             .get_user(user_id)
-            .await?
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user {user_id}: {e}")))?
             .ok_or_else(|| AppError::not_found("User"))?;
 
         if !user.is_admin {
@@ -324,7 +337,10 @@ impl FitnessConfigurationRoutes {
             .resources
             .database
             .save_tenant_fitness_config(&tenant_id_str, &configuration_name, &request.configuration)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to save tenant fitness config: {e}"))
+            })?;
 
         Ok(FitnessConfigurationSaveResponse {
             id: config_id,
@@ -357,7 +373,8 @@ impl FitnessConfigurationRoutes {
             .resources
             .database
             .delete_fitness_config(&tenant_id_str, Some(&user_id_str), configuration_name)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to delete fitness config: {e}")))?;
 
         if !deleted {
             return Err(AppError::not_found(format!(
@@ -394,7 +411,8 @@ impl FitnessConfigurationRoutes {
             .resources
             .database
             .get_user(user_id)
-            .await?
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user {user_id}: {e}")))?
             .ok_or_else(|| AppError::not_found("User"))?;
 
         if !user.is_admin {
@@ -408,7 +426,10 @@ impl FitnessConfigurationRoutes {
             .resources
             .database
             .delete_fitness_config(&tenant_id_str, None, configuration_name)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to delete tenant fitness config: {e}"))
+            })?;
 
         if !deleted {
             return Err(AppError::not_found(format!(

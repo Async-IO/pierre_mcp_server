@@ -1,7 +1,7 @@
 // ABOUTME: Recovery score aggregation algorithms for combining TSB, sleep, and HRV metrics
 // ABOUTME: Implements weighted average, geometric mean, harmonic mean, minimum, and Bayesian methods
 
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -153,7 +153,7 @@ impl RecoveryAggregationAlgorithm {
         tsb_score: f64,
         sleep_score: f64,
         hrv_score: Option<f64>,
-    ) -> Result<f64, AppError> {
+    ) -> AppResult<f64> {
         // Validate inputs
         Self::validate_score(tsb_score, "TSB")?;
         Self::validate_score(sleep_score, "Sleep")?;
@@ -197,7 +197,7 @@ impl RecoveryAggregationAlgorithm {
     }
 
     /// Validate that score is in valid range (0-100)
-    fn validate_score(score: f64, name: &str) -> Result<(), AppError> {
+    fn validate_score(score: f64, name: &str) -> AppResult<()> {
         if !(0.0..=100.0).contains(&score) {
             return Err(AppError::invalid_input(format!(
                 "{name} score {score:.1} is outside valid range (0-100)"
@@ -212,7 +212,7 @@ impl RecoveryAggregationAlgorithm {
         sleep_score: f64,
         hrv_score: Option<f64>,
         weights: WeightConfig,
-    ) -> Result<f64, AppError> {
+    ) -> AppResult<f64> {
         let recovery_score = hrv_score.map_or_else(
             || {
                 // No HRV: use 2-component weights
@@ -254,7 +254,7 @@ impl RecoveryAggregationAlgorithm {
         tsb_score: f64,
         sleep_score: f64,
         hrv_score: Option<f64>,
-    ) -> Result<f64, AppError> {
+    ) -> AppResult<f64> {
         // Geometric mean: (x₁ x x₂ x ... x xₙ)^(1/n)
         let (product, count) = hrv_score.map_or_else(
             || (tsb_score * sleep_score, 2.0),
@@ -277,7 +277,7 @@ impl RecoveryAggregationAlgorithm {
         tsb_score: f64,
         sleep_score: f64,
         hrv_score: Option<f64>,
-    ) -> Result<f64, AppError> {
+    ) -> AppResult<f64> {
         // Harmonic mean: n / (1/x₁ + 1/x₂ + ... + 1/xₙ)
 
         // Guard against division by zero

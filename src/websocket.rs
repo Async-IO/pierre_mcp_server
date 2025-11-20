@@ -15,8 +15,8 @@
 
 use crate::auth::{AuthManager, AuthResult};
 use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::errors::{AppError, AppResult};
 use crate::middleware::McpAuthMiddleware;
-use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -266,7 +266,7 @@ impl WebSocketManager {
     }
 
     /// Authenticate `WebSocket` user with JWT
-    async fn authenticate_user(&self, token: &str) -> Result<AuthResult> {
+    async fn authenticate_user(&self, token: &str) -> AppResult<AuthResult> {
         let auth_header = if token.starts_with("Bearer ") {
             token.to_owned()
         } else {
@@ -276,6 +276,7 @@ impl WebSocketManager {
         self.auth_middleware
             .authenticate_request(Some(&auth_header))
             .await
+            .map_err(|e| AppError::internal(format!("WebSocket authentication failed: {e}")))
     }
 
     /// Broadcast usage update to subscribed clients
@@ -303,8 +304,11 @@ impl WebSocketManager {
     /// # Errors
     ///
     /// Returns an error if:\n    /// - System statistics retrieval fails\n    /// - Message serialization fails\n    /// - Broadcasting to clients fails
-    pub async fn broadcast_system_stats(&self) -> Result<()> {
-        let stats = self.get_system_stats().await?;
+    pub async fn broadcast_system_stats(&self) -> AppResult<()> {
+        let stats = self
+            .get_system_stats()
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to get system stats: {e}")))?;
         let message = WebSocketMessage::SystemStats {
             total_requests_today: stats.total_requests_today,
             total_requests_this_month: stats.total_requests_this_month,
@@ -365,9 +369,13 @@ impl WebSocketManager {
     }
 
     /// Get current system statistics
-    async fn get_system_stats(&self) -> Result<SystemStats> {
+    async fn get_system_stats(&self) -> AppResult<SystemStats> {
         // Query the database for real statistics
-        let (today_count, month_count) = self.database.get_system_stats().await?;
+        let (today_count, month_count) = self
+            .database
+            .get_system_stats()
+            .await
+            .map_err(|e| AppError::database(e.to_string()))?;
 
         tracing::debug!(
             "System statistics: {} requests today, {} this month",

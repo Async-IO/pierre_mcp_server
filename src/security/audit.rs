@@ -13,7 +13,7 @@
 //! - Encryption/decryption operations
 
 use crate::database_plugins::DatabaseProvider;
-use anyhow::Result;
+use crate::errors::AppResult;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -228,7 +228,7 @@ impl SecurityAuditor {
     /// # Errors
     ///
     /// Returns an error if the audit event cannot be stored
-    pub async fn log_event(&self, event: AuditEvent) -> Result<()> {
+    pub async fn log_event(&self, event: AuditEvent) -> AppResult<()> {
         // Log to structured logger first (for immediate visibility)
         match event.severity {
             AuditSeverity::Info => {
@@ -297,7 +297,7 @@ impl SecurityAuditor {
     }
 
     /// Store audit event in database
-    async fn store_audit_event(&self, event: &AuditEvent) -> Result<()> {
+    async fn store_audit_event(&self, event: &AuditEvent) -> AppResult<()> {
         // Store audit event in database
         self.database.store_audit_event(event).await?;
 
@@ -341,7 +341,7 @@ impl SecurityAuditor {
         provider: &str,
         user_id: Option<Uuid>,
         source_ip: Option<String>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let event = AuditEvent::new(
             AuditEventType::OAuthCredentialsAccessed,
             AuditSeverity::Info,
@@ -382,7 +382,7 @@ impl SecurityAuditor {
         user_id: Uuid,
         action: &str, // "created", "updated", "deleted"
         source_ip: Option<String>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let severity = match action {
             "deleted" => AuditSeverity::Warning,
             _ => AuditSeverity::Info,
@@ -425,7 +425,7 @@ impl SecurityAuditor {
         success: bool,
         duration_ms: u64,
         source_ip: Option<String>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let (severity, result) = if success {
             (AuditSeverity::Info, "success")
         } else {
@@ -471,7 +471,7 @@ impl SecurityAuditor {
         user_agent: Option<String>,
         success: bool,
         details: Option<&str>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let severity = if success {
             AuditSeverity::Info
         } else {
@@ -526,7 +526,7 @@ impl SecurityAuditor {
         tenant_id: Option<Uuid>,
         success: bool,
         error_details: Option<&str>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let event_type = if operation == "encrypt" {
             AuditEventType::DataEncrypted
         } else {

@@ -33,10 +33,9 @@ use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::models::{User, UserOAuthApp, UserOAuthToken};
 use crate::rate_limiting::JwtUsage;
-use anyhow::{Context, Result};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
@@ -61,7 +60,7 @@ impl Database {
     /// - `SQLite` file creation fails
     /// - Migration process fails
     /// - Encryption key is invalid
-    async fn new_impl(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
+    async fn new_impl(database_url: &str, encryption_key: Vec<u8>) -> AppResult<Self> {
         // Ensure SQLite creates the database file if it doesn't exist
         let connection_options = if database_url.starts_with("sqlite:") {
             format!("{database_url}?mode=rwc")
@@ -69,7 +68,9 @@ impl Database {
             database_url.to_owned()
         };
 
-        let pool = SqlitePool::connect(&connection_options).await?;
+        let pool = SqlitePool::connect(&connection_options)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to connect to database: {e}")))?;
 
         let db = Self {
             pool,
@@ -77,7 +78,9 @@ impl Database {
         };
 
         // Run migrations
-        db.migrate_impl().await?;
+        db.migrate_impl()
+            .await
+            .map_err(|e| AppError::database(format!("Database migration failed: {e}")))?;
 
         Ok(db)
     }
@@ -92,7 +95,7 @@ impl Database {
     /// - `SQLite` file creation fails
     /// - Migration process fails
     /// - Encryption key is invalid
-    pub async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
+    pub async fn new(database_url: &str, encryption_key: Vec<u8>) -> AppResult<Self> {
         Self::new_impl(database_url, encryption_key).await
     }
 
@@ -110,7 +113,7 @@ impl Database {
     /// - Any migration fails
     /// - Database connection is lost during migration
     /// - Insufficient database permissions
-    pub async fn migrate(&self) -> Result<()> {
+    pub async fn migrate(&self) -> AppResult<()> {
         self.migrate_impl().await
     }
 
@@ -119,7 +122,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if encryption fails
-    pub fn encrypt_data_with_aad(&self, data: &str, aad_context: &str) -> Result<String> {
+    pub fn encrypt_data_with_aad(&self, data: &str, aad_context: &str) -> AppResult<String> {
         Self::encrypt_data_with_aad_impl(self, data, aad_context)
     }
 
@@ -131,7 +134,11 @@ impl Database {
     /// - Decryption fails
     /// - Data is malformed
     /// - AAD context does not match
-    pub fn decrypt_data_with_aad(&self, encrypted_data: &str, aad_context: &str) -> Result<String> {
+    pub fn decrypt_data_with_aad(
+        &self,
+        encrypted_data: &str,
+        aad_context: &str,
+    ) -> AppResult<String> {
         Self::decrypt_data_with_aad_impl(self, encrypted_data, aad_context)
     }
 
@@ -144,36 +151,56 @@ impl Database {
     /// - Database connection is lost during migration
     /// - Insufficient database permissions
     /// - Database connection is lost during migration
-    async fn migrate_impl(&self) -> Result<()> {
+    async fn migrate_impl(&self) -> AppResult<()> {
         // User tables
-        self.migrate_users().await?;
+        self.migrate_users()
+            .await
+            .map_err(|e| AppError::database(format!("User migration failed: {e}")))?;
 
         // API key tables
-        self.migrate_api_keys().await?;
+        self.migrate_api_keys()
+            .await
+            .map_err(|e| AppError::database(format!("API keys migration failed: {e}")))?;
 
         // Analytics tables
-        self.migrate_analytics().await?;
+        self.migrate_analytics()
+            .await
+            .map_err(|e| AppError::database(format!("Analytics migration failed: {e}")))?;
 
         // A2A tables
-        self.migrate_a2a().await?;
+        self.migrate_a2a()
+            .await
+            .map_err(|e| AppError::database(format!("A2A migration failed: {e}")))?;
 
         // Admin tables
-        self.migrate_admin().await?;
+        self.migrate_admin()
+            .await
+            .map_err(|e| AppError::database(format!("Admin migration failed: {e}")))?;
 
         // UserOAuthToken tables
-        self.migrate_user_oauth_tokens().await?;
+        self.migrate_user_oauth_tokens()
+            .await
+            .map_err(|e| AppError::database(format!("User OAuth tokens migration failed: {e}")))?;
 
         // OAuth notifications tables
-        self.migrate_oauth_notifications().await?;
+        self.migrate_oauth_notifications().await.map_err(|e| {
+            AppError::database(format!("OAuth notifications migration failed: {e}"))
+        })?;
 
         // OAuth 2.0 Server tables
-        self.migrate_oauth2().await?;
+        self.migrate_oauth2()
+            .await
+            .map_err(|e| AppError::database(format!("OAuth2 migration failed: {e}")))?;
 
         // Tenant management tables
-        self.migrate_tenant_management().await?;
+        self.migrate_tenant_management()
+            .await
+            .map_err(|e| AppError::database(format!("Tenant management migration failed: {e}")))?;
 
         // Fitness configuration tables
-        self.migrate_fitness_configurations().await?;
+        self.migrate_fitness_configurations().await.map_err(|e| {
+            AppError::database(format!("Fitness configurations migration failed: {e}"))
+        })?;
 
         Ok(())
     }
@@ -183,8 +210,16 @@ impl Database {
     /// # Errors
     ///
     /// Create OAuth 2.0 server tables for RFC 7591 client registration
-    async fn migrate_oauth2(&self) -> Result<()> {
-        // Create oauth2_clients table
+    async fn migrate_oauth2(&self) -> AppResult<()> {
+        self.create_oauth2_clients_table().await?;
+        self.create_oauth2_auth_codes_table().await?;
+        self.create_oauth2_refresh_tokens_table().await?;
+        self.create_oauth2_indexes().await?;
+        self.migrate_oauth2_state_table().await?;
+        Ok(())
+    }
+
+    async fn create_oauth2_clients_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS oauth2_clients (
@@ -203,9 +238,12 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create oauth2_clients table: {e}")))?;
+        Ok(())
+    }
 
-        // Create oauth2_auth_codes table with PKCE support
+    async fn create_oauth2_auth_codes_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS oauth2_auth_codes (
@@ -225,31 +263,14 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to create oauth2_auth_codes table: {e}"))
+        })?;
+        Ok(())
+    }
 
-        // Create indices for performance
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_oauth2_clients_client_id ON oauth2_clients(client_id)",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_oauth2_auth_codes_code ON oauth2_auth_codes(code)",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_oauth2_auth_codes_expires_at ON oauth2_auth_codes(expires_at)")
-            .execute(&self.pool)
-            .await?;
-
-        // Index for tenant-scoped queries
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_oauth2_auth_codes_tenant_user ON oauth2_auth_codes(tenant_id, user_id)")
-            .execute(&self.pool)
-            .await?;
-
-        // Create oauth2_refresh_tokens table
+    async fn create_oauth2_refresh_tokens_table(&self) -> AppResult<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS oauth2_refresh_tokens (
@@ -266,35 +287,70 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to create oauth2_refresh_tokens table: {e}"))
+        })?;
+        Ok(())
+    }
 
-        // Create index for refresh token lookups
+    async fn create_oauth2_indexes(&self) -> AppResult<()> {
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_oauth2_clients_client_id ON oauth2_clients(client_id)",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_oauth2_clients_client_id: {e}"
+            ))
+        })?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_oauth2_auth_codes_code ON oauth2_auth_codes(code)",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_oauth2_auth_codes_code: {e}"
+            ))
+        })?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_oauth2_auth_codes_expires_at ON oauth2_auth_codes(expires_at)")
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to create index idx_oauth2_auth_codes_expires_at: {e}")))?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_oauth2_auth_codes_tenant_user ON oauth2_auth_codes(tenant_id, user_id)")
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to create index idx_oauth2_auth_codes_tenant_user: {e}")))?;
+
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_oauth2_refresh_tokens_token ON oauth2_refresh_tokens(token)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create index idx_oauth2_refresh_tokens_token: {e}")))?;
 
-        // Index for tenant-scoped refresh token queries
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_oauth2_refresh_tokens_tenant_user ON oauth2_refresh_tokens(tenant_id, user_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to create index idx_oauth2_refresh_tokens_tenant_user: {e}")))?;
 
-        // Create index for user refresh tokens
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_oauth2_refresh_tokens_user_id ON oauth2_refresh_tokens(user_id)",
         )
         .execute(&self.pool)
-        .await?;
-
-        // Create oauth2_states table and indexes
-        self.migrate_oauth2_state_table().await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create index idx_oauth2_refresh_tokens_user_id: {e}")))?;
 
         Ok(())
     }
 
     /// Create `OAuth2` state validation table for `CSRF` protection
-    async fn migrate_oauth2_state_table(&self) -> Result<()> {
+    async fn migrate_oauth2_state_table(&self) -> AppResult<()> {
         // Create oauth2_states table for server-side state validation (CSRF protection)
         sqlx::query(
             r"
@@ -315,18 +371,21 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Create index for state lookups and expiration cleanup
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_oauth2_states_state ON oauth2_states(state)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_oauth2_states_expires_at ON oauth2_states(expires_at)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -337,7 +396,7 @@ impl Database {
     /// - Database constraints cannot be applied
     /// - SQL syntax errors in migration statements
     #[allow(clippy::too_many_lines)] // Long function: Defines complete tenant management schema
-    async fn migrate_tenant_management(&self) -> Result<()> {
+    async fn migrate_tenant_management(&self) -> AppResult<()> {
         // Create tenants table
         sqlx::query(
             r"
@@ -355,7 +414,10 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Create tenant_oauth_credentials table
         sqlx::query(
@@ -377,7 +439,8 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Create oauth_apps table for OAuth application registration
         sqlx::query(
@@ -399,7 +462,10 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Create key_versions table for tenant encryption
         sqlx::query(
@@ -417,7 +483,8 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Create audit_events table
         sqlx::query(
@@ -439,7 +506,8 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Create tenant_users table for role-based permissions
         sqlx::query(
@@ -459,64 +527,89 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Create indexes for tenant tables
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenants_owner ON tenants(owner_user_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!(
+                    "Failed to create tenant_oauth_credentials table: {e}"
+                ))
+            })?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_oauth_tenant ON tenant_oauth_credentials(tenant_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to create index idx_tenant_oauth_tenant: {e}")))?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_oauth_provider ON tenant_oauth_credentials(provider)")
             .execute(&self.pool)
-            .await?;
+
+                .await
+
+                .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_key_versions_tenant ON key_versions(tenant_id)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_key_versions_active ON key_versions(tenant_id, is_active)")
             .execute(&self.pool)
-            .await?;
+
+                .await
+
+                .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_audit_events_tenant ON audit_events(tenant_id)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_audit_events_timestamp ON audit_events(timestamp)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_tenant_users_tenant ON tenant_users(tenant_id)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_users_user ON tenant_users(user_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_oauth_apps_client_id ON oauth_apps(client_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_oauth_apps_owner ON oauth_apps(owner_user_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to create index idx_oauth_apps_owner: {e}"))
+            })?;
 
         tracing::info!("Tenant management tables migration completed successfully");
         Ok(())
@@ -533,7 +626,7 @@ impl Database {
     /// - SQL syntax errors in migration statements
     // Long function: Defines complete admin database schema with multiple tables and indices
     #[allow(clippy::too_many_lines)]
-    async fn migrate_admin(&self) -> Result<()> {
+    async fn migrate_admin(&self) -> AppResult<()> {
         // Create admin_tokens table
         sqlx::query(
             r#"
@@ -556,7 +649,8 @@ impl Database {
             "#,
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Create admin_token_usage table
         sqlx::query(
@@ -577,7 +671,8 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Create admin_provisioned_keys table
         sqlx::query(
@@ -599,7 +694,8 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Create system_secrets table for centralized secret management
         sqlx::query(
@@ -613,7 +709,8 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Create rsa_keypairs table for persistent JWT signing keys
         sqlx::query(
@@ -629,46 +726,58 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Create indexes for admin tables
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_admin_tokens_service ON admin_tokens(service_name)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_admin_tokens_prefix ON admin_tokens(token_prefix)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_usage_token_id ON admin_token_usage(admin_token_id)")
             .execute(&self.pool)
-            .await?;
+
+                .await
+
+                .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_admin_usage_timestamp ON admin_token_usage(timestamp)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_provisioned_token ON admin_provisioned_keys(admin_token_id)")
             .execute(&self.pool)
-            .await?;
+
+                .await
+
+                .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_system_secrets_type ON system_secrets(secret_type)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_rsa_keypairs_active ON rsa_keypairs(is_active)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -678,7 +787,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if encryption fails
-    pub fn encrypt_data(&self, data: &str) -> Result<String> {
+    pub fn encrypt_data(&self, data: &str) -> AppResult<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
         use ring::rand::{SecureRandom, SystemRandom};
@@ -687,16 +796,19 @@ impl Database {
 
         // Generate unique nonce
         let mut nonce_bytes = [0u8; 12];
-        rng.fill(&mut nonce_bytes)?;
+        rng.fill(&mut nonce_bytes)
+            .map_err(|e| AppError::internal(format!("Failed to generate nonce: {e}")))?;
         let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
         // Create encryption key
-        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)
+            .map_err(|e| AppError::internal(format!("Failed to create encryption key: {e}")))?;
         let key = LessSafeKey::new(unbound_key);
 
         // Encrypt data
         let mut data_bytes = data.as_bytes().to_vec();
-        key.seal_in_place_append_tag(nonce, Aad::empty(), &mut data_bytes)?;
+        key.seal_in_place_append_tag(nonce, Aad::empty(), &mut data_bytes)
+            .map_err(|e| AppError::internal(format!("Failed to encrypt data: {e}")))?;
 
         // Combine nonce and encrypted data, then base64 encode
         let mut combined = nonce_bytes.to_vec();
@@ -710,31 +822,40 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if decryption fails or data is malformed
-    pub fn decrypt_data(&self, encrypted_data: &str) -> Result<String> {
+    pub fn decrypt_data(&self, encrypted_data: &str) -> AppResult<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
         // Decode from base64
-        let combined = general_purpose::STANDARD.decode(encrypted_data)?;
+        let combined = general_purpose::STANDARD
+            .decode(encrypted_data)
+            .map_err(|e| AppError::internal(format!("Failed to decode base64: {e}")))?;
 
         if combined.len() < 12 {
-            return Err(AppError::internal("Invalid encrypted data: too short").into());
+            return Err(AppError::internal("Invalid encrypted data: too short"));
         }
 
         // Extract nonce and encrypted data
         let (nonce_bytes, encrypted_bytes) = combined.split_at(12);
-        let nonce = Nonce::assume_unique_for_key(nonce_bytes.try_into()?);
+        let nonce = Nonce::assume_unique_for_key(
+            nonce_bytes
+                .try_into()
+                .map_err(|e| AppError::internal(format!("Invalid nonce size: {e}")))?,
+        );
 
         // Create decryption key
-        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)
+            .map_err(|e| AppError::internal(format!("Failed to create decryption key: {e}")))?;
         let key = LessSafeKey::new(unbound_key);
 
         // Decrypt data
         let mut decrypted_data = encrypted_bytes.to_vec();
-        let decrypted = key.open_in_place(nonce, Aad::empty(), &mut decrypted_data)?;
+        let decrypted = key
+            .open_in_place(nonce, Aad::empty(), &mut decrypted_data)
+            .map_err(|e| AppError::internal(format!("Failed to decrypt data: {e}")))?;
 
         String::from_utf8(decrypted.to_vec()).map_err(|e| {
-            AppError::internal(format!("Failed to convert decrypted data to string: {e}")).into()
+            AppError::internal(format!("Failed to convert decrypted data to string: {e}"))
         })
     }
 
@@ -746,7 +867,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if encryption fails
-    fn encrypt_data_with_aad_impl(&self, data: &str, aad_context: &str) -> Result<String> {
+    fn encrypt_data_with_aad_impl(&self, data: &str, aad_context: &str) -> AppResult<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
         use ring::rand::{SecureRandom, SystemRandom};
@@ -755,17 +876,20 @@ impl Database {
 
         // Generate unique nonce
         let mut nonce_bytes = [0u8; 12];
-        rng.fill(&mut nonce_bytes)?;
+        rng.fill(&mut nonce_bytes)
+            .map_err(|e| AppError::internal(format!("Failed to generate nonce: {e}")))?;
         let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
         // Create encryption key
-        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)
+            .map_err(|e| AppError::internal(format!("Failed to create encryption key: {e}")))?;
         let key = LessSafeKey::new(unbound_key);
 
         // Encrypt data with AAD binding
         let mut data_bytes = data.as_bytes().to_vec();
         let aad = Aad::from(aad_context.as_bytes());
-        key.seal_in_place_append_tag(nonce, aad, &mut data_bytes)?;
+        key.seal_in_place_append_tag(nonce, aad, &mut data_bytes)
+            .map_err(|e| AppError::internal(format!("Failed to encrypt data: {e}")))?;
 
         // Combine nonce and encrypted data, then base64 encode
         let mut combined = nonce_bytes.to_vec();
@@ -789,23 +913,30 @@ impl Database {
         &self,
         encrypted_data: &str,
         aad_context: &str,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
         // Decode from base64
-        let combined = general_purpose::STANDARD.decode(encrypted_data)?;
+        let combined = general_purpose::STANDARD
+            .decode(encrypted_data)
+            .map_err(|e| AppError::internal(format!("Failed to decode base64: {e}")))?;
 
         if combined.len() < 12 {
-            return Err(AppError::internal("Invalid encrypted data: too short").into());
+            return Err(AppError::internal("Invalid encrypted data: too short"));
         }
 
         // Extract nonce and encrypted data
         let (nonce_bytes, encrypted_bytes) = combined.split_at(12);
-        let nonce = Nonce::assume_unique_for_key(nonce_bytes.try_into()?);
+        let nonce = Nonce::assume_unique_for_key(
+            nonce_bytes
+                .try_into()
+                .map_err(|e| AppError::internal(format!("Invalid nonce size: {e}")))?,
+        );
 
         // Create decryption key
-        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)
+            .map_err(|e| AppError::internal(format!("Failed to create decryption key: {e}")))?;
         let key = LessSafeKey::new(unbound_key);
 
         // Decrypt data with AAD verification
@@ -820,7 +951,7 @@ impl Database {
             })?;
 
         String::from_utf8(decrypted.to_vec()).map_err(|e| {
-            AppError::internal(format!("Failed to convert decrypted data to string: {e}")).into()
+            AppError::internal(format!("Failed to convert decrypted data to string: {e}"))
         })
     }
 
@@ -833,14 +964,15 @@ impl Database {
         &self,
         user_id: &str,
         tenant_id: &str,
-    ) -> Result<Option<String>> {
+    ) -> AppResult<Option<String>> {
         let row = sqlx::query_as::<_, (String,)>(
             "SELECT role FROM tenant_users WHERE user_id = ? AND tenant_id = ?",
         )
         .bind(user_id)
         .bind(tenant_id)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         Ok(row.map(|r| r.0))
     }
@@ -850,7 +982,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if table creation fails or database connection is lost
-    async fn migrate_fitness_configurations(&self) -> Result<()> {
+    async fn migrate_fitness_configurations(&self) -> AppResult<()> {
         // Create fitness_configurations table
         sqlx::query(
             r"
@@ -867,20 +999,30 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Create indexes for fitness configurations
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_fitness_configs_tenant ON fitness_configurations(tenant_id)")
             .execute(&self.pool)
-            .await?;
+
+                .await
+
+                .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_fitness_configs_user ON fitness_configurations(user_id)")
             .execute(&self.pool)
-            .await?;
+
+                .await
+
+                .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_fitness_configs_tenant_user ON fitness_configurations(tenant_id, user_id)")
             .execute(&self.pool)
-            .await?;
+
+                .await
+
+                .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -897,7 +1039,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if hashing fails
-    pub fn hash_data(&self, data: &str) -> Result<String> {
+    pub fn hash_data(&self, data: &str) -> AppResult<String> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::digest::{digest, SHA256};
 
@@ -918,7 +1060,7 @@ impl Database {
         created_at: chrono::DateTime<chrono::Utc>,
         is_active: bool,
         key_size_bits: usize,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO rsa_keypairs (kid, private_key_pem, public_key_pem, created_at, is_active, key_size_bits)
@@ -934,9 +1076,12 @@ impl Database {
         .bind(public_key_pem)
         .bind(created_at)
         .bind(is_active)
-        .bind(i64::try_from(key_size_bits).context("RSA key size exceeds maximum supported value")?)
+        .bind(i64::try_from(key_size_bits).map_err(|e| AppError::invalid_input(format!("RSA key size exceeds maximum supported value: {e}")))?)
         .execute(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -948,22 +1093,35 @@ impl Database {
     /// Returns an error if database query fails
     pub async fn load_rsa_keypairs(
         &self,
-    ) -> Result<Vec<(String, String, String, chrono::DateTime<chrono::Utc>, bool)>> {
+    ) -> AppResult<Vec<(String, String, String, chrono::DateTime<chrono::Utc>, bool)>> {
         use sqlx::Row;
 
         let rows = sqlx::query(
             "SELECT kid, private_key_pem, public_key_pem, created_at, is_active FROM rsa_keypairs ORDER BY created_at DESC",
         )
         .fetch_all(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         let mut keypairs = Vec::new();
         for row in rows {
-            let kid: String = row.try_get("kid")?;
-            let private_key_pem: String = row.try_get("private_key_pem")?;
-            let public_key_pem: String = row.try_get("public_key_pem")?;
-            let created_at: chrono::DateTime<chrono::Utc> = row.try_get("created_at")?;
-            let is_active: bool = row.try_get("is_active")?;
+            let kid: String = row
+                .try_get("kid")
+                .map_err(|e| AppError::database(format!("Failed to get kid: {e}")))?;
+            let private_key_pem: String = row
+                .try_get("private_key_pem")
+                .map_err(|e| AppError::database(format!("Failed to get private_key_pem: {e}")))?;
+            let public_key_pem: String = row
+                .try_get("public_key_pem")
+                .map_err(|e| AppError::database(format!("Failed to get public_key_pem: {e}")))?;
+            let created_at: chrono::DateTime<chrono::Utc> = row
+                .try_get("created_at")
+                .map_err(|e| AppError::database(format!("Failed to get created_at: {e}")))?;
+            let is_active: bool = row
+                .try_get("is_active")
+                .map_err(|e| AppError::database(format!("Failed to get is_active: {e}")))?;
 
             keypairs.push((kid, private_key_pem, public_key_pem, created_at, is_active));
         }
@@ -976,12 +1134,17 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database operation fails
-    pub async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
+    pub async fn update_rsa_keypair_active_status(
+        &self,
+        kid: &str,
+        is_active: bool,
+    ) -> AppResult<()> {
         sqlx::query("UPDATE rsa_keypairs SET is_active = $1 WHERE kid = $2")
             .bind(is_active)
             .bind(kid)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -993,7 +1156,7 @@ impl Database {
     /// Returns an error if:
     /// - Database insert fails
     /// - Tenant already exists with the same slug
-    pub async fn create_tenant_impl(&self, tenant: &crate::models::Tenant) -> Result<()> {
+    pub async fn create_tenant_impl(&self, tenant: &crate::models::Tenant) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO tenants (id, name, slug, domain, plan, owner_user_id, is_active, created_at, updated_at)
@@ -1010,7 +1173,10 @@ impl Database {
         .bind(tenant.created_at)
         .bind(tenant.updated_at)
         .execute(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Add the owner as an admin of the tenant
         sqlx::query(
@@ -1022,7 +1188,8 @@ impl Database {
         .bind(tenant.id.to_string())
         .bind(tenant.owner_user_id.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -1034,7 +1201,7 @@ impl Database {
     /// Returns an error if:
     /// - Database query fails
     /// - Unknown secret type requested
-    pub async fn get_or_create_system_secret_impl(&self, secret_type: &str) -> Result<String> {
+    pub async fn get_or_create_system_secret_impl(&self, secret_type: &str) -> AppResult<String> {
         // Try to get existing secret
         if let Ok(secret) = self.get_system_secret_impl(secret_type).await {
             return Ok(secret);
@@ -1048,9 +1215,9 @@ impl Database {
                 return Ok(base64::engine::general_purpose::STANDARD.encode(&self.encryption_key));
             }
             _ => {
-                return Err(
-                    AppError::invalid_input(format!("Unknown secret type: {secret_type}")).into(),
-                )
+                return Err(AppError::invalid_input(format!(
+                    "Unknown secret type: {secret_type}"
+                )))
             }
         };
 
@@ -1059,7 +1226,8 @@ impl Database {
             .bind(secret_type)
             .bind(&secret_value)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(secret_value)
     }
@@ -1071,13 +1239,15 @@ impl Database {
     /// Returns an error if:
     /// - Database query fails
     /// - Secret not found
-    pub async fn get_system_secret_impl(&self, secret_type: &str) -> Result<String> {
+    pub async fn get_system_secret_impl(&self, secret_type: &str) -> AppResult<String> {
         let row = sqlx::query("SELECT secret_value FROM system_secrets WHERE secret_type = ?")
             .bind(secret_type)
             .fetch_one(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
-        Ok(row.try_get("secret_value")?)
+        row.try_get("secret_value")
+            .map_err(|e| AppError::database(format!("Failed to get secret_value: {e}")))
     }
 
     /// Update system secret (for rotation)
@@ -1089,14 +1259,17 @@ impl Database {
         &self,
         secret_type: &str,
         new_value: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             "UPDATE system_secrets SET secret_value = ?, updated_at = CURRENT_TIMESTAMP WHERE secret_type = ?",
         )
         .bind(new_value)
         .bind(secret_type)
         .execute(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -1106,7 +1279,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if tenant not found or database query fails
-    pub async fn get_tenant_by_id_impl(&self, tenant_id: Uuid) -> Result<crate::models::Tenant> {
+    pub async fn get_tenant_by_id_impl(&self, tenant_id: Uuid) -> AppResult<crate::models::Tenant> {
         let row = sqlx::query(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.plan, tu.user_id, t.created_at, t.updated_at
@@ -1117,24 +1290,42 @@ impl Database {
         )
         .bind(tenant_id.to_string())
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         match row {
-            Some(row) => Ok(crate::models::Tenant {
-                id: Uuid::parse_str(&row.try_get::<String, _>("id")?)?,
-                name: row.try_get("name")?,
-                slug: row.try_get("slug")?,
-                domain: row.try_get("domain")?,
-                plan: row.try_get("plan")?,
-                owner_user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
-                created_at: row.try_get("created_at")?,
-                updated_at: row.try_get("updated_at")?,
-            }),
-            None => Err(DatabaseError::NotFound {
-                entity_type: "Tenant",
-                entity_id: tenant_id.to_string(),
+            Some(row) => {
+                let id_str: String = row
+                    .try_get("id")
+                    .map_err(|e| AppError::database(format!("Failed to get id: {e}")))?;
+                let user_id_str: String = row
+                    .try_get("user_id")
+                    .map_err(|e| AppError::database(format!("Failed to get user_id: {e}")))?;
+
+                Ok(crate::models::Tenant {
+                    id: Uuid::parse_str(&id_str)?,
+                    name: row
+                        .try_get("name")
+                        .map_err(|e| AppError::database(format!("Failed to get name: {e}")))?,
+                    slug: row
+                        .try_get("slug")
+                        .map_err(|e| AppError::database(format!("Failed to get slug: {e}")))?,
+                    domain: row
+                        .try_get("domain")
+                        .map_err(|e| AppError::database(format!("Failed to get domain: {e}")))?,
+                    plan: row
+                        .try_get("plan")
+                        .map_err(|e| AppError::database(format!("Failed to get plan: {e}")))?,
+                    owner_user_id: Uuid::parse_str(&user_id_str)?,
+                    created_at: row.try_get("created_at").map_err(|e| {
+                        AppError::database(format!("Failed to get created_at: {e}"))
+                    })?,
+                    updated_at: row.try_get("updated_at").map_err(|e| {
+                        AppError::database(format!("Failed to get updated_at: {e}"))
+                    })?,
+                })
             }
-            .into()),
+            None => Err(AppError::not_found("Tenant")),
         }
     }
 
@@ -1143,7 +1334,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if tenant not found or database query fails
-    pub async fn get_tenant_by_slug_impl(&self, slug: &str) -> Result<crate::models::Tenant> {
+    pub async fn get_tenant_by_slug_impl(&self, slug: &str) -> AppResult<crate::models::Tenant> {
         let row = sqlx::query(
             r"
             SELECT t.id, t.name, t.slug, t.domain, t.plan, tu.user_id, t.created_at, t.updated_at
@@ -1154,24 +1345,42 @@ impl Database {
         )
         .bind(slug)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         match row {
-            Some(row) => Ok(crate::models::Tenant {
-                id: Uuid::parse_str(&row.try_get::<String, _>("id")?)?,
-                name: row.try_get("name")?,
-                slug: row.try_get("slug")?,
-                domain: row.try_get("domain")?,
-                plan: row.try_get("plan")?,
-                owner_user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
-                created_at: row.try_get("created_at")?,
-                updated_at: row.try_get("updated_at")?,
-            }),
-            None => Err(DatabaseError::NotFound {
-                entity_type: "Tenant",
-                entity_id: slug.to_owned(),
+            Some(row) => {
+                let id_str: String = row
+                    .try_get("id")
+                    .map_err(|e| AppError::database(format!("Failed to get id: {e}")))?;
+                let user_id_str: String = row
+                    .try_get("user_id")
+                    .map_err(|e| AppError::database(format!("Failed to get user_id: {e}")))?;
+
+                Ok(crate::models::Tenant {
+                    id: Uuid::parse_str(&id_str)?,
+                    name: row
+                        .try_get("name")
+                        .map_err(|e| AppError::database(format!("Failed to get name: {e}")))?,
+                    slug: row
+                        .try_get("slug")
+                        .map_err(|e| AppError::database(format!("Failed to get slug: {e}")))?,
+                    domain: row
+                        .try_get("domain")
+                        .map_err(|e| AppError::database(format!("Failed to get domain: {e}")))?,
+                    plan: row
+                        .try_get("plan")
+                        .map_err(|e| AppError::database(format!("Failed to get plan: {e}")))?,
+                    owner_user_id: Uuid::parse_str(&user_id_str)?,
+                    created_at: row.try_get("created_at").map_err(|e| {
+                        AppError::database(format!("Failed to get created_at: {e}"))
+                    })?,
+                    updated_at: row.try_get("updated_at").map_err(|e| {
+                        AppError::database(format!("Failed to get updated_at: {e}"))
+                    })?,
+                })
             }
-            .into()),
+            None => Err(AppError::not_found("Tenant")),
         }
     }
 
@@ -1183,7 +1392,7 @@ impl Database {
     pub async fn list_tenants_for_user_impl(
         &self,
         user_id: Uuid,
-    ) -> Result<Vec<crate::models::Tenant>> {
+    ) -> AppResult<Vec<crate::models::Tenant>> {
         let rows = sqlx::query(
             r"
             SELECT DISTINCT t.id, t.name, t.slug, t.domain, t.plan,
@@ -1197,23 +1406,43 @@ impl Database {
         )
         .bind(user_id.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         let tenants = rows
             .into_iter()
             .map(|row| {
+                let id_str: String = row
+                    .try_get("id")
+                    .map_err(|e| AppError::database(format!("Failed to get id: {e}")))?;
+                let owner_user_id_str: String = row
+                    .try_get("owner_user_id")
+                    .map_err(|e| AppError::database(format!("Failed to get owner_user_id: {e}")))?;
+
                 Ok(crate::models::Tenant {
-                    id: Uuid::parse_str(&row.try_get::<String, _>("id")?)?,
-                    name: row.try_get("name")?,
-                    slug: row.try_get("slug")?,
-                    domain: row.try_get("domain")?,
-                    plan: row.try_get("plan")?,
-                    owner_user_id: Uuid::parse_str(&row.try_get::<String, _>("owner_user_id")?)?,
-                    created_at: row.try_get("created_at")?,
-                    updated_at: row.try_get("updated_at")?,
+                    id: Uuid::parse_str(&id_str)?,
+                    name: row
+                        .try_get("name")
+                        .map_err(|e| AppError::database(format!("Failed to get name: {e}")))?,
+                    slug: row
+                        .try_get("slug")
+                        .map_err(|e| AppError::database(format!("Failed to get slug: {e}")))?,
+                    domain: row
+                        .try_get("domain")
+                        .map_err(|e| AppError::database(format!("Failed to get domain: {e}")))?,
+                    plan: row
+                        .try_get("plan")
+                        .map_err(|e| AppError::database(format!("Failed to get plan: {e}")))?,
+                    owner_user_id: Uuid::parse_str(&owner_user_id_str)?,
+                    created_at: row.try_get("created_at").map_err(|e| {
+                        AppError::database(format!("Failed to get created_at: {e}"))
+                    })?,
+                    updated_at: row.try_get("updated_at").map_err(|e| {
+                        AppError::database(format!("Failed to get updated_at: {e}"))
+                    })?,
                 })
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<AppResult<Vec<_>>>()?;
 
         Ok(tenants)
     }
@@ -1223,7 +1452,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if database query fails
-    pub async fn get_all_tenants_impl(&self) -> Result<Vec<crate::models::Tenant>> {
+    pub async fn get_all_tenants_impl(&self) -> AppResult<Vec<crate::models::Tenant>> {
         let rows = sqlx::query(
             r"
             SELECT id, slug, name, domain, plan, owner_user_id, created_at, updated_at
@@ -1233,23 +1462,43 @@ impl Database {
             ",
         )
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         let tenants = rows
             .into_iter()
             .map(|row| {
+                let id_str: String = row
+                    .try_get("id")
+                    .map_err(|e| AppError::database(format!("Failed to get id: {e}")))?;
+                let owner_user_id_str: String = row
+                    .try_get("owner_user_id")
+                    .map_err(|e| AppError::database(format!("Failed to get owner_user_id: {e}")))?;
+
                 Ok(crate::models::Tenant {
-                    id: Uuid::parse_str(&row.try_get::<String, _>("id")?)?,
-                    name: row.try_get("name")?,
-                    slug: row.try_get("slug")?,
-                    domain: row.try_get("domain")?,
-                    plan: row.try_get("plan")?,
-                    owner_user_id: Uuid::parse_str(&row.try_get::<String, _>("owner_user_id")?)?,
-                    created_at: row.try_get("created_at")?,
-                    updated_at: row.try_get("updated_at")?,
+                    id: Uuid::parse_str(&id_str)?,
+                    name: row
+                        .try_get("name")
+                        .map_err(|e| AppError::database(format!("Failed to get name: {e}")))?,
+                    slug: row
+                        .try_get("slug")
+                        .map_err(|e| AppError::database(format!("Failed to get slug: {e}")))?,
+                    domain: row
+                        .try_get("domain")
+                        .map_err(|e| AppError::database(format!("Failed to get domain: {e}")))?,
+                    plan: row
+                        .try_get("plan")
+                        .map_err(|e| AppError::database(format!("Failed to get plan: {e}")))?,
+                    owner_user_id: Uuid::parse_str(&owner_user_id_str)?,
+                    created_at: row.try_get("created_at").map_err(|e| {
+                        AppError::database(format!("Failed to get created_at: {e}"))
+                    })?,
+                    updated_at: row.try_get("updated_at").map_err(|e| {
+                        AppError::database(format!("Failed to get updated_at: {e}"))
+                    })?,
                 })
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<AppResult<Vec<_>>>()?;
 
         Ok(tenants)
     }
@@ -1262,7 +1511,7 @@ impl Database {
     pub async fn store_tenant_oauth_credentials_impl(
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         // Encrypt the client secret using AES-256-GCM with AAD binding
         // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
         let aad_context = format!(
@@ -1300,9 +1549,7 @@ impl Database {
         .bind(i64::from(credentials.rate_limit_per_day))
         .execute(&self.pool)
         .await
-        .map_err(|e| DatabaseError::QueryError {
-            context: format!("Failed to store OAuth credentials: {e}"),
-        })?;
+        .map_err(|e| AppError::database(format!("Failed to store OAuth credentials: {e}")))?;
 
         Ok(())
     }
@@ -1315,7 +1562,7 @@ impl Database {
     pub async fn get_tenant_oauth_providers_impl(
         &self,
         tenant_id: Uuid,
-    ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Vec<crate::tenant::TenantOAuthCredentials>> {
         let rows = sqlx::query(
             r"
             SELECT provider, client_id, client_secret_encrypted,
@@ -1327,17 +1574,31 @@ impl Database {
         )
         .bind(tenant_id.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         let credentials = rows
             .into_iter()
             .map(|row| {
-                let provider: String = row.try_get("provider")?;
-                let client_id: String = row.try_get("client_id")?;
-                let encrypted_secret: String = row.try_get("client_secret_encrypted")?;
-                let redirect_uri: String = row.try_get("redirect_uri")?;
-                let scopes_json: String = row.try_get("scopes")?;
-                let rate_limit: i64 = row.try_get("rate_limit_per_day")?;
+                let provider: String = row
+                    .try_get("provider")
+                    .map_err(|e| AppError::database(format!("Failed to get provider: {e}")))?;
+                let client_id: String = row
+                    .try_get("client_id")
+                    .map_err(|e| AppError::database(format!("Failed to get client_id: {e}")))?;
+                let encrypted_secret: String =
+                    row.try_get("client_secret_encrypted").map_err(|e| {
+                        AppError::database(format!("Failed to get client_secret_encrypted: {e}"))
+                    })?;
+                let redirect_uri: String = row
+                    .try_get("redirect_uri")
+                    .map_err(|e| AppError::database(format!("Failed to get redirect_uri: {e}")))?;
+                let scopes_json: String = row
+                    .try_get("scopes")
+                    .map_err(|e| AppError::database(format!("Failed to get scopes: {e}")))?;
+                let rate_limit: i64 = row.try_get("rate_limit_per_day").map_err(|e| {
+                    AppError::database(format!("Failed to get rate_limit_per_day: {e}"))
+                })?;
 
                 // Decrypt the client secret using AAD binding
                 // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
@@ -1356,7 +1617,7 @@ impl Database {
                     rate_limit_per_day: u32::try_from(rate_limit).unwrap_or(0),
                 })
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<AppResult<Vec<_>>>()?;
 
         Ok(credentials)
     }
@@ -1370,7 +1631,7 @@ impl Database {
         &self,
         tenant_id: Uuid,
         provider: &str,
-    ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Option<crate::tenant::TenantOAuthCredentials>> {
         let row = sqlx::query(
             r"
             SELECT client_id, client_secret_encrypted,
@@ -1382,15 +1643,27 @@ impl Database {
         .bind(tenant_id.to_string())
         .bind(provider)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         match row {
             Some(row) => {
-                let client_id: String = row.try_get("client_id")?;
-                let encrypted_secret: String = row.try_get("client_secret_encrypted")?;
-                let redirect_uri: String = row.try_get("redirect_uri")?;
-                let scopes_json: String = row.try_get("scopes")?;
-                let rate_limit: i64 = row.try_get("rate_limit_per_day")?;
+                let client_id: String = row
+                    .try_get("client_id")
+                    .map_err(|e| AppError::database(format!("Failed to get client_id: {e}")))?;
+                let encrypted_secret: String =
+                    row.try_get("client_secret_encrypted").map_err(|e| {
+                        AppError::database(format!("Failed to get client_secret_encrypted: {e}"))
+                    })?;
+                let redirect_uri: String = row
+                    .try_get("redirect_uri")
+                    .map_err(|e| AppError::database(format!("Failed to get redirect_uri: {e}")))?;
+                let scopes_json: String = row
+                    .try_get("scopes")
+                    .map_err(|e| AppError::database(format!("Failed to get scopes: {e}")))?;
+                let rate_limit: i64 = row.try_get("rate_limit_per_day").map_err(|e| {
+                    AppError::database(format!("Failed to get rate_limit_per_day: {e}"))
+                })?;
 
                 // Decrypt the client secret using AAD binding
                 // AAD context format: "{tenant_id}|{provider}|tenant_oauth_credentials"
@@ -1422,7 +1695,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    async fn get_user_configuration_impl(&self, user_id: &str) -> Result<Option<String>> {
+    async fn get_user_configuration_impl(&self, user_id: &str) -> AppResult<Option<String>> {
         // First ensure the user_configurations table exists
         sqlx::query(
             r"
@@ -1435,17 +1708,21 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         let query = "SELECT config_data FROM user_configurations WHERE user_id = ?1";
 
         let row = sqlx::query(query)
             .bind(user_id)
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         if let Some(row) = row {
-            Ok(Some(row.try_get("config_data")?))
+            Ok(Some(row.try_get("config_data").map_err(|e| {
+                AppError::database(format!("Failed to get config_data: {e}"))
+            })?))
         } else {
             Ok(None)
         }
@@ -1456,7 +1733,11 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    async fn save_user_configuration_impl(&self, user_id: &str, config_json: &str) -> Result<()> {
+    async fn save_user_configuration_impl(
+        &self,
+        user_id: &str,
+        config_json: &str,
+    ) -> AppResult<()> {
         // First ensure the user_configurations table exists
         sqlx::query(
             r"
@@ -1469,7 +1750,8 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         // Insert or update configuration using SQLite syntax
         let query = r"
@@ -1484,7 +1766,8 @@ impl Database {
             .bind(user_id)
             .bind(config_json)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -1502,12 +1785,13 @@ impl Database {
         &self,
         kid: &str,
         is_active: bool,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query("UPDATE rsa_keypairs SET is_active = ?1 WHERE kid = ?2")
             .bind(is_active)
             .bind(kid)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -1521,7 +1805,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    async fn create_oauth_app_impl(&self, app: &crate::models::OAuthApp) -> Result<()> {
+    async fn create_oauth_app_impl(&self, app: &crate::models::OAuthApp) -> AppResult<()> {
         let redirect_uris_json = serde_json::to_string(&app.redirect_uris)?;
         let scopes_json = serde_json::to_string(&app.scopes)?;
 
@@ -1546,9 +1830,7 @@ impl Database {
         .bind(app.updated_at)
         .execute(&self.pool)
         .await
-        .map_err(|e| DatabaseError::QueryError {
-            context: format!("Failed to create OAuth app: {e}"),
-        })?;
+        .map_err(|e| AppError::database(format!("Failed to create OAuth app: {e}")))?;
 
         Ok(())
     }
@@ -1561,7 +1843,7 @@ impl Database {
     async fn get_oauth_app_by_client_id_impl(
         &self,
         client_id: &str,
-    ) -> Result<crate::models::OAuthApp> {
+    ) -> AppResult<crate::models::OAuthApp> {
         let row = sqlx::query(
             r"
             SELECT id, client_id, client_secret_hash, name, description, redirect_uris,
@@ -1572,7 +1854,8 @@ impl Database {
         )
         .bind(client_id)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         match row {
             Some(row) => {
@@ -1593,11 +1876,7 @@ impl Database {
                     updated_at: row.get("updated_at"),
                 })
             }
-            None => Err(DatabaseError::NotFound {
-                entity_type: "OAuth app",
-                entity_id: client_id.to_owned(),
-            }
-            .into()),
+            None => Err(AppError::not_found("OAuth app")),
         }
     }
 
@@ -1610,11 +1889,12 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    async fn revoke_oauth2_refresh_token_impl(&self, token: &str) -> Result<()> {
+    async fn revoke_oauth2_refresh_token_impl(&self, token: &str) -> AppResult<()> {
         sqlx::query("UPDATE oauth2_refresh_tokens SET revoked = 1 WHERE token = ?1")
             .bind(token)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -1627,7 +1907,7 @@ impl Database {
     pub async fn store_oauth2_client_impl(
         &self,
         client: &crate::oauth2_server::models::OAuth2Client,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO oauth2_clients (id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at)
@@ -1646,7 +1926,10 @@ impl Database {
         .bind(client.created_at)
         .bind(client.expires_at)
         .execute(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -1659,7 +1942,7 @@ impl Database {
     pub async fn get_oauth2_client_impl(
         &self,
         client_id: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2Client>> {
         let row = sqlx::query(
             r"
             SELECT id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at
@@ -1669,21 +1952,50 @@ impl Database {
         )
         .bind(client_id)
         .fetch_optional(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         if let Some(row) = row {
+            let redirect_uris_str: String = row
+                .try_get("redirect_uris")
+                .map_err(|e| AppError::database(format!("Failed to get redirect_uris: {e}")))?;
+            let grant_types_str: String = row
+                .try_get("grant_types")
+                .map_err(|e| AppError::database(format!("Failed to get grant_types: {e}")))?;
+            let response_types_str: String = row
+                .try_get("response_types")
+                .map_err(|e| AppError::database(format!("Failed to get response_types: {e}")))?;
+
             Ok(Some(crate::oauth2_server::models::OAuth2Client {
-                id: row.try_get("id")?,
-                client_id: row.try_get("client_id")?,
-                client_secret_hash: row.try_get("client_secret_hash")?,
-                redirect_uris: serde_json::from_str(&row.try_get::<String, _>("redirect_uris")?)?,
-                grant_types: serde_json::from_str(&row.try_get::<String, _>("grant_types")?)?,
-                response_types: serde_json::from_str(&row.try_get::<String, _>("response_types")?)?,
-                client_name: row.try_get("client_name")?,
-                client_uri: row.try_get("client_uri")?,
-                scope: row.try_get("scope")?,
-                created_at: row.try_get("created_at")?,
-                expires_at: row.try_get("expires_at")?,
+                id: row
+                    .try_get("id")
+                    .map_err(|e| AppError::database(format!("Failed to get id: {e}")))?,
+                client_id: row
+                    .try_get("client_id")
+                    .map_err(|e| AppError::database(format!("Failed to get client_id: {e}")))?,
+                client_secret_hash: row.try_get("client_secret_hash").map_err(|e| {
+                    AppError::database(format!("Failed to get client_secret_hash: {e}"))
+                })?,
+                redirect_uris: serde_json::from_str(&redirect_uris_str)?,
+                grant_types: serde_json::from_str(&grant_types_str)?,
+                response_types: serde_json::from_str(&response_types_str)?,
+                client_name: row
+                    .try_get("client_name")
+                    .map_err(|e| AppError::database(format!("Failed to get client_name: {e}")))?,
+                client_uri: row
+                    .try_get("client_uri")
+                    .map_err(|e| AppError::database(format!("Failed to get client_uri: {e}")))?,
+                scope: row
+                    .try_get("scope")
+                    .map_err(|e| AppError::database(format!("Failed to get scope: {e}")))?,
+                created_at: row
+                    .try_get("created_at")
+                    .map_err(|e| AppError::database(format!("Failed to get created_at: {e}")))?,
+                expires_at: row
+                    .try_get("expires_at")
+                    .map_err(|e| AppError::database(format!("Failed to get expires_at: {e}")))?,
             }))
         } else {
             Ok(None)
@@ -1698,7 +2010,7 @@ impl Database {
     pub async fn store_oauth2_auth_code_impl(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO oauth2_auth_codes (code, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, expires_at, used, state)
@@ -1717,7 +2029,10 @@ impl Database {
         .bind(auth_code.used)
         .bind(&auth_code.state)
         .execute(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -1730,7 +2045,7 @@ impl Database {
     pub async fn get_oauth2_auth_code_impl(
         &self,
         code: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         let row = sqlx::query(
             r"
             SELECT code, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, expires_at, used, state
@@ -1740,21 +2055,48 @@ impl Database {
         )
         .bind(code)
         .fetch_optional(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         if let Some(row) = row {
             Ok(Some(crate::oauth2_server::models::OAuth2AuthCode {
-                code: row.try_get("code")?,
-                client_id: row.try_get("client_id")?,
-                user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
-                tenant_id: row.try_get("tenant_id")?,
-                redirect_uri: row.try_get("redirect_uri")?,
-                scope: row.try_get("scope")?,
-                code_challenge: row.try_get("code_challenge")?,
-                code_challenge_method: row.try_get("code_challenge_method")?,
-                expires_at: row.try_get("expires_at")?,
-                used: row.try_get("used")?,
-                state: row.try_get("state")?,
+                code: row
+                    .try_get("code")
+                    .map_err(|e| AppError::database(format!("Failed to get code: {e}")))?,
+                client_id: row
+                    .try_get("client_id")
+                    .map_err(|e| AppError::database(format!("Failed to get client_id: {e}")))?,
+                user_id: Uuid::parse_str(
+                    &row.try_get::<String, _>("user_id")
+                        .map_err(|e| AppError::database(format!("Failed to get user_id: {e}")))?,
+                )
+                .map_err(|e| AppError::database(format!("Failed to parse user_id: {e}")))?,
+                tenant_id: row
+                    .try_get("tenant_id")
+                    .map_err(|e| AppError::database(format!("Failed to get tenant_id: {e}")))?,
+                redirect_uri: row
+                    .try_get("redirect_uri")
+                    .map_err(|e| AppError::database(format!("Failed to get redirect_uri: {e}")))?,
+                scope: row
+                    .try_get("scope")
+                    .map_err(|e| AppError::database(format!("Failed to get scope: {e}")))?,
+                code_challenge: row.try_get("code_challenge").map_err(|e| {
+                    AppError::database(format!("Failed to get code_challenge: {e}"))
+                })?,
+                code_challenge_method: row.try_get("code_challenge_method").map_err(|e| {
+                    AppError::database(format!("Failed to get code_challenge_method: {e}"))
+                })?,
+                expires_at: row
+                    .try_get("expires_at")
+                    .map_err(|e| AppError::database(format!("Failed to get expires_at: {e}")))?,
+                used: row
+                    .try_get("used")
+                    .map_err(|e| AppError::database(format!("Failed to get used: {e}")))?,
+                state: row
+                    .try_get("state")
+                    .map_err(|e| AppError::database(format!("Failed to get state: {e}")))?,
             }))
         } else {
             Ok(None)
@@ -1769,7 +2111,7 @@ impl Database {
     pub async fn update_oauth2_auth_code_impl(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             UPDATE oauth2_auth_codes
@@ -1780,7 +2122,8 @@ impl Database {
         .bind(auth_code.used)
         .bind(&auth_code.code)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -1793,7 +2136,7 @@ impl Database {
     pub async fn store_oauth2_refresh_token_impl(
         &self,
         refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO oauth2_refresh_tokens (token, client_id, user_id, tenant_id, scope, created_at, expires_at, revoked)
@@ -1809,7 +2152,10 @@ impl Database {
         .bind(refresh_token.expires_at)
         .bind(refresh_token.revoked)
         .execute(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -1822,7 +2168,7 @@ impl Database {
     pub async fn get_oauth2_refresh_token_impl(
         &self,
         token: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         let row = sqlx::query(
             r"
             SELECT token, client_id, user_id, tenant_id, scope, created_at, expires_at, revoked
@@ -1832,18 +2178,37 @@ impl Database {
         )
         .bind(token)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         if let Some(row) = row {
             Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
-                token: row.try_get("token")?,
-                client_id: row.try_get("client_id")?,
-                user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
-                tenant_id: row.try_get("tenant_id")?,
-                scope: row.try_get("scope")?,
-                created_at: row.try_get("created_at")?,
-                expires_at: row.try_get("expires_at")?,
-                revoked: row.try_get("revoked")?,
+                token: row
+                    .try_get("token")
+                    .map_err(|e| AppError::database(format!("Failed to get token: {e}")))?,
+                client_id: row
+                    .try_get("client_id")
+                    .map_err(|e| AppError::database(format!("Failed to get client_id: {e}")))?,
+                user_id: Uuid::parse_str(
+                    &row.try_get::<String, _>("user_id")
+                        .map_err(|e| AppError::database(format!("Failed to get user_id: {e}")))?,
+                )
+                .map_err(|e| AppError::database(format!("Failed to parse user_id: {e}")))?,
+                tenant_id: row
+                    .try_get("tenant_id")
+                    .map_err(|e| AppError::database(format!("Failed to get tenant_id: {e}")))?,
+                scope: row
+                    .try_get("scope")
+                    .map_err(|e| AppError::database(format!("Failed to get scope: {e}")))?,
+                created_at: row
+                    .try_get("created_at")
+                    .map_err(|e| AppError::database(format!("Failed to get created_at: {e}")))?,
+                expires_at: row
+                    .try_get("expires_at")
+                    .map_err(|e| AppError::database(format!("Failed to get expires_at: {e}")))?,
+                revoked: row
+                    .try_get("revoked")
+                    .map_err(|e| AppError::database(format!("Failed to get revoked: {e}")))?,
             }))
         } else {
             Ok(None)
@@ -1861,7 +2226,7 @@ impl Database {
         client_id: &str,
         redirect_uri: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         let row = sqlx::query(
             r"
             UPDATE oauth2_auth_codes
@@ -1879,21 +2244,48 @@ impl Database {
         .bind(redirect_uri)
         .bind(now)
         .fetch_optional(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         if let Some(row) = row {
             Ok(Some(crate::oauth2_server::models::OAuth2AuthCode {
-                code: row.try_get("code")?,
-                client_id: row.try_get("client_id")?,
-                user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
-                tenant_id: row.try_get("tenant_id")?,
-                redirect_uri: row.try_get("redirect_uri")?,
-                scope: row.try_get("scope")?,
-                expires_at: row.try_get("expires_at")?,
-                used: row.try_get("used")?,
-                state: row.try_get("state")?,
-                code_challenge: row.try_get("code_challenge")?,
-                code_challenge_method: row.try_get("code_challenge_method")?,
+                code: row
+                    .try_get("code")
+                    .map_err(|e| AppError::database(format!("Failed to get code: {e}")))?,
+                client_id: row
+                    .try_get("client_id")
+                    .map_err(|e| AppError::database(format!("Failed to get client_id: {e}")))?,
+                user_id: Uuid::parse_str(
+                    &row.try_get::<String, _>("user_id")
+                        .map_err(|e| AppError::database(format!("Failed to get user_id: {e}")))?,
+                )
+                .map_err(|e| AppError::database(format!("Failed to parse user_id: {e}")))?,
+                tenant_id: row
+                    .try_get("tenant_id")
+                    .map_err(|e| AppError::database(format!("Failed to get tenant_id: {e}")))?,
+                redirect_uri: row
+                    .try_get("redirect_uri")
+                    .map_err(|e| AppError::database(format!("Failed to get redirect_uri: {e}")))?,
+                scope: row
+                    .try_get("scope")
+                    .map_err(|e| AppError::database(format!("Failed to get scope: {e}")))?,
+                expires_at: row
+                    .try_get("expires_at")
+                    .map_err(|e| AppError::database(format!("Failed to get expires_at: {e}")))?,
+                used: row
+                    .try_get("used")
+                    .map_err(|e| AppError::database(format!("Failed to get used: {e}")))?,
+                state: row
+                    .try_get("state")
+                    .map_err(|e| AppError::database(format!("Failed to get state: {e}")))?,
+                code_challenge: row.try_get("code_challenge").map_err(|e| {
+                    AppError::database(format!("Failed to get code_challenge: {e}"))
+                })?,
+                code_challenge_method: row.try_get("code_challenge_method").map_err(|e| {
+                    AppError::database(format!("Failed to get code_challenge_method: {e}"))
+                })?,
             }))
         } else {
             Ok(None)
@@ -1910,7 +2302,7 @@ impl Database {
         token: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         let row = sqlx::query(
             r"
             UPDATE oauth2_refresh_tokens
@@ -1926,18 +2318,37 @@ impl Database {
         .bind(client_id)
         .bind(now)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         if let Some(row) = row {
             Ok(Some(crate::oauth2_server::models::OAuth2RefreshToken {
-                token: row.try_get("token")?,
-                client_id: row.try_get("client_id")?,
-                user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
-                tenant_id: row.try_get("tenant_id")?,
-                scope: row.try_get("scope")?,
-                expires_at: row.try_get("expires_at")?,
-                created_at: row.try_get("created_at")?,
-                revoked: row.try_get("revoked")?,
+                token: row
+                    .try_get("token")
+                    .map_err(|e| AppError::database(format!("Failed to get token: {e}")))?,
+                client_id: row
+                    .try_get("client_id")
+                    .map_err(|e| AppError::database(format!("Failed to get client_id: {e}")))?,
+                user_id: Uuid::parse_str(
+                    &row.try_get::<String, _>("user_id")
+                        .map_err(|e| AppError::database(format!("Failed to get user_id: {e}")))?,
+                )
+                .map_err(|e| AppError::database(format!("Failed to parse user_id: {e}")))?,
+                tenant_id: row
+                    .try_get("tenant_id")
+                    .map_err(|e| AppError::database(format!("Failed to get tenant_id: {e}")))?,
+                scope: row
+                    .try_get("scope")
+                    .map_err(|e| AppError::database(format!("Failed to get scope: {e}")))?,
+                expires_at: row
+                    .try_get("expires_at")
+                    .map_err(|e| AppError::database(format!("Failed to get expires_at: {e}")))?,
+                created_at: row
+                    .try_get("created_at")
+                    .map_err(|e| AppError::database(format!("Failed to get created_at: {e}")))?,
+                revoked: row
+                    .try_get("revoked")
+                    .map_err(|e| AppError::database(format!("Failed to get revoked: {e}")))?,
             }))
         } else {
             Ok(None)
@@ -1952,7 +2363,7 @@ impl Database {
     pub async fn store_oauth2_state_impl(
         &self,
         state: &crate::oauth2_server::models::OAuth2State,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO oauth2_states (state, client_id, user_id, tenant_id, redirect_uri, scope, code_challenge, code_challenge_method, created_at, expires_at, used)
@@ -1971,7 +2382,10 @@ impl Database {
         .bind(state.expires_at)
         .bind(state.used)
         .execute(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -1986,7 +2400,7 @@ impl Database {
         state_value: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2State>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2State>> {
         let row = sqlx::query(
             r"
             UPDATE oauth2_states
@@ -2002,21 +2416,46 @@ impl Database {
         .bind(client_id)
         .bind(now)
         .fetch_optional(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         if let Some(row) = row {
             Ok(Some(crate::oauth2_server::models::OAuth2State {
-                state: row.try_get("state")?,
-                client_id: row.try_get("client_id")?,
-                user_id: row.try_get("user_id")?,
-                tenant_id: row.try_get("tenant_id")?,
-                redirect_uri: row.try_get("redirect_uri")?,
-                scope: row.try_get("scope")?,
-                code_challenge: row.try_get("code_challenge")?,
-                code_challenge_method: row.try_get("code_challenge_method")?,
-                created_at: row.try_get("created_at")?,
-                expires_at: row.try_get("expires_at")?,
-                used: row.try_get("used")?,
+                state: row
+                    .try_get("state")
+                    .map_err(|e| AppError::database(format!("Failed to get state: {e}")))?,
+                client_id: row
+                    .try_get("client_id")
+                    .map_err(|e| AppError::database(format!("Failed to get client_id: {e}")))?,
+                user_id: row
+                    .try_get("user_id")
+                    .map_err(|e| AppError::database(format!("Failed to get user_id: {e}")))?,
+                tenant_id: row
+                    .try_get("tenant_id")
+                    .map_err(|e| AppError::database(format!("Failed to get tenant_id: {e}")))?,
+                redirect_uri: row
+                    .try_get("redirect_uri")
+                    .map_err(|e| AppError::database(format!("Failed to get redirect_uri: {e}")))?,
+                scope: row
+                    .try_get("scope")
+                    .map_err(|e| AppError::database(format!("Failed to get scope: {e}")))?,
+                code_challenge: row.try_get("code_challenge").map_err(|e| {
+                    AppError::database(format!("Failed to get code_challenge: {e}"))
+                })?,
+                code_challenge_method: row.try_get("code_challenge_method").map_err(|e| {
+                    AppError::database(format!("Failed to get code_challenge_method: {e}"))
+                })?,
+                created_at: row
+                    .try_get("created_at")
+                    .map_err(|e| AppError::database(format!("Failed to get created_at: {e}")))?,
+                expires_at: row
+                    .try_get("expires_at")
+                    .map_err(|e| AppError::database(format!("Failed to get expires_at: {e}")))?,
+                used: row
+                    .try_get("used")
+                    .map_err(|e| AppError::database(format!("Failed to get used: {e}")))?,
             }))
         } else {
             Ok(None)
@@ -2031,7 +2470,7 @@ impl Database {
     async fn get_authorization_code_impl(
         &self,
         code: &str,
-    ) -> Result<crate::models::AuthorizationCode> {
+    ) -> AppResult<crate::models::AuthorizationCode> {
         let row = sqlx::query(
             r"
             SELECT code, client_id, user_id, redirect_uri, scope, created_at, expires_at
@@ -2041,7 +2480,8 @@ impl Database {
         )
         .bind(code)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         match row {
             Some(row) => Ok(crate::models::AuthorizationCode {
@@ -2054,11 +2494,7 @@ impl Database {
                 expires_at: row.get("expires_at"),
                 is_used: false, // If we can fetch it, it hasn't been used yet
             }),
-            None => Err(DatabaseError::NotFound {
-                entity_type: "authorization code",
-                entity_id: code.to_owned(),
-            }
-            .into()),
+            None => Err(AppError::not_found("authorization code")),
         }
     }
 
@@ -2067,7 +2503,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    async fn delete_authorization_code_impl(&self, code: &str) -> Result<()> {
+    async fn delete_authorization_code_impl(&self, code: &str) -> AppResult<()> {
         let result = sqlx::query(
             r"
             DELETE FROM oauth2_auth_codes
@@ -2077,9 +2513,7 @@ impl Database {
         .bind(code)
         .execute(&self.pool)
         .await
-        .map_err(|e| DatabaseError::QueryError {
-            context: format!("Failed to delete authorization code: {e}"),
-        })?;
+        .map_err(|e| AppError::database(format!("Failed to delete authorization code: {e}")))?;
 
         if result.rows_affected() == 0 {
             tracing::warn!("Authorization code not found for deletion: {}", code);
@@ -2100,7 +2534,7 @@ impl Database {
     async fn store_audit_event_impl(
         &self,
         event: &crate::security::audit::AuditEvent,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let query = r"
             INSERT INTO audit_events (
                 id, event_type, severity, message, source, result,
@@ -2126,7 +2560,8 @@ impl Database {
             .bind(&metadata_json)
             .bind(event.timestamp)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -2144,13 +2579,14 @@ impl Database {
         &self,
         user_id: Uuid,
         tenant_id: Uuid,
-    ) -> Result<Option<String>> {
+    ) -> AppResult<Option<String>> {
         let row =
             sqlx::query("SELECT role FROM tenant_users WHERE user_id = ?1 AND tenant_id = ?2")
                 .bind(user_id.to_string())
                 .bind(tenant_id.to_string())
                 .fetch_optional(&self.pool)
-                .await?;
+                .await
+                .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         Ok(row.map(|r| r.get("role")))
     }
@@ -2167,7 +2603,7 @@ impl Database {
     async fn list_user_oauth_apps_impl(
         &self,
         user_id: Uuid,
-    ) -> Result<Vec<crate::models::UserOAuthApp>> {
+    ) -> AppResult<Vec<crate::models::UserOAuthApp>> {
         // First ensure the user_oauth_apps table exists
         sqlx::query(
             r"
@@ -2186,7 +2622,8 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         let rows = sqlx::query(
             r"
@@ -2198,7 +2635,10 @@ impl Database {
         )
         .bind(user_id.to_string())
         .fetch_all(&self.pool)
-        .await?;
+
+            .await
+
+            .map_err(|e| AppError::database(format!("Database query failed: {e}")))?;
 
         let mut apps = Vec::new();
         for row in rows {
@@ -2222,7 +2662,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    async fn remove_user_oauth_app_impl(&self, user_id: Uuid, provider: &str) -> Result<()> {
+    async fn remove_user_oauth_app_impl(&self, user_id: Uuid, provider: &str) -> AppResult<()> {
         sqlx::query(
             r"
             DELETE FROM user_oauth_apps
@@ -2232,7 +2672,8 @@ impl Database {
         .bind(user_id.to_string())
         .bind(provider)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
@@ -2240,12 +2681,12 @@ impl Database {
 
 // Implement HasEncryption trait for SQLite (delegates to inherent impl methods)
 impl crate::database_plugins::shared::encryption::HasEncryption for Database {
-    fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> Result<String> {
+    fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> AppResult<String> {
         // Call inherent impl directly to avoid infinite recursion
         Self::encrypt_data_with_aad_impl(self, data, aad)
     }
 
-    fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> Result<String> {
+    fn decrypt_data_with_aad(&self, encrypted: &str, aad: &str) -> AppResult<String> {
         // Call inherent impl directly to avoid infinite recursion
         Self::decrypt_data_with_aad_impl(self, encrypted, aad)
     }
@@ -2256,41 +2697,41 @@ use async_trait::async_trait;
 
 #[async_trait]
 impl crate::database_plugins::DatabaseProvider for Database {
-    async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
+    async fn new(database_url: &str, encryption_key: Vec<u8>) -> AppResult<Self> {
         // Call inherent impl directly to avoid infinite recursion
         Self::new_impl(database_url, encryption_key).await
     }
 
-    async fn migrate(&self) -> Result<()> {
+    async fn migrate(&self) -> AppResult<()> {
         // Call inherent impl directly
         Self::migrate_impl(self).await
     }
 
-    async fn create_user(&self, user: &User) -> Result<Uuid> {
+    async fn create_user(&self, user: &User) -> AppResult<Uuid> {
         Self::create_user_impl(self, user).await
     }
 
-    async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
+    async fn get_user(&self, user_id: Uuid) -> AppResult<Option<User>> {
         Self::get_user_impl(self, user_id).await
     }
 
-    async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
+    async fn get_user_by_email(&self, email: &str) -> AppResult<Option<User>> {
         Self::get_user_by_email_impl(self, email).await
     }
 
-    async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
+    async fn get_user_by_email_required(&self, email: &str) -> AppResult<User> {
         Self::get_user_by_email_required_impl(self, email).await
     }
 
-    async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
+    async fn update_last_active(&self, user_id: Uuid) -> AppResult<()> {
         Self::update_last_active_impl(self, user_id).await
     }
 
-    async fn get_user_count(&self) -> Result<i64> {
+    async fn get_user_count(&self) -> AppResult<i64> {
         Self::get_user_count_impl(self).await
     }
 
-    async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
+    async fn get_users_by_status(&self, status: &str) -> AppResult<Vec<User>> {
         Self::get_users_by_status_impl(self, status).await
     }
 
@@ -2298,7 +2739,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         status: &str,
         params: &crate::pagination::PaginationParams,
-    ) -> Result<crate::pagination::CursorPage<User>> {
+    ) -> AppResult<crate::pagination::CursorPage<User>> {
         Self::get_users_by_status_cursor(self, status, params).await
     }
 
@@ -2307,43 +2748,43 @@ impl crate::database_plugins::DatabaseProvider for Database {
         user_id: Uuid,
         new_status: crate::models::UserStatus,
         admin_token_id: &str,
-    ) -> Result<User> {
+    ) -> AppResult<User> {
         Self::update_user_status(self, user_id, new_status, admin_token_id).await
     }
 
-    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
+    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()> {
         Self::update_user_tenant_id_impl(self, user_id, tenant_id).await
     }
 
-    async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> Result<()> {
+    async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> AppResult<()> {
         Self::upsert_user_profile_impl(self, user_id, profile_data).await
     }
 
-    async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<Value>> {
+    async fn get_user_profile(&self, user_id: Uuid) -> AppResult<Option<Value>> {
         Self::get_user_profile_impl(self, user_id).await
     }
 
-    async fn create_goal(&self, user_id: Uuid, goal_data: Value) -> Result<String> {
+    async fn create_goal(&self, user_id: Uuid, goal_data: Value) -> AppResult<String> {
         Self::create_goal_impl(self, user_id, goal_data).await
     }
 
-    async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<Value>> {
+    async fn get_user_goals(&self, user_id: Uuid) -> AppResult<Vec<Value>> {
         Self::get_user_goals_impl(self, user_id).await
     }
 
-    async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
+    async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> AppResult<()> {
         Self::update_goal_progress_impl(self, goal_id, current_value).await
     }
 
-    async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
+    async fn get_user_configuration(&self, user_id: &str) -> AppResult<Option<String>> {
         Self::get_user_configuration_impl(self, user_id).await
     }
 
-    async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()> {
+    async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> AppResult<()> {
         Self::save_user_configuration_impl(self, user_id, config_json).await
     }
 
-    async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> Result<String> {
+    async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> AppResult<String> {
         Self::store_insight_impl(self, user_id, insight_data).await
     }
 
@@ -2352,31 +2793,31 @@ impl crate::database_plugins::DatabaseProvider for Database {
         user_id: Uuid,
         insight_type: Option<&str>,
         limit: Option<u32>,
-    ) -> Result<Vec<Value>> {
+    ) -> AppResult<Vec<Value>> {
         Self::get_user_insights(self, user_id, insight_type, limit).await
     }
 
-    async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
+    async fn create_api_key(&self, api_key: &ApiKey) -> AppResult<()> {
         Self::create_api_key_impl(self, api_key).await
     }
 
-    async fn get_api_key_by_prefix(&self, prefix: &str, hash: &str) -> Result<Option<ApiKey>> {
+    async fn get_api_key_by_prefix(&self, prefix: &str, hash: &str) -> AppResult<Option<ApiKey>> {
         Self::get_api_key_by_prefix_impl(self, prefix, hash).await
     }
 
-    async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
+    async fn get_user_api_keys(&self, user_id: Uuid) -> AppResult<Vec<ApiKey>> {
         Self::get_user_api_keys_impl(self, user_id).await
     }
 
-    async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
+    async fn update_api_key_last_used(&self, api_key_id: &str) -> AppResult<()> {
         Self::update_api_key_last_used_impl(self, api_key_id).await
     }
 
-    async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
+    async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> AppResult<()> {
         Self::deactivate_api_key_impl(self, api_key_id, user_id).await
     }
 
-    async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
+    async fn get_api_key_by_id(&self, api_key_id: &str) -> AppResult<Option<ApiKey>> {
         Self::get_api_key_by_id_impl(self, api_key_id).await
     }
 
@@ -2386,7 +2827,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         active_only: bool,
         limit: Option<i32>,
         offset: Option<i32>,
-    ) -> Result<Vec<ApiKey>> {
+    ) -> AppResult<Vec<ApiKey>> {
         Self::get_api_keys_filtered(
             self,
             None,
@@ -2398,19 +2839,19 @@ impl crate::database_plugins::DatabaseProvider for Database {
         .await
     }
 
-    async fn cleanup_expired_api_keys(&self) -> Result<u64> {
+    async fn cleanup_expired_api_keys(&self) -> AppResult<u64> {
         Self::cleanup_expired_api_keys_impl(self).await
     }
 
-    async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>> {
+    async fn get_expired_api_keys(&self) -> AppResult<Vec<ApiKey>> {
         Self::get_expired_api_keys_impl(self).await
     }
 
-    async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
+    async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> AppResult<()> {
         Self::record_api_key_usage_impl(self, usage).await
     }
 
-    async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
+    async fn get_api_key_current_usage(&self, api_key_id: &str) -> AppResult<u32> {
         Self::get_api_key_current_usage_impl(self, api_key_id).await
     }
 
@@ -2419,15 +2860,15 @@ impl crate::database_plugins::DatabaseProvider for Database {
         api_key_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<ApiKeyUsageStats> {
+    ) -> AppResult<ApiKeyUsageStats> {
         Self::get_api_key_usage_stats(self, api_key_id, start_date, end_date).await
     }
 
-    async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
+    async fn record_jwt_usage(&self, usage: &JwtUsage) -> AppResult<()> {
         Self::record_jwt_usage_impl(self, usage).await
     }
 
-    async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
+    async fn get_jwt_current_usage(&self, user_id: Uuid) -> AppResult<u32> {
         Self::get_jwt_current_usage_impl(self, user_id).await
     }
 
@@ -2438,7 +2879,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         end_time: Option<DateTime<Utc>>,
         _status_filter: Option<&str>,
         _tool_filter: Option<&str>,
-    ) -> Result<Vec<crate::dashboard_routes::RequestLog>> {
+    ) -> AppResult<Vec<crate::dashboard_routes::RequestLog>> {
         let analytics_logs = self
             .get_request_logs(None, start_time, end_time, 10, 0)
             .await?;
@@ -2461,7 +2902,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
             .collect())
     }
 
-    async fn get_system_stats(&self) -> Result<(u64, u64)> {
+    async fn get_system_stats(&self) -> AppResult<(u64, u64)> {
         Self::get_system_stats_impl(self).await
     }
 
@@ -2470,42 +2911,42 @@ impl crate::database_plugins::DatabaseProvider for Database {
         client: &A2AClient,
         client_secret: &str,
         api_key_id: &str,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         Self::create_a2a_client(self, client, client_secret, api_key_id).await
     }
 
-    async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
+    async fn get_a2a_client(&self, client_id: &str) -> AppResult<Option<A2AClient>> {
         Self::get_a2a_client_impl(self, client_id).await
     }
 
-    async fn get_a2a_client_by_api_key_id(&self, api_key_id: &str) -> Result<Option<A2AClient>> {
+    async fn get_a2a_client_by_api_key_id(&self, api_key_id: &str) -> AppResult<Option<A2AClient>> {
         Self::get_a2a_client_by_api_key_id_impl(self, api_key_id).await
     }
 
-    async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
+    async fn get_a2a_client_by_name(&self, name: &str) -> AppResult<Option<A2AClient>> {
         Self::get_a2a_client_by_name_impl(self, name).await
     }
 
-    async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
+    async fn list_a2a_clients(&self, user_id: &Uuid) -> AppResult<Vec<A2AClient>> {
         Self::list_a2a_clients_impl(self, user_id).await
     }
 
-    async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
+    async fn deactivate_a2a_client(&self, client_id: &str) -> AppResult<()> {
         Self::deactivate_a2a_client_impl(self, client_id).await
     }
 
     async fn get_a2a_client_credentials(
         &self,
         client_id: &str,
-    ) -> Result<Option<(String, String)>> {
+    ) -> AppResult<Option<(String, String)>> {
         Self::get_a2a_client_credentials(self, client_id).await
     }
 
-    async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
+    async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> AppResult<()> {
         Self::invalidate_a2a_client_sessions_impl(self, client_id).await
     }
 
-    async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
+    async fn deactivate_client_api_keys(&self, client_id: &str) -> AppResult<()> {
         Self::deactivate_client_api_keys_impl(self, client_id).await
     }
 
@@ -2515,19 +2956,19 @@ impl crate::database_plugins::DatabaseProvider for Database {
         user_id: Option<&Uuid>,
         granted_scopes: &[String],
         expires_in_hours: i64,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         Self::create_a2a_session(self, client_id, user_id, granted_scopes, expires_in_hours).await
     }
 
-    async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
+    async fn get_a2a_session(&self, session_token: &str) -> AppResult<Option<A2ASession>> {
         Self::get_a2a_session_impl(self, session_token).await
     }
 
-    async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()> {
+    async fn update_a2a_session_activity(&self, session_token: &str) -> AppResult<()> {
         Self::update_a2a_session_activity_impl(self, session_token).await
     }
 
-    async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
+    async fn get_active_a2a_sessions(&self, client_id: &str) -> AppResult<Vec<A2ASession>> {
         Self::get_active_a2a_sessions_impl(self, client_id).await
     }
 
@@ -2537,11 +2978,11 @@ impl crate::database_plugins::DatabaseProvider for Database {
         session_id: Option<&str>,
         task_type: &str,
         input_data: &Value,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         Self::create_a2a_task(self, client_id, session_id, task_type, input_data).await
     }
 
-    async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
+    async fn get_a2a_task(&self, task_id: &str) -> AppResult<Option<A2ATask>> {
         Self::get_a2a_task_impl(self, task_id).await
     }
 
@@ -2551,7 +2992,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         status_filter: Option<&TaskStatus>,
         limit: Option<u32>,
         offset: Option<u32>,
-    ) -> Result<Vec<A2ATask>> {
+    ) -> AppResult<Vec<A2ATask>> {
         Self::list_a2a_tasks(self, client_id, status_filter, limit, offset).await
     }
 
@@ -2561,15 +3002,15 @@ impl crate::database_plugins::DatabaseProvider for Database {
         status: &TaskStatus,
         result: Option<&Value>,
         error: Option<&str>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::update_a2a_task_status(self, task_id, status, result, error).await
     }
 
-    async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()> {
+    async fn record_a2a_usage(&self, usage: &A2AUsage) -> AppResult<()> {
         Self::record_a2a_usage_impl(self, usage).await
     }
 
-    async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
+    async fn get_a2a_client_current_usage(&self, client_id: &str) -> AppResult<u32> {
         Self::get_a2a_client_current_usage_impl(self, client_id).await
     }
 
@@ -2578,7 +3019,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         client_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<crate::database::A2AUsageStats> {
+    ) -> AppResult<crate::database::A2AUsageStats> {
         Self::get_a2a_usage_stats(self, client_id, start_date, end_date).await
     }
 
@@ -2586,7 +3027,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         client_id: &str,
         days: u32,
-    ) -> Result<Vec<(DateTime<Utc>, u32, u32)>> {
+    ) -> AppResult<Vec<(DateTime<Utc>, u32, u32)>> {
         Self::get_a2a_client_usage_history(self, client_id, days).await
     }
 
@@ -2594,7 +3035,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         user_id: Uuid,
         provider: &str,
-    ) -> Result<Option<DateTime<Utc>>> {
+    ) -> AppResult<Option<DateTime<Utc>>> {
         Self::get_provider_last_sync(self, user_id, provider).await
     }
 
@@ -2603,7 +3044,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         user_id: Uuid,
         provider: &str,
         sync_time: DateTime<Utc>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::update_provider_last_sync(self, user_id, provider, sync_time).await
     }
 
@@ -2612,7 +3053,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         user_id: Uuid,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
-    ) -> Result<Vec<crate::dashboard_routes::ToolUsage>> {
+    ) -> AppResult<Vec<crate::dashboard_routes::ToolUsage>> {
         Self::get_top_tools_analysis(self, user_id, start_time, end_time).await
     }
 
@@ -2621,32 +3062,32 @@ impl crate::database_plugins::DatabaseProvider for Database {
         request: &crate::admin::models::CreateAdminTokenRequest,
         admin_jwt_secret: &str,
         jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> Result<crate::admin::models::GeneratedAdminToken> {
+    ) -> AppResult<crate::admin::models::GeneratedAdminToken> {
         Self::create_admin_token(self, request, admin_jwt_secret, jwks_manager).await
     }
 
     async fn get_admin_token_by_id(
         &self,
         token_id: &str,
-    ) -> Result<Option<crate::admin::models::AdminToken>> {
+    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
         Self::get_admin_token_by_id(self, token_id).await
     }
 
     async fn get_admin_token_by_prefix(
         &self,
         token_prefix: &str,
-    ) -> Result<Option<crate::admin::models::AdminToken>> {
+    ) -> AppResult<Option<crate::admin::models::AdminToken>> {
         Self::get_admin_token_by_prefix(self, token_prefix).await
     }
 
     async fn list_admin_tokens(
         &self,
         include_inactive: bool,
-    ) -> Result<Vec<crate::admin::models::AdminToken>> {
+    ) -> AppResult<Vec<crate::admin::models::AdminToken>> {
         Self::list_admin_tokens(self, include_inactive).await
     }
 
-    async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
+    async fn deactivate_admin_token(&self, token_id: &str) -> AppResult<()> {
         Self::deactivate_admin_token_impl(self, token_id).await
     }
 
@@ -2654,14 +3095,14 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         token_id: &str,
         ip_address: Option<&str>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::update_admin_token_last_used(self, token_id, ip_address).await
     }
 
     async fn record_admin_token_usage(
         &self,
         usage: &crate::admin::models::AdminTokenUsage,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::record_admin_token_usage(self, usage).await
     }
 
@@ -2670,7 +3111,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         token_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<Vec<crate::admin::models::AdminTokenUsage>> {
+    ) -> AppResult<Vec<crate::admin::models::AdminTokenUsage>> {
         Self::get_admin_token_usage_history(self, token_id, start_date, end_date).await
     }
 
@@ -2682,7 +3123,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tier: &str,
         rate_limit_requests: u32,
         rate_limit_period: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::record_admin_provisioned_key(
             self,
             admin_token_id,
@@ -2700,7 +3141,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         admin_token_id: Option<&str>,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<Vec<serde_json::Value>> {
+    ) -> AppResult<Vec<serde_json::Value>> {
         Self::get_admin_provisioned_keys(self, admin_token_id, start_date, end_date).await
     }
 
@@ -2712,7 +3153,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         created_at: DateTime<Utc>,
         is_active: bool,
         key_size_bits: i32,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::save_rsa_keypair(
             self,
             kid,
@@ -2727,41 +3168,41 @@ impl crate::database_plugins::DatabaseProvider for Database {
 
     async fn load_rsa_keypairs(
         &self,
-    ) -> Result<Vec<(String, String, String, DateTime<Utc>, bool)>> {
+    ) -> AppResult<Vec<(String, String, String, DateTime<Utc>, bool)>> {
         Self::load_rsa_keypairs(self).await
     }
 
-    async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()> {
+    async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> AppResult<()> {
         Self::update_rsa_keypair_active_status_impl(self, kid, is_active).await
     }
 
-    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
+    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> AppResult<()> {
         Self::create_tenant_impl(self, tenant).await
     }
 
-    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> Result<crate::models::Tenant> {
+    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> AppResult<crate::models::Tenant> {
         Self::get_tenant_by_id_impl(self, tenant_id).await
     }
 
-    async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
+    async fn get_tenant_by_slug(&self, slug: &str) -> AppResult<crate::models::Tenant> {
         Self::get_tenant_by_slug_impl(self, slug).await
     }
 
-    async fn list_tenants_for_user(&self, user_id: Uuid) -> Result<Vec<crate::models::Tenant>> {
+    async fn list_tenants_for_user(&self, user_id: Uuid) -> AppResult<Vec<crate::models::Tenant>> {
         Self::list_tenants_for_user_impl(self, user_id).await
     }
 
     async fn store_tenant_oauth_credentials(
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::store_tenant_oauth_credentials_impl(self, credentials).await
     }
 
     async fn get_tenant_oauth_providers(
         &self,
         tenant_id: Uuid,
-    ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Vec<crate::tenant::TenantOAuthCredentials>> {
         Self::get_tenant_oauth_providers_impl(self, tenant_id).await
     }
 
@@ -2769,75 +3210,78 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         tenant_id: Uuid,
         provider: &str,
-    ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
+    ) -> AppResult<Option<crate::tenant::TenantOAuthCredentials>> {
         Self::get_tenant_oauth_credentials_impl(self, tenant_id, provider).await
     }
 
-    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()> {
+    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> AppResult<()> {
         Self::create_oauth_app_impl(self, app).await
     }
 
-    async fn get_oauth_app_by_client_id(&self, client_id: &str) -> Result<crate::models::OAuthApp> {
+    async fn get_oauth_app_by_client_id(
+        &self,
+        client_id: &str,
+    ) -> AppResult<crate::models::OAuthApp> {
         Self::get_oauth_app_by_client_id_impl(self, client_id).await
     }
 
     async fn list_oauth_apps_for_user(
         &self,
         user_id: Uuid,
-    ) -> Result<Vec<crate::models::OAuthApp>> {
+    ) -> AppResult<Vec<crate::models::OAuthApp>> {
         Self::list_oauth_apps_for_user(self, user_id).await
     }
 
     async fn store_oauth2_client(
         &self,
         client: &crate::oauth2_server::models::OAuth2Client,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::store_oauth2_client_impl(self, client).await
     }
 
     async fn get_oauth2_client(
         &self,
         client_id: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2Client>> {
         Self::get_oauth2_client_impl(self, client_id).await
     }
 
     async fn store_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::store_oauth2_auth_code_impl(self, auth_code).await
     }
 
     async fn get_oauth2_auth_code(
         &self,
         code: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         Self::get_oauth2_auth_code_impl(self, code).await
     }
 
     async fn update_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::update_oauth2_auth_code_impl(self, auth_code).await
     }
 
     async fn store_oauth2_refresh_token(
         &self,
         refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::store_oauth2_refresh_token_impl(self, refresh_token).await
     }
 
     async fn get_oauth2_refresh_token(
         &self,
         token: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         Self::get_oauth2_refresh_token_impl(self, token).await
     }
 
-    async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()> {
+    async fn revoke_oauth2_refresh_token(&self, token: &str) -> AppResult<()> {
         Self::revoke_oauth2_refresh_token_impl(self, token).await
     }
 
@@ -2847,7 +3291,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         client_id: &str,
         redirect_uri: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>> {
         Self::consume_auth_code_impl(self, code, client_id, redirect_uri, now).await
     }
 
@@ -2856,14 +3300,14 @@ impl crate::database_plugins::DatabaseProvider for Database {
         token: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         Self::consume_refresh_token_impl(self, token, client_id, now).await
     }
 
     async fn get_refresh_token_by_value(
         &self,
         token: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>> {
         Self::get_refresh_token_by_value(self, token).await
     }
 
@@ -2874,22 +3318,25 @@ impl crate::database_plugins::DatabaseProvider for Database {
         redirect_uri: &str,
         scope: &str,
         user_id: Uuid,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::store_authorization_code(self, code, client_id, redirect_uri, scope, user_id).await
     }
 
-    async fn get_authorization_code(&self, code: &str) -> Result<crate::models::AuthorizationCode> {
+    async fn get_authorization_code(
+        &self,
+        code: &str,
+    ) -> AppResult<crate::models::AuthorizationCode> {
         Self::get_authorization_code_impl(self, code).await
     }
 
-    async fn delete_authorization_code(&self, code: &str) -> Result<()> {
+    async fn delete_authorization_code(&self, code: &str) -> AppResult<()> {
         Self::delete_authorization_code_impl(self, code).await
     }
 
     async fn store_oauth2_state(
         &self,
         state: &crate::oauth2_server::models::OAuth2State,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::store_oauth2_state_impl(self, state).await
     }
 
@@ -2898,28 +3345,28 @@ impl crate::database_plugins::DatabaseProvider for Database {
         state_value: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2State>> {
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2State>> {
         Self::consume_oauth2_state_impl(self, state_value, client_id, now).await
     }
 
     async fn store_key_version(
         &self,
         version: &crate::security::key_rotation::KeyVersion,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::store_key_version(self, version).await
     }
 
     async fn get_key_versions(
         &self,
         tenant_id: Option<Uuid>,
-    ) -> Result<Vec<crate::security::key_rotation::KeyVersion>> {
+    ) -> AppResult<Vec<crate::security::key_rotation::KeyVersion>> {
         Self::get_key_versions(self, tenant_id).await
     }
 
     async fn get_current_key_version(
         &self,
         tenant_id: Option<Uuid>,
-    ) -> Result<Option<crate::security::key_rotation::KeyVersion>> {
+    ) -> AppResult<Option<crate::security::key_rotation::KeyVersion>> {
         Self::get_current_key_version(self, tenant_id).await
     }
 
@@ -2928,7 +3375,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tenant_id: Option<Uuid>,
         version: u32,
         is_active: bool,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::update_key_version_status(self, tenant_id, version, is_active).await
     }
 
@@ -2936,15 +3383,15 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         tenant_id: Option<Uuid>,
         keep_count: u32,
-    ) -> Result<u64> {
+    ) -> AppResult<u64> {
         Self::delete_old_key_versions(self, tenant_id, keep_count).await
     }
 
-    async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
+    async fn get_all_tenants(&self) -> AppResult<Vec<crate::models::Tenant>> {
         Self::get_all_tenants_impl(self).await
     }
 
-    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> Result<()> {
+    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> AppResult<()> {
         Self::store_audit_event_impl(self, event).await
     }
 
@@ -2953,23 +3400,27 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tenant_id: Option<Uuid>,
         event_type: Option<&str>,
         limit: Option<u32>,
-    ) -> Result<Vec<crate::security::audit::AuditEvent>> {
+    ) -> AppResult<Vec<crate::security::audit::AuditEvent>> {
         Self::get_audit_events(self, tenant_id, event_type, limit).await
     }
 
-    async fn get_user_tenant_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<String>> {
+    async fn get_user_tenant_role(
+        &self,
+        user_id: Uuid,
+        tenant_id: Uuid,
+    ) -> AppResult<Option<String>> {
         Self::get_user_tenant_role_impl(self, user_id, tenant_id).await
     }
 
-    async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
+    async fn get_or_create_system_secret(&self, secret_type: &str) -> AppResult<String> {
         Self::get_or_create_system_secret_impl(self, secret_type).await
     }
 
-    async fn get_system_secret(&self, secret_type: &str) -> Result<String> {
+    async fn get_system_secret(&self, secret_type: &str) -> AppResult<String> {
         Self::get_system_secret_impl(self, secret_type).await
     }
 
-    async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()> {
+    async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> AppResult<()> {
         Self::update_system_secret_impl(self, secret_type, new_value).await
     }
 
@@ -2980,14 +3431,14 @@ impl crate::database_plugins::DatabaseProvider for Database {
         success: bool,
         message: &str,
         expires_at: Option<&str>,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         Self::store_oauth_notification(self, user_id, provider, success, message, expires_at).await
     }
 
     async fn get_unread_oauth_notifications(
         &self,
         user_id: Uuid,
-    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>> {
         Self::get_unread_oauth_notifications(self, user_id).await
     }
 
@@ -2995,11 +3446,11 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         notification_id: &str,
         user_id: Uuid,
-    ) -> Result<bool> {
+    ) -> AppResult<bool> {
         Self::mark_oauth_notification_read(self, notification_id, user_id).await
     }
 
-    async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64> {
+    async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> AppResult<u64> {
         Self::mark_all_oauth_notifications_read_impl(self, user_id).await
     }
 
@@ -3007,7 +3458,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         user_id: Uuid,
         limit: Option<i64>,
-    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>> {
         Self::get_all_oauth_notifications(self, user_id, limit).await
     }
 
@@ -3016,7 +3467,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tenant_id: &str,
         configuration_name: &str,
         config: &crate::config::fitness_config::FitnessConfig,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let manager = self.fitness_configurations();
         manager
             .save_tenant_config(tenant_id, configuration_name, config)
@@ -3029,7 +3480,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         user_id: &str,
         configuration_name: &str,
         config: &crate::config::fitness_config::FitnessConfig,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let manager = self.fitness_configurations();
         manager
             .save_user_config(tenant_id, user_id, configuration_name, config)
@@ -3040,7 +3491,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
+    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>> {
         let manager = self.fitness_configurations();
         manager
             .get_tenant_config(tenant_id, configuration_name)
@@ -3052,14 +3503,14 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
+    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>> {
         let manager = self.fitness_configurations();
         manager
             .get_user_config(tenant_id, user_id, configuration_name)
             .await
     }
 
-    async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> Result<Vec<String>> {
+    async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> AppResult<Vec<String>> {
         let manager = self.fitness_configurations();
         manager.list_tenant_configurations(tenant_id).await
     }
@@ -3068,7 +3519,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         tenant_id: &str,
         user_id: &str,
-    ) -> Result<Vec<String>> {
+    ) -> AppResult<Vec<String>> {
         let manager = self.fitness_configurations();
         manager.list_user_configurations(tenant_id, user_id).await
     }
@@ -3078,7 +3529,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tenant_id: &str,
         user_id: Option<&str>,
         configuration_name: &str,
-    ) -> Result<bool> {
+    ) -> AppResult<bool> {
         let manager = self.fitness_configurations();
         manager
             .delete_config(tenant_id, user_id, configuration_name)
@@ -3086,7 +3537,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
     }
 
     // OAuth Token Management
-    async fn upsert_user_oauth_token(&self, token: &UserOAuthToken) -> Result<()> {
+    async fn upsert_user_oauth_token(&self, token: &UserOAuthToken) -> AppResult<()> {
         use crate::database::user_oauth_tokens::OAuthTokenData;
 
         let token_data = OAuthTokenData {
@@ -3109,11 +3560,11 @@ impl crate::database_plugins::DatabaseProvider for Database {
         user_id: Uuid,
         tenant_id: &str,
         provider: &str,
-    ) -> Result<Option<UserOAuthToken>> {
+    ) -> AppResult<Option<UserOAuthToken>> {
         Self::get_user_oauth_token(self, user_id, tenant_id, provider).await
     }
 
-    async fn get_user_oauth_tokens(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>> {
+    async fn get_user_oauth_tokens(&self, user_id: Uuid) -> AppResult<Vec<UserOAuthToken>> {
         Self::get_user_oauth_tokens_impl(self, user_id).await
     }
 
@@ -3121,7 +3572,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         tenant_id: &str,
         provider: &str,
-    ) -> Result<Vec<UserOAuthToken>> {
+    ) -> AppResult<Vec<UserOAuthToken>> {
         Self::get_tenant_provider_tokens(self, tenant_id, provider).await
     }
 
@@ -3130,11 +3581,11 @@ impl crate::database_plugins::DatabaseProvider for Database {
         user_id: Uuid,
         tenant_id: &str,
         provider: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::delete_user_oauth_token(self, user_id, tenant_id, provider).await
     }
 
-    async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()> {
+    async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> AppResult<()> {
         Self::delete_user_oauth_tokens_impl(self, user_id).await
     }
 
@@ -3146,7 +3597,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         access_token: &str,
         refresh_token: Option<&str>,
         expires_at: Option<DateTime<Utc>>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::refresh_user_oauth_token(
             self,
             user_id,
@@ -3166,7 +3617,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         client_id: &str,
         client_secret: &str,
         redirect_uri: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         Self::store_user_oauth_app(
             self,
             user_id,
@@ -3182,15 +3633,15 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         user_id: Uuid,
         provider: &str,
-    ) -> Result<Option<UserOAuthApp>> {
+    ) -> AppResult<Option<UserOAuthApp>> {
         Self::get_user_oauth_app(self, user_id, provider).await
     }
 
-    async fn list_user_oauth_apps(&self, user_id: Uuid) -> Result<Vec<UserOAuthApp>> {
+    async fn list_user_oauth_apps(&self, user_id: Uuid) -> AppResult<Vec<UserOAuthApp>> {
         Self::list_user_oauth_apps_impl(self, user_id).await
     }
 
-    async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> Result<()> {
+    async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> AppResult<()> {
         Self::remove_user_oauth_app_impl(self, user_id, provider).await
     }
 }

@@ -7,11 +7,10 @@
 use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
 use super::utils::{self, RetryConfig};
 use crate::constants::{api_provider_limits, oauth_providers};
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
 use crate::pagination::{CursorPage, PaginationParams};
 use crate::utils::http_client::shared_client;
-use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::{Client, StatusCode};
@@ -123,21 +122,21 @@ impl GarminProvider {
 
     /// Make authenticated API request with rate limit handling
     /// Uses shared retry logic with exponential backoff for 429 errors
-    async fn api_request<T>(&self, endpoint: &str) -> Result<T>
+    async fn api_request<T>(&self, endpoint: &str) -> AppResult<T>
     where
         T: for<'de> Deserialize<'de>,
     {
         // Clone access token to avoid holding lock across await
         let access_token = {
             let guard = self.credentials.read().await;
-            let credentials = guard
-                .as_ref()
-                .context("No credentials available for Garmin API request")?;
+            let credentials = guard.as_ref().ok_or_else(|| {
+                AppError::internal("No credentials available for Garmin API request")
+            })?;
 
             let token = credentials
                 .access_token
                 .clone() // Safe: String ownership needed for async request
-                .context("No access token available")?;
+                .ok_or_else(|| AppError::internal("No access token available"))?;
             drop(guard); // Release lock immediately after cloning
             token
         };
@@ -240,9 +239,9 @@ impl GarminProvider {
     }
 
     /// Convert Garmin activity response to internal Activity model
-    fn convert_garmin_activity(activity: GarminActivityResponse) -> Result<Activity> {
+    fn convert_garmin_activity(activity: GarminActivityResponse) -> AppResult<Activity> {
         let start_date = DateTime::parse_from_rfc3339(&activity.start_time_gmt)
-            .context("Failed to parse activity start date")?
+            .map_err(|e| AppError::internal(format!("Failed to parse activity start date: {e}")))?
             .with_timezone(&Utc);
 
         Ok(Activity {
@@ -319,7 +318,7 @@ impl FitnessProvider for GarminProvider {
         &self.config
     }
 
-    async fn set_credentials(&self, credentials: OAuth2Credentials) -> Result<()> {
+    async fn set_credentials(&self, credentials: OAuth2Credentials) -> AppResult<()> {
         info!("Setting Garmin credentials");
         *self.credentials.write().await = Some(credentials);
         Ok(())
@@ -338,7 +337,7 @@ impl FitnessProvider for GarminProvider {
         false
     }
 
-    async fn refresh_token_if_needed(&self) -> Result<()> {
+    async fn refresh_token_if_needed(&self) -> AppResult<()> {
         // Check if refresh is needed and extract credentials
         let (needs_refresh, credentials) = {
             let guard = self.credentials.read().await;
@@ -347,12 +346,12 @@ impl FitnessProvider for GarminProvider {
                     Utc::now() + chrono::Duration::minutes(5) > expires_at
                 })
             } else {
-                return Err(AppError::internal("No credentials available").into());
+                return Err(AppError::internal("No credentials available"));
             };
 
             let credentials = guard
                 .as_ref()
-                .context("No credentials available for refresh")?
+                .ok_or_else(|| AppError::internal("No credentials available for refresh"))?
                 .clone(); // Safe: OAuth2Credentials ownership for refresh operation
             drop(guard); // Release lock early to avoid contention
 
@@ -365,7 +364,7 @@ impl FitnessProvider for GarminProvider {
 
         let refresh_token = credentials
             .refresh_token
-            .context("No refresh token available")?;
+            .ok_or_else(|| AppError::internal("No refresh token available"))?;
 
         info!("Refreshing Garmin access token");
 
@@ -386,7 +385,7 @@ impl FitnessProvider for GarminProvider {
         Ok(())
     }
 
-    async fn get_athlete(&self) -> Result<Athlete> {
+    async fn get_athlete(&self) -> AppResult<Athlete> {
         // Source: https://github.com/cyberjunky/python-garminconnect
         // Endpoint: /userprofile-service/userprofile/profile
         let garmin_athlete: GarminAthleteResponse = self
@@ -412,7 +411,7 @@ impl FitnessProvider for GarminProvider {
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> Result<Vec<Activity>> {
+    ) -> AppResult<Vec<Activity>> {
         let requested_limit =
             limit.unwrap_or(api_provider_limits::garmin::DEFAULT_ACTIVITIES_PER_PAGE);
         let start_offset = offset.unwrap_or(0);
@@ -436,13 +435,13 @@ impl FitnessProvider for GarminProvider {
     async fn get_activities_cursor(
         &self,
         params: &PaginationParams,
-    ) -> Result<CursorPage<Activity>> {
+    ) -> AppResult<CursorPage<Activity>> {
         // Garmin API uses numeric pagination - delegate to offset-based approach
         let activities = self.get_activities(Some(params.limit), None).await?;
         Ok(CursorPage::new(activities, None, None, false))
     }
 
-    async fn get_activity(&self, id: &str) -> Result<Activity> {
+    async fn get_activity(&self, id: &str) -> AppResult<Activity> {
         // Source: https://github.com/cyberjunky/python-garminconnect
         // Endpoint: /activity-service/activity/{activity_id}
         let endpoint = format!("activity-service/activity/{id}");
@@ -450,7 +449,7 @@ impl FitnessProvider for GarminProvider {
         Self::convert_garmin_activity(garmin_activity)
     }
 
-    async fn get_stats(&self) -> Result<Stats> {
+    async fn get_stats(&self) -> AppResult<Stats> {
         // Source: https://github.com/cyberjunky/python-garminconnect
         // Using aggregate stats endpoint which provides all-time totals
         // Alternative endpoint /usersummary-service/usersummary/daily/{display_name}?calendarDate={date}
@@ -490,14 +489,14 @@ impl FitnessProvider for GarminProvider {
         })
     }
 
-    async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>> {
+    async fn get_personal_records(&self) -> AppResult<Vec<PersonalRecord>> {
         // Garmin Connect does not expose a dedicated personal records endpoint
         // Personal records would need to be computed from activity history analysis
         // or extracted from the athlete profile if available in future API updates
         Ok(vec![])
     }
 
-    async fn disconnect(&self) -> Result<()> {
+    async fn disconnect(&self) -> AppResult<()> {
         // Clone access token and revoke URL to avoid holding lock across await
         let (access_token_opt, revoke_url_opt) = {
             let guard = self.credentials.read().await;
@@ -537,7 +536,7 @@ impl GarminProvider {
         &self,
         limit: usize,
         offset: usize,
-    ) -> Result<Vec<Activity>> {
+    ) -> AppResult<Vec<Activity>> {
         // Source: https://github.com/cyberjunky/python-garminconnect
         // Endpoint: /activitylist-service/activities/search/activities?start={offset}&limit={limit}
         let endpoint = format!(
@@ -565,7 +564,7 @@ impl GarminProvider {
         &self,
         total_limit: usize,
         start_offset: usize,
-    ) -> Result<Vec<Activity>> {
+    ) -> AppResult<Vec<Activity>> {
         let mut all_activities = Vec::with_capacity(total_limit);
 
         let activities_per_page = api_provider_limits::garmin::MAX_ACTIVITIES_PER_REQUEST;

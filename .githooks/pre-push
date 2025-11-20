@@ -1,0 +1,44 @@
+#!/bin/bash
+# ABOUTME: Git pre-push hook - Runs critical path tests before push
+# ABOUTME: Prevents pushing code that fails essential tests (5-10 minute run)
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
+
+set -e
+
+# Get the project root (git hooks run from repo root)
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+
+echo ""
+echo "🔍 Running pre-push validation..."
+echo ""
+
+# Check if pre-push tests script exists
+if [ ! -f "$PROJECT_ROOT/scripts/pre-push-tests.sh" ]; then
+    echo "⚠️  Warning: pre-push-tests.sh not found, skipping tests"
+    echo "   Location: $PROJECT_ROOT/scripts/pre-push-tests.sh"
+    exit 0
+fi
+
+# Run the pre-push tests
+cd "$PROJECT_ROOT"
+
+if ./scripts/pre-push-tests.sh; then
+    echo ""
+    echo "✅ Pre-push validation passed!"
+    echo ""
+else
+    echo ""
+    echo "❌ Pre-push validation failed!"
+    echo ""
+    echo "Your push has been blocked to prevent CI failures."
+    echo ""
+    echo "Options:"
+    echo "  1. Fix the failing tests and try again"
+    echo "  2. Run specific tests: cargo test --test <test_name>"
+    echo "  3. Run full test suite: ./scripts/lint-and-test.sh"
+    echo "  4. Skip this check (NOT RECOMMENDED): git push --no-verify"
+    echo ""
+    exit 1
+fi

@@ -9,11 +9,10 @@
 //! used by multi-tenant MCP servers with comprehensive authentication and user isolation.
 
 use crate::database_plugins::factory::Database;
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::intelligence::weather::WeatherService;
 use crate::intelligence::ActivityAnalyzer;
 use crate::protocols::universal::UniversalToolExecutor;
-use anyhow::Result;
 use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -60,7 +59,7 @@ impl ToolEngine {
         tool_name: &str,
         params: Value,
         user_context: Option<&UserContext>,
-    ) -> Result<Value, AppError> {
+    ) -> AppResult<Value> {
         // Validate permissions for authenticated users
         if let Some(ctx) = user_context {
             self.validate_user_permissions(ctx, tool_name)?;
@@ -74,6 +73,9 @@ impl ToolEngine {
             user_id: user_context
                 .map_or_else(|| Uuid::new_v4().to_string(), |ctx| ctx.user_id.to_string()),
             tenant_id: None, // UserContext doesn't have tenant_id - needs tenant system integration
+            progress_token: None,
+            cancellation_token: None,
+            progress_reporter: None,
         };
 
         // Execute using the existing universal executor
@@ -101,7 +103,7 @@ impl ToolEngine {
         tool_name: &str,
         params: Value,
         user_context: &UserContext,
-    ) -> Result<Value, AppError> {
+    ) -> AppResult<Value> {
         self.execute_tool(tool_name, params, Some(user_context))
             .await
     }
@@ -261,7 +263,7 @@ impl ToolEngine {
         &self,
         user_context: &UserContext,
         _tool_name: &str,
-    ) -> Result<bool, AppError> {
+    ) -> AppResult<bool> {
         // All authenticated users can use all tools
         // This can be extended with more granular permissions based on tiers
         match user_context.tier.as_str() {

@@ -7,9 +7,8 @@
 // - Option<String> ownership for OAuth token scope fields
 
 use super::{Database, EncryptionHelper};
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::models::{DecryptedToken, EncryptedToken};
-use anyhow::Result;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -40,7 +39,7 @@ impl Database {
         user_id: Uuid,
         provider: OAuthProvider,
         token: &DecryptedToken,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let encrypted = EncryptedToken::new(
             &token.access_token,
             &token.refresh_token,
@@ -68,7 +67,8 @@ impl Database {
             .bind(encrypted.expires_at.timestamp())
             .bind(&encrypted.scope)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to update OAuth token: {e}")))?;
 
         Ok(())
     }
@@ -81,7 +81,7 @@ impl Database {
         &self,
         user_id: Uuid,
         provider: OAuthProvider,
-    ) -> Result<Option<DecryptedToken>> {
+    ) -> AppResult<Option<DecryptedToken>> {
         let prefix = provider.column_prefix();
         let query = format!(
             r"
@@ -94,7 +94,8 @@ impl Database {
         let row = sqlx::query(&query)
             .bind(user_id.to_owned())
             .fetch_optional(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to query OAuth token: {e}")))?;
 
         if let Some(row) = row {
             let access_col = format!("{prefix}_access_token");
@@ -113,7 +114,7 @@ impl Database {
                     access_token: access,
                     refresh_token: refresh,
                     expires_at: chrono::DateTime::from_timestamp(expires_at, 0)
-                        .ok_or_else(|| AppError::internal(format!("Invalid timestamp: {expires_at}")).into())?,
+                        .ok_or_else(|| AppError::internal(format!("Invalid timestamp: {expires_at}")))?,
                     scope: scope.unwrap_or_default(),
                 };
 
@@ -131,7 +132,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns an error if database update fails
-    pub async fn clear_oauth_token(&self, user_id: Uuid, provider: OAuthProvider) -> Result<()> {
+    pub async fn clear_oauth_token(&self, user_id: Uuid, provider: OAuthProvider) -> AppResult<()> {
         let prefix = provider.column_prefix();
         let query = format!(
             r"
@@ -148,7 +149,8 @@ impl Database {
         sqlx::query(&query)
             .bind(user_id.to_owned())
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to clear OAuth token: {e}")))?;
 
         Ok(())
     }

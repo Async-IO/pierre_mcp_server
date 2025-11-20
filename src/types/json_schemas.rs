@@ -322,7 +322,7 @@ impl UserFitnessProfileData {
     /// Returns error if `fitness_level` string cannot be parsed
     pub fn to_user_fitness_profile(
         self,
-    ) -> anyhow::Result<crate::intelligence::UserFitnessProfile> {
+    ) -> crate::errors::AppResult<crate::intelligence::UserFitnessProfile> {
         use crate::intelligence::{FitnessLevel, UserFitnessProfile, UserPreferences};
 
         let fitness_level = self

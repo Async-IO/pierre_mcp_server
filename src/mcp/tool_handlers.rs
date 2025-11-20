@@ -22,6 +22,7 @@ use crate::constants::{
     },
 };
 use crate::database_plugins::DatabaseProvider;
+use crate::errors::AppError;
 use crate::tenant::TenantContext;
 use crate::types::json_schemas;
 use serde_json::{json, Value};
@@ -260,7 +261,7 @@ impl ToolHandlers {
     }
 
     /// Handle authentication error
-    fn handle_authentication_error(request: McpRequest, e: &anyhow::Error) -> McpResponse {
+    fn handle_authentication_error(request: McpRequest, e: &AppError) -> McpResponse {
         warn!("MCP tool call authentication failed: {}", e);
 
         // Determine specific error code based on error message

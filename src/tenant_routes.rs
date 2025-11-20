@@ -12,10 +12,9 @@ use crate::{
     auth::{AuthManager, AuthResult},
     constants::oauth_providers,
     database_plugins::{factory::Database, DatabaseProvider},
-    errors::AppError,
+    errors::{AppError, AppResult},
     tenant::TenantOAuthCredentials,
 };
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
@@ -243,7 +242,7 @@ pub async fn create_tenant(
     tenant_request: CreateTenantRequest,
     auth_result: AuthResult,
     database: Arc<Database>,
-) -> Result<CreateTenantResponse, AppError> {
+) -> AppResult<CreateTenantResponse> {
     info!("Creating new tenant: {}", tenant_request.name);
 
     // Verify user is authenticated and has tenant creation permissions
@@ -305,7 +304,7 @@ pub async fn create_tenant(
 pub async fn list_tenants(
     auth_result: AuthResult,
     database: Arc<Database>,
-) -> Result<TenantListResponse, AppError> {
+) -> AppResult<TenantListResponse> {
     info!("Listing tenants for user: {}", auth_result.user_id);
 
     let tenants = database
@@ -360,7 +359,7 @@ pub async fn configure_tenant_oauth(
     oauth_request: ConfigureTenantOAuthRequest,
     auth_result: AuthResult,
     database: Arc<Database>,
-) -> Result<ConfigureTenantOAuthResponse, AppError> {
+) -> AppResult<ConfigureTenantOAuthResponse> {
     info!(
         "Configuring {} OAuth for tenant: {}",
         oauth_request.provider, tenant_id
@@ -440,7 +439,7 @@ pub async fn get_tenant_oauth(
     tenant_id: String,
     auth_result: AuthResult,
     database: Arc<Database>,
-) -> Result<TenantOAuthListResponse, AppError> {
+) -> AppResult<TenantOAuthListResponse> {
     info!("Getting OAuth config for tenant: {}", tenant_id);
 
     let tenant_uuid = Uuid::parse_str(&tenant_id).map_err(|e| {
@@ -498,7 +497,7 @@ pub async fn register_oauth_app(
     app_request: RegisterOAuthAppRequest,
     auth_result: AuthResult,
     database: Arc<Database>,
-) -> Result<RegisterOAuthAppResponse, AppError> {
+) -> AppResult<RegisterOAuthAppResponse> {
     info!("Registering OAuth app: {}", app_request.name);
 
     // Generate client credentials
@@ -549,7 +548,7 @@ pub async fn register_oauth_app(
 pub async fn oauth_authorize(
     auth_params: OAuthAuthorizeRequest,
     database: Arc<Database>,
-) -> Result<OAuthAuthorizeResponse, AppError> {
+) -> AppResult<OAuthAuthorizeResponse> {
     info!(
         "OAuth authorization request for client: {}",
         auth_params.client_id
@@ -616,7 +615,7 @@ pub async fn oauth_token(
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
     jwks_manager: Arc<crate::admin::jwks::JwksManager>,
-) -> Result<OAuthTokenResponse, AppError> {
+) -> AppResult<OAuthTokenResponse> {
     info!(
         "OAuth token request for client: {}",
         token_request.client_id
@@ -660,12 +659,16 @@ pub async fn oauth_token(
             })?;
 
             // Generate access token (JWT)
-            let access_token = auth_manager.generate_oauth_access_token(
-                &jwks_manager,
-                &oauth_app.owner_user_id,
-                &oauth_app.scopes,
-                None, // tenant_id
-            )?;
+            let access_token = auth_manager
+                .generate_oauth_access_token(
+                    &jwks_manager,
+                    &oauth_app.owner_user_id,
+                    &oauth_app.scopes,
+                    None, // tenant_id
+                )
+                .map_err(|e| {
+                    AppError::auth_invalid(format!("Failed to generate OAuth access token: {e}"))
+                })?;
 
             // Clean up authorization code
             if let Err(e) = database.delete_authorization_code(&code).await {
@@ -686,12 +689,18 @@ pub async fn oauth_token(
         }
         "client_credentials" => {
             // Direct client credentials grant (for A2A)
-            let access_token = auth_manager.generate_client_credentials_token(
-                &jwks_manager,
-                &token_request.client_id,
-                &oauth_app.scopes,
-                None, // tenant_id
-            )?;
+            let access_token = auth_manager
+                .generate_client_credentials_token(
+                    &jwks_manager,
+                    &token_request.client_id,
+                    &oauth_app.scopes,
+                    None, // tenant_id
+                )
+                .map_err(|e| {
+                    AppError::auth_invalid(format!(
+                        "Failed to generate client credentials token: {e}"
+                    ))
+                })?;
 
             Ok(OAuthTokenResponse {
                 access_token,

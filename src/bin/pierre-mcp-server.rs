@@ -18,7 +18,8 @@ use pierre_mcp_server::{
     auth::AuthManager,
     cache::factory::Cache,
     config::environment::ServerConfig,
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::factory::Database,
+    database_plugins::DatabaseProvider,
     logging,
     mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
 };
@@ -236,10 +237,10 @@ async fn run_server(server: MultiTenantMcpServer, config: &ServerConfig) -> Resu
     display_available_endpoints(config);
     info!("Ready to serve fitness data!");
 
-    if let Err(e) = server.run(config.http_port).await {
+    server.run(config.http_port).await.map_err(|e| {
         error!("Server error: {}", e);
-        return Err(e);
-    }
+        e
+    })?;
 
     Ok(())
 }

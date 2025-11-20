@@ -15,8 +15,7 @@
 /// Core system plugin adapters (database, cache, auth)
 pub mod plugins;
 
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -69,19 +68,19 @@ pub trait Plugin: Send + Sync {
     ///
     /// # Errors
     /// Returns an error if initialization fails
-    async fn initialize(&mut self) -> Result<()>;
+    async fn initialize(&mut self) -> AppResult<()>;
 
     /// Perform health check
     ///
     /// # Errors
     /// Returns an error if health check fails
-    async fn health_check(&self) -> Result<PluginHealth>;
+    async fn health_check(&self) -> AppResult<PluginHealth>;
 
     /// Gracefully shutdown the plugin
     ///
     /// # Errors
     /// Returns an error if shutdown fails
-    async fn shutdown(&mut self) -> Result<()>;
+    async fn shutdown(&mut self) -> AppResult<()>;
 
     /// Get current plugin state
     fn state(&self) -> PluginState;
@@ -118,7 +117,7 @@ impl PluginManager {
     ///
     /// # Errors
     /// Returns an error if any required plugin fails to initialize
-    pub async fn initialize_all(&mut self) -> Result<()> {
+    pub async fn initialize_all(&mut self) -> AppResult<()> {
         info!("Initializing {} plugins", self.plugins.len());
 
         // Sort plugins by priority (lower number = higher priority)
@@ -159,8 +158,7 @@ impl PluginManager {
                         );
                         return Err(AppError::internal(format!(
                             "Plugin initialization timeout: {plugin_name}"
-                        ))
-                        .into());
+                        )));
                     }
                     warn!("Optional plugin '{}' initialization timed out", plugin_name);
                 }
@@ -199,7 +197,7 @@ impl PluginManager {
     ///
     /// # Errors
     /// Returns an error if any plugin fails to shutdown gracefully
-    pub async fn shutdown_all(&mut self) -> Result<()> {
+    pub async fn shutdown_all(&mut self) -> AppResult<()> {
         info!("Shutting down {} plugins", self.plugins.len());
 
         // Reverse order for shutdown

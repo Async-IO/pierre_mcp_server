@@ -8,9 +8,9 @@ use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
+use crate::errors::AppResult;
 use crate::models::{User, UserOAuthApp, UserOAuthToken};
 use crate::rate_limiting::JwtUsage;
-use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
@@ -42,44 +42,44 @@ pub mod shared;
 #[async_trait]
 pub trait DatabaseProvider: Send + Sync + Clone {
     /// Create a new database connection with encryption key
-    async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self>
+    async fn new(database_url: &str, encryption_key: Vec<u8>) -> AppResult<Self>
     where
         Self: Sized;
 
     /// Run database migrations to set up schema
-    async fn migrate(&self) -> Result<()>;
+    async fn migrate(&self) -> AppResult<()>;
 
     // ================================
     // User Management
     // ================================
 
     /// Create a new user account
-    async fn create_user(&self, user: &User) -> Result<Uuid>;
+    async fn create_user(&self, user: &User) -> AppResult<Uuid>;
 
     /// Get user by ID
-    async fn get_user(&self, user_id: Uuid) -> Result<Option<User>>;
+    async fn get_user(&self, user_id: Uuid) -> AppResult<Option<User>>;
 
     /// Get user by email address
-    async fn get_user_by_email(&self, email: &str) -> Result<Option<User>>;
+    async fn get_user_by_email(&self, email: &str) -> AppResult<Option<User>>;
 
     /// Get user by email (required - fails if not found)
-    async fn get_user_by_email_required(&self, email: &str) -> Result<User>;
+    async fn get_user_by_email_required(&self, email: &str) -> AppResult<User>;
 
     /// Update user's last active timestamp
-    async fn update_last_active(&self, user_id: Uuid) -> Result<()>;
+    async fn update_last_active(&self, user_id: Uuid) -> AppResult<()>;
 
     /// Get total number of users
-    async fn get_user_count(&self) -> Result<i64>;
+    async fn get_user_count(&self) -> AppResult<i64>;
 
     /// Get users by status (pending, active, suspended)
-    async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>>;
+    async fn get_users_by_status(&self, status: &str) -> AppResult<Vec<User>>;
 
     /// Get users by status with cursor-based pagination
     async fn get_users_by_status_cursor(
         &self,
         status: &str,
         params: &crate::pagination::PaginationParams,
-    ) -> Result<crate::pagination::CursorPage<User>>;
+    ) -> AppResult<crate::pagination::CursorPage<User>>;
 
     /// Update user status and approval information
     async fn update_user_status(
@@ -87,17 +87,17 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         user_id: Uuid,
         new_status: crate::models::UserStatus,
         admin_token_id: &str,
-    ) -> Result<User>;
+    ) -> AppResult<User>;
 
     /// Update user's `tenant_id` to link them to a tenant (`tenant_id` should be UUID string)
-    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()>;
+    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()>;
 
     // ================================
     // User OAuth Tokens (Multi-Tenant)
     // ================================
 
     /// Store or update user OAuth token for a tenant-provider combination
-    async fn upsert_user_oauth_token(&self, token: &UserOAuthToken) -> Result<()>;
+    async fn upsert_user_oauth_token(&self, token: &UserOAuthToken) -> AppResult<()>;
 
     /// Get user OAuth token for a specific tenant-provider combination
     async fn get_user_oauth_token(
@@ -105,17 +105,17 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         user_id: Uuid,
         tenant_id: &str,
         provider: &str,
-    ) -> Result<Option<UserOAuthToken>>;
+    ) -> AppResult<Option<UserOAuthToken>>;
 
     /// Get all OAuth tokens for a user across all tenants
-    async fn get_user_oauth_tokens(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>>;
+    async fn get_user_oauth_tokens(&self, user_id: Uuid) -> AppResult<Vec<UserOAuthToken>>;
 
     /// Get all OAuth tokens for a tenant-provider combination
     async fn get_tenant_provider_tokens(
         &self,
         tenant_id: &str,
         provider: &str,
-    ) -> Result<Vec<UserOAuthToken>>;
+    ) -> AppResult<Vec<UserOAuthToken>>;
 
     /// Delete user OAuth token for a tenant-provider combination
     async fn delete_user_oauth_token(
@@ -123,10 +123,10 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         user_id: Uuid,
         tenant_id: &str,
         provider: &str,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Delete all OAuth tokens for a user (when user is deleted)
-    async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()>;
+    async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> AppResult<()>;
 
     /// Update OAuth token expiration and refresh info
     async fn refresh_user_oauth_token(
@@ -137,7 +137,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         access_token: &str,
         refresh_token: Option<&str>,
         expires_at: Option<DateTime<Utc>>,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     // ================================
     // User OAuth App Credentials
@@ -151,52 +151,52 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         client_id: &str,
         client_secret: &str,
         redirect_uri: &str,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Get user OAuth app credentials for a provider
     async fn get_user_oauth_app(
         &self,
         user_id: Uuid,
         provider: &str,
-    ) -> Result<Option<UserOAuthApp>>;
+    ) -> AppResult<Option<UserOAuthApp>>;
 
     /// List all OAuth app providers configured for a user
-    async fn list_user_oauth_apps(&self, user_id: Uuid) -> Result<Vec<UserOAuthApp>>;
+    async fn list_user_oauth_apps(&self, user_id: Uuid) -> AppResult<Vec<UserOAuthApp>>;
 
     /// Remove user OAuth app credentials for a provider
-    async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> Result<()>;
+    async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> AppResult<()>;
 
     // ================================
     // User Profiles & Goals
     // ================================
 
     /// Upsert user profile data
-    async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> Result<()>;
+    async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> AppResult<()>;
 
     /// Get user profile data
-    async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<Value>>;
+    async fn get_user_profile(&self, user_id: Uuid) -> AppResult<Option<Value>>;
 
     /// Create a new goal for a user
-    async fn create_goal(&self, user_id: Uuid, goal_data: Value) -> Result<String>;
+    async fn create_goal(&self, user_id: Uuid, goal_data: Value) -> AppResult<String>;
 
     /// Get all goals for a user
-    async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<Value>>;
+    async fn get_user_goals(&self, user_id: Uuid) -> AppResult<Vec<Value>>;
 
     /// Update progress on a goal
-    async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()>;
+    async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> AppResult<()>;
 
     /// Get user configuration data
-    async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>>;
+    async fn get_user_configuration(&self, user_id: &str) -> AppResult<Option<String>>;
 
     /// Save user configuration data
-    async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()>;
+    async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> AppResult<()>;
 
     // ================================
     // Insights & Analytics
     // ================================
 
     /// Store an AI-generated insight
-    async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> Result<String>;
+    async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> AppResult<String>;
 
     /// Get insights for a user
     async fn get_user_insights(
@@ -204,29 +204,29 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         user_id: Uuid,
         insight_type: Option<&str>,
         limit: Option<u32>,
-    ) -> Result<Vec<Value>>;
+    ) -> AppResult<Vec<Value>>;
 
     // ================================
     // API Key Management
     // ================================
 
     /// Create a new API key
-    async fn create_api_key(&self, api_key: &ApiKey) -> Result<()>;
+    async fn create_api_key(&self, api_key: &ApiKey) -> AppResult<()>;
 
     /// Get API key by its prefix and hash
-    async fn get_api_key_by_prefix(&self, prefix: &str, hash: &str) -> Result<Option<ApiKey>>;
+    async fn get_api_key_by_prefix(&self, prefix: &str, hash: &str) -> AppResult<Option<ApiKey>>;
 
     /// Get all API keys for a user
-    async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>>;
+    async fn get_user_api_keys(&self, user_id: Uuid) -> AppResult<Vec<ApiKey>>;
 
     /// Update API key last used timestamp
-    async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()>;
+    async fn update_api_key_last_used(&self, api_key_id: &str) -> AppResult<()>;
 
     /// Deactivate an API key
-    async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()>;
+    async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> AppResult<()>;
 
     /// Get API key by ID
-    async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>>;
+    async fn get_api_key_by_id(&self, api_key_id: &str) -> AppResult<Option<ApiKey>>;
 
     /// Get API keys with optional filters
     async fn get_api_keys_filtered(
@@ -235,19 +235,19 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         active_only: bool,
         limit: Option<i32>,
         offset: Option<i32>,
-    ) -> Result<Vec<ApiKey>>;
+    ) -> AppResult<Vec<ApiKey>>;
 
     /// Clean up expired API keys
-    async fn cleanup_expired_api_keys(&self) -> Result<u64>;
+    async fn cleanup_expired_api_keys(&self) -> AppResult<u64>;
 
     /// Get expired API keys
-    async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>>;
+    async fn get_expired_api_keys(&self) -> AppResult<Vec<ApiKey>>;
 
     /// Record API key usage
-    async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()>;
+    async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> AppResult<()>;
 
     /// Get current usage count for an API key
-    async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32>;
+    async fn get_api_key_current_usage(&self, api_key_id: &str) -> AppResult<u32>;
 
     /// Get usage statistics for an API key
     async fn get_api_key_usage_stats(
@@ -255,17 +255,17 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         api_key_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<ApiKeyUsageStats>;
+    ) -> AppResult<ApiKeyUsageStats>;
 
     // ================================
     // JWT Usage Tracking
     // ================================
 
     /// Record JWT token usage for rate limiting and analytics
-    async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()>;
+    async fn record_jwt_usage(&self, usage: &JwtUsage) -> AppResult<()>;
 
     /// Get current JWT usage count for rate limiting (current month)
-    async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32>;
+    async fn get_jwt_current_usage(&self, user_id: Uuid) -> AppResult<u32>;
 
     // ================================
     // Request Logs & System Stats
@@ -279,10 +279,10 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         end_time: Option<DateTime<Utc>>,
         status_filter: Option<&str>,
         tool_filter: Option<&str>,
-    ) -> Result<Vec<crate::dashboard_routes::RequestLog>>;
+    ) -> AppResult<Vec<crate::dashboard_routes::RequestLog>>;
 
     /// Get system-wide statistics
-    async fn get_system_stats(&self) -> Result<(u64, u64)>;
+    async fn get_system_stats(&self) -> AppResult<(u64, u64)>;
 
     // ================================
     // A2A (Agent-to-Agent) Support
@@ -294,32 +294,34 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         client: &A2AClient,
         client_secret: &str,
         api_key_id: &str,
-    ) -> Result<String>;
+    ) -> AppResult<String>;
 
     /// Get A2A client by ID
-    async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>>;
+    async fn get_a2a_client(&self, client_id: &str) -> AppResult<Option<A2AClient>>;
 
     /// Get A2A client by API key ID
-    async fn get_a2a_client_by_api_key_id(&self, api_key_id: &str) -> Result<Option<A2AClient>>;
+    async fn get_a2a_client_by_api_key_id(&self, api_key_id: &str) -> AppResult<Option<A2AClient>>;
 
     /// Get A2A client by name
-    async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>>;
+    async fn get_a2a_client_by_name(&self, name: &str) -> AppResult<Option<A2AClient>>;
 
     /// List all A2A clients for a user
-    async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>>;
+    async fn list_a2a_clients(&self, user_id: &Uuid) -> AppResult<Vec<A2AClient>>;
 
     /// Deactivate an A2A client
-    async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()>;
+    async fn deactivate_a2a_client(&self, client_id: &str) -> AppResult<()>;
 
     /// Get client credentials for authentication
-    async fn get_a2a_client_credentials(&self, client_id: &str)
-        -> Result<Option<(String, String)>>;
+    async fn get_a2a_client_credentials(
+        &self,
+        client_id: &str,
+    ) -> AppResult<Option<(String, String)>>;
 
     /// Invalidate all active sessions for a client
-    async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()>;
+    async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> AppResult<()>;
 
     /// Deactivate all API keys associated with a client
-    async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()>;
+    async fn deactivate_client_api_keys(&self, client_id: &str) -> AppResult<()>;
 
     /// Create a new A2A session
     async fn create_a2a_session(
@@ -328,16 +330,16 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         user_id: Option<&Uuid>,
         granted_scopes: &[String],
         expires_in_hours: i64,
-    ) -> Result<String>;
+    ) -> AppResult<String>;
 
     /// Get A2A session by token
-    async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>>;
+    async fn get_a2a_session(&self, session_token: &str) -> AppResult<Option<A2ASession>>;
 
     /// Update A2A session activity timestamp
-    async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()>;
+    async fn update_a2a_session_activity(&self, session_token: &str) -> AppResult<()>;
 
     /// Get active sessions for a specific client
-    async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>>;
+    async fn get_active_a2a_sessions(&self, client_id: &str) -> AppResult<Vec<A2ASession>>;
 
     /// Create a new A2A task
     async fn create_a2a_task(
@@ -346,10 +348,10 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         session_id: Option<&str>,
         task_type: &str,
         input_data: &Value,
-    ) -> Result<String>;
+    ) -> AppResult<String>;
 
     /// Get A2A task by ID
-    async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>>;
+    async fn get_a2a_task(&self, task_id: &str) -> AppResult<Option<A2ATask>>;
 
     /// List A2A tasks for a client with optional filtering
     async fn list_a2a_tasks(
@@ -358,7 +360,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         status_filter: Option<&TaskStatus>,
         limit: Option<u32>,
         offset: Option<u32>,
-    ) -> Result<Vec<A2ATask>>;
+    ) -> AppResult<Vec<A2ATask>>;
 
     /// Update A2A task status
     async fn update_a2a_task_status(
@@ -367,13 +369,13 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         status: &TaskStatus,
         result: Option<&Value>,
         error: Option<&str>,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Record A2A usage for analytics
-    async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()>;
+    async fn record_a2a_usage(&self, usage: &A2AUsage) -> AppResult<()>;
 
     /// Get current A2A usage count for a client
-    async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32>;
+    async fn get_a2a_client_current_usage(&self, client_id: &str) -> AppResult<u32>;
 
     /// Get A2A usage statistics for a client
     async fn get_a2a_usage_stats(
@@ -381,14 +383,14 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         client_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<A2AUsageStats>;
+    ) -> AppResult<A2AUsageStats>;
 
     /// Get A2A client usage history
     async fn get_a2a_client_usage_history(
         &self,
         client_id: &str,
         days: u32,
-    ) -> Result<Vec<(DateTime<Utc>, u32, u32)>>;
+    ) -> AppResult<Vec<(DateTime<Utc>, u32, u32)>>;
 
     // ================================
     // Provider Sync Tracking
@@ -399,7 +401,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         &self,
         user_id: Uuid,
         provider: &str,
-    ) -> Result<Option<DateTime<Utc>>>;
+    ) -> AppResult<Option<DateTime<Utc>>>;
 
     /// Update last sync timestamp for a provider
     async fn update_provider_last_sync(
@@ -407,7 +409,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         user_id: Uuid,
         provider: &str,
         sync_time: DateTime<Utc>,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     // ================================
     // Analytics & Intelligence
@@ -419,7 +421,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         user_id: Uuid,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
-    ) -> Result<Vec<crate::dashboard_routes::ToolUsage>>;
+    ) -> AppResult<Vec<crate::dashboard_routes::ToolUsage>>;
 
     // ================================
     // Admin Token Management
@@ -431,41 +433,41 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         request: &crate::admin::models::CreateAdminTokenRequest,
         admin_jwt_secret: &str,
         jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> Result<crate::admin::models::GeneratedAdminToken>;
+    ) -> AppResult<crate::admin::models::GeneratedAdminToken>;
 
     /// Get admin token by ID
     async fn get_admin_token_by_id(
         &self,
         token_id: &str,
-    ) -> Result<Option<crate::admin::models::AdminToken>>;
+    ) -> AppResult<Option<crate::admin::models::AdminToken>>;
 
     /// Get admin token by prefix for fast lookup
     async fn get_admin_token_by_prefix(
         &self,
         token_prefix: &str,
-    ) -> Result<Option<crate::admin::models::AdminToken>>;
+    ) -> AppResult<Option<crate::admin::models::AdminToken>>;
 
     /// List all admin tokens (super admin only)
     async fn list_admin_tokens(
         &self,
         include_inactive: bool,
-    ) -> Result<Vec<crate::admin::models::AdminToken>>;
+    ) -> AppResult<Vec<crate::admin::models::AdminToken>>;
 
     /// Deactivate admin token
-    async fn deactivate_admin_token(&self, token_id: &str) -> Result<()>;
+    async fn deactivate_admin_token(&self, token_id: &str) -> AppResult<()>;
 
     /// Update admin token last used timestamp
     async fn update_admin_token_last_used(
         &self,
         token_id: &str,
         ip_address: Option<&str>,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Record admin token usage for audit trail
     async fn record_admin_token_usage(
         &self,
         usage: &crate::admin::models::AdminTokenUsage,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Get admin token usage history
     async fn get_admin_token_usage_history(
@@ -473,7 +475,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         token_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<Vec<crate::admin::models::AdminTokenUsage>>;
+    ) -> AppResult<Vec<crate::admin::models::AdminTokenUsage>>;
 
     /// Record API key provisioning by admin
     async fn record_admin_provisioned_key(
@@ -484,7 +486,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         tier: &str,
         rate_limit_requests: u32,
         rate_limit_period: &str,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Get admin provisioned keys history
     async fn get_admin_provisioned_keys(
@@ -492,7 +494,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         admin_token_id: Option<&str>,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<Vec<serde_json::Value>>;
+    ) -> AppResult<Vec<serde_json::Value>>;
 
     // ================================
     // RSA Key Persistence for JWT Signing
@@ -507,63 +509,69 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         created_at: DateTime<Utc>,
         is_active: bool,
         key_size_bits: i32,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Load all RSA keypairs from database
-    async fn load_rsa_keypairs(&self)
-        -> Result<Vec<(String, String, String, DateTime<Utc>, bool)>>;
+    async fn load_rsa_keypairs(
+        &self,
+    ) -> AppResult<Vec<(String, String, String, DateTime<Utc>, bool)>>;
 
     /// Update active status of RSA keypair
-    async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> Result<()>;
+    async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> AppResult<()>;
 
     // ================================
     // Multi-Tenant Management
     // ================================
 
     /// Create a new tenant
-    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()>;
+    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> AppResult<()>;
 
     /// Get tenant by ID
-    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> Result<crate::models::Tenant>;
+    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> AppResult<crate::models::Tenant>;
 
     /// Get tenant by slug
-    async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant>;
+    async fn get_tenant_by_slug(&self, slug: &str) -> AppResult<crate::models::Tenant>;
 
     /// List tenants for a user
-    async fn list_tenants_for_user(&self, user_id: Uuid) -> Result<Vec<crate::models::Tenant>>;
+    async fn list_tenants_for_user(&self, user_id: Uuid) -> AppResult<Vec<crate::models::Tenant>>;
 
     /// Store tenant OAuth credentials
     async fn store_tenant_oauth_credentials(
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Get tenant OAuth providers
     async fn get_tenant_oauth_providers(
         &self,
         tenant_id: Uuid,
-    ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>>;
+    ) -> AppResult<Vec<crate::tenant::TenantOAuthCredentials>>;
 
     /// Get tenant OAuth credentials for specific provider
     async fn get_tenant_oauth_credentials(
         &self,
         tenant_id: Uuid,
         provider: &str,
-    ) -> Result<Option<crate::tenant::TenantOAuthCredentials>>;
+    ) -> AppResult<Option<crate::tenant::TenantOAuthCredentials>>;
 
     // ================================
     // OAuth App Registration
     // ================================
 
     /// Create OAuth application for MCP clients
-    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()>;
+    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> AppResult<()>;
 
     /// Get OAuth app by client ID
-    async fn get_oauth_app_by_client_id(&self, client_id: &str) -> Result<crate::models::OAuthApp>;
+    async fn get_oauth_app_by_client_id(
+        &self,
+        client_id: &str,
+    ) -> AppResult<crate::models::OAuthApp>;
 
     /// List OAuth apps for a user
-    async fn list_oauth_apps_for_user(&self, user_id: Uuid)
-        -> Result<Vec<crate::models::OAuthApp>>;
+    async fn list_oauth_apps_for_user(
+        &self,
+        user_id: Uuid,
+    ) -> AppResult<Vec<crate::models::OAuthApp>>;
 
     // ================================
     // OAuth 2.0 Server (RFC 7591)
@@ -573,46 +581,46 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn store_oauth2_client(
         &self,
         client: &crate::oauth2_server::models::OAuth2Client,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Get OAuth 2.0 client by `client_id`
     async fn get_oauth2_client(
         &self,
         client_id: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2Client>>;
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2Client>>;
 
     /// Store OAuth 2.0 authorization code
     async fn store_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Get OAuth 2.0 authorization code
     async fn get_oauth2_auth_code(
         &self,
         code: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>>;
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>>;
 
     /// Update OAuth 2.0 authorization code (mark as used)
     async fn update_oauth2_auth_code(
         &self,
         auth_code: &crate::oauth2_server::models::OAuth2AuthCode,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Store OAuth 2.0 refresh token
     async fn store_oauth2_refresh_token(
         &self,
         refresh_token: &crate::oauth2_server::models::OAuth2RefreshToken,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Get OAuth 2.0 refresh token
     async fn get_oauth2_refresh_token(
         &self,
         token: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>>;
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>>;
 
     /// Revoke OAuth 2.0 refresh token
-    async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()>;
+    async fn revoke_oauth2_refresh_token(&self, token: &str) -> AppResult<()>;
 
     /// Atomically consume OAuth 2.0 authorization code (check-and-set in single operation)
     ///
@@ -633,7 +641,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         client_id: &str,
         redirect_uri: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2AuthCode>>;
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2AuthCode>>;
 
     /// Atomically consume OAuth 2.0 refresh token (check-and-revoke in single operation)
     ///
@@ -652,7 +660,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         token: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>>;
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>>;
 
     /// Look up a refresh token by its value (without `client_id` constraint)
     ///
@@ -667,7 +675,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn get_refresh_token_by_value(
         &self,
         token: &str,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2RefreshToken>>;
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2RefreshToken>>;
 
     /// Store authorization code
     async fn store_authorization_code(
@@ -677,19 +685,22 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         redirect_uri: &str,
         scope: &str,
         user_id: Uuid,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Get authorization code data
-    async fn get_authorization_code(&self, code: &str) -> Result<crate::models::AuthorizationCode>;
+    async fn get_authorization_code(
+        &self,
+        code: &str,
+    ) -> AppResult<crate::models::AuthorizationCode>;
 
     /// Delete authorization code (after use)
-    async fn delete_authorization_code(&self, code: &str) -> Result<()>;
+    async fn delete_authorization_code(&self, code: &str) -> AppResult<()>;
 
     /// Store `OAuth2` state for CSRF protection
     async fn store_oauth2_state(
         &self,
         state: &crate::oauth2_server::models::OAuth2State,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Consume `OAuth2` state (atomically check and mark as used)
     ///
@@ -702,7 +713,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         state_value: &str,
         client_id: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<crate::oauth2_server::models::OAuth2State>>;
+    ) -> AppResult<Option<crate::oauth2_server::models::OAuth2State>>;
 
     // ================================
     // Key Rotation & Security
@@ -712,19 +723,19 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn store_key_version(
         &self,
         version: &crate::security::key_rotation::KeyVersion,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Get all key versions for a tenant
     async fn get_key_versions(
         &self,
         tenant_id: Option<Uuid>,
-    ) -> Result<Vec<crate::security::key_rotation::KeyVersion>>;
+    ) -> AppResult<Vec<crate::security::key_rotation::KeyVersion>>;
 
     /// Get current active key version for a tenant
     async fn get_current_key_version(
         &self,
         tenant_id: Option<Uuid>,
-    ) -> Result<Option<crate::security::key_rotation::KeyVersion>>;
+    ) -> AppResult<Option<crate::security::key_rotation::KeyVersion>>;
 
     /// Update key version status (activate/deactivate)
     async fn update_key_version_status(
@@ -732,20 +743,20 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         tenant_id: Option<Uuid>,
         version: u32,
         is_active: bool,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Delete old key versions
     async fn delete_old_key_versions(
         &self,
         tenant_id: Option<Uuid>,
         keep_count: u32,
-    ) -> Result<u64>;
+    ) -> AppResult<u64>;
 
     /// Get all tenants for key rotation check
-    async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>>;
+    async fn get_all_tenants(&self) -> AppResult<Vec<crate::models::Tenant>>;
 
     /// Store audit event
-    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> Result<()>;
+    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> AppResult<()>;
 
     /// Get audit events with filters
     async fn get_audit_events(
@@ -753,27 +764,31 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         tenant_id: Option<Uuid>,
         event_type: Option<&str>,
         limit: Option<u32>,
-    ) -> Result<Vec<crate::security::audit::AuditEvent>>;
+    ) -> AppResult<Vec<crate::security::audit::AuditEvent>>;
 
     // ================================
     // Tenant User Management
     // ================================
 
     /// Get user role for a specific tenant
-    async fn get_user_tenant_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<String>>;
+    async fn get_user_tenant_role(
+        &self,
+        user_id: Uuid,
+        tenant_id: Uuid,
+    ) -> AppResult<Option<String>>;
 
     // ================================
     // System Secret Management
     // ================================
 
     /// Get or create system secret (generates if not exists)
-    async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String>;
+    async fn get_or_create_system_secret(&self, secret_type: &str) -> AppResult<String>;
 
     /// Get existing system secret
-    async fn get_system_secret(&self, secret_type: &str) -> Result<String>;
+    async fn get_system_secret(&self, secret_type: &str) -> AppResult<String>;
 
     /// Update system secret (for rotation)
-    async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()>;
+    async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> AppResult<()>;
 
     // ================================
     // OAuth Notifications
@@ -787,30 +802,30 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         success: bool,
         message: &str,
         expires_at: Option<&str>,
-    ) -> Result<String>;
+    ) -> AppResult<String>;
 
     /// Get unread OAuth notifications for a user
     async fn get_unread_oauth_notifications(
         &self,
         user_id: Uuid,
-    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>>;
+    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>>;
 
     /// Mark OAuth notification as read
     async fn mark_oauth_notification_read(
         &self,
         notification_id: &str,
         user_id: Uuid,
-    ) -> Result<bool>;
+    ) -> AppResult<bool>;
 
     /// Mark all OAuth notifications as read for a user
-    async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64>;
+    async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> AppResult<u64>;
 
     /// Get all OAuth notifications for a user (read and unread)
     async fn get_all_oauth_notifications(
         &self,
         user_id: Uuid,
         limit: Option<i64>,
-    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>>;
+    ) -> AppResult<Vec<crate::database::oauth_notifications::OAuthNotification>>;
 
     // ================================
     // Fitness Configuration Management
@@ -822,7 +837,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         tenant_id: &str,
         configuration_name: &str,
         config: &crate::config::fitness_config::FitnessConfig,
-    ) -> Result<String>;
+    ) -> AppResult<String>;
 
     /// Save user-specific fitness configuration
     async fn save_user_fitness_config(
@@ -831,14 +846,14 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         user_id: &str,
         configuration_name: &str,
         config: &crate::config::fitness_config::FitnessConfig,
-    ) -> Result<String>;
+    ) -> AppResult<String>;
 
     /// Get tenant-level fitness configuration
     async fn get_tenant_fitness_config(
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>>;
+    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>>;
 
     /// Get user-specific fitness configuration
     async fn get_user_fitness_config(
@@ -846,17 +861,17 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>>;
+    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>>;
 
     /// List all tenant-level fitness configuration names
-    async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> Result<Vec<String>>;
+    async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> AppResult<Vec<String>>;
 
     /// List all user-specific fitness configuration names
     async fn list_user_fitness_configurations(
         &self,
         tenant_id: &str,
         user_id: &str,
-    ) -> Result<Vec<String>>;
+    ) -> AppResult<Vec<String>>;
 
     /// Delete fitness configuration (tenant or user-specific)
     async fn delete_fitness_config(
@@ -864,5 +879,5 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         tenant_id: &str,
         user_id: Option<&str>,
         configuration_name: &str,
-    ) -> Result<bool>;
+    ) -> AppResult<bool>;
 }

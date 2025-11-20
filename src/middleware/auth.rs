@@ -8,11 +8,10 @@ use crate::api_keys::ApiKeyManager;
 use crate::auth::{AuthManager, AuthMethod, AuthResult};
 use crate::constants::key_prefixes;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::providers::errors::ProviderError;
 use crate::rate_limiting::UnifiedRateLimitCalculator;
 use crate::utils::errors::auth_error;
-use anyhow::{Context, Result};
 
 /// Middleware for `MCP` protocol authentication
 #[derive(Clone)]
@@ -62,7 +61,7 @@ impl McpAuthMiddleware {
             success = tracing::field::Empty,
         )
     )]
-    pub async fn authenticate_request(&self, auth_header: Option<&str>) -> Result<AuthResult> {
+    pub async fn authenticate_request(&self, auth_header: Option<&str>) -> AppResult<AuthResult> {
         tracing::debug!("=== AUTH MIDDLEWARE AUTHENTICATE_REQUEST START ===");
         tracing::debug!("Auth header provided: {}", auth_header.is_some());
 
@@ -81,7 +80,7 @@ impl McpAuthMiddleware {
             header
         } else {
             tracing::warn!("Authentication failed: Missing authorization header");
-            return Err(auth_error("Missing authorization header - Request authentication requires Authorization header with Bearer token or API key").into());
+            return Err(auth_error("Missing authorization header - Request authentication requires Authorization header with Bearer token or API key"));
         };
 
         // Try API key authentication first (starts with pk_live_)
@@ -131,12 +130,12 @@ impl McpAuthMiddleware {
                 .record("auth_method", "INVALID")
                 .record("success", false);
             tracing::warn!("Authentication failed: Invalid authorization header format (expected 'Bearer ...' or 'pk_live_...')");
-            Err(AppError::auth_invalid("Invalid authorization header format - must be 'Bearer <token>' or 'pk_live_<api_key>'").into())
+            Err(AppError::auth_invalid("Invalid authorization header format - must be 'Bearer <token>' or 'pk_live_<api_key>'"))
         }
     }
 
     /// Authenticate using `API` key
-    async fn authenticate_api_key(&self, api_key: &str) -> Result<AuthResult> {
+    async fn authenticate_api_key(&self, api_key: &str) -> AppResult<AuthResult> {
         // Validate key format
         self.api_key_manager.validate_key_format(api_key)?;
 
@@ -149,7 +148,9 @@ impl McpAuthMiddleware {
             .database
             .get_api_key_by_prefix(&key_prefix, &key_hash)
             .await?
-            .with_context(|| format!("API key not found or invalid: {key_prefix}"))?;
+            .ok_or_else(|| {
+                AppError::auth_invalid(format!("API key not found or invalid: {key_prefix}"))
+            })?;
 
         // Validate key status
         self.api_key_manager.is_key_valid(&db_key)?;
@@ -162,7 +163,7 @@ impl McpAuthMiddleware {
 
         // Check rate limit
         if rate_limit.is_rate_limited {
-            return Err(ProviderError::RateLimitExceeded {
+            let err = ProviderError::RateLimitExceeded {
                 provider: "API Key Authentication".to_owned(),
                 retry_after_secs: rate_limit.reset_at.map_or(3600, |dt| {
                     let now = chrono::Utc::now().timestamp();
@@ -174,8 +175,11 @@ impl McpAuthMiddleware {
                     current_usage,
                     rate_limit.limit.unwrap_or(0)
                 ),
-            }
-            .into());
+            };
+            return Err(AppError::external_service(
+                "API Key Authentication",
+                err.to_string(),
+            ));
         }
 
         // Update last used timestamp
@@ -192,10 +196,11 @@ impl McpAuthMiddleware {
     }
 
     /// Authenticate using RS256 JWT token
-    async fn authenticate_jwt_token(&self, token: &str) -> Result<AuthResult> {
+    async fn authenticate_jwt_token(&self, token: &str) -> AppResult<AuthResult> {
         let claims = self
             .auth_manager
-            .validate_token_detailed(token, &self.jwks_manager)?;
+            .validate_token_detailed(token, &self.jwks_manager)
+            .map_err(|e| AppError::auth_invalid(format!("JWT validation failed: {e}")))?;
 
         let user_id = crate::utils::uuid::parse_uuid(&claims.sub)
             .map_err(|_| AppError::auth_invalid("Invalid user ID in token"))?;
@@ -215,7 +220,7 @@ impl McpAuthMiddleware {
 
         // Check rate limit
         if rate_limit.is_rate_limited {
-            return Err(auth_error("JWT token rate limit exceeded").into());
+            return Err(auth_error("JWT token rate limit exceeded"));
         }
 
         Ok(AuthResult {
@@ -236,7 +241,7 @@ impl McpAuthMiddleware {
     /// - Token signature is invalid
     /// - Token is malformed
     /// - Token claims cannot be deserialized
-    pub fn check_provider_access(&self, token: &str, provider: &str) -> Result<bool> {
+    pub fn check_provider_access(&self, token: &str, provider: &str) -> AppResult<bool> {
         let claims = self
             .auth_manager
             .validate_token(token, &self.jwks_manager)?;

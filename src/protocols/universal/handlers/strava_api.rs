@@ -218,9 +218,9 @@ async fn try_get_cached_athlete(
         return Ok(Some(UniversalResponse {
             success: true,
             result: Some(serde_json::to_value(&cached_athlete).map_err(|e| {
-                ProtocolError::SerializationError {
-                    message: format!("Failed to serialize cached athlete: {e}"),
-                }
+                ProtocolError::SerializationError(format!(
+                    "Failed to serialize cached athlete: {e}"
+                ))
             })?),
             error: None,
             metadata: Some({
@@ -283,9 +283,9 @@ async fn fetch_and_cache_athlete(
             };
 
             provider.set_credentials(credentials).await.map_err(|e| {
-                ProtocolError::ConfigurationError {
-                    message: format!("Failed to set provider credentials: {e}"),
-                }
+                ProtocolError::ConfigurationError(format!(
+                    "Failed to set provider credentials: {e}"
+                ))
             })?;
 
             match provider.get_athlete().await {
@@ -295,9 +295,9 @@ async fn fetch_and_cache_athlete(
                     Ok(UniversalResponse {
                         success: true,
                         result: Some(serde_json::to_value(&athlete).map_err(|e| {
-                            ProtocolError::SerializationError {
-                                message: format!("Failed to serialize athlete: {e}"),
-                            }
+                            ProtocolError::SerializationError(format!(
+                                "Failed to serialize athlete: {e}"
+                            ))
                         })?),
                         error: None,
                         metadata: Some({
@@ -349,9 +349,7 @@ async fn process_activity_analysis(
     Ok(UniversalResponse {
         success: true,
         result: Some(serde_json::to_value(analysis).map_err(|e| {
-            ProtocolError::SerializationError {
-                message: format!("Failed to serialize analysis: {e}"),
-            }
+            ProtocolError::SerializationError(format!("Failed to serialize analysis: {e}"))
         })?),
         error: None,
         metadata: Some(create_activity_metadata(
@@ -372,11 +370,21 @@ async fn process_activity_analysis(
 
 /// Handle `get_activities` tool - retrieve user's fitness activities
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn handle_get_activities(
     executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "get_activities cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         // Parse user ID from request
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -428,7 +436,33 @@ pub fn handle_get_activities(
         )
         .await
         {
+            // Report completion if we got from cache
+            if let Some(reporter) = &request.progress_reporter {
+                reporter.report(
+                    100.0,
+                    Some(100.0),
+                    Some("Activities loaded from cache".to_owned()),
+                );
+            }
             return Ok(cached_response);
+        }
+
+        // Report progress after cache miss
+        if let Some(reporter) = &request.progress_reporter {
+            reporter.report(
+                25.0,
+                Some(100.0),
+                Some("Checking authentication...".to_owned()),
+            );
+        }
+
+        // Check cancellation before expensive auth operation
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "get_activities cancelled before authentication".to_owned(),
+                ));
+            }
         }
 
         // Get valid Strava token (with automatic refresh if needed)
@@ -442,6 +476,24 @@ pub fn handle_get_activities(
             .await
         {
             Ok(Some(token_data)) => {
+                // Report progress after successful auth
+                if let Some(reporter) = &request.progress_reporter {
+                    reporter.report(
+                        50.0,
+                        Some(100.0),
+                        Some("Authenticated - fetching activities from Strava...".to_owned()),
+                    );
+                }
+
+                // Check cancellation before API call
+                if let Some(token) = &request.cancellation_token {
+                    if token.is_cancelled().await {
+                        return Err(ProtocolError::OperationCancelled(
+                            "get_activities cancelled before API call".to_owned(),
+                        ));
+                    }
+                }
+
                 // Create and configure Strava provider
                 match create_configured_strava_provider(
                     &executor.resources.provider_registry,
@@ -451,9 +503,30 @@ pub fn handle_get_activities(
                 .await
                 {
                     Ok(provider) => {
+                        // Report progress before API call
+                        if let Some(reporter) = &request.progress_reporter {
+                            reporter.report(
+                                75.0,
+                                Some(100.0),
+                                Some("Calling Strava API...".to_owned()),
+                            );
+                        }
+
                         // Get activities from provider
                         match provider.get_activities(Some(limit), None).await {
                             Ok(activities) => {
+                                // Report completion
+                                if let Some(reporter) = &request.progress_reporter {
+                                    reporter.report(
+                                        100.0,
+                                        Some(100.0),
+                                        Some(format!(
+                                            "Successfully fetched {} activities",
+                                            activities.len()
+                                        )),
+                                    );
+                                }
+
                                 cache_activities_result(
                                     &executor.resources.cache,
                                     &cache_key,
@@ -491,11 +564,21 @@ pub fn handle_get_activities(
 
 /// Handle `get_athlete` tool - retrieve user's athlete profile
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn handle_get_athlete(
     executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "get_athlete cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         // Parse user ID from request
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -532,7 +615,33 @@ pub fn handle_get_athlete(
         )
         .await?
         {
+            // Report completion if loaded from cache
+            if let Some(reporter) = &request.progress_reporter {
+                reporter.report(
+                    100.0,
+                    Some(100.0),
+                    Some("Athlete profile loaded from cache".to_owned()),
+                );
+            }
             return Ok(cached_response);
+        }
+
+        // Report progress after cache miss
+        if let Some(reporter) = &request.progress_reporter {
+            reporter.report(
+                25.0,
+                Some(100.0),
+                Some("Checking authentication...".to_owned()),
+            );
+        }
+
+        // Check cancellation before auth
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "get_athlete cancelled before authentication".to_owned(),
+                ));
+            }
         }
 
         // Get valid Strava token (with automatic refresh if needed)
@@ -546,7 +655,25 @@ pub fn handle_get_athlete(
             .await
         {
             Ok(Some(token_data)) => {
-                fetch_and_cache_athlete(
+                // Report progress after auth
+                if let Some(reporter) = &request.progress_reporter {
+                    reporter.report(
+                        50.0,
+                        Some(100.0),
+                        Some("Authenticated - fetching athlete profile...".to_owned()),
+                    );
+                }
+
+                // Check cancellation before fetch
+                if let Some(token) = &request.cancellation_token {
+                    if token.is_cancelled().await {
+                        return Err(ProtocolError::OperationCancelled(
+                            "get_athlete cancelled before fetch".to_owned(),
+                        ));
+                    }
+                }
+
+                let result = fetch_and_cache_athlete(
                     &executor.resources.provider_registry,
                     &executor.resources.cache,
                     &token_data,
@@ -555,7 +682,20 @@ pub fn handle_get_athlete(
                     request.tenant_id,
                     &executor.resources.config.oauth.strava,
                 )
-                .await
+                .await;
+
+                // Report completion on success
+                if result.is_ok() {
+                    if let Some(reporter) = &request.progress_reporter {
+                        reporter.report(
+                            100.0,
+                            Some(100.0),
+                            Some("Athlete profile fetched successfully".to_owned()),
+                        );
+                    }
+                }
+
+                result
             }
             Ok(None) => Ok(UniversalResponse {
                 success: false,
@@ -608,9 +748,7 @@ async fn try_get_cached_stats(
         return Ok(Some(UniversalResponse {
             success: true,
             result: Some(serde_json::to_value(&cached_stats).map_err(|e| {
-                ProtocolError::SerializationError {
-                    message: format!("Failed to serialize cached stats: {e}"),
-                }
+                ProtocolError::SerializationError(format!("Failed to serialize cached stats: {e}"))
             })?),
             error: None,
             metadata: Some({
@@ -659,9 +797,9 @@ async fn fetch_and_cache_stats(
             };
 
             provider.set_credentials(credentials).await.map_err(|e| {
-                ProtocolError::ConfigurationError {
-                    message: format!("Failed to set provider credentials: {e}"),
-                }
+                ProtocolError::ConfigurationError(format!(
+                    "Failed to set provider credentials: {e}"
+                ))
             })?;
 
             match provider.get_stats().await {
@@ -696,9 +834,9 @@ async fn fetch_and_cache_stats(
                     Ok(UniversalResponse {
                         success: true,
                         result: Some(serde_json::to_value(&stats).map_err(|e| {
-                            ProtocolError::SerializationError {
-                                message: format!("Failed to serialize stats: {e}"),
-                            }
+                            ProtocolError::SerializationError(format!(
+                                "Failed to serialize stats: {e}"
+                            ))
                         })?),
                         error: None,
                         metadata: Some({
@@ -735,11 +873,21 @@ async fn fetch_and_cache_stats(
 
 /// Handle `get_stats` tool - retrieve user's activity statistics
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn handle_get_stats(
     executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "get_stats cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         // Parse user ID from request
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -786,7 +934,33 @@ pub fn handle_get_stats(
             )
             .await?
             {
+                // Report completion if loaded from cache
+                if let Some(reporter) = &request.progress_reporter {
+                    reporter.report(
+                        100.0,
+                        Some(100.0),
+                        Some("Stats loaded from cache".to_owned()),
+                    );
+                }
                 return Ok(cached_response);
+            }
+        }
+
+        // Report progress after cache miss
+        if let Some(reporter) = &request.progress_reporter {
+            reporter.report(
+                25.0,
+                Some(100.0),
+                Some("Checking authentication...".to_owned()),
+            );
+        }
+
+        // Check cancellation before auth
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "get_stats cancelled before authentication".to_owned(),
+                ));
             }
         }
 
@@ -801,7 +975,25 @@ pub fn handle_get_stats(
             .await
         {
             Ok(Some(token_data)) => {
-                fetch_and_cache_stats(
+                // Report progress after auth
+                if let Some(reporter) = &request.progress_reporter {
+                    reporter.report(
+                        50.0,
+                        Some(100.0),
+                        Some("Authenticated - fetching stats...".to_owned()),
+                    );
+                }
+
+                // Check cancellation before fetch
+                if let Some(token) = &request.cancellation_token {
+                    if token.is_cancelled().await {
+                        return Err(ProtocolError::OperationCancelled(
+                            "get_stats cancelled before fetch".to_owned(),
+                        ));
+                    }
+                }
+
+                let result = fetch_and_cache_stats(
                     &executor.resources.provider_registry,
                     &executor.resources.cache,
                     &token_data,
@@ -810,7 +1002,20 @@ pub fn handle_get_stats(
                     user_uuid,
                     &executor.resources.config.oauth.strava,
                 )
-                .await
+                .await;
+
+                // Report completion on success
+                if result.is_ok() {
+                    if let Some(reporter) = &request.progress_reporter {
+                        reporter.report(
+                            100.0,
+                            Some(100.0),
+                            Some("Stats fetched successfully".to_owned()),
+                        );
+                    }
+                }
+
+                result
             }
             Ok(None) => Ok(UniversalResponse {
                 success: false,
@@ -832,11 +1037,21 @@ pub fn handle_get_stats(
 
 /// Handle `analyze_activity` tool - analyze specific activity with intelligence
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn handle_analyze_activity(
     executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "analyze_activity cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         // Parse user ID and extract activity ID from request
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let activity_id = request
@@ -844,10 +1059,27 @@ pub fn handle_analyze_activity(
             .get("activity_id")
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned) // Safe: String ownership needed to avoid borrowing issues
-            .ok_or_else(|| ProtocolError::InvalidRequest {
-                protocol: crate::protocols::ProtocolType::MCP,
-                reason: "activity_id parameter required".to_owned(),
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("activity_id parameter required".to_owned())
             })?;
+
+        // Report progress - starting authentication
+        if let Some(reporter) = &request.progress_reporter {
+            reporter.report(
+                20.0,
+                Some(100.0),
+                Some("Checking authentication...".to_owned()),
+            );
+        }
+
+        // Check cancellation before auth
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "analyze_activity cancelled before authentication".to_owned(),
+                ));
+            }
+        }
 
         // Get valid Strava token (with automatic refresh if needed)
         match executor
@@ -860,6 +1092,24 @@ pub fn handle_analyze_activity(
             .await
         {
             Ok(Some(token_data)) => {
+                // Report progress after auth
+                if let Some(reporter) = &request.progress_reporter {
+                    reporter.report(
+                        40.0,
+                        Some(100.0),
+                        Some("Authenticated - fetching activity...".to_owned()),
+                    );
+                }
+
+                // Check cancellation before provider creation
+                if let Some(token) = &request.cancellation_token {
+                    if token.is_cancelled().await {
+                        return Err(ProtocolError::OperationCancelled(
+                            "analyze_activity cancelled before fetch".to_owned(),
+                        ));
+                    }
+                }
+
                 // Create and configure Strava provider
                 match create_configured_strava_provider(
                     &executor.resources.provider_registry,
@@ -872,7 +1122,17 @@ pub fn handle_analyze_activity(
                         // Fetch the specific activity directly - efficient single API call
                         match provider.get_activity(&activity_id).await {
                             Ok(_activity) => {
+                                // Report progress before analysis
+                                if let Some(reporter) = &request.progress_reporter {
+                                    reporter.report(
+                                        60.0,
+                                        Some(100.0),
+                                        Some("Activity retrieved - analyzing...".to_owned()),
+                                    );
+                                }
+
                                 // Activity found - process analysis
+                                // Note: process_activity_analysis takes ownership of request
                                 process_activity_analysis(
                                     executor,
                                     request,

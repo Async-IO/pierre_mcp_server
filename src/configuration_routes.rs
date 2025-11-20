@@ -22,9 +22,8 @@ use crate::configuration::{
     vo2_max::VO2MaxCalculator,
 };
 use crate::database_plugins::DatabaseProvider;
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::types::json_schemas;
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -271,7 +270,7 @@ impl ConfigurationRoutes {
         ResponseMetadata {
             timestamp: chrono::Utc::now(),
             processing_time_ms: u64::try_from(processing_start.elapsed().as_millis()).ok(),
-            api_version: "1.0.0".into(),
+            api_version: "1.0.0".to_owned(),
         }
     }
 
@@ -288,7 +287,7 @@ impl ConfigurationRoutes {
     pub fn get_configuration_catalog(
         &self,
         _auth_header: Option<&str>,
-    ) -> Result<ConfigurationCatalogResponse> {
+    ) -> AppResult<ConfigurationCatalogResponse> {
         let processing_start = std::time::Instant::now();
 
         let catalog = CatalogBuilder::build();
@@ -308,7 +307,7 @@ impl ConfigurationRoutes {
     pub fn get_configuration_profiles(
         &self,
         _auth_header: Option<&str>,
-    ) -> Result<ConfigurationProfilesResponse> {
+    ) -> AppResult<ConfigurationProfilesResponse> {
         let processing_start = std::time::Instant::now();
 
         let templates = ProfileTemplates::all();
@@ -369,7 +368,7 @@ impl ConfigurationRoutes {
     pub async fn get_user_configuration(
         &self,
         auth: &AuthResult,
-    ) -> Result<UserConfigurationResponse> {
+    ) -> AppResult<UserConfigurationResponse> {
         let processing_start = std::time::Instant::now();
         let user_id = auth.user_id;
 
@@ -408,7 +407,7 @@ impl ConfigurationRoutes {
         &self,
         auth: &AuthResult,
         request: UpdateConfigurationRequest,
-    ) -> Result<UpdateConfigurationResponse> {
+    ) -> AppResult<UpdateConfigurationResponse> {
         let processing_start = std::time::Instant::now();
         let user_id = auth.user_id;
 
@@ -429,8 +428,7 @@ impl ConfigurationRoutes {
                 return Err(AppError::invalid_input(format!(
                     "Configuration validation failed: {:?}",
                     validation_result.errors
-                ))
-                .into());
+                )));
             }
         }
 
@@ -443,7 +441,9 @@ impl ConfigurationRoutes {
                 config.apply_profile(profile.clone());
                 profile
             } else {
-                return Err(AppError::not_found(format!("Unknown profile: {profile_name}")).into());
+                return Err(AppError::not_found(format!(
+                    "Unknown profile: {profile_name}"
+                )));
             }
         } else {
             ConfigProfile::Default
@@ -491,7 +491,7 @@ impl ConfigurationRoutes {
         &self,
         auth: &AuthResult,
         request: &PersonalizedZonesRequest,
-    ) -> Result<PersonalizedZonesResponse> {
+    ) -> AppResult<PersonalizedZonesResponse> {
         let processing_start = std::time::Instant::now();
         let user_id = auth.user_id;
 
@@ -537,9 +537,9 @@ impl ConfigurationRoutes {
                 estimated_ftp: ftp,
             },
             zone_calculations: ZoneCalculationMethods {
-                method: "Karvonen method with VO2 max adjustments".into(),
-                pace_formula: "Jack Daniels VDOT".into(),
-                power_estimation: "VO2 max derived FTP".into(),
+                method: "Karvonen method with VO2 max adjustments".to_owned(),
+                pace_formula: "Jack Daniels VDOT".to_owned(),
+                power_estimation: "VO2 max derived FTP".to_owned(),
             },
             metadata: Self::create_metadata(processing_start),
         })
@@ -556,7 +556,7 @@ impl ConfigurationRoutes {
         &self,
         _auth: &AuthResult,
         request: &ValidateConfigurationRequest,
-    ) -> Result<ValidationResponse> {
+    ) -> AppResult<ValidationResponse> {
         let processing_start = std::time::Instant::now();
 
         // Convert typed input values to internal ConfigValue representation
@@ -567,9 +567,9 @@ impl ConfigurationRoutes {
             .collect();
 
         if params_map.is_empty() {
-            return Err(
-                AppError::invalid_input("No valid parameters provided for validation").into(),
-            );
+            return Err(AppError::invalid_input(
+                "No valid parameters provided for validation",
+            ));
         }
 
         // Validate using ConfigValidator
@@ -584,15 +584,15 @@ impl ConfigurationRoutes {
 
         let safety_checks = if validation_result.is_valid {
             SafetyChecks {
-                physiological_limits: "All parameters within safe ranges".into(),
-                relationship_constraints: "Parameter relationships validated".into(),
-                scientific_bounds: "Values conform to sports science literature".into(),
+                physiological_limits: "All parameters within safe ranges".to_owned(),
+                relationship_constraints: "Parameter relationships validated".to_owned(),
+                scientific_bounds: "Values conform to sports science literature".to_owned(),
             }
         } else {
             SafetyChecks {
-                physiological_limits: "Some parameters outside safe ranges".into(),
-                relationship_constraints: "Parameter relationship violations detected".into(),
-                scientific_bounds: "Values do not conform to scientific limits".into(),
+                physiological_limits: "Some parameters outside safe ranges".to_owned(),
+                relationship_constraints: "Parameter relationship violations detected".to_owned(),
+                scientific_bounds: "Values do not conform to scientific limits".to_owned(),
             }
         };
 

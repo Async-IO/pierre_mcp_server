@@ -259,6 +259,9 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         user_id: acme_admin_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: Some("acme".to_owned()),
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let acme_response = executor.execute_tool(acme_request).await?;
@@ -279,6 +282,9 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         user_id: beta_admin_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: Some("beta".to_owned()),
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let beta_response = executor.execute_tool(beta_request).await?;

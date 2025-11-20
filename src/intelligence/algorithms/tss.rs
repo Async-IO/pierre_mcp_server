@@ -1,7 +1,7 @@
 // ABOUTME: Training Stress Score (TSS) calculation algorithms with multiple implementation strategies
 // ABOUTME: Supports average power, normalized power, and hybrid approaches for TSS computation
 
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::intelligence::physiological_constants::metrics_constants::TSS_BASE_MULTIPLIER;
 use crate::models::Activity;
 use serde::{Deserialize, Serialize};
@@ -78,12 +78,7 @@ impl TssAlgorithm {
     /// let algorithm = TssAlgorithm::NormalizedPower { window_seconds: 30 };
     /// let tss = algorithm.calculate(&activity, 250.0, 1.5)?;
     /// ```
-    pub fn calculate(
-        &self,
-        activity: &Activity,
-        ftp: f64,
-        duration_hours: f64,
-    ) -> Result<f64, AppError> {
+    pub fn calculate(&self, activity: &Activity, ftp: f64, duration_hours: f64) -> AppResult<f64> {
         // Validate inputs
         if ftp <= 0.0 {
             return Err(AppError::invalid_input(
@@ -112,7 +107,7 @@ impl TssAlgorithm {
         activity: &Activity,
         ftp: f64,
         duration_hours: f64,
-    ) -> Result<f64, AppError> {
+    ) -> AppResult<f64> {
         let avg_power = f64::from(
             activity
                 .average_power
@@ -131,7 +126,7 @@ impl TssAlgorithm {
         ftp: f64,
         duration_hours: f64,
         window_seconds: u32,
-    ) -> Result<f64, AppError> {
+    ) -> AppResult<f64> {
         // Calculate TSS using normalized power from activity power stream data
         let np = Self::calculate_normalized_power(activity, window_seconds)?;
         let intensity_factor = np / ftp;
@@ -145,10 +140,7 @@ impl TssAlgorithm {
     /// # Errors
     ///
     /// Returns `AppError::MissingData` if power stream is unavailable or too short
-    fn calculate_normalized_power(
-        _activity: &Activity,
-        window_seconds: u32,
-    ) -> Result<f64, AppError> {
+    fn calculate_normalized_power(_activity: &Activity, window_seconds: u32) -> AppResult<f64> {
         // Check if we have power stream data
         // This would come from activity.streams or similar field
         // For now, we return an error indicating stream data is needed
@@ -160,11 +152,7 @@ impl TssAlgorithm {
     /// Hybrid approach: Try NP, fallback to `avg_power`
     ///
     /// Defensive programming - always produces a result
-    fn calculate_hybrid_tss(
-        activity: &Activity,
-        ftp: f64,
-        duration_hours: f64,
-    ) -> Result<f64, AppError> {
+    fn calculate_hybrid_tss(activity: &Activity, ftp: f64, duration_hours: f64) -> AppResult<f64> {
         // Try NP with standard 30s window
         Self::calculate_np_tss(activity, ftp, duration_hours, 30)
             .or_else(|_| Self::calculate_avg_power_tss(activity, ftp, duration_hours))

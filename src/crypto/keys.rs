@@ -6,7 +6,7 @@
 
 //! Cryptographic key management for A2A clients
 
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use base64::{engine::general_purpose, Engine};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;
@@ -42,7 +42,7 @@ impl A2AKeyManager {
     /// # Errors
     ///
     /// Returns an error if key generation fails
-    pub fn generate_keypair() -> Result<A2AKeypair> {
+    pub fn generate_keypair() -> AppResult<A2AKeypair> {
         use rand::RngCore;
 
         let mut rng = OsRng;
@@ -82,9 +82,16 @@ impl A2AKeyManager {
     /// Returns an error if:
     /// - Private key decoding fails
     /// - Key format is invalid
-    pub fn sign_data(private_key: &str, data: &[u8]) -> Result<String> {
-        let secret_bytes = general_purpose::STANDARD.decode(private_key)?;
-        let signing_key = SigningKey::from_bytes(secret_bytes.as_slice().try_into()?);
+    pub fn sign_data(private_key: &str, data: &[u8]) -> AppResult<String> {
+        let secret_bytes = general_purpose::STANDARD
+            .decode(private_key)
+            .map_err(|e| AppError::internal(format!("Cryptography error: {e}")))?;
+        let signing_key = SigningKey::from_bytes(
+            secret_bytes
+                .as_slice()
+                .try_into()
+                .map_err(|e| AppError::internal(format!("Cryptography error: {e}")))?,
+        );
 
         let signature = signing_key.sign(data);
         Ok(general_purpose::STANDARD.encode(signature.to_bytes()))
@@ -97,12 +104,27 @@ impl A2AKeyManager {
     /// Returns an error if:
     /// - Public key or signature decoding fails
     /// - Key format is invalid
-    pub fn verify_signature(public_key: &str, data: &[u8], signature: &str) -> Result<bool> {
-        let public_bytes = general_purpose::STANDARD.decode(public_key)?;
-        let verifying_key = VerifyingKey::from_bytes(public_bytes.as_slice().try_into()?)?;
+    pub fn verify_signature(public_key: &str, data: &[u8], signature: &str) -> AppResult<bool> {
+        let public_bytes = general_purpose::STANDARD
+            .decode(public_key)
+            .map_err(|e| AppError::internal(format!("Cryptography error: {e}")))?;
+        let verifying_key = VerifyingKey::from_bytes(
+            public_bytes
+                .as_slice()
+                .try_into()
+                .map_err(|e| AppError::internal(format!("Cryptography error: {e}")))?,
+        )
+        .map_err(|e| AppError::internal(format!("Cryptography error: {e}")))?;
 
-        let sig_bytes = general_purpose::STANDARD.decode(signature)?;
-        let signature = Signature::from_bytes(sig_bytes.as_slice().try_into()?);
+        let sig_bytes = general_purpose::STANDARD
+            .decode(signature)
+            .map_err(|e| AppError::internal(format!("Cryptography error: {e}")))?;
+        let signature = Signature::from_bytes(
+            sig_bytes
+                .as_slice()
+                .try_into()
+                .map_err(|e| AppError::internal(format!("Cryptography error: {e}")))?,
+        );
 
         match verifying_key.verify(data, &signature) {
             Ok(()) => Ok(true),

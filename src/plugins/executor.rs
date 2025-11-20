@@ -78,19 +78,14 @@ impl PluginToolExecutor {
     ) -> Result<UniversalResponse, ProtocolError> {
         // Create plugin context
         let context = PluginContext {
-            user_id: uuid::Uuid::parse_str(&request.user_id).map_err(|e| {
-                ProtocolError::InvalidParameters {
-                    message: format!("Invalid user_id: {e}"),
-                }
-            })?,
+            user_id: uuid::Uuid::parse_str(&request.user_id)
+                .map_err(|e| ProtocolError::InvalidParameters(format!("Invalid user_id: {e}")))?,
             tenant_id: request
                 .tenant_id
                 .as_ref()
                 .map(|id| uuid::Uuid::parse_str(id))
                 .transpose()
-                .map_err(|e| ProtocolError::InvalidParameters {
-                    message: format!("Invalid tenant_id: {e}"),
-                })?,
+                .map_err(|e| ProtocolError::InvalidParameters(format!("Invalid tenant_id: {e}")))?,
         };
 
         // Check if it's a plugin tool first
@@ -291,11 +286,11 @@ impl PluginToolExecutorBuilder {
     ///
     /// Returns error if resources were not provided
     pub fn build(self) -> Result<PluginToolExecutor, ProtocolError> {
-        let resources = self
-            .resources
-            .ok_or_else(|| ProtocolError::ConfigurationError {
-                message: "ServerResources required for plugin executor".to_owned(),
-            })?;
+        let resources = self.resources.ok_or_else(|| {
+            ProtocolError::ConfigurationError(
+                "ServerResources required for plugin executor".to_owned(),
+            )
+        })?;
         let mut executor = PluginToolExecutor::new(resources);
 
         // Register additional dynamic plugins

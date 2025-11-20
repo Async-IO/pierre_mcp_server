@@ -5,9 +5,8 @@
 // Copyright ©2025 Async-IO.org
 #![allow(clippy::cast_precision_loss)] // Safe: fitness data conversions
 
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::models::Activity;
-use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -89,7 +88,7 @@ impl SafeMetricExtractor {
     pub fn extract_metric_values(
         activities: &[Activity],
         metric_type: MetricType,
-    ) -> Result<Vec<(DateTime<Utc>, f64)>> {
+    ) -> AppResult<Vec<(DateTime<Utc>, f64)>> {
         let values: Vec<_> = activities
             .iter()
             .filter_map(|activity| {
@@ -104,8 +103,7 @@ impl SafeMetricExtractor {
                 "No valid {} values found in {} activities",
                 metric_type.display_name(),
                 activities.len()
-            ))
-            .into());
+            )));
         }
 
         Ok(values)
@@ -121,7 +119,7 @@ impl SafeMetricExtractor {
         metric_type: MetricType,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<Vec<(DateTime<Utc>, f64)>> {
+    ) -> AppResult<Vec<(DateTime<Utc>, f64)>> {
         let filtered_activities: Vec<_> = activities
             .iter()
             .filter(|activity| activity.start_date >= start_date && activity.start_date <= end_date)
@@ -139,12 +137,13 @@ impl SafeMetricExtractor {
     pub fn calculate_metric_summary(
         activities: &[Activity],
         metric_type: MetricType,
-    ) -> Result<MetricSummary> {
-        let values = Self::extract_metric_values(activities, metric_type)?;
+    ) -> AppResult<MetricSummary> {
+        let values = Self::extract_metric_values(activities, metric_type)
+            .map_err(|e| AppError::internal(format!("Metric extraction failed: {e}")))?;
         let metric_values: Vec<f64> = values.into_iter().map(|(_, value)| value).collect();
 
         if metric_values.is_empty() {
-            return Err(AppError::not_found("No values to summarize").into());
+            return Err(AppError::not_found("No values to summarize"));
         }
 
         let count = metric_values.len();

@@ -5,8 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::database_plugins::DatabaseProvider;
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use base64::Engine;
 use std::env;
 use tracing::{info, warn};
@@ -37,7 +36,7 @@ impl MasterEncryptionKey {
     /// - The environment variable contains invalid base64 encoding
     /// - The decoded key is not exactly 32 bytes
     /// - Random key generation fails in development mode
-    pub fn load_or_generate() -> Result<Self> {
+    pub fn load_or_generate() -> AppResult<Self> {
         // Try to load from environment first
         if let Ok(encoded_key) = env::var("PIERRE_MASTER_ENCRYPTION_KEY") {
             return Self::load_from_environment(&encoded_key);
@@ -51,7 +50,7 @@ impl MasterEncryptionKey {
     ///
     /// # Errors
     /// Returns error if decoding fails or key is wrong length
-    fn load_from_environment(encoded_key: &str) -> Result<Self> {
+    fn load_from_environment(encoded_key: &str) -> AppResult<Self> {
         info!("Loading Master Encryption Key from environment variable");
         let key_bytes = base64::engine::general_purpose::STANDARD
             .decode(encoded_key)
@@ -65,8 +64,7 @@ impl MasterEncryptionKey {
             return Err(AppError::config(format!(
                 "Master encryption key must be exactly 32 bytes, got {} bytes",
                 key_bytes.len()
-            ))
-            .into());
+            )));
         }
 
         let mut key = [0u8; 32];
@@ -132,7 +130,7 @@ impl MasterEncryptionKey {
     /// # Errors
     ///
     /// Returns an error if encryption fails
-    pub fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
+    pub fn encrypt(&self, plaintext: &[u8]) -> AppResult<Vec<u8>> {
         use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
         use rand::RngCore;
 
@@ -164,11 +162,11 @@ impl MasterEncryptionKey {
     /// Returns an error if:
     /// - The encrypted data is too short to contain a nonce
     /// - Decryption fails due to invalid data or wrong key
-    pub fn decrypt(&self, encrypted_data: &[u8]) -> Result<Vec<u8>> {
+    pub fn decrypt(&self, encrypted_data: &[u8]) -> AppResult<Vec<u8>> {
         use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
 
         if encrypted_data.len() < 12 {
-            return Err(AppError::invalid_input("Encrypted data too short").into());
+            return Err(AppError::invalid_input("Encrypted data too short"));
         }
 
         let cipher = Aes256Gcm::new_from_slice(&self.key)
@@ -212,7 +210,7 @@ impl DatabaseEncryptionKey {
     /// # Errors
     ///
     /// Returns an error if MEK encryption fails
-    pub fn encrypt_with_mek(&self, mek: &MasterEncryptionKey) -> Result<Vec<u8>> {
+    pub fn encrypt_with_mek(&self, mek: &MasterEncryptionKey) -> AppResult<Vec<u8>> {
         mek.encrypt(&self.key)
     }
 
@@ -223,15 +221,14 @@ impl DatabaseEncryptionKey {
     /// Returns an error if:
     /// - MEK decryption fails
     /// - Decrypted data is not exactly 32 bytes
-    pub fn decrypt_with_mek(encrypted_dek: &[u8], mek: &MasterEncryptionKey) -> Result<Self> {
+    pub fn decrypt_with_mek(encrypted_dek: &[u8], mek: &MasterEncryptionKey) -> AppResult<Self> {
         let decrypted_bytes = mek.decrypt(encrypted_dek)?;
 
         if decrypted_bytes.len() != 32 {
             return Err(AppError::internal(format!(
                 "Decrypted DEK has invalid length: expected 32 bytes, got {}",
                 decrypted_bytes.len()
-            ))
-            .into());
+            )));
         }
 
         let mut key = [0u8; 32];
@@ -253,7 +250,7 @@ impl KeyManager {
     /// # Errors
     ///
     /// Returns an error if MEK loading fails
-    pub fn bootstrap() -> Result<(Self, [u8; 32])> {
+    pub fn bootstrap() -> AppResult<(Self, [u8; 32])> {
         info!("Bootstrapping two-tier key management system");
 
         // Load MEK from environment
@@ -280,7 +277,7 @@ impl KeyManager {
     pub async fn complete_initialization(
         &mut self,
         database: &crate::database_plugins::factory::Database,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         info!("Completing two-tier key management initialization");
 
         // Try to load existing DEK from database
@@ -328,7 +325,9 @@ impl KeyManager {
     /// - MEK loading fails
     /// - Database operations fail
     /// - DEK encryption/decryption fails
-    pub async fn initialize(database: &crate::database_plugins::factory::Database) -> Result<Self> {
+    pub async fn initialize(
+        database: &crate::database_plugins::factory::Database,
+    ) -> AppResult<Self> {
         info!("Initializing two-tier key management system");
 
         // Load MEK from environment
@@ -396,7 +395,7 @@ impl KeyManager {
     pub async fn rotate_database_key(
         &mut self,
         database: &crate::database_plugins::factory::Database,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         info!("Rotating Database Encryption Key");
 
         // Generate new DEK

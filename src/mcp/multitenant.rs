@@ -30,13 +30,13 @@ use crate::constants::{
     },
 };
 use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::errors::{AppError, AppResult};
 use crate::providers::ProviderRegistry;
 use crate::routes::OAuthRoutes;
 use crate::security::headers::SecurityConfig;
 use crate::tenant::{TenantContext, TenantOAuthClient};
 // Removed unused imports - now using AppError directly
 
-use anyhow::Result;
 use chrono::Utc;
 
 use serde_json::Value;
@@ -386,7 +386,7 @@ impl MultiTenantMcpServer {
         tool_name: &str,
         response_time: std::time::Duration,
         response: &McpResponse,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         use crate::api_keys::ApiKeyUsage;
 
         let status_code = if response.error.is_some() {
@@ -411,7 +411,10 @@ impl MultiTenantMcpServer {
             user_agent: None,          // Would need to be passed from request context
         };
 
-        database.record_api_key_usage(&usage).await?;
+        database
+            .record_api_key_usage(&usage)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to record API key usage: {e}")))?;
         Ok(())
     }
 
@@ -914,8 +917,14 @@ impl MultiTenantMcpServer {
         );
 
         // Create Universal protocol request
-        let universal_request =
-            Self::create_universal_request(tool_name, args, auth_result, tenant_context);
+        let universal_request = Self::create_universal_request(
+            tool_name,
+            args,
+            auth_result,
+            tenant_context,
+            resources,
+            &request_id,
+        );
 
         // Execute tool through Universal protocol
         Self::execute_and_convert_tool(
@@ -952,13 +961,43 @@ impl MultiTenantMcpServer {
         args: &Value,
         auth_result: &AuthResult,
         tenant_context: &TenantContext,
+        resources: &Arc<ServerResources>,
+        request_id: &Value,
     ) -> crate::protocols::universal::UniversalRequest {
+        use crate::protocols::universal::types::{CancellationToken, ProgressReporter};
+
+        // Create progress reporter if notification sender is available
+        let progress_reporter = resources
+            .progress_notification_sender
+            .as_ref()
+            .map(|sender| {
+                let progress_token = format!("mcp-{request_id}");
+                let mut reporter = ProgressReporter::new(progress_token.clone());
+
+                // Set callback to send progress notifications
+                let sender_clone = sender.clone();
+                reporter.set_callback(move |progress, total, message| {
+                    use crate::mcp::schema::ProgressNotification;
+                    let notification =
+                        ProgressNotification::new(progress_token.clone(), progress, total, message);
+                    let _ = sender_clone.send(notification);
+                });
+
+                reporter
+            });
+
+        // Create cancellation token for this operation
+        let cancellation_token = Some(CancellationToken::new());
+
         crate::protocols::universal::UniversalRequest {
             tool_name: tool_name.to_owned(),
             parameters: args.clone(),
             user_id: auth_result.user_id.to_string(),
             protocol: "mcp".to_owned(),
             tenant_id: Some(tenant_context.tenant_id.to_string()),
+            progress_token: progress_reporter.as_ref().map(|r| r.progress_token.clone()),
+            cancellation_token,
+            progress_reporter,
         }
     }
 
@@ -970,9 +1009,26 @@ impl MultiTenantMcpServer {
         provider_name: &str,
         request_id: Value,
     ) -> McpResponse {
+        // Register cancellation token if present
+        if let (Some(progress_token), Some(cancellation_token)) = (
+            &universal_request.progress_token,
+            &universal_request.cancellation_token,
+        ) {
+            resources
+                .register_cancellation_token(progress_token.clone(), cancellation_token.clone())
+                .await;
+        }
+
         let executor = crate::protocols::universal::UniversalToolExecutor::new(resources.clone());
 
-        match executor.execute_tool(universal_request).await {
+        let result = executor.execute_tool(universal_request.clone()).await;
+
+        // Cleanup cancellation token after execution
+        if let Some(progress_token) = &universal_request.progress_token {
+            resources.cleanup_cancellation_token(progress_token).await;
+        }
+
+        match result {
             Ok(response) => {
                 // Convert UniversalResponse to proper MCP ToolResponse format
                 let tool_response =
@@ -1023,7 +1079,7 @@ impl MultiTenantMcpServer {
     ///
     /// # Errors
     /// Returns an error if server setup or routing configuration fails
-    pub async fn run(&self, port: u16) -> Result<()> {
+    pub async fn run(&self, port: u16) -> AppResult<()> {
         self.run_http_server_with_resources_axum(port, self.resources.clone())
             .await
     }
@@ -1038,7 +1094,7 @@ impl MultiTenantMcpServer {
         &self,
         port: u16,
         resources: Arc<ServerResources>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         use std::net::SocketAddr;
         use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
         use tower_http::LatencyUnit;
@@ -1074,12 +1130,15 @@ impl MultiTenantMcpServer {
         info!("HTTP server (Axum) listening on http://{}", addr);
 
         // Start the Axum server with ConnectInfo for IP extraction (rate limiting)
-        let listener = tokio::net::TcpListener::bind(addr).await?;
+        let listener = tokio::net::TcpListener::bind(addr)
+            .await
+            .map_err(|e| AppError::internal(format!("Transport error: {e}")))?;
         axum::serve(
             listener,
             app.into_make_service_with_connect_info::<SocketAddr>(),
         )
-        .await?;
+        .await
+        .map_err(|e| AppError::internal(format!("Transport error: {e}")))?;
 
         Ok(())
     }

@@ -1,7 +1,7 @@
 // ABOUTME: Training load calculation algorithms (CTL/ATL/TSB) with multiple moving average methods
 // ABOUTME: Implements EMA (standard), SMA, WMA, and Kalman Filter for fitness tracking
 
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -119,7 +119,7 @@ impl TrainingLoadAlgorithm {
     /// - TSS data is empty
     /// - Dates are not properly ordered
     /// - Window sizes are invalid
-    pub fn calculate_ctl(&self, tss_data: &[TssDataPoint]) -> Result<f64, AppError> {
+    pub fn calculate_ctl(&self, tss_data: &[TssDataPoint]) -> AppResult<f64> {
         if tss_data.is_empty() {
             return Ok(0.0);
         }
@@ -150,7 +150,7 @@ impl TrainingLoadAlgorithm {
     /// Returns `AppError::InvalidInput` if:
     /// - Dates are not properly ordered
     /// - Window sizes are invalid
-    pub fn calculate_atl(&self, tss_data: &[TssDataPoint]) -> Result<f64, AppError> {
+    pub fn calculate_atl(&self, tss_data: &[TssDataPoint]) -> AppResult<f64> {
         if tss_data.is_empty() {
             return Ok(0.0);
         }
@@ -182,7 +182,7 @@ impl TrainingLoadAlgorithm {
     /// Calculate Exponential Moving Average
     ///
     /// Formula: `α = 2/(N+1)`, `EMA_t = α x TSS_t + (1-α) x EMA_{t-1}`
-    fn calculate_ema(tss_data: &[TssDataPoint], window_days: i64) -> Result<f64, AppError> {
+    fn calculate_ema(tss_data: &[TssDataPoint], window_days: i64) -> AppResult<f64> {
         if tss_data.is_empty() {
             return Ok(0.0);
         }
@@ -232,7 +232,7 @@ impl TrainingLoadAlgorithm {
     /// Calculate Simple Moving Average
     ///
     /// Formula: `SMA = Σ(TSS_i) / N` for i in [t-N+1, t]
-    fn calculate_sma(tss_data: &[TssDataPoint], window_days: i64) -> Result<f64, AppError> {
+    fn calculate_sma(tss_data: &[TssDataPoint], window_days: i64) -> AppResult<f64> {
         if tss_data.is_empty() {
             return Ok(0.0);
         }
@@ -265,7 +265,7 @@ impl TrainingLoadAlgorithm {
     /// Calculate Weighted Moving Average
     ///
     /// Formula: `WMA = Σ(w_i x TSS_i) / Σ(w_i)` where weights are linear (1, 2, 3, ..., N)
-    fn calculate_wma(tss_data: &[TssDataPoint], window_days: i64) -> Result<f64, AppError> {
+    fn calculate_wma(tss_data: &[TssDataPoint], window_days: i64) -> AppResult<f64> {
         if tss_data.is_empty() {
             return Ok(0.0);
         }
@@ -321,7 +321,7 @@ impl TrainingLoadAlgorithm {
         tss_data: &[TssDataPoint],
         process_noise: f64,
         measurement_noise: f64,
-    ) -> Result<f64, AppError> {
+    ) -> AppResult<f64> {
         if tss_data.is_empty() {
             return Ok(0.0);
         }

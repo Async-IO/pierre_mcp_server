@@ -8,9 +8,8 @@
 // - HTTP client Arc sharing for geocoding requests
 // - Cache key and data ownership transfers for async operations
 // - Address field Option chains for comprehensive location parsing
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::utils::http_client::shared_client;
-use anyhow::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -129,7 +128,7 @@ impl LocationService {
         &mut self,
         latitude: f64,
         longitude: f64,
-    ) -> Result<LocationData> {
+    ) -> AppResult<LocationData> {
         // Check if service is enabled
         if !self.enabled {
             return Ok(LocationData {
@@ -181,8 +180,7 @@ impl LocationService {
             return Err(AppError::external_service(
                 "Nominatim",
                 format!("Reverse geocoding API returned status: {status}"),
-            )
-            .into());
+            ));
         }
 
         let nominatim_response: NominatimResponse = response.json().await.map_err(|e| {

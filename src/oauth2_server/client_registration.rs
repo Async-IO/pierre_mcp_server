@@ -8,8 +8,7 @@ use super::models::{
     ClientRegistrationRequest, ClientRegistrationResponse, OAuth2Client, OAuth2Error,
 };
 use crate::database_plugins::DatabaseProvider;
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
@@ -156,15 +155,15 @@ impl ClientRegistrationManager {
     ///
     /// # Errors
     /// Returns an error if client is not found in the database
-    pub async fn get_client(&self, client_id: &str) -> Result<OAuth2Client> {
+    pub async fn get_client(&self, client_id: &str) -> AppResult<OAuth2Client> {
         self.database
             .get_oauth2_client(client_id)
             .await?
-            .ok_or_else(|| AppError::not_found("OAuth2 client not found").into())
+            .ok_or_else(|| AppError::not_found("OAuth2 client not found"))
     }
 
     /// Store client in database
-    async fn store_client(&self, client: &OAuth2Client) -> Result<()> {
+    async fn store_client(&self, client: &OAuth2Client) -> AppResult<()> {
         self.database.store_oauth2_client(client).await
     }
 

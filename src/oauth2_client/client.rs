@@ -4,8 +4,8 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+use crate::errors::AppResult;
 use crate::utils::http_client::oauth_client;
-use anyhow::{Context, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
@@ -133,8 +133,10 @@ impl OAuth2Client {
     /// # Errors
     ///
     /// Returns an error if the authorization URL is malformed
-    pub fn get_authorization_url(&self, state: &str) -> Result<String> {
-        let mut url = Url::parse(&self.config.auth_url).context("Invalid auth URL")?;
+    pub fn get_authorization_url(&self, state: &str) -> AppResult<String> {
+        let mut url = Url::parse(&self.config.auth_url).map_err(|e| {
+            crate::errors::AppError::invalid_input(format!("Invalid auth URL: {e}"))
+        })?;
 
         url.query_pairs_mut()
             .append_pair("client_id", &self.config.client_id)
@@ -155,8 +157,10 @@ impl OAuth2Client {
         &self,
         state: &str,
         pkce: &PkceParams,
-    ) -> Result<String> {
-        let mut url = Url::parse(&self.config.auth_url).context("Invalid auth URL")?;
+    ) -> AppResult<String> {
+        let mut url = Url::parse(&self.config.auth_url).map_err(|e| {
+            crate::errors::AppError::invalid_input(format!("Invalid auth URL: {e}"))
+        })?;
 
         let mut query_pairs = url.query_pairs_mut();
         query_pairs
@@ -181,7 +185,7 @@ impl OAuth2Client {
     /// # Errors
     ///
     /// Returns an error if the token exchange request fails or response is invalid
-    pub async fn exchange_code(&self, code: &str) -> Result<OAuth2Token> {
+    pub async fn exchange_code(&self, code: &str) -> AppResult<OAuth2Token> {
         let params = [
             ("client_id", self.config.client_id.as_str()),
             ("client_secret", self.config.client_secret.as_str()),
@@ -195,9 +199,21 @@ impl OAuth2Client {
             .post(&self.config.token_url)
             .form(&params)
             .send()
-            .await?
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "oauth",
+                    format!("Failed to send token request: {e}"),
+                )
+            })?
             .json()
-            .await?;
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "oauth",
+                    format!("Failed to parse token response: {e}"),
+                )
+            })?;
 
         Ok(Self::token_from_response(response))
     }
@@ -211,7 +227,7 @@ impl OAuth2Client {
         &self,
         code: &str,
         pkce: &PkceParams,
-    ) -> Result<OAuth2Token> {
+    ) -> AppResult<OAuth2Token> {
         let mut params = vec![
             ("client_id", self.config.client_id.as_str()),
             ("client_secret", self.config.client_secret.as_str()),
@@ -229,9 +245,21 @@ impl OAuth2Client {
             .post(&self.config.token_url)
             .form(&params)
             .send()
-            .await?
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "oauth",
+                    format!("Failed to send token request: {e}"),
+                )
+            })?
             .json()
-            .await?;
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "oauth",
+                    format!("Failed to parse token response: {e}"),
+                )
+            })?;
 
         Ok(Self::token_from_response(response))
     }
@@ -241,7 +269,7 @@ impl OAuth2Client {
     /// # Errors
     ///
     /// Returns an error if the token refresh request fails or response is invalid
-    pub async fn refresh_token(&self, refresh_token: &str) -> Result<OAuth2Token> {
+    pub async fn refresh_token(&self, refresh_token: &str) -> AppResult<OAuth2Token> {
         let params = [
             ("client_id", self.config.client_id.as_str()),
             ("client_secret", self.config.client_secret.as_str()),
@@ -254,9 +282,21 @@ impl OAuth2Client {
             .post(&self.config.token_url)
             .form(&params)
             .send()
-            .await?
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "oauth",
+                    format!("Failed to send token request: {e}"),
+                )
+            })?
             .json()
-            .await?;
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "oauth",
+                    format!("Failed to parse token response: {e}"),
+                )
+            })?;
 
         Ok(Self::token_from_response(response))
     }
@@ -298,7 +338,8 @@ struct TokenResponse {
 
 /// Strava-specific `OAuth2` extensions and token handling
 pub mod strava {
-    use super::{DateTime, Deserialize, OAuth2Token, PkceParams, Result, Utc};
+    use super::{DateTime, Deserialize, OAuth2Token, PkceParams, Utc};
+    use crate::errors::AppResult;
 
     /// Strava OAuth 2.0 token response with athlete information
     #[derive(Debug, Deserialize)]
@@ -340,7 +381,7 @@ pub mod strava {
         client_id: &str,
         client_secret: &str,
         code: &str,
-    ) -> Result<(OAuth2Token, Option<StravaAthleteSummary>)> {
+    ) -> AppResult<(OAuth2Token, Option<StravaAthleteSummary>)> {
         let params = [
             ("client_id", client_id),
             ("client_secret", client_secret),
@@ -352,9 +393,21 @@ pub mod strava {
             .post("https://www.strava.com/oauth/token")
             .form(&params)
             .send()
-            .await?
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "strava",
+                    format!("Failed to send token request: {e}"),
+                )
+            })?
             .json()
-            .await?;
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "strava",
+                    format!("Failed to parse token response: {e}"),
+                )
+            })?;
 
         let token = OAuth2Token {
             access_token: response.access_token,
@@ -380,7 +433,7 @@ pub mod strava {
         client_secret: &str,
         code: &str,
         pkce: &PkceParams,
-    ) -> Result<(OAuth2Token, Option<StravaAthleteSummary>)> {
+    ) -> AppResult<(OAuth2Token, Option<StravaAthleteSummary>)> {
         let params = [
             ("client_id", client_id),
             ("client_secret", client_secret),
@@ -393,9 +446,21 @@ pub mod strava {
             .post("https://www.strava.com/oauth/token")
             .form(&params)
             .send()
-            .await?
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "strava",
+                    format!("Failed to send token request: {e}"),
+                )
+            })?
             .json()
-            .await?;
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "strava",
+                    format!("Failed to parse token response: {e}"),
+                )
+            })?;
 
         let token = OAuth2Token {
             access_token: response.access_token,
@@ -420,7 +485,7 @@ pub mod strava {
         client_id: &str,
         client_secret: &str,
         refresh_token: &str,
-    ) -> Result<OAuth2Token> {
+    ) -> AppResult<OAuth2Token> {
         let params = [
             ("client_id", client_id),
             ("client_secret", client_secret),
@@ -432,9 +497,21 @@ pub mod strava {
             .post("https://www.strava.com/oauth/token")
             .form(&params)
             .send()
-            .await?
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "strava",
+                    format!("Failed to send token request: {e}"),
+                )
+            })?
             .json()
-            .await?;
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "strava",
+                    format!("Failed to parse token response: {e}"),
+                )
+            })?;
 
         Ok(OAuth2Token {
             access_token: response.access_token,
@@ -450,7 +527,8 @@ pub mod strava {
 
 /// Fitbit-specific `OAuth2` extensions and token handling
 pub mod fitbit {
-    use super::{Deserialize, Duration, OAuth2Token, PkceParams, Result, Utc};
+    use super::{Deserialize, Duration, OAuth2Token, PkceParams, Utc};
+    use crate::errors::AppResult;
 
     /// Fitbit OAuth 2.0 token response with user information
     #[derive(Debug, Deserialize)]
@@ -487,7 +565,7 @@ pub mod fitbit {
         client_secret: &str,
         code: &str,
         redirect_uri: &str,
-    ) -> Result<(OAuth2Token, Option<FitbitUserInfo>)> {
+    ) -> AppResult<(OAuth2Token, Option<FitbitUserInfo>)> {
         let params = [
             ("client_id", client_id),
             ("client_secret", client_secret),
@@ -500,9 +578,21 @@ pub mod fitbit {
             .post("https://api.fitbit.com/oauth2/token")
             .form(&params)
             .send()
-            .await?
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "fitbit",
+                    format!("Failed to send token request: {e}"),
+                )
+            })?
             .json()
-            .await?;
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "fitbit",
+                    format!("Failed to parse token response: {e}"),
+                )
+            })?;
 
         let token = OAuth2Token {
             access_token: response.access_token,
@@ -531,7 +621,7 @@ pub mod fitbit {
         code: &str,
         redirect_uri: &str,
         pkce: &PkceParams,
-    ) -> Result<(OAuth2Token, Option<FitbitUserInfo>)> {
+    ) -> AppResult<(OAuth2Token, Option<FitbitUserInfo>)> {
         let params = [
             ("client_id", client_id),
             ("client_secret", client_secret),
@@ -545,9 +635,21 @@ pub mod fitbit {
             .post("https://api.fitbit.com/oauth2/token")
             .form(&params)
             .send()
-            .await?
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "fitbit",
+                    format!("Failed to send token request: {e}"),
+                )
+            })?
             .json()
-            .await?;
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "fitbit",
+                    format!("Failed to parse token response: {e}"),
+                )
+            })?;
 
         let token = OAuth2Token {
             access_token: response.access_token,
@@ -574,7 +676,7 @@ pub mod fitbit {
         client_id: &str,
         client_secret: &str,
         refresh_token: &str,
-    ) -> Result<OAuth2Token> {
+    ) -> AppResult<OAuth2Token> {
         let params = [
             ("client_id", client_id),
             ("client_secret", client_secret),
@@ -586,9 +688,21 @@ pub mod fitbit {
             .post("https://api.fitbit.com/oauth2/token")
             .form(&params)
             .send()
-            .await?
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "fitbit",
+                    format!("Failed to send token request: {e}"),
+                )
+            })?
             .json()
-            .await?;
+            .await
+            .map_err(|e| {
+                crate::errors::AppError::external_service(
+                    "fitbit",
+                    format!("Failed to parse token response: {e}"),
+                )
+            })?;
 
         Ok(OAuth2Token {
             access_token: response.access_token,

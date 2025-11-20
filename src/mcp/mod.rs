@@ -16,6 +16,8 @@ pub mod progress;
 pub mod protocol;
 /// Resource management for MCP
 pub mod resources;
+/// Sampling peer for server-initiated LLM requests
+pub mod sampling_peer;
 /// MCP JSON schema definitions
 pub mod schema;
 /// Server lifecycle management

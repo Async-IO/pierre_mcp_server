@@ -11,7 +11,7 @@ pub mod memory;
 /// Redis cache implementation
 pub mod redis;
 
-use anyhow::Result;
+use crate::errors::AppResult;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::time::Duration;
@@ -25,7 +25,7 @@ pub trait CacheProvider: Send + Sync + Clone {
     /// # Errors
     ///
     /// Returns an error if cache initialization fails
-    async fn new(config: CacheConfig) -> Result<Self>
+    async fn new(config: CacheConfig) -> AppResult<Self>
     where
         Self: Sized;
 
@@ -39,56 +39,56 @@ pub trait CacheProvider: Send + Sync + Clone {
         key: &CacheKey,
         value: &T,
         ttl: Duration,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Retrieve value from cache
     ///
     /// # Errors
     ///
     /// Returns an error if deserialization fails
-    async fn get<T: for<'de> Deserialize<'de>>(&self, key: &CacheKey) -> Result<Option<T>>;
+    async fn get<T: for<'de> Deserialize<'de>>(&self, key: &CacheKey) -> AppResult<Option<T>>;
 
     /// Remove single cache entry
     ///
     /// # Errors
     ///
     /// Returns an error if invalidation fails
-    async fn invalidate(&self, key: &CacheKey) -> Result<()>;
+    async fn invalidate(&self, key: &CacheKey) -> AppResult<()>;
 
     /// Remove all cache entries matching pattern (e.g., "tenant:*:strava:*")
     ///
     /// # Errors
     ///
     /// Returns an error if pattern invalidation fails
-    async fn invalidate_pattern(&self, pattern: &str) -> Result<u64>;
+    async fn invalidate_pattern(&self, pattern: &str) -> AppResult<u64>;
 
     /// Check if key exists in cache
     ///
     /// # Errors
     ///
     /// Returns an error if existence check fails
-    async fn exists(&self, key: &CacheKey) -> Result<bool>;
+    async fn exists(&self, key: &CacheKey) -> AppResult<bool>;
 
     /// Get remaining TTL for key
     ///
     /// # Errors
     ///
     /// Returns an error if TTL check fails
-    async fn ttl(&self, key: &CacheKey) -> Result<Option<Duration>>;
+    async fn ttl(&self, key: &CacheKey) -> AppResult<Option<Duration>>;
 
     /// Verify cache backend is healthy
     ///
     /// # Errors
     ///
     /// Returns an error if health check fails
-    async fn health_check(&self) -> Result<()>;
+    async fn health_check(&self) -> AppResult<()>;
 
     /// Clear all cache entries (for testing/admin)
     ///
     /// # Errors
     ///
     /// Returns an error if clear operation fails
-    async fn clear_all(&self) -> Result<()>;
+    async fn clear_all(&self) -> AppResult<()>;
 }
 
 /// Cache configuration

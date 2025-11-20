@@ -6,8 +6,7 @@
 //! Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 //! Copyright ©2025 Async-IO.org
 
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Utc};
 
 /// Validate email format
@@ -31,9 +30,9 @@ use chrono::{DateTime, Utc};
 /// assert!(validate_email("invalid").is_err());
 /// assert!(validate_email("@").is_err());
 /// ```
-pub fn validate_email(email: &str) -> Result<()> {
+pub fn validate_email(email: &str) -> AppResult<()> {
     if !email.contains('@') || email.len() < 3 {
-        return Err(AppError::invalid_input("Invalid email format").into());
+        return Err(AppError::invalid_input("Invalid email format"));
     }
     Ok(())
 }
@@ -64,12 +63,11 @@ pub fn validate_tenant_ownership(
     entity_tenant_id: &str,
     expected_tenant_id: &str,
     entity_type: &str,
-) -> Result<()> {
+) -> AppResult<()> {
     if entity_tenant_id != expected_tenant_id {
         return Err(AppError::auth_invalid(format!(
             "{entity_type} does not belong to the specified tenant"
-        ))
-        .into());
+        )));
     }
     Ok(())
 }
@@ -105,9 +103,11 @@ pub fn validate_not_expired(
     expires_at: DateTime<Utc>,
     now: DateTime<Utc>,
     entity_type: &str,
-) -> Result<()> {
+) -> AppResult<()> {
     if expires_at <= now {
-        return Err(AppError::invalid_input(format!("{entity_type} has expired")).into());
+        return Err(AppError::invalid_input(format!(
+            "{entity_type} has expired"
+        )));
     }
     Ok(())
 }
@@ -140,10 +140,12 @@ pub fn validate_not_expired(
 pub fn validate_scope_granted(
     requested_scopes: &[String],
     granted_scopes: &[String],
-) -> Result<()> {
+) -> AppResult<()> {
     for scope in requested_scopes {
         if !granted_scopes.contains(scope) {
-            return Err(AppError::auth_invalid(format!("Scope '{scope}' not granted")).into());
+            return Err(AppError::auth_invalid(format!(
+                "Scope '{scope}' not granted"
+            )));
         }
     }
     Ok(())

@@ -4,9 +4,7 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use anyhow::Result;
-
-use crate::errors::{AppError, ErrorCode};
+use crate::errors::{AppError, AppResult, ErrorCode};
 
 /// Create a validation error with context
 #[must_use]
@@ -49,30 +47,30 @@ pub trait ErrorContext<T> {
     /// Convert to validation error with context
     /// # Errors
     /// Returns validation error with provided context message
-    fn with_validation_context(self, message: &str) -> Result<T, AppError>;
+    fn with_validation_context(self, message: &str) -> AppResult<T>;
     /// Convert to authentication error with context
     /// # Errors
     /// Returns auth error with provided context message
-    fn with_auth_context(self, message: &str) -> Result<T, AppError>;
+    fn with_auth_context(self, message: &str) -> AppResult<T>;
     /// Convert to operation error with context
     /// # Errors
     /// Returns operation error with provided context message
-    fn with_operation_context(self, operation: &str) -> Result<T, AppError>;
+    fn with_operation_context(self, operation: &str) -> AppResult<T>;
 }
 
 impl<T, E> ErrorContext<T> for std::result::Result<T, E>
 where
     E: std::fmt::Display + std::fmt::Debug + Send + Sync + 'static,
 {
-    fn with_validation_context(self, message: &str) -> Result<T, AppError> {
+    fn with_validation_context(self, message: &str) -> AppResult<T> {
         self.map_err(|e| validation_error(&format!("{message}: {e}")))
     }
 
-    fn with_auth_context(self, message: &str) -> Result<T, AppError> {
+    fn with_auth_context(self, message: &str) -> AppResult<T> {
         self.map_err(|e| auth_error(&format!("{message}: {e}")))
     }
 
-    fn with_operation_context(self, operation: &str) -> Result<T, AppError> {
+    fn with_operation_context(self, operation: &str) -> AppResult<T> {
         self.map_err(|e| operation_error(operation, &format!("{e}")))
     }
 }

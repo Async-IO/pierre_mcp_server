@@ -1,7 +1,7 @@
 // ABOUTME: VDOT (VO2max running) calculation algorithms with Daniels, Riegel, and hybrid methods
 // ABOUTME: Implements Jack Daniels' VDOT methodology and Riegel's power-law race prediction formula
 
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -91,14 +91,14 @@ impl VdotAlgorithm {
     ///
     /// ```rust
     /// use pierre_mcp_server::intelligence::algorithms::VdotAlgorithm;
-    /// # use pierre_mcp_server::errors::AppError;
-    /// # fn example() -> Result<(), AppError> {
+    /// # use pierre_mcp_server::errors::{AppError, AppResult};
+    /// # fn example() -> AppResult<()> {
     /// let algorithm = VdotAlgorithm::Daniels;
     /// let vdot = algorithm.calculate_vdot(5000.0, 1200.0)?; // 5K in 20:00
     /// # Ok(())
     /// # }
     /// ```
-    pub fn calculate_vdot(&self, distance_meters: f64, time_seconds: f64) -> Result<f64, AppError> {
+    pub fn calculate_vdot(&self, distance_meters: f64, time_seconds: f64) -> AppResult<f64> {
         if time_seconds <= 0.0 {
             return Err(AppError::invalid_input("Time must be positive".to_owned()));
         }
@@ -132,7 +132,7 @@ impl VdotAlgorithm {
     /// # Errors
     ///
     /// Returns `AppError::InvalidInput` if VDOT is outside typical range (30-85)
-    pub fn predict_time(&self, vdot: f64, target_distance_meters: f64) -> Result<f64, AppError> {
+    pub fn predict_time(&self, vdot: f64, target_distance_meters: f64) -> AppResult<f64> {
         if !(30.0..=85.0).contains(&vdot) {
             return Err(AppError::invalid_input(format!(
                 "VDOT {vdot:.1} is outside typical range (30-85)"
@@ -150,7 +150,7 @@ impl VdotAlgorithm {
     }
 
     /// Calculate VDOT using Daniels formula
-    fn calculate_daniels(distance_meters: f64, time_seconds: f64) -> Result<f64, AppError> {
+    fn calculate_daniels(distance_meters: f64, time_seconds: f64) -> AppResult<f64> {
         // Convert to velocity in meters per minute
         let velocity = (distance_meters / time_seconds) * 60.0;
 
@@ -197,7 +197,7 @@ impl VdotAlgorithm {
         distance_meters: f64,
         time_seconds: f64,
         exponent: f64,
-    ) -> Result<f64, AppError> {
+    ) -> AppResult<f64> {
         // Convert to 10K equivalent time
         const REFERENCE_DISTANCE: f64 = 10_000.0;
         let time_10k_equivalent =
@@ -208,7 +208,7 @@ impl VdotAlgorithm {
     }
 
     /// Predict race time using Daniels VDOT tables
-    fn predict_time_daniels(vdot: f64, target_distance_meters: f64) -> Result<f64, AppError> {
+    fn predict_time_daniels(vdot: f64, target_distance_meters: f64) -> AppResult<f64> {
         // Calculate velocity at VO2 max (reverse of VDOT formula)
         // vo2 = -4.60 + 0.182258 x v + 0.000104 x v²
         // Solve quadratic: 0.000104v² + 0.182258v - (vo2 + 4.60) = 0
@@ -259,7 +259,7 @@ impl VdotAlgorithm {
         vdot: f64,
         target_distance_meters: f64,
         exponent: f64,
-    ) -> Result<f64, AppError> {
+    ) -> AppResult<f64> {
         // Use 10K as reference
         const REFERENCE_DISTANCE: f64 = 10_000.0;
 
@@ -274,7 +274,7 @@ impl VdotAlgorithm {
     }
 
     /// Hybrid: Auto-select best method
-    fn calculate_hybrid(distance_meters: f64, time_seconds: f64) -> Result<f64, AppError> {
+    fn calculate_hybrid(distance_meters: f64, time_seconds: f64) -> AppResult<f64> {
         // Use Daniels for typical race distances (5K-Marathon)
         if (5_000.0..=42_195.0).contains(&distance_meters) {
             Self::calculate_daniels(distance_meters, time_seconds)

@@ -265,6 +265,9 @@ async fn test_oauth_configuration_errors() -> Result<()> {
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -328,6 +331,9 @@ async fn test_invalid_provider_tokens() -> Result<()> {
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -358,6 +364,9 @@ async fn test_malformed_user_id() -> Result<()> {
         user_id: "not-a-valid-uuid".to_owned(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let result = executor.execute_tool(request).await;
@@ -386,6 +395,9 @@ async fn test_non_existent_user() -> Result<()> {
         user_id: non_existent_user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -420,6 +432,9 @@ async fn test_invalid_tool_parameters() -> Result<()> {
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -448,6 +463,9 @@ async fn test_invalid_tool_parameters() -> Result<()> {
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let result = executor.execute_tool(request).await;
@@ -475,6 +493,9 @@ async fn test_database_error_handling() -> Result<()> {
         user_id: "00000000-0000-0000-0000-000000000000".to_owned(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -509,6 +530,9 @@ async fn test_concurrent_tool_execution() -> Result<()> {
                 user_id: user_id_str.clone(),
                 protocol: format!("test_{i}"),
                 tenant_id: None,
+                progress_token: None,
+                cancellation_token: None,
+                progress_reporter: None,
             };
 
             executor_clone.execute_tool(request).await
@@ -545,6 +569,9 @@ async fn test_tool_response_metadata() -> Result<()> {
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -581,6 +608,9 @@ async fn test_intelligence_integration_errors() -> Result<()> {
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;
@@ -611,6 +641,9 @@ async fn test_provider_unavailable() -> Result<()> {
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
+        progress_token: None,
+        cancellation_token: None,
+        progress_reporter: None,
     };
 
     let response = executor.execute_tool(request).await?;

@@ -13,8 +13,7 @@
 //! - Security audit logging
 
 use crate::database_plugins::DatabaseProvider;
-use crate::errors::AppError;
-use anyhow::{Context, Result};
+use crate::errors::{AppError, AppResult};
 use ring::{
     aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM},
     hkdf::{Salt, HKDF_SHA256},
@@ -210,7 +209,7 @@ impl TenantEncryptionManager {
     /// # Errors
     ///
     /// Returns an error if the key cache `RwLock` is poisoned
-    pub fn derive_tenant_key(&self, tenant_id: Uuid) -> Result<[u8; 32]> {
+    pub fn derive_tenant_key(&self, tenant_id: Uuid) -> AppResult<[u8; 32]> {
         // Check cache first
         {
             let cache = self.derived_keys_cache.read().map_err(|e| {
@@ -232,11 +231,11 @@ impl TenantEncryptionManager {
         let info_bytes = [info.as_bytes()];
         let okm = prk
             .expand(&info_bytes, HKDF_SHA256)
-            .context("Failed to expand key material")?;
+            .map_err(|e| AppError::internal(format!("Failed to expand key material: {e}")))?;
 
         let mut derived_key = [0u8; 32];
         okm.fill(&mut derived_key)
-            .context("Failed to fill derived key")?;
+            .map_err(|e| AppError::internal(format!("Failed to fill derived key: {e}")))?;
 
         // Cache the derived key
         {
@@ -255,7 +254,7 @@ impl TenantEncryptionManager {
     /// # Errors
     ///
     /// Returns an error if the version lock is poisoned
-    pub fn get_current_version(&self) -> Result<u32> {
+    pub fn get_current_version(&self) -> AppResult<u32> {
         Ok(*self.current_version.read().map_err(|e| {
             tracing::error!(error = ?e, "Key version RwLock poisoned (CRITICAL SYSTEM FAILURE)");
             AppError::internal("Version lock poisoned")
@@ -267,7 +266,7 @@ impl TenantEncryptionManager {
     /// # Errors
     ///
     /// Returns an error if the version lock is poisoned
-    pub fn set_current_version(&self, version: u32) -> Result<()> {
+    pub fn set_current_version(&self, version: u32) -> AppResult<()> {
         *self
             .current_version
             .write()
@@ -283,7 +282,7 @@ impl TenantEncryptionManager {
     /// # Errors
     ///
     /// Returns an error if encryption fails
-    pub fn encrypt_tenant_data(&self, tenant_id: Uuid, data: &str) -> Result<EncryptedData> {
+    pub fn encrypt_tenant_data(&self, tenant_id: Uuid, data: &str) -> AppResult<EncryptedData> {
         let derived_key = self.derive_tenant_key(tenant_id)?;
         self.encrypt_with_key(&derived_key, data, Some(tenant_id))
     }
@@ -297,10 +296,12 @@ impl TenantEncryptionManager {
         &self,
         tenant_id: Uuid,
         encrypted_data: &EncryptedData,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         // Verify tenant ID matches
         if encrypted_data.metadata.tenant_id != Some(tenant_id) {
-            return Err(AppError::invalid_input("Tenant ID mismatch in encrypted data").into());
+            return Err(AppError::invalid_input(
+                "Tenant ID mismatch in encrypted data",
+            ));
         }
 
         let derived_key = self.derive_tenant_key(tenant_id)?;
@@ -312,7 +313,7 @@ impl TenantEncryptionManager {
     /// # Errors
     ///
     /// Returns an error if encryption fails
-    pub fn encrypt_global_data(&self, data: &str) -> Result<EncryptedData> {
+    pub fn encrypt_global_data(&self, data: &str) -> AppResult<EncryptedData> {
         self.encrypt_with_key(&self.master_key, data, None)
     }
 
@@ -321,12 +322,11 @@ impl TenantEncryptionManager {
     /// # Errors
     ///
     /// Returns an error if decryption fails
-    pub fn decrypt_global_data(&self, encrypted_data: &EncryptedData) -> Result<String> {
+    pub fn decrypt_global_data(&self, encrypted_data: &EncryptedData) -> AppResult<String> {
         if encrypted_data.metadata.tenant_id.is_some() {
             return Err(AppError::invalid_input(
                 "Expected global data, but found tenant-specific data",
-            )
-            .into());
+            ));
         }
 
         Self::decrypt_with_key(&self.master_key, &encrypted_data.data)
@@ -338,25 +338,25 @@ impl TenantEncryptionManager {
         key: &[u8; 32],
         data: &str,
         tenant_id: Option<Uuid>,
-    ) -> Result<EncryptedData> {
+    ) -> AppResult<EncryptedData> {
         use base64::{engine::general_purpose, Engine as _};
 
         // Create encryption key
-        let unbound_key =
-            UnboundKey::new(&AES_256_GCM, key).context("Failed to create encryption key")?;
+        let unbound_key = UnboundKey::new(&AES_256_GCM, key)
+            .map_err(|e| AppError::internal(format!("Failed to create encryption key: {e}")))?;
         let key = LessSafeKey::new(unbound_key);
 
         // Generate random nonce
         let mut nonce_bytes = [0u8; 12];
         self.rng
             .fill(&mut nonce_bytes)
-            .context("Failed to generate nonce")?;
+            .map_err(|e| AppError::internal(format!("Failed to generate nonce: {e}")))?;
         let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
         // Encrypt the data
         let mut ciphertext = data.as_bytes().to_vec();
         key.seal_in_place_append_tag(nonce, Aad::empty(), &mut ciphertext)
-            .context("Encryption failed")?;
+            .map_err(|e| AppError::internal(format!("Encryption failed: {e}")))?;
 
         // Combine nonce + ciphertext
         let mut combined = Vec::with_capacity(12 + ciphertext.len());
@@ -378,38 +378,39 @@ impl TenantEncryptionManager {
     }
 
     /// Internal method to decrypt data with a specific key
-    fn decrypt_with_key(key: &[u8; 32], encrypted_data: &str) -> Result<String> {
+    fn decrypt_with_key(key: &[u8; 32], encrypted_data: &str) -> AppResult<String> {
         use base64::{engine::general_purpose, Engine as _};
 
         // Decode from base64
         let combined = general_purpose::STANDARD
             .decode(encrypted_data)
-            .context("Failed to decode base64 encrypted data")?;
+            .map_err(|e| {
+                AppError::internal(format!("Failed to decode base64 encrypted data: {e}"))
+            })?;
 
         if combined.len() < 12 {
-            return Err(AppError::invalid_input("Invalid encrypted data: too short").into());
+            return Err(AppError::invalid_input("Invalid encrypted data: too short"));
         }
 
         // Split nonce and ciphertext
         let (nonce_bytes, ciphertext) = combined.split_at(12);
-        let nonce = Nonce::assume_unique_for_key(
-            nonce_bytes
-                .try_into()
-                .context("Failed to extract nonce from encrypted data")?,
-        );
+        let nonce = Nonce::assume_unique_for_key(nonce_bytes.try_into().map_err(|e| {
+            AppError::internal(format!("Failed to extract nonce from encrypted data: {e}"))
+        })?);
 
         // Create decryption key
-        let unbound_key =
-            UnboundKey::new(&AES_256_GCM, key).context("Failed to create decryption key")?;
+        let unbound_key = UnboundKey::new(&AES_256_GCM, key)
+            .map_err(|e| AppError::internal(format!("Failed to create decryption key: {e}")))?;
         let key = LessSafeKey::new(unbound_key);
 
         // Decrypt
         let mut plaintext = ciphertext.to_vec();
         let decrypted = key
             .open_in_place(nonce, Aad::empty(), &mut plaintext)
-            .context("Decryption failed")?;
+            .map_err(|e| AppError::internal(format!("Decryption failed: {e}")))?;
 
-        String::from_utf8(decrypted.to_vec()).context("Decrypted data is not valid UTF-8")
+        String::from_utf8(decrypted.to_vec())
+            .map_err(|e| AppError::internal(format!("Decrypted data is not valid UTF-8: {e}")))
     }
 
     /// Rotate encryption key for a tenant (for key rotation scenarios)
@@ -417,7 +418,7 @@ impl TenantEncryptionManager {
     /// # Errors
     ///
     /// Returns an error if key rotation fails, database operations fail, or re-encryption fails
-    pub async fn rotate_tenant_key(&self, tenant_id: Uuid) -> Result<()> {
+    pub async fn rotate_tenant_key(&self, tenant_id: Uuid) -> AppResult<()> {
         // Get current version and increment for new key
         let old_version = self.get_current_version()?;
         let new_version = old_version + 1;
@@ -486,7 +487,7 @@ impl TenantEncryptionManager {
     /// # Errors
     ///
     /// Returns an error if the key cache `RwLock` is poisoned
-    pub fn clear_key_cache(&self) -> Result<()> {
+    pub fn clear_key_cache(&self) -> AppResult<()> {
         self.derived_keys_cache
             .write()
             .map_err(|e| {
@@ -503,7 +504,7 @@ impl TenantEncryptionManager {
     /// # Errors
     ///
     /// Returns an error if the key cache `RwLock` is poisoned
-    pub fn get_stats(&self) -> Result<EncryptionStats> {
+    pub fn get_stats(&self) -> AppResult<EncryptionStats> {
         let cache = self
             .derived_keys_cache
             .read()
@@ -558,7 +559,7 @@ impl EnhancedEncryptedToken {
         refresh_token: &str,
         expires_at: chrono::DateTime<chrono::Utc>,
         scopes: &str,
-    ) -> Result<Self> {
+    ) -> AppResult<Self> {
         Ok(Self {
             access_token: encryption_manager.encrypt_tenant_data(tenant_id, access_token)?,
             refresh_token: encryption_manager.encrypt_tenant_data(tenant_id, refresh_token)?,
@@ -577,7 +578,7 @@ impl EnhancedEncryptedToken {
         &self,
         encryption_manager: &TenantEncryptionManager,
         tenant_id: Uuid,
-    ) -> Result<(String, String)> {
+    ) -> AppResult<(String, String)> {
         let access_token = encryption_manager.decrypt_tenant_data(tenant_id, &self.access_token)?;
         let refresh_token =
             encryption_manager.decrypt_tenant_data(tenant_id, &self.refresh_token)?;

@@ -428,7 +428,8 @@ print_task "Cargo clippy + build (zero tolerance linting)"
 # Run clippy with output to screen
 # Explicit -D flags deny all clippy violations (matching CCFW strictness)
 # CRITICAL: All lint groups use -D (deny) to match production CI validation
-if cargo clippy --all-targets --all-features --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -A clippy::module_name_repetitions -A clippy::missing_errors_doc -A clippy::missing_panics_doc -A clippy::too_many_lines -A clippy::must_use_candidate; then
+# ZERO TOLERANCE: No allowances - all warnings must be fixed
+if cargo clippy --all-targets --all-features --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery; then
     echo -e "${GREEN}[OK] Clippy passed - ZERO code warnings (enforced by Cargo.toml)${NC}"
     echo -e "${GREEN}[OK] Debug build completed (reused for all validation)${NC}"
 else
@@ -544,7 +545,8 @@ if [ "$ENABLE_COVERAGE" = true ]; then
             echo -e "${GREEN}[OK] All $TOTAL_TESTS tests passed with coverage${NC}"
         else
             echo -e "${RED}[FAIL] Some tests failed${NC}"
-            ALL_PASSED=false
+            echo -e "${RED}Exiting immediately - fix test failures first${NC}"
+            exit 1
         fi
     else
         echo -e "${YELLOW}[WARN] cargo-llvm-cov not installed${NC}"
@@ -553,7 +555,8 @@ if [ "$ENABLE_COVERAGE" = true ]; then
             echo -e "${GREEN}[OK] All $TOTAL_TESTS tests passed${NC}"
         else
             echo -e "${RED}[FAIL] Some tests failed${NC}"
-            ALL_PASSED=false
+            echo -e "${RED}Exiting immediately - fix test failures first${NC}"
+            exit 1
         fi
     fi
 else
@@ -561,8 +564,8 @@ else
         echo -e "${GREEN}[OK] All $TOTAL_TESTS tests passed${NC}"
     else
         echo -e "${RED}[FAIL] Some tests failed${NC}"
-        ALL_PASSED=false
-        # exit 1 removed - let script reach final validation
+        echo -e "${RED}Exiting immediately - fix test failures first${NC}"
+        exit 1
     fi
 fi
 

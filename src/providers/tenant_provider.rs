@@ -5,10 +5,9 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::database_plugins::DatabaseProvider;
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use crate::models::{Activity, Athlete, PersonalRecord, Stats};
 use crate::tenant::{TenantContext, TenantOAuthClient};
-use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -21,26 +20,26 @@ pub trait TenantFitnessProvider: Send + Sync {
         tenant_context: &TenantContext,
         provider: &str,
         database: &dyn DatabaseProvider,
-    ) -> Result<()>;
+    ) -> AppResult<()>;
 
     /// Get athlete information for the authenticated tenant user
-    async fn get_athlete(&self) -> Result<Athlete>;
+    async fn get_athlete(&self) -> AppResult<Athlete>;
 
     /// Get activities for the authenticated tenant user
     async fn get_activities(
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> Result<Vec<Activity>>;
+    ) -> AppResult<Vec<Activity>>;
 
     /// Get specific activity by ID
-    async fn get_activity(&self, id: &str) -> Result<Activity>;
+    async fn get_activity(&self, id: &str) -> AppResult<Activity>;
 
     /// Get stats for the authenticated tenant user
-    async fn get_stats(&self) -> Result<Stats>;
+    async fn get_stats(&self) -> AppResult<Stats>;
 
     /// Get personal records for the authenticated tenant user
-    async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>>;
+    async fn get_personal_records(&self) -> AppResult<Vec<PersonalRecord>>;
 
     /// Get provider name
     fn provider_name(&self) -> &'static str;
@@ -66,15 +65,14 @@ impl TenantProviderFactory {
     pub fn create_tenant_provider(
         &self,
         provider_type: &str,
-    ) -> Result<Box<dyn TenantFitnessProvider>> {
+    ) -> AppResult<Box<dyn TenantFitnessProvider>> {
         match provider_type.to_lowercase().as_str() {
             "strava" => Ok(Box::new(super::strava_tenant::TenantStravaProvider::new(
                 self.oauth_client.clone(),
             ))),
             _ => Err(AppError::invalid_input(format!(
                 "Unknown tenant provider: {provider_type}. Currently supported: strava"
-            ))
-            .into()),
+            ))),
         }
     }
 }

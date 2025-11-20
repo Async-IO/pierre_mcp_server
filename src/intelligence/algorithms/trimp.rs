@@ -1,7 +1,7 @@
 // ABOUTME: Training Impulse (TRIMP) calculation algorithms with gender-specific implementations
 // ABOUTME: Supports Bannister male/female formulas, Edwards zone-based, Lucia banded, and hybrid approaches
 
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -116,7 +116,7 @@ impl TrimpAlgorithm {
         max_hr: u32,
         resting_hr: Option<u32>,
         gender: Option<&str>,
-    ) -> Result<f64, AppError> {
+    ) -> AppResult<f64> {
         // Validate heart rate ranges
         if !(20..=220).contains(&avg_hr) {
             return Err(AppError::invalid_input(format!(

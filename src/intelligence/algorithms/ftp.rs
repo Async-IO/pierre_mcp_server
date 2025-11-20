@@ -1,7 +1,7 @@
 // ABOUTME: FTP (Functional Threshold Power) estimation algorithms for cycling performance
 // ABOUTME: Implements 20-min, 8-min, ramp test, 60-min, and Critical Power models for FTP calculation
 
-use crate::errors::AppError;
+use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -163,7 +163,7 @@ impl FtpAlgorithm {
     /// let ftp = algorithm.estimate_ftp()?;
     /// // ftp = 237.5 watts (250 x 0.95)
     /// ```
-    pub fn estimate_ftp(&self) -> Result<f64, AppError> {
+    pub fn estimate_ftp(&self) -> AppResult<f64> {
         match self {
             Self::From20MinTest { avg_power_20min } => {
                 Self::validate_power(*avg_power_20min, "20-minute test power")?;
@@ -221,7 +221,7 @@ impl FtpAlgorithm {
     }
 
     /// Validate power value
-    fn validate_power(power: f64, name: &str) -> Result<(), AppError> {
+    fn validate_power(power: f64, name: &str) -> AppResult<()> {
         if power <= 0.0 {
             return Err(AppError::invalid_input(format!(
                 "{name} must be positive, got {power:.1}W"
@@ -250,7 +250,7 @@ impl FtpAlgorithm {
         tt1_power: f64,
         tt2_duration: f64,
         tt2_power: f64,
-    ) -> Result<f64, AppError> {
+    ) -> AppResult<f64> {
         // Validate inputs
         if tt1_duration <= 0.0 || tt2_duration <= 0.0 {
             return Err(AppError::invalid_input(
@@ -310,11 +310,7 @@ impl FtpAlgorithm {
     /// # Errors
     ///
     /// Returns `AppError::InvalidInput` if power or duration are non-positive
-    pub fn calculate_w_prime(
-        ftp: f64,
-        duration_seconds: f64,
-        avg_power: f64,
-    ) -> Result<f64, AppError> {
+    pub fn calculate_w_prime(ftp: f64, duration_seconds: f64, avg_power: f64) -> AppResult<f64> {
         Self::validate_power(ftp, "FTP")?;
         Self::validate_power(avg_power, "Average power")?;
 

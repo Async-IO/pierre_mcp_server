@@ -5,8 +5,8 @@
 // Copyright ©2025 Async-IO.org
 
 use super::Database;
+use crate::errors::{AppError, AppResult};
 use crate::models::UserOAuthToken;
-use anyhow::Result;
 use chrono::{DateTime, Utc};
 use sqlx::Row;
 use uuid::Uuid;
@@ -42,7 +42,7 @@ impl Database {
     /// - The database schema migration fails
     /// - Table creation fails
     /// - Index creation fails
-    pub(super) async fn migrate_user_oauth_tokens(&self) -> Result<()> {
+    pub(super) async fn migrate_user_oauth_tokens(&self) -> AppResult<()> {
         // Create user_oauth_tokens table
         sqlx::query(
             r"
@@ -63,18 +63,27 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to create user_oauth_tokens table: {e}"))
+        })?;
 
         // Create indexes
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_user_oauth_tokens_user ON user_oauth_tokens(user_id)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_user_oauth_tokens_user: {e}"
+            ))
+        })?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_oauth_tokens_tenant_provider ON user_oauth_tokens(tenant_id, provider)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to create index idx_user_oauth_tokens_tenant_provider: {e}")))?;
 
         Ok(())
     }
@@ -89,7 +98,7 @@ impl Database {
     /// Returns an error if:
     /// - Encryption fails
     /// - Database operation fails
-    pub async fn upsert_user_oauth_token(&self, token_data: &OAuthTokenData<'_>) -> Result<()> {
+    pub async fn upsert_user_oauth_token(&self, token_data: &OAuthTokenData<'_>) -> AppResult<()> {
         // Create AAD context: tenant_id|user_id|provider|table
         let aad_context = format!(
             "{}|{}|{}|user_oauth_tokens",
@@ -135,7 +144,8 @@ impl Database {
         .bind(Utc::now())
         .bind(Utc::now())
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to upsert user OAuth token: {e}")))?;
 
         Ok(())
     }
@@ -154,7 +164,7 @@ impl Database {
         user_id: Uuid,
         tenant_id: &str,
         provider: &str,
-    ) -> Result<Option<UserOAuthToken>> {
+    ) -> AppResult<Option<UserOAuthToken>> {
         let row = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
@@ -167,7 +177,8 @@ impl Database {
         .bind(tenant_id)
         .bind(provider)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to query user OAuth token: {e}")))?;
 
         row.map_or_else(
             || Ok(None),
@@ -184,7 +195,10 @@ impl Database {
     /// Returns an error if:
     /// - Database query fails
     /// - Decryption fails for any token
-    pub async fn get_user_oauth_tokens_impl(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>> {
+    pub async fn get_user_oauth_tokens_impl(
+        &self,
+        user_id: Uuid,
+    ) -> AppResult<Vec<UserOAuthToken>> {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
@@ -196,7 +210,8 @@ impl Database {
         )
         .bind(user_id.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to query user OAuth tokens: {e}")))?;
 
         let mut tokens = Vec::with_capacity(rows.len());
         for row in rows {
@@ -218,7 +233,7 @@ impl Database {
         &self,
         tenant_id: &str,
         provider: &str,
-    ) -> Result<Vec<UserOAuthToken>> {
+    ) -> AppResult<Vec<UserOAuthToken>> {
         let rows = sqlx::query(
             r"
             SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
@@ -231,7 +246,8 @@ impl Database {
         .bind(tenant_id)
         .bind(provider)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to query tenant provider tokens: {e}")))?;
 
         let mut tokens = Vec::with_capacity(rows.len());
         for row in rows {
@@ -250,7 +266,7 @@ impl Database {
         user_id: Uuid,
         tenant_id: &str,
         provider: &str,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         sqlx::query(
             r"
             DELETE FROM user_oauth_tokens
@@ -261,7 +277,8 @@ impl Database {
         .bind(tenant_id)
         .bind(provider)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to delete user OAuth token: {e}")))?;
 
         Ok(())
     }
@@ -271,7 +288,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn delete_user_oauth_tokens_impl(&self, user_id: Uuid) -> Result<()> {
+    pub async fn delete_user_oauth_tokens_impl(&self, user_id: Uuid) -> AppResult<()> {
         sqlx::query(
             r"
             DELETE FROM user_oauth_tokens
@@ -280,7 +297,8 @@ impl Database {
         )
         .bind(user_id.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to delete user OAuth tokens: {e}")))?;
 
         Ok(())
     }
@@ -302,7 +320,7 @@ impl Database {
         access_token: &str,
         refresh_token: Option<&str>,
         expires_at: Option<DateTime<Utc>>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         // Create AAD context: tenant_id|user_id|provider|table
         let aad_context = format!("{tenant_id}|{user_id}|{provider}|user_oauth_tokens");
 
@@ -332,7 +350,8 @@ impl Database {
         .bind(expires_at)
         .bind(Utc::now())
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to refresh user OAuth token: {e}")))?;
 
         Ok(())
     }
@@ -344,7 +363,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if decryption fails (possibly due to tampered data or AAD mismatch)
-    fn row_to_user_oauth_token(&self, row: &sqlx::sqlite::SqliteRow) -> Result<UserOAuthToken> {
+    fn row_to_user_oauth_token(&self, row: &sqlx::sqlite::SqliteRow) -> AppResult<UserOAuthToken> {
         let user_id_str: String = row.get("user_id");
         let user_id = Uuid::parse_str(&user_id_str)?;
         let tenant_id: String = row.get("tenant_id");
@@ -384,7 +403,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn get_user_oauth_tokens(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>> {
+    pub async fn get_user_oauth_tokens(&self, user_id: Uuid) -> AppResult<Vec<UserOAuthToken>> {
         self.get_user_oauth_tokens_impl(user_id).await
     }
 
@@ -392,7 +411,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()> {
+    pub async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> AppResult<()> {
         self.delete_user_oauth_tokens_impl(user_id).await
     }
 }

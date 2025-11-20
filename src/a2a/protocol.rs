@@ -334,6 +334,7 @@ impl A2AServer {
             "tasks/create" | "a2a/tasks/create" => self.handle_task_create(request).await,
             "tasks/get" | "a2a/tasks/get" => self.handle_task_get(request).await,
             "tasks/cancel" => Self::handle_task_cancel(request),
+            "tasks/resubscribe" | "a2a/tasks/resubscribe" => Self::handle_task_resubscribe(request),
             "tasks/pushNotificationConfig/set" => Self::handle_push_notification_config(request),
             "a2a/tasks/list" => self.handle_task_list(request).await,
             "tools/list" | "a2a/tools/list" => Self::handle_tools_list(request),
@@ -569,18 +570,40 @@ impl A2AServer {
     }
 
     fn handle_message_stream(request: A2ARequest) -> A2AResponse {
-        // Message streaming is intentionally not supported in this implementation
-        // A2A protocol uses stateless request-response pattern for reliability
-        A2AResponse {
-            jsonrpc: "2.0".into(),
-            result: Some(serde_json::json!({
-                "status": "streaming_not_supported",
-                "message": "Message streaming is not supported by design. A2A protocol uses stateless message delivery.",
-                "alternative": "Use a2a/message/send for reliable message delivery",
-                "reason": "Stateless design ensures better reliability and scalability"
-            })),
-            error: None,
-            id: request.id,
+        // Get base URL from environment or use default
+        let base_url =
+            std::env::var("PIERRE_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_owned());
+
+        // Extract task_id from params if provided, otherwise return generic streaming info
+        let params = request.params.as_ref().unwrap_or(&serde_json::Value::Null);
+        let task_id = params.get("task_id").and_then(|v| v.as_str());
+
+        if let Some(task_id) = task_id {
+            // Return SSE streaming endpoint for specific task
+            A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: Some(serde_json::json!({
+                    "stream_url": format!("{}/a2a/tasks/{}/stream", base_url, task_id),
+                    "stream_type": "text/event-stream",
+                    "protocol": "SSE",
+                    "keep_alive_interval_seconds": 15,
+                    "status": "streaming_available"
+                })),
+                error: None,
+                id: request.id,
+            }
+        } else {
+            // Return error if no task_id provided
+            A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: None,
+                error: Some(A2AErrorResponse {
+                    code: -32602,
+                    message: "Missing required parameter: task_id".into(),
+                    data: None,
+                }),
+                id: request.id,
+            }
         }
     }
 
@@ -929,6 +952,9 @@ impl A2AServer {
             user_id: "unknown".into(), // In production, this would come from authentication
             protocol: "a2a".into(),
             tenant_id: None, // A2A protocol doesn't have tenant context yet
+            progress_token: None,
+            cancellation_token: None,
+            progress_reporter: None,
         };
 
         // Check if we have proper ServerResources injected
@@ -968,6 +994,43 @@ impl A2AServer {
                 }),
                 id: request.id,
             },
+        }
+    }
+
+    fn handle_task_resubscribe(request: A2ARequest) -> A2AResponse {
+        // Get base URL from environment or use default
+        let base_url =
+            std::env::var("PIERRE_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_owned());
+
+        let params = request.params.as_ref().unwrap_or(&serde_json::Value::Null);
+        let task_id = params.get("task_id").and_then(|v| v.as_str());
+
+        if let Some(task_id) = task_id {
+            // Return resubscription information with new stream endpoint
+            A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: Some(serde_json::json!({
+                    "task_id": task_id,
+                    "stream_url": format!("{}/a2a/tasks/{}/stream", base_url, task_id),
+                    "stream_type": "text/event-stream",
+                    "protocol": "SSE",
+                    "reconnected": true,
+                    "message": "Task stream available for resubscription"
+                })),
+                error: None,
+                id: request.id,
+            }
+        } else {
+            A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: None,
+                error: Some(A2AErrorResponse {
+                    code: -32602,
+                    message: "Missing required parameter: task_id".into(),
+                    data: None,
+                }),
+                id: request.id,
+            }
         }
     }
 

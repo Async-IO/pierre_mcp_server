@@ -5,15 +5,17 @@
 // Copyright ©2025 Async-IO.org
 
 use super::multitenant::{McpRequest, McpResponse};
+use super::sampling_peer::SamplingPeer;
 use super::schema::OAuthCompletedNotification;
 use super::{
     mcp_request_processor::McpRequestProcessor, resources::ServerResources,
     transport_manager::TransportManager,
 };
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
+use serde_json::Value;
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 /// Manages server lifecycle, startup, and transport coordination
 pub struct ServerLifecycle {
@@ -31,7 +33,7 @@ impl ServerLifecycle {
     ///
     /// # Errors
     /// Returns an error if server startup or transport coordination fails
-    pub async fn run_unified_server(self, port: u16) -> Result<()> {
+    pub async fn run_unified_server(self, port: u16) -> AppResult<()> {
         let transport_manager = TransportManager::new(self.resources);
         transport_manager.start_all_transports(port).await
     }
@@ -40,7 +42,7 @@ impl ServerLifecycle {
     ///
     /// # Errors
     /// Returns an error if HTTP server startup fails
-    pub async fn run_http_only(self, port: u16) -> Result<()> {
+    pub async fn run_http_only(self, port: u16) -> AppResult<()> {
         info!(
             "Starting MCP server with HTTP transport only on port {}",
             port
@@ -55,7 +57,7 @@ impl ServerLifecycle {
         self,
         port: u16,
         resources: Arc<ServerResources>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         // Delegate to the existing comprehensive HTTP server implementation
         // This ensures we don't lose any existing functionality
         let server = super::multitenant::MultiTenantMcpServer::new(resources.clone());
@@ -71,12 +73,15 @@ impl ServerLifecycle {
     pub async fn run_stdio_transport(
         self,
         notification_receiver: tokio::sync::broadcast::Receiver<OAuthCompletedNotification>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         use tokio::io::{AsyncBufReadExt, BufReader};
 
         let stdin = tokio::io::stdin();
         let mut reader = BufReader::new(stdin).lines();
         let stdout = Arc::new(tokio::sync::Mutex::new(tokio::io::stdout()));
+
+        // Create sampling peer for bidirectional communication
+        let sampling_peer = Arc::new(SamplingPeer::new(stdout.clone()));
 
         // Spawn notification handler
         let notification_stdout = stdout.clone();
@@ -87,23 +92,66 @@ impl ServerLifecycle {
             }
         });
 
-        info!("MCP stdio transport started");
+        info!("MCP stdio transport started with sampling support");
 
-        // Process stdin requests
+        // Process stdin requests and sampling responses
         while let Some(line) = reader.next_line().await? {
             if line.trim().is_empty() {
                 continue;
             }
 
-            match serde_json::from_str::<McpRequest>(&line) {
-                Ok(request) => {
-                    Self::process_mcp_request(request, &self.resources, &stdout).await?;
+            // Parse as generic JSON-RPC message
+            match serde_json::from_str::<Value>(&line) {
+                Ok(message) => {
+                    // Check if this is a response to a sampling request
+                    let is_sampling_response = message.get("id").is_some()
+                        && message.get("method").is_none()
+                        && (message.get("result").is_some() || message.get("error").is_some());
+
+                    if is_sampling_response {
+                        // Route to sampling peer
+                        let id = message.get("id").cloned().unwrap_or(Value::Null);
+                        let result = message.get("result").cloned();
+                        let error = message.get("error").cloned();
+
+                        match sampling_peer.handle_response(id, result, error).await {
+                            Ok(handled) if !handled => {
+                                warn!("Received response for unknown sampling request");
+                            }
+                            Ok(_) => {}
+                            Err(e) => {
+                                warn!("Failed to handle sampling response: {}", e);
+                            }
+                        }
+                    } else {
+                        // Parse as MCP request
+                        match serde_json::from_value::<McpRequest>(message.clone()) {
+                            Ok(request) => {
+                                if let Err(e) = Self::process_mcp_request(
+                                    request,
+                                    &self.resources,
+                                    &stdout,
+                                    &sampling_peer,
+                                )
+                                .await
+                                {
+                                    warn!("Failed to process MCP request: {}", e);
+                                }
+                            }
+                            Err(e) => {
+                                debug!("Failed to parse MCP request: {} - Message: {}", e, message);
+                            }
+                        }
+                    }
                 }
                 Err(e) => {
-                    debug!("Failed to parse MCP request: {} - Line: {}", e, line);
+                    debug!("Failed to parse JSON-RPC message: {} - Line: {}", e, line);
                 }
             }
         }
+
+        // Clean up on exit
+        sampling_peer.cancel_all_pending().await;
 
         Ok(())
     }
@@ -115,7 +163,7 @@ impl ServerLifecycle {
     pub async fn run_sse_notification_forwarder(
         &self,
         mut notification_receiver: tokio::sync::broadcast::Receiver<OAuthCompletedNotification>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         info!("Starting SSE notification forwarder");
 
         while let Ok(_notification) = notification_receiver.recv().await {
@@ -161,14 +209,24 @@ impl ServerLifecycle {
     async fn write_response_to_stdout(
         response: &McpResponse,
         stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
-    ) -> Result<()> {
-        let response_json = serde_json::to_string(response)?;
+    ) -> AppResult<()> {
+        let response_json = serde_json::to_string(response)
+            .map_err(|e| AppError::internal(format!("JSON serialization failed: {e}")))?;
         debug!("Sending MCP response: {}", response_json);
 
         let mut stdout_lock = stdout.lock().await;
-        stdout_lock.write_all(response_json.as_bytes()).await?;
-        stdout_lock.write_all(b"\n").await?;
-        stdout_lock.flush().await?;
+        stdout_lock
+            .write_all(response_json.as_bytes())
+            .await
+            .map_err(|e| AppError::internal(format!("Transport error: {e}")))?;
+        stdout_lock
+            .write_all(b"\n")
+            .await
+            .map_err(|e| AppError::internal(format!("Transport error: {e}")))?;
+        stdout_lock
+            .flush()
+            .await
+            .map_err(|e| AppError::internal(format!("Transport error: {e}")))?;
         drop(stdout_lock);
 
         Ok(())
@@ -179,12 +237,14 @@ impl ServerLifecycle {
         request: McpRequest,
         resources: &Arc<ServerResources>,
         stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
-    ) -> Result<()> {
+        _sampling_peer: &Arc<SamplingPeer>,
+    ) -> anyhow::Result<()> {
         debug!(
             "Processing MCP request: method={}, id={:?}",
             request.method, request.id
         );
 
+        // Sampling peer is available via resources.sampling_peer in the request processor
         let processor = McpRequestProcessor::new(resources.clone());
         if let Some(response) = processor.handle_request(request).await {
             Self::write_response_to_stdout(&response, stdout).await?;

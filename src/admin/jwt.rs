@@ -14,8 +14,7 @@
 
 use crate::admin::models::{AdminPermissions, ValidatedAdminToken};
 use crate::constants::service_names;
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Duration, Utc};
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
@@ -69,7 +68,7 @@ impl AdminJwtManager {
         is_super_admin: bool,
         expires_at: Option<DateTime<Utc>>,
         jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> Result<String> {
+    ) -> AppResult<String> {
         let now = Utc::now();
         let exp = expires_at.unwrap_or_else(|| now + Duration::days(365));
 
@@ -91,9 +90,9 @@ impl AdminJwtManager {
         };
 
         // Sign with RS256 using JWKS
-        Ok(jwks_manager
+        jwks_manager
             .sign_admin_token(&claims)
-            .map_err(|e| AppError::internal(format!("Failed to generate RS256 admin JWT: {e}")))?)
+            .map_err(|e| AppError::internal(format!("Failed to generate RS256 admin JWT: {e}")))
     }
 
     /// Validate and decode JWT token using RS256
@@ -104,7 +103,7 @@ impl AdminJwtManager {
         &self,
         token: &str,
         jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> Result<ValidatedAdminToken> {
+    ) -> AppResult<ValidatedAdminToken> {
         // Verify RS256 signature and decode claims
         let claims: AdminTokenClaims = jwks_manager.verify_admin_token(token).map_err(|e| {
             AppError::auth_invalid(format!("RS256 admin JWT validation failed: {e}"))
@@ -115,14 +114,13 @@ impl AdminJwtManager {
             return Err(AppError::auth_invalid(format!(
                 "Invalid token type: {}",
                 claims.token_type
-            ))
-            .into());
+            )));
         }
 
         // Check expiration
         let now = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
         if claims.exp < now {
-            return Err(AppError::auth_expired().into());
+            return Err(AppError::auth_expired());
         }
 
         // Reconstruct permissions
@@ -131,7 +129,8 @@ impl AdminJwtManager {
         let token_id = claims.sub.clone(); // Safe: String ownership for token validation
         let service_name = claims.service_name.clone(); // Safe: String ownership for token validation
         let is_super_admin = claims.is_super_admin;
-        let user_info = serde_json::to_value(&claims)?;
+        let user_info = serde_json::to_value(&claims)
+            .map_err(|e| AppError::internal(format!("JSON serialization failed: {e}")))?;
 
         Ok(ValidatedAdminToken {
             token_id,
@@ -153,18 +152,18 @@ impl AdminJwtManager {
     ///
     /// # Errors
     /// Returns an error if bcrypt hashing fails
-    pub fn hash_token_for_storage(token: &str) -> Result<String> {
+    pub fn hash_token_for_storage(token: &str) -> AppResult<String> {
         bcrypt::hash(token, bcrypt::DEFAULT_COST)
-            .map_err(|e| AppError::internal(format!("Failed to hash token: {e}")).into())
+            .map_err(|e| AppError::internal(format!("Failed to hash token: {e}")))
     }
 
     /// Verify token hash
     ///
     /// # Errors
     /// Returns an error if bcrypt verification fails
-    pub fn verify_token_hash(token: &str, hash: &str) -> Result<bool> {
+    pub fn verify_token_hash(token: &str, hash: &str) -> AppResult<bool> {
         bcrypt::verify(token, hash)
-            .map_err(|e| AppError::internal(format!("Failed to verify token hash: {e}")).into())
+            .map_err(|e| AppError::internal(format!("Failed to verify token hash: {e}")))
     }
 }
 

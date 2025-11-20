@@ -16,6 +16,7 @@ use super::{
 use crate::config::intelligence_config::{
     GoalEngineConfig, IntelligenceConfig, IntelligenceStrategy,
 };
+use crate::errors::{AppError, AppResult};
 use crate::intelligence::physiological_constants::{
     consistency::{
         MILESTONE_ACHIEVEMENT_THRESHOLD, MIN_ACTIVITY_COUNT_FOR_ANALYSIS,
@@ -31,7 +32,6 @@ use crate::intelligence::physiological_constants::{
     time_periods::{GOAL_ADJUSTMENT_THRESHOLD, GOAL_ANALYSIS_WEEKS, GOAL_DAYS_REMAINING_THRESHOLD},
 };
 use crate::models::Activity;
-use anyhow::Result;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
@@ -43,20 +43,24 @@ pub trait GoalEngineTrait {
         &self,
         user_profile: &UserFitnessProfile,
         activities: &[Activity],
-    ) -> Result<Vec<GoalSuggestion>>;
+    ) -> AppResult<Vec<GoalSuggestion>>;
 
     /// Track progress toward a specific goal
-    async fn track_progress(&self, goal: &Goal, activities: &[Activity]) -> Result<ProgressReport>;
+    async fn track_progress(
+        &self,
+        goal: &Goal,
+        activities: &[Activity],
+    ) -> AppResult<ProgressReport>;
 
     /// Adjust goal based on current progress and performance
     async fn adjust_goal(
         &self,
         goal: &Goal,
         progress: &ProgressReport,
-    ) -> Result<Option<GoalAdjustment>>;
+    ) -> AppResult<Option<GoalAdjustment>>;
 
     /// Create milestone structure for a goal
-    async fn create_milestones(&self, goal: &Goal) -> Result<Vec<Milestone>>;
+    async fn create_milestones(&self, goal: &Goal) -> AppResult<Vec<Milestone>>;
 }
 
 /// Advanced goal engine implementation with configurable strategy
@@ -501,7 +505,7 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
         &self,
         user_profile: &UserFitnessProfile,
         activities: &[Activity],
-    ) -> Result<Vec<GoalSuggestion>> {
+    ) -> AppResult<Vec<GoalSuggestion>> {
         let recent_activities = Self::filter_recent_activities(activities);
         let sport_stats = Self::analyze_sport_patterns(&recent_activities);
         let mut suggestions = self.generate_sport_based_suggestions(&sport_stats, activities);
@@ -512,12 +516,19 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
         Ok(suggestions.into_iter().take(5).collect())
     }
 
-    async fn track_progress(&self, goal: &Goal, activities: &[Activity]) -> Result<ProgressReport> {
+    async fn track_progress(
+        &self,
+        goal: &Goal,
+        activities: &[Activity],
+    ) -> AppResult<ProgressReport> {
         let relevant_activities = Self::filter_relevant_activities(goal, activities);
         let current_value = Self::calculate_current_progress(goal, &relevant_activities);
         let progress_percentage = Self::calculate_progress_percentage(goal, current_value);
 
-        let milestones = self.create_milestones(goal).await?;
+        let milestones = self
+            .create_milestones(goal)
+            .await
+            .map_err(|e| AppError::internal(format!("Milestone creation failed: {e}")))?;
         let achieved_milestones = Self::update_milestone_achievements(milestones, current_value);
 
         let completion_date_estimate = Self::estimate_completion_date(goal, progress_percentage);
@@ -543,7 +554,7 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
         &self,
         goal: &Goal,
         progress: &ProgressReport,
-    ) -> Result<Option<GoalAdjustment>> {
+    ) -> AppResult<Option<GoalAdjustment>> {
         let days_elapsed =
             f64::from(i32::try_from((Utc::now() - goal.created_at).num_days()).unwrap_or(i32::MAX));
         let days_total = f64::from(
@@ -595,7 +606,7 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
         Ok(adjustment)
     }
 
-    async fn create_milestones(&self, goal: &Goal) -> Result<Vec<Milestone>> {
+    async fn create_milestones(&self, goal: &Goal) -> AppResult<Vec<Milestone>> {
         let mut milestones = Vec::new();
 
         // Create milestones using predefined percentages and names

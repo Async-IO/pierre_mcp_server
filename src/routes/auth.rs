@@ -185,7 +185,12 @@ impl AuthService {
         let user = User::new(request.email.clone(), password_hash, request.display_name); // Safe: String ownership needed for user model
 
         // Save user to database
-        let user_id = self.data_context.database().create_user(&user).await?;
+        let user_id = self
+            .data_context
+            .database()
+            .create_user(&user)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to create user: {e}")))?;
 
         tracing::info!(
             "User registered successfully: {} ({})",
@@ -246,13 +251,15 @@ impl AuthService {
         self.data_context
             .database()
             .update_last_active(user.id)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to update last active: {e}")))?;
 
         // Generate JWT token using RS256
         let jwt_token = self
             .auth_context
             .auth_manager()
-            .generate_token(&user, self.auth_context.jwks_manager())?;
+            .generate_token(&user, self.auth_context.jwks_manager())
+            .map_err(|e| AppError::auth_invalid(format!("Failed to generate token: {e}")))?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS); // Default 24h expiry
 
@@ -300,14 +307,16 @@ impl AuthService {
             .data_context
             .database()
             .get_user(user_id)
-            .await?
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
             .ok_or_else(|| AppError::not_found("User"))?;
 
         // Generate new JWT token using RS256
         let new_jwt_token = self
             .auth_context
             .auth_manager()
-            .generate_token(&user, self.auth_context.jwks_manager())?;
+            .generate_token(&user, self.auth_context.jwks_manager())
+            .map_err(|e| AppError::auth_invalid(format!("Failed to generate token: {e}")))?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS);
 
@@ -315,7 +324,8 @@ impl AuthService {
         self.data_context
             .database()
             .update_last_active(user.id)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to update last active: {e}")))?;
 
         tracing::info!("Token refreshed successfully for user: {}", user.id);
 
@@ -480,14 +490,18 @@ impl OAuthService {
         provider: &str,
     ) -> AppResult<(crate::models::User, String)> {
         let database = self.data.database();
-        let user = database.get_user(user_id).await?.ok_or_else(|| {
-            tracing::error!(
-                "OAuth callback failed: User not found - user_id: {}, provider: {}",
-                user_id,
-                provider
-            );
-            AppError::not_found("User")
-        })?;
+        let user = database
+            .get_user(user_id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
+            .ok_or_else(|| {
+                tracing::error!(
+                    "OAuth callback failed: User not found - user_id: {}, provider: {}",
+                    user_id,
+                    provider
+                );
+                AppError::not_found("User")
+            })?;
 
         let tenant_id =
             user.tenant_id
@@ -622,7 +636,8 @@ impl OAuthService {
         self.data
             .database()
             .upsert_user_oauth_token(&user_oauth_token)
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to upsert OAuth token: {e}")))?;
         Ok(expires_at)
     }
 
@@ -644,7 +659,8 @@ impl OAuthService {
                 "OAuth authorization completed successfully",
                 Some(&expires_at.to_rfc3339()),
             )
-            .await?;
+            .await
+            .map_err(|e| AppError::database(format!("Failed to store OAuth notification: {e}")))?;
 
         tracing::info!(
             "Created OAuth completion notification {} for user {} provider {}",
@@ -748,7 +764,8 @@ impl OAuthService {
                     .data
                     .database()
                     .get_user(user_id)
-                    .await?
+                    .await
+                    .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
                     .ok_or_else(|| AppError::not_found("User"))?;
                 let tenant_id = user.tenant_id.as_deref().unwrap_or("default");
 
@@ -756,7 +773,10 @@ impl OAuthService {
                 self.data
                     .database()
                     .delete_user_oauth_token(user_id, tenant_id, provider)
-                    .await?;
+                    .await
+                    .map_err(|e| {
+                        AppError::database(format!("Failed to delete OAuth token: {e}"))
+                    })?;
 
                 tracing::info!("Disconnected {} for user {}", provider, user_id);
 
@@ -789,7 +809,10 @@ impl OAuthService {
             .data
             .database()
             .get_tenant_oauth_credentials(tenant_id, provider)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to get tenant OAuth credentials: {e}"))
+            })?;
 
         let state = format!("{}:{}", user_id, uuid::Uuid::new_v4());
         let base_url = format!("http://localhost:{}", self.config.config().http_port);
@@ -895,7 +918,12 @@ impl OAuthService {
         tracing::debug!("Getting OAuth connection status for user {}", user_id);
 
         // Get all OAuth tokens for the user from database
-        let tokens = self.data.database().get_user_oauth_tokens(user_id).await?;
+        let tokens = self
+            .data
+            .database()
+            .get_user_oauth_tokens(user_id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user OAuth tokens: {e}")))?;
 
         // Create a set of connected providers
         let mut providers_seen = std::collections::HashSet::new();

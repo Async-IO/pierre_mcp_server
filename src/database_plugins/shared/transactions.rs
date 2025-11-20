@@ -7,7 +7,7 @@
 //! Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 //! Copyright ©2025 Async-IO.org
 
-use anyhow::Result;
+use crate::errors::AppResult;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -56,10 +56,10 @@ use tokio::time::sleep;
 /// - OAuth token updates (same user, multiple devices)
 /// - A2A task status updates (worker contention)
 /// - `SQLite` write operations under load
-pub async fn retry_transaction<F, Fut, T>(mut f: F, max_retries: u32) -> Result<T>
+pub async fn retry_transaction<F, Fut, T>(mut f: F, max_retries: u32) -> AppResult<T>
 where
     F: FnMut() -> Fut,
-    Fut: std::future::Future<Output = Result<T>>,
+    Fut: std::future::Future<Output = AppResult<T>>,
 {
     let mut attempts = 0;
     loop {

@@ -32,7 +32,8 @@ use bcrypt::{hash, DEFAULT_COST};
 use clap::{Parser, Subcommand};
 use pierre_mcp_server::{
     admin::models::{CreateAdminTokenRequest, GeneratedAdminToken},
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::factory::Database,
+    database_plugins::DatabaseProvider,
     errors::AppError,
 };
 use std::env;

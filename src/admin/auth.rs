@@ -16,8 +16,7 @@ use crate::admin::{
     models::{AdminPermission, AdminTokenUsage, ValidatedAdminToken},
 };
 use crate::database_plugins::{factory::Database, DatabaseProvider};
-use crate::errors::AppError;
-use anyhow::{Context, Result};
+use crate::errors::{AppError, AppResult};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::info;
@@ -71,7 +70,7 @@ impl AdminAuthService {
         token: &str,
         required_permission: AdminPermission,
         ip_address: Option<&str>,
-    ) -> Result<ValidatedAdminToken> {
+    ) -> AppResult<ValidatedAdminToken> {
         self.authenticate(token, ip_address)
             .await
             .and_then(|validated_token| {
@@ -89,8 +88,7 @@ impl AdminAuthService {
                             "Required permission: {:?}, token has: {:?}",
                             required_permission, stored_token.permissions
                         ),
-                    )
-                    .into())
+                    ))
                 }
             })
     }
@@ -111,7 +109,7 @@ impl AdminAuthService {
         &self,
         token: &str,
         ip_address: Option<&str>,
-    ) -> Result<ValidatedAdminToken> {
+    ) -> AppResult<ValidatedAdminToken> {
         // Step 1: Validate JWT structure and extract token ID using RS256
         let validated_token = self.jwt_manager.validate_token(token, &self.jwks_manager)?;
 
@@ -120,28 +118,28 @@ impl AdminAuthService {
             .database
             .get_admin_token_by_id(&validated_token.token_id)
             .await?
-            .with_context(|| {
-                format!(
+            .ok_or_else(|| {
+                AppError::auth_invalid(format!(
                     "Admin token with ID {} not found in database",
                     validated_token.token_id
-                )
+                ))
             })?;
 
         if !stored_token.is_active {
-            return Err(AppError::auth_invalid("Admin token is inactive").into());
+            return Err(AppError::auth_invalid("Admin token is inactive"));
         }
 
         // Step 3: Verify token hash
         if !AdminJwtManager::verify_token_hash(token, &stored_token.token_hash)? {
-            return Err(
-                AppError::auth_invalid("Invalid token hash - token may be tampered with").into(),
-            );
+            return Err(AppError::auth_invalid(
+                "Invalid token hash - token may be tampered with",
+            ));
         }
 
         // Step 4: Check expiration
         if let Some(expires_at) = stored_token.expires_at {
             if chrono::Utc::now() > expires_at {
-                return Err(AppError::auth_expired().into());
+                return Err(AppError::auth_expired());
             }
         }
 
@@ -176,7 +174,7 @@ impl AdminAuthService {
         &self,
         token: &str,
         required_permission: AdminPermission,
-    ) -> Result<ValidatedAdminToken> {
+    ) -> AppResult<ValidatedAdminToken> {
         // Validate token to extract token_id for cache lookup
         let validated_token = self.jwt_manager.validate_token(token, &self.jwks_manager)?;
 
@@ -223,7 +221,7 @@ impl AdminAuthService {
         ip_address: Option<&str>,
         success: bool,
         error_message: Option<&str>,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         let usage = AdminTokenUsage {
             id: None,
             admin_token_id: admin_token_id.to_owned(),

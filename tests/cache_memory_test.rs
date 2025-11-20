@@ -39,7 +39,9 @@ async fn create_test_cache(max_entries: usize, cleanup_interval_secs: u64) -> Re
         cleanup_interval: Duration::from_secs(cleanup_interval_secs),
         enable_background_cleanup: false, // Disable in tests to avoid tokio runtime conflicts
     };
-    Cache::new(config).await
+    Cache::new(config)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create test cache: {e}"))
 }
 
 #[tokio::test]

@@ -6,15 +6,14 @@
 
 use super::Database;
 use crate::api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage, ApiKeyUsageStats};
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Duration, Utc};
 use sqlx::Row;
 use uuid::Uuid;
 
 impl Database {
     /// Create `API` key tables
-    pub(super) async fn migrate_api_keys(&self) -> Result<()> {
+    pub(super) async fn migrate_api_keys(&self) -> AppResult<()> {
         // Create api_keys table
         sqlx::query(
             r"
@@ -38,7 +37,8 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create api_keys table: {e}")))?;
 
         // Create api_key_usage table
         sqlx::query(
@@ -59,28 +59,47 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create api_key_usage table: {e}")))?;
 
         // Create indexes
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to create index idx_api_keys_user_id: {e}"))
+            })?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_api_keys_key_prefix ON api_keys(key_prefix)")
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                AppError::database(format!(
+                    "Failed to create index idx_api_keys_key_prefix: {e}"
+                ))
+            })?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_api_key_usage_key_id ON api_key_usage(api_key_id)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_api_key_usage_key_id: {e}"
+            ))
+        })?;
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_api_key_usage_timestamp ON api_key_usage(timestamp)",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            AppError::database(format!(
+                "Failed to create index idx_api_key_usage_timestamp: {e}"
+            ))
+        })?;
 
         Ok(())
     }
@@ -90,12 +109,16 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn create_api_key_impl(&self, api_key: &ApiKey) -> Result<()> {
+    pub async fn create_api_key_impl(&self, api_key: &ApiKey) -> AppResult<()> {
         // Handle enterprise tier unlimited requests by storing NULL
         let rate_limit_requests = if api_key.tier == crate::api_keys::ApiKeyTier::Enterprise {
             None
         } else {
-            Some(i32::try_from(api_key.rate_limit_requests)?)
+            Some(i32::try_from(api_key.rate_limit_requests).map_err(|e| {
+                AppError::internal(format!(
+                    "Integer conversion failed for rate_limit_requests: {e}"
+                ))
+            })?)
         };
 
         sqlx::query(
@@ -117,12 +140,19 @@ impl Database {
         .bind(&api_key.key_prefix)
         .bind(api_key.tier.as_str())
         .bind(rate_limit_requests)
-        .bind(i32::try_from(api_key.rate_limit_window_seconds)?)
+        .bind(
+            i32::try_from(api_key.rate_limit_window_seconds).map_err(|e| {
+                AppError::internal(format!(
+                    "Integer conversion failed for rate_limit_window_seconds: {e}"
+                ))
+            })?,
+        )
         .bind(api_key.is_active)
         .bind(api_key.expires_at)
         .bind(api_key.created_at)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create API key: {e}")))?;
 
         Ok(())
     }
@@ -136,7 +166,7 @@ impl Database {
         &self,
         key_prefix: &str,
         key_hash: &str,
-    ) -> Result<Option<ApiKey>> {
+    ) -> AppResult<Option<ApiKey>> {
         let row = sqlx::query(
             r"
             SELECT * FROM api_keys
@@ -146,7 +176,8 @@ impl Database {
         .bind(key_prefix)
         .bind(key_hash)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get API key by prefix: {e}")))?;
 
         row.as_ref().map(Self::row_to_api_key).transpose()
     }
@@ -156,7 +187,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn get_user_api_keys_impl(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
+    pub async fn get_user_api_keys_impl(&self, user_id: Uuid) -> AppResult<Vec<ApiKey>> {
         let rows = sqlx::query(
             r"
             SELECT * FROM api_keys
@@ -166,7 +197,8 @@ impl Database {
         )
         .bind(user_id.to_string())
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get user API keys: {e}")))?;
 
         rows.iter().map(Self::row_to_api_key).collect()
     }
@@ -176,7 +208,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn update_api_key_last_used_impl(&self, api_key_id: &str) -> Result<()> {
+    pub async fn update_api_key_last_used_impl(&self, api_key_id: &str) -> AppResult<()> {
         sqlx::query(
             r"
             UPDATE api_keys
@@ -186,7 +218,8 @@ impl Database {
         )
         .bind(api_key_id)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update API key last used: {e}")))?;
 
         Ok(())
     }
@@ -196,7 +229,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn deactivate_api_key_impl(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
+    pub async fn deactivate_api_key_impl(&self, api_key_id: &str, user_id: Uuid) -> AppResult<()> {
         sqlx::query(
             r"
             UPDATE api_keys
@@ -207,7 +240,8 @@ impl Database {
         .bind(api_key_id)
         .bind(user_id.to_string())
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to deactivate API key: {e}")))?;
 
         // Idempotent operation - don't error if key doesn't exist
         Ok(())
@@ -218,7 +252,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn get_api_key_by_id_impl(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
+    pub async fn get_api_key_by_id_impl(&self, api_key_id: &str) -> AppResult<Option<ApiKey>> {
         let row = sqlx::query(
             r"
             SELECT * FROM api_keys WHERE id = $1
@@ -226,7 +260,8 @@ impl Database {
         )
         .bind(api_key_id)
         .fetch_optional(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get API key by ID: {e}")))?;
 
         row.as_ref().map(Self::row_to_api_key).transpose()
     }
@@ -243,7 +278,7 @@ impl Database {
         is_active: Option<bool>,
         limit: i32,
         offset: i32,
-    ) -> Result<Vec<ApiKey>> {
+    ) -> AppResult<Vec<ApiKey>> {
         let mut query = String::from("SELECT * FROM api_keys WHERE 1=1");
         let mut bind_values = vec![];
 
@@ -270,7 +305,10 @@ impl Database {
         }
         sql_query = sql_query.bind(limit).bind(offset);
 
-        let rows = sql_query.fetch_all(&self.pool).await?;
+        let rows = sql_query
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get filtered API keys: {e}")))?;
 
         rows.iter().map(Self::row_to_api_key).collect()
     }
@@ -280,7 +318,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn cleanup_expired_api_keys_impl(&self) -> Result<u64> {
+    pub async fn cleanup_expired_api_keys_impl(&self) -> AppResult<u64> {
         let result = sqlx::query(
             r"
             UPDATE api_keys
@@ -291,7 +329,8 @@ impl Database {
             ",
         )
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to cleanup expired API keys: {e}")))?;
 
         Ok(result.rows_affected())
     }
@@ -301,7 +340,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn get_expired_api_keys_impl(&self) -> Result<Vec<ApiKey>> {
+    pub async fn get_expired_api_keys_impl(&self) -> AppResult<Vec<ApiKey>> {
         let rows = sqlx::query(
             r"
             SELECT * FROM api_keys
@@ -311,7 +350,8 @@ impl Database {
             ",
         )
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get expired API keys: {e}")))?;
 
         rows.iter().map(Self::row_to_api_key).collect()
     }
@@ -321,7 +361,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    pub async fn record_api_key_usage_impl(&self, usage: &ApiKeyUsage) -> Result<()> {
+    pub async fn record_api_key_usage_impl(&self, usage: &ApiKeyUsage) -> AppResult<()> {
         sqlx::query(
             r"
             INSERT INTO api_key_usage (
@@ -335,13 +375,44 @@ impl Database {
         .bind(usage.timestamp)
         .bind(&usage.tool_name)
         .bind(i32::from(usage.status_code))
-        .bind(usage.response_time_ms.map(i32::try_from).transpose()?)
-        .bind(usage.request_size_bytes.map(i32::try_from).transpose()?)
-        .bind(usage.response_size_bytes.map(i32::try_from).transpose()?)
+        .bind(
+            usage
+                .response_time_ms
+                .map(i32::try_from)
+                .transpose()
+                .map_err(|e| {
+                    AppError::internal(format!(
+                        "Integer conversion failed for response_time_ms: {e}"
+                    ))
+                })?,
+        )
+        .bind(
+            usage
+                .request_size_bytes
+                .map(i32::try_from)
+                .transpose()
+                .map_err(|e| {
+                    AppError::internal(format!(
+                        "Integer conversion failed for request_size_bytes: {e}"
+                    ))
+                })?,
+        )
+        .bind(
+            usage
+                .response_size_bytes
+                .map(i32::try_from)
+                .transpose()
+                .map_err(|e| {
+                    AppError::internal(format!(
+                        "Integer conversion failed for response_size_bytes: {e}"
+                    ))
+                })?,
+        )
         .bind(&usage.ip_address)
         .bind(&usage.user_agent)
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to record API key usage: {e}")))?;
 
         Ok(())
     }
@@ -351,7 +422,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database operation fails or the API key is not found
-    pub async fn get_api_key_current_usage_impl(&self, api_key_id: &str) -> Result<u32> {
+    pub async fn get_api_key_current_usage_impl(&self, api_key_id: &str) -> AppResult<u32> {
         // Get the API key to determine its rate limit window
         let api_key = self
             .get_api_key_by_id(api_key_id)
@@ -370,9 +441,12 @@ impl Database {
         .bind(api_key_id)
         .bind(window_start)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get API key current usage: {e}")))?;
 
-        Ok(u32::try_from(count)?)
+        u32::try_from(count).map_err(|e| {
+            AppError::internal(format!("Integer conversion failed for usage count: {e}"))
+        })
     }
 
     /// Get `API` key usage statistics
@@ -385,7 +459,7 @@ impl Database {
         api_key_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
-    ) -> Result<ApiKeyUsageStats> {
+    ) -> AppResult<ApiKeyUsageStats> {
         let stats = sqlx::query(
             r"
             SELECT 
@@ -404,7 +478,8 @@ impl Database {
         .bind(start_date)
         .bind(end_date)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get API key usage stats: {e}")))?;
 
         let total_requests: i32 = stats.get(0);
         let successful_requests: i32 = stats.get(1);
@@ -428,7 +503,8 @@ impl Database {
         .bind(start_date)
         .bind(end_date)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get API key tool usage stats: {e}")))?;
 
         let mut tool_usage = serde_json::Map::new();
         for row in tool_usage_stats {
@@ -473,29 +549,46 @@ impl Database {
             api_key_id: api_key_id.to_owned(),
             period_start: start_date,
             period_end: end_date,
-            total_requests: u32::try_from(total_requests)?,
-            successful_requests: u32::try_from(successful_requests)?,
-            failed_requests: u32::try_from(failed_requests)?,
+            total_requests: u32::try_from(total_requests).map_err(|e| {
+                AppError::internal(format!("Integer conversion failed for total_requests: {e}"))
+            })?,
+            successful_requests: u32::try_from(successful_requests).map_err(|e| {
+                AppError::internal(format!(
+                    "Integer conversion failed for successful_requests: {e}"
+                ))
+            })?,
+            failed_requests: u32::try_from(failed_requests).map_err(|e| {
+                AppError::internal(format!(
+                    "Integer conversion failed for failed_requests: {e}"
+                ))
+            })?,
             total_response_time_ms: total_time,
             tool_usage: serde_json::Value::Object(tool_usage),
         })
     }
 
     /// Convert database row to `ApiKey`
-    fn row_to_api_key(row: &sqlx::sqlite::SqliteRow) -> Result<ApiKey> {
+    fn row_to_api_key(row: &sqlx::sqlite::SqliteRow) -> AppResult<ApiKey> {
         let tier_str: String = row.get("tier");
-        let tier = tier_str.parse::<ApiKeyTier>()?;
+        let tier = tier_str
+            .parse::<ApiKeyTier>()
+            .map_err(|e| AppError::internal(format!("Failed to parse tier: {e}")))?;
 
         // Handle enterprise tier with unlimited requests (stored as NULL)
         let rate_limit_requests = if tier == crate::api_keys::ApiKeyTier::Enterprise {
             u32::MAX // Unlimited for enterprise
         } else {
-            u32::try_from(row.get::<i32, _>("rate_limit_requests"))?
+            u32::try_from(row.get::<i32, _>("rate_limit_requests")).map_err(|e| {
+                AppError::internal(format!(
+                    "Integer conversion failed for rate_limit_requests: {e}"
+                ))
+            })?
         };
 
         Ok(ApiKey {
             id: row.get("id"),
-            user_id: Uuid::parse_str(row.get::<String, _>("user_id").as_str())?,
+            user_id: Uuid::parse_str(row.get::<String, _>("user_id").as_str())
+                .map_err(|e| AppError::internal(format!("Failed to parse user_id UUID: {e}")))?,
             name: row.get("name"),
             description: row.get("description"),
             key_hash: row.get("key_hash"),
@@ -504,7 +597,12 @@ impl Database {
             rate_limit_requests,
             rate_limit_window_seconds: u32::try_from(
                 row.get::<i32, _>("rate_limit_window_seconds"),
-            )?,
+            )
+            .map_err(|e| {
+                AppError::internal(format!(
+                    "Integer conversion failed for rate_limit_window_seconds: {e}"
+                ))
+            })?,
             is_active: row.get("is_active"),
             expires_at: row.get("expires_at"),
             last_used_at: row.get("last_used_at"),
@@ -517,7 +615,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
+    pub async fn create_api_key(&self, api_key: &ApiKey) -> AppResult<()> {
         self.create_api_key_impl(api_key).await
     }
 
@@ -529,7 +627,7 @@ impl Database {
         &self,
         key_prefix: &str,
         key_hash: &str,
-    ) -> Result<Option<ApiKey>> {
+    ) -> AppResult<Option<ApiKey>> {
         self.get_api_key_by_prefix_impl(key_prefix, key_hash).await
     }
 
@@ -537,7 +635,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
+    pub async fn get_user_api_keys(&self, user_id: Uuid) -> AppResult<Vec<ApiKey>> {
         self.get_user_api_keys_impl(user_id).await
     }
 
@@ -545,7 +643,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
+    pub async fn update_api_key_last_used(&self, api_key_id: &str) -> AppResult<()> {
         self.update_api_key_last_used_impl(api_key_id).await
     }
 
@@ -553,7 +651,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
+    pub async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> AppResult<()> {
         self.deactivate_api_key_impl(api_key_id, user_id).await
     }
 
@@ -561,7 +659,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
+    pub async fn get_api_key_by_id(&self, api_key_id: &str) -> AppResult<Option<ApiKey>> {
         self.get_api_key_by_id_impl(api_key_id).await
     }
 
@@ -569,7 +667,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn cleanup_expired_api_keys(&self) -> Result<u64> {
+    pub async fn cleanup_expired_api_keys(&self) -> AppResult<u64> {
         self.cleanup_expired_api_keys_impl().await
     }
 
@@ -577,7 +675,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>> {
+    pub async fn get_expired_api_keys(&self) -> AppResult<Vec<ApiKey>> {
         self.get_expired_api_keys_impl().await
     }
 
@@ -585,7 +683,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
+    pub async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> AppResult<()> {
         self.record_api_key_usage_impl(usage).await
     }
 
@@ -593,7 +691,7 @@ impl Database {
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
+    pub async fn get_api_key_current_usage(&self, api_key_id: &str) -> AppResult<u32> {
         self.get_api_key_current_usage_impl(api_key_id).await
     }
 }

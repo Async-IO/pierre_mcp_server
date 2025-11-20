@@ -231,15 +231,20 @@ fn parse_nutrition_params(
 /// Returns `ProtocolError` if required parameters are missing or invalid
 #[must_use]
 pub fn handle_calculate_daily_nutrition(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    _executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "handle_calculate_daily_nutrition cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         // Executor parameter required by trait signature but unused (config accessed via global singleton)
-        #[allow(clippy::let_unit_value)]
-        let () = {
-            let _ = executor;
-        };
 
         // Parse user parameters
         let params = match parse_nutrition_params(&request) {
@@ -309,41 +314,49 @@ pub fn handle_calculate_daily_nutrition(
 /// Returns `ProtocolError` if required parameters are missing or invalid
 #[must_use]
 pub fn handle_get_nutrient_timing(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    _executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "handle_get_nutrient_timing cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         // Executor parameter required by trait signature but unused (config accessed via global singleton)
-        #[allow(clippy::let_unit_value)]
-        let () = {
-            let _ = executor;
-        };
 
         let weight_kg = request
             .parameters
             .get("weight_kg")
             .and_then(Value::as_f64)
-            .ok_or_else(|| ProtocolError::InvalidRequest {
-                protocol: crate::protocols::ProtocolType::MCP,
-                reason: "Missing or invalid required parameter: weight_kg".to_owned(),
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest(
+                    "Missing or invalid required parameter: weight_kg".to_owned(),
+                )
             })?;
 
         let daily_protein_g = request
             .parameters
             .get("daily_protein_g")
             .and_then(Value::as_f64)
-            .ok_or_else(|| ProtocolError::InvalidRequest {
-                protocol: crate::protocols::ProtocolType::MCP,
-                reason: "Missing or invalid required parameter: daily_protein_g".to_owned(),
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest(
+                    "Missing or invalid required parameter: daily_protein_g".to_owned(),
+                )
             })?;
 
         let workout_intensity_str = request
             .parameters
             .get("workout_intensity")
             .and_then(Value::as_str)
-            .ok_or_else(|| ProtocolError::InvalidRequest {
-                protocol: crate::protocols::ProtocolType::MCP,
-                reason: "Missing or invalid required parameter: workout_intensity".to_owned(),
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest(
+                    "Missing or invalid required parameter: workout_intensity".to_owned(),
+                )
             })?;
 
         let workout_intensity = match workout_intensity_str.to_lowercase().as_str() {
@@ -429,13 +442,23 @@ pub fn handle_search_food(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "handle_search_food cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         let query = request
             .parameters
             .get("query")
             .and_then(Value::as_str)
-            .ok_or_else(|| ProtocolError::InvalidRequest {
-                protocol: crate::protocols::ProtocolType::MCP,
-                reason: "Missing or invalid required parameter: query".to_owned(),
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest(
+                    "Missing or invalid required parameter: query".to_owned(),
+                )
             })?;
 
         let page_size_u64 = request
@@ -526,13 +549,23 @@ pub fn handle_get_food_details(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Check cancellation at start
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "handle_get_food_details cancelled by user".to_owned(),
+                ));
+            }
+        }
+
         let fdc_id = request
             .parameters
             .get("fdc_id")
             .and_then(Value::as_u64)
-            .ok_or_else(|| ProtocolError::InvalidRequest {
-                protocol: crate::protocols::ProtocolType::MCP,
-                reason: "Missing or invalid required parameter: fdc_id".to_owned(),
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest(
+                    "Missing or invalid required parameter: fdc_id".to_owned(),
+                )
             })?;
 
         // Get food details using USDA API
@@ -629,9 +662,10 @@ pub fn handle_analyze_meal_nutrition(
             .parameters
             .get("foods")
             .and_then(Value::as_array)
-            .ok_or_else(|| ProtocolError::InvalidRequest {
-                protocol: crate::protocols::ProtocolType::MCP,
-                reason: "Missing or invalid required parameter: foods (must be array)".to_owned(),
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest(
+                    "Missing or invalid required parameter: foods (must be array)".to_owned(),
+                )
             })?;
 
         // Parse food items
@@ -640,17 +674,15 @@ pub fn handle_analyze_meal_nutrition(
             let fdc_id = food_item
                 .get("fdc_id")
                 .and_then(Value::as_u64)
-                .ok_or_else(|| ProtocolError::InvalidRequest {
-                    protocol: crate::protocols::ProtocolType::MCP,
-                    reason: "Each food must have fdc_id".to_owned(),
+                .ok_or_else(|| {
+                    ProtocolError::InvalidRequest("Each food must have fdc_id".to_owned())
                 })?;
 
             let grams = food_item
                 .get("grams")
                 .and_then(Value::as_f64)
-                .ok_or_else(|| ProtocolError::InvalidRequest {
-                    protocol: crate::protocols::ProtocolType::MCP,
-                    reason: "Each food must have grams".to_owned(),
+                .ok_or_else(|| {
+                    ProtocolError::InvalidRequest("Each food must have grams".to_owned())
                 })?;
 
             meal_foods.push((fdc_id, grams));
