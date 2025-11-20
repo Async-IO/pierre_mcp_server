@@ -28,39 +28,6 @@ use crate::errors::AppError;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-/// Sleep duration thresholds based on NSF guidelines (hours)
-///
-/// Reference: Watson et al. (2015) - Recommended Amount of Sleep for a Healthy Adult
-///
-/// Module kept for backward compatibility - use `SleepRecoveryConfig` for actual values
-#[deprecated(
-    since = "0.3.0",
-    note = "Use IntelligenceConfig::global().sleep_recovery instead"
-)]
-pub mod sleep_duration {}
-
-/// Sleep stage percentage thresholds based on AASM guidelines
-///
-/// Reference: Hirshkowitz et al. (2015) - NSF sleep time duration recommendations
-///
-/// Module kept for backward compatibility - use `SleepRecoveryConfig` for actual values
-#[deprecated(
-    since = "0.3.0",
-    note = "Use IntelligenceConfig::global().sleep_recovery instead"
-)]
-pub mod sleep_stages {}
-
-/// HRV (Heart Rate Variability) thresholds for recovery assessment
-///
-/// Reference: Shaffer & Ginsberg (2017), Plews et al. (2013)
-///
-/// Module kept for backward compatibility - use `SleepRecoveryConfig` for actual values
-#[deprecated(
-    since = "0.3.0",
-    note = "Use IntelligenceConfig::global().sleep_recovery instead"
-)]
-pub mod hrv_thresholds {}
-
 /// Sleep quality score result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SleepQualityScore {

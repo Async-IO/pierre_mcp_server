@@ -334,7 +334,13 @@ async fn test_sdk_user_registration_flow() -> Result<()> {
         .await?;
 
     let login_response = auth_routes.login(login_request).await?;
-    assert!(!login_response.jwt_token.is_empty());
+    assert!(
+        login_response
+            .jwt_token
+            .as_ref()
+            .is_some_and(|t| !t.is_empty()),
+        "JWT token should be present and non-empty"
+    );
     assert_eq!(login_response.user.email, "sdk_test@example.com");
 
     Ok(())
@@ -504,7 +510,13 @@ async fn test_sdk_complete_onboarding_simulation() -> Result<()> {
     };
 
     let login_response = auth_routes.login(login_request).await?;
-    assert!(!login_response.jwt_token.is_empty());
+    assert!(
+        login_response
+            .jwt_token
+            .as_ref()
+            .is_some_and(|t| !t.is_empty()),
+        "JWT token should be present and non-empty"
+    );
 
     // Step 4: Test OAuth URL generation (uses env vars for client credentials)
 

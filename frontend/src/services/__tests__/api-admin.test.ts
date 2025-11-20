@@ -461,17 +461,10 @@ describe('API Service - Admin Functionality', () => {
 
       const result = await apiService.refreshToken();
 
-      expect(mockedAxios.post).toHaveBeenCalledWith('/api/auth/refresh', {
-        token: 'old.jwt.token',
-        user_id: 'user-1'
-      }, {
-        headers: {
-          'Authorization': 'Bearer old.jwt.token'
-        }
-      });
+      // With cookie-only auth, no request body needed (JWT comes from httpOnly cookie)
+      expect(mockedAxios.post).toHaveBeenCalledWith('/api/auth/refresh');
 
-      expect(result).toBe('new.jwt.token');
-      expect(localStorageMock.setItem).toHaveBeenCalledWith('auth_token', 'new.jwt.token');
+      expect(result).toEqual(mockRefreshResponse);
     });
 
     it('should handle token refresh failure', async () => {

@@ -41,6 +41,62 @@ impl McpAuthMiddleware {
         }
     }
 
+    /// Authenticate request using headers (supports cookies and Authorization header)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication credentials missing (no cookie or header)
+    /// - JWT token validation fails
+    /// - API key validation fails
+    /// - Database queries fail
+    /// - Rate limit calculations fail
+    /// - User lookup fails
+    #[tracing::instrument(
+        skip(self, headers),
+        fields(
+            auth_method = tracing::field::Empty,
+            user_id = tracing::field::Empty,
+            tenant_id = tracing::field::Empty,
+            success = tracing::field::Empty,
+        )
+    )]
+    pub async fn authenticate_request_with_headers(
+        &self,
+        headers: &axum::http::HeaderMap,
+    ) -> AppResult<AuthResult> {
+        tracing::debug!("=== AUTH MIDDLEWARE AUTHENTICATE_REQUEST_WITH_HEADERS START ===");
+
+        // Try cookie authentication first (preferred for web clients)
+        if let Some(jwt_token) = crate::security::cookies::get_cookie_value(headers, "auth_token") {
+            tracing::debug!("Found JWT in httpOnly cookie, attempting authentication");
+            tracing::Span::current().record("auth_method", "JWT_COOKIE");
+            match self.authenticate_jwt_token(&jwt_token).await {
+                Ok(result) => {
+                    tracing::Span::current()
+                        .record("user_id", result.user_id.to_string())
+                        .record("tenant_id", result.user_id.to_string())
+                        .record("success", true);
+                    tracing::info!(
+                        "JWT cookie authentication successful for user: {}",
+                        result.user_id
+                    );
+                    return Ok(result);
+                }
+                Err(e) => {
+                    tracing::Span::current().record("success", false);
+                    tracing::warn!("JWT cookie authentication failed: {}", e);
+                    return Err(e);
+                }
+            }
+        }
+
+        // Fall back to Authorization header for API clients
+        let auth_header = headers.get("authorization").and_then(|h| h.to_str().ok());
+
+        self.authenticate_request(auth_header).await
+    }
+
     /// Authenticate `MCP` request and extract user context with rate limiting
     ///
     /// # Errors

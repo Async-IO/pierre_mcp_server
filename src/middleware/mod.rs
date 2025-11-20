@@ -8,6 +8,8 @@
 pub mod auth;
 /// CORS middleware configuration
 pub mod cors;
+/// CSRF validation middleware
+pub mod csrf;
 /// Rate limiting middleware and utilities
 pub mod rate_limiting;
 /// PII redaction and sensitive data masking
@@ -21,6 +23,8 @@ pub mod tracing;
 
 /// MCP authentication middleware
 pub use auth::McpAuthMiddleware;
+/// CSRF validation middleware
+pub use csrf::CsrfMiddleware;
 
 // CORS middleware
 

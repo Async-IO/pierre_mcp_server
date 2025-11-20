@@ -6,24 +6,29 @@ describe('API Service', () => {
     localStorage.clear()
   })
 
-  describe('Token Management', () => {
-    it('should manage tokens in localStorage', () => {
-      expect(apiService.getToken()).toBeNull()
-      
-      apiService.setToken('test-token')
-      expect(apiService.getToken()).toBe('test-token')
-      expect(localStorage.getItem('auth_token')).toBe('test-token')
-      
-      apiService.clearToken()
-      expect(apiService.getToken()).toBeNull()
-      expect(localStorage.getItem('auth_token')).toBeNull()
+  describe('CSRF Token Management', () => {
+    it('should manage CSRF tokens in memory', () => {
+      expect(apiService.getCsrfToken()).toBeNull()
+
+      apiService.setCsrfToken('test-csrf-token')
+      expect(apiService.getCsrfToken()).toBe('test-csrf-token')
+
+      apiService.clearCsrfToken()
+      expect(apiService.getCsrfToken()).toBeNull()
     })
 
-    it('should set auth header correctly', () => {
-      apiService.setAuthToken('test-token')
-      // Note: In a real test, we'd check if axios headers were set
-      // For now, we just verify the method exists and doesn't throw
-      expect(() => apiService.setAuthToken(null)).not.toThrow()
+    it('should manage user info in localStorage', () => {
+      const testUser = { id: 'user-123', email: 'test@example.com', display_name: 'Test User' }
+
+      expect(apiService.getUser()).toBeNull()
+
+      apiService.setUser(testUser)
+      expect(apiService.getUser()).toEqual(testUser)
+      expect(localStorage.getItem('user')).toBe(JSON.stringify(testUser))
+
+      apiService.clearUser()
+      expect(apiService.getUser()).toBeNull()
+      expect(localStorage.getItem('user')).toBeNull()
     })
   })
 

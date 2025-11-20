@@ -759,7 +759,7 @@ async fn test_login_with_correct_credentials() {
     assert!(result.is_ok());
 
     let response = result.unwrap();
-    assert!(!response.jwt_token.is_empty());
+    assert!(response.jwt_token.as_ref().is_some_and(|t| !t.is_empty()));
     assert_eq!(response.user.email, "login_test@example.com");
     assert_eq!(response.user.display_name, Some("Login Test".to_owned()));
 }

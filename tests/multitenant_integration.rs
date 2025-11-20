@@ -390,13 +390,22 @@ async fn test_multitenant_auth_flow() -> Result<()> {
     };
 
     let login_response = auth_routes.login(login_request).await?;
-    assert!(!login_response.jwt_token.is_empty());
+    assert!(
+        login_response
+            .jwt_token
+            .as_ref()
+            .is_some_and(|t| !t.is_empty()),
+        "JWT token should be present and non-empty"
+    );
     assert_eq!(login_response.user.email, "test@multitenant.com");
     assert_eq!(login_response.user.user_id, register_response.user_id);
 
     // Test JWT token validation using the same JWKS manager that generated the token
-    let claims =
-        auth_manager.validate_token(&login_response.jwt_token, &server_resources.jwks_manager)?;
+    let jwt_token = login_response
+        .jwt_token
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("JWT token not found in response"))?;
+    let claims = auth_manager.validate_token(jwt_token, &server_resources.jwks_manager)?;
     assert_eq!(claims.email, "test@multitenant.com");
     assert_eq!(claims.sub, register_response.user_id);
 
