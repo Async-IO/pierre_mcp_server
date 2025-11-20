@@ -81,8 +81,8 @@ pub fn handle_get_connection_status(
                 }),
             })
         } else {
-            // Multi-provider mode - check all supported providers
-            let providers_to_check = [oauth_providers::STRAVA, "fitbit"];
+            // Multi-provider mode - check all supported providers from registry
+            let providers_to_check = executor.resources.provider_registry.supported_providers();
             let mut providers_status = serde_json::Map::new();
 
             for provider in providers_to_check {
@@ -220,9 +220,12 @@ pub fn handle_disconnect_provider(
     })
 }
 
-/// Validate that provider is supported
-fn is_provider_supported(provider: &str) -> bool {
-    matches!(provider, oauth_providers::STRAVA | oauth_providers::FITBIT)
+/// Validate that provider is supported using provider registry
+fn is_provider_supported(
+    provider: &str,
+    provider_registry: &crate::providers::ProviderRegistry,
+) -> bool {
+    provider_registry.is_supported(provider)
 }
 
 /// Build successful OAuth connection response
@@ -329,9 +332,14 @@ pub fn handle_connect_provider(
             .and_then(serde_json::Value::as_str)
             .unwrap_or(oauth_providers::STRAVA);
 
-        if !is_provider_supported(provider) {
+        if !is_provider_supported(provider, &executor.resources.provider_registry) {
+            let supported_providers = executor
+                .resources
+                .provider_registry
+                .supported_providers()
+                .join(", ");
             return Ok(connection_error(format!(
-                "Provider '{provider}' is not supported. Supported providers: strava, fitbit"
+                "Provider '{provider}' is not supported. Supported providers: {supported_providers}"
             )));
         }
 
