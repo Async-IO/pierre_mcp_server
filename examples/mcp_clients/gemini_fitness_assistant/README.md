@@ -12,6 +12,8 @@ This demonstrates a **complete open-source AI fitness assistant** using:
 
 Unlike proprietary solutions (Claude Desktop, ChatGPT), this example uses a free, accessible LLM service that anyone can use.
 
+> **Why Python?** This example is written in Python (not Rust) because Google's Gemini SDK is Python-first, making it accessible to 20x more developers than Rust. Python optimizes for learning and rapid prototyping, while Pierre's Rust A2A agents demonstrate production-grade implementations. See [WHY_PYTHON.md](WHY_PYTHON.md) for detailed justification with benchmarks and analysis.
+
 ## TL;DR - Fastest Way to Run
 
 ```bash
