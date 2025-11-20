@@ -1,19 +1,67 @@
 # Pierre MCP Server - Development Environment
 # Copy this to .envrc for local development settings
 
-# Default Provider Configuration
-# Set to "strava" for real OAuth testing, "synthetic" for development without OAuth
+# ============================================================================
+# PROVIDER CONFIGURATION - Pluggable Provider Architecture (Phase 1)
+# ============================================================================
+
+# Default Provider
+# Set which provider to use as default: "strava", "garmin", "synthetic"
+# - "synthetic": Development without OAuth (default if not set)
+# - "strava": Real OAuth testing with Strava
+# - "garmin": Real OAuth testing with Garmin
 export PIERRE_DEFAULT_PROVIDER=strava
 
-# OAuth Provider Configuration (optional - can be set per-tenant via admin API)
+# ----------------------------------------------------------------------------
+# Strava Provider Configuration
+# ----------------------------------------------------------------------------
+# OAuth Credentials (required for Strava OAuth)
+export PIERRE_STRAVA_CLIENT_ID=your-strava-client-id
+export PIERRE_STRAVA_CLIENT_SECRET=your-strava-client-secret
+
+# Advanced: Override default Strava endpoints (optional)
+# Uncomment to customize for testing or proxy scenarios
+# export PIERRE_STRAVA_AUTH_URL=https://www.strava.com/oauth/authorize
+# export PIERRE_STRAVA_TOKEN_URL=https://www.strava.com/oauth/token
+# export PIERRE_STRAVA_API_BASE_URL=https://www.strava.com/api/v3
+# export PIERRE_STRAVA_REVOKE_URL=https://www.strava.com/oauth/deauthorize
+
+# Advanced: Override default scopes (optional)
+# export PIERRE_STRAVA_SCOPES="activity:read_all,profile:read_all"
+
+# Legacy Variables (backward compatible - will be used if PIERRE_* vars not set)
 export STRAVA_CLIENT_ID=your-strava-client-id
 export STRAVA_CLIENT_SECRET=your-strava-client-secret
 export STRAVA_REDIRECT_URI=http://localhost:8080/api/oauth/callback/strava
 
-# Garmin Connect OAuth Configuration
+# ----------------------------------------------------------------------------
+# Garmin Connect Provider Configuration
+# ----------------------------------------------------------------------------
+# OAuth Credentials (required for Garmin OAuth)
+export PIERRE_GARMIN_CLIENT_ID=your-garmin-consumer-key
+export PIERRE_GARMIN_CLIENT_SECRET=your-garmin-consumer-secret
+
+# Advanced: Override default Garmin endpoints (optional)
+# Uncomment to customize for testing or proxy scenarios
+# export PIERRE_GARMIN_AUTH_URL=https://connect.garmin.com/oauthConfirm
+# export PIERRE_GARMIN_TOKEN_URL=https://connectapi.garmin.com/oauth-service/oauth/access_token
+# export PIERRE_GARMIN_API_BASE_URL=https://apis.garmin.com/wellness-api/rest
+# export PIERRE_GARMIN_REVOKE_URL=https://connectapi.garmin.com/oauth-service/oauth/revoke
+
+# Advanced: Override default scopes (optional)
+# export PIERRE_GARMIN_SCOPES="wellness:read,activities:read"
+
+# Legacy Variables (backward compatible - will be used if PIERRE_* vars not set)
 export GARMIN_CLIENT_ID=your-garmin-consumer-key
 export GARMIN_CLIENT_SECRET=your-garmin-consumer-secret
 export GARMIN_REDIRECT_URI=http://localhost:8080/api/oauth/callback/garmin
+
+# ----------------------------------------------------------------------------
+# Synthetic Provider Configuration
+# ----------------------------------------------------------------------------
+# No OAuth credentials needed - synthetic provider works out of the box!
+# Perfect for development, testing, and demos without external API dependencies.
+# Just set PIERRE_DEFAULT_PROVIDER=synthetic (or omit it, as synthetic is the default)
 
 # Bridge OAuth Callback Configuration
 # After provider OAuth completes, server redirects to bridge callback server to trigger focus recovery

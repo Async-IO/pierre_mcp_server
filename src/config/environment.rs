@@ -2076,3 +2076,98 @@ pub fn default_provider() -> String {
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| oauth_providers::SYNTHETIC.to_owned())
 }
+
+/// Provider configuration tuple from environment variables
+///
+/// Returns: (`client_id`, `client_secret`, `auth_url`, `token_url`, `api_base_url`, `revoke_url`, `scopes`)
+type ProviderEnvConfig = (
+    Option<String>,
+    Option<String>,
+    String,
+    String,
+    String,
+    Option<String>,
+    Vec<String>,
+);
+
+/// Load provider-specific configuration from environment variables
+///
+/// Reads provider configuration from `PIERRE_<PROVIDER>_*` environment variables.
+/// Falls back to provided defaults if environment variables are not set.
+///
+/// # Environment Variables
+///
+/// For each provider (e.g., STRAVA, GARMIN):
+/// - `PIERRE_<PROVIDER>_CLIENT_ID` - OAuth client ID (falls back to legacy var)
+/// - `PIERRE_<PROVIDER>_CLIENT_SECRET` - OAuth client secret (falls back to legacy var)
+/// - `PIERRE_<PROVIDER>_AUTH_URL` - OAuth authorization URL (optional)
+/// - `PIERRE_<PROVIDER>_TOKEN_URL` - OAuth token URL (optional)
+/// - `PIERRE_<PROVIDER>_API_BASE_URL` - Provider API base URL (optional)
+/// - `PIERRE_<PROVIDER>_REVOKE_URL` - Token revocation URL (optional)
+/// - `PIERRE_<PROVIDER>_SCOPES` - Comma-separated scopes (optional)
+///
+/// # Examples
+///
+/// ```bash
+/// # Strava configuration
+/// export PIERRE_STRAVA_CLIENT_ID=your_client_id
+/// export PIERRE_STRAVA_CLIENT_SECRET=your_secret
+/// export PIERRE_STRAVA_SCOPES="activity:read_all,profile:read_all"
+///
+/// # Garmin configuration (optional URLs override defaults)
+/// export PIERRE_GARMIN_CLIENT_ID=your_consumer_key
+/// export PIERRE_GARMIN_CLIENT_SECRET=your_consumer_secret
+/// export PIERRE_GARMIN_API_BASE_URL=https://custom-garmin-api.example.com
+/// ```
+#[must_use]
+pub fn load_provider_env_config(
+    provider: &str,
+    default_auth_url: &str,
+    default_token_url: &str,
+    default_api_base_url: &str,
+    default_revoke_url: Option<&str>,
+    default_scopes: &[String],
+) -> ProviderEnvConfig {
+    let provider_upper = provider.to_uppercase();
+
+    // Load client credentials with fallback to legacy env vars (backward compatible)
+    let client_id = env::var(format!("PIERRE_{provider_upper}_CLIENT_ID"))
+        .or_else(|_| env::var(format!("{provider_upper}_CLIENT_ID")))
+        .ok();
+
+    let client_secret = env::var(format!("PIERRE_{provider_upper}_CLIENT_SECRET"))
+        .or_else(|_| env::var(format!("{provider_upper}_CLIENT_SECRET")))
+        .ok();
+
+    // Load URLs with defaults
+    let auth_url = env::var(format!("PIERRE_{provider_upper}_AUTH_URL"))
+        .unwrap_or_else(|_| default_auth_url.to_owned());
+
+    let token_url = env::var(format!("PIERRE_{provider_upper}_TOKEN_URL"))
+        .unwrap_or_else(|_| default_token_url.to_owned());
+
+    let api_base_url = env::var(format!("PIERRE_{provider_upper}_API_BASE_URL"))
+        .unwrap_or_else(|_| default_api_base_url.to_owned());
+
+    let revoke_url = env::var(format!("PIERRE_{provider_upper}_REVOKE_URL"))
+        .ok()
+        .or_else(|| default_revoke_url.map(ToOwned::to_owned));
+
+    // Load scopes with default
+    let scopes = env::var(format!("PIERRE_{provider_upper}_SCOPES"))
+        .ok()
+        .map_or_else(
+            || default_scopes.to_vec(),
+            |s| s.split(',').map(|scope| scope.trim().to_owned()).collect(),
+        );
+
+    (
+        client_id,
+        client_secret,
+        auth_url,
+        token_url,
+        api_base_url,
+        revoke_url,
+        scopes,
+    )
+}

@@ -61,6 +61,9 @@ pub struct ProviderRegistry {
 
 impl ProviderRegistry {
     /// Create a new provider registry with default providers
+    ///
+    /// Providers are configured from environment variables with fallback to hardcoded defaults.
+    /// See `crate::config::environment::load_provider_env_config()` for environment variable format.
     #[must_use]
     pub fn new() -> Self {
         let mut registry = Self {
@@ -68,40 +71,52 @@ impl ProviderRegistry {
             default_configs: HashMap::new(),
         };
 
-        // Register Strava provider
+        // Register Strava provider with environment-based configuration
         registry.register_factory(oauth_providers::STRAVA, Box::new(StravaProviderFactory));
+        let (_client_id, _client_secret, auth_url, token_url, api_base_url, revoke_url, scopes) =
+            crate::config::environment::load_provider_env_config(
+                oauth_providers::STRAVA,
+                "https://www.strava.com/oauth/authorize",
+                "https://www.strava.com/oauth/token",
+                "https://www.strava.com/api/v3",
+                Some("https://www.strava.com/oauth/deauthorize"),
+                &[oauth_providers::STRAVA_DEFAULT_SCOPES.to_owned()],
+            );
         registry.set_default_config(
             oauth_providers::STRAVA,
             ProviderConfig {
                 name: oauth_providers::STRAVA.to_owned(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
-                token_url: "https://www.strava.com/oauth/token".to_owned(),
-                api_base_url: "https://www.strava.com/api/v3".to_owned(),
-                revoke_url: Some("https://www.strava.com/oauth/deauthorize".to_owned()),
-                default_scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
-                    .split(',')
-                    .map(str::to_owned)
-                    .collect(),
+                auth_url,
+                token_url,
+                api_base_url,
+                revoke_url,
+                default_scopes: scopes,
             },
         );
 
-        // Register Garmin provider
+        // Register Garmin provider with environment-based configuration
         registry.register_factory(oauth_providers::GARMIN, Box::new(GarminProviderFactory));
+        let (_client_id, _client_secret, auth_url, token_url, api_base_url, revoke_url, scopes) =
+            crate::config::environment::load_provider_env_config(
+                oauth_providers::GARMIN,
+                "https://connect.garmin.com/oauthConfirm",
+                "https://connectapi.garmin.com/oauth-service/oauth/access_token",
+                "https://apis.garmin.com/wellness-api/rest",
+                Some("https://connectapi.garmin.com/oauth-service/oauth/revoke"),
+                &crate::constants::oauth::GARMIN_DEFAULT_SCOPES
+                    .split(',')
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>(),
+            );
         registry.set_default_config(
             oauth_providers::GARMIN,
             ProviderConfig {
                 name: oauth_providers::GARMIN.to_owned(),
-                auth_url: "https://connect.garmin.com/oauthConfirm".to_owned(),
-                token_url: "https://connectapi.garmin.com/oauth-service/oauth/access_token"
-                    .to_owned(),
-                api_base_url: "https://apis.garmin.com/wellness-api/rest".to_owned(),
-                revoke_url: Some(
-                    "https://connectapi.garmin.com/oauth-service/oauth/revoke".to_owned(),
-                ),
-                default_scopes: crate::constants::oauth::GARMIN_DEFAULT_SCOPES
-                    .split(',')
-                    .map(str::to_owned)
-                    .collect(),
+                auth_url,
+                token_url,
+                api_base_url,
+                revoke_url,
+                default_scopes: scopes,
             },
         );
 
