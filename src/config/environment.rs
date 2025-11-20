@@ -2071,10 +2071,13 @@ fn parse_origins(origins_str: &str) -> Vec<String> {
 #[must_use]
 pub fn default_provider() -> String {
     use crate::constants::oauth_providers;
-    env::var("PIERRE_DEFAULT_PROVIDER")
+    let provider = env::var("PIERRE_DEFAULT_PROVIDER")
         .ok()
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| oauth_providers::SYNTHETIC.to_owned())
+        .unwrap_or_else(|| oauth_providers::SYNTHETIC.to_owned());
+
+    tracing::info!("Default provider configured: {}", provider);
+    provider
 }
 
 /// Provider configuration tuple from environment variables

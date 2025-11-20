@@ -140,6 +140,19 @@ impl ProviderRegistry {
         // Future: Add Fitbit provider when implemented
         // registry.register_factory(oauth_providers::FITBIT, Box::new(FitbitProviderFactory));
 
+        // Log registered providers at startup
+        let providers = registry
+            .supported_providers()
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        tracing::info!(
+            "Provider registry initialized with {} provider(s): [{}]",
+            registry.factories.len(),
+            providers
+        );
+
         registry
     }
 
