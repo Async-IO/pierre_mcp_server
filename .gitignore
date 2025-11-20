@@ -94,3 +94,5 @@ node_modules/
 # MCP Validator (install locally, don't commit)
 /validator/
 /.tools/
+
+.claude/settings.local.json
