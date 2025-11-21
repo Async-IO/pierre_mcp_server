@@ -4,14 +4,8 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-// Allow expect for RwLock poisoning - these are truly exceptional errors indicating
-// serious program bugs (another thread panicked while holding lock). In such cases,
-// propagating the panic is the correct behavior as the program state is compromised.
-#![allow(clippy::expect_used)]
-// Allow missing panics docs - all panics are from RwLock poisoning which is documented above
-#![allow(clippy::missing_panics_doc)]
-// Allow significant drop tightening - RwLock optimization suggestions for development provider
-#![allow(clippy::significant_drop_tightening)]
+// RwLock poisoning errors are converted to ProviderError::ConfigurationError
+// for proper error propagation through the application
 
 //! # Synthetic Fitness Provider
 //!
@@ -126,10 +120,9 @@ impl SyntheticProvider {
     ///
     /// * `activity` - Activity to add
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the internal `RwLock` is poisoned (only occurs if another thread
-    /// panicked while holding the lock, which indicates a serious program error).
+    /// Returns `ProviderError::ConfigurationError` if the internal `RwLock` is poisoned.
     ///
     /// # Examples
     ///
@@ -139,17 +132,25 @@ impl SyntheticProvider {
     /// let provider = SyntheticProvider::new();
     /// // provider.add_activity(activity);
     /// ```
-    pub fn add_activity(&self, activity: Activity) {
+    pub fn add_activity(&self, activity: Activity) -> Result<(), ProviderError> {
         // Lock index first, then activities to prevent deadlock
         self.activity_index
             .write()
-            .expect("Synthetic provider index RwLock poisoned")
+            .map_err(|_| ProviderError::ConfigurationError {
+                provider: oauth_providers::SYNTHETIC.to_owned(),
+                details: "RwLock poisoned: index lock".to_owned(),
+            })?
             .insert(activity.id.clone(), activity.clone());
 
         self.activities
             .write()
-            .expect("Synthetic provider activities RwLock poisoned")
+            .map_err(|_| ProviderError::ConfigurationError {
+                provider: oauth_providers::SYNTHETIC.to_owned(),
+                details: "RwLock poisoned: activities lock".to_owned(),
+            })?
             .push(activity);
+
+        Ok(())
     }
 
     /// Replace all activities with a new set
@@ -158,29 +159,39 @@ impl SyntheticProvider {
     ///
     /// * `new_activities` - New activities to replace existing ones
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the internal `RwLock` is poisoned (only occurs if another thread
-    /// panicked while holding the lock, which indicates a serious program error).
-    pub fn set_activities(&self, new_activities: Vec<Activity>) {
+    /// Returns `ProviderError::ConfigurationError` if the internal `RwLock` is poisoned.
+    pub fn set_activities(&self, new_activities: Vec<Activity>) -> Result<(), ProviderError> {
         // Lock index first, then activities to prevent deadlock
-        let mut index = self
-            .activity_index
-            .write()
-            .expect("Synthetic provider index RwLock poisoned");
+        {
+            let mut index =
+                self.activity_index
+                    .write()
+                    .map_err(|_| ProviderError::ConfigurationError {
+                        provider: oauth_providers::SYNTHETIC.to_owned(),
+                        details: "RwLock poisoned: index lock".to_owned(),
+                    })?;
 
-        index.clear();
-        for activity in &new_activities {
-            index.insert(activity.id.clone(), activity.clone());
-        }
-        drop(index); // Release index lock before acquiring activities lock
+            index.clear();
+            for activity in &new_activities {
+                index.insert(activity.id.clone(), activity.clone());
+            }
+        } // Drop index lock here
 
-        let mut activities = self
-            .activities
-            .write()
-            .expect("Synthetic provider activities RwLock poisoned");
+        {
+            let mut activities =
+                self.activities
+                    .write()
+                    .map_err(|_| ProviderError::ConfigurationError {
+                        provider: oauth_providers::SYNTHETIC.to_owned(),
+                        details: "RwLock poisoned: activities lock".to_owned(),
+                    })?;
 
-        *activities = new_activities;
+            *activities = new_activities;
+        } // Drop activities lock here
+
+        Ok(())
     }
 
     /// Get total number of activities
@@ -188,47 +199,74 @@ impl SyntheticProvider {
     /// # Returns
     ///
     /// Number of activities currently loaded in the provider
-    #[must_use]
-    pub fn activity_count(&self) -> usize {
-        self.activities
+    ///
+    /// # Errors
+    ///
+    /// Returns `ProviderError::ConfigurationError` if the internal `RwLock` is poisoned.
+    pub fn activity_count(&self) -> Result<usize, ProviderError> {
+        Ok(self
+            .activities
             .read()
-            .expect("Synthetic provider activities RwLock poisoned")
-            .len()
+            .map_err(|_| ProviderError::ConfigurationError {
+                provider: oauth_providers::SYNTHETIC.to_owned(),
+                details: "RwLock poisoned: activities lock".to_owned(),
+            })?
+            .len())
     }
 
     /// Calculate aggregate statistics from loaded activities
-    fn calculate_stats(&self) -> Stats {
-        let activities = self
-            .activities
-            .read()
-            .expect("Synthetic provider activities RwLock poisoned");
+    fn calculate_stats(&self) -> Result<Stats, ProviderError> {
+        let (total_activities, total_distance, total_duration, total_elevation_gain) = {
+            let activities =
+                self.activities
+                    .read()
+                    .map_err(|_| ProviderError::ConfigurationError {
+                        provider: oauth_providers::SYNTHETIC.to_owned(),
+                        details: "RwLock poisoned: activities lock".to_owned(),
+                    })?;
 
-        // Activity count is bounded by memory, safe truncation to u64
-        #[allow(clippy::cast_possible_truncation)]
-        let total_activities = activities.len() as u64;
+            // Activity count is bounded by memory, safe truncation to u64
+            #[allow(clippy::cast_possible_truncation)]
+            let total_activities = activities.len() as u64;
 
-        let total_distance = activities.iter().filter_map(|a| a.distance_meters).sum();
-        let total_duration = activities.iter().map(|a| a.duration_seconds).sum();
-        let total_elevation_gain = activities.iter().filter_map(|a| a.elevation_gain).sum();
+            let total_distance = activities.iter().filter_map(|a| a.distance_meters).sum();
+            let total_duration = activities.iter().map(|a| a.duration_seconds).sum();
+            let total_elevation_gain = activities.iter().filter_map(|a| a.elevation_gain).sum();
+            drop(activities);
 
-        Stats {
+            (
+                total_activities,
+                total_distance,
+                total_duration,
+                total_elevation_gain,
+            )
+        }; // Drop activities lock here
+
+        Ok(Stats {
             total_activities,
             total_distance,
             total_duration,
             total_elevation_gain,
-        }
+        })
     }
 
     /// Extract personal records from activities
-    fn extract_personal_records(&self) -> Vec<PersonalRecord> {
-        let activities = self
-            .activities
-            .read()
-            .expect("Synthetic provider activities RwLock poisoned");
+    fn extract_personal_records(&self) -> Result<Vec<PersonalRecord>, ProviderError> {
+        let activities_snapshot = {
+            let activities =
+                self.activities
+                    .read()
+                    .map_err(|_| ProviderError::ConfigurationError {
+                        provider: oauth_providers::SYNTHETIC.to_owned(),
+                        details: "RwLock poisoned: activities lock".to_owned(),
+                    })?;
+
+            activities.clone()
+        }; // Drop activities lock here
 
         let mut records: HashMap<PrMetric, PersonalRecord> = HashMap::new();
 
-        for activity in activities.iter() {
+        for activity in &activities_snapshot {
             // Fastest pace (lowest seconds per meter)
             if let (Some(distance), true) =
                 (activity.distance_meters, activity.duration_seconds > 0)
@@ -329,7 +367,7 @@ impl SyntheticProvider {
             }
         }
 
-        records.into_values().collect()
+        Ok(records.into_values().collect())
     }
 }
 
@@ -381,16 +419,22 @@ impl FitnessProvider for SyntheticProvider {
         limit: Option<usize>,
         offset: Option<usize>,
     ) -> AppResult<Vec<Activity>> {
-        let activities = self
-            .activities
-            .read()
-            .expect("Synthetic provider activities RwLock poisoned");
+        let mut sorted = {
+            let activities =
+                self.activities
+                    .read()
+                    .map_err(|_| ProviderError::ConfigurationError {
+                        provider: oauth_providers::SYNTHETIC.to_owned(),
+                        details: "RwLock poisoned: activities lock".to_owned(),
+                    })?;
+
+            activities.clone()
+        }; // Drop activities lock here
 
         let offset = offset.unwrap_or(0);
         let limit = limit.unwrap_or(30);
 
         // Sort by start_date descending (most recent first)
-        let mut sorted = activities.clone();
         sorted.sort_by(|a, b| b.start_date.cmp(&a.start_date));
 
         Ok(sorted.into_iter().skip(offset).take(limit).collect())
@@ -400,14 +444,23 @@ impl FitnessProvider for SyntheticProvider {
         &self,
         params: &PaginationParams,
     ) -> AppResult<CursorPage<Activity>> {
-        let activities = self
-            .activities
-            .read()
-            .expect("Synthetic provider activities RwLock poisoned");
+        let (mut sorted, activities_len) = {
+            let activities =
+                self.activities
+                    .read()
+                    .map_err(|_| ProviderError::ConfigurationError {
+                        provider: oauth_providers::SYNTHETIC.to_owned(),
+                        details: "RwLock poisoned: activities lock".to_owned(),
+                    })?;
+
+            let activities_len = activities.len();
+            let sorted = activities.clone();
+            drop(activities);
+
+            (sorted, activities_len)
+        }; // Drop activities lock here
 
         // Sort by start_date descending (most recent first)
-        let mut sorted = activities.clone();
-        let activities_len = activities.len();
         sorted.sort_by(|a, b| b.start_date.cmp(&a.start_date));
 
         // Find starting position based on cursor
@@ -450,7 +503,10 @@ impl FitnessProvider for SyntheticProvider {
         let index = self
             .activity_index
             .read()
-            .expect("Synthetic provider index RwLock poisoned");
+            .map_err(|_| ProviderError::ConfigurationError {
+                provider: oauth_providers::SYNTHETIC.to_owned(),
+                details: "RwLock poisoned: index lock".to_owned(),
+            })?;
 
         index.get(id).cloned().ok_or_else(|| {
             ProviderError::NotFound {
@@ -463,11 +519,11 @@ impl FitnessProvider for SyntheticProvider {
     }
 
     async fn get_stats(&self) -> AppResult<Stats> {
-        Ok(self.calculate_stats())
+        Ok(self.calculate_stats()?)
     }
 
     async fn get_personal_records(&self) -> AppResult<Vec<PersonalRecord>> {
-        Ok(self.extract_personal_records())
+        Ok(self.extract_personal_records()?)
     }
 
     async fn disconnect(&self) -> AppResult<()> {

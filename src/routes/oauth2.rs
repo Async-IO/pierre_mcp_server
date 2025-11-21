@@ -532,6 +532,7 @@ impl OAuth2Routes {
     }
 
     /// Generate OAuth login page HTML
+    #[must_use]
     pub fn generate_login_html(params: LoginHtmlParams<'_>) -> String {
         // Use embedded template - zero filesystem IO, guaranteed to exist at compile-time
         let displayed_scope = if params.scope.is_empty() {
