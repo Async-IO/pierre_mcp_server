@@ -250,6 +250,14 @@ impl ProviderRegistry {
             .map(|d| d.display_name())
     }
 
+    /// Get provider descriptor for OAuth and API configuration
+    #[must_use]
+    pub fn get_descriptor(&self, provider_name: &str) -> Option<&dyn ProviderDescriptor> {
+        self.descriptors
+            .get(provider_name)
+            .map(std::convert::AsRef::as_ref)
+    }
+
     /// Get all providers that support OAuth
     #[must_use]
     pub fn oauth_providers(&self) -> Vec<&'static str> {

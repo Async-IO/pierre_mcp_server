@@ -74,6 +74,18 @@ pub struct OAuthEndpoints {
     pub revoke_url: Option<&'static str>,
 }
 
+/// OAuth flow parameters specific to each provider
+#[derive(Debug, Clone)]
+pub struct OAuthParams {
+    /// Scope separator character ("," for Strava, " " for Fitbit)
+    pub scope_separator: &'static str,
+    /// Whether to use PKCE (Proof Key for Code Exchange)
+    pub use_pkce: bool,
+    /// Additional query parameters for authorization URL
+    /// Example: Strava needs `"approval_prompt=force"`
+    pub additional_auth_params: &'static [(&'static str, &'static str)],
+}
+
 bitflags::bitflags! {
     /// Provider capability flags using bitflags for efficient storage
     ///
@@ -172,6 +184,12 @@ pub trait ProviderDescriptor: Send + Sync {
     ///
     /// Returns `None` for providers that don't require OAuth (e.g., synthetic provider).
     fn oauth_endpoints(&self) -> Option<OAuthEndpoints>;
+
+    /// OAuth flow parameters specific to this provider
+    ///
+    /// Returns `None` for providers that don't require OAuth (e.g., synthetic provider).
+    /// Defines provider-specific OAuth behavior like scope separators and additional parameters.
+    fn oauth_params(&self) -> Option<OAuthParams>;
 
     /// Base URL for provider API calls
     fn api_base_url(&self) -> &'static str;
@@ -322,6 +340,14 @@ impl ProviderDescriptor for StravaDescriptor {
         })
     }
 
+    fn oauth_params(&self) -> Option<OAuthParams> {
+        Some(OAuthParams {
+            scope_separator: ",",
+            use_pkce: true,
+            additional_auth_params: &[("approval_prompt", "force")],
+        })
+    }
+
     fn api_base_url(&self) -> &'static str {
         "https://www.strava.com/api/v3"
     }
@@ -354,6 +380,14 @@ impl ProviderDescriptor for GarminDescriptor {
             auth_url: "https://connect.garmin.com/oauthConfirm",
             token_url: "https://connectapi.garmin.com/oauth-service/oauth/access_token",
             revoke_url: Some("https://connectapi.garmin.com/oauth-service/oauth/revoke"),
+        })
+    }
+
+    fn oauth_params(&self) -> Option<OAuthParams> {
+        Some(OAuthParams {
+            scope_separator: ",",
+            use_pkce: false, // Garmin uses OAuth 1.0a
+            additional_auth_params: &[],
         })
     }
 
@@ -391,6 +425,10 @@ impl ProviderDescriptor for SyntheticDescriptor {
     }
 
     fn oauth_endpoints(&self) -> Option<OAuthEndpoints> {
+        None // Synthetic provider doesn't need OAuth
+    }
+
+    fn oauth_params(&self) -> Option<OAuthParams> {
         None // Synthetic provider doesn't need OAuth
     }
 
