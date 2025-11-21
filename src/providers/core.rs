@@ -76,7 +76,8 @@
 //!
 //!     async fn get_athlete(&self) -> AppResult<Athlete> {
 //!         // Fetch from provider API, convert to shared Athlete model
-//!         todo!("Convert provider-specific response to Athlete")
+//!         let response = self.fetch_athlete_from_api().await?;
+//!         Ok(self.convert_to_athlete(response))
 //!     }
 //!
 //!     async fn get_activities(
@@ -85,17 +86,26 @@
 //!         offset: Option<usize>,
 //!     ) -> AppResult<Vec<Activity>> {
 //!         // Fetch from provider API, convert to shared Activity models
-//!         todo!("Convert provider-specific responses to Vec<Activity>")
+//!         let responses = self.fetch_activities_from_api(limit, offset).await?;
+//!         Ok(responses.into_iter().map(|r| self.convert_to_activity(r)).collect())
 //!     }
 //!
 //!     // ... implement remaining trait methods
-//! #   async fn is_authenticated(&self) -> bool { todo!() }
-//! #   async fn refresh_token_if_needed(&self) -> AppResult<()> { todo!() }
-//! #   async fn get_activities_cursor(&self, params: &pierre_mcp_server::pagination::PaginationParams) -> AppResult<pierre_mcp_server::pagination::CursorPage<Activity>> { todo!() }
-//! #   async fn get_activity(&self, id: &str) -> AppResult<Activity> { todo!() }
-//! #   async fn get_stats(&self) -> AppResult<Stats> { todo!() }
-//! #   async fn get_personal_records(&self) -> AppResult<Vec<pierre_mcp_server::models::PersonalRecord>> { todo!() }
-//! #   async fn disconnect(&self) -> AppResult<()> { todo!() }
+//! #   async fn is_authenticated(&self) -> bool { true }
+//! #   async fn refresh_token_if_needed(&self) -> AppResult<()> { Ok(()) }
+//! #   async fn get_activities_cursor(&self, _params: &pierre_mcp_server::pagination::PaginationParams) -> AppResult<pierre_mcp_server::pagination::CursorPage<Activity>> {
+//! #       Ok(pierre_mcp_server::pagination::CursorPage::new(vec![], None, None, false))
+//! #   }
+//! #   async fn get_activity(&self, _id: &str) -> AppResult<Activity> {
+//! #       Err(pierre_mcp_server::errors::AppError::NotFound("Activity not found".to_owned()))
+//! #   }
+//! #   async fn get_stats(&self) -> AppResult<Stats> {
+//! #       Ok(Stats { total_activities: 0, total_distance: 0.0, total_duration: 0, total_elevation_gain: 0.0 })
+//! #   }
+//! #   async fn get_personal_records(&self) -> AppResult<Vec<pierre_mcp_server::models::PersonalRecord>> {
+//! #       Ok(vec![])
+//! #   }
+//! #   async fn disconnect(&self) -> AppResult<()> { Ok(()) }
 //! }
 //! ```
 //!
