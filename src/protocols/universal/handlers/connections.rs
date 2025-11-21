@@ -4,7 +4,6 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::constants::oauth_providers;
 use crate::database_plugins::DatabaseProvider;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
@@ -153,12 +152,21 @@ pub fn handle_disconnect_provider(
         // Parse user ID from request
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Extract provider from parameters (default to Strava)
-        let provider = request
+        // Extract provider from parameters (required)
+        let Some(provider) = request
             .parameters
             .get("provider")
             .and_then(serde_json::Value::as_str)
-            .unwrap_or(oauth_providers::STRAVA);
+        else {
+            let supported = executor
+                .resources
+                .provider_registry
+                .supported_providers()
+                .join(", ");
+            return Ok(connection_error(format!(
+                "Missing required 'provider' parameter. Supported providers: {supported}"
+            )));
+        };
 
         // Disconnect by deleting the token directly
         let tenant_id_str = request.tenant_id.as_deref().unwrap_or("default");
@@ -326,11 +334,21 @@ pub fn handle_connect_provider(
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        let provider = request
+        // Extract provider from parameters (required)
+        let Some(provider) = request
             .parameters
             .get("provider")
             .and_then(serde_json::Value::as_str)
-            .unwrap_or(oauth_providers::STRAVA);
+        else {
+            let supported = executor
+                .resources
+                .provider_registry
+                .supported_providers()
+                .join(", ");
+            return Ok(connection_error(format!(
+                "Missing required 'provider' parameter. Supported providers: {supported}"
+            )));
+        };
 
         if !is_provider_supported(provider, &executor.resources.provider_registry) {
             let supported_providers = executor

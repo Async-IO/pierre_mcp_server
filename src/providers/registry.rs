@@ -6,6 +6,10 @@
 
 use super::core::{FitnessProvider, ProviderConfig, ProviderFactory, TenantProvider};
 use super::garmin_provider::GarminProvider;
+use super::spi::{
+    GarminDescriptor, ProviderBundle, ProviderCapabilities, ProviderDescriptor, StravaDescriptor,
+    SyntheticDescriptor,
+};
 use super::strava_provider::StravaProvider;
 use super::synthetic_provider::SyntheticProvider;
 use crate::constants::oauth_providers;
@@ -53,10 +57,26 @@ impl ProviderFactory for SyntheticProviderFactory {
     }
 }
 
+/// Factory wrapper for bundle-based provider registration
+struct BundleFactory {
+    factory_fn: super::spi::ProviderFactoryFn,
+}
+
+impl ProviderFactory for BundleFactory {
+    fn create(&self, config: ProviderConfig) -> Box<dyn FitnessProvider> {
+        (self.factory_fn)(config)
+    }
+
+    fn supported_providers(&self) -> &'static [&'static str] {
+        &[] // Bundle-based providers don't use this method
+    }
+}
+
 /// Global provider registry that manages all available fitness providers
 pub struct ProviderRegistry {
     factories: HashMap<&'static str, Box<dyn ProviderFactory>>,
     default_configs: HashMap<&'static str, ProviderConfig>,
+    descriptors: HashMap<&'static str, Box<dyn ProviderDescriptor>>,
 }
 
 impl ProviderRegistry {
@@ -69,10 +89,12 @@ impl ProviderRegistry {
         let mut registry = Self {
             factories: HashMap::new(),
             default_configs: HashMap::new(),
+            descriptors: HashMap::new(),
         };
 
         // Register Strava provider with environment-based configuration
         registry.register_factory(oauth_providers::STRAVA, Box::new(StravaProviderFactory));
+        registry.register_descriptor(oauth_providers::STRAVA, Box::new(StravaDescriptor));
         let (_client_id, _client_secret, auth_url, token_url, api_base_url, revoke_url, scopes) =
             crate::config::environment::load_provider_env_config(
                 oauth_providers::STRAVA,
@@ -96,6 +118,7 @@ impl ProviderRegistry {
 
         // Register Garmin provider with environment-based configuration
         registry.register_factory(oauth_providers::GARMIN, Box::new(GarminProviderFactory));
+        registry.register_descriptor(oauth_providers::GARMIN, Box::new(GarminDescriptor));
         let (_client_id, _client_secret, auth_url, token_url, api_base_url, revoke_url, scopes) =
             crate::config::environment::load_provider_env_config(
                 oauth_providers::GARMIN,
@@ -125,6 +148,7 @@ impl ProviderRegistry {
             oauth_providers::SYNTHETIC,
             Box::new(SyntheticProviderFactory),
         );
+        registry.register_descriptor(oauth_providers::SYNTHETIC, Box::new(SyntheticDescriptor));
         registry.set_default_config(
             oauth_providers::SYNTHETIC,
             ProviderConfig {
@@ -141,12 +165,7 @@ impl ProviderRegistry {
         // registry.register_factory(oauth_providers::FITBIT, Box::new(FitbitProviderFactory));
 
         // Log registered providers at startup
-        let providers = registry
-            .supported_providers()
-            .iter()
-            .map(|p| p.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
+        let providers = registry.supported_providers().join(", ");
         tracing::info!(
             "Provider registry initialized with {} provider(s): [{}]",
             registry.factories.len(),
@@ -170,6 +189,38 @@ impl ProviderRegistry {
         self.default_configs.insert(provider_name, config);
     }
 
+    /// Register a provider descriptor
+    pub fn register_descriptor(
+        &mut self,
+        provider_name: &'static str,
+        descriptor: Box<dyn ProviderDescriptor>,
+    ) {
+        self.descriptors.insert(provider_name, descriptor);
+    }
+
+    /// Register a complete provider bundle (factory + descriptor + config)
+    ///
+    /// This is the preferred method for external provider crates to register their providers.
+    /// It handles factory registration, descriptor storage, and default configuration.
+    pub fn register_provider_bundle(&mut self, bundle: ProviderBundle) {
+        let name = bundle.name();
+        // We need to leak the string to get a &'static str
+        // This is safe because provider names are expected to live for the program's lifetime
+        let static_name: &'static str = Box::leak(name.to_owned().into_boxed_str());
+
+        self.factories.insert(
+            static_name,
+            Box::new(BundleFactory {
+                factory_fn: bundle.factory,
+            }),
+        );
+        self.default_configs
+            .insert(static_name, bundle.descriptor.to_config());
+        self.descriptors.insert(static_name, bundle.descriptor);
+
+        tracing::info!("Registered external provider: {}", static_name);
+    }
+
     /// Get list of supported provider names
     #[must_use]
     pub fn supported_providers(&self) -> Vec<&'static str> {
@@ -180,6 +231,66 @@ impl ProviderRegistry {
     #[must_use]
     pub fn is_supported(&self, provider_name: &str) -> bool {
         self.factories.contains_key(provider_name)
+    }
+
+    /// Check if a provider requires OAuth authentication
+    #[must_use]
+    pub fn requires_oauth(&self, provider_name: &str) -> bool {
+        self.descriptors
+            .get(provider_name)
+            .is_some_and(|d| d.requires_oauth())
+    }
+
+    /// Check if a provider supports sleep tracking
+    #[must_use]
+    pub fn supports_sleep(&self, provider_name: &str) -> bool {
+        self.descriptors
+            .get(provider_name)
+            .is_some_and(|d| d.supports_sleep())
+    }
+
+    /// Check if a provider supports recovery metrics
+    #[must_use]
+    pub fn supports_recovery(&self, provider_name: &str) -> bool {
+        self.descriptors
+            .get(provider_name)
+            .is_some_and(|d| d.supports_recovery())
+    }
+
+    /// Get provider capabilities
+    #[must_use]
+    pub fn get_capabilities(&self, provider_name: &str) -> Option<ProviderCapabilities> {
+        self.descriptors
+            .get(provider_name)
+            .map(|d| d.capabilities())
+    }
+
+    /// Get provider display name
+    #[must_use]
+    pub fn get_display_name(&self, provider_name: &str) -> Option<&'static str> {
+        self.descriptors
+            .get(provider_name)
+            .map(|d| d.display_name())
+    }
+
+    /// Get all providers that support OAuth
+    #[must_use]
+    pub fn oauth_providers(&self) -> Vec<&'static str> {
+        self.descriptors
+            .iter()
+            .filter(|(_, d)| d.requires_oauth())
+            .map(|(name, _)| *name)
+            .collect()
+    }
+
+    /// Get all providers that support sleep tracking
+    #[must_use]
+    pub fn sleep_providers(&self) -> Vec<&'static str> {
+        self.descriptors
+            .iter()
+            .filter(|(_, d)| d.supports_sleep())
+            .map(|(name, _)| *name)
+            .collect()
     }
 
     /// Create a provider instance with default configuration

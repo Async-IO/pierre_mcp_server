@@ -2080,6 +2080,91 @@ pub fn default_provider() -> String {
     provider
 }
 
+/// Get OAuth provider configuration by provider name
+///
+/// Returns the `OAuthProviderConfig` for the specified provider.
+/// For unknown providers, returns a default (empty) config.
+///
+/// # Arguments
+/// * `provider_name` - The provider name (e.g., "strava", "garmin", "fitbit")
+#[must_use]
+pub fn get_oauth_config(provider_name: &str) -> OAuthProviderConfig {
+    use crate::constants::oauth_providers;
+
+    fn parse_scopes(env_value: Option<String>, defaults: Vec<String>) -> Vec<String> {
+        env_value.map_or(defaults, |s| s.split(',').map(str::to_owned).collect())
+    }
+
+    match provider_name {
+        p if p == oauth_providers::STRAVA => {
+            let client_id = env::var("STRAVA_CLIENT_ID")
+                .ok()
+                .or_else(|| env::var("PIERRE_STRAVA_CLIENT_ID").ok());
+            let client_secret = env::var("STRAVA_CLIENT_SECRET")
+                .ok()
+                .or_else(|| env::var("PIERRE_STRAVA_CLIENT_SECRET").ok());
+            let scopes_env = env::var("PIERRE_STRAVA_SCOPES")
+                .ok()
+                .or_else(|| env::var("STRAVA_SCOPES").ok());
+            let scopes = parse_scopes(scopes_env, vec!["activity:read_all".to_owned()]);
+
+            OAuthProviderConfig {
+                client_id,
+                client_secret,
+                redirect_uri: env::var("STRAVA_REDIRECT_URI").ok(),
+                scopes,
+                enabled: true,
+            }
+        }
+        p if p == oauth_providers::GARMIN => {
+            let client_id = env::var("GARMIN_CLIENT_ID")
+                .ok()
+                .or_else(|| env::var("PIERRE_GARMIN_CLIENT_ID").ok());
+            let client_secret = env::var("GARMIN_CLIENT_SECRET")
+                .ok()
+                .or_else(|| env::var("PIERRE_GARMIN_CLIENT_SECRET").ok());
+            let scopes_env = env::var("PIERRE_GARMIN_SCOPES").ok();
+            let scopes = parse_scopes(
+                scopes_env,
+                vec!["activity:read".to_owned(), "sleep:read".to_owned()],
+            );
+
+            OAuthProviderConfig {
+                client_id,
+                client_secret,
+                redirect_uri: env::var("GARMIN_REDIRECT_URI").ok(),
+                scopes,
+                enabled: true,
+            }
+        }
+        "fitbit" => {
+            let client_id = env::var("FITBIT_CLIENT_ID")
+                .ok()
+                .or_else(|| env::var("PIERRE_FITBIT_CLIENT_ID").ok());
+            let client_secret = env::var("FITBIT_CLIENT_SECRET")
+                .ok()
+                .or_else(|| env::var("PIERRE_FITBIT_CLIENT_SECRET").ok());
+            let scopes_env = env::var("PIERRE_FITBIT_SCOPES").ok();
+            let scopes = parse_scopes(scopes_env, vec!["activity".to_owned(), "sleep".to_owned()]);
+
+            OAuthProviderConfig {
+                client_id,
+                client_secret,
+                redirect_uri: env::var("FITBIT_REDIRECT_URI").ok(),
+                scopes,
+                enabled: true,
+            }
+        }
+        _ => {
+            tracing::debug!(
+                "Unknown provider '{}', returning default config",
+                provider_name
+            );
+            OAuthProviderConfig::default()
+        }
+    }
+}
+
 /// Provider configuration tuple from environment variables
 ///
 /// Returns: (`client_id`, `client_secret`, `auth_url`, `token_url`, `api_base_url`, `revoke_url`, `scopes`)

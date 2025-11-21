@@ -46,6 +46,8 @@ pub mod core;
 pub mod errors;
 /// Global provider registry and factory
 pub mod registry;
+/// Service Provider Interface (SPI) for external providers
+pub mod spi;
 /// Provider utility functions
 pub mod utils;
 
@@ -68,4 +70,9 @@ pub use errors::{ProviderError, ProviderResult};
 pub use registry::{
     create_provider, create_tenant_provider, get_supported_providers, is_provider_supported,
     ProviderRegistry,
+};
+/// Re-export SPI types for external provider development
+pub use spi::{
+    GarminDescriptor, OAuthEndpoints, ProviderBundle, ProviderCapabilities, ProviderDescriptor,
+    StravaDescriptor, SyntheticDescriptor,
 };
