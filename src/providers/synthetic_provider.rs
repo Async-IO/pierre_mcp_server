@@ -406,7 +406,7 @@ impl FitnessProvider for SyntheticProvider {
         // Return consistent synthetic athlete
         Ok(Athlete {
             id: "synthetic_athlete_001".to_owned(),
-            username: "synthetic_athlete".to_owned(),
+            username: "test_athlete".to_owned(),
             firstname: Some("Synthetic".to_owned()),
             lastname: Some("Athlete".to_owned()),
             profile_picture: None,
