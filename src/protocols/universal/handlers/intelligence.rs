@@ -822,6 +822,11 @@ pub fn handle_get_activity_intelligence(
             .and_then(|v| v.as_str())
             .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
 
         // Report progress - starting authentication
         if let Some(reporter) = &request.progress_reporter {
@@ -916,6 +921,11 @@ pub fn handle_analyze_performance_trends(
             .and_then(|v| v.as_str())
             .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
         let metric = request
             .parameters
             .get("metric")
@@ -1074,7 +1084,6 @@ pub fn handle_compare_activities(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::constants::oauth_providers;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
@@ -1086,7 +1095,17 @@ pub fn handle_compare_activities(
             }
         }
 
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
         let activity_id = request
             .parameters
             .get("activity_id")
@@ -1106,37 +1125,17 @@ pub fn handle_compare_activities(
 
         match executor
             .auth_service
-            .get_valid_token(user_uuid, oauth_providers::STRAVA, request.tenant_id.as_deref())
+            .create_authenticated_provider(&provider_name, user_uuid, request.tenant_id.as_deref())
             .await
         {
-            Ok(Some(token_data)) => {
-                let provider = executor
-                    .resources
-                    .provider_registry
-                    .create_provider(oauth_providers::STRAVA)
-                    .map_err(|e| {
-                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
-                    })?;
-
-                let credentials = crate::providers::OAuth2Credentials {
-                    client_id: executor.resources.config.oauth.strava.client_id.clone().unwrap_or_default(),
-                    client_secret: executor.resources.config.oauth.strava.client_secret.clone().unwrap_or_default(),
-                    access_token: Some(token_data.access_token),
-                    refresh_token: Some(token_data.refresh_token),
-                    expires_at: Some(token_data.expires_at),
-                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
-                        .split(',')
-                        .map(str::to_owned)
-                        .collect(),
-                };
-
-                provider.set_credentials(credentials).await.map_err(|e| {
-                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
-                })?;
-
+            Ok(provider) => {
                 // Report progress after auth
                 if let Some(reporter) = &request.progress_reporter {
-                    reporter.report(33.0, Some(100.0), Some("Authenticated - fetching activities for comparison...".to_owned()));
+                    reporter.report(
+                        33.0,
+                        Some(100.0),
+                        Some("Authenticated - fetching activities for comparison...".to_owned()),
+                    );
                 }
 
                 Ok(execute_activity_comparison(
@@ -1149,18 +1148,7 @@ pub fn handle_compare_activities(
                 )
                 .await)
             }
-            Ok(None) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
-                metadata: None,
-            }),
-            Err(e) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Authentication error: {e}")),
-                metadata: None,
-            }),
+            Err(response) => Ok(response),
         }
     })
 }
@@ -1267,7 +1255,6 @@ pub fn handle_generate_recommendations(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::constants::oauth_providers;
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
@@ -1280,6 +1267,11 @@ pub fn handle_generate_recommendations(
             }
         }
 
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let recommendation_type = request
             .parameters
@@ -1307,10 +1299,10 @@ pub fn handle_generate_recommendations(
 
         match executor
             .auth_service
-            .get_valid_token(user_uuid, oauth_providers::STRAVA, request.tenant_id.as_deref())
+            .create_authenticated_provider(&provider_name, user_uuid, request.tenant_id.as_deref())
             .await
         {
-            Ok(Some(token_data)) => {
+            Ok(provider) => {
                 // Report progress after auth
                 if let Some(reporter) = &request.progress_reporter {
                     reporter.report(
@@ -1329,31 +1321,10 @@ pub fn handle_generate_recommendations(
                     }
                 }
 
-                let provider = executor
-                    .resources
-                    .provider_registry
-                    .create_provider(oauth_providers::STRAVA)
-                    .map_err(|e| {
-                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
-                    })?;
-
-                let credentials = crate::providers::OAuth2Credentials {
-                    client_id: executor.resources.config.oauth.strava.client_id.clone().unwrap_or_default(),
-                    client_secret: executor.resources.config.oauth.strava.client_secret.clone().unwrap_or_default(),
-                    access_token: Some(token_data.access_token),
-                    refresh_token: Some(token_data.refresh_token),
-                    expires_at: Some(token_data.expires_at),
-                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
-                        .split(',')
-                        .map(str::to_owned)
-                        .collect(),
-                };
-
-                provider.set_credentials(credentials).await.map_err(|e| {
-                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
-                })?;
-
-                match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
+                match provider
+                    .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
+                    .await
+                {
                     Ok(activities) => {
                         // Report progress before generating recommendations
                         if let Some(reporter) = &request.progress_reporter {
@@ -1365,17 +1336,24 @@ pub fn handle_generate_recommendations(
                         }
 
                         // Try to use Claude sampling if available, otherwise use static analysis
-                        let analysis = if let Some(sampling_peer) = &executor.resources.sampling_peer {
+                        let analysis = if let Some(sampling_peer) =
+                            &executor.resources.sampling_peer
+                        {
                             // Use Claude to generate personalized recommendations
                             match generate_recommendations_with_claude(
                                 sampling_peer,
                                 &activities,
-                                recommendation_type
-                            ).await {
+                                recommendation_type,
+                            )
+                            .await
+                            {
                                 Ok(claude_recommendations) => claude_recommendations,
                                 Err(e) => {
                                     tracing::warn!("Claude sampling failed, falling back to static recommendations: {}", e);
-                                    generate_training_recommendations(&activities, recommendation_type)
+                                    generate_training_recommendations(
+                                        &activities,
+                                        recommendation_type,
+                                    )
                                 }
                             }
                         } else {
@@ -1414,18 +1392,7 @@ pub fn handle_generate_recommendations(
                     }),
                 }
             }
-            Ok(None) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
-                metadata: None,
-            }),
-            Err(e) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Authentication error: {e}")),
-                metadata: None,
-            }),
+            Err(response) => Ok(response),
         }
     })
 }
@@ -1438,7 +1405,6 @@ pub fn handle_calculate_fitness_score(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::constants::oauth_providers;
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
@@ -1451,6 +1417,11 @@ pub fn handle_calculate_fitness_score(
             }
         }
 
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let timeframe = request
             .parameters
@@ -1478,10 +1449,10 @@ pub fn handle_calculate_fitness_score(
 
         match executor
             .auth_service
-            .get_valid_token(user_uuid, oauth_providers::STRAVA, request.tenant_id.as_deref())
+            .create_authenticated_provider(&provider_name, user_uuid, request.tenant_id.as_deref())
             .await
         {
-            Ok(Some(token_data)) => {
+            Ok(provider) => {
                 // Report progress after auth
                 if let Some(reporter) = &request.progress_reporter {
                     reporter.report(
@@ -1500,31 +1471,10 @@ pub fn handle_calculate_fitness_score(
                     }
                 }
 
-                let provider = executor
-                    .resources
-                    .provider_registry
-                    .create_provider(oauth_providers::STRAVA)
-                    .map_err(|e| {
-                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
-                    })?;
-
-                let credentials = crate::providers::OAuth2Credentials {
-                    client_id: executor.resources.config.oauth.strava.client_id.clone().unwrap_or_default(),
-                    client_secret: executor.resources.config.oauth.strava.client_secret.clone().unwrap_or_default(),
-                    access_token: Some(token_data.access_token),
-                    refresh_token: Some(token_data.refresh_token),
-                    expires_at: Some(token_data.expires_at),
-                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
-                        .split(',')
-                        .map(str::to_owned)
-                        .collect(),
-                };
-
-                provider.set_credentials(credentials).await.map_err(|e| {
-                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
-                })?;
-
-                match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
+                match provider
+                    .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
+                    .await
+                {
                     Ok(activities) => {
                         // Report progress before calculation
                         if let Some(reporter) = &request.progress_reporter {
@@ -1568,18 +1518,7 @@ pub fn handle_calculate_fitness_score(
                     }),
                 }
             }
-            Ok(None) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
-                metadata: None,
-            }),
-            Err(e) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Authentication error: {e}")),
-                metadata: None,
-            }),
+            Err(response) => Ok(response),
         }
     })
 }
@@ -1592,7 +1531,6 @@ pub fn handle_predict_performance(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::constants::oauth_providers;
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
@@ -1605,6 +1543,11 @@ pub fn handle_predict_performance(
             }
         }
 
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let target_sport = request
             .parameters
@@ -1632,10 +1575,10 @@ pub fn handle_predict_performance(
 
         match executor
             .auth_service
-            .get_valid_token(user_uuid, oauth_providers::STRAVA, request.tenant_id.as_deref())
+            .create_authenticated_provider(&provider_name, user_uuid, request.tenant_id.as_deref())
             .await
         {
-            Ok(Some(token_data)) => {
+            Ok(provider) => {
                 // Report progress after auth
                 if let Some(reporter) = &request.progress_reporter {
                     reporter.report(
@@ -1654,31 +1597,10 @@ pub fn handle_predict_performance(
                     }
                 }
 
-                let provider = executor
-                    .resources
-                    .provider_registry
-                    .create_provider(oauth_providers::STRAVA)
-                    .map_err(|e| {
-                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
-                    })?;
-
-                let credentials = crate::providers::OAuth2Credentials {
-                    client_id: executor.resources.config.oauth.strava.client_id.clone().unwrap_or_default(),
-                    client_secret: executor.resources.config.oauth.strava.client_secret.clone().unwrap_or_default(),
-                    access_token: Some(token_data.access_token),
-                    refresh_token: Some(token_data.refresh_token),
-                    expires_at: Some(token_data.expires_at),
-                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
-                        .split(',')
-                        .map(str::to_owned)
-                        .collect(),
-                };
-
-                provider.set_credentials(credentials).await.map_err(|e| {
-                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
-                })?;
-
-                match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
+                match provider
+                    .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
+                    .await
+                {
                     Ok(activities) => {
                         // Report progress before prediction
                         if let Some(reporter) = &request.progress_reporter {
@@ -1722,18 +1644,7 @@ pub fn handle_predict_performance(
                     }),
                 }
             }
-            Ok(None) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
-                metadata: None,
-            }),
-            Err(e) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Authentication error: {e}")),
-                metadata: None,
-            }),
+            Err(response) => Ok(response),
         }
     })
 }
@@ -1746,7 +1657,6 @@ pub fn handle_analyze_training_load(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::constants::oauth_providers;
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
@@ -1759,6 +1669,11 @@ pub fn handle_analyze_training_load(
             }
         }
 
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let timeframe = request
             .parameters
@@ -1786,10 +1701,10 @@ pub fn handle_analyze_training_load(
 
         match executor
             .auth_service
-            .get_valid_token(user_uuid, oauth_providers::STRAVA, request.tenant_id.as_deref())
+            .create_authenticated_provider(&provider_name, user_uuid, request.tenant_id.as_deref())
             .await
         {
-            Ok(Some(token_data)) => {
+            Ok(provider) => {
                 // Report progress after auth
                 if let Some(reporter) = &request.progress_reporter {
                     reporter.report(
@@ -1808,38 +1723,20 @@ pub fn handle_analyze_training_load(
                     }
                 }
 
-                let provider = executor
-                    .resources
-                    .provider_registry
-                    .create_provider(oauth_providers::STRAVA)
-                    .map_err(|e| {
-                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
-                    })?;
-
-                let credentials = crate::providers::OAuth2Credentials {
-                    client_id: executor.resources.config.oauth.strava.client_id.clone().unwrap_or_default(),
-                    client_secret: executor.resources.config.oauth.strava.client_secret.clone().unwrap_or_default(),
-                    access_token: Some(token_data.access_token),
-                    refresh_token: Some(token_data.refresh_token),
-                    expires_at: Some(token_data.expires_at),
-                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
-                        .split(',')
-                        .map(str::to_owned)
-                        .collect(),
-                };
-
-                provider.set_credentials(credentials).await.map_err(|e| {
-                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
-                })?;
-
-                match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
+                match provider
+                    .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
+                    .await
+                {
                     Ok(activities) => {
                         // Report progress before analysis
                         if let Some(reporter) = &request.progress_reporter {
                             reporter.report(
                                 70.0,
                                 Some(100.0),
-                                Some(format!("Analyzing training load for {} activities...", activities.len())),
+                                Some(format!(
+                                    "Analyzing training load for {} activities...",
+                                    activities.len()
+                                )),
                             );
                         }
 
@@ -1876,18 +1773,7 @@ pub fn handle_analyze_training_load(
                     }),
                 }
             }
-            Ok(None) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
-                metadata: None,
-            }),
-            Err(e) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Authentication error: {e}")),
-                metadata: None,
-            }),
+            Err(response) => Ok(response),
         }
     })
 }
