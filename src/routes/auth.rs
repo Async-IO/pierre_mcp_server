@@ -415,7 +415,7 @@ impl OAuthService {
         let user_id = Self::validate_oauth_state(state)?;
 
         // Validate provider is supported
-        Self::validate_provider(provider)?;
+        self.validate_provider(provider)?;
 
         tracing::info!(
             "Processing OAuth callback for user {} provider {} with code {}",
@@ -477,14 +477,14 @@ impl OAuthService {
             .map_err(|e| AppError::invalid_input(format!("Invalid user ID in state: {e}")))
     }
 
-    /// Validate that provider is supported
-    fn validate_provider(provider: &str) -> AppResult<()> {
-        use crate::constants::oauth_providers;
-        match provider {
-            oauth_providers::STRAVA | oauth_providers::FITBIT => Ok(()),
-            _ => Err(AppError::invalid_input(format!(
+    /// Validate that provider is supported by checking the provider registry
+    fn validate_provider(&self, provider: &str) -> AppResult<()> {
+        if self.data.provider_registry().is_supported(provider) {
+            Ok(())
+        } else {
+            Err(AppError::invalid_input(format!(
                 "Unsupported provider: {provider}"
-            ))),
+            )))
         }
     }
 
@@ -754,43 +754,35 @@ impl OAuthService {
     /// # Errors
     /// Returns error if provider is unsupported or disconnection fails
     pub async fn disconnect_provider(&self, user_id: uuid::Uuid, provider: &str) -> AppResult<()> {
-        use crate::constants::oauth_providers;
-
         tracing::debug!(
             "Processing OAuth provider disconnect for user {} provider {}",
             user_id,
             provider
         );
 
-        match provider {
-            oauth_providers::STRAVA | oauth_providers::FITBIT => {
-                // Get user to find tenant_id
-                let user = self
-                    .data
-                    .database()
-                    .get_user(user_id)
-                    .await
-                    .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
-                    .ok_or_else(|| AppError::not_found("User"))?;
-                let tenant_id = user.tenant_id.as_deref().unwrap_or("default");
+        // Validate provider is supported
+        self.validate_provider(provider)?;
 
-                // Delete OAuth tokens from database
-                self.data
-                    .database()
-                    .delete_user_oauth_token(user_id, tenant_id, provider)
-                    .await
-                    .map_err(|e| {
-                        AppError::database(format!("Failed to delete OAuth token: {e}"))
-                    })?;
+        // Get user to find tenant_id
+        let user = self
+            .data
+            .database()
+            .get_user(user_id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
+            .ok_or_else(|| AppError::not_found("User"))?;
+        let tenant_id = user.tenant_id.as_deref().unwrap_or("default");
 
-                tracing::info!("Disconnected {} for user {}", provider, user_id);
+        // Delete OAuth tokens from database
+        self.data
+            .database()
+            .delete_user_oauth_token(user_id, tenant_id, provider)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to delete OAuth token: {e}")))?;
 
-                Ok(())
-            }
-            _ => Err(AppError::invalid_input(format!(
-                "Unsupported provider: {provider}"
-            ))),
-        }
+        tracing::info!("Disconnected {} for user {}", provider, user_id);
+
+        Ok(())
     }
 
     /// Generate OAuth authorization URL for provider
@@ -918,8 +910,6 @@ impl OAuthService {
         &self,
         user_id: uuid::Uuid,
     ) -> AppResult<Vec<ConnectionStatus>> {
-        use crate::constants::oauth_providers;
-
         tracing::debug!("Getting OAuth connection status for user {}", user_id);
 
         // Get all OAuth tokens for the user from database
@@ -946,11 +936,11 @@ impl OAuthService {
             }
         }
 
-        // Add default status for providers that are not connected
-        for provider in [oauth_providers::STRAVA, oauth_providers::FITBIT] {
-            if !providers_seen.contains(provider) {
+        // Add default status for all registered OAuth providers that are not connected
+        for provider_name in self.data.provider_registry().oauth_providers() {
+            if !providers_seen.contains(provider_name) {
                 statuses.push(ConnectionStatus {
-                    provider: provider.to_owned(),
+                    provider: provider_name.to_owned(),
                     connected: false,
                     expires_at: None,
                     scopes: None,
