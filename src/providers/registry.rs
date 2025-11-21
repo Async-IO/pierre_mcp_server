@@ -409,3 +409,30 @@ pub fn is_provider_supported(provider_name: &str) -> bool {
 pub fn get_supported_providers() -> Vec<&'static str> {
     global_registry().supported_providers()
 }
+
+/// Create a new provider registry with external provider bundles
+///
+/// This function creates a new registry instance with both built-in providers
+/// (based on feature flags) and any additional external provider bundles.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use pierre_mcp_server::providers::{create_registry_with_external_providers, ProviderBundle};
+///
+/// // External provider crate would provide a function like:
+/// // fn whoop_provider_bundle() -> ProviderBundle { ... }
+///
+/// let external_bundles = vec![
+///     // whoop_provider_bundle(),
+/// ];
+/// let registry = create_registry_with_external_providers(external_bundles);
+/// ```
+#[must_use]
+pub fn create_registry_with_external_providers(bundles: Vec<ProviderBundle>) -> ProviderRegistry {
+    let mut registry = ProviderRegistry::new();
+    for bundle in bundles {
+        registry.register_provider_bundle(bundle);
+    }
+    registry
+}

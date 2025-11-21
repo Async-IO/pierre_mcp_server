@@ -65,14 +65,15 @@ pub mod synthetic_provider;
 
 // Re-export key types for convenience
 pub use core::{
-    FitnessProvider as CoreFitnessProvider, OAuth2Credentials, ProviderConfig, TenantProvider,
+    FitnessProvider as CoreFitnessProvider, OAuth2Credentials, ProviderConfig, ProviderFactory,
+    TenantProvider,
 };
 /// Re-export provider error types
 pub use errors::{ProviderError, ProviderResult};
 /// Re-export provider registry functions
 pub use registry::{
-    create_provider, create_tenant_provider, get_supported_providers, is_provider_supported,
-    ProviderRegistry,
+    create_provider, create_registry_with_external_providers, create_tenant_provider,
+    get_supported_providers, global_registry, is_provider_supported, ProviderRegistry,
 };
 #[cfg(feature = "provider-garmin")]
 pub use spi::GarminDescriptor;
