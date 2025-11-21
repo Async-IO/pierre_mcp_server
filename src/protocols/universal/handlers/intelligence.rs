@@ -559,84 +559,6 @@ async fn create_intelligence_response(
     }
 }
 
-/// Build Strava `OAuth2` credentials from token data
-///
-/// Creates `OAuth2Credentials` structure with access token, refresh token,
-/// client credentials, and scopes from the executor configuration and
-/// stored token data.
-///
-/// # Arguments
-/// * `executor` - Tool executor with OAuth configuration
-/// * `token_data` - Valid OAuth token from auth service
-///
-/// # Returns
-/// Configured `OAuth2Credentials` for Strava provider
-fn build_strava_credentials(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
-    token_data: &crate::protocols::universal::auth_service::TokenData,
-) -> crate::providers::OAuth2Credentials {
-    crate::providers::OAuth2Credentials {
-        client_id: executor
-            .resources
-            .config
-            .oauth
-            .strava
-            .client_id
-            .clone()
-            .unwrap_or_default(),
-        client_secret: executor
-            .resources
-            .config
-            .oauth
-            .strava
-            .client_secret
-            .clone()
-            .unwrap_or_default(),
-        access_token: Some(token_data.access_token.clone()),
-        refresh_token: Some(token_data.refresh_token.clone()),
-        expires_at: Some(token_data.expires_at),
-        scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
-            .split(',')
-            .map(str::to_owned)
-            .collect(),
-    }
-}
-
-/// Create and configure Strava provider
-///
-/// Initializes the Strava provider from registry and sets up OAuth credentials.
-/// Returns configured provider ready for API calls.
-///
-/// # Arguments
-/// * `executor` - Tool executor with provider registry
-/// * `token_data` - Valid OAuth token for credentials
-///
-/// # Returns
-/// Configured provider or error if initialization fails
-///
-/// # Errors
-/// Returns `ProtocolError` if provider creation or credential setup fails
-async fn create_authenticated_provider(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
-    token_data: &crate::protocols::universal::auth_service::TokenData,
-) -> Result<Box<dyn crate::providers::core::FitnessProvider>, ProtocolError> {
-    use crate::constants::oauth_providers;
-
-    let provider = executor
-        .resources
-        .provider_registry
-        .create_provider(oauth_providers::STRAVA)
-        .map_err(|e| ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}")))?;
-
-    let credentials = build_strava_credentials(executor, token_data);
-
-    provider.set_credentials(credentials).await.map_err(|e| {
-        ProtocolError::ExecutionFailed(format!("Failed to set provider credentials: {e}"))
-    })?;
-
-    Ok(provider)
-}
-
 /// Fetch activity and create intelligence response
 ///
 /// Retrieves activity data from provider and generates intelligence analysis.
@@ -875,7 +797,6 @@ pub fn handle_get_activity_intelligence(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::constants::oauth_providers;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
@@ -895,6 +816,11 @@ pub fn handle_get_activity_intelligence(
                 ProtocolError::InvalidRequest("Missing required parameter: activity_id".to_owned())
             })?;
 
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Report progress - starting authentication
@@ -917,14 +843,10 @@ pub fn handle_get_activity_intelligence(
 
         match executor
             .auth_service
-            .get_valid_token(
-                user_uuid,
-                oauth_providers::STRAVA,
-                request.tenant_id.as_deref(),
-            )
+            .create_authenticated_provider(&provider_name, user_uuid, request.tenant_id.as_deref())
             .await
         {
-            Ok(Some(token_data)) => {
+            Ok(provider) => {
                 // Report progress after auth
                 if let Some(reporter) = &request.progress_reporter {
                     reporter.report(
@@ -943,7 +865,6 @@ pub fn handle_get_activity_intelligence(
                     }
                 }
 
-                let provider = create_authenticated_provider(executor, &token_data).await?;
                 let result = fetch_and_analyze_activity(
                     provider,
                     activity_id,
@@ -966,13 +887,7 @@ pub fn handle_get_activity_intelligence(
 
                 Ok(result)
             }
-            Ok(None) => Ok(build_no_token_response()),
-            Err(e) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Authentication error: {e}")),
-                metadata: None,
-            }),
+            Err(response) => Ok(response),
         }
     })
 }
@@ -984,7 +899,6 @@ pub fn handle_analyze_performance_trends(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::constants::oauth_providers;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
@@ -996,6 +910,11 @@ pub fn handle_analyze_performance_trends(
             }
         }
 
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let metric = request
             .parameters
@@ -1028,14 +947,10 @@ pub fn handle_analyze_performance_trends(
 
         match executor
             .auth_service
-            .get_valid_token(
-                user_uuid,
-                oauth_providers::STRAVA,
-                request.tenant_id.as_deref(),
-            )
+            .create_authenticated_provider(&provider_name, user_uuid, request.tenant_id.as_deref())
             .await
         {
-            Ok(Some(token_data)) => {
+            Ok(provider) => {
                 // Report progress after auth
                 if let Some(reporter) = &request.progress_reporter {
                     reporter.report(
@@ -1056,7 +971,6 @@ pub fn handle_analyze_performance_trends(
                     }
                 }
 
-                let provider = create_authenticated_provider(executor, &token_data).await?;
                 let result = fetch_and_analyze_trends(provider, metric, timeframe, user_uuid).await;
 
                 // Report completion on success
@@ -1072,13 +986,7 @@ pub fn handle_analyze_performance_trends(
 
                 Ok(result)
             }
-            Ok(None) => Ok(build_no_token_response()),
-            Err(e) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Authentication error: {e}")),
-                metadata: None,
-            }),
+            Err(response) => Ok(response),
         }
     })
 }
@@ -1264,7 +1172,6 @@ pub fn handle_detect_patterns(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::constants::oauth_providers;
         use crate::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
@@ -1276,6 +1183,11 @@ pub fn handle_detect_patterns(
             }
         }
 
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let pattern_type = request
             .parameters
@@ -1305,14 +1217,10 @@ pub fn handle_detect_patterns(
 
         match executor
             .auth_service
-            .get_valid_token(
-                user_uuid,
-                oauth_providers::STRAVA,
-                request.tenant_id.as_deref(),
-            )
+            .create_authenticated_provider(&provider_name, user_uuid, request.tenant_id.as_deref())
             .await
         {
-            Ok(Some(token_data)) => {
+            Ok(provider) => {
                 // Report progress after auth
                 if let Some(reporter) = &request.progress_reporter {
                     reporter.report(
@@ -1331,7 +1239,6 @@ pub fn handle_detect_patterns(
                     }
                 }
 
-                let provider = create_authenticated_provider(executor, &token_data).await?;
                 let result = fetch_and_detect_patterns(provider, pattern_type, user_uuid).await;
 
                 // Report completion on success
@@ -1347,13 +1254,7 @@ pub fn handle_detect_patterns(
 
                 Ok(result)
             }
-            Ok(None) => Ok(build_no_token_response()),
-            Err(e) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Authentication error: {e}")),
-                metadata: None,
-            }),
+            Err(response) => Ok(response),
         }
     })
 }
