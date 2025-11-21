@@ -30,17 +30,7 @@ See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md) a
 ## Features
 
 - **MCP Protocol**: JSON-RPC over HTTP for AI assistant integration
-- **OAuth 2.0 Server**: RFC 7591 dynamic client registration for MCP clients
-- **RS256/JWKS**: Asymmetric JWT signing with public key distribution
 - **A2A Protocol**: Agent-to-agent communication with capability discovery
-- **Multi-Tenancy**: Isolated data and configuration per organization
-- **Real-Time Updates**: Server-Sent Events for OAuth notifications
-- **Plugin System**: Compile-time plugin architecture with lifecycle management
-- **PII Redaction**: Middleware for sensitive data removal in logs and responses
-- **Cursor Pagination**: Keyset pagination for consistent large dataset traversal
-- **Intelligent Caching**: LRU cache with TTL for API response optimization
-- **Atomic Operations**: TOCTOU prevention with database-level atomic token operations
-- **Structured Error Handling**: Type-safe error propagation with AppError/DatabaseError/ProviderError
 
 ## Architecture
 
@@ -162,7 +152,7 @@ export GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin  # lo
 # Weather data (optional)
 export OPENWEATHER_API_KEY=your_api_key
 
-# Algorithm configuration (optional - defaults optimized for most users)
+# Algorithm configuration (optional)
 export PIERRE_MAXHR_ALGORITHM=tanaka           # Max heart rate: fox, tanaka, nes, gulati
 export PIERRE_TRIMP_ALGORITHM=hybrid           # Training impulse: bannister_male, bannister_female, edwards_simplified, lucia_banded, hybrid
 export PIERRE_TSS_ALGORITHM=avg_power          # Training stress score: avg_power, normalized_power, hybrid
@@ -192,7 +182,34 @@ The server will start on port 8081 and display available endpoints.
 
 ### Initial Setup
 
-Create an admin user via REST API:
+#### Required Environment Variables
+
+Before starting the server, ensure these environment variables are set:
+
+```bash
+# Database connection
+export DATABASE_URL="sqlite:./data/pierre.db"
+
+# Encryption key (generate with: openssl rand -base64 32)
+export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+
+# Optional: Server port (default: 8081)
+export HTTP_PORT=8081
+```
+
+For convenience, use the included `.envrc` file with [direnv](https://direnv.net/).
+
+#### Create Database
+
+Ensure the data directory exists:
+
+```bash
+mkdir -p ./data
+```
+
+#### Create Admin User
+
+After starting the server, create an admin user:
 
 ```bash
 curl -X POST http://localhost:8081/admin/setup \
@@ -204,23 +221,101 @@ curl -X POST http://localhost:8081/admin/setup \
   }'
 ```
 
+The response includes an admin token. Save this token for administrative operations.
+
+#### Register and Approve Users
+
+1. **Register a user**:
+
+```bash
+curl -X POST http://localhost:8081/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "userpass123",
+    "display_name": "Regular User"
+  }'
+```
+
+The response includes a `user_id`. Save this for the approval step.
+
+2. **Approve the user** (requires admin token):
+
+```bash
+curl -X POST http://localhost:8081/admin/approve-user/{user_id} \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {admin_token}" \
+  -d '{
+    "reason": "User registration approved",
+    "create_default_tenant": true,
+    "tenant_name": "User Organization",
+    "tenant_slug": "user-org"
+  }'
+```
+
+Replace `{user_id}` with the user ID from step 1 and `{admin_token}` with the admin token from the setup response.
+
+3. **User login** (get JWT token for MCP access):
+
+```bash
+curl -X POST http://localhost:8081/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "userpass123"
+  }'
+```
+
+The response includes a `jwt_token`. Use this token for MCP protocol requests.
+
+#### Automated Setup Script
+
+For testing and development, use the automated workflow script:
+
+```bash
+# Clean database and start fresh
+./scripts/fresh-start.sh
+cargo run --bin pierre-mcp-server &
+
+# Run complete setup (creates admin, user, tenant, and tests MCP)
+./scripts/complete-user-workflow.sh
+
+# Load generated environment variables for manual testing
+source .workflow_test_env
+echo "JWT Token: ${JWT_TOKEN:0:50}..."
+```
+
+The script creates:
+- Admin user: `admin@pierre.mcp`
+- Regular user: `user@example.com`
+- Default tenant: `User Organization`
+- JWT token for MCP access (saved in `.workflow_test_env`)
+
 ## MCP Client Integration
 
 Pierre Fitness Platform includes an SDK bridge for direct integration with MCP clients that only support stdin/out. The SDK handles OAuth 2.0 authentication automatically.
 
 ### SDK Installation
 
-**Option 1: Install from npm (Recommended)**
+**Requirements**:
+- Node.js 18.0.0 or higher
+- Pierre MCP Server running on port 8081
+
+**Option 1: npx (No Installation Required)**
+
+```bash
+npx -y pierre-mcp-client@next --server http://localhost:8081
+```
+
+**Option 2: Install from npm**
 
 ```bash
 npm install pierre-mcp-client@next
 ```
 
-The SDK is published as a pre-release package (`@next` tag) during v0.x development.
+The SDK is published as `@next` during v0.x development.
 
-**Option 2: Build from source**
-
-The SDK is included in the `sdk/` directory:
+**Option 3: Build from source**
 
 ```bash
 cd sdk
@@ -228,7 +323,13 @@ npm install
 npm run build
 ```
 
-**Type Definitions**: The SDK includes auto-generated TypeScript types for all 45+ MCP tools. Types are generated from server tool schemas using `npm run generate-types` in the `sdk/` directory. See [SDK README](sdk/README.md#development) for the type generation workflow.
+**What the SDK provides**:
+- Automatic OAuth 2.0 registration and authentication
+- Token management and refresh
+- stdio transport for MCP clients (Claude Desktop, ChatGPT)
+- Auto-generated TypeScript types for 45+ MCP tools
+
+See [SDK README](sdk/README.md) for detailed documentation.
 
 ### MCP Client Configuration
 
@@ -411,7 +512,7 @@ async fn main() -> Result<()> {
 
 ## Testing
 
-Pierre Fitness Platform includes comprehensive test coverage with automated intelligence testing using synthetic data.
+Pierre Fitness Platform includes test coverage using synthetic data for intelligence tools.
 
 ```bash
 # Run all tests
@@ -426,13 +527,13 @@ cargo test --test intelligence_tools_advanced_test
 # Run with output
 cargo test -- --nocapture
 
-# Lint and test (comprehensive validation)
+# Lint and test
 ./scripts/lint-and-test.sh
 ```
 
-### Multi-Tenant End-to-End Tests
+### Multi-Tenant Tests
 
-Comprehensive tests validating MCP protocol with multi-tenant isolation across HTTP and SDK transports:
+Tests validating MCP protocol with multi-tenant isolation across HTTP and SDK transports:
 
 ```bash
 # Rust multi-tenant MCP tests (4 test scenarios)
@@ -448,29 +549,21 @@ cd ..
 ```
 
 **Test Coverage**:
-- ✅ **Concurrent Multi-Tenant Tool Calls**: Validates 3 tenants can make simultaneous requests without cross-tenant data leakage
-- ✅ **HTTP vs SDK Transport Parity**: Ensures HTTP and SDK transports return identical responses
-- ✅ **Tenant Isolation at Protocol Level**: Verifies tenant boundaries are strictly enforced (403/404 errors for unauthorized access)
-- ✅ **Type Generation Consistency**: Validates tools/list returns identical schemas across all tenants
-- ✅ **Rate Limiting Per Tenant**: Ensures one tenant's rate limit doesn't affect other tenants
-- ✅ **SDK Concurrent Access**: Tests simultaneous SDK bridge access by multiple tenants
-- ✅ **SDK Tenant Isolation**: Validates cross-tenant access properly forbidden via SDK
-- ✅ **Schema Consistency Across Tiers**: Verifies schemas identical regardless of tier configuration
+- Concurrent multi-tenant tool calls without data leakage
+- HTTP and SDK transport parity
+- Tenant isolation at protocol level (403/404 errors for unauthorized access)
+- Type generation consistency across tenants
+- Rate limiting per tenant
+- SDK concurrent access by multiple tenants
+- SDK tenant isolation verification
+- Schema consistency across tiers
 
-**Infrastructure Highlights**:
-- **Helper Functions** (`tests/common.rs`):
-  - `spawn_sdk_bridge()`: Spawns SDK process with JWT token and automatic cleanup
-  - `send_http_mcp_request()`: Direct HTTP MCP requests for transport testing
-  - `create_test_tenant()`: Creates tenant with user and JWT token
-- **SDK Helpers** (`sdk/test/helpers/`):
-  - `multitenant-setup.js`: Multi-tenant client setup and isolation verification
-  - `rust-server-bridge.js`: Coordination between SDK tests and Rust server
-
-**Success Metrics**:
-- All 18 test scenarios pass successfully
-- No cross-tenant data contamination
-- Token validation works correctly
-- Tests complete in <30 seconds total
+**Test Infrastructure** (`tests/common.rs` and `sdk/test/helpers/`):
+- `spawn_sdk_bridge()`: Spawns SDK process with JWT token and automatic cleanup
+- `send_http_mcp_request()`: Direct HTTP MCP requests for transport testing
+- `create_test_tenant()`: Creates tenant with user and JWT token
+- `multitenant-setup.js`: Multi-tenant client setup and isolation verification
+- `rust-server-bridge.js`: Coordination between SDK tests and Rust server
 
 ### Intelligence Testing Framework
 
