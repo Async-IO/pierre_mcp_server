@@ -8,6 +8,8 @@
 pub mod configuration;
 /// OAuth provider connection tool handlers
 pub mod connections;
+/// Fitness provider API integration tool handlers (provider-agnostic)
+pub mod fitness_api;
 /// Goal setting and tracking tool handlers
 pub mod goals;
 /// Activity intelligence and analysis tool handlers
@@ -18,8 +20,6 @@ pub mod nutrition;
 pub mod provider_helpers;
 /// Sleep quality and recovery analysis tool handlers
 pub mod sleep_recovery;
-/// Strava API integration tool handlers (to be generalized)
-pub mod strava_api;
 
 // Configuration management handlers
 pub use configuration::{
@@ -81,7 +81,7 @@ pub use nutrition::{
     handle_get_nutrient_timing, handle_search_food,
 };
 
-/// Re-export Strava API integration handlers (to be generalized)
-pub use strava_api::{
+/// Re-export fitness provider API integration handlers (provider-agnostic)
+pub use fitness_api::{
     handle_analyze_activity, handle_get_activities, handle_get_athlete, handle_get_stats,
 };
