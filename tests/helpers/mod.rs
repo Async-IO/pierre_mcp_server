@@ -5,5 +5,4 @@
 
 pub mod axum_test;
 pub mod synthetic_data;
-pub mod synthetic_provider;
 pub mod test_utils;

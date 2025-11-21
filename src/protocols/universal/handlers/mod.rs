@@ -14,9 +14,11 @@ pub mod goals;
 pub mod intelligence;
 /// Nutrition analysis and USDA database tool handlers
 pub mod nutrition;
+/// Shared provider helper functions
+pub mod provider_helpers;
 /// Sleep quality and recovery analysis tool handlers
 pub mod sleep_recovery;
-/// Strava API integration tool handlers
+/// Strava API integration tool handlers (to be generalized)
 pub mod strava_api;
 
 // Configuration management handlers
@@ -79,7 +81,7 @@ pub use nutrition::{
     handle_get_nutrient_timing, handle_search_food,
 };
 
-/// Re-export Strava API integration handlers
+/// Re-export Strava API integration handlers (to be generalized)
 pub use strava_api::{
     handle_analyze_activity, handle_get_activities, handle_get_athlete, handle_get_stats,
 };
