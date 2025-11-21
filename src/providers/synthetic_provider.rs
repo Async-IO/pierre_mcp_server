@@ -475,3 +475,22 @@ impl FitnessProvider for SyntheticProvider {
         Ok(())
     }
 }
+
+// ============================================================================
+// Provider Factory
+// ============================================================================
+
+use crate::providers::core::ProviderFactory;
+
+/// Factory for creating Synthetic provider instances
+pub struct SyntheticProviderFactory;
+
+impl ProviderFactory for SyntheticProviderFactory {
+    fn create(&self, _config: ProviderConfig) -> Box<dyn FitnessProvider> {
+        Box::new(SyntheticProvider::with_activities(Vec::new()))
+    }
+
+    fn supported_providers(&self) -> &'static [&'static str] {
+        &[oauth_providers::SYNTHETIC]
+    }
+}

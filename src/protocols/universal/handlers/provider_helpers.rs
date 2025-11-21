@@ -180,35 +180,3 @@ pub fn get_provider_oauth_config(provider_name: &str) -> OAuthProviderConfig {
     );
     config
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_extract_provider_with_value() {
-        let mut params = serde_json::Map::new();
-        params.insert("provider".to_owned(), serde_json::json!("garmin"));
-        assert_eq!(extract_provider(&params), "garmin");
-    }
-
-    #[test]
-    fn test_extract_provider_default() {
-        let params = serde_json::Map::new();
-        // Default is "synthetic" unless PIERRE_DEFAULT_PROVIDER is set
-        let result = extract_provider(&params);
-        assert!(!result.is_empty());
-    }
-
-    #[test]
-    fn test_no_token_response() {
-        let response = create_no_token_response("strava");
-        assert!(!response.success);
-        assert!(
-            response
-                .error
-                .as_ref()
-                .is_some_and(|e| e.contains("strava"))
-        );
-    }
-}

@@ -5,57 +5,18 @@
 // Copyright ©2025 Async-IO.org
 
 use super::core::{FitnessProvider, ProviderConfig, ProviderFactory, TenantProvider};
-use super::garmin_provider::GarminProvider;
+use super::garmin_provider::GarminProviderFactory;
 use super::spi::{
     GarminDescriptor, ProviderBundle, ProviderCapabilities, ProviderDescriptor, StravaDescriptor,
     SyntheticDescriptor,
 };
-use super::strava_provider::StravaProvider;
-use super::synthetic_provider::SyntheticProvider;
+use super::strava_provider::StravaProviderFactory;
+use super::synthetic_provider::SyntheticProviderFactory;
 use crate::constants::oauth_providers;
 use crate::errors::{AppError, AppResult};
 use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
-
-/// Factory for creating Strava providers
-pub struct StravaProviderFactory;
-
-impl ProviderFactory for StravaProviderFactory {
-    fn create(&self, config: ProviderConfig) -> Box<dyn FitnessProvider> {
-        Box::new(StravaProvider::with_config(config))
-    }
-
-    fn supported_providers(&self) -> &'static [&'static str] {
-        &[oauth_providers::STRAVA]
-    }
-}
-
-/// Factory for creating Garmin providers
-pub struct GarminProviderFactory;
-
-impl ProviderFactory for GarminProviderFactory {
-    fn create(&self, config: ProviderConfig) -> Box<dyn FitnessProvider> {
-        Box::new(GarminProvider::with_config(config))
-    }
-
-    fn supported_providers(&self) -> &'static [&'static str] {
-        &[oauth_providers::GARMIN]
-    }
-}
-
-/// Factory for creating Synthetic providers
-pub struct SyntheticProviderFactory;
-
-impl ProviderFactory for SyntheticProviderFactory {
-    fn create(&self, _config: ProviderConfig) -> Box<dyn FitnessProvider> {
-        Box::new(SyntheticProvider::with_activities(Vec::new()))
-    }
-
-    fn supported_providers(&self) -> &'static [&'static str] {
-        &[oauth_providers::SYNTHETIC]
-    }
-}
 
 /// Factory wrapper for bundle-based provider registration
 struct BundleFactory {

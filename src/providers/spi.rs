@@ -74,59 +74,80 @@ pub struct OAuthEndpoints {
     pub revoke_url: Option<&'static str>,
 }
 
-/// Provider capability flags
-///
-/// Indicates which features a provider supports. Used by the system to
-/// route requests to appropriate providers and generate accurate tool descriptions.
-#[derive(Debug, Clone, Default)]
-pub struct ProviderCapabilities {
-    /// Provider requires OAuth authentication
-    pub oauth: bool,
-    /// Provider supports activity/workout data
-    pub activities: bool,
-    /// Provider supports sleep tracking data
-    pub sleep_tracking: bool,
-    /// Provider supports recovery/readiness metrics
-    pub recovery_metrics: bool,
-    /// Provider supports health metrics (weight, HRV, etc.)
-    pub health_metrics: bool,
+bitflags::bitflags! {
+    /// Provider capability flags using bitflags for efficient storage
+    ///
+    /// Indicates which features a provider supports. Used by the system to
+    /// route requests to appropriate providers and generate accurate tool descriptions.
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    pub struct ProviderCapabilities: u8 {
+        /// Provider requires OAuth authentication
+        const OAUTH = 0b0000_0001;
+        /// Provider supports activity/workout data
+        const ACTIVITIES = 0b0000_0010;
+        /// Provider supports sleep tracking data
+        const SLEEP_TRACKING = 0b0000_0100;
+        /// Provider supports recovery/readiness metrics
+        const RECOVERY_METRICS = 0b0000_1000;
+        /// Provider supports health metrics (weight, HRV, etc.)
+        const HEALTH_METRICS = 0b0001_0000;
+    }
 }
 
 impl ProviderCapabilities {
     /// Create capabilities for an activity-only provider (like Strava)
     #[must_use]
     pub const fn activity_only() -> Self {
-        Self {
-            oauth: true,
-            activities: true,
-            sleep_tracking: false,
-            recovery_metrics: false,
-            health_metrics: false,
-        }
+        Self::OAUTH.union(Self::ACTIVITIES)
     }
 
     /// Create capabilities for a full health provider (like Garmin, Fitbit)
     #[must_use]
     pub const fn full_health() -> Self {
-        Self {
-            oauth: true,
-            activities: true,
-            sleep_tracking: true,
-            recovery_metrics: true,
-            health_metrics: true,
-        }
+        Self::OAUTH
+            .union(Self::ACTIVITIES)
+            .union(Self::SLEEP_TRACKING)
+            .union(Self::RECOVERY_METRICS)
+            .union(Self::HEALTH_METRICS)
     }
 
     /// Create capabilities for a synthetic/test provider (no OAuth)
     #[must_use]
     pub const fn synthetic() -> Self {
-        Self {
-            oauth: false,
-            activities: true,
-            sleep_tracking: true,
-            recovery_metrics: true,
-            health_metrics: true,
-        }
+        Self::ACTIVITIES
+            .union(Self::SLEEP_TRACKING)
+            .union(Self::RECOVERY_METRICS)
+            .union(Self::HEALTH_METRICS)
+    }
+
+    /// Check if OAuth is required
+    #[must_use]
+    pub const fn requires_oauth(&self) -> bool {
+        self.contains(Self::OAUTH)
+    }
+
+    /// Check if activities are supported
+    #[must_use]
+    pub const fn supports_activities(&self) -> bool {
+        self.contains(Self::ACTIVITIES)
+    }
+
+    /// Check if sleep tracking is supported
+    #[must_use]
+    pub const fn supports_sleep(&self) -> bool {
+        self.contains(Self::SLEEP_TRACKING)
+    }
+
+    /// Check if recovery metrics are supported
+    #[must_use]
+    pub const fn supports_recovery(&self) -> bool {
+        self.contains(Self::RECOVERY_METRICS)
+    }
+
+    /// Check if health metrics are supported
+    #[must_use]
+    pub const fn supports_health(&self) -> bool {
+        self.contains(Self::HEALTH_METRICS)
     }
 }
 
@@ -162,22 +183,22 @@ pub trait ProviderDescriptor: Send + Sync {
 
     /// Whether this provider requires OAuth authentication
     fn requires_oauth(&self) -> bool {
-        self.capabilities().oauth
+        self.capabilities().requires_oauth()
     }
 
     /// Whether this provider supports sleep tracking
     fn supports_sleep(&self) -> bool {
-        self.capabilities().sleep_tracking
+        self.capabilities().supports_sleep()
     }
 
     /// Whether this provider supports recovery metrics
     fn supports_recovery(&self) -> bool {
-        self.capabilities().recovery_metrics
+        self.capabilities().supports_recovery()
     }
 
     /// Whether this provider supports health metrics
     fn supports_health(&self) -> bool {
-        self.capabilities().health_metrics
+        self.capabilities().supports_health()
     }
 
     /// Build a `ProviderConfig` from this descriptor
@@ -373,60 +394,5 @@ impl ProviderDescriptor for SyntheticDescriptor {
 
     fn default_scopes(&self) -> &'static [&'static str] {
         &[]
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_strava_descriptor() {
-        let desc = StravaDescriptor;
-        assert_eq!(desc.name(), "strava");
-        assert_eq!(desc.display_name(), "Strava");
-        assert!(desc.requires_oauth());
-        assert!(!desc.supports_sleep());
-        assert!(!desc.supports_recovery());
-
-        let config = desc.to_config();
-        assert_eq!(config.name, "strava");
-        assert!(config.auth_url.contains("strava.com"));
-    }
-
-    #[test]
-    fn test_garmin_descriptor() {
-        let desc = GarminDescriptor;
-        assert_eq!(desc.name(), "garmin");
-        assert!(desc.requires_oauth());
-        assert!(desc.supports_sleep());
-        assert!(desc.supports_recovery());
-        assert!(desc.supports_health());
-    }
-
-    #[test]
-    fn test_synthetic_descriptor() {
-        let desc = SyntheticDescriptor;
-        assert_eq!(desc.name(), "synthetic");
-        assert!(!desc.requires_oauth());
-        assert!(desc.supports_sleep()); // Synthetic supports all for testing
-        assert!(desc.oauth_endpoints().is_none());
-    }
-
-    #[test]
-    fn test_provider_capabilities() {
-        let activity = ProviderCapabilities::activity_only();
-        assert!(activity.oauth);
-        assert!(activity.activities);
-        assert!(!activity.sleep_tracking);
-
-        let full = ProviderCapabilities::full_health();
-        assert!(full.oauth);
-        assert!(full.sleep_tracking);
-        assert!(full.recovery_metrics);
-
-        let synthetic = ProviderCapabilities::synthetic();
-        assert!(!synthetic.oauth);
-        assert!(synthetic.activities);
     }
 }

@@ -323,7 +323,6 @@ pub fn handle_connect_provider(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
             if token.is_cancelled().await {
                 return Err(ProtocolError::OperationCancelled(
@@ -331,42 +330,30 @@ pub fn handle_connect_provider(
                 ));
             }
         }
-
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let registry = &executor.resources.provider_registry;
+        let db = &executor.resources.database;
 
-        // Extract provider from parameters (required)
-        let Some(provider) = request
-            .parameters
-            .get("provider")
-            .and_then(serde_json::Value::as_str)
-        else {
-            let supported = executor
-                .resources
-                .provider_registry
-                .supported_providers()
-                .join(", ");
+        // Extract and validate provider parameter
+        let Some(provider) = request.parameters.get("provider").and_then(|v| v.as_str()) else {
+            let supported = registry.supported_providers().join(", ");
             return Ok(connection_error(format!(
                 "Missing required 'provider' parameter. Supported providers: {supported}"
             )));
         };
-
-        if !is_provider_supported(provider, &executor.resources.provider_registry) {
-            let supported_providers = executor
-                .resources
-                .provider_registry
-                .supported_providers()
-                .join(", ");
+        if !is_provider_supported(provider, registry) {
+            let supported = registry.supported_providers().join(", ");
             return Ok(connection_error(format!(
-                "Provider '{provider}' is not supported. Supported providers: {supported_providers}"
+                "Provider '{provider}' is not supported. Supported providers: {supported}"
             )));
         }
 
-        let user = match executor.resources.database.get_user(user_uuid).await {
-            Ok(Some(user)) => user,
+        // Get user and extract tenant context
+        let user = match db.get_user(user_uuid).await {
+            Ok(Some(u)) => u,
             Ok(None) => return Ok(connection_error(format!("User {user_uuid} not found"))),
             Err(e) => return Ok(connection_error(format!("Database error: {e}"))),
         };
-
         let Some(tenant_id) = user
             .tenant_id
             .as_ref()
@@ -376,66 +363,37 @@ pub fn handle_connect_provider(
                 "User does not belong to any tenant".to_owned(),
             ));
         };
-
-        let tenant_name = match executor
-            .resources
-            .database
+        let tenant_name = db
             .get_tenant_by_id(tenant_id)
             .await
-        {
-            Ok(tenant) => tenant.name,
-            Err(e) => {
-                tracing::warn!(
-                    tenant_id = %tenant_id,
-                    user_id = %user_uuid,
-                    error = ?e,
-                    "Failed to load tenant name from database - using 'Unknown Tenant' fallback"
-                );
-                "Unknown Tenant".to_owned()
-            }
-        };
-
-        let tenant_context = TenantContext {
+            .map_or_else(|_| "Unknown Tenant".to_owned(), |t| t.name);
+        let ctx = TenantContext {
             tenant_id,
             user_id: user_uuid,
             tenant_name,
             user_role: crate::tenant::TenantRole::Member,
         };
-
         let state = format!("{}:{}", user_uuid, uuid::Uuid::new_v4());
 
+        // Generate OAuth authorization URL
         match executor
             .resources
             .tenant_oauth_client
-            .get_authorization_url(
-                &tenant_context,
-                provider,
-                &state,
-                executor.resources.database.as_ref(),
-            )
+            .get_authorization_url(&ctx, provider, &state, db.as_ref())
             .await
         {
-            Ok(authorization_url) => {
+            Ok(url) => {
                 tracing::info!(
-                    "Generated OAuth authorization URL for user {} and provider {}",
+                    "Generated OAuth URL for user {} provider {}",
                     user_uuid,
                     provider
                 );
                 Ok(build_oauth_success_response(
-                    user_uuid,
-                    tenant_id,
-                    provider,
-                    &authorization_url,
-                    &state,
+                    user_uuid, tenant_id, provider, &url, &state,
                 ))
             }
             Err(e) => {
-                tracing::error!(
-                    "Failed to generate OAuth authorization URL for user {} and provider {}: {}",
-                    user_uuid,
-                    provider,
-                    e
-                );
+                tracing::error!("OAuth URL generation failed for {}: {}", provider, e);
                 Ok(build_oauth_error_response(provider, &e.to_string()))
             }
         }
