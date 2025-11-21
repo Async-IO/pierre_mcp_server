@@ -199,7 +199,7 @@ impl AuthService {
             self.get_tenant_oauth_credentials(tenant_id_str, provider_name)
                 .await?
         } else {
-            self.get_default_oauth_credentials(provider_name)?
+            Self::get_default_oauth_credentials(provider_name)?
         };
 
         // Get provider-specific scopes
@@ -272,7 +272,7 @@ impl AuthService {
             Ok(Some(creds)) => Ok((creds.client_id, creds.client_secret)),
             Ok(None) => {
                 // Fall back to default credentials if tenant doesn't have custom ones
-                self.get_default_oauth_credentials(provider_name)
+                Self::get_default_oauth_credentials(provider_name)
             }
             Err(e) => Err(UniversalResponse {
                 success: false,
@@ -288,7 +288,6 @@ impl AuthService {
     /// # Errors
     /// Returns `UniversalResponse` error if credentials are not configured
     fn get_default_oauth_credentials(
-        &self,
         provider_name: &str,
     ) -> Result<(String, String), UniversalResponse> {
         // Get OAuth config from environment (PIERRE_<PROVIDER>_* env vars)

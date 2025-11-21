@@ -770,23 +770,6 @@ async fn fetch_and_detect_patterns(
 /// Includes `authentication_required` flag in metadata for client guidance.
 ///
 /// # Returns
-/// `UniversalResponse` with error message and auth metadata
-fn build_no_token_response() -> UniversalResponse {
-    let mut metadata = std::collections::HashMap::new();
-    metadata.insert(
-        "authentication_required".to_owned(),
-        serde_json::Value::Bool(true),
-    );
-    UniversalResponse {
-        success: false,
-        result: None,
-        error: Some(
-            "No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned(),
-        ),
-        metadata: Some(metadata),
-    }
-}
-
 /// Handle `get_activity_intelligence` tool - get AI analysis for activity (async)
 ///
 /// # Errors
@@ -822,11 +805,6 @@ pub fn handle_get_activity_intelligence(
             .and_then(|v| v.as_str())
             .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
-        let provider_name = request
-            .parameters
-            .get("provider")
-            .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
 
         // Report progress - starting authentication
         if let Some(reporter) = &request.progress_reporter {
@@ -921,11 +899,6 @@ pub fn handle_analyze_performance_trends(
             .and_then(|v| v.as_str())
             .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
-        let provider_name = request
-            .parameters
-            .get("provider")
-            .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
         let metric = request
             .parameters
             .get("metric")
@@ -1101,11 +1074,6 @@ pub fn handle_compare_activities(
             .and_then(|v| v.as_str())
             .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
-        let provider_name = request
-            .parameters
-            .get("provider")
-            .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
         let activity_id = request
             .parameters
             .get("activity_id")
