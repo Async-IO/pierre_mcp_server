@@ -34,6 +34,7 @@ See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md) a
 - **OAuth 2.0 Server**: RFC 7591 dynamic client registration for MCP clients
 - **RS256/JWKS**: Asymmetric JWT signing with public key distribution
 - **Plugin System**: Compile-time plugin architecture with lifecycle management
+- **TypeScript SDK**: npm package `pierre-mcp-client` for stdio transport integration ([SDK documentation](./sdk/README.md))
 
 ## Architecture
 
