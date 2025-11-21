@@ -199,14 +199,8 @@ jobs:
           npm ci
           npm run build
 
-      - name: Clean previous build artifacts
-        run: |
-          cargo clean
-          echo "Disk space after cargo clean:"
-          df -h
-
       - name: Run database plugin tests (PostgreSQL)
-        run: cargo test --features postgresql database_plugins_test --verbose -- --test-threads=1
+        run: cargo test --features postgresql database_plugins_test -- --test-threads=1
         env:
           DATABASE_URL: "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
@@ -219,6 +213,11 @@ jobs:
           POSTGRES_MIN_CONNECTIONS: "1"
           POSTGRES_ACQUIRE_TIMEOUT: "20"
           RUST_LOG: "info"
+
+      - name: Clean build artifacts before coverage
+        run: |
+          rm -rf target/debug/deps target/debug/incremental target/llvm-cov-target
+          df -h
 
       - name: Run all tests with coverage (PostgreSQL)
         run: timeout 3600 cargo llvm-cov --lib --bins --tests --features postgresql --lcov --output-path lcov-postgres.info -- --test-threads=1
