@@ -577,16 +577,18 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> AppResult<()> {
+        let now = chrono::Utc::now().to_rfc3339();
         sqlx::query(
             r"
-            INSERT INTO user_profiles (user_id, profile_data, updated_at)
-            VALUES ($1, $2, CURRENT_TIMESTAMP)
+            INSERT INTO user_profiles (user_id, profile_data, created_at, updated_at)
+            VALUES ($1, $2, $3, $3)
             ON CONFLICT (user_id)
-            DO UPDATE SET profile_data = $2, updated_at = CURRENT_TIMESTAMP
+            DO UPDATE SET profile_data = $2, updated_at = $3
             ",
         )
         .bind(user_id)
         .bind(&profile_data)
+        .bind(&now)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to upsert user profile: {e}")))?;
@@ -612,16 +614,18 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn create_goal(&self, user_id: Uuid, goal_data: Value) -> AppResult<String> {
         let goal_id = Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
 
         sqlx::query(
             r"
-            INSERT INTO goals (id, user_id, goal_data)
-            VALUES ($1, $2, $3)
+            INSERT INTO goals (id, user_id, goal_data, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $4)
             ",
         )
         .bind(&goal_id)
         .bind(user_id)
         .bind(&goal_data)
+        .bind(&now)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to create goal: {e}")))?;
@@ -721,18 +725,20 @@ impl DatabaseProvider for PostgresDatabase {
             AppError::database(format!("Failed to create user_configurations table: {e}"))
         })?;
 
-        // Insert or update configuration using PostgreSQL syntax
+        // Insert or update configuration
+        let now = chrono::Utc::now().to_rfc3339();
         let query = r"
-            INSERT INTO user_configurations (user_id, config_data, updated_at)
-            VALUES ($1, $2, CURRENT_TIMESTAMP)
+            INSERT INTO user_configurations (user_id, config_data, created_at, updated_at)
+            VALUES ($1, $2, $3, $3)
             ON CONFLICT(user_id) DO UPDATE SET
                 config_data = EXCLUDED.config_data,
-                updated_at = CURRENT_TIMESTAMP
+                updated_at = $3
         ";
 
         sqlx::query(query)
             .bind(user_id)
             .bind(config_json)
+            .bind(&now)
             .execute(&self.pool)
             .await
             .map_err(|e| AppError::database(format!("Failed to save user configuration: {e}")))?;
@@ -742,18 +748,21 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> AppResult<String> {
         let insight_id = Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        let insight_json = serde_json::to_string(&insight_data)
+            .map_err(|e| AppError::database(format!("Failed to serialize insight: {e}")))?;
 
         sqlx::query(
             r"
-            INSERT INTO insights (id, user_id, insight_type, content, metadata)
+            INSERT INTO insights (id, user_id, insight_type, insight_data, created_at)
             VALUES ($1, $2, $3, $4, $5)
             ",
         )
         .bind(&insight_id)
         .bind(user_id)
         .bind("general") // Default insight type since it's not provided separately
-        .bind(&insight_data)
-        .bind(None::<Value>) // No separate metadata
+        .bind(&insight_json)
+        .bind(&now)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to store insight: {e}")))?;
@@ -2852,14 +2861,18 @@ impl DatabaseProvider for PostgresDatabase {
         .map_err(|e| AppError::database(format!("Failed to create tenant: {e}")))?;
 
         // Add the owner as an admin of the tenant
+        let tenant_user_id = Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
         sqlx::query(
             r"
-            INSERT INTO tenant_users (tenant_id, user_id, role, joined_at)
-            VALUES ($1, $2, 'owner', CURRENT_TIMESTAMP)
+            INSERT INTO tenant_users (id, tenant_id, user_id, role, invited_at, joined_at)
+            VALUES ($1, $2, $3, 'owner', $4, $4)
             ",
         )
+        .bind(&tenant_user_id)
         .bind(tenant.id)
         .bind(tenant.owner_user_id)
+        .bind(&now)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to add owner to tenant: {e}")))?;
@@ -3003,13 +3016,14 @@ impl DatabaseProvider for PostgresDatabase {
             .iter()
             .map(std::string::String::as_str)
             .collect();
+        let now = chrono::Utc::now().to_rfc3339();
 
         sqlx::query(
             r"
             INSERT INTO tenant_oauth_credentials
                 (tenant_id, provider, client_id, client_secret_encrypted,
-                 redirect_uri, scopes, rate_limit_per_day, is_active)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+                 redirect_uri, scopes, rate_limit_per_day, is_active, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $8)
             ON CONFLICT (tenant_id, provider)
             DO UPDATE SET
                 client_id = EXCLUDED.client_id,
@@ -3017,7 +3031,7 @@ impl DatabaseProvider for PostgresDatabase {
                 redirect_uri = EXCLUDED.redirect_uri,
                 scopes = EXCLUDED.scopes,
                 rate_limit_per_day = EXCLUDED.rate_limit_per_day,
-                updated_at = CURRENT_TIMESTAMP
+                updated_at = EXCLUDED.updated_at
             ",
         )
         .bind(credentials.tenant_id)
@@ -3027,6 +3041,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&credentials.redirect_uri)
         .bind(&scopes_array)
         .bind(i32::try_from(credentials.rate_limit_per_day).unwrap_or(i32::MAX))
+        .bind(&now)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to store OAuth credentials: {e}")))?;
@@ -4319,9 +4334,12 @@ impl DatabaseProvider for PostgresDatabase {
         };
 
         // Store in database
-        sqlx::query("INSERT INTO system_secrets (secret_type, secret_value) VALUES ($1, $2)")
+        let now = chrono::Utc::now().to_rfc3339();
+        sqlx::query("INSERT INTO system_secrets (secret_type, secret_value, created_at, updated_at) VALUES ($1, $2, $3, $4)")
             .bind(secret_type)
             .bind(&secret_value)
+            .bind(&now)
+            .bind(&now)
             .execute(&self.pool)
             .await
             .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
@@ -4367,11 +4385,12 @@ impl DatabaseProvider for PostgresDatabase {
         expires_at: Option<&str>,
     ) -> AppResult<String> {
         let notification_id = Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
 
         sqlx::query(
             r"
-            INSERT INTO oauth_notifications (id, user_id, provider, success, message, expires_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO oauth_notifications (id, user_id, provider, success, message, expires_at, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             ",
         )
         .bind(&notification_id)
@@ -4380,6 +4399,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(success)
         .bind(message)
         .bind(expires_at)
+        .bind(&now)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
@@ -4512,21 +4532,23 @@ impl DatabaseProvider for PostgresDatabase {
         config: &crate::config::fitness_config::FitnessConfig,
     ) -> AppResult<String> {
         let config_json = serde_json::to_string(config)?;
+        let now = chrono::Utc::now().to_rfc3339();
 
         let result = sqlx::query(
             r"
-            INSERT INTO fitness_configurations (tenant_id, user_id, configuration_name, config_data)
-            VALUES ($1, NULL, $2, $3)
-            ON CONFLICT (tenant_id, user_id, configuration_name) 
-            DO UPDATE SET 
+            INSERT INTO fitness_configurations (tenant_id, user_id, configuration_name, config_data, created_at, updated_at)
+            VALUES ($1, NULL, $2, $3, $4, $4)
+            ON CONFLICT (tenant_id, user_id, configuration_name)
+            DO UPDATE SET
                 config_data = EXCLUDED.config_data,
-                updated_at = CURRENT_TIMESTAMP
+                updated_at = EXCLUDED.updated_at
             RETURNING id
             ",
         )
         .bind(tenant_id)
         .bind(configuration_name)
         .bind(&config_json)
+        .bind(&now)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to fetch record: {e}")))?;
@@ -4543,15 +4565,16 @@ impl DatabaseProvider for PostgresDatabase {
         config: &crate::config::fitness_config::FitnessConfig,
     ) -> AppResult<String> {
         let config_json = serde_json::to_string(config)?;
+        let now = chrono::Utc::now().to_rfc3339();
 
         let result = sqlx::query(
             r"
-            INSERT INTO fitness_configurations (tenant_id, user_id, configuration_name, config_data)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (tenant_id, user_id, configuration_name) 
-            DO UPDATE SET 
+            INSERT INTO fitness_configurations (tenant_id, user_id, configuration_name, config_data, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $5)
+            ON CONFLICT (tenant_id, user_id, configuration_name)
+            DO UPDATE SET
                 config_data = EXCLUDED.config_data,
-                updated_at = CURRENT_TIMESTAMP
+                updated_at = EXCLUDED.updated_at
             RETURNING id
             ",
         )
@@ -4559,6 +4582,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(user_id)
         .bind(configuration_name)
         .bind(&config_json)
+        .bind(&now)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to fetch record: {e}")))?;

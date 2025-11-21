@@ -40,7 +40,7 @@ path = "src/bin/diagnose_weather_api.rs"
 
 
 [features]
-default = ["sqlite"]
+default = ["sqlite", "sqlx/migrate"]
 sqlite = []
 postgresql = ["sqlx/postgres"]
 testing = []
@@ -98,7 +98,7 @@ aes-gcm = "0.10"
 # Encryption and database support for multi-tenant
 ring = "0.17"
 ed25519-dalek = "2.1"
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "postgres", "chrono", "uuid", "derive"], default-features = false }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "postgres", "chrono", "uuid", "derive", "migrate"], default-features = false }
 bcrypt = "0.16"
 argon2 = "0.5"
 jsonwebtoken = "9.3"

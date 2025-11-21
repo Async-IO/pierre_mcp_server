@@ -36,153 +36,6 @@ pub struct RequestLog {
 }
 
 impl Database {
-    /// Create analytics tables
-    pub(super) async fn migrate_analytics(&self) -> AppResult<()> {
-        self.create_jwt_usage_table().await?;
-        self.create_goals_table().await?;
-        self.create_insights_table().await?;
-        self.create_request_logs_table().await?;
-        self.create_analytics_indexes().await?;
-        Ok(())
-    }
-
-    async fn create_jwt_usage_table(&self) -> AppResult<()> {
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS jwt_usage (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                endpoint TEXT NOT NULL,
-                method TEXT NOT NULL,
-                status_code INTEGER NOT NULL,
-                response_time_ms INTEGER,
-                request_size_bytes INTEGER,
-                response_size_bytes INTEGER,
-                ip_address TEXT,
-                user_agent TEXT
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| AppError::database(format!("Failed to create jwt_usage table: {e}")))?;
-        Ok(())
-    }
-
-    async fn create_goals_table(&self) -> AppResult<()> {
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS goals (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                goal_data TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| AppError::database(format!("Failed to create goals table: {e}")))?;
-        Ok(())
-    }
-
-    async fn create_insights_table(&self) -> AppResult<()> {
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS insights (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                activity_id TEXT,
-                insight_type TEXT NOT NULL,
-                insight_data TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| AppError::database(format!("Failed to create insights table: {e}")))?;
-        Ok(())
-    }
-
-    async fn create_request_logs_table(&self) -> AppResult<()> {
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS request_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
-                api_key_id TEXT REFERENCES api_keys(id) ON DELETE CASCADE,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                method TEXT NOT NULL,
-                endpoint TEXT NOT NULL,
-                status_code INTEGER NOT NULL,
-                response_time_ms INTEGER,
-                error_message TEXT
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| AppError::database(format!("Failed to create request_logs table: {e}")))?;
-        Ok(())
-    }
-
-    async fn create_analytics_indexes(&self) -> AppResult<()> {
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_user_id ON jwt_usage(user_id)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| {
-                AppError::database(format!("Failed to create index idx_jwt_usage_user_id: {e}"))
-            })?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_timestamp ON jwt_usage(timestamp)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| {
-                AppError::database(format!(
-                    "Failed to create index idx_jwt_usage_timestamp: {e}"
-                ))
-            })?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_goals_user_id ON goals(user_id)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| {
-                AppError::database(format!("Failed to create index idx_goals_user_id: {e}"))
-            })?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_insights_user_id ON insights(user_id)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| {
-                AppError::database(format!("Failed to create index idx_insights_user_id: {e}"))
-            })?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_insights_activity_id ON insights(activity_id)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| {
-                AppError::database(format!(
-                    "Failed to create index idx_insights_activity_id: {e}"
-                ))
-            })?;
-
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_request_logs_timestamp ON request_logs(timestamp)",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| {
-            AppError::database(format!(
-                "Failed to create index idx_request_logs_timestamp: {e}"
-            ))
-        })?;
-
-        Ok(())
-    }
-
     /// Record JWT usage for rate limiting
     ///
     /// # Errors
@@ -294,16 +147,18 @@ impl Database {
     ) -> AppResult<String> {
         let goal_id = Uuid::new_v4().to_string();
         let goal_json = serde_json::to_string(&goal_data)?;
+        let now = chrono::Utc::now().to_rfc3339();
 
         sqlx::query(
             r"
-            INSERT INTO goals (id, user_id, goal_data)
-            VALUES ($1, $2, $3)
+            INSERT INTO goals (id, user_id, goal_data, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $4)
             ",
         )
         .bind(&goal_id)
         .bind(user_id.to_string())
         .bind(goal_json)
+        .bind(&now)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to create goal: {e}")))?;
@@ -436,11 +291,12 @@ impl Database {
     ) -> AppResult<String> {
         let insight_id = Uuid::new_v4().to_string();
         let insight_json = serde_json::to_string(&insight_data)?;
+        let now = chrono::Utc::now().to_rfc3339();
 
         sqlx::query(
             r"
-            INSERT INTO insights (id, user_id, activity_id, insight_type, insight_data)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO insights (id, user_id, activity_id, insight_type, insight_data, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
             ",
         )
         .bind(&insight_id)
@@ -448,6 +304,7 @@ impl Database {
         .bind(activity_id)
         .bind(insight_type)
         .bind(insight_json)
+        .bind(&now)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to store insight: {e}")))?;

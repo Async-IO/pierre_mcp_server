@@ -34,60 +34,6 @@ pub struct OAuthTokenData<'a> {
 }
 
 impl Database {
-    /// Create `user_oauth_tokens` table
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The database schema migration fails
-    /// - Table creation fails
-    /// - Index creation fails
-    pub(super) async fn migrate_user_oauth_tokens(&self) -> AppResult<()> {
-        // Create user_oauth_tokens table
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS user_oauth_tokens (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                tenant_id TEXT NOT NULL,
-                provider TEXT NOT NULL,
-                access_token TEXT NOT NULL,
-                refresh_token TEXT,
-                token_type TEXT NOT NULL DEFAULT 'bearer',
-                expires_at DATETIME,
-                scope TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, tenant_id, provider)
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| {
-            AppError::database(format!("Failed to create user_oauth_tokens table: {e}"))
-        })?;
-
-        // Create indexes
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_user_oauth_tokens_user ON user_oauth_tokens(user_id)",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| {
-            AppError::database(format!(
-                "Failed to create index idx_user_oauth_tokens_user: {e}"
-            ))
-        })?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_oauth_tokens_tenant_provider ON user_oauth_tokens(tenant_id, provider)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AppError::database(format!("Failed to create index idx_user_oauth_tokens_tenant_provider: {e}")))?;
-
-        Ok(())
-    }
-
     /// Upsert a user OAuth token using structured data
     ///
     /// Provider tokens are encrypted at rest using AES-256-GCM with AAD binding

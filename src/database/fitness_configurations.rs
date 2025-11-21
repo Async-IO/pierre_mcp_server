@@ -52,21 +52,23 @@ impl FitnessConfigurationManager {
         config: &FitnessConfig,
     ) -> AppResult<String> {
         let config_json = serde_json::to_string(config)?;
+        let now = chrono::Utc::now().to_rfc3339();
 
         let result = sqlx::query(
             r"
-            INSERT INTO fitness_configurations (tenant_id, user_id, configuration_name, config_data)
-            VALUES ($1, NULL, $2, $3)
-            ON CONFLICT (tenant_id, user_id, configuration_name) 
-            DO UPDATE SET 
+            INSERT INTO fitness_configurations (tenant_id, user_id, configuration_name, config_data, created_at, updated_at)
+            VALUES ($1, NULL, $2, $3, $4, $4)
+            ON CONFLICT (tenant_id, user_id, configuration_name)
+            DO UPDATE SET
                 config_data = EXCLUDED.config_data,
-                updated_at = datetime('now')
+                updated_at = EXCLUDED.updated_at
             RETURNING id
             ",
         )
         .bind(tenant_id)
         .bind(configuration_name)
         .bind(&config_json)
+        .bind(&now)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to save tenant fitness config: {e}")))?;
@@ -87,15 +89,16 @@ impl FitnessConfigurationManager {
         config: &FitnessConfig,
     ) -> AppResult<String> {
         let config_json = serde_json::to_string(config)?;
+        let now = chrono::Utc::now().to_rfc3339();
 
         let result = sqlx::query(
             r"
-            INSERT INTO fitness_configurations (tenant_id, user_id, configuration_name, config_data)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (tenant_id, user_id, configuration_name) 
-            DO UPDATE SET 
+            INSERT INTO fitness_configurations (tenant_id, user_id, configuration_name, config_data, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $5)
+            ON CONFLICT (tenant_id, user_id, configuration_name)
+            DO UPDATE SET
                 config_data = EXCLUDED.config_data,
-                updated_at = datetime('now')
+                updated_at = EXCLUDED.updated_at
             RETURNING id
             ",
         )
@@ -103,6 +106,7 @@ impl FitnessConfigurationManager {
         .bind(user_id)
         .bind(configuration_name)
         .bind(&config_json)
+        .bind(&now)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to save user fitness config: {e}")))?;
