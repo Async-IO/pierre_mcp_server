@@ -6,12 +6,25 @@
 
 #![allow(missing_docs)]
 
-use pierre_mcp_server::providers::{
-    GarminDescriptor, ProviderCapabilities, ProviderDescriptor, StravaDescriptor,
-    SyntheticDescriptor,
-};
+use pierre_mcp_server::providers::ProviderCapabilities;
+#[cfg(any(
+    feature = "provider-strava",
+    feature = "provider-garmin",
+    feature = "provider-synthetic"
+))]
+use pierre_mcp_server::providers::ProviderDescriptor;
+
+#[cfg(feature = "provider-strava")]
+use pierre_mcp_server::providers::StravaDescriptor;
+
+#[cfg(feature = "provider-garmin")]
+use pierre_mcp_server::providers::GarminDescriptor;
+
+#[cfg(feature = "provider-synthetic")]
+use pierre_mcp_server::providers::SyntheticDescriptor;
 
 #[test]
+#[cfg(feature = "provider-strava")]
 fn test_strava_descriptor() {
     let desc = StravaDescriptor;
     assert_eq!(desc.name(), "strava");
@@ -26,6 +39,7 @@ fn test_strava_descriptor() {
 }
 
 #[test]
+#[cfg(feature = "provider-garmin")]
 fn test_garmin_descriptor() {
     let desc = GarminDescriptor;
     assert_eq!(desc.name(), "garmin");
@@ -36,6 +50,7 @@ fn test_garmin_descriptor() {
 }
 
 #[test]
+#[cfg(feature = "provider-synthetic")]
 fn test_synthetic_descriptor() {
     let desc = SyntheticDescriptor;
     assert_eq!(desc.name(), "synthetic");

@@ -293,12 +293,14 @@ impl fmt::Debug for ProviderBundle {
 }
 
 // ============================================================================
-// Built-in Provider Descriptors
+// Built-in Provider Descriptors (conditionally compiled)
 // ============================================================================
 
 /// Strava provider descriptor
+#[cfg(feature = "provider-strava")]
 pub struct StravaDescriptor;
 
+#[cfg(feature = "provider-strava")]
 impl ProviderDescriptor for StravaDescriptor {
     fn name(&self) -> &'static str {
         "strava"
@@ -330,8 +332,10 @@ impl ProviderDescriptor for StravaDescriptor {
 }
 
 /// Garmin provider descriptor
+#[cfg(feature = "provider-garmin")]
 pub struct GarminDescriptor;
 
+#[cfg(feature = "provider-garmin")]
 impl ProviderDescriptor for GarminDescriptor {
     fn name(&self) -> &'static str {
         "garmin"
@@ -369,8 +373,10 @@ impl ProviderDescriptor for GarminDescriptor {
 }
 
 /// Synthetic provider descriptor (for development/testing)
+#[cfg(feature = "provider-synthetic")]
 pub struct SyntheticDescriptor;
 
+#[cfg(feature = "provider-synthetic")]
 impl ProviderDescriptor for SyntheticDescriptor {
     fn name(&self) -> &'static str {
         "synthetic"

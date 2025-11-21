@@ -5,18 +5,26 @@
 // Copyright ©2025 Async-IO.org
 
 use super::core::{FitnessProvider, ProviderConfig, ProviderFactory, TenantProvider};
-use super::garmin_provider::GarminProviderFactory;
-use super::spi::{
-    GarminDescriptor, ProviderBundle, ProviderCapabilities, ProviderDescriptor, StravaDescriptor,
-    SyntheticDescriptor,
-};
-use super::strava_provider::StravaProviderFactory;
-use super::synthetic_provider::SyntheticProviderFactory;
+use super::spi::{ProviderBundle, ProviderCapabilities, ProviderDescriptor};
 use crate::constants::oauth_providers;
 use crate::errors::{AppError, AppResult};
 use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
+
+// Conditional imports for provider-specific types
+#[cfg(feature = "provider-garmin")]
+use super::garmin_provider::GarminProviderFactory;
+#[cfg(feature = "provider-garmin")]
+use super::spi::GarminDescriptor;
+#[cfg(feature = "provider-strava")]
+use super::spi::StravaDescriptor;
+#[cfg(feature = "provider-synthetic")]
+use super::spi::SyntheticDescriptor;
+#[cfg(feature = "provider-strava")]
+use super::strava_provider::StravaProviderFactory;
+#[cfg(feature = "provider-synthetic")]
+use super::synthetic_provider::SyntheticProviderFactory;
 
 /// Factory wrapper for bundle-based provider registration
 struct BundleFactory {
@@ -54,76 +62,84 @@ impl ProviderRegistry {
         };
 
         // Register Strava provider with environment-based configuration
-        registry.register_factory(oauth_providers::STRAVA, Box::new(StravaProviderFactory));
-        registry.register_descriptor(oauth_providers::STRAVA, Box::new(StravaDescriptor));
-        let (_client_id, _client_secret, auth_url, token_url, api_base_url, revoke_url, scopes) =
-            crate::config::environment::load_provider_env_config(
+        #[cfg(feature = "provider-strava")]
+        {
+            registry.register_factory(oauth_providers::STRAVA, Box::new(StravaProviderFactory));
+            registry.register_descriptor(oauth_providers::STRAVA, Box::new(StravaDescriptor));
+            let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
+                crate::config::environment::load_provider_env_config(
+                    oauth_providers::STRAVA,
+                    "https://www.strava.com/oauth/authorize",
+                    "https://www.strava.com/oauth/token",
+                    "https://www.strava.com/api/v3",
+                    Some("https://www.strava.com/oauth/deauthorize"),
+                    &[oauth_providers::STRAVA_DEFAULT_SCOPES.to_owned()],
+                );
+            registry.set_default_config(
                 oauth_providers::STRAVA,
-                "https://www.strava.com/oauth/authorize",
-                "https://www.strava.com/oauth/token",
-                "https://www.strava.com/api/v3",
-                Some("https://www.strava.com/oauth/deauthorize"),
-                &[oauth_providers::STRAVA_DEFAULT_SCOPES.to_owned()],
+                ProviderConfig {
+                    name: oauth_providers::STRAVA.to_owned(),
+                    auth_url,
+                    token_url,
+                    api_base_url,
+                    revoke_url,
+                    default_scopes: scopes,
+                },
             );
-        registry.set_default_config(
-            oauth_providers::STRAVA,
-            ProviderConfig {
-                name: oauth_providers::STRAVA.to_owned(),
-                auth_url,
-                token_url,
-                api_base_url,
-                revoke_url,
-                default_scopes: scopes,
-            },
-        );
+        }
 
         // Register Garmin provider with environment-based configuration
-        registry.register_factory(oauth_providers::GARMIN, Box::new(GarminProviderFactory));
-        registry.register_descriptor(oauth_providers::GARMIN, Box::new(GarminDescriptor));
-        let (_client_id, _client_secret, auth_url, token_url, api_base_url, revoke_url, scopes) =
-            crate::config::environment::load_provider_env_config(
+        #[cfg(feature = "provider-garmin")]
+        {
+            registry.register_factory(oauth_providers::GARMIN, Box::new(GarminProviderFactory));
+            registry.register_descriptor(oauth_providers::GARMIN, Box::new(GarminDescriptor));
+            let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
+                crate::config::environment::load_provider_env_config(
+                    oauth_providers::GARMIN,
+                    "https://connect.garmin.com/oauthConfirm",
+                    "https://connectapi.garmin.com/oauth-service/oauth/access_token",
+                    "https://apis.garmin.com/wellness-api/rest",
+                    Some("https://connectapi.garmin.com/oauth-service/oauth/revoke"),
+                    &crate::constants::oauth::GARMIN_DEFAULT_SCOPES
+                        .split(',')
+                        .map(str::to_owned)
+                        .collect::<Vec<_>>(),
+                );
+            registry.set_default_config(
                 oauth_providers::GARMIN,
-                "https://connect.garmin.com/oauthConfirm",
-                "https://connectapi.garmin.com/oauth-service/oauth/access_token",
-                "https://apis.garmin.com/wellness-api/rest",
-                Some("https://connectapi.garmin.com/oauth-service/oauth/revoke"),
-                &crate::constants::oauth::GARMIN_DEFAULT_SCOPES
-                    .split(',')
-                    .map(str::to_owned)
-                    .collect::<Vec<_>>(),
+                ProviderConfig {
+                    name: oauth_providers::GARMIN.to_owned(),
+                    auth_url,
+                    token_url,
+                    api_base_url,
+                    revoke_url,
+                    default_scopes: scopes,
+                },
             );
-        registry.set_default_config(
-            oauth_providers::GARMIN,
-            ProviderConfig {
-                name: oauth_providers::GARMIN.to_owned(),
-                auth_url,
-                token_url,
-                api_base_url,
-                revoke_url,
-                default_scopes: scopes,
-            },
-        );
+        }
 
         // Register Synthetic provider (for development and testing)
-        registry.register_factory(
-            oauth_providers::SYNTHETIC,
-            Box::new(SyntheticProviderFactory),
-        );
-        registry.register_descriptor(oauth_providers::SYNTHETIC, Box::new(SyntheticDescriptor));
-        registry.set_default_config(
-            oauth_providers::SYNTHETIC,
-            ProviderConfig {
-                name: oauth_providers::SYNTHETIC.to_owned(),
-                auth_url: "http://localhost/synthetic/auth".to_owned(),
-                token_url: "http://localhost/synthetic/token".to_owned(),
-                api_base_url: "http://localhost/synthetic/api".to_owned(),
-                revoke_url: None,
-                default_scopes: vec!["activity:read_all".to_owned()],
-            },
-        );
+        #[cfg(feature = "provider-synthetic")]
+        {
+            registry.register_factory(
+                oauth_providers::SYNTHETIC,
+                Box::new(SyntheticProviderFactory),
+            );
+            registry.register_descriptor(oauth_providers::SYNTHETIC, Box::new(SyntheticDescriptor));
+            registry.set_default_config(
+                oauth_providers::SYNTHETIC,
+                ProviderConfig {
+                    name: oauth_providers::SYNTHETIC.to_owned(),
+                    auth_url: "http://localhost/synthetic/auth".to_owned(),
+                    token_url: "http://localhost/synthetic/token".to_owned(),
+                    api_base_url: "http://localhost/synthetic/api".to_owned(),
+                    revoke_url: None,
+                    default_scopes: vec!["activity:read_all".to_owned()],
+                },
+            );
+        }
 
-        // Future: Add Fitbit provider when implemented
-        // registry.register_factory(oauth_providers::FITBIT, Box::new(FitbitProviderFactory));
+        // Future providers can be added with their own feature flags
 
         // Log registered providers at startup
         let providers = registry.supported_providers().join(", ");
