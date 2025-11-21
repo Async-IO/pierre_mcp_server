@@ -31,6 +31,9 @@ See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md) a
 
 - **MCP Protocol**: JSON-RPC over HTTP for AI assistant integration
 - **A2A Protocol**: Agent-to-agent communication with capability discovery
+- **OAuth 2.0 Server**: RFC 7591 dynamic client registration for MCP clients
+- **RS256/JWKS**: Asymmetric JWT signing with public key distribution
+- **Plugin System**: Compile-time plugin architecture with lifecycle management
 
 ## Architecture
 
