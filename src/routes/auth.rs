@@ -1012,11 +1012,50 @@ impl AuthRoutes {
     }
 
     /// Handle user registration (Axum)
+    ///
+    /// REQUIRES: Admin authentication (Bearer token in Authorization header)
+    ///
+    /// Security: Only administrators can create new users to prevent
+    /// unauthorized user creation, database pollution, and `DoS` attacks.
     async fn handle_register(
         axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
+        headers: axum::http::HeaderMap,
         axum::Json(request): axum::Json<RegisterRequest>,
     ) -> Result<axum::response::Response, AppError> {
         use axum::response::IntoResponse;
+
+        // Extract and validate admin token
+        let auth_header = headers
+            .get("authorization")
+            .and_then(|h| h.to_str().ok())
+            .ok_or_else(|| {
+                AppError::auth_invalid(
+                    "Missing Authorization header for user registration - admin token required",
+                )
+            })?;
+
+        let token = crate::utils::auth::extract_bearer_token_owned(auth_header)
+            .map_err(|_| AppError::auth_invalid("Invalid Authorization header format"))?;
+
+        // Validate admin token
+        let admin_auth_service = crate::admin::AdminAuthService::new(
+            resources.database.as_ref().clone(),
+            resources.jwks_manager.clone(),
+        );
+
+        // Authenticate admin (no specific permission check - any valid admin token can register users)
+        admin_auth_service
+            .authenticate(&token, None)
+            .await
+            .map_err(|e| {
+                tracing::warn!(error = %e, "Failed to authenticate admin token for user registration");
+                AppError::auth_invalid(format!("Admin authentication failed: {e}"))
+            })?;
+
+        tracing::info!(
+            "Admin-authenticated user registration attempt for email: {}",
+            request.email
+        );
 
         let server_context = crate::context::ServerContext::from(resources.as_ref());
         let auth_routes =

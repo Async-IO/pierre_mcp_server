@@ -41,8 +41,14 @@ impl SseRoutes {
     }
 
     /// Handle OAuth notification SSE connection
+    ///
+    /// REQUIRES: JWT authentication (Bearer token in Authorization header)
+    ///
+    /// Security: Only authenticated users can subscribe to their own notification streams
+    /// to prevent unauthorized access to OAuth tokens and personal notifications.
     async fn handle_notification_sse(
         Path(user_id): Path<String>,
+        headers: axum::http::HeaderMap,
         State((manager, resources)): State<(Arc<SseManager>, Arc<ServerResources>)>,
     ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
         tracing::info!("New notification SSE connection for user: {}", user_id);
@@ -51,6 +57,42 @@ impl SseRoutes {
             tracing::warn!(user_id = %user_id, error = %e, "Invalid user ID format for SSE connection");
             AppError::invalid_input(format!("Invalid user ID format: {e}"))
         })?;
+
+        // Extract and validate JWT token
+        let auth_header = headers
+            .get("authorization")
+            .and_then(|h| h.to_str().ok())
+            .ok_or_else(|| {
+                tracing::warn!(user_id = %user_uuid, "Missing Authorization header for SSE notification stream");
+                AppError::auth_invalid("Missing Authorization header - JWT token required for SSE notifications")
+            })?;
+
+        let token = crate::utils::auth::extract_bearer_token_owned(auth_header).map_err(|_| {
+            tracing::warn!(user_id = %user_uuid, "Invalid Authorization header format for SSE");
+            AppError::auth_invalid("Invalid Authorization header format")
+        })?;
+
+        // Authenticate user
+        let auth_result = resources
+            .auth_middleware
+            .authenticate_request(Some(&format!("Bearer {token}")))
+            .await
+            .map_err(|e| {
+                tracing::warn!(user_id = %user_uuid, error = %e, "Failed to authenticate JWT token for SSE");
+                AppError::auth_invalid(format!("Authentication failed: {e}"))
+            })?;
+
+        // Verify authenticated user matches requested user_id
+        if auth_result.user_id != user_uuid {
+            tracing::warn!(
+                authenticated_user = %auth_result.user_id,
+                requested_user = %user_uuid,
+                "User attempting to access another user's SSE notification stream"
+            );
+            return Err(AppError::auth_invalid(
+                "Cannot access notification stream for another user",
+            ));
+        }
 
         let mut receiver = manager.register_notification_stream(user_uuid).await;
         let manager_clone = manager.clone();
@@ -129,8 +171,14 @@ impl SseRoutes {
     }
 
     /// Handle MCP protocol SSE connection
+    ///
+    /// REQUIRES: JWT authentication (Bearer token in Authorization header or Mcp-Session-Id)
+    ///
+    /// Security: Only authenticated users can establish SSE streams for MCP protocol
+    /// to prevent unauthorized access to protocol messages and session hijacking.
     async fn handle_protocol_sse(
         Path(session_id): Path<String>,
+        headers: axum::http::HeaderMap,
         State((manager, resources)): State<(Arc<SseManager>, Arc<ServerResources>)>,
     ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
         tracing::info!(
@@ -138,8 +186,38 @@ impl SseRoutes {
             session_id
         );
 
+        // Extract authorization header for session validation
+        let auth_header = headers
+            .get("authorization")
+            .and_then(|h| h.to_str().ok())
+            .map(String::from);
+
+        // Validate authentication if provided
+        if let Some(ref auth) = auth_header {
+            let token = crate::utils::auth::extract_bearer_token_owned(auth).map_err(|_| {
+                tracing::warn!(session_id = %session_id, "Invalid Authorization header format for MCP SSE");
+                AppError::auth_invalid("Invalid Authorization header format")
+            })?;
+
+            // Authenticate user to ensure valid JWT
+            resources
+                .auth_middleware
+                .authenticate_request(Some(&format!("Bearer {token}")))
+                .await
+                .map_err(|e| {
+                    tracing::warn!(session_id = %session_id, error = %e, "Failed to authenticate JWT token for MCP SSE");
+                    AppError::auth_invalid(format!("Authentication failed: {e}"))
+                })?;
+        } else {
+            // MCP SSE requires authentication
+            tracing::warn!(session_id = %session_id, "Missing Authorization header for MCP SSE connection");
+            return Err(AppError::auth_invalid(
+                "Missing Authorization header - JWT token required for MCP SSE",
+            ));
+        }
+
         let mut receiver = manager
-            .register_protocol_stream(session_id.clone(), None, resources.clone())
+            .register_protocol_stream(session_id.clone(), auth_header, resources.clone())
             .await;
         let manager_clone = manager.clone();
         let session_id_clone = session_id.clone();
@@ -194,11 +272,49 @@ impl SseRoutes {
     }
 
     /// Handle A2A task SSE connection for task progress streaming
+    ///
+    /// REQUIRES: JWT authentication (Bearer token in Authorization header)
+    ///
+    /// Security: Only authenticated users can subscribe to A2A task streams
+    /// to prevent unauthorized monitoring of agent-to-agent task progress.
     async fn handle_a2a_task_sse(
         Path(task_id): Path<String>,
+        headers: axum::http::HeaderMap,
         State((manager, resources)): State<(Arc<SseManager>, Arc<ServerResources>)>,
     ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
         tracing::info!("New A2A task SSE connection for task: {}", task_id);
+
+        // Extract and validate JWT token
+        let auth_header = headers
+            .get("authorization")
+            .and_then(|h| h.to_str().ok())
+            .ok_or_else(|| {
+                tracing::warn!(task_id = %task_id, "Missing Authorization header for A2A task SSE");
+                AppError::auth_invalid(
+                    "Missing Authorization header - JWT token required for A2A task streams",
+                )
+            })?;
+
+        let token = crate::utils::auth::extract_bearer_token_owned(auth_header).map_err(|_| {
+            tracing::warn!(task_id = %task_id, "Invalid Authorization header format for A2A SSE");
+            AppError::auth_invalid("Invalid Authorization header format")
+        })?;
+
+        // Authenticate user
+        let auth_result = resources
+            .auth_middleware
+            .authenticate_request(Some(&format!("Bearer {token}")))
+            .await
+            .map_err(|e| {
+                tracing::warn!(task_id = %task_id, error = %e, "Failed to authenticate JWT token for A2A SSE");
+                AppError::auth_invalid(format!("Authentication failed: {e}"))
+            })?;
+
+        tracing::info!(
+            task_id = %task_id,
+            user_id = %auth_result.user_id,
+            "Authenticated A2A task SSE connection"
+        );
 
         // Verify task exists in database
         let task = resources.database

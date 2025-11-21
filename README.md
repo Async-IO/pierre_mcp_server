@@ -225,11 +225,14 @@ The response includes an admin token. Save this token for administrative operati
 
 #### Register and Approve Users
 
-1. **Register a user**:
+> **Security Note**: User registration requires admin authentication to prevent unauthorized account creation.
+
+1. **Register a user** (requires admin token):
 
 ```bash
 curl -X POST http://localhost:8081/api/auth/register \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {admin_token}" \
   -d '{
     "email": "user@example.com",
     "password": "userpass123",
@@ -237,7 +240,7 @@ curl -X POST http://localhost:8081/api/auth/register \
   }'
 ```
 
-The response includes a `user_id`. Save this for the approval step.
+Replace `{admin_token}` with the admin token from the setup response. The response includes a `user_id`. Save this for the approval step.
 
 2. **Approve the user** (requires admin token):
 

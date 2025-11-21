@@ -58,11 +58,12 @@ fi
 echo -e "${GREEN}✅ Admin created successfully${NC}"
 echo "Admin token (first 50 chars): ${ADMIN_TOKEN:0:50}..."
 
-# Step 2: Register Regular User
+# Step 2: Register Regular User (requires admin token)
 echo -e "\n${BLUE}=== Step 2: Register Regular User ===${NC}"
 
 USER_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/api/auth/register \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{
     "email": "user@example.com",
     "password": "userpass123",
