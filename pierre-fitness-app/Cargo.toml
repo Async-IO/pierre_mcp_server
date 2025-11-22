@@ -1,0 +1,39 @@
+[package]
+name = "pierre-fitness-app"
+version = "0.2.0"
+edition = "2021"
+license-file = "LICENSE-COMMERCIAL"
+description = "Fitness intelligence application built on Pierre Framework"
+
+[[bin]]
+name = "pierre-fitness-server"
+path = "src/main.rs"
+
+[lib]
+name = "pierre_fitness_app"
+path = "src/lib.rs"
+
+[features]
+default = ["all-providers"]
+provider-strava = ["pierre-fitness-providers/strava"]
+provider-garmin = ["pierre-fitness-providers/garmin"]
+provider-synthetic = ["pierre-fitness-providers/synthetic"]
+all-providers = ["provider-strava", "provider-garmin", "provider-synthetic"]
+
+[dependencies]
+# Generic framework (local dev path, will point to crates.io in production)
+pierre-framework = { path = "../pierre_mcp_server", features = ["mcp", "a2a", "rest", "sqlite"] }
+
+# Private provider implementations (local dev path)
+pierre-fitness-providers = { path = "../pierre-fitness-providers", optional = true }
+
+# Fitness-specific dependencies
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.45", features = ["rt-multi-thread", "macros"] }
+async-trait = "0.1"
+thiserror = "2.0"
+tracing = "0.1"
+uuid = { version = "1.11", features = ["v4", "serde"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
