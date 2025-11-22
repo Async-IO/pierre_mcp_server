@@ -90,10 +90,82 @@ The decoupling is deeply entangled and requires careful planning. Recommendation
 3. **Extract configuration framework**: Keep generic ConfigCatalog pattern, move fitness parameters
 4. **Gradual removal**: Remove one module at a time, updating all imports
 
+## Critical Discovery: Tool Executor Dependencies
+
+### Handler Duplication Verified
+
+All fitness handlers are exact byte-for-byte duplicates (verified via MD5 checksums):
+- ✅ fitness_api.rs (35,674 bytes)
+- ✅ goals.rs (49,093 bytes)
+- ✅ intelligence.rs (157,986 bytes)
+- ✅ nutrition.rs (25,887 bytes)
+- ✅ sleep_recovery.rs (38,464 bytes)
+- ✅ provider_helpers.rs (6,624 bytes)
+
+### Tool Registration System is Fitness-Specific
+
+**Critical finding:** `src/protocols/universal/executor.rs` is entirely fitness-specific:
+```
+Lines 8-21: Imports ALL fitness handlers
+Lines 28-50+: IntelligenceService uses crate::models::Activity
+Lines 150+: register_strava_tools() registers fitness tools with ToolRegistry
+```
+
+**This means:**
+1. The universal executor is not actually universal - it's fitness-specific
+2. The ToolRegistry system needs to become pluggable before handlers can be moved
+3. Simply removing handler files will break the entire tool system
+
+### Actual vs Planned State
+
+**Planned state (from Phase 3 docs):**
+- Three separate repositories with clear boundaries
+- Framework provides generic infrastructure
+- Fitness-app imports and extends framework
+
+**Actual state (discovered today):**
+- Pierre_mcp_server IS the fitness app currently
+- Pierre-fitness-app/ subdirectory contains copied (duplicated) code only
+- No workspace setup, no crate dependencies between them
+- The "three repository migration" copied files but didn't restructure dependencies
+
+**What this means:**
+The migration requires:
+1. First: Make tool registration pluggable (big architectural change)
+2. Second: Create pierre-fitness-app as actual working crate depending on framework
+3. Third: Remove fitness code from framework
+4. Fourth: Ensure fitness-app can register its tools/handlers/routes dynamically
+
+## Revised Incremental Strategy
+
+### Cannot Remove Handlers Yet
+
+Removing handlers now would require:
+- Redesigning executor.rs to be truly universal
+- Creating pluggable tool registration system
+- Moving IntelligenceService to fitness-app
+- Making ToolRegistry accept external tool providers
+
+### What CAN Be Done Incrementally
+
+1. **Extract generic patterns** - Identify and document generic vs fitness interfaces
+2. **Add plugin architecture** - Design how external apps can register tools
+3. **Create trait boundaries** - Define clear interfaces between framework and domain logic
+4. **Gradual interface extraction** - Move one interface at a time to be generic
+
+### Recommended Next Steps
+
+1. **Document the plugin architecture needed** - How should external apps register tools?
+2. **Identify one small generic interface** - Find simplest place to start extraction
+3. **Create example of pluggable tool** - Prove the pattern works before full migration
+4. **Then proceed with systematic extraction** - Apply pattern across all fitness code
+
 ## Blocked Items
 
 Cannot proceed with removing src/intelligence or src/models until:
-- All handlers moved to pierre-fitness-app
-- All routes moved to pierre-fitness-app
-- Tool registration system supports external registration
-- Configuration system separated into generic framework + fitness content
+- ✅ Handler duplication verified (DONE - all exact duplicates)
+- ❌ Tool registration system made pluggable (BLOCKED - requires architecture redesign)
+- ❌ Executor.rs redesigned to be domain-agnostic (BLOCKED - fundamental change)
+- ❌ All handlers moved to pierre-fitness-app (BLOCKED - depends on pluggable system)
+- ❌ All routes moved to pierre-fitness-app (BLOCKED - same issue)
+- ❌ Configuration system separated into generic framework + fitness content
