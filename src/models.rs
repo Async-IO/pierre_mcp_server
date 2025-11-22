@@ -1104,8 +1104,8 @@ impl UserPhysiologicalProfile {
     /// Get max heart rate if available
     ///
     /// Note: Max HR estimation from age has been moved to pierre-fitness-app.
-    /// This method now only returns the explicitly set max_hr value.
-    /// For age-based estimation, use the MaxHR algorithm in pierre-fitness-app.
+    /// This method now only returns the explicitly set `max_hr` value.
+    /// For age-based estimation, use the `MaxHR` algorithm in pierre-fitness-app.
     #[must_use]
     pub const fn estimated_max_hr(&self) -> Option<u16> {
         // Estimation logic removed to eliminate algorithm DI violation
