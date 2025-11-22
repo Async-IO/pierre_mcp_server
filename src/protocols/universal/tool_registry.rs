@@ -26,10 +26,22 @@ pub enum ToolId {
     GetActivityIntelligence,
     /// Check OAuth connection status for fitness providers
     GetConnectionStatus,
+    /// Connect to Pierre MCP server (triggers OAuth flow)
+    ConnectToPierre,
     /// Connect to a fitness data provider via OAuth
     ConnectProvider,
     /// Disconnect user from a fitness data provider
     DisconnectProvider,
+
+    // OAuth notification tools
+    /// Announce OAuth connection success to user
+    AnnounceOAuthSuccess,
+    /// Check for OAuth completion notifications
+    CheckOAuthNotifications,
+    /// Get list of OAuth notifications
+    GetNotifications,
+    /// Mark OAuth notifications as read
+    MarkNotificationsRead,
 
     // Goal and planning tools
     /// Set a new fitness goal for the user
@@ -85,6 +97,16 @@ pub enum ToolId {
     /// Optimize sleep duration based on training load and recovery needs
     OptimizeSleepSchedule,
 
+    // Fitness configuration management tools
+    /// Get user fitness configuration settings
+    GetFitnessConfig,
+    /// Set user fitness configuration settings
+    SetFitnessConfig,
+    /// List all fitness configuration names
+    ListFitnessConfigs,
+    /// Delete a fitness configuration
+    DeleteFitnessConfig,
+
     // Nutrition analysis and USDA food database tools
     /// Calculate daily calorie and macronutrient needs using Mifflin-St Jeor BMR formula
     CalculateDailyNutrition,
@@ -110,8 +132,13 @@ impl ToolId {
             "analyze_activity" => Some(Self::AnalyzeActivity),
             "get_activity_intelligence" => Some(Self::GetActivityIntelligence),
             "get_connection_status" => Some(Self::GetConnectionStatus),
+            "connect_to_pierre" => Some(Self::ConnectToPierre),
             "connect_provider" => Some(Self::ConnectProvider),
             "disconnect_provider" => Some(Self::DisconnectProvider),
+            "announce_oauth_success" => Some(Self::AnnounceOAuthSuccess),
+            "check_oauth_notifications" => Some(Self::CheckOAuthNotifications),
+            "get_notifications" => Some(Self::GetNotifications),
+            "mark_notifications_read" => Some(Self::MarkNotificationsRead),
             "set_goal" => Some(Self::SetGoal),
             "suggest_goals" => Some(Self::SuggestGoals),
             "analyze_goal_feasibility" => Some(Self::AnalyzeGoalFeasibility),
@@ -135,6 +162,10 @@ impl ToolId {
             "suggest_rest_day" => Some(Self::SuggestRestDay),
             "track_sleep_trends" => Some(Self::TrackSleepTrends),
             "optimize_sleep_schedule" => Some(Self::OptimizeSleepSchedule),
+            "get_fitness_config" => Some(Self::GetFitnessConfig),
+            "set_fitness_config" => Some(Self::SetFitnessConfig),
+            "list_fitness_configs" => Some(Self::ListFitnessConfigs),
+            "delete_fitness_config" => Some(Self::DeleteFitnessConfig),
             "calculate_daily_nutrition" => Some(Self::CalculateDailyNutrition),
             "get_nutrient_timing" => Some(Self::GetNutrientTiming),
             "search_food" => Some(Self::SearchFood),
@@ -154,8 +185,13 @@ impl ToolId {
             Self::AnalyzeActivity => "analyze_activity",
             Self::GetActivityIntelligence => "get_activity_intelligence",
             Self::GetConnectionStatus => "get_connection_status",
+            Self::ConnectToPierre => "connect_to_pierre",
             Self::ConnectProvider => "connect_provider",
             Self::DisconnectProvider => "disconnect_provider",
+            Self::AnnounceOAuthSuccess => "announce_oauth_success",
+            Self::CheckOAuthNotifications => "check_oauth_notifications",
+            Self::GetNotifications => "get_notifications",
+            Self::MarkNotificationsRead => "mark_notifications_read",
             Self::SetGoal => "set_goal",
             Self::SuggestGoals => "suggest_goals",
             Self::AnalyzeGoalFeasibility => "analyze_goal_feasibility",
@@ -179,6 +215,10 @@ impl ToolId {
             Self::SuggestRestDay => "suggest_rest_day",
             Self::TrackSleepTrends => "track_sleep_trends",
             Self::OptimizeSleepSchedule => "optimize_sleep_schedule",
+            Self::GetFitnessConfig => "get_fitness_config",
+            Self::SetFitnessConfig => "set_fitness_config",
+            Self::ListFitnessConfigs => "list_fitness_configs",
+            Self::DeleteFitnessConfig => "delete_fitness_config",
             Self::CalculateDailyNutrition => "calculate_daily_nutrition",
             Self::GetNutrientTiming => "get_nutrient_timing",
             Self::SearchFood => "search_food",
@@ -201,8 +241,13 @@ impl ToolId {
             }
             Self::GetActivityIntelligence => "Get AI-powered intelligence analysis for an activity",
             Self::GetConnectionStatus => "Check OAuth connection status for fitness providers",
+            Self::ConnectToPierre => "Connect to Pierre MCP server and trigger OAuth authentication flow",
             Self::ConnectProvider => "Connect to a fitness data provider via OAuth",
             Self::DisconnectProvider => "Disconnect user from a fitness data provider",
+            Self::AnnounceOAuthSuccess => "Announce OAuth connection success directly in chat",
+            Self::CheckOAuthNotifications => "Check for new OAuth completion notifications",
+            Self::GetNotifications => "Get list of OAuth notifications for the user",
+            Self::MarkNotificationsRead => "Mark OAuth notifications as read",
             Self::SetGoal => "Set a new fitness goal for the user",
             Self::SuggestGoals => "Get AI-suggested fitness goals based on user's activity history",
             Self::AnalyzeGoalFeasibility => {
@@ -250,6 +295,10 @@ impl ToolId {
             Self::OptimizeSleepSchedule => {
                 "Optimize sleep duration based on training load and recovery needs"
             }
+            Self::GetFitnessConfig => "Get user fitness configuration settings including heart rate zones and training parameters",
+            Self::SetFitnessConfig => "Save user fitness configuration settings for zones, thresholds, and training parameters",
+            Self::ListFitnessConfigs => "List all available fitness configuration names for the user",
+            Self::DeleteFitnessConfig => "Delete a specific fitness configuration by name",
             Self::CalculateDailyNutrition => {
                 "Calculate daily calorie and macronutrient needs based on athlete biometrics, activity level, and training goal using Mifflin-St Jeor BMR formula"
             }

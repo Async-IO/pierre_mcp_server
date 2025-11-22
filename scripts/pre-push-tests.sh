@@ -68,9 +68,19 @@ run_test() {
 }
 
 # ============================================================================
-# TIER 1: Critical Infrastructure (must pass)
+# TIER 1: Schema & Registry Validation (must pass FIRST - prevents tool drift)
 # ============================================================================
-echo "🔧 Tier 1: Critical Infrastructure"
+echo "📋 Tier 1: Schema & Registry Validation"
+echo "----------------------------------------"
+
+run_test "schema_completeness_test" "Schema/registry consistency" || exit 1
+
+echo ""
+
+# ============================================================================
+# TIER 2: Critical Infrastructure (must pass)
+# ============================================================================
+echo "🔧 Tier 2: Critical Infrastructure"
 echo "-----------------------------------"
 
 run_test "routes_health_http_test" "Health endpoints" || exit 1
@@ -80,9 +90,9 @@ run_test "crypto_keys_test" "Encryption & crypto keys" || exit 1
 echo ""
 
 # ============================================================================
-# TIER 2: Security & Authentication (must pass)
+# TIER 3: Security & Authentication (must pass)
 # ============================================================================
-echo "🔒 Tier 2: Security & Authentication"
+echo "🔒 Tier 3: Security & Authentication"
 echo "-------------------------------------"
 
 run_test "auth_test" "Authentication" || exit 1
@@ -94,9 +104,9 @@ run_test "security_headers_test" "Security headers" || exit 1
 echo ""
 
 # ============================================================================
-# TIER 3: MCP Protocol Compliance (critical for MCP functionality)
+# TIER 4: MCP Protocol Compliance (critical for MCP functionality)
 # ============================================================================
-echo "🔌 Tier 3: MCP Protocol"
+echo "🔌 Tier 4: MCP Protocol"
 echo "-----------------------"
 
 run_test "mcp_compliance_test" "MCP compliance" || exit 1
@@ -106,9 +116,9 @@ run_test "mcp_tools_unit" "MCP tools" || exit 1
 echo ""
 
 # ============================================================================
-# TIER 4: Core Functionality (important features)
+# TIER 5: Core Functionality (important features)
 # ============================================================================
-echo "⚙️  Tier 4: Core Functionality"
+echo "⚙️  Tier 5: Core Functionality"
 echo "------------------------------"
 
 run_test "errors_test" "Error handling (AppResult)" || exit 1
@@ -119,9 +129,9 @@ run_test "simple_integration_test" "Basic integration" || exit 1
 echo ""
 
 # ============================================================================
-# TIER 5: Multi-tenancy & Data Isolation (critical for production)
+# TIER 6: Multi-tenancy & Data Isolation (critical for production)
 # ============================================================================
-echo "🏢 Tier 5: Multi-tenancy"
+echo "🏢 Tier 6: Multi-tenancy"
 echo "------------------------"
 
 run_test "tenant_data_isolation" "Tenant isolation" || exit 1
@@ -130,9 +140,9 @@ run_test "tenant_context_resolution_test" "Tenant context" || exit 1
 echo ""
 
 # ============================================================================
-# TIER 6: Protocols & Features (critical features)
+# TIER 7: Protocols & Features (critical features)
 # ============================================================================
-echo "🔌 Tier 6: Protocols & Features"
+echo "🔌 Tier 7: Protocols & Features"
 echo "--------------------------------"
 
 run_test "a2a_system_user_test" "A2A protocol basics" || exit 1
