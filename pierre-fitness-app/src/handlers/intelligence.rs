@@ -131,7 +131,7 @@ struct CalculatedMetrics {
 /// # Returns
 /// Calculated metrics structure
 fn calculate_activity_metrics(params: &ActivityParameters, max_hr: f64) -> CalculatedMetrics {
-    use crate::constants::limits;
+    use pierre_mcp_server::constants::limits;
     use crate::intelligence::physiological_constants::{
         efficiency_defaults::{DEFAULT_EFFICIENCY_SCORE, DEFAULT_EFFICIENCY_WITH_DISTANCE},
         unit_conversions::MS_TO_KMH_FACTOR,
@@ -189,7 +189,7 @@ fn build_metrics_response(
     max_hr: f64,
     max_hr_source: &str,
 ) -> UniversalResponse {
-    use crate::constants::limits;
+    use pierre_mcp_server::constants::limits;
 
     UniversalResponse {
         success: true,
@@ -3408,7 +3408,7 @@ fn generate_goal_specific_recommendations(
 /// Generate nutrition recommendations based on recent activity
 /// Calculate activity nutrition metrics (duration, calories, intensity)
 fn calculate_nutrition_metrics(activity: &crate::models::Activity) -> (f64, f64, &'static str) {
-    use crate::constants::time_constants;
+    use pierre_mcp_server::constants::time_constants;
 
     let duration_hours = f64::from(
         u32::try_from(activity.duration_seconds.min(u64::from(u32::MAX))).unwrap_or(u32::MAX),

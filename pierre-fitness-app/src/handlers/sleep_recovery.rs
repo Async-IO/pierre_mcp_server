@@ -24,7 +24,7 @@ async fn fetch_strava_activities(
     user_uuid: Uuid,
     tenant_id: Option<&str>,
 ) -> Result<Vec<Activity>, UniversalResponse> {
-    use crate::constants::oauth_providers;
+    use pierre_mcp_server::constants::oauth_providers;
 
     match executor
         .auth_service
