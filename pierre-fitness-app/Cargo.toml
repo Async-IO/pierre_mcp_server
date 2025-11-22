@@ -14,19 +14,30 @@ name = "pierre_fitness_app"
 path = "src/lib.rs"
 
 [features]
-default = []
+default = ["all-providers"]
+
+# Database backends (pass through to framework)
+postgresql = ["pierre_mcp_server/postgresql"]
+sqlite = ["pierre_mcp_server/sqlite"]
+
+# Provider feature flags (must match framework feature names)
+provider-strava = ["pierre_mcp_server/provider-strava"]
+provider-garmin = ["pierre_mcp_server/provider-garmin"]
+provider-synthetic = ["pierre_mcp_server/provider-synthetic"]
+all-providers = ["provider-strava", "provider-garmin", "provider-synthetic"]
 
 [dependencies]
 # Generic framework (local dev path, will point to crates.io in production)
 pierre_mcp_server = { path = ".." }
 
 # NOTE: pierre-fitness-providers removed from library dependencies to avoid circular dependency
-# The binary will link both pierre-fitness-app and pierre-fitness-providers separately
+# The binary explicitly references providers in Cargo.toml using target-specific dependencies
 
 # Fitness-specific dependencies
 anyhow = "1.0"
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.5", features = ["derive", "std"], default-features = false }
 num-traits = "0.2"
 ring = "0.17"
 serde = { version = "1.0", features = ["derive"] }
@@ -39,6 +50,9 @@ uuid = { version = "1.11", features = ["v4", "serde"] }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 
 [dev-dependencies]
+# Provider implementations for binary (not pulled in when used as library)
+pierre-fitness-providers = { path = "../pierre-fitness-providers", default-features = true }
+
 tempfile = "3.20"
 serial_test = "3.1"
 tokio-test = "0.4"
