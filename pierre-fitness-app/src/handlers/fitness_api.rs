@@ -10,7 +10,7 @@ use crate::intelligence::physiological_constants::api_limits::{
 };
 use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalResponse};
 use pierre_mcp_server::protocols::ProtocolError;
-use crate::providers::core::FitnessProvider;
+use crate::providers::FitnessProvider;
 use pierre_mcp_server::utils::uuid::parse_user_id_for_protocol;
 use std::future::Future;
 use std::pin::Pin;

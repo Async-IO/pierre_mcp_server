@@ -1,9 +1,6 @@
 // ABOUTME: FitnessProvider trait and provider core abstractions
-// ABOUTME: Domain-specific provider interface for fitness data sources
+// ABOUTME: Re-exports framework provider types until full migration
 
-pub mod config;
-pub mod core;
-
-// Re-export key types
-pub use config::{OAuth2Credentials, ProviderConfig};
-pub use core::{FitnessProvider, ProviderFactory, TenantProvider};
+// Re-export framework provider types (temporary during migration)
+pub use pierre_mcp_server::providers::config::{OAuth2Credentials, ProviderConfig};
+pub use pierre_mcp_server::providers::{CoreFitnessProvider as FitnessProvider, ProviderFactory, TenantProvider};

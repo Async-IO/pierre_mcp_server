@@ -6,7 +6,7 @@
 
 use pierre_mcp_server::config::environment::{default_provider, OAuthProviderConfig};
 use pierre_mcp_server::protocols::universal::auth_service::TokenData;
-use crate::providers::core::FitnessProvider;
+use crate::providers::FitnessProvider;
 use pierre_mcp_server::providers::ProviderRegistry;
 use std::sync::Arc;
 

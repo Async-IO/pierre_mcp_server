@@ -573,7 +573,7 @@ async fn create_intelligence_response(
 /// # Returns
 /// `UniversalResponse` with intelligence or error
 async fn fetch_and_analyze_activity(
-    provider: Box<dyn crate::providers::core::FitnessProvider>,
+    provider: Box<dyn crate::providers::FitnessProvider>,
     activity_id: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
@@ -678,7 +678,7 @@ async fn fetch_and_analyze_activity(
 /// # Returns
 /// `UniversalResponse` with trend analysis or error
 async fn fetch_and_analyze_trends(
-    provider: Box<dyn crate::providers::core::FitnessProvider>,
+    provider: Box<dyn crate::providers::FitnessProvider>,
     metric: &str,
     timeframe: &str,
     user_uuid: uuid::Uuid,
@@ -728,7 +728,7 @@ async fn fetch_and_analyze_trends(
 /// # Returns
 /// `UniversalResponse` with pattern analysis or error
 async fn fetch_and_detect_patterns(
-    provider: Box<dyn crate::providers::core::FitnessProvider>,
+    provider: Box<dyn crate::providers::FitnessProvider>,
     pattern_type: &str,
     user_uuid: uuid::Uuid,
 ) -> UniversalResponse {
@@ -976,7 +976,7 @@ pub fn handle_analyze_performance_trends(
 
 /// Execute activity comparison with authenticated provider
 async fn execute_activity_comparison(
-    provider: Box<dyn crate::providers::core::FitnessProvider>,
+    provider: Box<dyn crate::providers::FitnessProvider>,
     activity_id: &str,
     comparison_type: &str,
     compare_activity_id: Option<&str>,

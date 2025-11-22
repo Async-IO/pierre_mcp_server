@@ -1,9 +1,10 @@
 // ABOUTME: Fitness-specific configuration modules
-// ABOUTME: Intelligence config and fitness settings
+// ABOUTME: Re-exports framework fitness configs until full migration
 
-pub mod fitness_config;
-pub mod intelligence_config;
+// Re-export framework config modules (temporary during migration)
+pub use pierre_mcp_server::config::fitness_config;
+pub use pierre_mcp_server::config::intelligence_config;
 
-// Re-exports for convenience
+// Re-export key types for convenience
 pub use fitness_config::FitnessConfig;
 pub use intelligence_config::IntelligenceConfig;
