@@ -12,19 +12,21 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
-// Conditional imports for provider-specific types
-#[cfg(feature = "provider-garmin")]
-use super::garmin_provider::GarminProviderFactory;
+// NOTE: Provider implementations moved to pierre-fitness-providers
+// The registry now works with externally-registered providers
+// Conditional imports for provider-specific types (commented out - providers moved to fitness-app)
+// #[cfg(feature = "provider-garmin")]
+// use super::garmin_provider::GarminProviderFactory;
 #[cfg(feature = "provider-garmin")]
 use super::spi::GarminDescriptor;
 #[cfg(feature = "provider-strava")]
 use super::spi::StravaDescriptor;
 #[cfg(feature = "provider-synthetic")]
 use super::spi::SyntheticDescriptor;
-#[cfg(feature = "provider-strava")]
-use super::strava_provider::StravaProviderFactory;
-#[cfg(feature = "provider-synthetic")]
-use super::synthetic_provider::SyntheticProviderFactory;
+// #[cfg(feature = "provider-strava")]
+// use super::strava_provider::StravaProviderFactory;
+// #[cfg(feature = "provider-synthetic")]
+// use super::synthetic_provider::SyntheticProviderFactory;
 
 // ============================================================================
 // Provider Bundle Types (fitness-specific, moved from SPI)
@@ -110,7 +112,8 @@ impl ProviderRegistry {
         // Register Strava provider with environment-based configuration
         #[cfg(feature = "provider-strava")]
         {
-            registry.register_factory(oauth_providers::STRAVA, Box::new(StravaProviderFactory));
+            // NOTE: Factory registration moved to pierre-fitness-app
+            // registry.register_factory(oauth_providers::STRAVA, Box::new(StravaProviderFactory));
             registry.register_descriptor(oauth_providers::STRAVA, Box::new(StravaDescriptor));
             let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
                 crate::config::environment::load_provider_env_config(
@@ -137,7 +140,8 @@ impl ProviderRegistry {
         // Register Garmin provider with environment-based configuration
         #[cfg(feature = "provider-garmin")]
         {
-            registry.register_factory(oauth_providers::GARMIN, Box::new(GarminProviderFactory));
+            // NOTE: Factory registration moved to pierre-fitness-app
+            // registry.register_factory(oauth_providers::GARMIN, Box::new(GarminProviderFactory));
             registry.register_descriptor(oauth_providers::GARMIN, Box::new(GarminDescriptor));
             let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
                 crate::config::environment::load_provider_env_config(
@@ -167,10 +171,11 @@ impl ProviderRegistry {
         // Register Synthetic provider (for development and testing)
         #[cfg(feature = "provider-synthetic")]
         {
-            registry.register_factory(
-                oauth_providers::SYNTHETIC,
-                Box::new(SyntheticProviderFactory),
-            );
+            // NOTE: Factory registration moved to pierre-fitness-app
+            // registry.register_factory(
+            //     oauth_providers::SYNTHETIC,
+            //     Box::new(SyntheticProviderFactory),
+            // );
             registry.register_descriptor(oauth_providers::SYNTHETIC, Box::new(SyntheticDescriptor));
             registry.set_default_config(
                 oauth_providers::SYNTHETIC,

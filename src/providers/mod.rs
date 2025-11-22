@@ -38,7 +38,7 @@
 //! # Ok::<(), anyhow::Error>(())
 //! ```
 
-// Core provider system
+// Generic provider infrastructure (domain-agnostic)
 
 /// Generic provider configuration (OAuth credentials, endpoints)
 pub mod config;
@@ -46,41 +46,26 @@ pub mod config;
 pub mod core;
 /// Provider error types and result aliases
 pub mod errors;
-/// Global provider registry and factory
+/// Generic provider registry (for external providers)
 pub mod registry;
 /// Service Provider Interface (SPI) for external providers
 pub mod spi;
 /// Provider utility functions
 pub mod utils;
 
-// Provider implementations (conditionally compiled based on feature flags)
-
-/// Garmin Connect provider implementation
-#[cfg(feature = "provider-garmin")]
-pub mod garmin_provider;
-/// Strava API provider implementation
-#[cfg(feature = "provider-strava")]
-pub mod strava_provider;
-/// Synthetic provider for development and testing
-#[cfg(feature = "provider-synthetic")]
-pub mod synthetic_provider;
-
 // Re-export key types for convenience
+
+/// Re-export configuration types
 pub use config::{OAuth2Credentials, ProviderConfig};
+/// Re-export core provider traits
 pub use core::{FitnessProvider as CoreFitnessProvider, ProviderFactory, TenantProvider};
 /// Re-export provider error types
 pub use errors::{ProviderError, ProviderResult};
-/// Re-export provider registry functions
+/// Re-export registry types
 pub use registry::{
     create_provider, create_registry_with_external_providers, create_tenant_provider,
     get_supported_providers, global_registry, is_provider_supported, ProviderBundle,
     ProviderFactoryFn, ProviderRegistry,
 };
-#[cfg(feature = "provider-garmin")]
-pub use spi::GarminDescriptor;
-#[cfg(feature = "provider-strava")]
-pub use spi::StravaDescriptor;
-#[cfg(feature = "provider-synthetic")]
-pub use spi::SyntheticDescriptor;
 /// Re-export SPI types for external provider development
 pub use spi::{OAuthEndpoints, ProviderCapabilities, ProviderDescriptor};
