@@ -4,13 +4,13 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
-use super::utils::{self, RetryConfig};
-use crate::constants::{api_provider_limits, oauth_providers};
-use crate::errors::{AppError, AppResult};
-use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
-use crate::pagination::{CursorPage, PaginationParams};
-use crate::utils::http_client::shared_client;
+use pierre_fitness_app::providers::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
+use pierre_mcp_server::providers::utils::{self as utils, RetryConfig};
+use pierre_mcp_server::constants::{api_provider_limits, oauth_providers};
+use pierre_mcp_server::errors::{AppError, AppResult};
+use pierre_fitness_app::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
+use pierre_mcp_server::pagination::{CursorPage, PaginationParams};
+use pierre_mcp_server::utils::http_client::shared_client;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::{Client, StatusCode};

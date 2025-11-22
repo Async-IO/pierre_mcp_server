@@ -29,12 +29,12 @@
 //! All data access is protected by `RwLock` for thread-safe concurrent operations.
 //! Multiple requests can safely access the same provider instance.
 
-use crate::constants::oauth_providers;
-use crate::errors::AppResult;
-use crate::models::{Activity, Athlete, PersonalRecord, PrMetric, Stats};
-use crate::pagination::{Cursor, CursorPage, PaginationParams};
-use crate::providers::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
-use crate::providers::errors::ProviderError;
+use pierre_mcp_server::constants::oauth_providers;
+use pierre_mcp_server::errors::AppResult;
+use pierre_fitness_app::models::{Activity, Athlete, PersonalRecord, PrMetric, Stats};
+use pierre_mcp_server::pagination::{Cursor, CursorPage, PaginationParams};
+use pierre_fitness_app::providers::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
+use pierre_mcp_server::providers::ProviderError;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};

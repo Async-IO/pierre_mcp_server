@@ -7,13 +7,13 @@
 // - HTTP client Arc sharing across async operations (shared_client().clone())
 // - String ownership for API responses and error handling
 
-use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
-use super::errors::ProviderError;
-use crate::constants::{api_provider_limits, oauth_providers};
-use crate::errors::{AppError, AppResult};
-use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
-use crate::pagination::{Cursor, CursorPage, PaginationDirection, PaginationParams};
-use crate::utils::http_client::shared_client;
+use pierre_fitness_app::providers::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
+use pierre_mcp_server::providers::ProviderError;
+use pierre_mcp_server::constants::{api_provider_limits, oauth_providers};
+use pierre_mcp_server::errors::{AppError, AppResult};
+use pierre_fitness_app::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
+use pierre_mcp_server::pagination::{Cursor, CursorPage, PaginationDirection, PaginationParams};
+use pierre_mcp_server::utils::http_client::shared_client;
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use reqwest::Client;
