@@ -544,7 +544,7 @@ fn calculate_zone_offset(hr_range: u64, percentage: u32) -> u64 {
     // Use integer arithmetic: (hr_range * percentage) / 1000
     // percentage represents the zone percentage in permille (thousandths)
     hr_range.saturating_mul(u64::from(percentage))
-// TODO(fitness-decoupling):         / crate::intelligence::physiological_constants::heart_rate_zones::PERMILLE_DIVISOR
+    // TODO(fitness-decoupling):         / crate::intelligence::physiological_constants::heart_rate_zones::PERMILLE_DIVISOR
 }
 
 /// Calculate heart rate zones using integer arithmetic to avoid casting warnings
@@ -553,15 +553,15 @@ fn calculate_heart_rate_zones(params: &ZoneParams) -> (serde_json::Value, serde_
 
     // Calculate zone boundaries using integer arithmetic with permille constants
     // TODO(fitness-decoupling): Using stub permille values - constants moved to pierre-fitness-app
-    let zone_1_min = params.resting_hr + calculate_zone_offset(hr_range, 0);    // was ZONE_1_MIN_PERMILLE
-    let zone_1_max = params.resting_hr + calculate_zone_offset(hr_range, 500);  // was ZONE_1_MAX_PERMILLE
-    let zone_2_min = params.resting_hr + calculate_zone_offset(hr_range, 500);  // was ZONE_1_MAX_PERMILLE
-    let zone_2_max = params.resting_hr + calculate_zone_offset(hr_range, 700);  // was ZONE_2_MAX_PERMILLE
-    let zone_3_min = params.resting_hr + calculate_zone_offset(hr_range, 700);  // was ZONE_2_MAX_PERMILLE
-    let zone_3_max = params.resting_hr + calculate_zone_offset(hr_range, 800);  // was ZONE_3_MAX_PERMILLE
-    let zone_4_min = params.resting_hr + calculate_zone_offset(hr_range, 800);  // was ZONE_3_MAX_PERMILLE
-    let zone_4_max = params.resting_hr + calculate_zone_offset(hr_range, 900);  // was ZONE_4_MAX_PERMILLE
-    let zone_5_min = params.resting_hr + calculate_zone_offset(hr_range, 900);  // was ZONE_4_MAX_PERMILLE
+    let zone_1_min = params.resting_hr + calculate_zone_offset(hr_range, 0); // was ZONE_1_MIN_PERMILLE
+    let zone_1_max = params.resting_hr + calculate_zone_offset(hr_range, 500); // was ZONE_1_MAX_PERMILLE
+    let zone_2_min = params.resting_hr + calculate_zone_offset(hr_range, 500); // was ZONE_1_MAX_PERMILLE
+    let zone_2_max = params.resting_hr + calculate_zone_offset(hr_range, 700); // was ZONE_2_MAX_PERMILLE
+    let zone_3_min = params.resting_hr + calculate_zone_offset(hr_range, 700); // was ZONE_2_MAX_PERMILLE
+    let zone_3_max = params.resting_hr + calculate_zone_offset(hr_range, 800); // was ZONE_3_MAX_PERMILLE
+    let zone_4_min = params.resting_hr + calculate_zone_offset(hr_range, 800); // was ZONE_3_MAX_PERMILLE
+    let zone_4_max = params.resting_hr + calculate_zone_offset(hr_range, 900); // was ZONE_4_MAX_PERMILLE
+    let zone_5_min = params.resting_hr + calculate_zone_offset(hr_range, 900); // was ZONE_4_MAX_PERMILLE
 
     // Use lactate and aerobic threshold constants
     // TODO(fitness-decoupling): Stub values - constants moved to pierre-fitness-app
@@ -613,7 +613,7 @@ fn validate_parameter_ranges(
     obj: &serde_json::Map<String, serde_json::Value>,
     errors: &mut Vec<String>,
 ) -> bool {
-// TODO(fitness-decoupling):     use crate::intelligence::physiological_constants::configuration_validation;
+    // TODO(fitness-decoupling):     use crate::intelligence::physiological_constants::configuration_validation;
 
     let mut all_valid = true;
 
@@ -626,75 +626,55 @@ fn validate_parameter_ranges(
 
     // Validate max_hr
     if let Some(hr) = max_hr {
-        if !(160..=220)
-            .contains(&hr)
-        {
+        if !(160..=220).contains(&hr) {
             all_valid = false;
             errors.push(format!(
                 "max_hr must be between {} and {} bpm, got {}",
-                160,
-                220,
-                hr
+                160, 220, hr
             ));
         }
     }
 
     // Validate resting_hr
     if let Some(hr) = resting_hr {
-        if !(30..=100)
-            .contains(&hr)
-        {
+        if !(30..=100).contains(&hr) {
             all_valid = false;
             errors.push(format!(
                 "resting_hr must be between {} and {} bpm, got {}",
-                30,
-                100,
-                hr
+                30, 100, hr
             ));
         }
     }
 
     // Validate threshold_hr
     if let Some(hr) = threshold_hr {
-        if !(140
-            ..=200)
-            .contains(&hr)
-        {
+        if !(140..=200).contains(&hr) {
             all_valid = false;
             errors.push(format!(
                 "threshold_hr must be between {} and {} bpm, got {}",
-                140,
-                200,
-                hr
+                140, 200, hr
             ));
         }
     }
 
     // Validate vo2_max
     if let Some(vo2) = vo2_max {
-        if !(20.0..=90.0)
-            .contains(&vo2)
-        {
+        if !(20.0..=90.0).contains(&vo2) {
             all_valid = false;
             errors.push(format!(
                 "vo2_max must be between {} and {} ml/kg/min, got {:.1}",
-                20.0,
-                90.0,
-                vo2
+                20.0, 90.0, vo2
             ));
         }
     }
 
     // Validate ftp
     if let Some(power) = ftp {
-        if !(100..=500).contains(&power)
-        {
+        if !(100..=500).contains(&power) {
             all_valid = false;
             errors.push(format!(
                 "ftp must be between {} and {} watts, got {}",
-                100,
-                500,
-                power
+                100, 500, power
             ));
         }
     }

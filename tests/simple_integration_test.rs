@@ -148,7 +148,6 @@ use pierre_mcp_server::{
     models::{Activity, SportType},
 };
 
-
 #[tokio::test]
 async fn test_error_code_mappings() -> Result<()> {
     // Test that error codes map to correct HTTP statuses
@@ -232,4 +231,3 @@ async fn test_activity_model_creation() -> Result<()> {
 
     Ok(())
 }
-

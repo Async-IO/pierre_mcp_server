@@ -6,10 +6,9 @@
 
 use super::auth_service::AuthService;
 use super::handlers::{
-    handle_calculate_personalized_zones, handle_connect_provider,
-    handle_disconnect_provider, handle_get_configuration_catalog,
-    handle_get_configuration_profiles, handle_get_connection_status,
-    handle_get_user_configuration, handle_update_user_configuration,
+    handle_calculate_personalized_zones, handle_connect_provider, handle_disconnect_provider,
+    handle_get_configuration_catalog, handle_get_configuration_profiles,
+    handle_get_connection_status, handle_get_user_configuration, handle_update_user_configuration,
     handle_validate_configuration,
 };
 // NOTE: Fitness-specific handlers removed - now in pierre-fitness-app

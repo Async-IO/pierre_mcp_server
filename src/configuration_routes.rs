@@ -572,7 +572,10 @@ impl ConfigurationRoutes {
     ) -> AppResult<ValidationResponse> {
         // TODO(fitness-decoupling): ConfigValidator moved to pierre-fitness-app
         // This function is fitness-specific and should be moved to pierre-fitness-app
-        Err(AppError::internal("validate_configuration is fitness-specific and has been moved to pierre-fitness-app".to_owned()))
+        Err(AppError::internal(
+            "validate_configuration is fitness-specific and has been moved to pierre-fitness-app"
+                .to_owned(),
+        ))
 
         /* Original implementation - commented out pending fitness-app migration
         let processing_start = std::time::Instant::now();

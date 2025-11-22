@@ -454,7 +454,8 @@ impl Database {
         user_id: Uuid,
         profile: &serde_json::Value,
     ) -> AppResult<()> {
-        self.upsert_user_profile_impl(user_id, profile.clone()).await
+        self.upsert_user_profile_impl(user_id, profile.clone())
+            .await
     }
 
     /// Get last sync timestamp for a provider

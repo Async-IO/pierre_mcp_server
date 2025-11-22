@@ -324,7 +324,7 @@ pub struct UserFitnessProfileData {
 // TODO(fitness-decoupling):         self,
 // TODO(fitness-decoupling): // TODO(fitness-decoupling):     ) -> crate::errors::AppResult<crate::intelligence::UserFitnessProfile> {
 // TODO(fitness-decoupling): // TODO(fitness-decoupling):         use crate::intelligence::{FitnessLevel, UserFitnessProfile, UserPreferences};
-// TODO(fitness-decoupling): 
+// TODO(fitness-decoupling):
 // TODO(fitness-decoupling):         let fitness_level = self
 // TODO(fitness-decoupling):             .fitness_level
 // TODO(fitness-decoupling):             .as_deref()
@@ -336,7 +336,7 @@ pub struct UserFitnessProfileData {
 // TODO(fitness-decoupling):                 _ => None,
 // TODO(fitness-decoupling):             })
 // TODO(fitness-decoupling):             .unwrap_or(FitnessLevel::Beginner);
-// TODO(fitness-decoupling): 
+// TODO(fitness-decoupling):
 // TODO(fitness-decoupling):         Ok(UserFitnessProfile {
 // TODO(fitness-decoupling):             user_id: self.user_id,
 // TODO(fitness-decoupling):             age: self.age,
@@ -358,7 +358,7 @@ pub struct UserFitnessProfileData {
 // TODO(fitness-decoupling):             },
 // TODO(fitness-decoupling):         })
 // TODO(fitness-decoupling):     }
-// TODO(fitness-decoupling): 
+// TODO(fitness-decoupling):
 // TODO(fitness-decoupling):     /// Create from internal `UserFitnessProfile` type
 // TODO(fitness-decoupling):     #[must_use]
 // TODO(fitness-decoupling): // TODO(fitness-decoupling):     pub fn from_user_fitness_profile(profile: &crate::intelligence::UserFitnessProfile) -> Self {

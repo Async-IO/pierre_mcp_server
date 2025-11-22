@@ -67,10 +67,7 @@ pub mod synthetic_provider;
 
 // Re-export key types for convenience
 pub use config::{OAuth2Credentials, ProviderConfig};
-pub use core::{
-    FitnessProvider as CoreFitnessProvider, ProviderFactory,
-    TenantProvider,
-};
+pub use core::{FitnessProvider as CoreFitnessProvider, ProviderFactory, TenantProvider};
 /// Re-export provider error types
 pub use errors::{ProviderError, ProviderResult};
 /// Re-export provider registry functions
