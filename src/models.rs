@@ -1108,7 +1108,6 @@ impl UserPhysiologicalProfile {
     /// For age-based estimation, use the MaxHR algorithm in pierre-fitness-app.
     #[must_use]
     pub const fn estimated_max_hr(&self) -> Option<u16> {
-        // TODO(fitness-decoupling): MaxHrAlgorithm moved to pierre-fitness-app
         // Estimation logic removed to eliminate algorithm DI violation
         // Callers should use pierre-fitness-app's MaxHR algorithm for estimation
         self.max_hr

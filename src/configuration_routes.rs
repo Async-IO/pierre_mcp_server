@@ -18,7 +18,6 @@ use crate::configuration::{
     catalog::{CatalogBuilder, ConfigCatalog},
     profiles::{ConfigProfile, ProfileTemplates},
     runtime::{ConfigValue, RuntimeConfig},
-    // TODO(fitness-decoupling): validation and vo2_max modules moved to pierre-fitness-app
     // validation::ConfigValidator,
     // vo2_max::VO2MaxCalculator,
 };
@@ -177,7 +176,6 @@ pub struct UserProfileParameters {
 }
 
 /// All personalized training zones (HR, pace, power)
-// TODO(fitness-decoupling): This entire struct uses vo2_max types moved to pierre-fitness-app
 #[derive(Debug, Serialize)]
 pub struct PersonalizedZones {
     /// Heart rate zones
@@ -217,7 +215,6 @@ pub struct ValidationResponse {
 }
 
 /// Validation result details containing either success information or errors
-// TODO(fitness-decoupling): ValidationResult moved to pierre-fitness-app
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 pub enum ValidationDetails {
@@ -418,7 +415,6 @@ impl ConfigurationRoutes {
         let parameter_count = parameter_overrides.len();
 
         // Validate parameters if provided
-        // TODO(fitness-decoupling): ConfigValidator moved to pierre-fitness-app
         // Validation is disabled until fitness-app plugin system is ready
         /*
         if !parameter_overrides.is_empty() {
@@ -499,7 +495,6 @@ impl ConfigurationRoutes {
         _auth: &AuthResult,
         _request: &PersonalizedZonesRequest,
     ) -> AppResult<PersonalizedZonesResponse> {
-        // TODO(fitness-decoupling): VO2MaxCalculator moved to pierre-fitness-app
         // This function is fitness-specific and should be moved to pierre-fitness-app
         Err(AppError::internal("calculate_personalized_zones is fitness-specific and has been moved to pierre-fitness-app".to_owned()))
 
@@ -570,7 +565,6 @@ impl ConfigurationRoutes {
         _auth: &AuthResult,
         _request: &ValidateConfigurationRequest,
     ) -> AppResult<ValidationResponse> {
-        // TODO(fitness-decoupling): ConfigValidator moved to pierre-fitness-app
         // This function is fitness-specific and should be moved to pierre-fitness-app
         Err(AppError::internal(
             "validate_configuration is fitness-specific and has been moved to pierre-fitness-app"

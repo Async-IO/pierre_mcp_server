@@ -378,7 +378,6 @@ pub struct TrainingZonesConfig {
 
 impl Default for TrainingZonesConfig {
     fn default() -> Self {
-        // TODO(fitness-decoupling): vdot and ftp modules moved to pierre-fitness-app
         // Using stub constants pending fitness-app plugin integration
         Self {
             vdot_easy_zone_percent: 0.70,       // was vdot::EASY_ZONE_PERCENT
@@ -1841,8 +1840,6 @@ impl ServerConfig {
 
     /// Load training zones configuration from environment
     fn load_training_zones_config() -> TrainingZonesConfig {
-        // TODO(fitness-decoupling):         use crate::intelligence::physiological_constants::training_zone_percentages::{ftp, vdot};
-
         TrainingZonesConfig {
             vdot_easy_zone_percent: env::var("TRAINING_ZONES_VDOT_EASY_PERCENT")
                 .ok()

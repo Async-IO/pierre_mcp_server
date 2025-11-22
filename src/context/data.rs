@@ -5,8 +5,6 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::database_plugins::factory::Database;
-// TODO(fitness-decoupling): Re-enable when plugin system ready
-// TODO(fitness-decoupling): // use crate::intelligence::ActivityIntelligence;
 use crate::providers::ProviderRegistry;
 use std::sync::Arc;
 
@@ -23,7 +21,6 @@ use std::sync::Arc;
 pub struct DataContext {
     database: Arc<Database>,
     provider_registry: Arc<ProviderRegistry>,
-    // TODO(fitness-decoupling): ActivityIntelligence moved to pierre-fitness-app
     // activity_intelligence: Arc<ActivityIntelligence>,
 }
 
@@ -33,13 +30,11 @@ impl DataContext {
     pub const fn new(
         database: Arc<Database>,
         provider_registry: Arc<ProviderRegistry>,
-        // TODO(fitness-decoupling): ActivityIntelligence parameter removed
         // activity_intelligence: Arc<ActivityIntelligence>,
     ) -> Self {
         Self {
             database,
             provider_registry,
-            // TODO(fitness-decoupling): ActivityIntelligence field removed
             // activity_intelligence,
         }
     }
@@ -56,7 +51,6 @@ impl DataContext {
         &self.provider_registry
     }
 
-    // TODO(fitness-decoupling): ActivityIntelligence moved to pierre-fitness-app
     // Get activity intelligence for AI/ML operations
     // #[must_use]
     // pub const fn activity_intelligence(&self) -> &Arc<ActivityIntelligence> {

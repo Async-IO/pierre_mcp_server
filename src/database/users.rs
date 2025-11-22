@@ -425,7 +425,6 @@ impl Database {
         }
     }
 
-    // TODO(fitness-decoupling): get_user_fitness_profile removed
     // This function has been moved to pierre-fitness-app
 
     /// Update user fitness profile
@@ -435,7 +434,6 @@ impl Database {
     /// Returns an error if:
     /// - JSON serialization fails
     /// - The database operation fails
-    // TODO(fitness-decoupling): UserFitnessProfile moved to pierre-fitness-app
     // This function needs to be provided by the fitness plugin
     pub async fn update_user_fitness_profile(
         &self,

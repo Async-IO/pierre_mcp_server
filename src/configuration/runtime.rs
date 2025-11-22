@@ -11,8 +11,6 @@
 // - Profile data ownership for configuration loading and session management
 
 use super::profiles::ConfigProfile;
-// TODO(fitness-decoupling): vo2_max module moved to pierre-fitness-app
-// use super::vo2_max::{SportEfficiency, VO2MaxCalculator};
 use crate::models::UserPhysiologicalProfile;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -35,10 +33,6 @@ pub struct RuntimeConfig {
 
     /// Active configuration profile
     active_profile: ConfigProfile,
-
-    /// VO2 max calculator for personalized thresholds
-    // TODO(fitness-decoupling): VO2MaxCalculator moved to pierre-fitness-app
-    // vo2_calculator: Option<VO2MaxCalculator>,
 
     /// Audit trail for configuration changes
     change_log: Vec<ConfigChange>,
@@ -142,8 +136,6 @@ impl RuntimeConfig {
             user_profile: None,
             session_overrides: HashMap::new(),
             active_profile: ConfigProfile::Default,
-            // TODO(fitness-decoupling): vo2_calculator removed
-            // vo2_calculator: None,
             change_log: Vec::new(),
             last_modified: Utc::now(),
         }
@@ -184,8 +176,6 @@ impl RuntimeConfig {
     /// Set user physiological profile and update VO2 calculator
     pub fn set_user_profile(&mut self, profile: UserPhysiologicalProfile) {
         // Create VO2 calculator if we have the necessary data
-        // TODO(fitness-decoupling): VO2MaxCalculator moved to pierre-fitness-app
-        // if let (Some(vo2_max), Some(resting_hr), Some(max_hr)) =
         //     (profile.vo2_max, profile.resting_hr, profile.max_hr)
         // {
         //     self.vo2_calculator = Some(VO2MaxCalculator::new(
@@ -341,8 +331,6 @@ impl RuntimeConfig {
             profile: self.active_profile.clone(),
             session_overrides: self.session_overrides.clone(),
             user_profile: self.user_profile.clone(),
-            // TODO(fitness-decoupling): vo2_calculator and VO2CalculatorState moved to fitness-app
-            // vo2_calculator_state: self.vo2_calculator.as_ref().map(|calc| VO2CalculatorState {
             //     vo2_max: calc.vo2_max,
             //     resting_hr: calc.resting_hr,
             //     max_hr: calc.max_hr,
@@ -369,13 +357,10 @@ pub struct ConfigExport {
     /// User's physiological profile if set
     pub user_profile: Option<UserPhysiologicalProfile>,
     /// VO2 calculator state snapshot if available
-    // TODO(fitness-decoupling): VO2CalculatorState moved to pierre-fitness-app
-    // pub vo2_calculator_state: Option<VO2CalculatorState>,
     /// When this configuration was last modified
     pub last_modified: DateTime<Utc>,
 }
 
-// TODO(fitness-decoupling): VO2 calculator moved to pierre-fitness-app
 /*
 /// VO2 calculator state for export
 #[derive(Debug, Clone, Serialize, Deserialize)]

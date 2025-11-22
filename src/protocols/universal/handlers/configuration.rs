@@ -544,7 +544,6 @@ fn calculate_zone_offset(hr_range: u64, percentage: u32) -> u64 {
     // Use integer arithmetic: (hr_range * percentage) / 1000
     // percentage represents the zone percentage in permille (thousandths)
     hr_range.saturating_mul(u64::from(percentage))
-    // TODO(fitness-decoupling):         / crate::intelligence::physiological_constants::heart_rate_zones::PERMILLE_DIVISOR
 }
 
 /// Calculate heart rate zones using integer arithmetic to avoid casting warnings
@@ -552,7 +551,6 @@ fn calculate_heart_rate_zones(params: &ZoneParams) -> (serde_json::Value, serde_
     let hr_range = params.max_hr.saturating_sub(params.resting_hr);
 
     // Calculate zone boundaries using integer arithmetic with permille constants
-    // TODO(fitness-decoupling): Using stub permille values - constants moved to pierre-fitness-app
     let zone_1_min = params.resting_hr + calculate_zone_offset(hr_range, 0); // was ZONE_1_MIN_PERMILLE
     let zone_1_max = params.resting_hr + calculate_zone_offset(hr_range, 500); // was ZONE_1_MAX_PERMILLE
     let zone_2_min = params.resting_hr + calculate_zone_offset(hr_range, 500); // was ZONE_1_MAX_PERMILLE
@@ -564,7 +562,6 @@ fn calculate_heart_rate_zones(params: &ZoneParams) -> (serde_json::Value, serde_
     let zone_5_min = params.resting_hr + calculate_zone_offset(hr_range, 900); // was ZONE_4_MAX_PERMILLE
 
     // Use lactate and aerobic threshold constants
-    // TODO(fitness-decoupling): Stub values - constants moved to pierre-fitness-app
     let lactate_threshold_hr = params.resting_hr + calculate_zone_offset(hr_range, 800); // was LACTATE_THRESHOLD_PERMILLE
     let aerobic_threshold_hr = params.resting_hr + calculate_zone_offset(hr_range, 700); // was AEROBIC_THRESHOLD_PERMILLE
 
@@ -613,8 +610,6 @@ fn validate_parameter_ranges(
     obj: &serde_json::Map<String, serde_json::Value>,
     errors: &mut Vec<String>,
 ) -> bool {
-    // TODO(fitness-decoupling):     use crate::intelligence::physiological_constants::configuration_validation;
-
     let mut all_valid = true;
 
     // Extract parameter values

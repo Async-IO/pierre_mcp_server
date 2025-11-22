@@ -21,8 +21,6 @@ use crate::cache::factory::Cache;
 use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
-// TODO(fitness-decoupling): Re-enable when plugin system ready
-// TODO(fitness-decoupling): // use crate::intelligence::ActivityIntelligence;
 use crate::mcp::sampling_peer::SamplingPeer;
 use crate::mcp::schema::{OAuthCompletedNotification, ProgressNotification};
 use crate::middleware::redaction::RedactionConfig;
@@ -62,7 +60,6 @@ pub struct ServerResources {
     pub admin_jwt_secret: Arc<str>,
     /// Server configuration loaded from environment
     pub config: Arc<crate::config::environment::ServerConfig>,
-    // TODO(fitness-decoupling): ActivityIntelligence removed - now in pierre-fitness-app
     /// A2A protocol client manager for agent-to-agent communication
     pub a2a_client_manager: Arc<A2AClientManager>,
     /// Service for managing A2A system user accounts
@@ -112,8 +109,6 @@ impl ServerResources {
             Arc::new(config.oauth.clone()),
         )));
         let provider_registry = Arc::new(ProviderRegistry::new());
-
-        // TODO(fitness-decoupling): ActivityIntelligence removed - now in pierre-fitness-app
 
         // Create A2A system user service once for shared use
         let a2a_system_user_service = Arc::new(A2ASystemUserService::new(database_arc.clone()));
@@ -206,7 +201,6 @@ impl ServerResources {
             provider_registry,
             admin_jwt_secret: admin_jwt_secret.into(),
             config,
-            // TODO(fitness-decoupling): ActivityIntelligence removed - now in pierre-fitness-app
             a2a_client_manager,
             a2a_system_user_service,
             oauth_notification_sender: None,
