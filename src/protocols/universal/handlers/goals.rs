@@ -403,33 +403,24 @@ fn create_suggestion_metadata() -> std::collections::HashMap<String, serde_json:
 /// Vector of recent activities (empty if fetch fails)
 async fn fetch_suggestion_activities(
     executor: &crate::protocols::universal::UniversalToolExecutor,
+    provider_name: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<&str>,
 ) -> Vec<crate::models::Activity> {
     let mut activities = Vec::new();
-    if let Ok(Some(_token_data)) = executor
+    if let Ok(provider) = executor
         .auth_service
-        .get_valid_token(
-            user_uuid,
-            crate::constants::oauth_providers::STRAVA,
-            tenant_id,
-        )
+        .create_authenticated_provider(provider_name, user_uuid, tenant_id)
         .await
     {
-        if let Ok(provider) = executor
-            .resources
-            .provider_registry
-            .create_provider(crate::constants::oauth_providers::STRAVA)
+        if let Ok(provider_activities) = provider
+            .get_activities(
+                Some(crate::intelligence::physiological_constants::goal_feasibility::GOAL_SUGGESTION_ACTIVITY_LIMIT),
+                None,
+            )
+            .await
         {
-            if let Ok(provider_activities) = provider
-                .get_activities(
-                    Some(crate::intelligence::physiological_constants::goal_feasibility::GOAL_SUGGESTION_ACTIVITY_LIMIT),
-                    None,
-                )
-                .await
-            {
-                activities = provider_activities;
-            }
+            activities = provider_activities;
         }
     }
     activities
@@ -453,11 +444,21 @@ pub fn handle_suggest_goals(
             }
         }
 
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Fetch activities and load user profile
-        let activities =
-            fetch_suggestion_activities(executor, user_uuid, request.tenant_id.as_deref()).await;
+        let activities = fetch_suggestion_activities(
+            executor,
+            &provider_name,
+            user_uuid,
+            request.tenant_id.as_deref(),
+        )
+        .await;
 
         // Generate goal suggestions
         let goal_engine = crate::intelligence::goal_engine::AdvancedGoalEngine::new();
@@ -503,35 +504,26 @@ pub fn handle_suggest_goals(
 /// Vector of activities for analysis (empty if fetch fails)
 async fn fetch_feasibility_activities(
     executor: &crate::protocols::universal::UniversalToolExecutor,
+    provider_name: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<&str>,
 ) -> Vec<crate::models::Activity> {
     let mut activities: Vec<crate::models::Activity> =
         Vec::with_capacity(crate::constants::limits::ACTIVITY_CAPACITY_HINT);
 
-    if let Ok(Some(_token_data)) = executor
+    if let Ok(provider) = executor
         .auth_service
-        .get_valid_token(
-            user_uuid,
-            crate::constants::oauth_providers::STRAVA,
-            tenant_id,
-        )
+        .create_authenticated_provider(provider_name, user_uuid, tenant_id)
         .await
     {
-        if let Ok(provider) = executor
-            .resources
-            .provider_registry
-            .create_provider(crate::constants::oauth_providers::STRAVA)
+        if let Ok(provider_activities) = provider
+            .get_activities(
+                Some(crate::intelligence::physiological_constants::goal_feasibility::PROGRESS_TRACKING_ACTIVITY_LIMIT),
+                None,
+            )
+            .await
         {
-            if let Ok(provider_activities) = provider
-                .get_activities(
-                    Some(crate::intelligence::physiological_constants::goal_feasibility::PROGRESS_TRACKING_ACTIVITY_LIMIT),
-                    None,
-                )
-                .await
-            {
-                activities = provider_activities;
-            }
+            activities = provider_activities;
         }
     }
 
@@ -587,11 +579,21 @@ pub fn handle_analyze_goal_feasibility(
         }
 
         let (goal_type, target_value, effective_timeframe) = extract_feasibility_params(&request)?;
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
         // Get historical activities
-        let activities =
-            fetch_feasibility_activities(executor, user_uuid, request.tenant_id.as_deref()).await;
+        let activities = fetch_feasibility_activities(
+            executor,
+            &provider_name,
+            user_uuid,
+            request.tenant_id.as_deref(),
+        )
+        .await;
 
         // Analyze current performance
         let (current_level, confidence_level, risk_factors, recommendations) =
@@ -1107,49 +1109,28 @@ fn build_progress_response(params: &ProgressResponseParams) -> UniversalResponse
 /// Fetch activities for progress tracking
 async fn fetch_progress_activities(
     executor: &crate::protocols::universal::UniversalToolExecutor,
+    provider_name: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<&str>,
 ) -> Result<Vec<crate::models::Activity>, UniversalResponse> {
     match executor
         .auth_service
-        .get_valid_token(
-            user_uuid,
-            crate::constants::oauth_providers::STRAVA,
-            tenant_id,
-        )
+        .create_authenticated_provider(provider_name, user_uuid, tenant_id)
         .await
     {
-        Ok(Some(_token_data)) => {
-            tracing::debug!("Token available for progress tracking");
-            if let Ok(provider) = executor
-                .resources
-                .provider_registry
-                .create_provider(crate::constants::oauth_providers::STRAVA)
-            {
-                if let Ok(activities) = provider
-                    .get_activities(
-                        Some(crate::intelligence::physiological_constants::goal_feasibility::PROGRESS_TRACKING_ACTIVITY_LIMIT),
-                        None,
-                    )
-                    .await
-                {
-                    return Ok(activities);
-                }
-            }
-            Ok(Vec::new())
+        Ok(provider) => {
+            tracing::debug!("Provider authenticated for progress tracking");
+            Ok(provider
+                .get_activities(
+                    Some(crate::intelligence::physiological_constants::goal_feasibility::PROGRESS_TRACKING_ACTIVITY_LIMIT),
+                    None,
+                )
+                .await
+                .unwrap_or_default())
         }
-        Ok(None) => {
-            tracing::debug!("No token available for progress tracking");
-            Ok(Vec::new())
-        }
-        Err(e) => {
-            tracing::debug!("Token error for progress tracking: {e}");
-            Err(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some("Authentication required for progress tracking".to_owned()),
-                metadata: None,
-            })
+        Err(response) => {
+            tracing::debug!("Authentication failed for progress tracking");
+            Err(response)
         }
     }
 }
@@ -1289,6 +1270,11 @@ pub fn handle_track_progress(
             .ok_or_else(|| ProtocolError::InvalidParameters("goal_id is required".into()))?
             .to_owned();
 
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
         // Fetch and validate goal
@@ -1308,6 +1294,7 @@ pub fn handle_track_progress(
         // Fetch activities
         let activities = match fetch_progress_activities(
             executor,
+            &provider_name,
             user_uuid,
             request.tenant_id.as_deref(),
         )

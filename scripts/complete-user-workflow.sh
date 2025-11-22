@@ -19,6 +19,9 @@ if [ -f .envrc ]; then
     source .envrc
 fi
 
+# Set default provider to strava for OAuth testing
+export PIERRE_DEFAULT_PROVIDER=strava
+
 # Use HTTP_PORT from environment or default to 8081
 HTTP_PORT=${HTTP_PORT:-8081}
 

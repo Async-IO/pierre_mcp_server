@@ -101,6 +101,9 @@ if [ -f "$PROJECT_ROOT/.workflow_test_env" ]; then
     echo "✅ Loaded existing workflow test environment"
 fi
 
+# Set default provider to strava for OAuth testing
+export PIERRE_DEFAULT_PROVIDER=strava
+
 # Start server in background with trace logging
 echo "Starting server with RUST_LOG=trace on port ${HTTP_PORT:-8081}..."
 echo "Server logs: $PROJECT_ROOT/server.log"

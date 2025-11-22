@@ -648,3 +648,22 @@ impl GarminProvider {
         Ok(all_activities)
     }
 }
+
+// ============================================================================
+// Provider Factory
+// ============================================================================
+
+use super::core::ProviderFactory;
+
+/// Factory for creating Garmin provider instances
+pub struct GarminProviderFactory;
+
+impl ProviderFactory for GarminProviderFactory {
+    fn create(&self, config: ProviderConfig) -> Box<dyn FitnessProvider> {
+        Box::new(GarminProvider::with_config(config))
+    }
+
+    fn supported_providers(&self) -> &'static [&'static str] {
+        &[oauth_providers::GARMIN]
+    }
+}

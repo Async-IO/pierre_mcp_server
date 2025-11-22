@@ -4,7 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::synthetic_data::{SyntheticDataBuilder, TrainingPattern};
-use super::synthetic_provider::SyntheticProvider;
+use pierre_mcp_server::providers::synthetic_provider::SyntheticProvider;
 
 /// Test scenarios for intelligence testing
 #[derive(Debug, Clone, Copy)]

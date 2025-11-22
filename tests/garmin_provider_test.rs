@@ -335,11 +335,13 @@ async fn test_garmin_provider_refresh_token_not_needed() {
 }
 
 #[test]
-fn test_garmin_constants_in_registry() {
-    // Verify Garmin is in the list of all providers
-    let all_providers = oauth_providers::all();
+fn test_garmin_in_provider_registry() {
+    ensure_http_clients_initialized();
+    let registry = global_registry();
+    // Verify Garmin is in the list of all providers using the registry
+    let all_providers = registry.supported_providers();
     assert!(all_providers.contains(&oauth_providers::GARMIN));
-    assert!(oauth_providers::is_supported(oauth_providers::GARMIN));
+    assert!(registry.is_supported(oauth_providers::GARMIN));
 }
 
 #[test]

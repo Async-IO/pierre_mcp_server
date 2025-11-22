@@ -4,7 +4,6 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::constants::oauth_providers;
 use crate::database_plugins::DatabaseProvider;
 use crate::mcp::resources::ServerResources;
 use crate::protocols::universal::UniversalResponse;
@@ -152,8 +151,8 @@ impl AuthService {
         user_id: Uuid,
         tenant_id: Option<&str>,
     ) -> Result<Box<dyn CoreFitnessProvider>, UniversalResponse> {
-        // Only support Strava for now
-        if provider_name != oauth_providers::STRAVA {
+        // Check if provider is supported by the registry
+        if !self.resources.provider_registry.is_supported(provider_name) {
             return Err(UniversalResponse {
                 success: false,
                 result: None,
@@ -162,20 +161,20 @@ impl AuthService {
             });
         }
 
-        // Get valid Strava token (with automatic refresh if needed)
+        // Get valid token for the provider (with automatic refresh if needed)
         match self
-            .get_valid_token(user_id, oauth_providers::STRAVA, tenant_id)
+            .get_valid_token(user_id, provider_name, tenant_id)
             .await
         {
             Ok(Some(token_data)) => {
-                self.create_strava_provider_with_token(token_data, tenant_id)
+                self.create_provider_with_token(provider_name, token_data, tenant_id)
                     .await
             }
             Ok(None) => Err(UniversalResponse {
                 success: false,
                 result: None,
                 error: Some(
-                    "No valid Strava token found. Please connect your Strava account.".to_owned(),
+                    format!("No valid {provider_name} token found. Please connect your {provider_name} account."),
                 ),
                 metadata: None,
             }),
@@ -188,24 +187,35 @@ impl AuthService {
         }
     }
 
-    /// Create Strava provider with token and tenant-aware credentials
-    async fn create_strava_provider_with_token(
+    /// Create provider with token and tenant-aware credentials
+    async fn create_provider_with_token(
         &self,
+        provider_name: &str,
         token_data: TokenData,
         tenant_id: Option<&str>,
     ) -> Result<Box<dyn CoreFitnessProvider>, UniversalResponse> {
         // Get tenant-aware OAuth credentials or fall back to environment
         let (client_id, client_secret) = if let Some(tenant_id_str) = tenant_id {
-            self.get_tenant_oauth_credentials(tenant_id_str).await?
+            self.get_tenant_oauth_credentials(tenant_id_str, provider_name)
+                .await?
         } else {
-            self.get_default_oauth_credentials()?
+            Self::get_default_oauth_credentials(provider_name)?
         };
 
-        // Create Strava provider using the factory function
+        // Get provider-specific scopes
+        let scopes = token_data
+            .scopes
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+
+        // Create provider using the factory function
         match self
             .resources
             .provider_registry
-            .create_provider(oauth_providers::STRAVA)
+            .create_provider(provider_name)
         {
             Ok(provider) => {
                 // Prepare credentials in the correct format
@@ -215,10 +225,7 @@ impl AuthService {
                     access_token: Some(token_data.access_token),
                     refresh_token: Some(token_data.refresh_token),
                     expires_at: Some(token_data.expires_at),
-                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
-                        .split(',')
-                        .map(str::to_owned)
-                        .collect(),
+                    scopes,
                 };
 
                 // Set credentials asynchronously
@@ -241,10 +248,11 @@ impl AuthService {
         }
     }
 
-    /// Get OAuth credentials for a specific tenant
+    /// Get OAuth credentials for a specific tenant and provider
     async fn get_tenant_oauth_credentials(
         &self,
         tenant_id_str: &str,
+        provider_name: &str,
     ) -> Result<(String, String), UniversalResponse> {
         let tenant_uuid = Uuid::parse_str(tenant_id_str).map_err(|e| {
             tracing::warn!(tenant_id = %tenant_id_str, error = %e, "Invalid tenant ID format in OAuth credentials request");
@@ -256,15 +264,15 @@ impl AuthService {
             }
         })?;
 
-        // Get tenant OAuth credentials from database
+        // Get tenant OAuth credentials from database for the specific provider
         match (*self.resources.database)
-            .get_tenant_oauth_credentials(tenant_uuid, oauth_providers::STRAVA)
+            .get_tenant_oauth_credentials(tenant_uuid, provider_name)
             .await
         {
             Ok(Some(creds)) => Ok((creds.client_id, creds.client_secret)),
             Ok(None) => {
                 // Fall back to default credentials if tenant doesn't have custom ones
-                self.get_default_oauth_credentials()
+                Self::get_default_oauth_credentials(provider_name)
             }
             Err(e) => Err(UniversalResponse {
                 success: false,
@@ -275,31 +283,42 @@ impl AuthService {
         }
     }
 
-    /// Get default OAuth credentials from `ServerConfig`
+    /// Get default OAuth credentials from `ServerConfig` or environment for a provider
     ///
     /// # Errors
     /// Returns `UniversalResponse` error if credentials are not configured
-    fn get_default_oauth_credentials(&self) -> Result<(String, String), UniversalResponse> {
-        let strava_config = &self.resources.config.oauth.strava;
+    fn get_default_oauth_credentials(
+        provider_name: &str,
+    ) -> Result<(String, String), UniversalResponse> {
+        // Get OAuth config from environment (PIERRE_<PROVIDER>_* env vars)
+        let oauth_config = crate::config::environment::get_oauth_config(provider_name);
 
-        let client_id = strava_config
+        let client_id = oauth_config
             .client_id
             .as_ref()
             .ok_or_else(|| UniversalResponse {
                 success: false,
                 result: None,
-                error: Some("STRAVA_CLIENT_ID not configured in ServerConfig".to_owned()),
+                error: Some(format!(
+                    "{}_CLIENT_ID not configured for provider {}",
+                    provider_name.to_uppercase(),
+                    provider_name
+                )),
                 metadata: None,
             })?;
 
         let client_secret =
-            strava_config
+            oauth_config
                 .client_secret
                 .as_ref()
                 .ok_or_else(|| UniversalResponse {
                     success: false,
                     result: None,
-                    error: Some("STRAVA_CLIENT_SECRET not configured in ServerConfig".to_owned()),
+                    error: Some(format!(
+                        "{}_CLIENT_SECRET not configured for provider {}",
+                        provider_name.to_uppercase(),
+                        provider_name
+                    )),
                     metadata: None,
                 })?;
 

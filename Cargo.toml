@@ -40,11 +40,17 @@ path = "src/bin/diagnose_weather_api.rs"
 
 
 [features]
-default = ["sqlite", "sqlx/migrate"]
+default = ["sqlite", "all-providers", "sqlx/migrate"]
 sqlite = []
 postgresql = ["sqlx/postgres"]
 testing = []
 telemetry = []
+
+# Provider feature flags - enable/disable individual fitness data providers
+provider-strava = []
+provider-garmin = []
+provider-synthetic = []
+all-providers = ["provider-strava", "provider-garmin", "provider-synthetic"]
 
 [profile.dev]
 debug = 1

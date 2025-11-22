@@ -95,6 +95,13 @@ async fn test_oauth_authorization_url_generation() {
                 scopes: vec![],
                 enabled: true,
             },
+            garmin: OAuthProviderConfig {
+                client_id: Some("test_garmin_client_id".to_owned()),
+                client_secret: Some("test_garmin_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/garmin".to_owned()),
+                scopes: vec![],
+                enabled: true,
+            },
             ..Default::default()
         },
         security: SecurityConfig {
@@ -279,21 +286,16 @@ async fn test_oauth_authorization_url_generation() {
     assert!(strava_auth.state.contains(&user_id.to_string()));
     assert_eq!(strava_auth.expires_in_minutes, 10);
 
-    // Test Fitbit OAuth URL generation
-    let fitbit_auth = oauth_routes
-        .get_auth_url(user_id, tenant_id, "fitbit")
+    // Test Garmin OAuth URL generation (Garmin uses OAuth 1.0a, different structure)
+    let garmin_auth = oauth_routes
+        .get_auth_url(user_id, tenant_id, "garmin")
         .await
         .unwrap();
 
-    assert!(fitbit_auth
-        .authorization_url
-        .contains("https://www.fitbit.com/oauth2/authorize"));
-    assert!(fitbit_auth.authorization_url.contains("client_id="));
-    assert!(fitbit_auth.authorization_url.contains("redirect_uri="));
-    assert!(fitbit_auth
-        .authorization_url
-        .contains("scope=activity%20profile"));
-    assert!(fitbit_auth.state.contains(&user_id.to_string()));
+    // Just verify we got a valid auth URL back (Garmin uses OAuth 1.0a, different parameters)
+    assert!(!garmin_auth.authorization_url.is_empty());
+    assert!(garmin_auth.state.contains(&user_id.to_string()));
+    assert_eq!(garmin_auth.expires_in_minutes, 10);
 }
 
 #[tokio::test]
@@ -353,6 +355,13 @@ async fn test_oauth_state_validation() {
                 client_id: Some("test_fitbit_client_id".to_owned()),
                 client_secret: Some("test_fitbit_client_secret".to_owned()),
                 redirect_uri: Some("http://localhost:8080/api/oauth/callback/fitbit".to_owned()),
+                scopes: vec![],
+                enabled: true,
+            },
+            garmin: OAuthProviderConfig {
+                client_id: Some("test_garmin_client_id".to_owned()),
+                client_secret: Some("test_garmin_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/garmin".to_owned()),
                 scopes: vec![],
                 enabled: true,
             },
@@ -520,6 +529,13 @@ async fn test_connection_status_no_providers() {
                 scopes: vec![],
                 enabled: true,
             },
+            garmin: OAuthProviderConfig {
+                client_id: Some("test_garmin_client_id".to_owned()),
+                client_secret: Some("test_garmin_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/garmin".to_owned()),
+                scopes: vec![],
+                enabled: true,
+            },
             ..Default::default()
         },
         security: SecurityConfig {
@@ -635,6 +651,8 @@ async fn test_connection_status_no_providers() {
 
     let statuses = oauth_routes.get_connection_status(user_id).await.unwrap();
 
+    // After pluggable provider architecture, we have 2 OAuth providers: strava, garmin
+    // (synthetic provider doesn't use OAuth)
     assert_eq!(statuses.len(), 2);
 
     let strava_status = statuses.iter().find(|s| s.provider == "strava").unwrap();
@@ -642,10 +660,10 @@ async fn test_connection_status_no_providers() {
     assert!(strava_status.expires_at.is_none());
     assert!(strava_status.scopes.is_none());
 
-    let fitbit_status = statuses.iter().find(|s| s.provider == "fitbit").unwrap();
-    assert!(!fitbit_status.connected);
-    assert!(fitbit_status.expires_at.is_none());
-    assert!(fitbit_status.scopes.is_none());
+    let garmin_status = statuses.iter().find(|s| s.provider == "garmin").unwrap();
+    assert!(!garmin_status.connected);
+    assert!(garmin_status.expires_at.is_none());
+    assert!(garmin_status.scopes.is_none());
 }
 
 #[tokio::test]
@@ -704,6 +722,13 @@ async fn test_invalid_provider_error() {
                 client_id: Some("test_fitbit_client_id".to_owned()),
                 client_secret: Some("test_fitbit_client_secret".to_owned()),
                 redirect_uri: Some("http://localhost:8080/api/oauth/callback/fitbit".to_owned()),
+                scopes: vec![],
+                enabled: true,
+            },
+            garmin: OAuthProviderConfig {
+                client_id: Some("test_garmin_client_id".to_owned()),
+                client_secret: Some("test_garmin_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/garmin".to_owned()),
                 scopes: vec![],
                 enabled: true,
             },
@@ -864,6 +889,13 @@ async fn test_disconnect_provider() {
                 client_id: Some("test_fitbit_client_id".to_owned()),
                 client_secret: Some("test_fitbit_client_secret".to_owned()),
                 redirect_uri: Some("http://localhost:8080/api/oauth/callback/fitbit".to_owned()),
+                scopes: vec![],
+                enabled: true,
+            },
+            garmin: OAuthProviderConfig {
+                client_id: Some("test_garmin_client_id".to_owned()),
+                client_secret: Some("test_garmin_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/garmin".to_owned()),
                 scopes: vec![],
                 enabled: true,
             },
@@ -1119,6 +1151,13 @@ async fn test_oauth_urls_contain_required_parameters() {
                 scopes: vec![],
                 enabled: true,
             },
+            garmin: OAuthProviderConfig {
+                client_id: Some("test_garmin_client_id".to_owned()),
+                client_secret: Some("test_garmin_client_secret".to_owned()),
+                redirect_uri: Some("http://localhost:8080/api/oauth/callback/garmin".to_owned()),
+                scopes: vec![],
+                enabled: true,
+            },
             ..Default::default()
         },
         security: SecurityConfig {
@@ -1225,18 +1264,12 @@ async fn test_oauth_urls_contain_required_parameters() {
     assert!(strava_params.contains_key("scope"));
     assert!(strava_params.contains_key("state"));
 
-    // Test Fitbit URL parameters
-    let fitbit_auth = oauth_routes
-        .get_auth_url(user_id, tenant_id, "fitbit")
+    // Test Garmin URL parameters (OAuth 1.0a uses different flow)
+    let garmin_auth = oauth_routes
+        .get_auth_url(user_id, tenant_id, "garmin")
         .await
         .unwrap();
-    let fitbit_url = url::Url::parse(&fitbit_auth.authorization_url).unwrap();
-    let fitbit_params: std::collections::HashMap<_, _> = fitbit_url.query_pairs().collect();
-
-    assert!(fitbit_params.contains_key("client_id"));
-    assert!(fitbit_params.contains_key("redirect_uri"));
-    assert!(fitbit_params.contains_key("response_type"));
-    assert_eq!(fitbit_params.get("response_type").unwrap(), "code");
-    assert!(fitbit_params.contains_key("scope"));
-    assert!(fitbit_params.contains_key("state"));
+    // Garmin uses OAuth 1.0a, so it has different URL structure - just verify we got a valid URL
+    assert!(!garmin_auth.authorization_url.is_empty());
+    assert!(garmin_auth.state.contains(&user_id.to_string()));
 }

@@ -24,6 +24,7 @@ users.db
 test_data/*.db
 test_data/*.db-shm
 test_data/*.db-wal
+test_data/*.db-journal
 
 # SDK test artifacts (accidental database files from test setup)
 sdk/rEFe*
