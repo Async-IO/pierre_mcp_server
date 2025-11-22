@@ -1110,7 +1110,7 @@ impl UserPhysiologicalProfile {
             self.age.map(|age| {
                 // TODO(fitness-decoupling): MaxHrAlgorithm moved to pierre-fitness-app
                 // Use Tanaka formula directly (gold standard: 208 - 0.7*age)
-                let tanaka_estimate = 208.0 - (0.7 * f64::from(age));
+                let tanaka_estimate = 0.7f64.mul_add(-f64::from(age), 208.0);
                 tanaka_estimate.round() as u16
             })
         })

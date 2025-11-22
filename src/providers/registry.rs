@@ -32,7 +32,7 @@ use super::spi::SyntheticDescriptor;
 // Provider Bundle Types (fitness-specific, moved from SPI)
 // ============================================================================
 
-/// Factory function type for creating FitnessProvider instances
+/// Factory function type for creating `FitnessProvider` instances
 pub type ProviderFactoryFn = fn(ProviderConfig) -> Box<dyn FitnessProvider>;
 
 /// Complete provider bundle for registration

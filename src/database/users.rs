@@ -432,6 +432,7 @@ impl Database {
     /// Returns an error if the database query fails
     // TODO(fitness-decoupling): UserFitnessProfile moved to pierre-fitness-app
     // This function needs to be provided by the fitness plugin
+    #[allow(clippy::unused_async)] // Stub maintains async signature for fitness plugin compatibility
     pub async fn get_user_fitness_profile(
         &self,
         _user_id: Uuid,

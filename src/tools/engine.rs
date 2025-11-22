@@ -20,9 +20,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 // TODO(fitness-decoupling): Stub types until fitness-app plugin system ready
-/// Stub for fitness-specific ActivityAnalyzer (moved to pierre-fitness-app)
+/// Stub for fitness-specific `ActivityAnalyzer` (moved to pierre-fitness-app)
 pub struct ActivityAnalyzer;
-/// Stub for fitness-specific WeatherService (moved to pierre-fitness-app)
+/// Stub for fitness-specific `WeatherService` (moved to pierre-fitness-app)
 pub struct WeatherService;
 
 /// User context for multi-tenant operations

@@ -37,7 +37,7 @@ use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, RwLock};
 
 // TODO(fitness-decoupling): Stub type for ActivityIntelligence until fitness-app plugin system ready
-/// Stub for fitness-specific ActivityIntelligence (moved to pierre-fitness-app)
+/// Stub for fitness-specific `ActivityIntelligence` (moved to pierre-fitness-app)
 pub struct ActivityIntelligence;
 
 /// Centralized resource container for dependency injection

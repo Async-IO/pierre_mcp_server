@@ -142,7 +142,7 @@
     clippy::zero_sized_map_values
 )]
 use anyhow::Result;
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use pierre_mcp_server::{
     errors::ErrorCode,
     models::{Activity, SportType},

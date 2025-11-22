@@ -15,13 +15,13 @@ use pierre_mcp_server::providers::ProviderCapabilities;
 use pierre_mcp_server::providers::ProviderDescriptor;
 
 #[cfg(feature = "provider-strava")]
-use pierre_mcp_server::providers::StravaDescriptor;
+use pierre_mcp_server::providers::spi::StravaDescriptor;
 
 #[cfg(feature = "provider-garmin")]
-use pierre_mcp_server::providers::GarminDescriptor;
+use pierre_mcp_server::providers::spi::GarminDescriptor;
 
 #[cfg(feature = "provider-synthetic")]
-use pierre_mcp_server::providers::SyntheticDescriptor;
+use pierre_mcp_server::providers::spi::SyntheticDescriptor;
 
 #[test]
 #[cfg(feature = "provider-strava")]
