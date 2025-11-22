@@ -508,7 +508,16 @@ async fn test_all_tools(
         test_generate_recommendations(executor, user_id, tenant_id).await,
     );
 
-    // Test 4: Provider Management Tools
+    // Test 4: Sleep & Recovery Tools
+    println!("\nTesting Sleep & Recovery Tools");
+    println!("=====================================");
+
+    results.insert(
+        "calculate_recovery_score".to_owned(),
+        test_calculate_recovery_score(executor, user_id, tenant_id).await,
+    );
+
+    // Test 5: Provider Management Tools
     println!("\nTesting Provider Management Tools");
     println!("=====================================");
 
@@ -677,7 +686,7 @@ async fn test_get_activity_intelligence(
 ) -> TestResult {
     let request = create_request(
         "get_activity_intelligence",
-        json!({"activity_id": activity_id}),
+        json!({"provider": "strava", "activity_id": activity_id}),
         user_id,
         tenant_id,
     );
@@ -888,6 +897,21 @@ async fn test_generate_recommendations(
     );
     let result = execute_and_evaluate(executor, request, "generate_recommendations").await;
     handle_ci_mode_result(result, "generate_recommendations")
+}
+
+async fn test_calculate_recovery_score(
+    executor: &UniversalToolExecutor,
+    user_id: &str,
+    tenant_id: &str,
+) -> TestResult {
+    let request = create_request(
+        "calculate_recovery_score",
+        json!({"provider": "strava"}),
+        user_id,
+        tenant_id,
+    );
+    let result = execute_and_evaluate(executor, request, "calculate_recovery_score").await;
+    handle_ci_mode_result(result, "calculate_recovery_score")
 }
 
 async fn test_get_connection_status(
