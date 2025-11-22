@@ -1,5 +1,18 @@
 # Migration Implementation Plan: Three-Repository Architecture
 
+## ⚠️ CRITICAL ADJUSTMENTS (Updated 2025-11-22)
+
+**Key Changes from Original Plan:**
+
+1. **NO trait renaming**: FitnessProvider stays as-is (moved to pierre-fitness-app, not redesigned)
+2. **Minimal provider changes**: Only update imports (~50 lines), not rewrite implementations (~5,000 lines)
+3. **Framework has no provider traits**: Only SPI (ProviderDescriptor) + Registry in framework
+4. **Time reduced**: 15-20 hours (vs. 30-44 hours in original plan)
+
+**Rationale**: Phase 1 & 2 already created perfect SPI. This is a file migration, not an architecture redesign.
+
+---
+
 ## Executive Summary
 
 This document provides a step-by-step implementation plan for migrating `pierre_mcp_server` from a monolithic fitness application to a three-layer architecture:
@@ -438,87 +451,46 @@ mv src/providers/synthetic_provider.rs ../pierre-fitness-providers/src/synthetic
 
 ```
 src/providers/
-├── core.rs          # DataProvider trait (will be renamed from FitnessProvider)
-├── spi.rs           # ProviderDescriptor trait
+├── spi.rs           # ProviderDescriptor trait (OAuth metadata)
 ├── registry.rs      # ProviderRegistry
 ├── errors.rs        # Provider errors
 ├── utils.rs         # Provider utilities
 └── mod.rs           # Module exports
+
+NOTE: core.rs is MOVED to pierre-fitness-app (domain-specific FitnessProvider trait)
 ```
 
-### 3.7 Rename Core Traits (Generic Transformation)
+### 3.7 Move FitnessProvider Trait to pierre-fitness-app
+
+**CRITICAL**: Do NOT rename or redesign the trait. The FitnessProvider trait is domain-specific by design and belongs in the fitness app layer.
 
 **File: `src/providers/core.rs`**
 
-**Changes:**
+**Action: MOVE (not modify) to `../pierre-fitness-app/src/providers/core.rs`**
 
+```bash
+# Move FitnessProvider trait to fitness app (it's domain-specific)
+mkdir -p ../pierre-fitness-app/src/providers
+mv src/providers/core.rs ../pierre-fitness-app/src/providers/core.rs
+```
+
+**The trait stays EXACTLY as-is** (18 fitness-specific methods):
 ```rust
-// BEFORE (fitness-specific)
 pub trait FitnessProvider: Send + Sync {
     async fn get_athlete(&self) -> AppResult<Athlete>;
     async fn get_activities(&self, limit: Option<usize>, offset: Option<usize>) -> AppResult<Vec<Activity>>;
     async fn get_stats(&self) -> AppResult<Stats>;
-    // ... 15+ fitness-specific methods
-}
-
-// AFTER (generic)
-pub trait DataProvider: Send + Sync {
-    /// Provider name (e.g., "strava", "salesforce", "aws-iot")
-    fn name(&self) -> &'static str;
-
-    /// Data domain (fitness, finance, health, iot, custom)
-    fn domain(&self) -> ProviderDomain;
-
-    /// Provider configuration
-    fn config(&self) -> &ProviderConfig;
-
-    /// Set OAuth2 credentials
-    async fn set_credentials(&self, credentials: OAuth2Credentials) -> AppResult<()>;
-
-    /// Check authentication status
-    async fn is_authenticated(&self) -> bool;
-
-    /// Refresh token if needed
-    async fn refresh_token_if_needed(&self) -> AppResult<()>;
-
-    /// Execute domain-specific operation
-    async fn execute_operation(&self, op: Operation) -> AppResult<OperationResult>;
-
-    /// Disconnect provider
-    async fn disconnect(&self) -> AppResult<()>;
-}
-
-/// Generic operation request
-pub struct Operation {
-    pub name: String,
-    pub params: std::collections::HashMap<String, serde_json::Value>,
-}
-
-/// Generic operation result
-pub struct OperationResult {
-    pub data: serde_json::Value,
-    pub metadata: std::collections::HashMap<String, serde_json::Value>,
-}
-
-/// Provider domain classification
-pub enum ProviderDomain {
-    Fitness,
-    Finance,
-    Health,
-    IoT,
-    Custom(String),
+    async fn get_personal_records(&self) -> AppResult<Vec<PersonalRecord>>;
+    async fn get_sleep_sessions(...) -> Result<Vec<SleepSession>, ProviderError>;
+    // ... all 18 methods unchanged
 }
 ```
 
-**Global rename:**
-
-```bash
-# Rename FitnessProvider → DataProvider across codebase
-find src -name "*.rs" -type f -exec sed -i '' 's/FitnessProvider/DataProvider/g' {} +
-
-# Update re-exports
-sed -i '' 's/pub use core::FitnessProvider/pub use core::DataProvider/' src/providers/mod.rs
-```
+**Why no changes needed:**
+- Phase 1 & 2 already created the perfect SPI
+- FitnessProvider is domain-specific (fitness), not generic
+- Generic framework doesn't need provider trait definitions
+- Providers implement this trait in pierre-fitness-providers
 
 ### 3.8 Update Generic Modules
 
@@ -546,11 +518,10 @@ src/
 │           ├── connections.rs
 │           └── configuration.rs
 ├── providers/
-│   ├── core.rs              # DataProvider trait
-│   ├── spi.rs               # ProviderDescriptor
+│   ├── spi.rs               # ProviderDescriptor (OAuth metadata only)
 │   ├── registry.rs          # ProviderRegistry
-│   ├── errors.rs
-│   └── mod.rs
+│   ├── errors.rs            # Provider errors
+│   └── mod.rs               # Module exports
 └── routes/
     ├── auth.rs              # OAuth routes
     └── oauth2.rs
@@ -600,111 +571,38 @@ cargo test --no-default-features --features "mcp,a2a,rest,sqlite"
 **Time Estimate**: 4-6 hours
 **Validation**: Full validation suite
 
-### 4.1 Update Provider Implementations
+### 4.1 Update Provider Imports Only
+
+**CRITICAL**: Provider implementations stay EXACTLY as-is. Only update import paths.
 
 **File: `../pierre-fitness-providers/src/strava/provider.rs`**
 
-**Transformation:**
+**Changes (imports only):**
 
 ```rust
-use pierre_framework::providers::core::{DataProvider, Operation, OperationResult, ProviderDomain, ProviderConfig, OAuth2Credentials};
-use pierre_framework::errors::AppResult;
-use pierre_fitness_app::models::{Activity, Athlete, Stats};
-use async_trait::async_trait;
+// OLD imports (before migration):
+use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
+use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
+use crate::errors::{AppError, AppResult};
 
-pub struct StravaProvider {
-    config: ProviderConfig,
-    credentials: Arc<RwLock<Option<OAuth2Credentials>>>,
-    http_client: reqwest::Client,
-}
+// NEW imports (after migration):
+use pierre_fitness_app::providers::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
+use pierre_fitness_app::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
+use pierre_framework::errors::{AppError, AppResult};  // Errors stay in framework
 
-#[async_trait]
-impl DataProvider for StravaProvider {
-    fn name(&self) -> &'static str {
-        "strava"
-    }
-
-    fn domain(&self) -> ProviderDomain {
-        ProviderDomain::Fitness
-    }
-
-    fn config(&self) -> &ProviderConfig {
-        &self.config
-    }
-
-    async fn set_credentials(&self, credentials: OAuth2Credentials) -> AppResult<()> {
-        *self.credentials.write().await = Some(credentials);
-        Ok(())
-    }
-
-    async fn is_authenticated(&self) -> bool {
-        self.credentials.read().await.is_some()
-    }
-
-    async fn execute_operation(&self, op: Operation) -> AppResult<OperationResult> {
-        match op.name.as_str() {
-            "get_athlete" => {
-                let athlete = self.get_athlete_internal().await?;
-                Ok(OperationResult {
-                    data: serde_json::to_value(&athlete)?,
-                    metadata: std::collections::HashMap::new(),
-                })
-            }
-            "get_activities" => {
-                let limit = op.params.get("limit")
-                    .and_then(|v| v.as_u64())
-                    .map(|v| v as usize);
-                let offset = op.params.get("offset")
-                    .and_then(|v| v.as_u64())
-                    .map(|v| v as usize);
-
-                let activities = self.get_activities_internal(limit, offset).await?;
-                Ok(OperationResult {
-                    data: serde_json::to_value(&activities)?,
-                    metadata: std::collections::HashMap::new(),
-                })
-            }
-            "get_stats" => {
-                let stats = self.get_stats_internal().await?;
-                Ok(OperationResult {
-                    data: serde_json::to_value(&stats)?,
-                    metadata: std::collections::HashMap::new(),
-                })
-            }
-            _ => Err(AppError::invalid_input(format!("Unknown operation: {}", op.name)))
-        }
-    }
-
-    async fn disconnect(&self) -> AppResult<()> {
-        *self.credentials.write().await = None;
-        Ok(())
-    }
-
-    async fn refresh_token_if_needed(&self) -> AppResult<()> {
-        // Implementation for token refresh
-        Ok(())
-    }
-}
-
-// Internal implementation methods (existing code from strava_provider.rs)
-impl StravaProvider {
-    async fn get_athlete_internal(&self) -> AppResult<Athlete> {
-        // ... existing implementation
-    }
-
-    async fn get_activities_internal(&self, limit: Option<usize>, offset: Option<usize>) -> AppResult<Vec<Activity>> {
-        // ... existing implementation
-    }
-
-    async fn get_stats_internal(&self) -> AppResult<Stats> {
-        // ... existing implementation
-    }
-}
+// REST OF FILE: NO CHANGES
+// Implementation of FitnessProvider trait stays exactly the same
 ```
 
 **Repeat for:**
-- `src/garmin/provider.rs`
-- `src/synthetic/provider.rs`
+- `src/garmin/provider.rs` (same pattern)
+- `src/synthetic/provider.rs` (same pattern)
+
+**Why minimal changes:**
+- FitnessProvider trait is unchanged (moved, not modified)
+- All provider logic stays identical
+- Only dependency imports need updating
+- ~50 lines changed (vs. ~5,000 lines rewritten in original plan)
 
 ### 4.2 Create Module Exports
 
