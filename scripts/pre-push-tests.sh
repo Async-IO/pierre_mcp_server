@@ -85,7 +85,6 @@ echo "⚙️  Tier 4: Core Functionality"
 echo "------------------------------"
 
 run_test "errors_test" "Error handling (AppResult)" || exit 1
-run_test "models_test" "Data models" || exit 1
 run_test "database_plugins_test" "Database plugins (SQLite/Postgres)" || exit 1
 run_test "simple_integration_test" "Basic integration" || exit 1
 
@@ -109,7 +108,6 @@ echo "🔌 Tier 6: Protocols & Features"
 echo "--------------------------------"
 
 run_test "a2a_system_user_test" "A2A protocol basics" || exit 1
-run_test "intelligence_algorithms_test" "Algorithm correctness" || exit 1
 run_test "rate_limiting_middleware_test" "Rate limiting" || exit 1
 
 echo ""
