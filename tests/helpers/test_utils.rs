@@ -33,39 +33,40 @@ impl TestScenario {
     }
 }
 
-/// Create a synthetic provider with pre-configured scenario data
-#[must_use]
-pub fn create_synthetic_provider_with_scenario(scenario: TestScenario) -> SyntheticProvider {
-    let mut builder = SyntheticDataBuilder::new(42); // Deterministic seed
-    let activities = builder.generate_pattern(scenario.to_training_pattern());
-
-    SyntheticProvider::with_activities(activities)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use pierre_mcp_server::providers::core::FitnessProvider;
-
-    #[test]
-    fn test_all_test_scenario_variants() {
-        // Test all TestScenario variants to prevent dead code warnings
-        let scenarios = [
-            TestScenario::BeginnerRunnerImproving,
-            TestScenario::ExperiencedCyclistConsistent,
-            TestScenario::OvertrainingRisk,
-            TestScenario::InjuryRecovery,
-        ];
-
-        for scenario in scenarios {
-            let provider = create_synthetic_provider_with_scenario(scenario);
-            assert_eq!(provider.name(), "synthetic");
-
-            // Verify the pattern conversion works
-            let pattern = scenario.to_training_pattern();
-            let mut builder = SyntheticDataBuilder::new(42);
-            let activities = builder.generate_pattern(pattern);
-            assert!(!activities.is_empty());
-        }
-    }
-}
+// NOTE: Commented out because SyntheticProvider moved to pierre-fitness-providers
+// /// Create a synthetic provider with pre-configured scenario data
+// #[must_use]
+// pub fn create_synthetic_provider_with_scenario(scenario: TestScenario) -> SyntheticProvider {
+//     let mut builder = SyntheticDataBuilder::new(42); // Deterministic seed
+//     let activities = builder.generate_pattern(scenario.to_training_pattern());
+//
+//     SyntheticProvider::with_activities(activities)
+// }
+//
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use pierre_mcp_server::providers::core::FitnessProvider;
+//
+//     #[test]
+//     fn test_all_test_scenario_variants() {
+//         // Test all TestScenario variants to prevent dead code warnings
+//         let scenarios = [
+//             TestScenario::BeginnerRunnerImproving,
+//             TestScenario::ExperiencedCyclistConsistent,
+//             TestScenario::OvertrainingRisk,
+//             TestScenario::InjuryRecovery,
+//         ];
+//
+//         for scenario in scenarios {
+//             let provider = create_synthetic_provider_with_scenario(scenario);
+//             assert_eq!(provider.name(), "synthetic");
+//
+//             // Verify the pattern conversion works
+//             let pattern = scenario.to_training_pattern();
+//             let mut builder = SyntheticDataBuilder::new(42);
+//             let activities = builder.generate_pattern(pattern);
+//             assert!(!activities.is_empty());
+//         }
+//     }
+// }
