@@ -61,7 +61,6 @@
 //! ```
 
 use super::config::ProviderConfig;
-use std::fmt;
 
 /// OAuth endpoint configuration for providers requiring authentication
 #[derive(Debug, Clone)]

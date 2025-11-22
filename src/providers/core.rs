@@ -126,7 +126,6 @@ use crate::pagination::{CursorPage, PaginationParams};
 use crate::providers::errors::ProviderError;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 // Re-export configuration types from the config module for backward compatibility

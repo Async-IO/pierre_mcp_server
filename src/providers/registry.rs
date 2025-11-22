@@ -5,7 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use super::core::{FitnessProvider, ProviderConfig, ProviderFactory, TenantProvider};
-use super::spi::{ProviderBundle, ProviderCapabilities, ProviderDescriptor};
+use super::spi::{ProviderCapabilities, ProviderDescriptor};
 use crate::constants::oauth_providers;
 use crate::errors::{AppError, AppResult};
 use std::collections::HashMap;
@@ -26,9 +26,55 @@ use super::strava_provider::StravaProviderFactory;
 #[cfg(feature = "provider-synthetic")]
 use super::synthetic_provider::SyntheticProviderFactory;
 
+// ============================================================================
+// Provider Bundle Types (fitness-specific, moved from SPI)
+// ============================================================================
+
+/// Factory function type for creating FitnessProvider instances
+pub type ProviderFactoryFn = fn(ProviderConfig) -> Box<dyn FitnessProvider>;
+
+/// Complete provider bundle for registration
+///
+/// Combines a provider descriptor with its factory function for easy registration.
+pub struct ProviderBundle {
+    /// Provider descriptor with metadata and capabilities
+    pub descriptor: Box<dyn ProviderDescriptor>,
+    /// Factory function for creating provider instances
+    pub factory: ProviderFactoryFn,
+}
+
+impl ProviderBundle {
+    /// Create a new provider bundle
+    pub fn new(descriptor: Box<dyn ProviderDescriptor>, factory: ProviderFactoryFn) -> Self {
+        Self {
+            descriptor,
+            factory,
+        }
+    }
+
+    /// Get the provider name from the descriptor
+    #[must_use]
+    pub fn name(&self) -> &'static str {
+        self.descriptor.name()
+    }
+
+    /// Create a provider instance using the factory and descriptor's config
+    #[must_use]
+    pub fn create_provider(&self) -> Box<dyn FitnessProvider> {
+        let config = self.descriptor.to_config();
+        (self.factory)(config)
+    }
+
+    /// Create a provider instance with custom config
+    #[must_use]
+    pub fn create_provider_with_config(&self, config: ProviderConfig) -> Box<dyn FitnessProvider> {
+        (self.factory)(config)
+    }
+}
+
 /// Factory wrapper for bundle-based provider registration
 struct BundleFactory {
-    factory_fn: super::spi::ProviderFactoryFn,
+    factory_fn: ProviderFactoryFn,
 }
 
 impl ProviderFactory for BundleFactory {

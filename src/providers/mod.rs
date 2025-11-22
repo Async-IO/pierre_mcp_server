@@ -76,7 +76,8 @@ pub use errors::{ProviderError, ProviderResult};
 /// Re-export provider registry functions
 pub use registry::{
     create_provider, create_registry_with_external_providers, create_tenant_provider,
-    get_supported_providers, global_registry, is_provider_supported, ProviderRegistry,
+    get_supported_providers, global_registry, is_provider_supported, ProviderBundle,
+    ProviderFactoryFn, ProviderRegistry,
 };
 #[cfg(feature = "provider-garmin")]
 pub use spi::GarminDescriptor;
@@ -86,4 +87,3 @@ pub use spi::StravaDescriptor;
 pub use spi::SyntheticDescriptor;
 /// Re-export SPI types for external provider development
 pub use spi::{OAuthEndpoints, ProviderCapabilities, ProviderDescriptor};
-// Note: ProviderBundle moved to pierre-fitness-app for fitness-specific provider registration
