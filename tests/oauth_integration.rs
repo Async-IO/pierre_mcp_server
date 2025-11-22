@@ -102,7 +102,6 @@ async fn test_oauth_authorization_url_generation() {
                 scopes: vec![],
                 enabled: true,
             },
-            ..Default::default()
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_owned()],
@@ -365,7 +364,6 @@ async fn test_oauth_state_validation() {
                 scopes: vec![],
                 enabled: true,
             },
-            ..Default::default()
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_owned()],
@@ -536,7 +534,6 @@ async fn test_connection_status_no_providers() {
                 scopes: vec![],
                 enabled: true,
             },
-            ..Default::default()
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_owned()],
@@ -732,7 +729,6 @@ async fn test_invalid_provider_error() {
                 scopes: vec![],
                 enabled: true,
             },
-            ..Default::default()
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_owned()],
@@ -899,7 +895,6 @@ async fn test_disconnect_provider() {
                 scopes: vec![],
                 enabled: true,
             },
-            ..Default::default()
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_owned()],
@@ -1158,7 +1153,6 @@ async fn test_oauth_urls_contain_required_parameters() {
                 scopes: vec![],
                 enabled: true,
             },
-            ..Default::default()
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_owned()],
