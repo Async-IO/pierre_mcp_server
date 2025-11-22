@@ -1,8 +1,6 @@
 // ABOUTME: Test utilities for synthetic provider and intelligence validation
 // ABOUTME: Provides scenario builders and validation assertion helpers for automated testing
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
 use super::synthetic_data::{SyntheticDataBuilder, TrainingPattern};
 use pierre_fitness_providers::synthetic::SyntheticProvider;
 
