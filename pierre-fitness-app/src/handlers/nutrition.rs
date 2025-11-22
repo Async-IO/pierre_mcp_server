@@ -4,13 +4,13 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::external::{UsdaClient, UsdaClientConfig};
+use pierre_mcp_server::external::{UsdaClient, UsdaClientConfig};
 use crate::intelligence::{
     calculate_daily_nutrition_needs, calculate_nutrient_timing, ActivityLevel,
     DailyNutritionParams, Gender, TrainingGoal, WorkoutIntensity,
 };
-use crate::protocols::universal::{UniversalRequest, UniversalResponse};
-use crate::protocols::ProtocolError;
+use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalResponse};
+use pierre_mcp_server::protocols::ProtocolError;
 use serde_json::{json, Value};
 use std::future::Future;
 use std::pin::Pin;

@@ -1,7 +1,7 @@
 // ABOUTME: Training Stress Score (TSS) calculation algorithms with multiple implementation strategies
 // ABOUTME: Supports average power, normalized power, and hybrid approaches for TSS computation
 
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use crate::intelligence::physiological_constants::metrics_constants::TSS_BASE_MULTIPLIER;
 use crate::models::Activity;
 use serde::{Deserialize, Serialize};

@@ -4,13 +4,13 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::database_plugins::factory::Database;
-use crate::database_plugins::DatabaseProvider;
-use crate::errors::JsonResultExt;
+use pierre_mcp_server::database_plugins::factory::Database;
+use pierre_mcp_server::database_plugins::DatabaseProvider;
+use pierre_mcp_server::errors::JsonResultExt;
 use crate::intelligence::goal_engine::GoalEngineTrait;
-use crate::protocols::universal::{UniversalRequest, UniversalResponse};
-use crate::protocols::ProtocolError;
-use crate::types::json_schemas::{AnalyzeGoalFeasibilityParams, SetGoalParams};
+use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalResponse};
+use pierre_mcp_server::protocols::ProtocolError;
+use pierre_mcp_server::types::json_schemas::{AnalyzeGoalFeasibilityParams, SetGoalParams};
 use num_traits::ToPrimitive;
 use std::future::Future;
 use std::pin::Pin;
@@ -273,7 +273,7 @@ pub fn handle_set_goal(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use pierre_mcp_server::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -433,7 +433,7 @@ pub fn handle_suggest_goals(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use pierre_mcp_server::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {

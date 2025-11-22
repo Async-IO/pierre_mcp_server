@@ -1,7 +1,7 @@
 // ABOUTME: Training Impulse (TRIMP) calculation algorithms with gender-specific implementations
 // ABOUTME: Supports Bannister male/female formulas, Edwards zone-based, Lucia banded, and hybrid approaches
 
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 

@@ -16,7 +16,7 @@ use super::{
 use crate::config::intelligence_config::{
     GoalEngineConfig, IntelligenceConfig, IntelligenceStrategy,
 };
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use crate::intelligence::physiological_constants::{
     consistency::{
         MILESTONE_ACHIEVEMENT_THRESHOLD, MIN_ACTIVITY_COUNT_FOR_ANALYSIS,

@@ -4,8 +4,8 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::protocols::universal::{UniversalRequest, UniversalResponse};
-use crate::protocols::ProtocolError;
+use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalResponse};
+use pierre_mcp_server::protocols::ProtocolError;
 use chrono::{Duration, Utc};
 use std::future::Future;
 use std::pin::Pin;
@@ -780,7 +780,7 @@ pub fn handle_get_activity_intelligence(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use pierre_mcp_server::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -882,7 +882,7 @@ pub fn handle_analyze_performance_trends(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use pierre_mcp_server::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -1057,7 +1057,7 @@ pub fn handle_compare_activities(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use pierre_mcp_server::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -1128,7 +1128,7 @@ pub fn handle_detect_patterns(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use pierre_mcp_server::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -1224,7 +1224,7 @@ pub fn handle_generate_recommendations(
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use pierre_mcp_server::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -1374,7 +1374,7 @@ pub fn handle_calculate_fitness_score(
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use pierre_mcp_server::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -1500,7 +1500,7 @@ pub fn handle_predict_performance(
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use pierre_mcp_server::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -1626,7 +1626,7 @@ pub fn handle_analyze_training_load(
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
         use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use pierre_mcp_server::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {

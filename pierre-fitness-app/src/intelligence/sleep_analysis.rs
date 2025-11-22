@@ -24,7 +24,7 @@
 //! - Plews, D.J., et al. (2013). Training adaptation and heart rate variability in elite endurance athletes.
 //!   *International Journal of Sports Physiology and Performance*, 8(5), 512-519.
 
-use crate::errors::AppError;
+use pierre_mcp_server::errors::AppError;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 

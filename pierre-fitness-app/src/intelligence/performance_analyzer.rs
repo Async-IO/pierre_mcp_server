@@ -16,7 +16,7 @@ use super::{
 use crate::config::intelligence_config::{
     IntelligenceConfig, IntelligenceStrategy, PerformanceAnalyzerConfig,
 };
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use crate::intelligence::physiological_constants::{
     adaptations::{
         HIGH_VOLUME_IMPROVEMENT_FACTOR, LOW_VOLUME_IMPROVEMENT_FACTOR,

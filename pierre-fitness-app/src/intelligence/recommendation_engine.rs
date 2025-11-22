@@ -15,7 +15,7 @@ use super::{
 use crate::config::intelligence_config::{
     IntelligenceConfig, IntelligenceStrategy, RecommendationEngineConfig,
 };
-use crate::errors::AppResult;
+use pierre_mcp_server::errors::AppResult;
 use crate::intelligence::physiological_constants::{
     consistency::CONSISTENCY_SCORE_THRESHOLD,
     frequency_targets::MAX_WEEKLY_FREQUENCY,

@@ -1,7 +1,7 @@
 // ABOUTME: Training load calculation algorithms (CTL/ATL/TSB) with multiple moving average methods
 // ABOUTME: Implements EMA (standard), SMA, WMA, and Kalman Filter for fitness tracking
 
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 

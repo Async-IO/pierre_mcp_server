@@ -1,7 +1,7 @@
 // ABOUTME: VDOT (VO2max running) calculation algorithms with Daniels, Riegel, and hybrid methods
 // ABOUTME: Implements Jack Daniels' VDOT methodology and Riegel's power-law race prediction formula
 
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 

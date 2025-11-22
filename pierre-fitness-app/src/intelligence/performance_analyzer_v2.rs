@@ -16,7 +16,7 @@ use super::{
     TrendDirection,
 };
 use crate::config::intelligence_config::IntelligenceStrategy;
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use crate::models::Activity;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;

@@ -30,7 +30,7 @@
 use crate::config::intelligence_config::{
     ActivityFactorsConfig, BmrConfig, MacronutrientConfig, NutrientTimingConfig,
 };
-use crate::errors::AppError;
+use pierre_mcp_server::errors::AppError;
 use serde::{Deserialize, Serialize};
 
 /// Gender for BMR calculations

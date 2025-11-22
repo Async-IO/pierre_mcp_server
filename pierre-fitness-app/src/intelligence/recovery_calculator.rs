@@ -22,7 +22,7 @@
 //! - Buchheit, M. (2014). Monitoring training status with HR measures: Do all roads lead to Rome?
 //!   *Frontiers in Physiology*, 5, 73. <https://doi.org/10.3389/fphys.2014.00073>
 
-use crate::errors::AppError;
+use pierre_mcp_server::errors::AppError;
 use crate::intelligence::algorithms::RecoveryAggregationAlgorithm;
 use crate::intelligence::sleep_analysis::{
     HrvRecoveryStatus, HrvTrendAnalysis, SleepData, SleepQualityCategory, SleepQualityScore,

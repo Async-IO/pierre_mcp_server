@@ -7,7 +7,7 @@
 #![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges for fitness metrics
 
 use crate::config::intelligence_config::IntelligenceConfig;
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use crate::intelligence::algorithms::{TrimpAlgorithm, TssAlgorithm};
 use crate::intelligence::physiological_constants::{
     metrics_constants::{EFFICIENCY_TIME_MULTIPLIER, MIN_DECOUPLING_DATA_POINTS},

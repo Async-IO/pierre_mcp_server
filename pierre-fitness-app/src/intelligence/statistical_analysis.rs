@@ -6,7 +6,7 @@
 #![allow(clippy::cast_precision_loss)] // Safe: statistical calculations with controlled ranges
 
 use super::{TrendDataPoint, TrendDirection};
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 
 /// Complete linear regression analysis results

@@ -4,10 +4,10 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::config::environment::{default_provider, OAuthProviderConfig};
-use crate::protocols::universal::auth_service::TokenData;
+use pierre_mcp_server::config::environment::{default_provider, OAuthProviderConfig};
+use pierre_mcp_server::protocols::universal::auth_service::TokenData;
 use crate::providers::core::FitnessProvider;
-use crate::providers::ProviderRegistry;
+use pierre_mcp_server::providers::ProviderRegistry;
 use std::sync::Arc;
 
 /// Extract provider name from request parameters, falling back to default provider

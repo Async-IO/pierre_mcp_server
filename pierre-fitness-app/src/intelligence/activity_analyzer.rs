@@ -10,7 +10,7 @@ use super::{
     MetricsCalculator,
 };
 use crate::config::intelligence_config::{ActivityAnalyzerConfig, IntelligenceConfig};
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use crate::intelligence::physiological_constants::{
     activity_scoring::{
         BASE_ACTIVITY_SCORE, COMPLETION_BONUS, DURATION_BONUS, HR_ZONE_BONUS, INTENSITY_BONUS,

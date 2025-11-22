@@ -8,8 +8,8 @@
 // - HTTP client Arc sharing for geocoding requests
 // - Cache key and data ownership transfers for async operations
 // - Address field Option chains for comprehensive location parsing
-use crate::errors::{AppError, AppResult};
-use crate::utils::http_client::shared_client;
+use pierre_mcp_server::errors::{AppError, AppResult};
+use pierre_mcp_server::utils::http_client::shared_client;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

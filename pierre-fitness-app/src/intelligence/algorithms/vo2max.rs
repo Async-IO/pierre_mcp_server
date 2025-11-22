@@ -1,7 +1,7 @@
 // ABOUTME: VO2max estimation algorithms for aerobic fitness assessment
 // ABOUTME: Implements VDOT, Cooper, Rockport, Astrand-Ryhming, and pace-based models for VO2max calculation
 
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 

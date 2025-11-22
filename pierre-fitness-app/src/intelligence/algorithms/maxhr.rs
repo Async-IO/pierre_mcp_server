@@ -1,7 +1,7 @@
 // ABOUTME: Maximum heart rate estimation algorithms using age-predicted formulas
 // ABOUTME: Implements Fox, Tanaka, Nes, and Gulati formulas with scientific validation
 
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 

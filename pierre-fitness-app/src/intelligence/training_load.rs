@@ -4,7 +4,7 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::errors::AppError;
+use pierre_mcp_server::errors::AppError;
 use crate::intelligence::metrics::MetricsCalculator;
 use crate::models::Activity;
 use chrono::{DateTime, Duration, Utc};

@@ -1,7 +1,7 @@
 // ABOUTME: LTHR (Lactate Threshold Heart Rate) estimation algorithms for endurance training
 // ABOUTME: Implements MaxHR-based, 30-min test, ramp test, and Friel method for LTHR calculation
 
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 

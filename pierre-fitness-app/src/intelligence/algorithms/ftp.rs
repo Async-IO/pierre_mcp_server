@@ -1,7 +1,7 @@
 // ABOUTME: FTP (Functional Threshold Power) estimation algorithms for cycling performance
 // ABOUTME: Implements 20-min, 8-min, ramp test, 60-min, and Critical Power models for FTP calculation
 
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 

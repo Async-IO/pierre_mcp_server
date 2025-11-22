@@ -22,7 +22,7 @@ use crate::intelligence::physiological_constants::{
         MODERATE_WIND_THRESHOLD, STRONG_WIND_THRESHOLD,
     },
 };
-use crate::utils::http_client::create_client_with_timeout;
+use pierre_mcp_server::utils::http_client::create_client_with_timeout;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};

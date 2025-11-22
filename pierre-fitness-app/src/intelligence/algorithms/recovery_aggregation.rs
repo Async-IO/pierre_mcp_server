@@ -1,7 +1,7 @@
 // ABOUTME: Recovery score aggregation algorithms for combining TSB, sleep, and HRV metrics
 // ABOUTME: Implements weighted average, geometric mean, harmonic mean, minimum, and Bayesian methods
 
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 

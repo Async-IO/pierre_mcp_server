@@ -4,14 +4,14 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::cache::{factory::Cache, CacheKey, CacheResource};
+use pierre_mcp_server::cache::{factory::Cache, CacheKey, CacheResource};
 use crate::intelligence::physiological_constants::api_limits::{
     DEFAULT_ACTIVITY_LIMIT, DEFAULT_ACTIVITY_LIMIT_U32, MAX_ACTIVITY_LIMIT, QUICK_ACTIVITY_LIMIT,
 };
-use crate::protocols::universal::{UniversalRequest, UniversalResponse};
-use crate::protocols::ProtocolError;
+use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalResponse};
+use pierre_mcp_server::protocols::ProtocolError;
 use crate::providers::core::FitnessProvider;
-use crate::utils::uuid::parse_user_id_for_protocol;
+use pierre_mcp_server::utils::uuid::parse_user_id_for_protocol;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;

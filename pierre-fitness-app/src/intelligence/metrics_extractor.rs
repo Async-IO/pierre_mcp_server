@@ -5,7 +5,7 @@
 // Copyright ©2025 Async-IO.org
 #![allow(clippy::cast_precision_loss)] // Safe: fitness data conversions
 
-use crate::errors::{AppError, AppResult};
+use pierre_mcp_server::errors::{AppError, AppResult};
 use crate::models::Activity;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

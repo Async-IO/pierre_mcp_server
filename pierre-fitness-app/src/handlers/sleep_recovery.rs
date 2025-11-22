@@ -7,8 +7,8 @@
 use crate::intelligence::algorithms::RecoveryAggregationAlgorithm;
 use crate::intelligence::{RecoveryCalculator, SleepAnalyzer, SleepData, TrainingLoadCalculator};
 use crate::models::Activity;
-use crate::protocols::universal::{UniversalRequest, UniversalResponse};
-use crate::protocols::ProtocolError;
+use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalResponse};
+use pierre_mcp_server::protocols::ProtocolError;
 use chrono::Utc;
 use std::collections::HashMap;
 use std::future::Future;
@@ -210,7 +210,7 @@ pub fn handle_calculate_recovery_score(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use pierre_mcp_server::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -393,7 +393,7 @@ pub fn handle_suggest_rest_day(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use pierre_mcp_server::utils::uuid::parse_user_id_for_protocol;
 
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
@@ -768,7 +768,7 @@ pub fn handle_optimize_sleep_schedule(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        use crate::utils::uuid::parse_user_id_for_protocol;
+        use pierre_mcp_server::utils::uuid::parse_user_id_for_protocol;
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
