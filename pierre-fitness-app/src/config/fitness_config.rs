@@ -203,7 +203,7 @@ impl FitnessConfig {
     ///
     /// Returns an error if database operation fails or configuration parsing fails
     pub async fn load_for_user(
-        db_manager: Option<&crate::database::fitness_configurations::FitnessConfigurationManager>,
+        db_manager: Option<&pierre_mcp_server::database::fitness_configurations::FitnessConfigurationManager>,
         tenant_id: Option<&str>,
         user_id: Option<&str>,
         configuration_name: Option<&str>,
@@ -462,7 +462,7 @@ impl Default for WeatherApiConfig {
             enabled: true,
             cache_duration_hours: 24,
             request_timeout_seconds: 10,
-            rate_limit_requests_per_minute: crate::constants::time::MINUTE_SECONDS as u64,
+            rate_limit_requests_per_minute: pierre_mcp_server::constants::time::MINUTE_SECONDS as u64,
         }
     }
 }

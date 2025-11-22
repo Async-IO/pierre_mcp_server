@@ -231,7 +231,7 @@ fn build_metrics_response(
 
 /// Fetch activity from provider and calculate metrics (helper for `activity_id` path)
 async fn fetch_and_calculate_metrics(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: &UniversalRequest,
     activity_id: &str,
     provider_name: &str,
@@ -291,7 +291,7 @@ async fn fetch_and_calculate_metrics(
         access_token: Some(token_data.access_token.clone()),
         refresh_token: Some(token_data.refresh_token.clone()),
         expires_at: Some(token_data.expires_at),
-        scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+        scopes: pierre_mcp_server::constants::oauth::STRAVA_DEFAULT_SCOPES
             .split(',')
             .map(str::to_owned)
             .collect(),
@@ -342,10 +342,10 @@ async fn fetch_and_calculate_metrics(
 /// # Errors
 /// Returns `ProtocolError` if activity parameter is missing or calculation fails
 pub async fn handle_calculate_metrics(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Result<UniversalResponse, ProtocolError> {
-    let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
+    let user_uuid = pierre_mcp_server::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
     // Check if activity_id is provided (schema-compliant path)
     if let Some(activity_id) = request
@@ -402,7 +402,7 @@ fn generate_activity_insights(
 
     // Analyze distance
     if let Some(distance) = activity.distance_meters {
-        let km = distance / crate::constants::limits::METERS_PER_KILOMETER;
+        let km = distance / pierre_mcp_server::constants::limits::METERS_PER_KILOMETER;
         insights.push(format!("Activity covered {km:.2} km"));
         if km > ACHIEVEMENT_DISTANCE_THRESHOLD_KM {
             recommendations.push("Great long-distance effort! Ensure proper recovery time");
@@ -476,7 +476,7 @@ async fn create_intelligence_response(
     activity_id: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
-    sampling_peer: Option<&std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>>,
+    sampling_peer: Option<&std::sync::Arc<pierre_mcp_server::mcp::sampling_peer::SamplingPeer>>,
 ) -> UniversalResponse {
     // Try Claude sampling first if available (MCP Sampling feature)
     if let Some(peer) = sampling_peer {
@@ -539,7 +539,7 @@ async fn create_intelligence_response(
             "insights": insights,
             "recommendations": recommendations,
             "performance_metrics": {
-                "distance_km": activity.distance_meters.map(|d| d / crate::constants::limits::METERS_PER_KILOMETER),
+                "distance_km": activity.distance_meters.map(|d| d / pierre_mcp_server::constants::limits::METERS_PER_KILOMETER),
                 "duration_minutes": Some(duration_minutes),
                 "elevation_meters": activity.elevation_gain,
                 "average_heart_rate": activity.average_heart_rate,
@@ -577,7 +577,7 @@ async fn fetch_and_analyze_activity(
     activity_id: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
-    sampling_peer: Option<&std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>>,
+    sampling_peer: Option<&std::sync::Arc<pierre_mcp_server::mcp::sampling_peer::SamplingPeer>>,
 ) -> UniversalResponse {
     match provider.get_activity(activity_id).await {
         Ok(activity) => {
@@ -592,7 +592,7 @@ async fn fetch_and_analyze_activity(
         }
         Err(e) => {
             // Handle NotFound by auto-fetching recent activities
-            if e.code == crate::errors::ErrorCode::ResourceNotFound {
+            if e.code == pierre_mcp_server::errors::ErrorCode::ResourceNotFound {
                 // Activity not found - fetch recent activities to show valid IDs
                 match provider.get_activities(Some(5), None).await {
                     Ok(activities) if !activities.is_empty() => {
@@ -776,7 +776,7 @@ async fn fetch_and_detect_patterns(
 /// Returns `ProtocolError` if `activity_id` parameter is missing or validation fails
 #[must_use]
 pub fn handle_get_activity_intelligence(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -803,7 +803,7 @@ pub fn handle_get_activity_intelligence(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(pierre_mcp_server::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Report progress - starting authentication
@@ -878,7 +878,7 @@ pub fn handle_get_activity_intelligence(
 /// Handle `analyze_performance_trends` tool - analyze performance over time
 #[must_use]
 pub fn handle_analyze_performance_trends(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -897,7 +897,7 @@ pub fn handle_analyze_performance_trends(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(pierre_mcp_server::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let metric = request
             .parameters
@@ -1032,7 +1032,7 @@ async fn execute_activity_comparison(
             }
         }
         Err(e) => {
-            let error_message = if e.code == crate::errors::ErrorCode::ResourceNotFound {
+            let error_message = if e.code == pierre_mcp_server::errors::ErrorCode::ResourceNotFound {
                 format!(
                     "Activity '{activity_id}' not found. Please use get_activities to retrieve your activity IDs first, then use compare_activities with a valid ID from the list."
                 )
@@ -1053,7 +1053,7 @@ async fn execute_activity_comparison(
 /// Handle `compare_activities` tool - compare two activities
 #[must_use]
 pub fn handle_compare_activities(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -1072,7 +1072,7 @@ pub fn handle_compare_activities(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(pierre_mcp_server::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let activity_id = request
             .parameters
@@ -1124,7 +1124,7 @@ pub fn handle_compare_activities(
 /// Handle `detect_patterns` tool - detect patterns in activity data
 #[must_use]
 pub fn handle_detect_patterns(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -1143,7 +1143,7 @@ pub fn handle_detect_patterns(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(pierre_mcp_server::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let pattern_type = request
             .parameters
@@ -1219,7 +1219,7 @@ pub fn handle_detect_patterns(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_generate_recommendations(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -1239,7 +1239,7 @@ pub fn handle_generate_recommendations(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(pierre_mcp_server::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let recommendation_type = request
             .parameters
@@ -1369,7 +1369,7 @@ pub fn handle_generate_recommendations(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_calculate_fitness_score(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -1389,7 +1389,7 @@ pub fn handle_calculate_fitness_score(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(pierre_mcp_server::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let timeframe = request
             .parameters
@@ -1495,7 +1495,7 @@ pub fn handle_calculate_fitness_score(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_predict_performance(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -1515,7 +1515,7 @@ pub fn handle_predict_performance(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(pierre_mcp_server::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let target_sport = request
             .parameters
@@ -1621,7 +1621,7 @@ pub fn handle_predict_performance(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_analyze_training_load(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -1641,7 +1641,7 @@ pub fn handle_analyze_training_load(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(pierre_mcp_server::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
         let timeframe = request
             .parameters
@@ -2412,7 +2412,7 @@ fn calculate_pace(activity: &crate::models::Activity) -> Option<f64> {
         if distance > 0.0 && activity.duration_seconds > 0 {
             #[allow(clippy::cast_precision_loss)]
             let seconds_per_km = (activity.duration_seconds as f64 / distance)
-                * crate::constants::units::METERS_PER_KM;
+                * pierre_mcp_server::constants::units::METERS_PER_KM;
             return Some(seconds_per_km / 60.0); // convert to min/km
         }
     }
@@ -2726,10 +2726,10 @@ fn format_overtraining_signals(
 /// # Errors
 /// Returns error if sampling request fails or response is invalid
 async fn generate_activity_intelligence_with_claude(
-    sampling_peer: &std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>,
+    sampling_peer: &std::sync::Arc<pierre_mcp_server::mcp::sampling_peer::SamplingPeer>,
     activity: &crate::models::Activity,
 ) -> anyhow::Result<serde_json::Value> {
-    use crate::mcp::schema::{
+    use pierre_mcp_server::mcp::schema::{
         Content, CreateMessageRequest, ModelHint, ModelPreferences, PromptMessage,
     };
 
@@ -2830,11 +2830,11 @@ async fn generate_activity_intelligence_with_claude(
 /// # Errors
 /// Returns error if sampling request fails or response is invalid
 async fn generate_recommendations_with_claude(
-    sampling_peer: &std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>,
+    sampling_peer: &std::sync::Arc<pierre_mcp_server::mcp::sampling_peer::SamplingPeer>,
     activities: &[crate::models::Activity],
     recommendation_type: &str,
 ) -> anyhow::Result<serde_json::Value> {
-    use crate::mcp::schema::{
+    use pierre_mcp_server::mcp::schema::{
         Content, CreateMessageRequest, ModelHint, ModelPreferences, PromptMessage,
     };
 
@@ -3347,8 +3347,8 @@ fn generate_goal_specific_recommendations(
             }
         })
         .max_by(|a, b| {
-            let pace_a = a.1 / (a.0 / crate::constants::limits::METERS_PER_KILOMETER);
-            let pace_b = b.1 / (b.0 / crate::constants::limits::METERS_PER_KILOMETER);
+            let pace_a = a.1 / (a.0 / pierre_mcp_server::constants::limits::METERS_PER_KILOMETER);
+            let pace_b = b.1 / (b.0 / pierre_mcp_server::constants::limits::METERS_PER_KILOMETER);
             pace_b
                 .partial_cmp(&pace_a)
                 .unwrap_or(std::cmp::Ordering::Equal)
@@ -3362,7 +3362,7 @@ fn generate_goal_specific_recommendations(
     if let Some((distance, time)) = best_performance {
         if let Ok(predictions) = PerformancePredictor::generate_race_predictions(distance, time) {
             race_predictions = Some(serde_json::json!({
-                "based_on": format!("{:.1}km in {}", distance / crate::constants::limits::METERS_PER_KILOMETER, PerformancePredictor::format_time(time)),
+                "based_on": format!("{:.1}km in {}", distance / pierre_mcp_server::constants::limits::METERS_PER_KILOMETER, PerformancePredictor::format_time(time)),
                 "vdot": predictions.vdot,
                 "race_times": predictions.predictions,
             }));

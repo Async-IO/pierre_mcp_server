@@ -132,7 +132,7 @@ impl WeatherService {
     pub fn with_default_config() -> Self {
         Self::new(
             WeatherApiConfig::default(),
-            crate::constants::get_server_config()
+            pierre_mcp_server::constants::get_server_config()
                 .and_then(|c| c.external_services.weather.api_key.clone()),
         )
     }

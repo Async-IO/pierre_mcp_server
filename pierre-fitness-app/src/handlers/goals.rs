@@ -54,12 +54,12 @@ fn extract_feasibility_params(
         crate::intelligence::physiological_constants::goal_feasibility::DEFAULT_TIMEFRAME_DAYS,
     );
 
-    let effective_timeframe = if timeframe_days > crate::constants::limits::MAX_TIMEFRAME_DAYS {
+    let effective_timeframe = if timeframe_days > pierre_mcp_server::constants::limits::MAX_TIMEFRAME_DAYS {
         tracing::warn!(
             "Timeframe {timeframe_days} days is unusually long, capping at {}",
-            crate::constants::limits::MAX_TIMEFRAME_DAYS
+            pierre_mcp_server::constants::limits::MAX_TIMEFRAME_DAYS
         );
-        crate::constants::limits::MAX_TIMEFRAME_DAYS
+        pierre_mcp_server::constants::limits::MAX_TIMEFRAME_DAYS
     } else {
         timeframe_days
     };
@@ -119,7 +119,7 @@ fn generate_feasibility_recommendations(
     if !feasible && improvement_required > safe_improvement_capacity {
         let suggested_days_f64 = (improvement_required
             / crate::intelligence::physiological_constants::goal_feasibility::SAFE_MONTHLY_IMPROVEMENT_RATE_PERCENT)
-            .mul_add(f64::from(crate::constants::time_constants::DAYS_PER_MONTH), 0.0)
+            .mul_add(f64::from(pierre_mcp_server::constants::time_constants::DAYS_PER_MONTH), 0.0)
             .ceil();
         let suggested_timeframe = safe_f64_to_u32(suggested_days_f64);
         recommendations.push(format!(
@@ -179,7 +179,7 @@ fn build_feasibility_response(params: &FeasibilityResponseParams) -> UniversalRe
                 params.effective_timeframe
             } else {
                 let safe_days_f64 = (params.improvement_required / crate::intelligence::physiological_constants::goal_feasibility::SAFE_MONTHLY_IMPROVEMENT_RATE_PERCENT).mul_add(
-                    f64::from(crate::constants::time_constants::DAYS_PER_MONTH),
+                    f64::from(pierre_mcp_server::constants::time_constants::DAYS_PER_MONTH),
                     0.0
                 ).ceil();
                 safe_f64_to_u32(safe_days_f64)
@@ -269,7 +269,7 @@ fn build_goal_creation_response(
 /// Handle `set_goal` tool - set a new fitness goal
 #[must_use]
 pub fn handle_set_goal(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -402,7 +402,7 @@ fn create_suggestion_metadata() -> std::collections::HashMap<String, serde_json:
 /// # Returns
 /// Vector of recent activities (empty if fetch fails)
 async fn fetch_suggestion_activities(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     provider_name: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<&str>,
@@ -429,7 +429,7 @@ async fn fetch_suggestion_activities(
 /// Handle `suggest_goals` tool - get AI-suggested fitness goals
 #[must_use]
 pub fn handle_suggest_goals(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -448,7 +448,7 @@ pub fn handle_suggest_goals(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(pierre_mcp_server::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Fetch activities and load user profile
@@ -503,13 +503,13 @@ pub fn handle_suggest_goals(
 /// # Returns
 /// Vector of activities for analysis (empty if fetch fails)
 async fn fetch_feasibility_activities(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     provider_name: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<&str>,
 ) -> Vec<crate::models::Activity> {
     let mut activities: Vec<crate::models::Activity> =
-        Vec::with_capacity(crate::constants::limits::ACTIVITY_CAPACITY_HINT);
+        Vec::with_capacity(pierre_mcp_server::constants::limits::ACTIVITY_CAPACITY_HINT);
 
     if let Ok(provider) = executor
         .auth_service
@@ -565,7 +565,7 @@ fn analyze_goal_by_type(
 /// Handle `analyze_goal_feasibility` tool - analyze if goal is achievable
 #[must_use]
 pub fn handle_analyze_goal_feasibility(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -583,8 +583,8 @@ pub fn handle_analyze_goal_feasibility(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
-        let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
+            .map_or_else(pierre_mcp_server::config::environment::default_provider, String::from);
+        let user_uuid = pierre_mcp_server::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
         // Get historical activities
         let activities = fetch_feasibility_activities(
@@ -683,7 +683,7 @@ fn analyze_distance_goal_feasibility(
         .iter()
         .filter_map(|a| a.distance_meters)
         .sum::<f64>()
-        / crate::constants::limits::METERS_PER_KILOMETER;
+        / pierre_mcp_server::constants::limits::METERS_PER_KILOMETER;
 
     // Convert activity count to f64 with safe conversion helper
     let activity_count = safe_usize_to_f64(activities.len());
@@ -692,7 +692,7 @@ fn analyze_distance_goal_feasibility(
     // Calculate actual training history from activity dates
     let training_weeks = calculate_training_history_weeks(
         activities,
-        crate::constants::goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY,
+        pierre_mcp_server::constants::goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY,
     );
     let weeks_in_timeframe = f64::from(timeframe_days) / 7.0;
     let estimated_activities = (activity_count / training_weeks) * weeks_in_timeframe;
@@ -745,7 +745,7 @@ fn analyze_duration_goal_feasibility(
     let total_duration: u64 = activities.iter().map(|a| a.duration_seconds).sum();
     let current_hours = match u32::try_from(total_duration.min(u64::from(u32::MAX))) {
         Ok(duration_u32) => {
-            f64::from(duration_u32) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+            f64::from(duration_u32) / pierre_mcp_server::constants::time_constants::SECONDS_PER_HOUR_F64
         }
         Err(e) => {
             tracing::warn!(
@@ -753,13 +753,13 @@ fn analyze_duration_goal_feasibility(
                 error = %e,
                 "Duration conversion failed (should not happen after min() with u32::MAX), using u32::MAX"
             );
-            f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+            f64::from(u32::MAX) / pierre_mcp_server::constants::time_constants::SECONDS_PER_HOUR_F64
         }
     };
 
     let training_weeks = calculate_training_history_weeks(
         activities,
-        crate::constants::goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY,
+        pierre_mcp_server::constants::goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY,
     );
     let weeks_in_timeframe = f64::from(timeframe_days) / 7.0;
     let projected_hours = (current_hours / training_weeks) * weeks_in_timeframe;
@@ -784,7 +784,7 @@ fn analyze_frequency_goal_feasibility(
     let current_count = safe_usize_to_f64(activities.len());
     let training_weeks = calculate_training_history_weeks(
         activities,
-        crate::constants::goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY,
+        pierre_mcp_server::constants::goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY,
     );
     let weeks_in_timeframe = f64::from(timeframe_days) / 7.0;
     let current_weekly_frequency = current_count / training_weeks;
@@ -861,7 +861,7 @@ fn infer_fitness_level(
 
     let training_weeks = calculate_training_history_weeks(
         activities,
-        crate::constants::goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY,
+        pierre_mcp_server::constants::goal_management::MIN_ACTIVITIES_FOR_TRAINING_HISTORY,
     );
     // Cast is safe: activity count (usize) far below f64 precision limit (2^53)
     #[allow(clippy::cast_precision_loss)] // Safe: realistic activity counts
@@ -958,14 +958,14 @@ fn calculate_days_remaining(
     timeframe: &str,
 ) -> u32 {
     created_at.map_or(
-        crate::constants::defaults::DEFAULT_GOAL_TIMEFRAME_DAYS,
+        pierre_mcp_server::constants::defaults::DEFAULT_GOAL_TIMEFRAME_DAYS,
         |created| {
             let timeframe_days = match timeframe {
-                "week" => crate::constants::time_constants::DAYS_PER_WEEK,
-                "month" => crate::constants::time_constants::DAYS_PER_MONTH,
-                "quarter" => crate::constants::time_constants::DAYS_PER_QUARTER,
-                "year" => crate::constants::time_constants::DAYS_PER_YEAR,
-                _ => crate::constants::defaults::DEFAULT_GOAL_TIMEFRAME_DAYS,
+                "week" => pierre_mcp_server::constants::time_constants::DAYS_PER_WEEK,
+                "month" => pierre_mcp_server::constants::time_constants::DAYS_PER_MONTH,
+                "quarter" => pierre_mcp_server::constants::time_constants::DAYS_PER_QUARTER,
+                "year" => pierre_mcp_server::constants::time_constants::DAYS_PER_YEAR,
+                _ => pierre_mcp_server::constants::defaults::DEFAULT_GOAL_TIMEFRAME_DAYS,
             };
             let elapsed = (chrono::Utc::now() - created.with_timezone(&chrono::Utc)).num_days();
             let elapsed_u32 = match u32::try_from(elapsed.max(0)) {
@@ -995,14 +995,14 @@ fn calculate_current_progress(
                 .iter()
                 .filter_map(|a| a.distance_meters)
                 .sum::<f64>()
-                / crate::constants::limits::METERS_PER_KILOMETER;
+                / pierre_mcp_server::constants::limits::METERS_PER_KILOMETER;
             (total_distance, "km")
         }
         "duration" => {
             let total_duration: u64 = activities.iter().map(|a| a.duration_seconds).sum();
             let hours = match u32::try_from(total_duration.min(u64::from(u32::MAX))) {
                 Ok(duration_u32) => {
-                    f64::from(duration_u32) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                    f64::from(duration_u32) / pierre_mcp_server::constants::time_constants::SECONDS_PER_HOUR_F64
                 }
                 Err(e) => {
                     tracing::warn!(
@@ -1010,7 +1010,7 @@ fn calculate_current_progress(
                         error = %e,
                         "Duration conversion failed in progress calculation, using u32::MAX"
                     );
-                    f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                    f64::from(u32::MAX) / pierre_mcp_server::constants::time_constants::SECONDS_PER_HOUR_F64
                 }
             };
             (hours, "hours")
@@ -1076,16 +1076,16 @@ fn build_progress_response(params: &ProgressResponseParams) -> UniversalResponse
             "timeframe": params.details.timeframe,
             "summary": {
                 "total_activities": params.relevant_activities.len(),
-                "total_distance_km": params.relevant_activities.iter().filter_map(|a| a.distance_meters).sum::<f64>() / crate::constants::limits::METERS_PER_KILOMETER,
+                "total_distance_km": params.relevant_activities.iter().filter_map(|a| a.distance_meters).sum::<f64>() / pierre_mcp_server::constants::limits::METERS_PER_KILOMETER,
                 "total_duration_hours": match u32::try_from(params.total_duration.min(u64::from(u32::MAX))) {
-                    Ok(duration_u32) => f64::from(duration_u32) / crate::constants::time_constants::SECONDS_PER_HOUR_F64,
+                    Ok(duration_u32) => f64::from(duration_u32) / pierre_mcp_server::constants::time_constants::SECONDS_PER_HOUR_F64,
                     Err(e) => {
                         tracing::warn!(
                             total_duration = params.total_duration,
                             error = %e,
                             "Duration conversion failed in response summary, using u32::MAX"
                         );
-                        f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                        f64::from(u32::MAX) / pierre_mcp_server::constants::time_constants::SECONDS_PER_HOUR_F64
                     }
                 }
             }
@@ -1108,7 +1108,7 @@ fn build_progress_response(params: &ProgressResponseParams) -> UniversalResponse
 
 /// Fetch activities for progress tracking
 async fn fetch_progress_activities(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     provider_name: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<&str>,
@@ -1240,7 +1240,7 @@ fn calculate_progress_metrics(
     let (current_value, unit) = calculate_current_progress(goal_type, relevant_activities);
 
     let progress_percentage =
-        (current_value / goal_target) * crate::constants::limits::PERCENTAGE_MULTIPLIER;
+        (current_value / goal_target) * pierre_mcp_server::constants::limits::PERCENTAGE_MULTIPLIER;
     let on_track = progress_percentage
         >= crate::intelligence::physiological_constants::goal_feasibility::SIMPLE_PROGRESS_THRESHOLD;
 
@@ -1250,7 +1250,7 @@ fn calculate_progress_metrics(
 /// Handle `track_progress` tool - track progress towards goals
 #[must_use]
 pub fn handle_track_progress(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -1274,8 +1274,8 @@ pub fn handle_track_progress(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
-        let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
+            .map_or_else(pierre_mcp_server::config::environment::default_provider, String::from);
+        let user_uuid = pierre_mcp_server::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
         // Fetch and validate goal
         let details = match fetch_and_validate_goal(

@@ -20,7 +20,7 @@ use uuid::Uuid;
 /// # Errors
 /// Returns `UniversalResponse` with error if authentication fails or activities cannot be fetched
 async fn fetch_strava_activities(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     user_uuid: Uuid,
     tenant_id: Option<&str>,
 ) -> Result<Vec<Activity>, UniversalResponse> {
@@ -49,7 +49,7 @@ async fn fetch_strava_activities(
                 access_token: Some(token_data.access_token),
                 refresh_token: Some(token_data.refresh_token),
                 expires_at: Some(token_data.expires_at),
-                scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                scopes: pierre_mcp_server::constants::oauth::STRAVA_DEFAULT_SCOPES
                     .split(',')
                     .map(str::to_owned)
                     .collect(),
@@ -93,7 +93,7 @@ async fn fetch_strava_activities(
 /// Returns `ProtocolError` if sleep data is missing or invalid
 #[must_use]
 pub fn handle_analyze_sleep_quality(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
+    _executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -206,7 +206,7 @@ pub fn handle_analyze_sleep_quality(
 // Long function: Protocol handler inherently long due to async auth, param extraction, calculation, response formatting
 #[allow(clippy::too_many_lines)]
 pub fn handle_calculate_recovery_score(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -389,7 +389,7 @@ pub fn handle_calculate_recovery_score(
 // Long function: Protocol handler inherently long due to async auth, param extraction, calculation, response formatting
 #[allow(clippy::too_many_lines)]
 pub fn handle_suggest_rest_day(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -597,7 +597,7 @@ pub fn handle_suggest_rest_day(
 // Long function: Protocol handler inherently long due to trend calculation, statistics aggregation, response formatting
 #[allow(clippy::too_many_lines)]
 pub fn handle_track_sleep_trends(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -764,7 +764,7 @@ pub fn handle_track_sleep_trends(
 // Long function: Protocol handler inherently long due to async auth, param extraction, calculation, response formatting
 #[allow(clippy::too_many_lines)]
 pub fn handle_optimize_sleep_schedule(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {

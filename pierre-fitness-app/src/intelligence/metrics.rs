@@ -191,11 +191,11 @@ impl MetricsCalculator {
     fn calculate_tss_from_data(&self, activity: &Activity) -> Option<f64> {
         // Helper to calculate duration in hours
         let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
-            f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+            f64::from(u32::MAX) / pierre_mcp_server::constants::time_constants::SECONDS_PER_HOUR_F64
         } else {
             match u32::try_from(activity.duration_seconds) {
                 Ok(duration_u32) => {
-                    f64::from(duration_u32) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                    f64::from(duration_u32) / pierre_mcp_server::constants::time_constants::SECONDS_PER_HOUR_F64
                 }
                 Err(e) => {
                     tracing::debug!(
@@ -204,7 +204,7 @@ impl MetricsCalculator {
                         error = %e,
                         "Duration conversion to u32 failed during TSS calculation, using u32::MAX"
                     );
-                    f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                    f64::from(u32::MAX) / pierre_mcp_server::constants::time_constants::SECONDS_PER_HOUR_F64
                 }
             }
         };
@@ -295,12 +295,12 @@ impl MetricsCalculator {
         // Calculate work (energy) if power is available
         if let Some(avg_power) = activity.average_power {
             let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
-                f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                f64::from(u32::MAX) / pierre_mcp_server::constants::time_constants::SECONDS_PER_HOUR_F64
             } else {
                 match u32::try_from(activity.duration_seconds) {
                     Ok(duration_u32) => {
                         f64::from(duration_u32)
-                            / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                            / pierre_mcp_server::constants::time_constants::SECONDS_PER_HOUR_F64
                     }
                     Err(e) => {
                         tracing::debug!(
@@ -309,7 +309,7 @@ impl MetricsCalculator {
                             error = %e,
                             "Duration conversion to u32 failed during work calculation, using u32::MAX"
                         );
-                        f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
+                        f64::from(u32::MAX) / pierre_mcp_server::constants::time_constants::SECONDS_PER_HOUR_F64
                     }
                 }
             };
@@ -692,23 +692,23 @@ impl MetricsCalculator {
         // Estimate balance based on contact time patterns
         // This is a simplified calculation that would ideally use left/right foot data
         match gct_ms {
-            gct if (crate::constants::physiology::MIN_GOOD_GCT_MS
-                ..=crate::constants::physiology::MAX_GOOD_GCT_MS)
+            gct if (pierre_mcp_server::constants::physiology::MIN_GOOD_GCT_MS
+                ..=pierre_mcp_server::constants::physiology::MAX_GOOD_GCT_MS)
                 .contains(&gct) =>
             {
                 // Good contact time range suggests better balance
-                ((crate::constants::physiology::OPTIMAL_GCT_MS
-                    - (gct - crate::constants::physiology::OPTIMAL_GCT_MS).abs())
-                    / crate::constants::physiology::OPTIMAL_GCT_MS)
+                ((pierre_mcp_server::constants::physiology::OPTIMAL_GCT_MS
+                    - (gct - pierre_mcp_server::constants::physiology::OPTIMAL_GCT_MS).abs())
+                    / pierre_mcp_server::constants::physiology::OPTIMAL_GCT_MS)
                     .mul_add(5.0, 50.0)
             }
-            gct if gct < crate::constants::physiology::MIN_GOOD_GCT_MS => {
+            gct if gct < pierre_mcp_server::constants::physiology::MIN_GOOD_GCT_MS => {
                 // Very short contact time - might indicate imbalance
-                (gct / crate::constants::physiology::MIN_GOOD_GCT_MS).mul_add(5.0, 45.0)
+                (gct / pierre_mcp_server::constants::physiology::MIN_GOOD_GCT_MS).mul_add(5.0, 45.0)
             }
             gct => {
                 // Long contact time - might indicate fatigue or imbalance
-                55.0 - ((gct - crate::constants::physiology::MAX_GOOD_GCT_MS) / 100.0).min(10.0)
+                55.0 - ((gct - pierre_mcp_server::constants::physiology::MAX_GOOD_GCT_MS) / 100.0).min(10.0)
             }
         }
     }

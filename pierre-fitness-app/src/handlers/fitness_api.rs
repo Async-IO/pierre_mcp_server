@@ -231,7 +231,7 @@ async fn fetch_and_cache_athlete(
 
 /// Process activity analysis when activity is found
 async fn process_activity_analysis(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
     activity_id: &str,
     user_uuid: uuid::Uuid,
@@ -268,7 +268,7 @@ async fn process_activity_analysis(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_get_activities(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -289,7 +289,7 @@ pub fn handle_get_activities(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(pierre_mcp_server::config::environment::default_provider, String::from);
 
         // Extract limit parameter with bounds checking
         let requested_limit = request
@@ -442,7 +442,7 @@ pub fn handle_get_activities(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_get_athlete(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -463,7 +463,7 @@ pub fn handle_get_athlete(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(pierre_mcp_server::config::environment::default_provider, String::from);
 
         // Create cache key for athlete profile
         let tenant_uuid = request
@@ -706,7 +706,7 @@ async fn fetch_and_cache_stats(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_get_stats(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -727,7 +727,7 @@ pub fn handle_get_stats(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(pierre_mcp_server::config::environment::default_provider, String::from);
 
         // Create cache key for stats (need athlete_id from athlete profile)
         let tenant_uuid = request
@@ -859,7 +859,7 @@ pub fn handle_get_stats(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_analyze_activity(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -880,7 +880,7 @@ pub fn handle_analyze_activity(
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .map_or_else(crate::config::environment::default_provider, String::from);
+            .map_or_else(pierre_mcp_server::config::environment::default_provider, String::from);
 
         let activity_id = request
             .parameters

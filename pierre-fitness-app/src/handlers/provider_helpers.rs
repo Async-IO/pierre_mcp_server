@@ -48,7 +48,7 @@ pub async fn create_configured_provider(
         .map_err(|e| format!("Failed to create {provider_name} provider: {e}"))?;
 
     // Load provider-specific OAuth config
-    let config = crate::config::environment::get_oauth_config(provider_name);
+    let config = pierre_mcp_server::config::environment::get_oauth_config(provider_name);
 
     // Build credentials
     let credentials = crate::providers::OAuth2Credentials {
@@ -75,8 +75,8 @@ pub async fn create_configured_provider(
 #[must_use]
 pub fn create_no_token_response(
     provider_name: &str,
-) -> crate::protocols::universal::UniversalResponse {
-    crate::protocols::universal::UniversalResponse {
+) -> pierre_mcp_server::protocols::universal::UniversalResponse {
+    pierre_mcp_server::protocols::universal::UniversalResponse {
         success: false,
         result: None,
         error: Some(format!(
@@ -106,8 +106,8 @@ pub fn create_no_token_response(
 pub fn create_auth_error_response(
     provider_name: &str,
     error: &str,
-) -> crate::protocols::universal::UniversalResponse {
-    crate::protocols::universal::UniversalResponse {
+) -> pierre_mcp_server::protocols::universal::UniversalResponse {
+    pierre_mcp_server::protocols::universal::UniversalResponse {
         success: true,
         result: Some(serde_json::json!({
             "activities": [],
@@ -137,8 +137,8 @@ pub fn build_activities_success_response(
     provider_name: &str,
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
-) -> crate::protocols::universal::UniversalResponse {
-    crate::protocols::universal::UniversalResponse {
+) -> pierre_mcp_server::protocols::universal::UniversalResponse {
+    pierre_mcp_server::protocols::universal::UniversalResponse {
         success: true,
         result: Some(serde_json::json!({
             "activities": activities,
@@ -172,7 +172,7 @@ pub fn build_activities_success_response(
 
 /// Get OAuth config for a provider, with logging
 pub fn get_provider_oauth_config(provider_name: &str) -> OAuthProviderConfig {
-    let config = crate::config::environment::get_oauth_config(provider_name);
+    let config = pierre_mcp_server::config::environment::get_oauth_config(provider_name);
     tracing::debug!(
         provider = provider_name,
         has_client_id = config.client_id.is_some(),

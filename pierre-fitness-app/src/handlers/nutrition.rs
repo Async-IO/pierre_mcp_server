@@ -18,8 +18,8 @@ use std::pin::Pin;
 /// Fetch food details from USDA API
 async fn fetch_food_details(
     fdc_id: u64,
-    executor: &crate::protocols::universal::UniversalToolExecutor,
-) -> Result<crate::external::FoodDetails, UniversalResponse> {
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
+) -> Result<pierre_mcp_server::external::FoodDetails, UniversalResponse> {
     let api_key = executor
         .resources
         .config
@@ -231,7 +231,7 @@ fn parse_nutrition_params(
 /// Returns `ProtocolError` if required parameters are missing or invalid
 #[must_use]
 pub fn handle_calculate_daily_nutrition(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
+    _executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -314,7 +314,7 @@ pub fn handle_calculate_daily_nutrition(
 /// Returns `ProtocolError` if required parameters are missing or invalid
 #[must_use]
 pub fn handle_get_nutrient_timing(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
+    _executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -438,7 +438,7 @@ pub fn handle_get_nutrient_timing(
 /// Returns `ProtocolError` if query is missing or API request fails
 #[must_use]
 pub fn handle_search_food(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -545,7 +545,7 @@ pub fn handle_search_food(
 /// Returns `ProtocolError` if `fdc_id` is missing or food not found
 #[must_use]
 pub fn handle_get_food_details(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -654,7 +654,7 @@ pub fn handle_get_food_details(
 /// Returns `ProtocolError` if foods array is missing or invalid
 #[must_use]
 pub fn handle_analyze_meal_nutrition(
-    executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &pierre_mcp_server::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
