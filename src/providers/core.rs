@@ -129,74 +129,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// Authentication credentials for `OAuth2` providers (Shared Request Type)
-///
-/// This struct serves as the standardized authentication request/response format
-/// across all fitness providers. All providers accept and return credentials in
-/// this unified format, regardless of their internal OAuth implementation details.
-///
-/// # Usage Pattern
-///
-/// Providers receive credentials via `set_credentials()` and use them internally
-/// for API authentication. The credential lifecycle is managed by the auth layer,
-/// which handles token refresh and expiration automatically.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OAuth2Credentials {
-    /// OAuth client ID from provider
-    pub client_id: String,
-    /// OAuth client secret from provider
-    pub client_secret: String,
-    /// Current access token
-    pub access_token: Option<String>,
-    /// Refresh token for obtaining new access tokens
-    pub refresh_token: Option<String>,
-    /// When the access token expires
-    pub expires_at: Option<DateTime<Utc>>,
-    /// Granted OAuth scopes
-    pub scopes: Vec<String>,
-}
-
-/// Provider configuration containing all necessary endpoints and settings (Shared Request Type)
-///
-/// This struct defines the standardized configuration format for all fitness providers.
-/// Configurations can be loaded from environment variables (via `load_provider_env_config`)
-/// or provided directly when creating provider instances.
-///
-/// # Configuration Sources
-///
-/// 1. **Environment Variables**: `PIERRE_<PROVIDER>_*` (recommended for cloud deployment)
-/// 2. **Direct Instantiation**: Programmatically set for testing/advanced scenarios
-/// 3. **Registry Defaults**: Loaded automatically by `ProviderRegistry::new()`
-///
-/// # Example
-///
-/// ```rust
-/// use pierre_mcp_server::providers::core::ProviderConfig;
-///
-/// let config = ProviderConfig {
-///     name: "strava".to_owned(),
-///     auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
-///     token_url: "https://www.strava.com/oauth/token".to_owned(),
-///     api_base_url: "https://www.strava.com/api/v3".to_owned(),
-///     revoke_url: Some("https://www.strava.com/oauth/deauthorize".to_owned()),
-///     default_scopes: vec!["activity:read_all".to_owned()],
-///};
-/// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProviderConfig {
-    /// Provider name (e.g., "strava", "fitbit", "garmin", "synthetic")
-    pub name: String,
-    /// OAuth authorization endpoint URL
-    pub auth_url: String,
-    /// OAuth token endpoint URL
-    pub token_url: String,
-    /// Base URL for provider API calls
-    pub api_base_url: String,
-    /// Optional token revocation endpoint URL
-    pub revoke_url: Option<String>,
-    /// Default OAuth scopes to request
-    pub default_scopes: Vec<String>,
-}
+// Re-export configuration types from the config module for backward compatibility
+pub use super::config::{OAuth2Credentials, ProviderConfig};
 
 /// Core fitness data provider trait - Shared Request/Response Interface for all providers
 ///

@@ -40,6 +40,8 @@
 
 // Core provider system
 
+/// Generic provider configuration (OAuth credentials, endpoints)
+pub mod config;
 /// Core provider traits and interfaces
 pub mod core;
 /// Provider error types and result aliases
@@ -64,8 +66,9 @@ pub mod strava_provider;
 pub mod synthetic_provider;
 
 // Re-export key types for convenience
+pub use config::{OAuth2Credentials, ProviderConfig};
 pub use core::{
-    FitnessProvider as CoreFitnessProvider, OAuth2Credentials, ProviderConfig, ProviderFactory,
+    FitnessProvider as CoreFitnessProvider, ProviderFactory,
     TenantProvider,
 };
 /// Re-export provider error types
@@ -82,4 +85,5 @@ pub use spi::StravaDescriptor;
 #[cfg(feature = "provider-synthetic")]
 pub use spi::SyntheticDescriptor;
 /// Re-export SPI types for external provider development
-pub use spi::{OAuthEndpoints, ProviderBundle, ProviderCapabilities, ProviderDescriptor};
+pub use spi::{OAuthEndpoints, ProviderCapabilities, ProviderDescriptor};
+// Note: ProviderBundle moved to pierre-fitness-app for fitness-specific provider registration

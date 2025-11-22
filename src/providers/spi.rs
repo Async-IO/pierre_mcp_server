@@ -60,7 +60,7 @@
 //! }
 //! ```
 
-use super::core::{FitnessProvider, ProviderConfig};
+use super::config::ProviderConfig;
 use std::fmt;
 
 /// OAuth endpoint configuration for providers requiring authentication
@@ -257,58 +257,10 @@ pub trait ProviderDescriptor: Send + Sync {
     }
 }
 
-/// Factory function type for creating provider instances
-pub type ProviderFactoryFn = fn(ProviderConfig) -> Box<dyn FitnessProvider>;
-
-/// Complete provider bundle for registration
-///
-/// Combines a provider descriptor with its factory function for easy registration.
-/// External crates export a function that returns this bundle.
-pub struct ProviderBundle {
-    /// Provider descriptor with metadata and capabilities
-    pub descriptor: Box<dyn ProviderDescriptor>,
-    /// Factory function for creating provider instances
-    pub factory: ProviderFactoryFn,
-}
-
-impl ProviderBundle {
-    /// Create a new provider bundle
-    pub fn new(descriptor: Box<dyn ProviderDescriptor>, factory: ProviderFactoryFn) -> Self {
-        Self {
-            descriptor,
-            factory,
-        }
-    }
-
-    /// Get the provider name from the descriptor
-    #[must_use]
-    pub fn name(&self) -> &'static str {
-        self.descriptor.name()
-    }
-
-    /// Create a provider instance using the factory and descriptor's config
-    #[must_use]
-    pub fn create_provider(&self) -> Box<dyn FitnessProvider> {
-        let config = self.descriptor.to_config();
-        (self.factory)(config)
-    }
-
-    /// Create a provider instance with custom config
-    #[must_use]
-    pub fn create_provider_with_config(&self, config: ProviderConfig) -> Box<dyn FitnessProvider> {
-        (self.factory)(config)
-    }
-}
-
-impl fmt::Debug for ProviderBundle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ProviderBundle")
-            .field("name", &self.descriptor.name())
-            .field("display_name", &self.descriptor.display_name())
-            .field("capabilities", &self.descriptor.capabilities())
-            .finish_non_exhaustive()
-    }
-}
+// NOTE: ProviderBundle and ProviderFactoryFn have been moved to pierre-fitness-app
+// to decouple the framework SPI from fitness-specific provider implementations.
+// The framework SPI only deals with provider metadata (ProviderDescriptor),
+// not provider instance creation.
 
 // ============================================================================
 // Built-in Provider Descriptors (conditionally compiled)

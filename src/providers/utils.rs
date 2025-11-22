@@ -11,7 +11,7 @@ use serde::Deserialize;
 use std::time::Duration;
 use tracing::warn;
 
-use super::core::OAuth2Credentials;
+use super::config::OAuth2Credentials;
 use super::errors::ProviderError;
 
 /// Configuration for retry behavior
