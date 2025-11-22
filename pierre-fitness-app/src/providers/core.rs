@@ -118,14 +118,14 @@
 //! This separation allows providers to adapt their specific API formats while
 //! maintaining a consistent interface for the rest of the application.
 
-use pierre_mcp_server::errors::AppResult;
 use crate::models::{
     Activity, Athlete, HealthMetrics, PersonalRecord, RecoveryMetrics, SleepSession, Stats,
 };
-use pierre_mcp_server::pagination::{CursorPage, PaginationParams};
-use pierre_mcp_server::providers::errors::ProviderError;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use pierre_mcp_server::errors::AppResult;
+use pierre_mcp_server::pagination::{CursorPage, PaginationParams};
+use pierre_mcp_server::providers::errors::ProviderError;
 use uuid::Uuid;
 
 // Re-export configuration types from the config module for backward compatibility

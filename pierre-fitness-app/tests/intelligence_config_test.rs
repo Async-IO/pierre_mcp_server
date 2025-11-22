@@ -143,12 +143,12 @@
 )]
 //! Tests for the intelligence configuration system
 
+use pierre_fitness_app::intelligence::{
+    AdvancedGoalEngine, AdvancedPerformanceAnalyzer, AdvancedRecommendationEngine,
+};
 use pierre_mcp_server::config::intelligence_config::{
     AggressiveStrategy, ConservativeStrategy, DefaultStrategy, IntelligenceConfig,
     IntelligenceStrategy,
-};
-use pierre_fitness_app::intelligence::{
-    AdvancedGoalEngine, AdvancedPerformanceAnalyzer, AdvancedRecommendationEngine,
 };
 
 #[test]

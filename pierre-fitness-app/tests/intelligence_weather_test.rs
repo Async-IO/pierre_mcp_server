@@ -8,9 +8,9 @@
 #![allow(missing_docs)]
 
 use chrono::Utc;
-use pierre_mcp_server::config::fitness_config::WeatherApiConfig;
 use pierre_fitness_app::intelligence::weather::{WeatherDifficulty, WeatherService};
 use pierre_fitness_app::intelligence::WeatherConditions;
+use pierre_mcp_server::config::fitness_config::WeatherApiConfig;
 
 #[test]
 fn test_weather_service_creation() {

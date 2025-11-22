@@ -29,9 +29,9 @@
 //! - `PersonalRecord`: Individual performance records
 //! - `SportType`: Enumeration of supported activity types
 
+use chrono::{DateTime, Utc};
 use pierre_mcp_server::constants::tiers;
 use pierre_mcp_server::errors::AppError;
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;

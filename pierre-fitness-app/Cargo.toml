@@ -14,18 +14,14 @@ name = "pierre_fitness_app"
 path = "src/lib.rs"
 
 [features]
-default = ["all-providers"]
-provider-strava = ["pierre-fitness-providers/strava"]
-provider-garmin = ["pierre-fitness-providers/garmin"]
-provider-synthetic = ["pierre-fitness-providers/synthetic"]
-all-providers = ["provider-strava", "provider-garmin", "provider-synthetic"]
+default = []
 
 [dependencies]
 # Generic framework (local dev path, will point to crates.io in production)
 pierre_mcp_server = { path = ".." }
 
-# Private provider implementations (local dev path)
-pierre-fitness-providers = { path = "../pierre-fitness-providers", optional = true }
+# NOTE: pierre-fitness-providers removed from library dependencies to avoid circular dependency
+# The binary will link both pierre-fitness-app and pierre-fitness-providers separately
 
 # Fitness-specific dependencies
 chrono = { version = "0.4", features = ["serde"] }

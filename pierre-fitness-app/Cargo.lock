@@ -1841,7 +1841,6 @@ version = "0.2.0"
 dependencies = [
  "async-trait",
  "chrono",
- "pierre-fitness-providers",
  "pierre_mcp_server",
  "reqwest",
  "serde",
@@ -1852,25 +1851,6 @@ dependencies = [
  "tokio",
  "tokio-test",
  "tracing",
- "uuid",
-]
-
-[[package]]
-name = "pierre-fitness-providers"
-version = "0.2.0"
-dependencies = [
- "async-trait",
- "base64",
- "chrono",
- "pierre_mcp_server",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "thiserror 2.0.17",
- "tokio",
- "tracing",
- "urlencoding",
  "uuid",
 ]
 
