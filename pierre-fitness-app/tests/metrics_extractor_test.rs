@@ -11,8 +11,8 @@
 #![allow(clippy::float_cmp)] // Test values are exact
 
 use chrono::Utc;
-use pierre_mcp_server::intelligence::{MetricType, SafeMetricExtractor};
-use pierre_mcp_server::models::{Activity, SportType};
+use pierre_fitness_app::intelligence::{MetricType, SafeMetricExtractor};
+use pierre_fitness_app::models::{Activity, SportType};
 
 fn create_test_activity() -> Activity {
     Activity {

@@ -227,7 +227,7 @@ async fn test_analyze_sleep_quality_tool() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     // Create user for testing
-    let user = pierre_mcp_server::models::User::new(
+    let user = pierre_fitness_app::models::User::new(
         "sleep_test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Sleep Test User".to_owned()),
@@ -330,7 +330,7 @@ async fn test_calculate_recovery_score_tool() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     // Create user
-    let user = pierre_mcp_server::models::User::new(
+    let user = pierre_fitness_app::models::User::new(
         "recovery_test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Recovery Test User".to_owned()),
@@ -446,7 +446,7 @@ async fn test_suggest_rest_day_tool() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     // Create user with some activities
-    let user = pierre_mcp_server::models::User::new(
+    let user = pierre_fitness_app::models::User::new(
         "rest_day_test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Rest Day Test User".to_owned()),
@@ -594,7 +594,7 @@ async fn test_track_sleep_trends_tool() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     // Create user
-    let user = pierre_mcp_server::models::User::new(
+    let user = pierre_fitness_app::models::User::new(
         "trends_test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Trends Test User".to_owned()),
@@ -641,7 +641,7 @@ async fn test_optimize_sleep_schedule_tool() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     // Create user
-    let user = pierre_mcp_server::models::User::new(
+    let user = pierre_fitness_app::models::User::new(
         "optimize_test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Optimize Test User".to_owned()),

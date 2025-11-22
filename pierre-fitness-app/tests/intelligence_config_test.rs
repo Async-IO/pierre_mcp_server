@@ -147,7 +147,7 @@ use pierre_mcp_server::config::intelligence_config::{
     AggressiveStrategy, ConservativeStrategy, DefaultStrategy, IntelligenceConfig,
     IntelligenceStrategy,
 };
-use pierre_mcp_server::intelligence::{
+use pierre_fitness_app::intelligence::{
     AdvancedGoalEngine, AdvancedPerformanceAnalyzer, AdvancedRecommendationEngine,
 };
 
@@ -600,7 +600,7 @@ fn test_progression_config_weekly_vs_monthly_limits() {
 mod integration_tests {
     use super::*;
     use chrono::Utc;
-    use pierre_mcp_server::models::{Activity, SportType};
+    use pierre_fitness_app::models::{Activity, SportType};
 
     fn create_test_activity() -> Activity {
         Activity {
@@ -677,20 +677,20 @@ mod integration_tests {
         let _engine = AdvancedRecommendationEngine::with_strategy(conservative_strategy);
 
         // Create test user profile
-        let _user_profile = pierre_mcp_server::intelligence::UserFitnessProfile {
+        let _user_profile = pierre_fitness_app::intelligence::UserFitnessProfile {
             user_id: "test_user".to_owned(),
             age: Some(30),
             gender: None,
             weight: Some(70.0),
             height: Some(175.0),
-            fitness_level: pierre_mcp_server::intelligence::FitnessLevel::Intermediate,
+            fitness_level: pierre_fitness_app::intelligence::FitnessLevel::Intermediate,
             primary_sports: vec!["running".to_owned()],
             training_history_months: 12,
-            preferences: pierre_mcp_server::intelligence::UserPreferences {
+            preferences: pierre_fitness_app::intelligence::UserPreferences {
                 preferred_units: "metric".to_owned(),
                 training_focus: vec!["endurance".to_owned()],
                 injury_history: vec![],
-                time_availability: pierre_mcp_server::intelligence::TimeAvailability {
+                time_availability: pierre_fitness_app::intelligence::TimeAvailability {
                     hours_per_week: 5.0,
                     preferred_days: vec![
                         "Monday".to_owned(),

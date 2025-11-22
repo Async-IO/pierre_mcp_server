@@ -331,7 +331,7 @@ async fn test_connect_strava_tool() -> Result<()> {
 
     // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
-    let mut user = pierre_mcp_server::models::User::new(
+    let mut user = pierre_fitness_app::models::User::new(
         "test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Test User".to_owned()),
@@ -341,7 +341,7 @@ async fn test_connect_strava_tool() -> Result<()> {
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
-    let tenant = pierre_mcp_server::models::Tenant::new(
+    let tenant = pierre_fitness_app::models::Tenant::new(
         "Test Tenant".to_owned(),
         "test-tenant".to_owned(),
         Some("test.example.com".to_owned()),
@@ -711,7 +711,7 @@ async fn test_compare_activities_tool() -> Result<()> {
 
     // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
-    let mut user = pierre_mcp_server::models::User::new(
+    let mut user = pierre_fitness_app::models::User::new(
         "test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Test User".to_owned()),
@@ -721,7 +721,7 @@ async fn test_compare_activities_tool() -> Result<()> {
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
-    let tenant = pierre_mcp_server::models::Tenant::new(
+    let tenant = pierre_fitness_app::models::Tenant::new(
         "Test Tenant".to_owned(),
         "test-tenant".to_owned(),
         Some("test.example.com".to_owned()),
@@ -1308,7 +1308,7 @@ async fn test_get_activities_async_no_token() -> Result<()> {
 
     // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
-    let mut user = pierre_mcp_server::models::User::new(
+    let mut user = pierre_fitness_app::models::User::new(
         "test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Test User".to_owned()),
@@ -1318,7 +1318,7 @@ async fn test_get_activities_async_no_token() -> Result<()> {
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
-    let tenant = pierre_mcp_server::models::Tenant::new(
+    let tenant = pierre_fitness_app::models::Tenant::new(
         "Test Tenant".to_owned(),
         "test-tenant".to_owned(),
         Some("test.example.com".to_owned()),
@@ -1360,7 +1360,7 @@ async fn test_get_athlete_async_no_token() -> Result<()> {
 
     // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
-    let mut user = pierre_mcp_server::models::User::new(
+    let mut user = pierre_fitness_app::models::User::new(
         "test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Test User".to_owned()),
@@ -1370,7 +1370,7 @@ async fn test_get_athlete_async_no_token() -> Result<()> {
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
-    let tenant = pierre_mcp_server::models::Tenant::new(
+    let tenant = pierre_fitness_app::models::Tenant::new(
         "Test Tenant".to_owned(),
         "test-tenant".to_owned(),
         Some("test.example.com".to_owned()),
@@ -1413,7 +1413,7 @@ async fn test_get_stats_async_no_token() -> Result<()> {
 
     // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
-    let mut user = pierre_mcp_server::models::User::new(
+    let mut user = pierre_fitness_app::models::User::new(
         "test@example.com".to_owned(),
         "password_hash".to_owned(),
         Some("Test User".to_owned()),
@@ -1423,7 +1423,7 @@ async fn test_get_stats_async_no_token() -> Result<()> {
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
-    let tenant = pierre_mcp_server::models::Tenant::new(
+    let tenant = pierre_fitness_app::models::Tenant::new(
         "Test Tenant".to_owned(),
         "test-tenant".to_owned(),
         Some("test.example.com".to_owned()),

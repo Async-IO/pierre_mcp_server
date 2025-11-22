@@ -7,7 +7,7 @@
 mod helpers;
 
 use helpers::test_utils::{create_synthetic_provider_with_scenario, TestScenario};
-use pierre_mcp_server::models::SportType;
+use pierre_fitness_app::models::SportType;
 use pierre_mcp_server::pagination::PaginationParams;
 use pierre_mcp_server::providers::core::FitnessProvider;
 

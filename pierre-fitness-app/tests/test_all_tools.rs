@@ -18,13 +18,13 @@ use uuid::Uuid;
 use pierre_mcp_server::config::environment::*;
 use pierre_mcp_server::constants::oauth_providers;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
-use pierre_mcp_server::intelligence::insights::{Insight, InsightType};
-use pierre_mcp_server::intelligence::{
+use pierre_fitness_app::intelligence::insights::{Insight, InsightType};
+use pierre_fitness_app::intelligence::{
     ActivityIntelligence, ContextualFactors, ContextualWeeklyLoad, PerformanceMetrics, TimeOfDay,
     TrendDirection, TrendIndicators,
 };
 use pierre_mcp_server::mcp::resources::ServerResources;
-use pierre_mcp_server::models::{Tenant, User, UserOAuthToken};
+use pierre_fitness_app::models::{Tenant, User, UserOAuthToken};
 use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use std::{path::PathBuf, sync::Arc};
 
@@ -271,7 +271,7 @@ async fn find_or_create_test_user_with_token(
 }
 
 async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Tenant)> {
-    use pierre_mcp_server::models::{UserStatus, UserTier};
+    use pierre_fitness_app::models::{UserStatus, UserTier};
 
     // Create a unique test user and tenant for this test run
     let user_id = Uuid::new_v4();
@@ -330,7 +330,7 @@ async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Ten
     let token_id = rand::thread_rng().gen::<u64>();
     let refresh_token_id = rand::thread_rng().gen::<u64>();
 
-    let mock_token = pierre_mcp_server::models::DecryptedToken {
+    let mock_token = pierre_fitness_app::models::DecryptedToken {
         access_token: format!("at_{token_id:016x}_{timestamp}"),
         refresh_token: format!("rt_{refresh_token_id:016x}_{timestamp}"),
         expires_at: now + chrono::Duration::hours(6),

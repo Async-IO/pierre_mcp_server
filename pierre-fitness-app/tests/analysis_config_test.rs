@@ -9,7 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
-use pierre_mcp_server::intelligence::{AnalysisConfig, ConfidenceLevel};
+use pierre_fitness_app::intelligence::{AnalysisConfig, ConfidenceLevel};
 
 #[test]
 fn test_default_config_validation() {

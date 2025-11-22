@@ -8,7 +8,7 @@
 #![allow(missing_docs)]
 
 use chrono::Utc;
-use pierre_mcp_server::intelligence::sleep_analysis::{
+use pierre_fitness_app::intelligence::sleep_analysis::{
     HrvRecoveryStatus, HrvTrend, SleepAnalyzer, SleepData, SleepQualityCategory,
 };
 

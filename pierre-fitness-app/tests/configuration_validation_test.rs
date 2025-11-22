@@ -7,10 +7,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
-use pierre_mcp_server::configuration::{
+use pierre_fitness_app::configuration::{
     profiles::FitnessLevel, runtime::ConfigValue, validation::ConfigValidator,
 };
-use pierre_mcp_server::models::{SportType, UserPhysiologicalProfile};
+use pierre_fitness_app::models::{SportType, UserPhysiologicalProfile};
 use std::collections::HashMap;
 use uuid::Uuid;
 

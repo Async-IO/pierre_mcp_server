@@ -11,7 +11,7 @@
 #![allow(clippy::cast_possible_wrap)] // Test helper uses small indices
 
 use chrono::Utc;
-use pierre_mcp_server::intelligence::{StatisticalAnalyzer, TrendDataPoint};
+use pierre_fitness_app::intelligence::{StatisticalAnalyzer, TrendDataPoint};
 
 fn create_test_data_points(values: Vec<f64>) -> Vec<TrendDataPoint> {
     values

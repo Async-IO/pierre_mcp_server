@@ -8,15 +8,15 @@
 #![allow(missing_docs)]
 
 use chrono::{Duration, Utc};
-use pierre_mcp_server::intelligence::{PatternDetector, RiskLevel};
-use pierre_mcp_server::models::Activity;
+use pierre_fitness_app::intelligence::{PatternDetector, RiskLevel};
+use pierre_fitness_app::models::Activity;
 
 fn create_test_activity(days_ago: i64, distance_km: f64, avg_hr: Option<u32>) -> Activity {
     let date = Utc::now() - Duration::days(days_ago);
     Activity {
         id: format!("test_{}", date.timestamp()),
         name: "Test Activity".to_owned(),
-        sport_type: pierre_mcp_server::models::SportType::Run,
+        sport_type: pierre_fitness_app::models::SportType::Run,
         start_date: date,
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         duration_seconds: (distance_km * 300.0) as u64, // ~5 min/km pace

@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
-use pierre_mcp_server::intelligence::PerformancePredictor;
+use pierre_fitness_app::intelligence::PerformancePredictor;
 
 // Test constants (matching values from performance_prediction.rs)
 const DISTANCE_5K: f64 = 5_000.0;

@@ -14,7 +14,7 @@
 mod common;
 
 use pierre_mcp_server::database_plugins::factory::Database;
-use pierre_mcp_server::intelligence::{
+use pierre_fitness_app::intelligence::{
     ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
     TrendIndicators,
 };

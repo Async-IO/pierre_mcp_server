@@ -8,7 +8,7 @@
 #![allow(missing_docs)]
 
 use chrono::Utc;
-use pierre_mcp_server::models::{
+use pierre_fitness_app::models::{
     Activity, Athlete, AuthorizationCode, EncryptedToken, HeartRateZone, PersonalRecord, PowerZone,
     PrMetric, SegmentEffort, SportType, Stats, Tenant, User, UserStatus, UserTier,
 };

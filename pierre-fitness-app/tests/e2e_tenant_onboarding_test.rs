@@ -81,7 +81,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: pierre_fitness_app::models::UserStatus::Active,
         is_admin: true,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
@@ -99,7 +99,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: pierre_fitness_app::models::UserStatus::Active,
         is_admin: true,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
@@ -208,22 +208,22 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     let _intelligence = Arc::new(ActivityIntelligence::new(
         "E2E Test Intelligence".to_owned(),
         vec![], // No initial insights
-        pierre_mcp_server::intelligence::PerformanceMetrics {
+        pierre_fitness_app::intelligence::PerformanceMetrics {
             relative_effort: Some(85.0),
             zone_distribution: None,
             personal_records: Vec::new(),
             efficiency_score: Some(90.0),
-            trend_indicators: pierre_mcp_server::intelligence::TrendIndicators {
-                pace_trend: pierre_mcp_server::intelligence::TrendDirection::Improving,
-                effort_trend: pierre_mcp_server::intelligence::TrendDirection::Stable,
-                distance_trend: pierre_mcp_server::intelligence::TrendDirection::Improving,
+            trend_indicators: pierre_fitness_app::intelligence::TrendIndicators {
+                pace_trend: pierre_fitness_app::intelligence::TrendDirection::Improving,
+                effort_trend: pierre_fitness_app::intelligence::TrendDirection::Stable,
+                distance_trend: pierre_fitness_app::intelligence::TrendDirection::Improving,
                 consistency_score: 85.0,
             },
         },
-        pierre_mcp_server::intelligence::ContextualFactors {
+        pierre_fitness_app::intelligence::ContextualFactors {
             weather: None,
             location: None,
-            time_of_day: pierre_mcp_server::intelligence::TimeOfDay::Morning,
+            time_of_day: pierre_fitness_app::intelligence::TimeOfDay::Morning,
             days_since_last_activity: Some(1),
             weekly_load: None,
         },
@@ -393,7 +393,7 @@ async fn setup_multitenant_scenario(database: &Arc<Database>) -> Result<(Uuid, U
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
+        user_status: pierre_fitness_app::models::UserStatus::Active,
         is_admin: false,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),

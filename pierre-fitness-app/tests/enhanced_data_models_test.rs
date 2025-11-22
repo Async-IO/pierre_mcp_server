@@ -9,7 +9,7 @@
 #![allow(missing_docs)]
 
 use chrono::Utc;
-use pierre_mcp_server::models::*;
+use pierre_fitness_app::models::*;
 
 #[test]
 fn test_enhanced_activity_with_power_metrics() {

@@ -30,8 +30,8 @@ use uuid::Uuid;
 mod common;
 
 /// Create test user without saving to database (local helper)
-fn create_test_user(email: &str, display_name: Option<String>) -> pierre_mcp_server::models::User {
-    pierre_mcp_server::models::User::new(email.to_owned(), "test_hash".to_owned(), display_name)
+fn create_test_user(email: &str, display_name: Option<String>) -> pierre_fitness_app::models::User {
+    pierre_fitness_app::models::User::new(email.to_owned(), "test_hash".to_owned(), display_name)
 }
 
 /// Create test configuration
@@ -249,7 +249,7 @@ async fn test_oauth_configuration_errors() -> Result<()> {
     executor.resources.database.create_user(&user).await?;
 
     // Create tenant with user as owner
-    let tenant = pierre_mcp_server::models::Tenant::new(
+    let tenant = pierre_fitness_app::models::Tenant::new(
         "Test Tenant".to_owned(),
         "test-tenant".to_owned(),
         Some("test.example.com".to_owned()),

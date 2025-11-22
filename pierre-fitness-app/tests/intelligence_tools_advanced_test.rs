@@ -9,11 +9,11 @@ mod helpers;
 use chrono::Utc;
 use helpers::test_utils::{create_synthetic_provider_with_scenario, TestScenario};
 use pierre_mcp_server::config::intelligence_config::DefaultStrategy;
-use pierre_mcp_server::intelligence::{
+use pierre_fitness_app::intelligence::{
     ActivityGoal, AdvancedGoalEngine, FitnessLevel, Goal, GoalEngineTrait, GoalStatus, GoalType,
     PerformanceAnalyzerV2, TimeAvailability, TimeFrame, UserFitnessProfile, UserPreferences,
 };
-use pierre_mcp_server::models::SportType;
+use pierre_fitness_app::models::SportType;
 use pierre_mcp_server::providers::core::FitnessProvider;
 
 // ================================================================================================
@@ -424,8 +424,8 @@ async fn test_suggest_goals_for_advanced() {
     let has_challenging_goals = suggestions.iter().any(|s| {
         matches!(
             s.difficulty,
-            pierre_mcp_server::intelligence::GoalDifficulty::Challenging
-                | pierre_mcp_server::intelligence::GoalDifficulty::Ambitious
+            pierre_fitness_app::intelligence::GoalDifficulty::Challenging
+                | pierre_fitness_app::intelligence::GoalDifficulty::Ambitious
         )
     });
 

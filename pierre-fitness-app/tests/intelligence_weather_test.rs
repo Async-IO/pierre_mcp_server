@@ -9,8 +9,8 @@
 
 use chrono::Utc;
 use pierre_mcp_server::config::fitness_config::WeatherApiConfig;
-use pierre_mcp_server::intelligence::weather::{WeatherDifficulty, WeatherService};
-use pierre_mcp_server::intelligence::WeatherConditions;
+use pierre_fitness_app::intelligence::weather::{WeatherDifficulty, WeatherService};
+use pierre_fitness_app::intelligence::WeatherConditions;
 
 #[test]
 fn test_weather_service_creation() {

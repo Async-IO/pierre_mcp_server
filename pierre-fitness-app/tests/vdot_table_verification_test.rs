@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
-use pierre_mcp_server::intelligence::PerformancePredictor;
+use pierre_fitness_app::intelligence::PerformancePredictor;
 
 /// Test VDOT 50 predictions against Jack Daniels' VDOT tables
 ///

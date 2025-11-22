@@ -8,15 +8,15 @@
 #![allow(missing_docs)]
 
 use chrono::Utc;
-use pierre_mcp_server::intelligence::algorithms::RecoveryAggregationAlgorithm;
-use pierre_mcp_server::intelligence::recovery_calculator::{
+use pierre_fitness_app::intelligence::algorithms::RecoveryAggregationAlgorithm;
+use pierre_fitness_app::intelligence::recovery_calculator::{
     RecoveryCalculator, RecoveryCategory, RecoveryComponents, RecoveryScore, TrainingReadiness,
 };
-use pierre_mcp_server::intelligence::sleep_analysis::{
+use pierre_fitness_app::intelligence::sleep_analysis::{
     HrvRecoveryStatus, HrvTrend, HrvTrendAnalysis, SleepData, SleepQualityCategory,
     SleepQualityScore,
 };
-use pierre_mcp_server::intelligence::training_load::TrainingLoad;
+use pierre_fitness_app::intelligence::training_load::TrainingLoad;
 
 /// Helper to get default test config
 fn test_config() -> pierre_mcp_server::config::intelligence_config::SleepRecoveryConfig {
