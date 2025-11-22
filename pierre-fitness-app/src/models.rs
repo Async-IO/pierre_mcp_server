@@ -29,8 +29,8 @@
 //! - `PersonalRecord`: Individual performance records
 //! - `SportType`: Enumeration of supported activity types
 
-use crate::constants::tiers;
-use crate::errors::AppError;
+use pierre_mcp_server::constants::tiers;
+use pierre_mcp_server::errors::AppError;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

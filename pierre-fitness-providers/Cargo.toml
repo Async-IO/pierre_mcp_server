@@ -18,11 +18,10 @@ synthetic = []
 
 [dependencies]
 # Generic framework (local dev path)
-pierre_mcp_server = { path = "../pierre_mcp_server" }
+pierre_mcp_server = { path = ".." }
 
-# NOTE: Removed circular dependency - providers should not depend on app
-# Models will be provided by the framework instead
-# pierre-fitness-app = { path = "../pierre-fitness-app" }
+# Fitness app models and traits (local dev path)
+pierre-fitness-app = { path = "../pierre-fitness-app" }
 
 # Provider dependencies
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
