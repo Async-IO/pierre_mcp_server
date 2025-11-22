@@ -36,10 +36,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, RwLock};
 
-// TODO(fitness-decoupling): Stub type for ActivityIntelligence until fitness-app plugin system ready
-/// Stub for fitness-specific `ActivityIntelligence` (moved to pierre-fitness-app)
-pub struct ActivityIntelligence;
-
 /// Centralized resource container for dependency injection
 ///
 /// This struct holds all shared server resources to eliminate the anti-pattern
@@ -66,8 +62,7 @@ pub struct ServerResources {
     pub admin_jwt_secret: Arc<str>,
     /// Server configuration loaded from environment
     pub config: Arc<crate::config::environment::ServerConfig>,
-    /// AI-powered fitness activity analysis engine
-    pub activity_intelligence: Arc<ActivityIntelligence>,
+    // TODO(fitness-decoupling): ActivityIntelligence removed - now in pierre-fitness-app
     /// A2A protocol client manager for agent-to-agent communication
     pub a2a_client_manager: Arc<A2AClientManager>,
     /// Service for managing A2A system user accounts
@@ -118,8 +113,7 @@ impl ServerResources {
         )));
         let provider_registry = Arc::new(ProviderRegistry::new());
 
-        // Create activity intelligence once for shared use
-        let activity_intelligence = Self::create_default_intelligence();
+        // TODO(fitness-decoupling): ActivityIntelligence removed - now in pierre-fitness-app
 
         // Create A2A system user service once for shared use
         let a2a_system_user_service = Arc::new(A2ASystemUserService::new(database_arc.clone()));
@@ -212,7 +206,7 @@ impl ServerResources {
             provider_registry,
             admin_jwt_secret: admin_jwt_secret.into(),
             config,
-            activity_intelligence,
+            // TODO(fitness-decoupling): ActivityIntelligence removed - now in pierre-fitness-app
             a2a_client_manager,
             a2a_system_user_service,
             oauth_notification_sender: None,
@@ -226,14 +220,6 @@ impl ServerResources {
             progress_notification_sender: None,
             cancellation_registry: Arc::new(RwLock::new(HashMap::new())),
         }
-    }
-
-    // TODO(fitness-decoupling): Stub implementation - ActivityIntelligence moved to pierre-fitness-app
-    // This function needs to be provided by the fitness plugin when available
-    fn create_default_intelligence() -> Arc<ActivityIntelligence> {
-        // Temporary stub - returns empty ActivityIntelligence unit struct
-        // TODO: Replace with plugin-provided intelligence when fitness-app is integrated
-        Arc::new(ActivityIntelligence)
     }
 
     /// Load persisted RSA keys from database or create new ones

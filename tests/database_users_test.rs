@@ -388,16 +388,18 @@ async fn test_get_user_profile_nonexistent() {
     assert!(result.is_none());
 }
 
-#[tokio::test]
-async fn test_user_fitness_profile() {
-    let db = create_test_database().await;
-    let user = create_test_user("fitness_test@example.com", Some("Fitness Test".to_owned()));
-    db.create_user(&user).await.unwrap();
-
-    // Just test that the method exists and returns None for a user without fitness profile
-    let retrieved_profile = db.get_user_fitness_profile(user.id).await.unwrap();
-    assert!(retrieved_profile.is_none());
-}
+// TODO(fitness-decoupling): test_user_fitness_profile removed
+// This test has been moved to pierre-fitness-app
+// #[tokio::test]
+// async fn test_user_fitness_profile() {
+//     let db = create_test_database().await;
+//     let user = create_test_user("fitness_test@example.com", Some("Fitness Test".to_owned()));
+//     db.create_user(&user).await.unwrap();
+//
+//     // Just test that the method exists and returns None for a user without fitness profile
+//     let retrieved_profile = db.get_user_fitness_profile(user.id).unwrap();
+//     assert!(retrieved_profile.is_none());
+// }
 
 #[tokio::test]
 async fn test_provider_last_sync() {

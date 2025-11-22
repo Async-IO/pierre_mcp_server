@@ -1101,19 +1101,17 @@ impl UserPhysiologicalProfile {
         }
     }
 
-    /// Estimate max heart rate from age if not provided using Tanaka formula
+    /// Get max heart rate if available
+    ///
+    /// Note: Max HR estimation from age has been moved to pierre-fitness-app.
+    /// This method now only returns the explicitly set max_hr value.
+    /// For age-based estimation, use the MaxHR algorithm in pierre-fitness-app.
     #[must_use]
-    #[allow(clippy::cast_possible_truncation)] // Safe: HR is constrained to 0-220 range
-    #[allow(clippy::cast_sign_loss)] // Safe: HR is always positive from algorithm
-    pub fn estimated_max_hr(&self) -> Option<u16> {
-        self.max_hr.or_else(|| {
-            self.age.map(|age| {
-                // TODO(fitness-decoupling): MaxHrAlgorithm moved to pierre-fitness-app
-                // Use Tanaka formula directly (gold standard: 208 - 0.7*age)
-                let tanaka_estimate = 0.7f64.mul_add(-f64::from(age), 208.0);
-                tanaka_estimate.round() as u16
-            })
-        })
+    pub const fn estimated_max_hr(&self) -> Option<u16> {
+        // TODO(fitness-decoupling): MaxHrAlgorithm moved to pierre-fitness-app
+        // Estimation logic removed to eliminate algorithm DI violation
+        // Callers should use pierre-fitness-app's MaxHR algorithm for estimation
+        self.max_hr
     }
 
     /// Check if profile has sufficient data for VO2 max calculations

@@ -425,21 +425,8 @@ impl Database {
         }
     }
 
-    /// Get user fitness profile with proper typing
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the database query fails
-    // TODO(fitness-decoupling): UserFitnessProfile moved to pierre-fitness-app
-    // This function needs to be provided by the fitness plugin
-    #[allow(clippy::unused_async)] // Stub maintains async signature for fitness plugin compatibility
-    pub async fn get_user_fitness_profile(
-        &self,
-        _user_id: Uuid,
-    ) -> AppResult<Option<serde_json::Value>> {
-        // Stub implementation - returns None until fitness plugin is integrated
-        Ok(None)
-    }
+    // TODO(fitness-decoupling): get_user_fitness_profile removed
+    // This function has been moved to pierre-fitness-app
 
     /// Update user fitness profile
     ///
