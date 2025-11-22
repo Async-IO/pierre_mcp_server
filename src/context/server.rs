@@ -80,7 +80,7 @@ impl From<&ServerResources> for ServerContext {
         let data = DataContext::new(
             resources.database.clone(),
             resources.provider_registry.clone(),
-            resources.activity_intelligence.clone(),
+            // TODO(fitness-decoupling): activity_intelligence parameter removed
         );
 
         let config = ConfigContext::new(

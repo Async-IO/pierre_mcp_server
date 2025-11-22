@@ -1,5 +1,5 @@
 // ABOUTME: Configuration module organizing all configuration-related components
-// ABOUTME: Exports configuration management, validation, and runtime config handling
+// ABOUTME: Exports configuration management and runtime config handling
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
@@ -16,23 +16,16 @@ pub mod catalog;
 pub mod profiles;
 /// Runtime configuration value management
 pub mod runtime;
-/// Configuration validation and constraint checking
-pub mod validation;
-/// VO2max calculation and personalized zone generation
-pub mod vo2_max;
+
+// NOTE: Fitness-specific configuration modules moved to pierre-fitness-app:
+// - validation.rs (config validation with fitness dependencies)
+// - vo2_max.rs (VO2 max calculations and personalized zones)
 
 pub use catalog::{ConfigCatalog, ConfigCategory, ConfigModule, ConfigParameter};
 pub use profiles::{ConfigProfile, FitnessLevel};
 pub use runtime::{ConfigAware, ConfigValue, RuntimeConfig};
-/// Re-export validation types
-pub use validation::{ConfigValidator, ValidationResult};
-/// Re-export VO2 max calculation types
-pub use vo2_max::{PersonalizedHRZones, PersonalizedPaceZones, VO2MaxCalculator};
 
 /// Re-export commonly used types
 pub mod prelude {
-    pub use super::{
-        ConfigAware, ConfigProfile, ConfigValue, PersonalizedHRZones, RuntimeConfig,
-        VO2MaxCalculator,
-    };
+    pub use super::{ConfigAware, ConfigProfile, ConfigValue, RuntimeConfig};
 }

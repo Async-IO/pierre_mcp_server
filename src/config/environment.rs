@@ -378,18 +378,19 @@ pub struct TrainingZonesConfig {
 
 impl Default for TrainingZonesConfig {
     fn default() -> Self {
-        use crate::intelligence::physiological_constants::training_zone_percentages::{ftp, vdot};
+        // TODO(fitness-decoupling): vdot and ftp modules moved to pierre-fitness-app
+        // Using stub constants pending fitness-app plugin integration
         Self {
-            vdot_easy_zone_percent: vdot::EASY_ZONE_PERCENT,
-            vdot_tempo_zone_percent: vdot::TEMPO_ZONE_PERCENT,
-            vdot_threshold_zone_percent: vdot::THRESHOLD_ZONE_PERCENT,
-            vdot_interval_zone_percent: vdot::INTERVAL_ZONE_PERCENT,
-            vdot_repetition_zone_percent: vdot::REPETITION_ZONE_PERCENT,
-            ftp_zone1_percent: ftp::ZONE1_PERCENT,
-            ftp_zone2_percent: ftp::ZONE2_PERCENT,
-            ftp_zone3_percent: ftp::ZONE3_PERCENT,
-            ftp_zone4_percent: ftp::ZONE4_PERCENT,
-            ftp_zone5_percent: ftp::ZONE5_PERCENT,
+            vdot_easy_zone_percent: 0.70,  // was vdot::EASY_ZONE_PERCENT
+            vdot_tempo_zone_percent: 0.85,  // was vdot::TEMPO_ZONE_PERCENT
+            vdot_threshold_zone_percent: 0.95,  // was vdot::THRESHOLD_ZONE_PERCENT
+            vdot_interval_zone_percent: 1.0,  // was vdot::INTERVAL_ZONE_PERCENT
+            vdot_repetition_zone_percent: 1.05,  // was vdot::REPETITION_ZONE_PERCENT
+            ftp_zone1_percent: 55,  // was ftp::ZONE1_PERCENT
+            ftp_zone2_percent: 75,  // was ftp::ZONE2_PERCENT
+            ftp_zone3_percent: 90,  // was ftp::ZONE3_PERCENT
+            ftp_zone4_percent: 105,  // was ftp::ZONE4_PERCENT
+            ftp_zone5_percent: 120,  // was ftp::ZONE5_PERCENT
         }
     }
 }
@@ -1840,49 +1841,49 @@ impl ServerConfig {
 
     /// Load training zones configuration from environment
     fn load_training_zones_config() -> TrainingZonesConfig {
-        use crate::intelligence::physiological_constants::training_zone_percentages::{ftp, vdot};
+// TODO(fitness-decoupling):         use crate::intelligence::physiological_constants::training_zone_percentages::{ftp, vdot};
 
         TrainingZonesConfig {
             vdot_easy_zone_percent: env::var("TRAINING_ZONES_VDOT_EASY_PERCENT")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(vdot::EASY_ZONE_PERCENT),
+                .unwrap_or(0.70),  // was vdot::EASY_ZONE_PERCENT
             vdot_tempo_zone_percent: env::var("TRAINING_ZONES_VDOT_TEMPO_PERCENT")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(vdot::TEMPO_ZONE_PERCENT),
+                .unwrap_or(0.85),  // was vdot::TEMPO_ZONE_PERCENT
             vdot_threshold_zone_percent: env::var("TRAINING_ZONES_VDOT_THRESHOLD_PERCENT")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(vdot::THRESHOLD_ZONE_PERCENT),
+                .unwrap_or(0.95),  // was vdot::THRESHOLD_ZONE_PERCENT
             vdot_interval_zone_percent: env::var("TRAINING_ZONES_VDOT_INTERVAL_PERCENT")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(vdot::INTERVAL_ZONE_PERCENT),
+                .unwrap_or(1.0),  // was vdot::INTERVAL_ZONE_PERCENT
             vdot_repetition_zone_percent: env::var("TRAINING_ZONES_VDOT_REPETITION_PERCENT")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(vdot::REPETITION_ZONE_PERCENT),
+                .unwrap_or(1.05),  // was vdot::REPETITION_ZONE_PERCENT
             ftp_zone1_percent: env::var("TRAINING_ZONES_FTP_ZONE1_PERCENT")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(ftp::ZONE1_PERCENT),
+                .unwrap_or(55),  // was ftp::ZONE1_PERCENT
             ftp_zone2_percent: env::var("TRAINING_ZONES_FTP_ZONE2_PERCENT")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(ftp::ZONE2_PERCENT),
+                .unwrap_or(75),  // was ftp::ZONE2_PERCENT
             ftp_zone3_percent: env::var("TRAINING_ZONES_FTP_ZONE3_PERCENT")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(ftp::ZONE3_PERCENT),
+                .unwrap_or(90),  // was ftp::ZONE3_PERCENT
             ftp_zone4_percent: env::var("TRAINING_ZONES_FTP_ZONE4_PERCENT")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(ftp::ZONE4_PERCENT),
+                .unwrap_or(105),  // was ftp::ZONE4_PERCENT
             ftp_zone5_percent: env::var("TRAINING_ZONES_FTP_ZONE5_PERCENT")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(ftp::ZONE5_PERCENT),
+                .unwrap_or(120),  // was ftp::ZONE5_PERCENT
         }
     }
 

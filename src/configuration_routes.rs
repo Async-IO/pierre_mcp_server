@@ -18,8 +18,9 @@ use crate::configuration::{
     catalog::{CatalogBuilder, ConfigCatalog},
     profiles::{ConfigProfile, ProfileTemplates},
     runtime::{ConfigValue, RuntimeConfig},
-    validation::ConfigValidator,
-    vo2_max::VO2MaxCalculator,
+    // TODO(fitness-decoupling): validation and vo2_max modules moved to pierre-fitness-app
+    // validation::ConfigValidator,
+    // vo2_max::VO2MaxCalculator,
 };
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
@@ -176,14 +177,15 @@ pub struct UserProfileParameters {
 }
 
 /// All personalized training zones (HR, pace, power)
+// TODO(fitness-decoupling): This entire struct uses vo2_max types moved to pierre-fitness-app
 #[derive(Debug, Serialize)]
 pub struct PersonalizedZones {
     /// Heart rate zones
-    pub heart_rate_zones: crate::configuration::vo2_max::PersonalizedHRZones,
+    pub heart_rate_zones: serde_json::Value, // TODO: was PersonalizedHRZones
     /// Pace zones
-    pub pace_zones: crate::configuration::vo2_max::PersonalizedPaceZones,
+    pub pace_zones: serde_json::Value, // TODO: was PersonalizedPaceZones
     /// Power zones
-    pub power_zones: crate::configuration::vo2_max::PersonalizedPowerZones,
+    pub power_zones: serde_json::Value, // TODO: was PersonalizedPowerZones
     /// Estimated FTP
     pub estimated_ftp: f64,
 }
@@ -215,11 +217,12 @@ pub struct ValidationResponse {
 }
 
 /// Validation result details containing either success information or errors
+// TODO(fitness-decoupling): ValidationResult moved to pierre-fitness-app
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 pub enum ValidationDetails {
     /// Successful validation
-    Success(crate::configuration::validation::ValidationResult),
+    Success(serde_json::Value), // TODO: was validation::ValidationResult
     /// Validation errors
     Errors(Vec<String>),
 }
@@ -415,6 +418,9 @@ impl ConfigurationRoutes {
         let parameter_count = parameter_overrides.len();
 
         // Validate parameters if provided
+        // TODO(fitness-decoupling): ConfigValidator moved to pierre-fitness-app
+        // Validation is disabled until fitness-app plugin system is ready
+        /*
         if !parameter_overrides.is_empty() {
             let validator = ConfigValidator::new();
             // Convert typed input values to internal ConfigValue representation
@@ -431,6 +437,7 @@ impl ConfigurationRoutes {
                 )));
             }
         }
+        */
 
         // Create updated configuration
         let mut config = RuntimeConfig::new();
@@ -489,9 +496,14 @@ impl ConfigurationRoutes {
     /// - Zone calculation fails
     pub fn calculate_personalized_zones(
         &self,
-        auth: &AuthResult,
-        request: &PersonalizedZonesRequest,
+        _auth: &AuthResult,
+        _request: &PersonalizedZonesRequest,
     ) -> AppResult<PersonalizedZonesResponse> {
+        // TODO(fitness-decoupling): VO2MaxCalculator moved to pierre-fitness-app
+        // This function is fitness-specific and should be moved to pierre-fitness-app
+        Err(AppError::internal("calculate_personalized_zones is fitness-specific and has been moved to pierre-fitness-app".to_owned()))
+
+        /* Original implementation - commented out pending fitness-app migration
         let processing_start = std::time::Instant::now();
         let user_id = auth.user_id;
 
@@ -543,6 +555,7 @@ impl ConfigurationRoutes {
             },
             metadata: Self::create_metadata(processing_start),
         })
+        */
     }
 
     /// POST /api/configuration/validate - Validate configuration parameters
@@ -555,8 +568,13 @@ impl ConfigurationRoutes {
     pub fn validate_configuration(
         &self,
         _auth: &AuthResult,
-        request: &ValidateConfigurationRequest,
+        _request: &ValidateConfigurationRequest,
     ) -> AppResult<ValidationResponse> {
+        // TODO(fitness-decoupling): ConfigValidator moved to pierre-fitness-app
+        // This function is fitness-specific and should be moved to pierre-fitness-app
+        Err(AppError::internal("validate_configuration is fitness-specific and has been moved to pierre-fitness-app".to_owned()))
+
+        /* Original implementation - commented out pending fitness-app migration
         let processing_start = std::time::Instant::now();
 
         // Convert typed input values to internal ConfigValue representation
@@ -603,5 +621,6 @@ impl ConfigurationRoutes {
             safety_checks,
             metadata: Self::create_metadata(processing_start),
         })
+        */
     }
 }

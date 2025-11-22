@@ -1108,13 +1108,10 @@ impl UserPhysiologicalProfile {
     pub fn estimated_max_hr(&self) -> Option<u16> {
         self.max_hr.or_else(|| {
             self.age.map(|age| {
-                use crate::intelligence::algorithms::MaxHrAlgorithm;
-
-                // Use Tanaka formula via enum (gold standard: 208 - 0.7xage)
-                MaxHrAlgorithm::Tanaka
-                    .estimate(u32::from(age), None)
-                    .ok()
-                    .map_or_else(|| 220_u16.saturating_sub(age), |hr| hr.round() as u16)
+                // TODO(fitness-decoupling): MaxHrAlgorithm moved to pierre-fitness-app
+                // Use Tanaka formula directly (gold standard: 208 - 0.7*age)
+                let tanaka_estimate = 208.0 - (0.7 * f64::from(age));
+                tanaka_estimate.round() as u16
             })
         })
     }

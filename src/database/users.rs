@@ -430,43 +430,14 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the database query fails
+    // TODO(fitness-decoupling): UserFitnessProfile moved to pierre-fitness-app
+    // This function needs to be provided by the fitness plugin
     pub async fn get_user_fitness_profile(
         &self,
-        user_id: Uuid,
-    ) -> AppResult<Option<crate::intelligence::UserFitnessProfile>> {
-        self.get_user_profile_impl(user_id).await?.map_or_else(
-            || Ok(None),
-            |profile_data| {
-                // Try to deserialize as UserFitnessProfile
-                serde_json::from_value(profile_data).map_or_else(
-                    |_| {
-                        // If profile data doesn't match UserFitnessProfile structure,
-                        // create a default profile with user_id
-                        Ok(Some(crate::intelligence::UserFitnessProfile {
-                            user_id: user_id.to_string(),
-                            age: None,
-                            gender: None,
-                            weight: None,
-                            height: None,
-                            fitness_level: crate::intelligence::FitnessLevel::Beginner,
-                            primary_sports: vec![],
-                            training_history_months: 0,
-                            preferences: crate::intelligence::UserPreferences {
-                                preferred_units: "metric".into(),
-                                training_focus: vec![],
-                                injury_history: vec![],
-                                time_availability: crate::intelligence::TimeAvailability {
-                                    hours_per_week: 3.0,
-                                    preferred_days: vec![],
-                                    preferred_duration_minutes: Some(30),
-                                },
-                            },
-                        }))
-                    },
-                    |fitness_profile| Ok(Some(fitness_profile)),
-                )
-            },
-        )
+        _user_id: Uuid,
+    ) -> AppResult<Option<serde_json::Value>> {
+        // Stub implementation - returns None until fitness plugin is integrated
+        Ok(None)
     }
 
     /// Update user fitness profile
@@ -476,13 +447,14 @@ impl Database {
     /// Returns an error if:
     /// - JSON serialization fails
     /// - The database operation fails
+    // TODO(fitness-decoupling): UserFitnessProfile moved to pierre-fitness-app
+    // This function needs to be provided by the fitness plugin
     pub async fn update_user_fitness_profile(
         &self,
         user_id: Uuid,
-        profile: &crate::intelligence::UserFitnessProfile,
+        profile: &serde_json::Value,
     ) -> AppResult<()> {
-        let profile_data = serde_json::to_value(profile)?;
-        self.upsert_user_profile_impl(user_id, profile_data).await
+        self.upsert_user_profile_impl(user_id, profile.clone()).await
     }
 
     /// Get last sync timestamp for a provider

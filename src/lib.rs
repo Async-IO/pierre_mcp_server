@@ -79,8 +79,8 @@ pub mod oauth2_client;
 /// Model Context Protocol server implementation
 pub mod mcp;
 
-/// Athlete Intelligence for activity analysis and insights
-pub mod intelligence;
+// NOTE: Intelligence module moved to pierre-fitness-app
+// pub mod intelligence;
 
 /// External API clients (USDA, weather services)
 pub mod external;

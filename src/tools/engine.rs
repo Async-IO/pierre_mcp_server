@@ -10,12 +10,20 @@
 
 use crate::database_plugins::factory::Database;
 use crate::errors::{AppError, AppResult};
-use crate::intelligence::weather::WeatherService;
-use crate::intelligence::ActivityAnalyzer;
+// TODO(fitness-decoupling): Re-enable when plugin system ready
+// TODO(fitness-decoupling): // use crate::intelligence::weather::WeatherService;
+// TODO(fitness-decoupling): Re-enable when plugin system ready
+// TODO(fitness-decoupling): // use crate::intelligence::ActivityAnalyzer;
 use crate::protocols::universal::UniversalToolExecutor;
 use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
+
+// TODO(fitness-decoupling): Stub types until fitness-app plugin system ready
+/// Stub for fitness-specific ActivityAnalyzer (moved to pierre-fitness-app)
+pub struct ActivityAnalyzer;
+/// Stub for fitness-specific WeatherService (moved to pierre-fitness-app)
+pub struct WeatherService;
 
 /// User context for multi-tenant operations
 #[derive(Debug, Clone)]

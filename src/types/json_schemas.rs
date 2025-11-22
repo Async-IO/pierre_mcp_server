@@ -315,65 +315,65 @@ pub struct UserFitnessProfileData {
     pub training_history_months: i32,
 }
 
-impl UserFitnessProfileData {
-    /// Convert to internal `UserFitnessProfile` type
-    ///
-    /// # Errors
-    /// Returns error if `fitness_level` string cannot be parsed
-    pub fn to_user_fitness_profile(
-        self,
-    ) -> crate::errors::AppResult<crate::intelligence::UserFitnessProfile> {
-        use crate::intelligence::{FitnessLevel, UserFitnessProfile, UserPreferences};
-
-        let fitness_level = self
-            .fitness_level
-            .as_deref()
-            .and_then(|s| match s.to_lowercase().as_str() {
-                "beginner" => Some(FitnessLevel::Beginner),
-                "intermediate" => Some(FitnessLevel::Intermediate),
-                "advanced" => Some(FitnessLevel::Advanced),
-                "elite" => Some(FitnessLevel::Elite),
-                _ => None,
-            })
-            .unwrap_or(FitnessLevel::Beginner);
-
-        Ok(UserFitnessProfile {
-            user_id: self.user_id,
-            age: self.age,
-            gender: self.gender,
-            weight: self.weight,
-            height: self.height,
-            fitness_level,
-            primary_sports: self.primary_sports,
-            training_history_months: self.training_history_months,
-            preferences: UserPreferences {
-                preferred_units: "metric".to_owned(),
-                training_focus: vec![],
-                injury_history: vec![],
-                time_availability: crate::intelligence::TimeAvailability {
-                    hours_per_week: 5.0,
-                    preferred_days: vec![],
-                    preferred_duration_minutes: None,
-                },
-            },
-        })
-    }
-
-    /// Create from internal `UserFitnessProfile` type
-    #[must_use]
-    pub fn from_user_fitness_profile(profile: &crate::intelligence::UserFitnessProfile) -> Self {
-        Self {
-            user_id: profile.user_id.clone(),
-            age: profile.age,
-            gender: profile.gender.clone(),
-            weight: profile.weight,
-            height: profile.height,
-            fitness_level: Some(format!("{:?}", profile.fitness_level)),
-            primary_sports: profile.primary_sports.clone(),
-            training_history_months: profile.training_history_months,
-        }
-    }
-}
+// TODO(fitness-decoupling): impl UserFitnessProfileData {
+// TODO(fitness-decoupling):     /// Convert to internal `UserFitnessProfile` type
+// TODO(fitness-decoupling):     ///
+// TODO(fitness-decoupling):     /// # Errors
+// TODO(fitness-decoupling):     /// Returns error if `fitness_level` string cannot be parsed
+// TODO(fitness-decoupling):     pub fn to_user_fitness_profile(
+// TODO(fitness-decoupling):         self,
+// TODO(fitness-decoupling): // TODO(fitness-decoupling):     ) -> crate::errors::AppResult<crate::intelligence::UserFitnessProfile> {
+// TODO(fitness-decoupling): // TODO(fitness-decoupling):         use crate::intelligence::{FitnessLevel, UserFitnessProfile, UserPreferences};
+// TODO(fitness-decoupling): 
+// TODO(fitness-decoupling):         let fitness_level = self
+// TODO(fitness-decoupling):             .fitness_level
+// TODO(fitness-decoupling):             .as_deref()
+// TODO(fitness-decoupling):             .and_then(|s| match s.to_lowercase().as_str() {
+// TODO(fitness-decoupling):                 "beginner" => Some(FitnessLevel::Beginner),
+// TODO(fitness-decoupling):                 "intermediate" => Some(FitnessLevel::Intermediate),
+// TODO(fitness-decoupling):                 "advanced" => Some(FitnessLevel::Advanced),
+// TODO(fitness-decoupling):                 "elite" => Some(FitnessLevel::Elite),
+// TODO(fitness-decoupling):                 _ => None,
+// TODO(fitness-decoupling):             })
+// TODO(fitness-decoupling):             .unwrap_or(FitnessLevel::Beginner);
+// TODO(fitness-decoupling): 
+// TODO(fitness-decoupling):         Ok(UserFitnessProfile {
+// TODO(fitness-decoupling):             user_id: self.user_id,
+// TODO(fitness-decoupling):             age: self.age,
+// TODO(fitness-decoupling):             gender: self.gender,
+// TODO(fitness-decoupling):             weight: self.weight,
+// TODO(fitness-decoupling):             height: self.height,
+// TODO(fitness-decoupling):             fitness_level,
+// TODO(fitness-decoupling):             primary_sports: self.primary_sports,
+// TODO(fitness-decoupling):             training_history_months: self.training_history_months,
+// TODO(fitness-decoupling):             preferences: UserPreferences {
+// TODO(fitness-decoupling):                 preferred_units: "metric".to_owned(),
+// TODO(fitness-decoupling):                 training_focus: vec![],
+// TODO(fitness-decoupling):                 injury_history: vec![],
+// TODO(fitness-decoupling): // TODO(fitness-decoupling):                 time_availability: crate::intelligence::TimeAvailability {
+// TODO(fitness-decoupling):                     hours_per_week: 5.0,
+// TODO(fitness-decoupling):                     preferred_days: vec![],
+// TODO(fitness-decoupling):                     preferred_duration_minutes: None,
+// TODO(fitness-decoupling):                 },
+// TODO(fitness-decoupling):             },
+// TODO(fitness-decoupling):         })
+// TODO(fitness-decoupling):     }
+// TODO(fitness-decoupling): 
+// TODO(fitness-decoupling):     /// Create from internal `UserFitnessProfile` type
+// TODO(fitness-decoupling):     #[must_use]
+// TODO(fitness-decoupling): // TODO(fitness-decoupling):     pub fn from_user_fitness_profile(profile: &crate::intelligence::UserFitnessProfile) -> Self {
+// TODO(fitness-decoupling):         Self {
+// TODO(fitness-decoupling):             user_id: profile.user_id.clone(),
+// TODO(fitness-decoupling):             age: profile.age,
+// TODO(fitness-decoupling):             gender: profile.gender.clone(),
+// TODO(fitness-decoupling):             weight: profile.weight,
+// TODO(fitness-decoupling):             height: profile.height,
+// TODO(fitness-decoupling):             fitness_level: Some(format!("{:?}", profile.fitness_level)),
+// TODO(fitness-decoupling):             primary_sports: profile.primary_sports.clone(),
+// TODO(fitness-decoupling):             training_history_months: profile.training_history_months,
+// TODO(fitness-decoupling):         }
+// TODO(fitness-decoupling):     }
+// TODO(fitness-decoupling): }
 
 // ============================================================================
 // Intelligence Handler Parameters

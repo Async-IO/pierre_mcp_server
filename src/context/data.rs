@@ -5,7 +5,8 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::database_plugins::factory::Database;
-use crate::intelligence::ActivityIntelligence;
+// TODO(fitness-decoupling): Re-enable when plugin system ready
+// TODO(fitness-decoupling): // use crate::intelligence::ActivityIntelligence;
 use crate::providers::ProviderRegistry;
 use std::sync::Arc;
 
@@ -17,12 +18,13 @@ use std::sync::Arc;
 /// # Dependencies
 /// - `database`: Primary database interface for all persistence operations
 /// - `provider_registry`: Registry of external service providers
-/// - `activity_intelligence`: AI/ML services for activity analysis
+/// - `activity_intelligence`: AI/ML services for activity analysis (moved to fitness-app)
 #[derive(Clone)]
 pub struct DataContext {
     database: Arc<Database>,
     provider_registry: Arc<ProviderRegistry>,
-    activity_intelligence: Arc<ActivityIntelligence>,
+    // TODO(fitness-decoupling): ActivityIntelligence moved to pierre-fitness-app
+    // activity_intelligence: Arc<ActivityIntelligence>,
 }
 
 impl DataContext {
@@ -31,12 +33,14 @@ impl DataContext {
     pub const fn new(
         database: Arc<Database>,
         provider_registry: Arc<ProviderRegistry>,
-        activity_intelligence: Arc<ActivityIntelligence>,
+        // TODO(fitness-decoupling): ActivityIntelligence parameter removed
+        // activity_intelligence: Arc<ActivityIntelligence>,
     ) -> Self {
         Self {
             database,
             provider_registry,
-            activity_intelligence,
+            // TODO(fitness-decoupling): ActivityIntelligence field removed
+            // activity_intelligence,
         }
     }
 
@@ -52,9 +56,10 @@ impl DataContext {
         &self.provider_registry
     }
 
-    /// Get activity intelligence for AI/ML operations
-    #[must_use]
-    pub const fn activity_intelligence(&self) -> &Arc<ActivityIntelligence> {
-        &self.activity_intelligence
-    }
+    // TODO(fitness-decoupling): ActivityIntelligence moved to pierre-fitness-app
+    // Get activity intelligence for AI/ML operations
+    // #[must_use]
+    // pub const fn activity_intelligence(&self) -> &Arc<ActivityIntelligence> {
+    //     &self.activity_intelligence
+    // }
 }

@@ -430,7 +430,7 @@ pub fn handle_calculate_personalized_zones(
         .get("ftp")
         .and_then(serde_json::Value::as_u64)
         .and_then(|f| u32::try_from(f).ok())
-        .unwrap_or(crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_ESTIMATED_FTP);
+        .unwrap_or(200); // TODO(fitness-decoupling): Default FTP estimate (was DEFAULT_ESTIMATED_FTP)
 
     // Calculate power zones using FTP (either provided or default estimate)
     let power_zones_result =
@@ -462,7 +462,7 @@ pub fn handle_calculate_personalized_zones(
             }
             map.insert(
                 "zone_count".to_owned(),
-                serde_json::Value::Number(crate::intelligence::physiological_constants::physiological_defaults::TRAINING_ZONE_COUNT.into()),
+                serde_json::Value::Number(5.into()), // TODO(fitness-decoupling): Default zone count (was TRAINING_ZONE_COUNT)
             );
             map.insert("ftp_used".to_owned(), serde_json::Value::Number(ftp.into()));
             map.insert(
@@ -499,27 +499,25 @@ fn extract_zone_parameters(request: &UniversalRequest) -> Result<ZoneParams, Pro
         .parameters
         .get("resting_hr")
         .and_then(serde_json::Value::as_u64)
-        .unwrap_or(crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_RESTING_HR);
+        .unwrap_or(60); // TODO(fitness-decoupling): Default resting HR (was DEFAULT_RESTING_HR)
 
     let max_hr = request
         .parameters
         .get("max_hr")
         .and_then(serde_json::Value::as_u64)
-        .unwrap_or(
-            crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_MAX_HR,
-        );
+        .unwrap_or(180); // TODO(fitness-decoupling): Default max HR (was DEFAULT_MAX_HR)
 
     let lactate_threshold = request
         .parameters
         .get("lactate_threshold")
         .and_then(serde_json::Value::as_f64)
-        .unwrap_or(crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_LACTATE_THRESHOLD);
+        .unwrap_or(0.85); // TODO(fitness-decoupling): Default lactate threshold (was DEFAULT_LACTATE_THRESHOLD)
 
     let sport_efficiency = request
         .parameters
         .get("sport_efficiency")
         .and_then(serde_json::Value::as_f64)
-        .unwrap_or(crate::intelligence::physiological_constants::physiological_defaults::DEFAULT_SPORT_EFFICIENCY);
+        .unwrap_or(1.0); // TODO(fitness-decoupling): Default sport efficiency (was DEFAULT_SPORT_EFFICIENCY)
 
     Ok(ZoneParams {
         vo2_max,
@@ -546,7 +544,7 @@ fn calculate_zone_offset(hr_range: u64, percentage: u32) -> u64 {
     // Use integer arithmetic: (hr_range * percentage) / 1000
     // percentage represents the zone percentage in permille (thousandths)
     hr_range.saturating_mul(u64::from(percentage))
-        / crate::intelligence::physiological_constants::heart_rate_zones::PERMILLE_DIVISOR
+// TODO(fitness-decoupling):         / crate::intelligence::physiological_constants::heart_rate_zones::PERMILLE_DIVISOR
 }
 
 /// Calculate heart rate zones using integer arithmetic to avoid casting warnings
@@ -554,55 +552,21 @@ fn calculate_heart_rate_zones(params: &ZoneParams) -> (serde_json::Value, serde_
     let hr_range = params.max_hr.saturating_sub(params.resting_hr);
 
     // Calculate zone boundaries using integer arithmetic with permille constants
-    let zone_1_min = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_1_MIN_PERMILLE,
-        );
-    let zone_1_max = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_1_MAX_PERMILLE,
-        );
-    let zone_2_min = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_1_MAX_PERMILLE,
-        );
-    let zone_2_max = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_2_MAX_PERMILLE,
-        );
-    let zone_3_min = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_2_MAX_PERMILLE,
-        );
-    let zone_3_max = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_3_MAX_PERMILLE,
-        );
-    let zone_4_min = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_3_MAX_PERMILLE,
-        );
-    let zone_4_max = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_4_MAX_PERMILLE,
-        );
-    let zone_5_min = params.resting_hr
-        + calculate_zone_offset(
-            hr_range,
-            crate::intelligence::physiological_constants::heart_rate_zones::ZONE_4_MAX_PERMILLE,
-        );
+    // TODO(fitness-decoupling): Using stub permille values - constants moved to pierre-fitness-app
+    let zone_1_min = params.resting_hr + calculate_zone_offset(hr_range, 0);    // was ZONE_1_MIN_PERMILLE
+    let zone_1_max = params.resting_hr + calculate_zone_offset(hr_range, 500);  // was ZONE_1_MAX_PERMILLE
+    let zone_2_min = params.resting_hr + calculate_zone_offset(hr_range, 500);  // was ZONE_1_MAX_PERMILLE
+    let zone_2_max = params.resting_hr + calculate_zone_offset(hr_range, 700);  // was ZONE_2_MAX_PERMILLE
+    let zone_3_min = params.resting_hr + calculate_zone_offset(hr_range, 700);  // was ZONE_2_MAX_PERMILLE
+    let zone_3_max = params.resting_hr + calculate_zone_offset(hr_range, 800);  // was ZONE_3_MAX_PERMILLE
+    let zone_4_min = params.resting_hr + calculate_zone_offset(hr_range, 800);  // was ZONE_3_MAX_PERMILLE
+    let zone_4_max = params.resting_hr + calculate_zone_offset(hr_range, 900);  // was ZONE_4_MAX_PERMILLE
+    let zone_5_min = params.resting_hr + calculate_zone_offset(hr_range, 900);  // was ZONE_4_MAX_PERMILLE
 
     // Use lactate and aerobic threshold constants
-    let lactate_threshold_hr = params.resting_hr + calculate_zone_offset(hr_range, crate::intelligence::physiological_constants::heart_rate_zones::LACTATE_THRESHOLD_PERMILLE);
-    let aerobic_threshold_hr = params.resting_hr + calculate_zone_offset(hr_range, crate::intelligence::physiological_constants::heart_rate_zones::AEROBIC_THRESHOLD_PERMILLE);
+    // TODO(fitness-decoupling): Stub values - constants moved to pierre-fitness-app
+    let lactate_threshold_hr = params.resting_hr + calculate_zone_offset(hr_range, 800); // was LACTATE_THRESHOLD_PERMILLE
+    let aerobic_threshold_hr = params.resting_hr + calculate_zone_offset(hr_range, 700); // was AEROBIC_THRESHOLD_PERMILLE
 
     let zones = serde_json::json!({
         "zone_1": {
@@ -649,7 +613,7 @@ fn validate_parameter_ranges(
     obj: &serde_json::Map<String, serde_json::Value>,
     errors: &mut Vec<String>,
 ) -> bool {
-    use crate::intelligence::physiological_constants::configuration_validation;
+// TODO(fitness-decoupling):     use crate::intelligence::physiological_constants::configuration_validation;
 
     let mut all_valid = true;
 
@@ -662,14 +626,14 @@ fn validate_parameter_ranges(
 
     // Validate max_hr
     if let Some(hr) = max_hr {
-        if !(configuration_validation::MAX_HR_MIN..=configuration_validation::MAX_HR_MAX)
+        if !(160..=220)
             .contains(&hr)
         {
             all_valid = false;
             errors.push(format!(
                 "max_hr must be between {} and {} bpm, got {}",
-                configuration_validation::MAX_HR_MIN,
-                configuration_validation::MAX_HR_MAX,
+                160,
+                220,
                 hr
             ));
         }
@@ -677,14 +641,14 @@ fn validate_parameter_ranges(
 
     // Validate resting_hr
     if let Some(hr) = resting_hr {
-        if !(configuration_validation::RESTING_HR_MIN..=configuration_validation::RESTING_HR_MAX)
+        if !(30..=100)
             .contains(&hr)
         {
             all_valid = false;
             errors.push(format!(
                 "resting_hr must be between {} and {} bpm, got {}",
-                configuration_validation::RESTING_HR_MIN,
-                configuration_validation::RESTING_HR_MAX,
+                30,
+                100,
                 hr
             ));
         }
@@ -692,15 +656,15 @@ fn validate_parameter_ranges(
 
     // Validate threshold_hr
     if let Some(hr) = threshold_hr {
-        if !(configuration_validation::THRESHOLD_HR_MIN
-            ..=configuration_validation::THRESHOLD_HR_MAX)
+        if !(140
+            ..=200)
             .contains(&hr)
         {
             all_valid = false;
             errors.push(format!(
                 "threshold_hr must be between {} and {} bpm, got {}",
-                configuration_validation::THRESHOLD_HR_MIN,
-                configuration_validation::THRESHOLD_HR_MAX,
+                140,
+                200,
                 hr
             ));
         }
@@ -708,14 +672,14 @@ fn validate_parameter_ranges(
 
     // Validate vo2_max
     if let Some(vo2) = vo2_max {
-        if !(configuration_validation::VO2_MAX_MIN..=configuration_validation::VO2_MAX_MAX)
+        if !(20.0..=90.0)
             .contains(&vo2)
         {
             all_valid = false;
             errors.push(format!(
                 "vo2_max must be between {} and {} ml/kg/min, got {:.1}",
-                configuration_validation::VO2_MAX_MIN,
-                configuration_validation::VO2_MAX_MAX,
+                20.0,
+                90.0,
                 vo2
             ));
         }
@@ -723,13 +687,13 @@ fn validate_parameter_ranges(
 
     // Validate ftp
     if let Some(power) = ftp {
-        if !(configuration_validation::FTP_MIN..=configuration_validation::FTP_MAX).contains(&power)
+        if !(100..=500).contains(&power)
         {
             all_valid = false;
             errors.push(format!(
                 "ftp must be between {} and {} watts, got {}",
-                configuration_validation::FTP_MIN,
-                configuration_validation::FTP_MAX,
+                100,
+                500,
                 power
             ));
         }

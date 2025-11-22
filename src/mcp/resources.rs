@@ -21,7 +21,8 @@ use crate::cache::factory::Cache;
 use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
-use crate::intelligence::ActivityIntelligence;
+// TODO(fitness-decoupling): Re-enable when plugin system ready
+// TODO(fitness-decoupling): // use crate::intelligence::ActivityIntelligence;
 use crate::mcp::sampling_peer::SamplingPeer;
 use crate::mcp::schema::{OAuthCompletedNotification, ProgressNotification};
 use crate::middleware::redaction::RedactionConfig;
@@ -34,6 +35,10 @@ use crate::websocket::WebSocketManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, RwLock};
+
+// TODO(fitness-decoupling): Stub type for ActivityIntelligence until fitness-app plugin system ready
+/// Stub for fitness-specific ActivityIntelligence (moved to pierre-fitness-app)
+pub struct ActivityIntelligence;
 
 /// Centralized resource container for dependency injection
 ///
@@ -223,31 +228,12 @@ impl ServerResources {
         }
     }
 
-    /// Create default activity intelligence for MCP server
+    // TODO(fitness-decoupling): Stub implementation - ActivityIntelligence moved to pierre-fitness-app
+    // This function needs to be provided by the fitness plugin when available
     fn create_default_intelligence() -> Arc<ActivityIntelligence> {
-        Arc::new(ActivityIntelligence::new(
-            "MCP Intelligence".into(),
-            vec![],
-            crate::intelligence::PerformanceMetrics {
-                relative_effort: Some(7.5),
-                zone_distribution: None,
-                personal_records: vec![],
-                efficiency_score: Some(85.0),
-                trend_indicators: crate::intelligence::TrendIndicators {
-                    pace_trend: crate::intelligence::TrendDirection::Improving,
-                    effort_trend: crate::intelligence::TrendDirection::Stable,
-                    distance_trend: crate::intelligence::TrendDirection::Improving,
-                    consistency_score: 8.2,
-                },
-            },
-            crate::intelligence::ContextualFactors {
-                weather: None,
-                location: None,
-                time_of_day: crate::intelligence::TimeOfDay::Morning,
-                days_since_last_activity: Some(1),
-                weekly_load: None,
-            },
-        ))
+        // Temporary stub - returns empty ActivityIntelligence unit struct
+        // TODO: Replace with plugin-provided intelligence when fitness-app is integrated
+        Arc::new(ActivityIntelligence)
     }
 
     /// Load persisted RSA keys from database or create new ones
