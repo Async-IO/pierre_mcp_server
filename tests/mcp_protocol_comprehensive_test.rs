@@ -528,14 +528,8 @@ async fn test_mcp_provider_required_tools() -> Result<()> {
             "predict_performance",
             json!({"provider": "strava", "activity_type": "run"}),
         ),
-        (
-            "calculate_recovery_score",
-            json!({"provider": "strava"}),
-        ),
-        (
-            "suggest_rest_day",
-            json!({"provider": "strava"}),
-        ),
+        ("calculate_recovery_score", json!({"provider": "strava"})),
+        ("suggest_rest_day", json!({"provider": "strava"})),
     ];
 
     for (tool_name, args) in provider_tools {
