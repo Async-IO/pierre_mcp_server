@@ -75,8 +75,7 @@ fn test_critical_tools_are_present() {
     for tool in critical_tools {
         assert!(
             schema_tool_names.contains(tool),
-            "Critical tool '{}' is missing from schema! This will break Claude Desktop integration.",
-            tool
+            "Critical tool '{tool}' is missing from schema! This will break Claude Desktop integration."
         );
     }
 
@@ -118,9 +117,11 @@ fn test_tool_schemas_have_valid_structure() {
                     );
                 }
             } else if !required.is_empty() {
-                panic!(
-                    "Tool '{}' has required fields {:?} but no properties defined",
-                    tool.name, required
+                // Use assert! instead of panic! for test assertions
+                assert!(
+                    false,
+                    "Tool '{}' has required fields {required:?} but no properties defined",
+                    tool.name
                 );
             }
         }
@@ -149,34 +150,30 @@ fn test_provider_parameter_consistency() {
         let tool = tools
             .iter()
             .find(|t| t.name == tool_name)
-            .unwrap_or_else(|| panic!("Tool '{tool_name}' not found in schema"));
+            .expect(&format!("Tool '{tool_name}' not found in schema"));
 
         // Check if 'provider' is in required fields
         let has_provider_required = tool
             .input_schema
             .required
             .as_ref()
-            .map(|r| r.contains(&"provider".to_owned()))
-            .unwrap_or(false);
+            .is_some_and(|r| r.contains(&"provider".to_owned()));
 
         // Check if 'provider' is in properties
         let has_provider_property = tool
             .input_schema
             .properties
             .as_ref()
-            .map(|p| p.contains_key("provider"))
-            .unwrap_or(false);
+            .is_some_and(|p| p.contains_key("provider"));
 
         assert!(
             has_provider_required,
-            "Tool '{}' must have 'provider' in required fields (this was bug #1)",
-            tool_name
+            "Tool '{tool_name}' must have 'provider' in required fields (this was bug #1)"
         );
 
         assert!(
             has_provider_property,
-            "Tool '{}' must have 'provider' in properties",
-            tool_name
+            "Tool '{tool_name}' must have 'provider' in properties"
         );
 
         println!("✅ Tool '{tool_name}' correctly requires 'provider' parameter");
