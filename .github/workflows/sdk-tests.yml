@@ -3,14 +3,8 @@ name: SDK Tests
 on:
   push:
     branches: [ "main", "debug/*", "feature/*", "claude/*" ]
-    paths:
-      - 'sdk/**'
-      - '.github/workflows/sdk-tests.yml'
   pull_request:
     branches: [ main ]
-    paths:
-      - 'sdk/**'
-      - '.github/workflows/sdk-tests.yml'
 
 jobs:
   sdk-tests:
