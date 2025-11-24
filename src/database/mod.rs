@@ -153,13 +153,10 @@ impl Database {
     async fn migrate_impl(&self) -> AppResult<()> {
         tracing::info!("Running database migrations...");
 
-        // Run all pending migrations from ./migrations directory
-        // Using runtime migrator which loads migrations from filesystem
-        let migrator = sqlx::migrate::Migrator::new(std::path::Path::new("./migrations"))
-            .await
-            .map_err(|e| AppError::database(format!("Failed to load migrations: {e}")))?;
-
-        migrator
+        // Run all pending migrations embedded at compile-time from ./migrations directory
+        // Using compile-time macro which embeds migrations into the binary
+        // This ensures migrations are available regardless of working directory
+        sqlx::migrate!("./migrations")
             .run(&self.pool)
             .await
             .map_err(|e| AppError::database(format!("Migration failed: {e}")))?;
