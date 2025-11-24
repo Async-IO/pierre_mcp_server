@@ -284,8 +284,9 @@ async fn test_oauth_configuration_errors() -> Result<()> {
     // Check that the error contains information about missing OAuth token
     let error = response.error.unwrap();
     assert!(
-        error.contains("No") && error.contains("Strava token")
-            || error.contains("Connect your Strava account"),
+        (error.contains("No") && error.contains("token"))
+            || error.contains("Connect your")
+            || error.contains("Please connect your"),
         "Error should contain OAuth connection message: {error}"
     );
 

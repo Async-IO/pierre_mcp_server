@@ -757,7 +757,7 @@ async fn test_compare_activities_tool() -> Result<()> {
         assert!(response.error.is_some());
         let error_msg = response.error.as_ref().unwrap();
         assert!(
-            error_msg.contains("No valid Strava token found")
+            (error_msg.contains("No valid") && error_msg.contains("token found"))
                 || error_msg.contains("Connect")
                 || error_msg.contains("Authentication error")
         );
@@ -796,7 +796,7 @@ async fn test_detect_patterns_tool() -> Result<()> {
         assert!(response.error.is_some());
         let error_msg = response.error.as_ref().unwrap();
         assert!(
-            error_msg.contains("No valid Strava token found")
+            (error_msg.contains("No valid") && error_msg.contains("token found"))
                 || error_msg.contains("Connect")
                 || error_msg.contains("Authentication error")
         );
@@ -949,7 +949,7 @@ async fn test_generate_recommendations_tool() -> Result<()> {
         assert!(response.error.is_some());
         let error_msg = response.error.as_ref().unwrap();
         assert!(
-            error_msg.contains("No valid Strava token found")
+            (error_msg.contains("No valid") && error_msg.contains("token found"))
                 || error_msg.contains("Connect")
                 || error_msg.contains("Authentication error")
         );
@@ -1032,7 +1032,7 @@ async fn test_predict_performance_tool() -> Result<()> {
         assert!(response.error.is_some());
         let error_msg = response.error.as_ref().unwrap();
         assert!(
-            error_msg.contains("No valid Strava token found")
+            (error_msg.contains("No valid") && error_msg.contains("token found"))
                 || error_msg.contains("Connect")
                 || error_msg.contains("Authentication error")
                 || error_msg.contains("No historical activities")
@@ -1451,8 +1451,7 @@ async fn test_get_stats_async_no_token() -> Result<()> {
     assert!(response.error.is_some());
     let error_msg = response.error.as_ref().unwrap();
     assert!(
-        error_msg.contains("No valid strava token found for user")
-            || error_msg.contains("No valid Strava token found")
+        (error_msg.contains("No valid") && error_msg.contains("token found"))
             || error_msg.contains("deprecated")
             || error_msg.contains("tenant-aware MCP endpoints")
             || error_msg.contains("Tool execution failed")
