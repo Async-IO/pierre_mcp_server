@@ -1,7 +1,9 @@
 // ABOUTME: Schema completeness validation - ensures all tools in schema are properly registered
 // ABOUTME: Prevents regressions like "Unknown tool" errors by validating schema/registry consistency
 
+#![doc = "Schema completeness validation - ensures all tools are properly registered"]
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::panic)]
 
 use pierre_mcp_server::mcp::schema;
 use pierre_mcp_server::protocols::universal::tool_registry::ToolId;
@@ -117,9 +119,7 @@ fn test_tool_schemas_have_valid_structure() {
                     );
                 }
             } else if !required.is_empty() {
-                // Use assert! instead of panic! for test assertions
-                assert!(
-                    false,
+                panic!(
                     "Tool '{}' has required fields {required:?} but no properties defined",
                     tool.name
                 );
@@ -150,7 +150,7 @@ fn test_provider_parameter_consistency() {
         let tool = tools
             .iter()
             .find(|t| t.name == tool_name)
-            .expect(&format!("Tool '{tool_name}' not found in schema"));
+            .unwrap_or_else(|| panic!("Tool '{tool_name}' not found in schema"));
 
         // Check if 'provider' is in required fields
         let has_provider_required = tool
