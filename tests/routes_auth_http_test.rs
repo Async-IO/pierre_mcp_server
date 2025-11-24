@@ -74,6 +74,31 @@ impl AuthTestSetup {
     fn routes(&self) -> axum::Router {
         pierre_mcp_server::routes::auth::AuthRoutes::routes(self.resources.clone())
     }
+
+    /// Create a test admin token for authentication
+    async fn create_admin_token(&self) -> anyhow::Result<String> {
+        use pierre_mcp_server::admin::models::CreateAdminTokenRequest;
+        use pierre_mcp_server::database_plugins::DatabaseProvider;
+
+        // Create admin token request
+        let request = CreateAdminTokenRequest {
+            service_name: "test_admin".to_owned(),
+            service_description: Some("Auto-generated test admin token".to_owned()),
+            permissions: None, // Super admin by default
+            expires_in_days: Some(1),
+            is_super_admin: true,
+        };
+
+        // Use database method to create admin token
+        let generated_token = self
+            .resources
+            .database
+            .as_ref()
+            .create_admin_token(&request, "test_jwt_secret", &self.resources.jwks_manager)
+            .await?;
+
+        Ok(generated_token.jwt_token)
+    }
 }
 
 // ============================================================================
@@ -83,6 +108,10 @@ impl AuthTestSetup {
 #[tokio::test]
 async fn test_register_success() {
     let setup = AuthTestSetup::new().await.expect("Setup failed");
+    let admin_token = setup
+        .create_admin_token()
+        .await
+        .expect("Failed to create admin token");
     let routes = setup.routes();
 
     let register_request = json!({
@@ -92,6 +121,7 @@ async fn test_register_success() {
     });
 
     let response = AxumTestRequest::post("/api/auth/register")
+        .header("Authorization", &format!("Bearer {}", admin_token))
         .json(&register_request)
         .send(routes)
         .await;
@@ -104,28 +134,48 @@ async fn test_register_success() {
 }
 
 #[tokio::test]
-async fn test_register_no_auth_required() {
+async fn test_register_requires_admin_auth() {
     let setup = AuthTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
 
     let register_request = json!({
         "email": "public@example.com",
         "password": "password123",
+        "display_name": "Public User"
     });
 
-    // Registration should work without authentication header
+    // Registration WITHOUT admin token should fail
     let response = AxumTestRequest::post("/api/auth/register")
         .json(&register_request)
         .send(routes)
         .await;
 
-    // Should succeed (201) or fail validation (400/422), but not require auth (401)
-    assert_ne!(response.status(), 401);
+    // Should require authentication (401 or 400 for missing auth header)
+    assert!(
+        response.status() == 400 || response.status() == 401,
+        "Expected 400 or 401, got {}",
+        response.status()
+    );
+
+    let body: serde_json::Value = response.json();
+    let message = body["message"].as_str().unwrap_or("");
+    assert!(
+        message.contains("Authorization")
+            || message.contains("admin")
+            || message.contains("authentication")
+            || message.contains("credentials"),
+        "Error message should mention authorization: {}",
+        message
+    );
 }
 
 #[tokio::test]
 async fn test_register_invalid_email() {
     let setup = AuthTestSetup::new().await.expect("Setup failed");
+    let admin_token = setup
+        .create_admin_token()
+        .await
+        .expect("Failed to create admin token");
     let routes = setup.routes();
 
     let register_request = json!({
@@ -134,6 +184,7 @@ async fn test_register_invalid_email() {
     });
 
     let response = AxumTestRequest::post("/api/auth/register")
+        .header("Authorization", &format!("Bearer {}", admin_token))
         .json(&register_request)
         .send(routes)
         .await;
@@ -145,6 +196,10 @@ async fn test_register_invalid_email() {
 #[tokio::test]
 async fn test_register_weak_password() {
     let setup = AuthTestSetup::new().await.expect("Setup failed");
+    let admin_token = setup
+        .create_admin_token()
+        .await
+        .expect("Failed to create admin token");
     let routes = setup.routes();
 
     let register_request = json!({
@@ -153,6 +208,7 @@ async fn test_register_weak_password() {
     });
 
     let response = AxumTestRequest::post("/api/auth/register")
+        .header("Authorization", &format!("Bearer {}", admin_token))
         .json(&register_request)
         .send(routes)
         .await;
@@ -164,21 +220,28 @@ async fn test_register_weak_password() {
 #[tokio::test]
 async fn test_register_duplicate_email() {
     let setup = AuthTestSetup::new().await.expect("Setup failed");
+    let admin_token = setup
+        .create_admin_token()
+        .await
+        .expect("Failed to create admin token");
     let routes = setup.routes();
 
     let register_request = json!({
         "email": "duplicate@example.com",
-        "password": "password123"
+        "password": "password123",
+        "display_name": "Duplicate User"
     });
 
     // First registration should succeed
     let _response1 = AxumTestRequest::post("/api/auth/register")
+        .header("Authorization", &format!("Bearer {}", admin_token))
         .json(&register_request)
         .send(routes.clone())
         .await;
 
     // Second registration with same email should fail
     let response2 = AxumTestRequest::post("/api/auth/register")
+        .header("Authorization", &format!("Bearer {}", admin_token))
         .json(&register_request)
         .send(routes)
         .await;
@@ -190,6 +253,10 @@ async fn test_register_duplicate_email() {
 #[tokio::test]
 async fn test_register_missing_required_fields() {
     let setup = AuthTestSetup::new().await.expect("Setup failed");
+    let admin_token = setup
+        .create_admin_token()
+        .await
+        .expect("Failed to create admin token");
     let routes = setup.routes();
 
     let register_request = json!({
@@ -198,6 +265,7 @@ async fn test_register_missing_required_fields() {
     });
 
     let response = AxumTestRequest::post("/api/auth/register")
+        .header("Authorization", &format!("Bearer {}", admin_token))
         .json(&register_request)
         .send(routes)
         .await;
@@ -568,9 +636,13 @@ async fn test_all_auth_endpoints_registered() {
 #[tokio::test]
 async fn test_register_and_login_flow() {
     let setup = AuthTestSetup::new().await.expect("Setup failed");
+    let admin_token = setup
+        .create_admin_token()
+        .await
+        .expect("Failed to create admin token");
     let routes = setup.routes();
 
-    // Step 1: Register a new user
+    // Step 1: Register a new user (with admin auth)
     let email = format!("flowtest{}@example.com", uuid::Uuid::new_v4());
     let password = "securePassword123";
 
@@ -581,6 +653,7 @@ async fn test_register_and_login_flow() {
     });
 
     let register_response = AxumTestRequest::post("/api/auth/register")
+        .header("Authorization", &format!("Bearer {}", admin_token))
         .json(&register_request)
         .send(routes.clone())
         .await;

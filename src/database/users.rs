@@ -13,165 +13,6 @@ use sqlx::Row;
 use uuid::Uuid;
 
 impl Database {
-    /// Create users and profiles tables
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The database schema migration fails
-    /// - Table creation fails
-    /// - Index creation fails
-    pub(super) async fn migrate_users(&self) -> AppResult<()> {
-        self.create_users_table().await?;
-        self.create_user_profiles_table().await?;
-        self.create_user_oauth_app_credentials_table().await?;
-        self.create_users_indexes().await?;
-        self.create_users_triggers().await?;
-        Ok(())
-    }
-
-    async fn create_users_table(&self) -> AppResult<()> {
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                email TEXT UNIQUE NOT NULL,
-                display_name TEXT,
-                password_hash TEXT NOT NULL,
-                tier TEXT NOT NULL DEFAULT 'starter' CHECK (tier IN ('starter', 'professional', 'enterprise')),
-                tenant_id TEXT,
-                strava_access_token TEXT,
-                strava_refresh_token TEXT,
-                strava_expires_at INTEGER,
-                strava_scope TEXT,
-                strava_last_sync DATETIME,
-                fitbit_access_token TEXT,
-                fitbit_refresh_token TEXT,
-                fitbit_expires_at INTEGER,
-                fitbit_scope TEXT,
-                fitbit_last_sync DATETIME,
-                is_active BOOLEAN NOT NULL DEFAULT 1,
-                user_status TEXT NOT NULL DEFAULT 'pending' CHECK (user_status IN ('pending', 'active', 'suspended')),
-                is_admin BOOLEAN NOT NULL DEFAULT 0,
-                approved_by TEXT, -- Admin token ID that approved this user
-                approved_at DATETIME,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_active DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| AppError::database(format!("Failed to create users table: {e}")))?;
-        Ok(())
-    }
-
-    async fn create_user_profiles_table(&self) -> AppResult<()> {
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS user_profiles (
-                user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-                profile_data TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| AppError::database(format!("Failed to create user_profiles table: {e}")))?;
-        Ok(())
-    }
-
-    async fn create_user_oauth_app_credentials_table(&self) -> AppResult<()> {
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS user_oauth_app_credentials (
-                id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                provider TEXT NOT NULL CHECK (provider IN ('strava', 'fitbit')),
-                client_id TEXT NOT NULL,
-                client_secret TEXT NOT NULL,
-                redirect_uri TEXT NOT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, provider)
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| {
-            AppError::database(format!(
-                "Failed to create user_oauth_app_credentials table: {e}"
-            ))
-        })?;
-        Ok(())
-    }
-
-    async fn create_users_indexes(&self) -> AppResult<()> {
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| {
-                AppError::database(format!("Failed to create index idx_users_email: {e}"))
-            })?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| {
-                AppError::database(format!("Failed to create index idx_users_is_active: {e}"))
-            })?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_status ON users(user_status)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| {
-                AppError::database(format!("Failed to create index idx_users_status: {e}"))
-            })?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_oauth_apps_user ON user_oauth_app_credentials(user_id)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AppError::database(format!("Failed to create index idx_user_oauth_apps_user: {e}")))?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_oauth_apps_provider ON user_oauth_app_credentials(provider)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AppError::database(format!("Failed to create index idx_user_oauth_apps_provider: {e}")))?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_oauth_apps_user_provider ON user_oauth_app_credentials(user_id, provider)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AppError::database(format!("Failed to create index idx_user_oauth_apps_user_provider: {e}")))?;
-
-        Ok(())
-    }
-
-    async fn create_users_triggers(&self) -> AppResult<()> {
-        sqlx::query(
-            r"
-            CREATE TRIGGER IF NOT EXISTS update_user_oauth_app_credentials_updated_at
-                AFTER UPDATE ON user_oauth_app_credentials
-                FOR EACH ROW
-            BEGIN
-                UPDATE user_oauth_app_credentials
-                SET updated_at = CURRENT_TIMESTAMP
-                WHERE id = NEW.id;
-            END
-            ",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| {
-            AppError::database(format!(
-                "Failed to create trigger update_user_oauth_app_credentials_updated_at: {e}"
-            ))
-        })?;
-        Ok(())
-    }
-
     /// Create or update a user
     ///
     /// # Errors
@@ -533,18 +374,20 @@ impl Database {
         profile_data: serde_json::Value,
     ) -> AppResult<()> {
         let profile_json = serde_json::to_string(&profile_data)?;
+        let now = chrono::Utc::now().to_rfc3339();
 
         sqlx::query(
             r"
-            INSERT INTO user_profiles (user_id, profile_data, updated_at)
-            VALUES ($1, $2, CURRENT_TIMESTAMP)
+            INSERT INTO user_profiles (user_id, profile_data, created_at, updated_at)
+            VALUES ($1, $2, $3, $3)
             ON CONFLICT(user_id) DO UPDATE SET
                 profile_data = $2,
-                updated_at = CURRENT_TIMESTAMP
+                updated_at = $3
             ",
         )
         .bind(user_id.to_string())
         .bind(profile_json)
+        .bind(&now)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to upsert user profile: {e}")))?;

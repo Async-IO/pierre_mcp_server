@@ -387,6 +387,14 @@ else
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_NULL"
 fi
 
+printf "│ %-35s │ %5d │ " "Placeholder implementations" "$IMPLEMENTATION_PLACEHOLDERS"
+if [ "$IMPLEMENTATION_PLACEHOLDERS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "No placeholder implementations"
+else
+    FIRST_PLACEHOLDER=$(get_first_location 'rg -i "$CRITICAL_PATTERNS" src/ -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_PLACEHOLDER"
+fi
+
 printf "│ %-35s │ %5d │ " "Resource creation patterns" "$RESOURCE_CREATION"
 if [ "$RESOURCE_CREATION" -eq 0 ]; then
     printf "$(format_status "✅ PASS")│ %-39s │\n" "Using dependency injection"
@@ -409,6 +417,21 @@ if [ "$UNSAFE_BLOCKS" -eq 0 ]; then
 else
     FIRST_UNSAFE=$(get_first_location 'rg "unsafe \{" src/ -g "!src/health.rs" -n')
     printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_UNSAFE"
+fi
+
+printf "│ %-35s │ %5d │ " "Forbidden anyhow! macro usage" "$TOML_ERROR_CONTEXT"
+if [ "$TOML_ERROR_CONTEXT" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Using structured error types"
+else
+    FIRST_ANYHOW=$(get_first_location 'rg "\\banyhow!\\(|anyhow::anyhow!\\(" src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_ANYHOW"
+fi
+
+printf "│ %-35s │ %5d │ " "Algorithm DI violations" "$TOTAL_ALGORITHM_VIOLATIONS"
+if [ "$TOTAL_ALGORITHM_VIOLATIONS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Using enum-based DI pattern"
+else
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$(truncate_text "$ALGORITHMS_WITH_VIOLATIONS" 37)"
 fi
 
 echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"
@@ -508,6 +531,14 @@ if [ "${BACKUP_FILES:-0}" -eq 0 ]; then
 else
     FIRST_BACKUP=$(find src/ -name "*.bak" -o -name "*.backup" -o -name "*~" 2>/dev/null | head -1)
     printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$(truncate_text "$FIRST_BACKUP" 37)"
+fi
+
+printf "│ %-35s │ %5d │ " "Legacy UX anti-patterns" "$LEGACY_ISSUES"
+if [ "$LEGACY_ISSUES" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "No legacy functions"
+else
+    FIRST_LEGACY=$(get_first_location 'rg "Legacy OAuth not supported|connect_strava|deprecated.*use.*instead" src/ -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_LEGACY"
 fi
 
 echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"

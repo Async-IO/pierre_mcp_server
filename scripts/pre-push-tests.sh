@@ -10,6 +10,33 @@ echo ""
 echo "Running critical path tests to catch issues before push..."
 echo ""
 
+# ============================================================================
+# TIER 0: Code Formatting (must pass FIRST - prevents CI failures)
+# ============================================================================
+echo "🎨 Tier 0: Code Formatting"
+echo "--------------------------"
+echo -n "Checking cargo fmt... "
+
+if cargo fmt --all -- --check > /dev/null 2>&1; then
+    echo "✅"
+else
+    echo "❌"
+    echo ""
+    echo "❌ ERROR: Code is not properly formatted!"
+    echo ""
+    echo "The following files need formatting:"
+    cargo fmt --all -- --check 2>&1 | grep "^Diff in" | sed 's/Diff in /  - /'
+    echo ""
+    echo "To fix this, run:"
+    echo "  cargo fmt --all"
+    echo ""
+    echo "Then commit the formatting changes and try pushing again."
+    echo ""
+    exit 1
+fi
+
+echo ""
+
 START_TIME=$(date +%s)
 
 # Counter for tracking

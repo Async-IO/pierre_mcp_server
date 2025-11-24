@@ -111,7 +111,10 @@ async fn test_notification_sse_endpoint_registered() {
     let routes = setup.routes();
 
     let endpoint = format!("/notifications/sse/{}", setup.user_id);
-    let response = AxumTestRequest::get(&endpoint).send_sse(routes).await;
+    let response = AxumTestRequest::get(&endpoint)
+        .header("Authorization", &format!("Bearer {}", setup.jwt_token))
+        .send_sse(routes)
+        .await;
 
     // SSE endpoint should be registered (not 404)
     // Status code might be 200 for SSE connection or 400/500 for errors
@@ -128,7 +131,10 @@ async fn test_notification_sse_valid_user_id() {
     let routes = setup.routes();
 
     let endpoint = format!("/notifications/sse/{}", setup.user_id);
-    let response = AxumTestRequest::get(&endpoint).send_sse(routes).await;
+    let response = AxumTestRequest::get(&endpoint)
+        .header("Authorization", &format!("Bearer {}", setup.jwt_token))
+        .send_sse(routes)
+        .await;
 
     // Should accept valid UUID
     assert!(
@@ -158,35 +164,50 @@ async fn test_notification_sse_different_users() {
     let setup = SseTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
 
-    // Test with different user IDs
-    let user_id1 = uuid::Uuid::new_v4();
-    let user_id2 = uuid::Uuid::new_v4();
-
-    let endpoint1 = format!("/notifications/sse/{}", user_id1);
-    let endpoint2 = format!("/notifications/sse/{}", user_id2);
-
+    // Test with authenticated user's own ID (should succeed)
+    let endpoint1 = format!("/notifications/sse/{}", setup.user_id);
     let response1 = AxumTestRequest::get(&endpoint1)
+        .header("Authorization", &format!("Bearer {}", setup.jwt_token))
         .send_sse(routes.clone())
         .await;
-    let response2 = AxumTestRequest::get(&endpoint2).send_sse(routes).await;
 
-    // Both should accept connections independently
-    assert!(response1.status() == 200 || response1.status() == 202);
-    assert!(response2.status() == 200 || response2.status() == 202);
+    // Should accept connection for own user_id
+    assert!(
+        response1.status() == 200 || response1.status() == 202,
+        "Should accept connection for authenticated user's own user_id"
+    );
+
+    // Test with different user ID (should fail with 401/403 due to ownership check)
+    let other_user_id = uuid::Uuid::new_v4();
+    let endpoint2 = format!("/notifications/sse/{}", other_user_id);
+    let response2 = AxumTestRequest::get(&endpoint2)
+        .header("Authorization", &format!("Bearer {}", setup.jwt_token))
+        .send_sse(routes)
+        .await;
+
+    // Should reject connection for different user_id (ownership enforcement)
+    assert!(
+        response2.status() == 401 || response2.status() == 403,
+        "Should reject connection for different user_id (got {})",
+        response2.status()
+    );
 }
 
 #[tokio::test]
-async fn test_notification_sse_no_auth_required() {
+async fn test_notification_sse_requires_auth() {
     let setup = SseTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
 
-    // SSE notification endpoints work without explicit auth header
-    // (they rely on user_id in path)
+    // SSE notification endpoints now require JWT authentication
     let endpoint = format!("/notifications/sse/{}", setup.user_id);
     let response = AxumTestRequest::get(&endpoint).send_sse(routes).await;
 
-    // Should not require Authorization header (not 401)
-    assert_ne!(response.status(), 401);
+    // Should require Authorization header and return 401 without it
+    assert_eq!(
+        response.status(),
+        401,
+        "SSE notification endpoint should require authentication"
+    );
 }
 
 // ============================================================================
@@ -201,7 +222,10 @@ async fn test_protocol_sse_endpoint_registered() {
     let session_id = format!("session_{}", uuid::Uuid::new_v4());
     let endpoint = format!("/mcp/sse/{}", session_id);
 
-    let response = AxumTestRequest::get(&endpoint).send_sse(routes).await;
+    let response = AxumTestRequest::get(&endpoint)
+        .header("Authorization", &format!("Bearer {}", setup.jwt_token))
+        .send_sse(routes)
+        .await;
 
     // SSE endpoint should be registered (not 404)
     assert_ne!(
@@ -219,7 +243,10 @@ async fn test_protocol_sse_valid_session_id() {
     let session_id = format!("session_{}", uuid::Uuid::new_v4());
     let endpoint = format!("/mcp/sse/{}", session_id);
 
-    let response = AxumTestRequest::get(&endpoint).send_sse(routes).await;
+    let response = AxumTestRequest::get(&endpoint)
+        .header("Authorization", &format!("Bearer {}", setup.jwt_token))
+        .send_sse(routes)
+        .await;
 
     // Should accept valid session ID
     assert!(
@@ -236,7 +263,10 @@ async fn test_protocol_sse_custom_session_id() {
     let session_id = "custom-session-123";
     let endpoint = format!("/mcp/sse/{}", session_id);
 
-    let response = AxumTestRequest::get(&endpoint).send_sse(routes).await;
+    let response = AxumTestRequest::get(&endpoint)
+        .header("Authorization", &format!("Bearer {}", setup.jwt_token))
+        .send_sse(routes)
+        .await;
 
     // Should accept any string as session ID
     assert!(
@@ -258,9 +288,13 @@ async fn test_protocol_sse_different_sessions() {
     let endpoint2 = format!("/mcp/sse/{}", session_id2);
 
     let response1 = AxumTestRequest::get(&endpoint1)
+        .header("Authorization", &format!("Bearer {}", setup.jwt_token))
         .send_sse(routes.clone())
         .await;
-    let response2 = AxumTestRequest::get(&endpoint2).send_sse(routes).await;
+    let response2 = AxumTestRequest::get(&endpoint2)
+        .header("Authorization", &format!("Bearer {}", setup.jwt_token))
+        .send_sse(routes)
+        .await;
 
     // Both should accept connections independently
     assert!(response1.status() == 200 || response1.status() == 202);
@@ -268,18 +302,22 @@ async fn test_protocol_sse_different_sessions() {
 }
 
 #[tokio::test]
-async fn test_protocol_sse_no_auth_required() {
+async fn test_protocol_sse_requires_auth() {
     let setup = SseTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
 
     let session_id = format!("session_{}", uuid::Uuid::new_v4());
     let endpoint = format!("/mcp/sse/{}", session_id);
 
-    // SSE protocol endpoints work without explicit auth header
+    // SSE protocol endpoints now require JWT authentication
     let response = AxumTestRequest::get(&endpoint).send_sse(routes).await;
 
-    // Should not require Authorization header (not 401)
-    assert_ne!(response.status(), 401);
+    // Should require Authorization header and return 401 without it
+    assert_eq!(
+        response.status(),
+        401,
+        "SSE protocol endpoint should require authentication"
+    );
 }
 
 // ============================================================================
@@ -323,11 +361,16 @@ async fn test_sse_concurrent_connections() {
 
     for _ in 0..3 {
         let routes = setup.routes();
-        let user_id = uuid::Uuid::new_v4();
+        let user_id = setup.user_id;
+        let jwt_token = setup.jwt_token.clone();
         let endpoint = format!("/notifications/sse/{}", user_id);
 
-        let handle =
-            tokio::spawn(async move { AxumTestRequest::get(&endpoint).send_sse(routes).await });
+        let handle = tokio::spawn(async move {
+            AxumTestRequest::get(&endpoint)
+                .header("Authorization", &format!("Bearer {}", jwt_token))
+                .send_sse(routes)
+                .await
+        });
 
         handles.push(handle);
     }
@@ -354,9 +397,11 @@ async fn test_notification_and_protocol_sse_independent() {
     let protocol_endpoint = format!("/mcp/sse/{}", session_id);
 
     let response1 = AxumTestRequest::get(&notification_endpoint)
+        .header("Authorization", &format!("Bearer {}", setup.jwt_token))
         .send_sse(routes.clone())
         .await;
     let response2 = AxumTestRequest::get(&protocol_endpoint)
+        .header("Authorization", &format!("Bearer {}", setup.jwt_token))
         .send_sse(routes)
         .await;
 
@@ -376,8 +421,14 @@ async fn test_sse_user_isolation() {
     let routes1 = setup1.routes();
     let routes2 = setup2.routes();
 
-    let response1 = AxumTestRequest::get(&endpoint1).send_sse(routes1).await;
-    let response2 = AxumTestRequest::get(&endpoint2).send_sse(routes2).await;
+    let response1 = AxumTestRequest::get(&endpoint1)
+        .header("Authorization", &format!("Bearer {}", setup1.jwt_token))
+        .send_sse(routes1)
+        .await;
+    let response2 = AxumTestRequest::get(&endpoint2)
+        .header("Authorization", &format!("Bearer {}", setup2.jwt_token))
+        .send_sse(routes2)
+        .await;
 
     // Both users should have independent SSE streams
     assert!(response1.status() == 200 || response1.status() == 202);
@@ -396,9 +447,13 @@ async fn test_sse_session_isolation() {
     let endpoint2 = format!("/mcp/sse/{}", session_id2);
 
     let response1 = AxumTestRequest::get(&endpoint1)
+        .header("Authorization", &format!("Bearer {}", setup.jwt_token))
         .send_sse(routes.clone())
         .await;
-    let response2 = AxumTestRequest::get(&endpoint2).send_sse(routes).await;
+    let response2 = AxumTestRequest::get(&endpoint2)
+        .header("Authorization", &format!("Bearer {}", setup.jwt_token))
+        .send_sse(routes)
+        .await;
 
     // Different sessions should be isolated
     assert!(response1.status() == 200 || response1.status() == 202);

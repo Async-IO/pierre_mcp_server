@@ -337,31 +337,10 @@ async fn test_calculate_recovery_score_tool() -> Result<()> {
     );
     executor.resources.database.create_user(&user).await?;
 
-    // Test with good recovery indicators
-    let sleep_data = json!({
-        "date": "2025-01-15T06:00:00Z",
-        "duration_hours": 8.0,
-        "efficiency_percent": 90.0,
-        "deep_sleep_hours": 1.5,
-        "rem_sleep_hours": 1.8,
-        "light_sleep_hours": 4.0,
-        "awake_hours": 0.7,
-        "hrv_rmssd_ms": 60.0
-    });
-
-    let training_load = json!({
-        "ctl": 50.0,
-        "atl": 45.0,
-        "tsb": 5.0,
-        "tss_history": []
-    });
-
     let request = UniversalRequest {
         tool_name: "calculate_recovery_score".to_owned(),
         parameters: json!({
-            "sleep_data": sleep_data,
-            "training_load": training_load,
-            "hrv_baseline": 55.0
+            "provider": "strava"
         }),
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
@@ -391,31 +370,10 @@ async fn test_calculate_recovery_score_fatigued() -> Result<()> {
     let executor = create_test_executor().await?;
     let user_id = Uuid::new_v4();
 
-    // Test with fatigued state (high TSB negative, poor sleep)
-    let sleep_data = json!({
-        "date": "2025-01-15T06:00:00Z",
-        "duration_hours": 6.0,
-        "efficiency_percent": 75.0,
-        "deep_sleep_hours": 0.9,
-        "rem_sleep_hours": 1.0,
-        "light_sleep_hours": 3.5,
-        "awake_hours": 0.6,
-        "hrv_rmssd_ms": 40.0
-    });
-
-    let training_load = json!({
-        "ctl": 60.0,
-        "atl": 72.0,
-        "tsb": -12.0,  // Highly fatigued
-        "tss_history": []
-    });
-
     let request = UniversalRequest {
         tool_name: "calculate_recovery_score".to_owned(),
         parameters: json!({
-            "sleep_data": sleep_data,
-            "training_load": training_load,
-            "hrv_baseline": 55.0
+            "provider": "strava"
         }),
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),

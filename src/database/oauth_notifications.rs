@@ -33,70 +33,6 @@ pub struct OAuthNotification {
 }
 
 impl Database {
-    /// Create `oauth_notifications` table
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The database schema migration fails
-    /// - Table creation fails
-    /// - Index creation fails
-    pub(super) async fn migrate_oauth_notifications(&self) -> AppResult<()> {
-        // Create oauth_notifications table
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS oauth_notifications (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                provider TEXT NOT NULL,
-                success INTEGER NOT NULL DEFAULT 1,
-                message TEXT NOT NULL,
-                expires_at TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                read_at DATETIME,
-                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| {
-            AppError::database(format!("Failed to create oauth_notifications table: {e}"))
-        })?;
-
-        // Create indices for efficient queries
-        sqlx::query(
-            r"
-            CREATE INDEX IF NOT EXISTS idx_oauth_notifications_user_id 
-            ON oauth_notifications (user_id)
-            ",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| {
-            AppError::database(format!(
-                "Failed to create index idx_oauth_notifications_user_id: {e}"
-            ))
-        })?;
-
-        sqlx::query(
-            r"
-            CREATE INDEX IF NOT EXISTS idx_oauth_notifications_user_unread
-            ON oauth_notifications (user_id, read_at)
-            WHERE read_at IS NULL
-            ",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| {
-            AppError::database(format!(
-                "Failed to create index idx_oauth_notifications_user_unread: {e}"
-            ))
-        })?;
-
-        Ok(())
-    }
-
     /// Store OAuth completion notification
     ///
     /// # Errors
@@ -113,11 +49,12 @@ impl Database {
         expires_at: Option<&str>,
     ) -> AppResult<String> {
         let notification_id = Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
 
         sqlx::query(
             r"
-            INSERT INTO oauth_notifications (id, user_id, provider, success, message, expires_at)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            INSERT INTO oauth_notifications (id, user_id, provider, success, message, expires_at, created_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
             ",
         )
         .bind(&notification_id)
@@ -126,6 +63,7 @@ impl Database {
         .bind(success)
         .bind(message)
         .bind(expires_at)
+        .bind(&now)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to store OAuth notification: {e}")))?;
