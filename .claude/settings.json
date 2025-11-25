@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./scripts/setup-git-hooks.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
