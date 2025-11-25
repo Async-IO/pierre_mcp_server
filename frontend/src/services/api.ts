@@ -1,6 +1,8 @@
 import axios, { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
+// In development, use empty string to leverage Vite proxy (avoids CORS issues)
+// In production, use VITE_API_BASE_URL environment variable
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 class ApiService {
   private csrfToken: string | null = null;
@@ -304,7 +306,7 @@ class ApiService {
 
   // Setup status endpoint (no authentication required)
   async getSetupStatus() {
-    const response = await axios.get('/admin/setup-status');
+    const response = await axios.get('/admin/setup/status');
     return response.data;
   }
 

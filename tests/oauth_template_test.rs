@@ -303,29 +303,30 @@ async fn test_oauth_login_error_rendering() {
     );
 }
 
-/// Test that templates use Pierre design system CSS
+/// Test that templates use Pierre design system colors
 #[test]
 fn test_templates_use_pierre_design_system() {
     const LOGIN_TEMPLATE: &str = include_str!("../templates/oauth_login.html");
     const ERROR_TEMPLATE: &str = include_str!("../templates/oauth_login_error.html");
 
-    // Verify Pierre design system variables are used
-    let pierre_vars = [
-        "--pierre-gray-",
-        "--pierre-blue-",
-        "--pierre-red-",
-        "--pierre-green-",
-        "--pierre-teal-",
+    // Verify Pierre brand colors are used (hex colors from BRAND.md)
+    // Primary: Violet #7C3AED, Cyan #06B6D4
+    // Activity: Emerald #10B981
+    // Nutrition: Amber #F59E0B
+    // Recovery: Indigo #6366F1
+    let pierre_colors = [
+        "#7C3AED", // Pierre Violet
+        "#06B6D4", // Pierre Cyan
     ];
 
-    for var in &pierre_vars {
+    for color in &pierre_colors {
         assert!(
-            LOGIN_TEMPLATE.contains(var),
-            "Login template missing Pierre design variable: {var}"
+            LOGIN_TEMPLATE.contains(color),
+            "Login template missing Pierre brand color: {color}"
         );
         assert!(
-            ERROR_TEMPLATE.contains(var),
-            "Error template missing Pierre design variable: {var}"
+            ERROR_TEMPLATE.contains(color),
+            "Error template missing Pierre brand color: {color}"
         );
     }
 

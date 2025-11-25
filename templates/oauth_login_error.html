@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
     <title>Login Failed - Pierre</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -74,8 +75,8 @@
         </div>
         <div class="brand">Pierre Fitness Platform</div>
         <h1>Login Failed</h1>
-        <p>Invalid email or password.</p>
-        <a href="/oauth2/login?client_id={{CLIENT_ID}}&redirect_uri={{REDIRECT_URI}}&response_type={{RESPONSE_TYPE}}&state={{STATE}}&scope={{SCOPE}}&code_challenge={{CODE_CHALLENGE}}&code_challenge_method={{CODE_CHALLENGE_METHOD}}">Try Again</a>
+        <p>{{ERROR_MESSAGE}}</p>
+        <a href="/oauth2/login?client_id={{CLIENT_ID}}&redirect_uri={{REDIRECT_URI}}&response_type={{RESPONSE_TYPE}}&state={{STATE}}&scope={{SCOPE}}&code_challenge={{CODE_CHALLENGE}}&code_challenge_method={{CODE_CHALLENGE_METHOD}}">Back to Login</a>
     </div>
 </body>
 </html>
