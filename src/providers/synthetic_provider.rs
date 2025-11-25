@@ -48,6 +48,7 @@ use std::sync::{Arc, RwLock};
 ///
 /// ```rust,no_run
 /// use pierre_mcp_server::providers::synthetic_provider::SyntheticProvider;
+/// use pierre_mcp_server::providers::core::FitnessProvider;  // Import trait for methods
 /// use pierre_mcp_server::models::Activity;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -55,7 +56,7 @@ use std::sync::{Arc, RwLock};
 /// let activities = vec![/* your activities */];
 /// let provider = SyntheticProvider::with_activities(activities);
 ///
-/// // Use like any other provider
+/// // Use like any other provider (FitnessProvider trait must be in scope)
 /// let result = provider.get_activities(Some(10), None).await?;
 /// # Ok(())
 /// # }

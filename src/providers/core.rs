@@ -55,7 +55,7 @@
 //! // Step 1: Define provider struct
 //! pub struct CustomProvider {
 //!     config: ProviderConfig,
-//!     // ... provider-specific fields
+//!     // ... provider-specific fields (e.g., HTTP client, tokens)
 //! }
 //!
 //! // Step 2: Implement shared FitnessProvider trait
@@ -69,25 +69,32 @@
 //!         &self.config
 //!     }
 //!
-//!     async fn set_credentials(&self, credentials: OAuth2Credentials) -> AppResult<()> {
-//!         // Provider-specific OAuth handling
+//!     async fn set_credentials(&self, _credentials: OAuth2Credentials) -> AppResult<()> {
+//!         // Provider-specific OAuth handling (store tokens, configure client)
 //!         Ok(())
 //!     }
 //!
 //!     async fn get_athlete(&self) -> AppResult<Athlete> {
-//!         // Fetch from provider API, convert to shared Athlete model
-//!         let response = self.fetch_athlete_from_api().await?;
-//!         Ok(self.convert_to_athlete(response))
+//!         // Real implementation would fetch from provider API
+//!         // and convert provider-specific response to shared Athlete model
+//!         Ok(Athlete {
+//!             id: "12345".to_owned(),
+//!             username: "athlete".to_owned(),
+//!             firstname: Some("John".to_owned()),
+//!             lastname: Some("Doe".to_owned()),
+//!             profile_picture: None,
+//!             provider: "custom".to_owned(),
+//!         })
 //!     }
 //!
 //!     async fn get_activities(
 //!         &self,
-//!         limit: Option<usize>,
-//!         offset: Option<usize>,
+//!         _limit: Option<usize>,
+//!         _offset: Option<usize>,
 //!     ) -> AppResult<Vec<Activity>> {
-//!         // Fetch from provider API, convert to shared Activity models
-//!         let responses = self.fetch_activities_from_api(limit, offset).await?;
-//!         Ok(responses.into_iter().map(|r| self.convert_to_activity(r)).collect())
+//!         // Real implementation would fetch from provider API
+//!         // and map provider-specific DTOs to shared Activity models
+//!         Ok(vec![])
 //!     }
 //!
 //!     // ... implement remaining trait methods
@@ -97,7 +104,7 @@
 //! #       Ok(pierre_mcp_server::pagination::CursorPage::new(vec![], None, None, false))
 //! #   }
 //! #   async fn get_activity(&self, _id: &str) -> AppResult<Activity> {
-//! #       Err(pierre_mcp_server::errors::AppError::NotFound("Activity not found".to_owned()))
+//! #       Err(pierre_mcp_server::errors::AppError::not_found("Activity not found"))
 //! #   }
 //! #   async fn get_stats(&self) -> AppResult<Stats> {
 //! #       Ok(Stats { total_activities: 0, total_distance: 0.0, total_duration: 0, total_elevation_gain: 0.0 })

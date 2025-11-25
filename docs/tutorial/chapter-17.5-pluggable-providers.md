@@ -8,10 +8,12 @@ This chapter explores pierre's pluggable provider architecture that enables runt
 - Runtime provider discovery (1 to x providers)
 - Environment-based provider configuration
 - Shared request/response trait contracts
+- **Service Provider Interface (SPI)** for external providers
+- **Feature flags** for compile-time provider selection
+- **Bitflags-based capabilities** detection
 - Adding custom providers without code changes
 - Synthetic provider for development/testing
 - Multi-provider connection management
-- Provider capability detection
 
 ## pluggable architecture overview
 
@@ -47,6 +49,151 @@ Pierre implements a **fully pluggable provider system** where fitness providers 
 ```
 
 **Key benefit**: Add, remove, or swap providers without modifying tool code, connection handlers, or application logic.
+
+## feature flags (compile-time selection)
+
+Pierre uses Cargo feature flags for compile-time provider selection. This allows minimal binaries with only the providers you need:
+
+**Source**: Cargo.toml:49-53
+```toml
+# Provider feature flags - enable/disable individual fitness data providers
+provider-strava = []
+provider-garmin = []
+provider-synthetic = []
+all-providers = ["provider-strava", "provider-garmin", "provider-synthetic"]
+```
+
+**Build with specific providers**:
+```bash
+# All providers (default)
+cargo build --release
+
+# Only Strava
+cargo build --release --no-default-features --features "sqlite,provider-strava"
+
+# Strava + Garmin (no synthetic)
+cargo build --release --no-default-features --features "sqlite,provider-strava,provider-garmin"
+```
+
+**Conditional compilation in code**:
+```rust
+// Provider modules conditionally compiled
+#[cfg(feature = "provider-strava")]
+pub mod strava_provider;
+
+#[cfg(feature = "provider-garmin")]
+pub mod garmin_provider;
+
+#[cfg(feature = "provider-synthetic")]
+pub mod synthetic_provider;
+```
+
+## service provider interface (SPI)
+
+The SPI defines the contract for pluggable providers, enabling external crates to register providers without modifying core code.
+
+### ProviderDescriptor trait
+
+**Source**: src/providers/spi.rs:129-177
+```rust
+/// Service Provider Interface (SPI) for pluggable fitness providers
+///
+/// External provider crates implement this trait to describe their capabilities.
+pub trait ProviderDescriptor: Send + Sync {
+    /// Unique provider identifier (e.g., "strava", "garmin", "whoop")
+    fn name(&self) -> &'static str;
+
+    /// Human-readable display name (e.g., "Strava", "Garmin Connect")
+    fn display_name(&self) -> &'static str;
+
+    /// Provider capabilities using bitflags
+    fn capabilities(&self) -> ProviderCapabilities;
+
+    /// OAuth endpoints (None for non-OAuth providers like synthetic)
+    fn oauth_endpoints(&self) -> Option<OAuthEndpoints>;
+
+    /// OAuth parameters (scope separator, PKCE, etc.)
+    fn oauth_params(&self) -> Option<OAuthParams>;
+
+    /// Base URL for API requests
+    fn api_base_url(&self) -> &'static str;
+
+    /// Default OAuth scopes for this provider
+    fn default_scopes(&self) -> &'static [&'static str];
+}
+```
+
+### ProviderCapabilities (bitflags)
+
+Provider capabilities use bitflags for efficient storage and combinators:
+
+**Source**: src/providers/spi.rs:95-126
+```rust
+bitflags::bitflags! {
+    /// Provider capability flags using bitflags for efficient storage
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct ProviderCapabilities: u8 {
+        /// Provider supports OAuth 2.0 authentication
+        const OAUTH = 0b0000_0001;
+        /// Provider supports activity data (workouts, runs, rides)
+        const ACTIVITIES = 0b0000_0010;
+        /// Provider supports sleep tracking data
+        const SLEEP_TRACKING = 0b0000_0100;
+        /// Provider supports recovery metrics (HRV, strain)
+        const RECOVERY_METRICS = 0b0000_1000;
+        /// Provider supports health metrics (weight, body composition)
+        const HEALTH_METRICS = 0b0001_0000;
+    }
+}
+
+impl ProviderCapabilities {
+    /// Full fitness provider (OAuth + activities)
+    pub const fn full_fitness() -> Self {
+        Self::OAUTH.union(Self::ACTIVITIES)
+    }
+
+    /// Full health provider (all capabilities)
+    pub const fn full_health() -> Self {
+        Self::OAUTH
+            .union(Self::ACTIVITIES)
+            .union(Self::SLEEP_TRACKING)
+            .union(Self::RECOVERY_METRICS)
+            .union(Self::HEALTH_METRICS)
+    }
+}
+```
+
+**Using capabilities**:
+```rust
+// Check specific capability
+if provider.capabilities().contains(ProviderCapabilities::SLEEP_TRACKING) {
+    // Provider supports sleep data
+}
+
+// Combine capabilities
+let caps = ProviderCapabilities::OAUTH | ProviderCapabilities::ACTIVITIES;
+
+// Use convenience constructors
+let full_health = ProviderCapabilities::full_health();
+```
+
+### OAuthParams
+
+OAuth configuration varies by provider (scope separators, PKCE support):
+
+**Source**: src/providers/spi.rs:85-93
+```rust
+/// OAuth parameters for provider-specific configuration
+#[derive(Debug, Clone)]
+pub struct OAuthParams {
+    /// Scope separator character (space for Fitbit, comma for Strava)
+    pub scope_separator: &'static str,
+    /// Whether to use PKCE (recommended for public clients)
+    pub use_pkce: bool,
+    /// Additional query parameters for authorization URL
+    pub additional_auth_params: &'static [(&'static str, &'static str)],
+}
+```
 
 ## provider registry
 
@@ -394,28 +541,92 @@ pub fn default_provider() -> String {
 2. `PIERRE_DEFAULT_PROVIDER=garmin` → use Garmin
 3. Not set or empty → use Synthetic (OAuth-free development)
 
-## adding a custom provider (1 to x)
+## adding a custom provider (SPI approach)
 
-Here's how to add a new provider to pierre's registry:
+Here's how to add a new provider using the SPI architecture:
 
-### step 1: implement FitnessProvider trait
+### step 1: add feature flag
 
-**Source**: your_custom_provider.rs
+**Source**: Cargo.toml
+```toml
+[features]
+provider-whoop = []
+all-providers = ["provider-strava", "provider-garmin", "provider-synthetic", "provider-whoop"]
+```
+
+### step 2: implement ProviderDescriptor (SPI)
+
+**Source**: src/providers/spi.rs
+```rust
+use pierre_mcp_server::providers::spi::{
+    ProviderDescriptor, OAuthEndpoints, OAuthParams, ProviderCapabilities
+};
+
+/// WHOOP provider descriptor for SPI registration
+#[cfg(feature = "provider-whoop")]
+pub struct WhoopDescriptor;
+
+#[cfg(feature = "provider-whoop")]
+impl ProviderDescriptor for WhoopDescriptor {
+    fn name(&self) -> &'static str {
+        "whoop"
+    }
+
+    fn display_name(&self) -> &'static str {
+        "WHOOP"
+    }
+
+    fn capabilities(&self) -> ProviderCapabilities {
+        // WHOOP supports all health features - use bitflags combinator
+        ProviderCapabilities::full_health()
+    }
+
+    fn oauth_endpoints(&self) -> Option<OAuthEndpoints> {
+        Some(OAuthEndpoints {
+            auth_url: "https://api.prod.whoop.com/oauth/oauth2/auth",
+            token_url: "https://api.prod.whoop.com/oauth/oauth2/token",
+            revoke_url: Some("https://api.prod.whoop.com/oauth/oauth2/revoke"),
+        })
+    }
+
+    fn oauth_params(&self) -> Option<OAuthParams> {
+        Some(OAuthParams {
+            scope_separator: " ",  // Space-separated scopes
+            use_pkce: true,        // PKCE recommended
+            additional_auth_params: &[],
+        })
+    }
+
+    fn api_base_url(&self) -> &'static str {
+        "https://api.prod.whoop.com/developer/v1"
+    }
+
+    fn default_scopes(&self) -> &'static [&'static str] {
+        &["read:profile", "read:workout", "read:sleep", "read:recovery"]
+    }
+}
+```
+
+### step 3: implement FitnessProvider trait
+
+**Source**: src/providers/whoop_provider.rs
 ```rust
 use pierre_mcp_server::providers::core::{FitnessProvider, ProviderConfig, OAuth2Credentials};
 use pierre_mcp_server::models::{Activity, Athlete, Stats};
 use pierre_mcp_server::errors::AppResult;
-use pierre_mcp_server::pagination::{PaginationParams, CursorPage};
 use async_trait::async_trait;
+use std::sync::{Arc, RwLock};
 
-pub struct WhooProvider {
+#[cfg(feature = "provider-whoop")]
+pub struct WhoopProvider {
     config: ProviderConfig,
     credentials: Arc<RwLock<Option<OAuth2Credentials>>>,
     http_client: reqwest::Client,
 }
 
+#[cfg(feature = "provider-whoop")]
 #[async_trait]
-impl FitnessProvider for WhooProvider {
+impl FitnessProvider for WhoopProvider {
     fn name(&self) -> &'static str {
         "whoop"
     }
@@ -425,52 +636,54 @@ impl FitnessProvider for WhooProvider {
     }
 
     async fn set_credentials(&self, credentials: OAuth2Credentials) -> AppResult<()> {
-        *self.credentials.write().await = Some(credentials);
+        // Store credentials using RwLock for interior mutability
+        let mut creds = self.credentials.write()
+            .map_err(|_| pierre_mcp_server::providers::errors::ProviderError::ConfigurationError(
+                "Failed to acquire credentials lock".to_owned()
+            ))?;
+        *creds = Some(credentials);
         Ok(())
     }
 
-    async fn is_authenticated(&self) -> bool {
-        self.credentials.read().await.is_some()
-    }
-
     async fn get_athlete(&self) -> AppResult<Athlete> {
-        // Fetch from Whoop API
-        let response = self.http_client
-            .get(&format!("{}/user/profile", self.config.api_base_url))
-            .header("Authorization", format!("Bearer {}", self.access_token()?))
-            .send()
-            .await?;
-
-        // Convert Whoop JSON to unified Athlete model
-        let whoop_user: WhoopUserResponse = response.json().await?;
+        // Real implementation: fetch from WHOOP API and convert to unified model
         Ok(Athlete {
-            id: whoop_user.user_id.to_string(),
-            username: Some(whoop_user.email),
-            firstname: Some(whoop_user.first_name),
-            lastname: Some(whoop_user.last_name),
-            // ... map Whoop fields to Athlete model
+            id: "whoop-user-123".to_owned(),
+            username: "athlete".to_owned(),
+            firstname: Some("WHOOP".to_owned()),
+            lastname: Some("User".to_owned()),
+            profile_picture: None,
+            provider: "whoop".to_owned(),
         })
     }
 
     async fn get_activities(
         &self,
-        limit: Option<usize>,
-        offset: Option<usize>,
+        _limit: Option<usize>,
+        _offset: Option<usize>,
     ) -> AppResult<Vec<Activity>> {
-        // Fetch from Whoop API
-        // Convert Whoop workouts to Activity models
-        todo!("Implement Whoop activity fetching")
+        // Real implementation: fetch workouts from WHOOP API
+        Ok(vec![])
     }
 
     // ... implement remaining trait methods
 }
 ```
 
-### step 2: create provider factory
+### step 4: create provider factory and register
 
+**Source**: src/providers/registry.rs
 ```rust
-pub struct WhoopProviderFactory;
+#[cfg(feature = "provider-whoop")]
+use super::whoop_provider::WhoopProvider;
+#[cfg(feature = "provider-whoop")]
+use super::spi::WhoopDescriptor;
 
+/// Factory for creating WHOOP provider instances
+#[cfg(feature = "provider-whoop")]
+struct WhoopProviderFactory;
+
+#[cfg(feature = "provider-whoop")]
 impl ProviderFactory for WhoopProviderFactory {
     fn create(&self, config: ProviderConfig) -> Box<dyn FitnessProvider> {
         Box::new(WhoopProvider::new(config))
@@ -480,81 +693,54 @@ impl ProviderFactory for WhoopProviderFactory {
         &["whoop"]
     }
 }
-```
 
-### step 3: register in ProviderRegistry
-
-**Source**: src/providers/registry.rs
-```rust
-impl ProviderRegistry {
-    pub fn new() -> Self {
-        let mut registry = Self {
-            factories: HashMap::new(),
-            default_configs: HashMap::new(),
-        };
-
-        // Existing providers (Strava, Garmin, Fitbit, Synthetic)
-        // ...
-
-        // Register Whoop provider (NEW!)
-        registry.register_factory(
-            "whoop",  // Provider name
-            Box::new(WhoopProviderFactory),
-        );
-        let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
-            crate::config::environment::load_provider_env_config(
-                "whoop",
-                "https://api.prod.whoop.com/oauth/authorize",
-                "https://api.prod.whoop.com/oauth/token",
-                "https://api.prod.whoop.com/developer/v1",
-                Some("https://api.prod.whoop.com/oauth/revoke"),
-                &["read:workout".to_owned(), "read:profile".to_owned()],
-            );
-        registry.set_default_config(
-            "whoop",
-            ProviderConfig {
-                name: "whoop".to_owned(),
-                auth_url,
-                token_url,
-                api_base_url,
-                revoke_url,
-                default_scopes: scopes,
-            },
-        );
-
-        registry
-    }
+// In ProviderRegistry::new():
+#[cfg(feature = "provider-whoop")]
+{
+    let descriptor = WhoopDescriptor;
+    registry.register_factory("whoop", Box::new(WhoopProviderFactory));
+    // Config loaded from descriptor's oauth_endpoints() and default_scopes()
 }
 ```
 
-### step 4: add to constants
+### step 5: add to constants and module exports
 
 **Source**: src/constants/oauth/providers.rs
 ```rust
+#[cfg(feature = "provider-whoop")]
 pub const WHOOP: &str = "whoop";
 
-#[must_use]
-pub const fn all() -> &'static [&'static str] {
-    &[STRAVA, FITBIT, GARMIN, SYNTHETIC, WHOOP]  // Add WHOOP
-}
+#[cfg(feature = "provider-whoop")]
+pub const WHOOP_DEFAULT_SCOPES: &str = "read:profile read:workout read:sleep read:recovery";
 ```
 
-### step 5: configure environment
+**Source**: src/providers/mod.rs
+```rust
+#[cfg(feature = "provider-whoop")]
+pub mod whoop_provider;
+
+#[cfg(feature = "provider-whoop")]
+pub use spi::WhoopDescriptor;
+```
+
+### step 6: configure environment
 
 **Source**: .envrc
 ```bash
-# Whoop provider configuration
-export PIERRE_WHOOP_CLIENT_ID=your-whoop-client-id
-export PIERRE_WHOOP_CLIENT_SECRET=your-whoop-secret
-export PIERRE_WHOOP_SCOPES="read:workout,read:profile"
+# WHOOP provider configuration
+export WHOOP_CLIENT_ID=your-whoop-client-id
+export WHOOP_CLIENT_SECRET=your-whoop-secret
+export WHOOP_REDIRECT_URI=http://localhost:8081/api/oauth/callback/whoop
 ```
 
-**That's it!** Whoop is now:
-- ✅ Available in `supported_providers()`
+**That's it!** WHOOP is now:
+- ✅ Conditionally compiled with `--features provider-whoop`
+- ✅ Available in `supported_providers()` when feature enabled
 - ✅ Discoverable via `is_supported("whoop")`
 - ✅ Creatable via `create_provider("whoop")`
 - ✅ Listed in connection status responses
 - ✅ Supported in `connect_provider` tool
+- ✅ Capabilities queryable via bitflags
 
 **No changes needed**:
 - ❌ Connection handlers (dynamic discovery)
@@ -769,27 +955,33 @@ export PIERRE_STRAVA_CLIENT_SECRET=test-secret
 
 1. **Pluggable architecture**: Providers registered at runtime through factory pattern, no compile-time coupling.
 
-2. **1 to x providers**: System supports unlimited providers simultaneously - just Strava, or Strava + Garmin + Fitbit + custom providers.
+2. **Feature flags**: Compile-time provider selection via `provider-strava`, `provider-garmin`, `provider-synthetic` for minimal binaries.
 
-3. **Dynamic discovery**: `supported_providers()` and `is_supported()` enable runtime introspection and automatic tool adaptation.
+3. **Service Provider Interface (SPI)**: `ProviderDescriptor` trait enables external providers to register without core code changes.
 
-4. **Environment-based config**: Cloud-native deployment using `PIERRE_<PROVIDER>_*` environment variables (no TOML files).
+4. **Bitflags capabilities**: `ProviderCapabilities` uses efficient bitflags with combinators like `full_health()` and `full_fitness()`.
 
-5. **Synthetic provider**: OAuth-free development provider perfect for CI/CD, demos, and rapid iteration.
+5. **1 to x providers**: System supports unlimited providers simultaneously - just Strava, or Strava + Garmin + custom providers.
 
-6. **Factory pattern**: `ProviderFactory` trait enables lazy provider instantiation with configuration injection.
+6. **Dynamic discovery**: `supported_providers()` and `is_supported()` enable runtime introspection and automatic tool adaptation.
 
-7. **Shared interface**: `FitnessProvider` trait ensures uniform request/response patterns across all providers.
+7. **Environment-based config**: Cloud-native deployment using `PIERRE_<PROVIDER>_*` environment variables.
 
-8. **Trait objects**: `Box<dyn ProviderFactory>` enables storing heterogeneous factory types in registry.
+8. **Synthetic provider**: OAuth-free development provider perfect for CI/CD, demos, and rapid iteration.
 
-9. **Interior mutability**: `Arc<RwLock<T>>` pattern allows mutation through `&self` in async trait methods.
+9. **OAuth parameters**: `OAuthParams` struct captures provider-specific OAuth differences (scope separator, PKCE).
 
-10. **Zero code changes**: Adding providers doesn't require modifying connection handlers, tools, or application logic.
+10. **Factory pattern**: `ProviderFactory` trait enables lazy provider instantiation with configuration injection.
 
-11. **Backward compatibility**: Legacy env vars (`STRAVA_CLIENT_ID`) supported alongside new format (`PIERRE_STRAVA_CLIENT_ID`).
+11. **Shared interface**: `FitnessProvider` trait ensures uniform request/response patterns across all providers.
 
-12. **Type safety**: Compiler enforces that all providers implement complete `FitnessProvider` interface.
+12. **Trait objects**: `Box<dyn ProviderFactory>` enables storing heterogeneous factory types in registry.
+
+13. **Interior mutability**: `Arc<RwLock<T>>` pattern allows mutation through `&self` in async trait methods.
+
+14. **Zero code changes**: Adding providers doesn't require modifying connection handlers, tools, or application logic.
+
+15. **Type safety**: Compiler enforces that all providers implement complete `FitnessProvider` interface.
 
 ---
 

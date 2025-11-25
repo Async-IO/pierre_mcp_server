@@ -19,7 +19,9 @@
 //! ## Example: Implementing a Custom Provider
 //!
 //! ```rust,no_run
-//! use pierre_mcp_server::providers::spi::{ProviderDescriptor, OAuthEndpoints, ProviderCapabilities};
+//! use pierre_mcp_server::providers::spi::{
+//!     ProviderDescriptor, OAuthEndpoints, OAuthParams, ProviderCapabilities
+//! };
 //!
 //! pub struct WhoopDescriptor;
 //!
@@ -33,13 +35,8 @@
 //!     }
 //!
 //!     fn capabilities(&self) -> ProviderCapabilities {
-//!         ProviderCapabilities {
-//!             oauth: true,
-//!             activities: true,
-//!             sleep_tracking: true,
-//!             recovery_metrics: true,
-//!             health_metrics: true,
-//!         }
+//!         // Use bitflags combinators for provider capabilities
+//!         ProviderCapabilities::full_health()
 //!     }
 //!
 //!     fn oauth_endpoints(&self) -> Option<OAuthEndpoints> {
@@ -47,6 +44,14 @@
 //!             auth_url: "https://api.prod.whoop.com/oauth/oauth2/auth",
 //!             token_url: "https://api.prod.whoop.com/oauth/oauth2/token",
 //!             revoke_url: Some("https://api.prod.whoop.com/oauth/oauth2/revoke"),
+//!         })
+//!     }
+//!
+//!     fn oauth_params(&self) -> Option<OAuthParams> {
+//!         Some(OAuthParams {
+//!             scope_separator: " ",
+//!             use_pkce: true,
+//!             additional_auth_params: &[],
 //!         })
 //!     }
 //!

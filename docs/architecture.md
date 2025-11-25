@@ -66,11 +66,15 @@ Pierre Fitness Platform is a multi-protocol fitness data platform that connects 
 
 ### providers (`src/providers/`)
 - **pluggable provider architecture**: factory pattern with runtime registration
-- **1 to x providers simultaneously**: supports strava + garmin + fitbit + custom providers at once
+- **feature flags**: compile-time provider selection (`provider-strava`, `provider-garmin`, `provider-synthetic`)
+- **service provider interface (spi)**: `ProviderDescriptor` trait for external provider registration
+- **bitflags capabilities**: efficient `ProviderCapabilities` with combinators (`full_health()`, `full_fitness()`)
+- **1 to x providers simultaneously**: supports strava + garmin + custom providers at once
 - **provider registry**: `ProviderRegistry` manages all providers with dynamic discovery
 - **environment-based config**: cloud-native configuration via `PIERRE_<PROVIDER>_*` env vars
 - **shared `FitnessProvider` trait**: uniform interface for all providers
-- **built-in providers**: strava, garmin, fitbit, synthetic (oauth-free dev/testing)
+- **built-in providers**: strava, garmin, synthetic (oauth-free dev/testing)
+- **oauth parameters**: `OAuthParams` captures provider-specific oauth differences (scope separator, pkce)
 - **dynamic discovery**: `supported_providers()` and `is_supported()` for runtime introspection
 - **zero code changes**: add new providers without modifying tools or connection handlers
 - **unified oauth token management**: per-provider credentials with automatic refresh
