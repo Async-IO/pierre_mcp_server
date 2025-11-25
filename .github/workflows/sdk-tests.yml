@@ -79,7 +79,8 @@ jobs:
           kill $SERVER_PID 2>/dev/null || true
 
           # Check for uncommitted changes to types.ts (ignore timestamp-only changes)
-          DIFF_LINES=$(git diff sdk/src/types.ts | grep -E "^[+-]" | grep -v "^[+-]{3}" | grep -v "Generated:" | wc -l)
+          # Filter: keep +/- lines, remove --- and +++ headers, remove Generated: timestamp
+          DIFF_LINES=$(git diff sdk/src/types.ts | grep -E "^[+-]" | grep -v "^---" | grep -v "^+++" | grep -v "Generated:" | wc -l)
           if [ "$DIFF_LINES" -gt 0 ]; then
             echo "ERROR: SDK types are out of date!"
             echo "Run 'cd sdk && npm run generate-types' with server running and commit the changes"
