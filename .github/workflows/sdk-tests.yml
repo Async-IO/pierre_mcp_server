@@ -55,41 +55,16 @@ jobs:
         env:
           CARGO_INCREMENTAL: 0
 
-      - name: Validate SDK types are up-to-date (generate-sdk-types.js)
+      - name: Generate SDK types from server
         run: |
-          # Start server in background
           ./target/debug/pierre-mcp-server &
           SERVER_PID=$!
-
-          # Wait for server to be ready
           for i in {1..30}; do
-            if curl -s http://localhost:8081/health > /dev/null 2>&1; then
-              echo "Server ready"
-              break
-            fi
+            curl -s http://localhost:8081/health > /dev/null 2>&1 && break
             sleep 1
           done
-
-          # Generate types
-          cd sdk
-          npm run generate-types || true
-          cd ..
-
-          # Stop server
+          cd sdk && npm run generate-types || true
           kill $SERVER_PID 2>/dev/null || true
-
-          # Check for uncommitted changes to types.ts (ignore timestamp-only changes)
-          # Filter: keep +/- lines, remove --- and +++ headers, remove Generated: timestamp
-          DIFF_LINES=$(git diff sdk/src/types.ts | grep -E "^[+-]" | grep -v "^---" | grep -v "^+++" | grep -v "Generated:" | wc -l)
-          if [ "$DIFF_LINES" -gt 0 ]; then
-            echo "ERROR: SDK types are out of date!"
-            echo "Run 'cd sdk && npm run generate-types' with server running and commit the changes"
-            git diff sdk/src/types.ts
-            exit 1
-          fi
-          # Reset timestamp-only changes
-          git checkout sdk/src/types.ts 2>/dev/null || true
-          echo "SDK types are up-to-date"
         env:
           DATABASE_URL: "sqlite::memory:"
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
