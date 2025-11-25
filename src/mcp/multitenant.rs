@@ -21,12 +21,6 @@ use crate::auth::{AuthManager, AuthResult};
 use crate::constants::{
     errors::{ERROR_INTERNAL_ERROR, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND},
     protocol::JSONRPC_VERSION,
-    tools::{
-        ANALYZE_ACTIVITY, ANALYZE_GOAL_FEASIBILITY, ANALYZE_PERFORMANCE_TRENDS,
-        ANALYZE_TRAINING_LOAD, CALCULATE_FITNESS_SCORE, CALCULATE_METRICS, COMPARE_ACTIVITIES,
-        DETECT_PATTERNS, GENERATE_RECOMMENDATIONS, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE,
-        GET_ATHLETE, GET_STATS, PREDICT_PERFORMANCE, SET_GOAL, SUGGEST_GOALS, TRACK_PROGRESS,
-    },
 };
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
@@ -157,48 +151,6 @@ impl MultiTenantMcpServer {
         }
     }
 
-    /// Handle tools that don't require external providers
-    pub async fn handle_tool_without_provider(
-        tool_name: &str,
-        args: &Value,
-        request_id: Value,
-        user_id: Uuid,
-        database: &Arc<Database>,
-        auth_result: &AuthResult,
-    ) -> McpResponse {
-        let start_time = std::time::Instant::now();
-        let response = Self::execute_tool_call_without_provider(
-            tool_name,
-            args,
-            request_id.clone(),
-            user_id,
-            database,
-        )
-        .await;
-
-        // Record API key usage if authenticated with API key
-        if let crate::auth::AuthMethod::ApiKey { key_id, .. } = &auth_result.auth_method {
-            if let Err(e) = Self::record_api_key_usage(
-                database,
-                key_id,
-                tool_name,
-                start_time.elapsed(),
-                &response,
-            )
-            .await
-            {
-                tracing::warn!(
-                    key_id = %key_id,
-                    tool_name = %tool_name,
-                    error = %e,
-                    "Failed to record API key usage - metrics may be incomplete"
-                );
-            }
-        }
-
-        response
-    }
-
     /// Handle `disconnect_provider` tool call
     async fn handle_disconnect_provider(
         user_id: Uuid,
@@ -239,161 +191,6 @@ impl MultiTenantMcpServer {
                 }),
                 id: Some(id),
             },
-        }
-    }
-
-    /// Execute tool call without provider (for database-only tools)
-    async fn execute_tool_call_without_provider(
-        tool_name: &str,
-        args: &Value,
-        id: Value,
-        user_id: Uuid,
-        database: &Arc<Database>,
-    ) -> McpResponse {
-        let result = match tool_name {
-            SET_GOAL => Self::handle_set_goal(args, user_id, database, &id).await,
-            TRACK_PROGRESS => Self::handle_track_progress(args, user_id, database, &id).await,
-            PREDICT_PERFORMANCE => {
-                return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INTERNAL_ERROR,
-                        message: "Provider required".into(),
-                        data: None,
-                    }),
-                    id: Some(id),
-                };
-            }
-            _ => {
-                return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_METHOD_NOT_FOUND,
-                        message: format!("Unknown tool: {tool_name}"),
-                        data: None,
-                    }),
-                    id: Some(id),
-                };
-            }
-        };
-
-        match result {
-            Ok(response) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_owned(),
-                result: Some(response),
-                error: None,
-                id: Some(id),
-            },
-            Err(error_response) => error_response,
-        }
-    }
-
-    /// Handle `SET_GOAL` tool call
-    async fn handle_set_goal(
-        args: &Value,
-        user_id: Uuid,
-        database: &Arc<Database>,
-        id: &Value,
-    ) -> Result<Value, McpResponse> {
-        let goal_data = args.clone();
-
-        match database.create_goal(user_id, goal_data).await {
-            Ok(goal_id) => {
-                let response = json_schemas::GoalCreatedResponse {
-                    goal_created: json_schemas::GoalCreatedDetails {
-                        goal_id,
-                        status: "active".to_owned(),
-                        message: "Goal successfully created".to_owned(),
-                    },
-                };
-                Ok(serde_json::to_value(response).unwrap_or_else(|_| serde_json::json!({})))
-            }
-            Err(e) => Err(McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_owned(),
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_INTERNAL_ERROR,
-                    message: format!("Failed to create goal: {e}"),
-                    data: None,
-                }),
-                id: Some(id.clone()),
-            }),
-        }
-    }
-
-    /// Handle `TRACK_PROGRESS` tool call
-    async fn handle_track_progress(
-        args: &Value,
-        user_id: Uuid,
-        database: &Arc<Database>,
-        id: &Value,
-    ) -> Result<Value, McpResponse> {
-        let params = match serde_json::from_value::<json_schemas::TrackProgressParams>(args.clone())
-        {
-            Ok(p) => p,
-            Err(e) => {
-                return Err(McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INVALID_PARAMS,
-                        message: format!("Invalid track_progress parameters: {e}"),
-                        data: None,
-                    }),
-                    id: Some(id.clone()),
-                });
-            }
-        };
-        let goal_id = &params.goal_id;
-
-        match database.get_user_goals(user_id).await {
-            Ok(goals) => {
-                goals
-                    .iter()
-                    .find(|g| g["id"].as_str() == Some(goal_id.as_str()))
-                    .map_or_else(
-                        || {
-                            Err(McpResponse {
-                                jsonrpc: JSONRPC_VERSION.to_owned(),
-                                result: None,
-                                error: Some(McpError {
-                                    code: ERROR_INVALID_PARAMS,
-                                    message: format!("Goal with ID '{goal_id}' not found"),
-                                    data: None,
-                                }),
-                                id: Some(id.clone()),
-                            })
-                        },
-                        |goal| {
-                            let response = json_schemas::ProgressReportResponse {
-                                progress_report: json_schemas::ProgressReportDetails {
-                                    goal_id: goal_id.to_owned(),
-                                    goal: goal.clone(),
-                                    progress_percentage: 65.0,
-                                    on_track: true,
-                                    insights: vec![
-                                        "Making good progress toward your goal".to_owned(),
-                                        "Maintain current training frequency".to_owned(),
-                                    ],
-                                },
-                            };
-                            Ok(serde_json::to_value(response)
-                                .unwrap_or_else(|_| serde_json::json!({})))
-                        },
-                    )
-            }
-            Err(e) => Err(McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_owned(),
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_INTERNAL_ERROR,
-                    message: format!("Failed to get goals: {e}"),
-                    data: None,
-                }),
-                id: Some(id.clone()),
-            }),
         }
     }
 
@@ -889,33 +686,8 @@ impl MultiTenantMcpServer {
         }
     }
 
-    /// Handle tenant-aware tools that require providers
-    /// Known tools that can be executed with provider context
-    const KNOWN_PROVIDER_TOOLS: &'static [&'static str] = &[
-        GET_ACTIVITIES,
-        GET_ATHLETE,
-        GET_STATS,
-        GET_ACTIVITY_INTELLIGENCE,
-        ANALYZE_ACTIVITY,
-        CALCULATE_METRICS,
-        COMPARE_ACTIVITIES,
-        PREDICT_PERFORMANCE,
-        // Analytics tools - route through Universal Protocol
-        ANALYZE_GOAL_FEASIBILITY,
-        SUGGEST_GOALS,
-        CALCULATE_FITNESS_SCORE,
-        GENERATE_RECOMMENDATIONS,
-        ANALYZE_TRAINING_LOAD,
-        DETECT_PATTERNS,
-        ANALYZE_PERFORMANCE_TRENDS,
-        // Configuration tools - route through Universal Protocol
-        "get_configuration_catalog",
-        "get_configuration_profiles",
-        "get_user_configuration",
-        "update_user_configuration",
-        "calculate_personalized_zones",
-        "validate_configuration",
-    ];
+    // Tool routing now uses ToolId::from_name() to validate tools
+    // All tools registered in ToolId enum are automatically routed through Universal Protocol
 
     async fn handle_tenant_tool_with_provider(
         tool_name: &str,
@@ -976,9 +748,12 @@ impl MultiTenantMcpServer {
         .await
     }
 
-    /// Validate that tool name is in the known tools list
+    /// Validate that tool name is registered in the Universal protocol `ToolId` registry
+    /// All tools registered in `ToolId` enum are automatically routed through Universal Protocol
     fn validate_known_tool(tool_name: &str, request_id: Value) -> Option<McpResponse> {
-        if Self::KNOWN_PROVIDER_TOOLS.contains(&tool_name) {
+        use crate::protocols::universal::tool_registry::ToolId;
+
+        if ToolId::from_name(tool_name).is_some() {
             None
         } else {
             Some(McpResponse {

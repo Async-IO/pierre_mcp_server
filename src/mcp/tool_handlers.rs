@@ -17,7 +17,6 @@ use crate::constants::{
         ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, CONNECT_PROVIDER, CONNECT_TO_PIERRE,
         DELETE_FITNESS_CONFIG, DISCONNECT_PROVIDER, GET_CONNECTION_STATUS, GET_FITNESS_CONFIG,
         GET_NOTIFICATIONS, LIST_FITNESS_CONFIGS, MARK_NOTIFICATIONS_READ, SET_FITNESS_CONFIG,
-        SET_GOAL, TRACK_PROGRESS,
     },
 };
 use crate::database_plugins::DatabaseProvider;
@@ -513,18 +512,6 @@ impl ToolHandlers {
             }
             CHECK_OAUTH_NOTIFICATIONS => {
                 Self::handle_check_oauth_notifications(user_id, request_id, ctx).await
-            }
-            // Goal tools - use existing MCP implementations
-            SET_GOAL | TRACK_PROGRESS => {
-                MultiTenantMcpServer::handle_tool_without_provider(
-                    tool_name,
-                    args,
-                    request_id,
-                    user_id,
-                    &ctx.resources.database,
-                    ctx.auth_result,
-                )
-                .await
             }
             // Fitness configuration tools
             GET_FITNESS_CONFIG

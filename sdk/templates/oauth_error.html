@@ -39,11 +39,6 @@
         .info { color: var(--pierre-gray-700); margin: var(--spacing-4) 0; font-size: var(--text-base); }
         .code { background: var(--pierre-gray-200); padding: 0.5rem 0.75rem; border-radius: var(--radius-md); font-family: var(--font-mono); font-size: var(--text-sm); display: inline-block; }
         .description { background: var(--pierre-yellow-100); padding: var(--spacing-4); border-radius: var(--radius-md); margin: var(--spacing-4) 0; }
-        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border: none; border-radius: var(--radius-md); font-size: var(--text-sm); font-weight: 500; cursor: pointer; transition: all var(--transition-base); margin-top: var(--spacing-4); }
-        .btn:focus { outline: none; }
-        .btn:focus-visible { outline: 2px solid var(--pierre-blue-600); outline-offset: 2px; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1); }
-        .btn-danger { background-color: var(--pierre-red-600); color: white; }
-        .btn-danger:hover { background-color: var(--pierre-red-700); transform: translateY(-1px); box-shadow: var(--shadow-md); }
         .logo-container { text-align: center; margin-bottom: var(--spacing-6); }
         @media (max-width: 640px) {
             body { margin: var(--spacing-4); }
@@ -59,7 +54,6 @@
         }
         @media print {
             body { background: white; margin: 0; }
-            .btn { display: none; }
         }
     </style>
 </head>
@@ -93,7 +87,6 @@
         <div class="info"><strong>Error:</strong> <span class="code">{{ERROR}}</span></div>
         {{DESCRIPTION}}
         <p>Please return to your MCP client and try connecting again. If the problem persists, contact support.</p>
-        <button onclick="window.close()" class="btn btn-danger" aria-label="Close this window">Close this window</button>
     </div>
 </body>
 </html>

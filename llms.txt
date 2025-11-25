@@ -305,14 +305,14 @@ templates/
 ├── pierre-logo-small.svg           # compact logo variant
 ├── pierre-logo-dark.svg            # dark theme logo
 ├── pierre-logo.png                 # raster logo
-├── oauth_success.html              # oauth success page (97 lines)
+├── oauth_success.html              # oauth success page (89 lines)
 │   # features: pierre design system, responsive, accessibility
 │   # displays: provider, connection status, user_id
-│   # includes: svg logo, styled button, viewport meta tags
-└── oauth_error.html                # oauth error page (100 lines)
+│   # includes: svg logo, viewport meta tags
+└── oauth_error.html                # oauth error page (93 lines)
     # features: pierre design system, responsive, error diagnostics
     # displays: provider, error code, description
-    # includes: svg logo, retry guidance, close button
+    # includes: svg logo, retry guidance
 ```
 
 ## key features

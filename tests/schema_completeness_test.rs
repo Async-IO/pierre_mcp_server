@@ -130,6 +130,98 @@ fn test_tool_schemas_have_valid_structure() {
     println!("✅ All {} tool schemas have valid structure", tools.len());
 }
 
+/// Get all known tool names that should be routable
+fn get_all_tool_names() -> Vec<&'static str> {
+    vec![
+        // Core API tools
+        "get_activities",
+        "get_athlete",
+        "get_stats",
+        "analyze_activity",
+        "get_activity_intelligence",
+        "get_connection_status",
+        "connect_to_pierre",
+        "connect_provider",
+        "disconnect_provider",
+        // Notification tools
+        "announce_oauth_success",
+        "check_oauth_notifications",
+        "get_notifications",
+        "mark_notifications_read",
+        // Goal tools
+        "set_goal",
+        "suggest_goals",
+        "analyze_goal_feasibility",
+        "track_progress",
+        // Analysis tools
+        "calculate_metrics",
+        "analyze_performance_trends",
+        "compare_activities",
+        "detect_patterns",
+        "generate_recommendations",
+        "calculate_fitness_score",
+        "predict_performance",
+        "analyze_training_load",
+        // Configuration tools
+        "get_configuration_catalog",
+        "get_configuration_profiles",
+        "get_user_configuration",
+        "update_user_configuration",
+        "calculate_personalized_zones",
+        "validate_configuration",
+        // Sleep/recovery tools
+        "analyze_sleep_quality",
+        "calculate_recovery_score",
+        "suggest_rest_day",
+        "track_sleep_trends",
+        "optimize_sleep_schedule",
+        // Fitness config tools
+        "get_fitness_config",
+        "set_fitness_config",
+        "list_fitness_configs",
+        "delete_fitness_config",
+        // Nutrition tools
+        "calculate_daily_nutrition",
+        "get_nutrient_timing",
+        "search_food",
+        "get_food_details",
+        "analyze_meal_nutrition",
+    ]
+}
+
+#[test]
+fn test_every_tool_in_toolid_is_routable() {
+    // Comprehensive test: Every tool must be in both ToolId enum AND MCP schema
+    let all_tools = get_all_tool_names();
+    let schema_tools = schema::get_tools();
+    let schema_names: HashSet<String> = schema_tools.iter().map(|t| t.name.clone()).collect();
+
+    // Check each tool is in both ToolId and schema
+    for tool in &all_tools {
+        assert!(
+            ToolId::from_name(tool).is_some(),
+            "Tool '{tool}' not in ToolId enum"
+        );
+        assert!(
+            schema_names.contains(*tool),
+            "Tool '{tool}' not in MCP schema"
+        );
+    }
+
+    // Verify no tools in schema are missing from our test list
+    let test_tools: HashSet<&str> = all_tools.iter().copied().collect();
+    let unaccounted: Vec<_> = schema_names
+        .iter()
+        .filter(|n| !test_tools.contains(n.as_str()))
+        .collect();
+    assert!(
+        unaccounted.is_empty(),
+        "Schema has unlisted tools: {unaccounted:?}"
+    );
+
+    println!("✅ All {} tools are fully routable", all_tools.len());
+}
+
 #[test]
 fn test_provider_parameter_consistency() {
     // Tools that require 'provider' parameter (from original bug #1)

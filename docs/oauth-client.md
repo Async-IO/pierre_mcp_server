@@ -207,7 +207,7 @@ User sees branded html page:
 - provider name and connection status
 - user identifier
 - pierre logo
-- "close this window" button
+- instructions to return to mcp client
 
 Template: `templates/oauth_success.html`
 Renderer: `src/oauth2_client/flow_manager.rs:350-393`

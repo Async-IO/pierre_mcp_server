@@ -1182,9 +1182,10 @@ impl AdminRoutes {
         }
 
         // Update user status to Active (this also sets approved_by and approved_at)
+        // Use admin_token.token_id (UUID) instead of service_name for proper approved_by tracking
         let updated_user = ctx
             .database
-            .update_user_status(user_uuid, UserStatus::Active, &admin_token.service_name)
+            .update_user_status(user_uuid, UserStatus::Active, &admin_token.token_id)
             .await
             .map_err(|e| {
                 tracing::error!(error = %e, "Failed to update user status in database");

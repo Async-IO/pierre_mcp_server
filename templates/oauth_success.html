@@ -36,11 +36,6 @@
         .success { color: var(--pierre-green-700); font-size: var(--text-2xl); margin-bottom: var(--spacing-6); font-weight: 600; }
         .info { color: var(--pierre-gray-700); margin: var(--spacing-4) 0; font-size: var(--text-base); }
         .code { background: var(--pierre-gray-200); padding: 0.5rem 0.75rem; border-radius: var(--radius-md); font-family: var(--font-mono); font-size: var(--text-sm); display: inline-block; }
-        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border: none; border-radius: var(--radius-md); font-size: var(--text-sm); font-weight: 500; cursor: pointer; transition: all var(--transition-base); margin-top: var(--spacing-4); }
-        .btn:focus { outline: none; }
-        .btn:focus-visible { outline: 2px solid var(--pierre-blue-600); outline-offset: 2px; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1); }
-        .btn-success { background-color: var(--pierre-green-600); color: white; }
-        .btn-success:hover { background-color: var(--pierre-green-700); transform: translateY(-1px); box-shadow: var(--shadow-md); }
         .logo-container { text-align: center; margin-bottom: var(--spacing-6); }
         @media (max-width: 640px) {
             body { margin: var(--spacing-4); }
@@ -56,7 +51,6 @@
         }
         @media print {
             body { background: white; margin: 0; }
-            .btn { display: none; }
         }
     </style>
 </head>
@@ -90,7 +84,6 @@
         <div class="info"><strong>Status:</strong> <span class="code">Connected</span></div>
         <div class="info"><strong>User ID:</strong> <span class="code">{{USER_ID}}</span></div>
         <p><strong>Authentication complete.</strong> You can now return to your MCP client (Claude Desktop, ChatGPT, etc.) to continue.</p>
-        <button onclick="window.close()" class="btn btn-success" aria-label="Close this window">Close this window</button>
     </div>
 </body>
 </html>
