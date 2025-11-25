@@ -106,10 +106,6 @@ jobs:
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
 
-      # TODO: Convert sdk/test/*.js standalone tests to Jest format
-      # See: simple_test.js, test_oauth_flow.js, test_http_tool.js, test_tools_list.js
-      # These test stdio MCP interaction, OAuth flow, HTTP transport, and tools exposure
-
       - name: Upload SDK test results
         if: always()
         uses: actions/upload-artifact@v4
