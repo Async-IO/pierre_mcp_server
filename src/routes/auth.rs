@@ -518,7 +518,7 @@ impl OAuthService {
                 );
                     AppError::invalid_input("User has no tenant")
                 })?
-                .clone();
+                .clone(); // Safe: Uuid ownership for return value
 
         Ok((user, tenant_id))
     }
@@ -845,7 +845,7 @@ impl OAuthService {
                                 "Strava client_id not configured (set in environment or database)",
                             )
                         })?
-                        .clone();
+                        .clone(); // Safe: String ownership for OAuth URL construction
                     (
                         client_id,
                         crate::constants::oauth::STRAVA_DEFAULT_SCOPES.to_owned(),
@@ -875,7 +875,7 @@ impl OAuthService {
                                 "Fitbit client_id not configured (set in environment or database)",
                             )
                         })?
-                        .clone();
+                        .clone(); // Safe: String ownership for OAuth URL construction
                     (
                         client_id,
                         crate::constants::oauth::FITBIT_DEFAULT_SCOPES.to_owned(),
@@ -1088,7 +1088,7 @@ impl AuthRoutes {
                 // Clone JWT for cookie (keep in response for backward compatibility)
                 let jwt_token = response
                     .jwt_token
-                    .clone()
+                    .clone() // Safe: JWT string ownership for cookie
                     .ok_or_else(|| AppError::internal("JWT token missing from login response"))?;
 
                 // Parse user ID for CSRF token generation
@@ -1141,7 +1141,7 @@ impl AuthRoutes {
                 // Clone JWT for cookie (keep in response for backward compatibility)
                 let jwt_token = response
                     .jwt_token
-                    .clone()
+                    .clone() // Safe: JWT string ownership for cookie
                     .ok_or_else(|| AppError::internal("JWT token missing from refresh response"))?;
 
                 // Parse user ID for CSRF token generation

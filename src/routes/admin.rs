@@ -295,7 +295,7 @@ async fn create_and_store_api_key(
     let create_request = CreateApiKeyRequest {
         name: request
             .description
-            .clone()
+            .clone() // Safe: Option<String> ownership for struct field
             .unwrap_or_else(|| format!("API Key provisioned by {}", admin_token.service_name)),
         description: Some(format!(
             "Provisioned by admin service: {}",
@@ -1204,7 +1204,7 @@ impl AdminRoutes {
             });
             let tenant_slug = request
                 .tenant_slug
-                .clone()
+                .clone() // Safe: Option<String> ownership for tenant creation
                 .unwrap_or_else(|| format!("user-{}", updated_user.id.as_simple()));
 
             match Self::create_default_tenant_for_user(

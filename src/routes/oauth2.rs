@@ -582,6 +582,7 @@ impl OAuth2Routes {
             .map_or_else(String::new, ToString::to_string);
 
         // Get default form values from ServerConfig (for dev/test only)
+        // Safe: Option<String> ownership for HTML template
         let default_email = context
             .config
             .oauth2_server
@@ -944,7 +945,7 @@ impl OAuth2Routes {
         } else {
             form.get("client_id")
                 .ok_or_else(|| OAuth2Error::invalid_request("Missing client_id parameter"))?
-                .clone()
+                .clone() // Safe: String ownership for OAuth validation
         };
 
         let client_secret = if is_refresh {
