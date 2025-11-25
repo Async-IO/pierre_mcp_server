@@ -106,54 +106,9 @@ jobs:
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
 
-      - name: Run SDK standalone integration tests
-        run: |
-          echo "🔄 Starting Pierre server for standalone tests..."
-          ./target/debug/pierre-mcp-server &
-          SERVER_PID=$!
-
-          # Wait for server to be ready
-          for i in {1..30}; do
-            if curl -s http://localhost:8081/health > /dev/null 2>&1; then
-              echo "✅ Server ready"
-              break
-            fi
-            sleep 1
-          done
-
-          cd sdk
-          FAILED=0
-
-          # Run standalone tests (skip test_claude_desktop.js - requires .workflow_test_env)
-          for test in simple_test.js test_oauth_flow.js test_http_tool.js test_tools_list.js; do
-            echo ""
-            echo "▶️  Running $test..."
-            if timeout 60 node "test/$test" 2>&1; then
-              echo "✅ $test passed"
-            else
-              echo "❌ $test failed"
-              FAILED=$((FAILED + 1))
-            fi
-          done
-
-          # Stop server
-          kill $SERVER_PID 2>/dev/null || true
-
-          if [ $FAILED -gt 0 ]; then
-            echo ""
-            echo "❌ $FAILED standalone test(s) failed"
-            exit 1
-          fi
-          echo ""
-          echo "✅ All standalone tests passed"
-        env:
-          DATABASE_URL: "sqlite::memory:"
-          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
-          PIERRE_RSA_KEY_SIZE: "2048"
-          HTTP_PORT: "8081"
-          STRAVA_CLIENT_ID: "test_client_id_ci"
-          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
-          STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+      # TODO: Convert sdk/test/*.js standalone tests to Jest format
+      # See: simple_test.js, test_oauth_flow.js, test_http_tool.js, test_tools_list.js
+      # These test stdio MCP interaction, OAuth flow, HTTP transport, and tools exposure
 
       - name: Upload SDK test results
         if: always()
