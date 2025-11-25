@@ -78,13 +78,16 @@ jobs:
           # Stop server
           kill $SERVER_PID 2>/dev/null || true
 
-          # Check for uncommitted changes to types.ts
-          if git diff --name-only sdk/src/types.ts | grep -q types.ts; then
+          # Check for uncommitted changes to types.ts (ignore timestamp-only changes)
+          DIFF_LINES=$(git diff sdk/src/types.ts | grep -E "^[+-]" | grep -v "^[+-]{3}" | grep -v "Generated:" | wc -l)
+          if [ "$DIFF_LINES" -gt 0 ]; then
             echo "ERROR: SDK types are out of date!"
             echo "Run 'cd sdk && npm run generate-types' with server running and commit the changes"
             git diff sdk/src/types.ts
             exit 1
           fi
+          # Reset timestamp-only changes
+          git checkout sdk/src/types.ts 2>/dev/null || true
           echo "SDK types are up-to-date"
         env:
           DATABASE_URL: "sqlite::memory:"
