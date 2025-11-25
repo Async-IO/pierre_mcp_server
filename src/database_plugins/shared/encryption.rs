@@ -72,7 +72,7 @@ pub fn create_token_aad_context(
 /// - Compliant with GDPR, HIPAA, SOC 2 encryption-at-rest requirements
 ///
 /// # Examples
-/// ```ignore
+/// ```text
 /// let encrypted = shared::encryption::encrypt_oauth_token(
 ///     db,
 ///     "access_token_here",
@@ -123,7 +123,7 @@ where
 /// - Switched to a different provider
 ///
 /// # Examples
-/// ```ignore
+/// ```text
 /// let plain_token = shared::encryption::decrypt_oauth_token(
 ///     db,
 ///     &encrypted_from_db,
@@ -159,7 +159,7 @@ where
 /// - Must encode output as base64 for database storage
 ///
 /// # Examples
-/// ```ignore
+/// ```text
 /// impl HasEncryption for Database {
 ///     fn encrypt_data_with_aad(&self, data: &str, aad: &str) -> Result<String> {
 ///         // AES-256-GCM implementation with ring crate

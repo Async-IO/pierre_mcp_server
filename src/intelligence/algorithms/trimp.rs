@@ -105,9 +105,15 @@ impl TrimpAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// use pierre_mcp_server::intelligence::algorithms::trimp::TrimpAlgorithm;
+    /// use pierre_mcp_server::errors::AppResult;
+    ///
+    /// # fn example() -> AppResult<()> {
     /// let algorithm = TrimpAlgorithm::BannisterMale;
     /// let trimp = algorithm.calculate(150, 60.0, 190, Some(60), Some("male"))?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn calculate(
         &self,

@@ -16,11 +16,16 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
-//! use pierre_mcp_server::intelligence::algorithms::TssAlgorithm;
+//! ```rust,no_run
+//! use pierre_mcp_server::intelligence::algorithms::tss::TssAlgorithm;
+//! use pierre_mcp_server::models::Activity;
+//! use pierre_mcp_server::errors::AppResult;
 //!
+//! # fn example(activity: &Activity, ftp: f64, duration_hours: f64) -> AppResult<()> {
 //! let algorithm = TssAlgorithm::NormalizedPower { window_seconds: 30 };
-//! let tss = algorithm.calculate(&activity, ftp, duration_hours)?;
+//! let tss = algorithm.calculate(activity, ftp, duration_hours)?;
+//! # Ok(())
+//! # }
 //! ```
 
 /// Functional Threshold Power (FTP) calculation algorithms

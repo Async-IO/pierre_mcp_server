@@ -170,7 +170,24 @@ else
 fi
 
 # ============================================================================
-# 3. SECRET PATTERN DETECTION
+# 3. IGNORED DOCTEST DETECTION
+# ============================================================================
+# Doctests marked with `ignore` are not compiled/tested - use `no_run` instead
+# if you need the code to compile but not execute
+# ============================================================================
+DOCTEST_OUTPUT=$(cargo test --doc 2>&1 || true)
+IGNORED_DOCTESTS=$(echo "$DOCTEST_OUTPUT" | grep -E "test result:.*ignored" | grep -oE "[0-9]+ ignored" | grep -oE "[0-9]+" || echo 0)
+IGNORED_DOCTESTS=$(echo "$IGNORED_DOCTESTS" | head -1 | tr -d '\n\r\t ')
+
+if [ "${IGNORED_DOCTESTS:-0}" -gt 0 ]; then
+    add_validation "Ignored doctests" "$IGNORED_DOCTESTS" "❌ FAIL" "Use no_run instead of ignore"
+    VALIDATION_FAILED=true
+else
+    add_validation "Ignored doctests" "0" "✅ PASS" "All doctests active"
+fi
+
+# ============================================================================
+# 4. SECRET PATTERN DETECTION
 # ============================================================================
 if [ -f "$SCRIPT_DIR/validate-no-secrets.sh" ]; then
     # Temporarily disable set -e to capture output even if script fails
@@ -200,7 +217,7 @@ else
 fi
 
 # ============================================================================
-# 4. ANYHOW ERROR BLANKET CONVERSION DETECTION (CLAUDE.MD ZERO TOLERANCE)
+# 5. ANYHOW ERROR BLANKET CONVERSION DETECTION (CLAUDE.MD ZERO TOLERANCE)
 # ============================================================================
 ANYHOW_FROM_IMPL=$(rg "impl From<anyhow::Error>" src/ -l 2>/dev/null || true)
 ANYHOW_FROM_COUNT=0
@@ -215,7 +232,7 @@ else
 fi
 
 # ============================================================================
-# 5. ARCHITECTURAL VALIDATION
+# 6. ARCHITECTURAL VALIDATION
 # ============================================================================
 if [ -f "$SCRIPT_DIR/architectural-validation.sh" ]; then
     # Temporarily disable set -e to capture output even if script fails

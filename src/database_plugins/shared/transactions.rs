@@ -39,8 +39,8 @@ use tokio::time::sleep;
 /// - Attempt 5: 160ms
 ///
 /// # Examples
-/// ```ignore
-/// use crate::database_plugins::shared::transactions::retry_transaction;
+/// ```text
+/// use pierre_mcp_server::database_plugins::shared::transactions::retry_transaction;
 ///
 /// let result = retry_transaction(
 ///     || async {

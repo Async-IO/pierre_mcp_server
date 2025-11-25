@@ -49,12 +49,17 @@ fn get_config() -> &'static RouteTimeoutConfig {
 /// Returns an error if the operation times out or the operation itself fails
 ///
 /// # Example
-/// ```rust,ignore
+/// ```rust,no_run
 /// use pierre_mcp_server::utils::route_timeout::with_database_timeout;
 ///
+/// # async fn example() -> Result<(), anyhow::Error> {
+/// # struct Database; impl Database { async fn get_user_by_id(&self, _: &str) -> Result<String, anyhow::Error> { Ok(String::new()) } }
+/// # let database = Database; let user_id = "test";
 /// let user = with_database_timeout(async {
 ///     database.get_user_by_id(user_id).await
 /// }).await?;
+/// # Ok(())
+/// # }
 /// ```
 pub async fn with_database_timeout<F, T, E>(operation: F) -> Result<T, anyhow::Error>
 where
@@ -88,12 +93,17 @@ where
 /// Returns an error if the operation times out or the operation itself fails
 ///
 /// # Example
-/// ```rust,ignore
+/// ```rust,no_run
 /// use pierre_mcp_server::utils::route_timeout::with_provider_api_timeout;
 ///
+/// # async fn example() -> Result<(), anyhow::Error> {
+/// # struct Provider; impl Provider { async fn get_activities(&self, _: usize, _: usize) -> Result<Vec<()>, anyhow::Error> { Ok(vec![]) } }
+/// # let provider = Provider; let limit = 10; let page = 1;
 /// let activities = with_provider_api_timeout(async {
 ///     provider.get_activities(limit, page).await
 /// }).await?;
+/// # Ok(())
+/// # }
 /// ```
 pub async fn with_provider_api_timeout<F, T, E>(operation: F) -> Result<T, anyhow::Error>
 where
@@ -127,12 +137,17 @@ where
 /// Returns an error if the operation times out or the operation itself fails
 ///
 /// # Example
-/// ```rust,ignore
+/// ```rust,no_run
 /// use pierre_mcp_server::utils::route_timeout::with_sse_timeout;
 ///
+/// # async fn example() -> Result<(), anyhow::Error> {
+/// # struct SseManager; impl SseManager { async fn send_event(&self, _: &str, _: &str) -> Result<(), anyhow::Error> { Ok(()) } }
+/// # let sse_manager = SseManager; let user_id = "test"; let event = "data";
 /// with_sse_timeout(async {
 ///     sse_manager.send_event(user_id, event).await
 /// }).await?;
+/// # Ok(())
+/// # }
 /// ```
 pub async fn with_sse_timeout<F, T, E>(operation: F) -> Result<T, anyhow::Error>
 where
@@ -166,12 +181,17 @@ where
 /// Returns an error if the operation times out or the operation itself fails
 ///
 /// # Example
-/// ```rust,ignore
+/// ```rust,no_run
 /// use pierre_mcp_server::utils::route_timeout::with_oauth_timeout;
 ///
+/// # async fn example() -> Result<(), anyhow::Error> {
+/// # struct AuthServer; impl AuthServer { async fn exchange_token(&self, _: &str, _: &str) -> Result<String, anyhow::Error> { Ok(String::new()) } }
+/// # let auth_server = AuthServer; let code = "test"; let verifier = "test";
 /// let token = with_oauth_timeout(async {
 ///     auth_server.exchange_token(code, verifier).await
 /// }).await?;
+/// # Ok(())
+/// # }
 /// ```
 pub async fn with_oauth_timeout<F, T, E>(operation: F) -> Result<T, anyhow::Error>
 where

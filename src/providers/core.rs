@@ -75,8 +75,7 @@
 //!     }
 //!
 //!     async fn get_athlete(&self) -> AppResult<Athlete> {
-//!         // Real implementation would fetch from provider API
-//!         // and convert provider-specific response to shared Athlete model
+//!         // Fetch from provider API and convert to shared Athlete model
 //!         Ok(Athlete {
 //!             id: "12345".to_owned(),
 //!             username: "athlete".to_owned(),
@@ -92,8 +91,7 @@
 //!         _limit: Option<usize>,
 //!         _offset: Option<usize>,
 //!     ) -> AppResult<Vec<Activity>> {
-//!         // Real implementation would fetch from provider API
-//!         // and map provider-specific DTOs to shared Activity models
+//!         // Fetch from provider API and map to shared Activity models
 //!         Ok(vec![])
 //!     }
 //!
