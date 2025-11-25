@@ -55,6 +55,46 @@ jobs:
         env:
           CARGO_INCREMENTAL: 0
 
+      - name: Validate SDK types are up-to-date (generate-sdk-types.js)
+        run: |
+          # Start server in background
+          ./target/debug/pierre-mcp-server &
+          SERVER_PID=$!
+
+          # Wait for server to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:8081/health > /dev/null 2>&1; then
+              echo "Server ready"
+              break
+            fi
+            sleep 1
+          done
+
+          # Generate types
+          cd sdk
+          npm run generate-types || true
+          cd ..
+
+          # Stop server
+          kill $SERVER_PID 2>/dev/null || true
+
+          # Check for uncommitted changes to types.ts
+          if git diff --name-only sdk/src/types.ts | grep -q types.ts; then
+            echo "ERROR: SDK types are out of date!"
+            echo "Run 'cd sdk && npm run generate-types' with server running and commit the changes"
+            git diff sdk/src/types.ts
+            exit 1
+          fi
+          echo "SDK types are up-to-date"
+        env:
+          DATABASE_URL: "sqlite::memory:"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_RSA_KEY_SIZE: "2048"
+          HTTP_PORT: "8081"
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+
       - name: Run SDK integration tests
         working-directory: sdk
         run: npm run test:integration -- --forceExit
