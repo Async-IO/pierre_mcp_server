@@ -1,5 +1,5 @@
 # ABOUTME: Publishes the TypeScript SDK to npm when a GitHub release is published.
-# ABOUTME: Triggers automatically after the main release workflow completes.
+# ABOUTME: Uses OIDC Trusted Publishing for secure token-free authentication.
 
 name: SDK Release
 
@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write  # Required for npm OIDC trusted publishing
 
 jobs:
   publish-npm:
@@ -54,16 +55,16 @@ jobs:
         working-directory: sdk
         run: npm run test:unit
 
-      - name: Publish to npm
+      - name: Publish to npm with provenance
         working-directory: sdk
-        run: npm publish --access public
+        run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish summary
         run: |
           VERSION="${{ github.event.release.tag_name }}"
-          echo "✅ SDK ${VERSION} published to npm!"
+          echo "✅ SDK ${VERSION} published to npm with provenance!"
           echo ""
           echo "📦 Package: pierre-mcp-client"
           echo "🔗 npm: https://www.npmjs.com/package/pierre-mcp-client"
