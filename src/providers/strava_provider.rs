@@ -1001,3 +1001,22 @@ impl StravaProvider {
         Ok(all_activities)
     }
 }
+
+// ============================================================================
+// Provider Factory
+// ============================================================================
+
+use super::core::ProviderFactory;
+
+/// Factory for creating Strava provider instances
+pub struct StravaProviderFactory;
+
+impl ProviderFactory for StravaProviderFactory {
+    fn create(&self, config: ProviderConfig) -> Box<dyn FitnessProvider> {
+        Box::new(StravaProvider::with_config(config))
+    }
+
+    fn supported_providers(&self) -> &'static [&'static str] {
+        &[oauth_providers::STRAVA]
+    }
+}

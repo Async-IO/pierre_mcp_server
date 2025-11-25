@@ -138,7 +138,11 @@ impl RecoveryAggregationAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// use pierre_mcp_server::intelligence::algorithms::recovery_aggregation::RecoveryAggregationAlgorithm;
+    /// use pierre_mcp_server::errors::AppResult;
+    ///
+    /// # fn example() -> AppResult<()> {
     /// let algorithm = RecoveryAggregationAlgorithm::WeightedAverage {
     ///     tsb_weight_full: 0.30,
     ///     sleep_weight_full: 0.40,
@@ -147,6 +151,8 @@ impl RecoveryAggregationAlgorithm {
     ///     sleep_weight_no_hrv: 0.60,
     /// };
     /// let recovery = algorithm.aggregate(75.0, 80.0, Some(70.0))?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn aggregate(
         &self,

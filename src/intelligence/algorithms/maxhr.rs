@@ -69,9 +69,15 @@ impl MaxHrAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// use pierre_mcp_server::intelligence::algorithms::maxhr::MaxHrAlgorithm;
+    /// use pierre_mcp_server::errors::AppResult;
+    ///
+    /// # fn example() -> AppResult<()> {
     /// let max_hr = MaxHrAlgorithm::Tanaka.estimate(40, None)?;
     /// assert_eq!(max_hr, 180.0); // 208 - 0.7*40 = 180
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn estimate(&self, age: u32, gender: Option<&str>) -> AppResult<f64> {
         // Validate age range

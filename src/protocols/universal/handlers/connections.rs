@@ -4,7 +4,6 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
-use crate::constants::oauth_providers;
 use crate::database_plugins::DatabaseProvider;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
@@ -81,8 +80,8 @@ pub fn handle_get_connection_status(
                 }),
             })
         } else {
-            // Multi-provider mode - check all supported providers
-            let providers_to_check = [oauth_providers::STRAVA, "fitbit"];
+            // Multi-provider mode - check all supported providers from registry
+            let providers_to_check = executor.resources.provider_registry.supported_providers();
             let mut providers_status = serde_json::Map::new();
 
             for provider in providers_to_check {
@@ -153,12 +152,21 @@ pub fn handle_disconnect_provider(
         // Parse user ID from request
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Extract provider from parameters (default to Strava)
-        let provider = request
+        // Extract provider from parameters (required)
+        let Some(provider) = request
             .parameters
             .get("provider")
             .and_then(serde_json::Value::as_str)
-            .unwrap_or(oauth_providers::STRAVA);
+        else {
+            let supported = executor
+                .resources
+                .provider_registry
+                .supported_providers()
+                .join(", ");
+            return Ok(connection_error(format!(
+                "Missing required 'provider' parameter. Supported providers: {supported}"
+            )));
+        };
 
         // Disconnect by deleting the token directly
         let tenant_id_str = request.tenant_id.as_deref().unwrap_or("default");
@@ -220,9 +228,12 @@ pub fn handle_disconnect_provider(
     })
 }
 
-/// Validate that provider is supported
-fn is_provider_supported(provider: &str) -> bool {
-    matches!(provider, oauth_providers::STRAVA | oauth_providers::FITBIT)
+/// Validate that provider is supported using provider registry
+fn is_provider_supported(
+    provider: &str,
+    provider_registry: &crate::providers::ProviderRegistry,
+) -> bool {
+    provider_registry.is_supported(provider)
 }
 
 /// Build successful OAuth connection response
@@ -312,7 +323,6 @@ pub fn handle_connect_provider(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
             if token.is_cancelled().await {
                 return Err(ProtocolError::OperationCancelled(
@@ -320,27 +330,30 @@ pub fn handle_connect_provider(
                 ));
             }
         }
-
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let registry = &executor.resources.provider_registry;
+        let db = &executor.resources.database;
 
-        let provider = request
-            .parameters
-            .get("provider")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or(oauth_providers::STRAVA);
-
-        if !is_provider_supported(provider) {
+        // Extract and validate provider parameter
+        let Some(provider) = request.parameters.get("provider").and_then(|v| v.as_str()) else {
+            let supported = registry.supported_providers().join(", ");
             return Ok(connection_error(format!(
-                "Provider '{provider}' is not supported. Supported providers: strava, fitbit"
+                "Missing required 'provider' parameter. Supported providers: {supported}"
+            )));
+        };
+        if !is_provider_supported(provider, registry) {
+            let supported = registry.supported_providers().join(", ");
+            return Ok(connection_error(format!(
+                "Provider '{provider}' is not supported. Supported providers: {supported}"
             )));
         }
 
-        let user = match executor.resources.database.get_user(user_uuid).await {
-            Ok(Some(user)) => user,
+        // Get user and extract tenant context
+        let user = match db.get_user(user_uuid).await {
+            Ok(Some(u)) => u,
             Ok(None) => return Ok(connection_error(format!("User {user_uuid} not found"))),
             Err(e) => return Ok(connection_error(format!("Database error: {e}"))),
         };
-
         let Some(tenant_id) = user
             .tenant_id
             .as_ref()
@@ -350,66 +363,37 @@ pub fn handle_connect_provider(
                 "User does not belong to any tenant".to_owned(),
             ));
         };
-
-        let tenant_name = match executor
-            .resources
-            .database
+        let tenant_name = db
             .get_tenant_by_id(tenant_id)
             .await
-        {
-            Ok(tenant) => tenant.name,
-            Err(e) => {
-                tracing::warn!(
-                    tenant_id = %tenant_id,
-                    user_id = %user_uuid,
-                    error = ?e,
-                    "Failed to load tenant name from database - using 'Unknown Tenant' fallback"
-                );
-                "Unknown Tenant".to_owned()
-            }
-        };
-
-        let tenant_context = TenantContext {
+            .map_or_else(|_| "Unknown Tenant".to_owned(), |t| t.name);
+        let ctx = TenantContext {
             tenant_id,
             user_id: user_uuid,
             tenant_name,
             user_role: crate::tenant::TenantRole::Member,
         };
-
         let state = format!("{}:{}", user_uuid, uuid::Uuid::new_v4());
 
+        // Generate OAuth authorization URL
         match executor
             .resources
             .tenant_oauth_client
-            .get_authorization_url(
-                &tenant_context,
-                provider,
-                &state,
-                executor.resources.database.as_ref(),
-            )
+            .get_authorization_url(&ctx, provider, &state, db.as_ref())
             .await
         {
-            Ok(authorization_url) => {
+            Ok(url) => {
                 tracing::info!(
-                    "Generated OAuth authorization URL for user {} and provider {}",
+                    "Generated OAuth URL for user {} provider {}",
                     user_uuid,
                     provider
                 );
                 Ok(build_oauth_success_response(
-                    user_uuid,
-                    tenant_id,
-                    provider,
-                    &authorization_url,
-                    &state,
+                    user_uuid, tenant_id, provider, &url, &state,
                 ))
             }
             Err(e) => {
-                tracing::error!(
-                    "Failed to generate OAuth authorization URL for user {} and provider {}: {}",
-                    user_uuid,
-                    provider,
-                    e
-                );
+                tracing::error!("OAuth URL generation failed for {}: {}", provider, e);
                 Ok(build_oauth_error_response(provider, &e.to_string()))
             }
         }

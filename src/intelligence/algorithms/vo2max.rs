@@ -158,10 +158,16 @@ impl Vo2maxAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// use pierre_mcp_server::intelligence::algorithms::vo2max::Vo2maxAlgorithm;
+    /// use pierre_mcp_server::errors::AppResult;
+    ///
+    /// # fn example() -> AppResult<()> {
     /// let algorithm = Vo2maxAlgorithm::CooperTest { distance_meters: 2800.0 };
     /// let vo2max = algorithm.estimate_vo2max()?;
     /// // vo2max ≈ 51.3 ml/kg/min
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn estimate_vo2max(&self) -> AppResult<f64> {
         match self {

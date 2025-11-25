@@ -664,9 +664,16 @@ impl AppError {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// use pierre_mcp_server::errors::AppError;
+    /// use serde::Deserialize;
+    /// # fn example() -> Result<(), AppError> {
+    /// # #[derive(Deserialize)] struct MyParams;
+    /// # let json = serde_json::json!({});
     /// let params: MyParams = serde_json::from_value(json)
     ///     .map_err(|e| AppError::json_parse_error("tool parameters", e))?;
+    /// # Ok(())
+    /// # }
     /// ```
     #[must_use]
     pub fn json_parse_error<E: std::fmt::Display>(context: &str, error: E) -> Self {
@@ -680,9 +687,14 @@ impl AppError {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// use pierre_mcp_server::errors::AppError;
+    /// # fn example() -> Result<(), AppError> {
+    /// # let obj = serde_json::json!({});
     /// let field_value = obj.get("required_field")
     ///     .ok_or_else(|| AppError::missing_field("required_field"))?;
+    /// # Ok(())
+    /// # }
     /// ```
     #[must_use]
     pub fn missing_field(field: &str) -> Self {
@@ -696,10 +708,14 @@ impl AppError {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// use pierre_mcp_server::errors::AppError;
+    /// # fn example(value: i32) -> Result<(), AppError> {
     /// if value < 0 {
     ///     return Err(AppError::invalid_field("age", "must be non-negative"));
     /// }
+    /// # Ok(())
+    /// # }
     /// ```
     #[must_use]
     pub fn invalid_field(field: &str, reason: &str) -> Self {
@@ -717,11 +733,17 @@ impl AppError {
 ///
 /// # Example
 ///
-/// ```rust,ignore
-/// use pierre_mcp_server::errors::JsonResultExt;
+/// ```rust,no_run
+/// use pierre_mcp_server::errors::{AppError, JsonResultExt};
+/// use serde::Deserialize;
 ///
+/// # fn example() -> Result<(), AppError> {
+/// # #[derive(Deserialize)] struct MyParams;
+/// # let json_value = serde_json::json!({});
 /// let params: MyParams = serde_json::from_value(json_value)
 ///     .json_context("tool parameters")?;
+/// # Ok(())
+/// # }
 /// ```
 pub trait JsonResultExt<T> {
     /// Add context to a JSON parsing error

@@ -4,6 +4,125 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+//! # Pluggable Provider Architecture - Shared Request/Response Traits (Phase 1)
+//!
+//! This module defines the shared request/response contract that all fitness providers
+//! must implement. The `FitnessProvider` trait serves as the unified interface for
+//! accessing fitness data from multiple providers (Strava, Garmin, Fitbit, Synthetic).
+//!
+//! ## Shared Request/Response Pattern
+//!
+//! ### Request Side (Shared Method Parameters)
+//!
+//! All providers accept standardized request parameters:
+//! - **IDs**: String identifiers for resources (`activity_id`, etc.)
+//! - **Pagination**: `PaginationParams` for cursor-based or offset-based paging
+//! - **Date Ranges**: `DateTime<Utc>` for time-based queries
+//! - **Options**: `Option<T>` for optional filtering/limiting
+//!
+//! ### Response Side (Shared Domain Models)
+//!
+//! All providers return standardized domain models:
+//! - **Activity**: Unified workout/activity representation
+//! - **Athlete**: User profile information
+//! - **Stats**: Aggregate performance statistics
+//! - **PersonalRecord**: Best performance achievements
+//! - **SleepSession**, **RecoveryMetrics**, **HealthMetrics**: Health data
+//!
+//! ### Error Handling (Shared Result Type)
+//!
+//! All providers use `AppResult<T>` for consistent error handling across:
+//! - Authentication failures
+//! - API rate limiting
+//! - Network errors
+//! - Data validation errors
+//!
+//! ## Architecture Benefits
+//!
+//! 1. **Provider Interchangeability**: Swap providers without changing application code
+//! 2. **Type Safety**: Compile-time guarantees for request/response contracts
+//! 3. **Extensibility**: Add new providers by implementing `FitnessProvider` trait
+//! 4. **Consistency**: Uniform error handling and data models across all providers
+//!
+//! ## Example: Adding a New Provider
+//!
+//! ```rust,no_run
+//! use pierre_mcp_server::providers::core::{FitnessProvider, ProviderConfig, OAuth2Credentials};
+//! use pierre_mcp_server::models::{Activity, Athlete, Stats};
+//! use pierre_mcp_server::errors::AppResult;
+//! use async_trait::async_trait;
+//!
+//! // Step 1: Define provider struct
+//! pub struct CustomProvider {
+//!     config: ProviderConfig,
+//!     // ... provider-specific fields (e.g., HTTP client, tokens)
+//! }
+//!
+//! // Step 2: Implement shared FitnessProvider trait
+//! #[async_trait]
+//! impl FitnessProvider for CustomProvider {
+//!     fn name(&self) -> &'static str {
+//!         "custom"
+//!     }
+//!
+//!     fn config(&self) -> &ProviderConfig {
+//!         &self.config
+//!     }
+//!
+//!     async fn set_credentials(&self, _credentials: OAuth2Credentials) -> AppResult<()> {
+//!         // Provider-specific OAuth handling (store tokens, configure client)
+//!         Ok(())
+//!     }
+//!
+//!     async fn get_athlete(&self) -> AppResult<Athlete> {
+//!         // Fetch from provider API and convert to shared Athlete model
+//!         Ok(Athlete {
+//!             id: "12345".to_owned(),
+//!             username: "athlete".to_owned(),
+//!             firstname: Some("John".to_owned()),
+//!             lastname: Some("Doe".to_owned()),
+//!             profile_picture: None,
+//!             provider: "custom".to_owned(),
+//!         })
+//!     }
+//!
+//!     async fn get_activities(
+//!         &self,
+//!         _limit: Option<usize>,
+//!         _offset: Option<usize>,
+//!     ) -> AppResult<Vec<Activity>> {
+//!         // Fetch from provider API and map to shared Activity models
+//!         Ok(vec![])
+//!     }
+//!
+//!     // ... implement remaining trait methods
+//! #   async fn is_authenticated(&self) -> bool { true }
+//! #   async fn refresh_token_if_needed(&self) -> AppResult<()> { Ok(()) }
+//! #   async fn get_activities_cursor(&self, _params: &pierre_mcp_server::pagination::PaginationParams) -> AppResult<pierre_mcp_server::pagination::CursorPage<Activity>> {
+//! #       Ok(pierre_mcp_server::pagination::CursorPage::new(vec![], None, None, false))
+//! #   }
+//! #   async fn get_activity(&self, _id: &str) -> AppResult<Activity> {
+//! #       Err(pierre_mcp_server::errors::AppError::not_found("Activity not found"))
+//! #   }
+//! #   async fn get_stats(&self) -> AppResult<Stats> {
+//! #       Ok(Stats { total_activities: 0, total_distance: 0.0, total_duration: 0, total_elevation_gain: 0.0 })
+//! #   }
+//! #   async fn get_personal_records(&self) -> AppResult<Vec<pierre_mcp_server::models::PersonalRecord>> {
+//! #       Ok(vec![])
+//! #   }
+//! #   async fn disconnect(&self) -> AppResult<()> { Ok(()) }
+//! }
+//! ```
+//!
+//! ## Provider-Specific Details vs Shared Interface
+//!
+//! - **Internal**: Providers use custom DTOs (e.g., `StravaActivityResponse`)
+//! - **External**: Providers expose shared models (e.g., `Activity`)
+//! - **Conversion**: Providers implement mapping logic internally
+//!
+//! This separation allows providers to adapt their specific API formats while
+//! maintaining a consistent interface for the rest of the application.
+
 use crate::errors::AppResult;
 use crate::models::{
     Activity, Athlete, HealthMetrics, PersonalRecord, RecoveryMetrics, SleepSession, Stats,
@@ -15,7 +134,17 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// Authentication credentials for `OAuth2` providers
+/// Authentication credentials for `OAuth2` providers (Shared Request Type)
+///
+/// This struct serves as the standardized authentication request/response format
+/// across all fitness providers. All providers accept and return credentials in
+/// this unified format, regardless of their internal OAuth implementation details.
+///
+/// # Usage Pattern
+///
+/// Providers receive credentials via `set_credentials()` and use them internally
+/// for API authentication. The credential lifecycle is managed by the auth layer,
+/// which handles token refresh and expiration automatically.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuth2Credentials {
     /// OAuth client ID from provider
@@ -32,10 +161,35 @@ pub struct OAuth2Credentials {
     pub scopes: Vec<String>,
 }
 
-/// Provider configuration containing all necessary endpoints and settings
+/// Provider configuration containing all necessary endpoints and settings (Shared Request Type)
+///
+/// This struct defines the standardized configuration format for all fitness providers.
+/// Configurations can be loaded from environment variables (via `load_provider_env_config`)
+/// or provided directly when creating provider instances.
+///
+/// # Configuration Sources
+///
+/// 1. **Environment Variables**: `PIERRE_<PROVIDER>_*` (recommended for cloud deployment)
+/// 2. **Direct Instantiation**: Programmatically set for testing/advanced scenarios
+/// 3. **Registry Defaults**: Loaded automatically by `ProviderRegistry::new()`
+///
+/// # Example
+///
+/// ```rust
+/// use pierre_mcp_server::providers::core::ProviderConfig;
+///
+/// let config = ProviderConfig {
+///     name: "strava".to_owned(),
+///     auth_url: "https://www.strava.com/oauth/authorize".to_owned(),
+///     token_url: "https://www.strava.com/oauth/token".to_owned(),
+///     api_base_url: "https://www.strava.com/api/v3".to_owned(),
+///     revoke_url: Some("https://www.strava.com/oauth/deauthorize".to_owned()),
+///     default_scopes: vec!["activity:read_all".to_owned()],
+///};
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderConfig {
-    /// Provider name (e.g., "strava", "fitbit")
+    /// Provider name (e.g., "strava", "fitbit", "garmin", "synthetic")
     pub name: String,
     /// OAuth authorization endpoint URL
     pub auth_url: String,
@@ -49,13 +203,36 @@ pub struct ProviderConfig {
     pub default_scopes: Vec<String>,
 }
 
-/// Core fitness data provider trait - single interface for all providers
+/// Core fitness data provider trait - Shared Request/Response Interface for all providers
+///
+/// This trait defines the complete contract for fitness data providers. All providers
+/// (Strava, Garmin, Fitbit, Synthetic) implement this trait, ensuring consistent
+/// request/response patterns across the entire system.
+///
+/// # Shared Request/Response Contract
+///
+/// - **Request Parameters**: Standardized method signatures (IDs, pagination, dates)
+/// - **Response Types**: Unified domain models (Activity, Athlete, Stats, etc.)
+/// - **Error Handling**: Consistent `AppResult<T>` for all operations
+/// - **Authentication**: Uniform `OAuth2Credentials` flow
+///
+/// # Provider Responsibilities
+///
+/// Implementors must:
+/// 1. Convert provider-specific API responses to shared domain models
+/// 2. Handle provider-specific authentication flows
+/// 3. Implement rate limiting and retry logic
+/// 4. Map provider errors to standard `AppError` types
+///
+/// # Thread Safety
+///
+/// All implementations must be `Send + Sync` for concurrent access across async tasks.
 #[async_trait]
 pub trait FitnessProvider: Send + Sync {
-    /// Get provider name (e.g., "strava", "fitbit")
+    /// Get provider name (e.g., "strava", "fitbit", "garmin", "synthetic")
     fn name(&self) -> &'static str;
 
-    /// Get provider configuration
+    /// Get provider configuration (endpoints, scopes, etc.)
     fn config(&self) -> &ProviderConfig;
 
     /// Set `OAuth2` credentials for this provider

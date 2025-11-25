@@ -27,7 +27,7 @@ use uuid::Uuid;
 /// * Returns error if required fields are missing or have invalid types
 ///
 /// # Examples
-/// ```ignore
+/// ```text
 /// // PostgreSQL usage:
 /// let user = shared::mappers::parse_user_from_row(&pg_row)?;
 ///
@@ -206,7 +206,7 @@ where
 /// * Returns error if column is missing or value is invalid
 ///
 /// # Examples
-/// ```ignore
+/// ```text
 /// // Works with both:
 /// let user_id = get_uuid_from_row(&pg_row, "id")?;      // PostgreSQL UUID
 /// let user_id = get_uuid_from_row(&sqlite_row, "id")?;  // SQLite TEXT -> parsed

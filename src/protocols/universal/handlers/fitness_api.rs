@@ -1,11 +1,10 @@
-// ABOUTME: Strava API handlers for universal protocol
-// ABOUTME: Single responsibility handlers that delegate auth to AuthService
+// ABOUTME: Fitness provider API handlers for universal protocol
+// ABOUTME: Provider-agnostic single responsibility handlers that delegate auth to AuthService
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
 use crate::cache::{factory::Cache, CacheKey, CacheResource};
-use crate::constants::oauth_providers;
 use crate::intelligence::physiological_constants::api_limits::{
     DEFAULT_ACTIVITY_LIMIT, DEFAULT_ACTIVITY_LIMIT_U32, MAX_ACTIVITY_LIMIT, QUICK_ACTIVITY_LIMIT,
 };
@@ -16,78 +15,6 @@ use crate::utils::uuid::parse_user_id_for_protocol;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-
-/// Create and configure Strava provider with token credentials
-async fn create_configured_strava_provider(
-    provider_registry: &Arc<crate::providers::ProviderRegistry>,
-    token_data: &crate::protocols::universal::auth_service::TokenData,
-    config: &crate::config::environment::OAuthProviderConfig,
-) -> Result<Box<dyn FitnessProvider>, String> {
-    let provider = provider_registry
-        .create_provider(oauth_providers::STRAVA)
-        .map_err(|e| format!("Failed to create provider: {e}"))?;
-
-    let credentials = crate::providers::OAuth2Credentials {
-        client_id: config.client_id.clone().unwrap_or_default(),
-        client_secret: config.client_secret.clone().unwrap_or_default(),
-        access_token: Some(token_data.access_token.clone()), // Safe: String ownership needed for OAuth credentials
-        refresh_token: Some(token_data.refresh_token.clone()), // Safe: String ownership needed for OAuth credentials
-        expires_at: Some(token_data.expires_at),
-        scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
-            .split(',')
-            .map(str::to_owned)
-            .collect(),
-    };
-
-    provider
-        .set_credentials(credentials)
-        .await
-        .map_err(|e| format!("Failed to set provider credentials: {e}"))?;
-
-    Ok(provider)
-}
-
-/// Create standard no-token response
-fn create_no_token_response() -> UniversalResponse {
-    UniversalResponse {
-        success: false,
-        result: None,
-        error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
-        metadata: Some({
-            let mut map = std::collections::HashMap::new();
-            map.insert(
-                "total_activities".to_owned(),
-                serde_json::Value::Number(0.into()),
-            );
-            map.insert(
-                "authentication_required".to_owned(),
-                serde_json::Value::Bool(true),
-            );
-            map
-        }),
-    }
-}
-
-/// Create standard auth error response
-fn create_auth_error_response(error: &str) -> UniversalResponse {
-    UniversalResponse {
-        success: true,
-        result: Some(serde_json::json!({
-            "activities": [],
-            "message": format!("Authentication error: {error}"),
-            "error": format!("Authentication error: {error}")
-        })),
-        error: None,
-        metadata: Some({
-            let mut map = std::collections::HashMap::new();
-            map.insert(
-                "authentication_error".to_owned(),
-                serde_json::Value::Bool(true),
-            );
-            map
-        }),
-    }
-}
 
 /// Create metadata for activity analysis responses
 fn create_activity_metadata(
@@ -120,6 +47,7 @@ async fn try_get_cached_activities(
     user_uuid: uuid::Uuid,
     tenant_id: Option<&String>,
     limit: usize,
+    provider_name: &str,
 ) -> Option<UniversalResponse> {
     if let Ok(Some(cached_activities)) = cache.get::<Vec<crate::models::Activity>>(cache_key).await
     {
@@ -128,7 +56,7 @@ async fn try_get_cached_activities(
             success: true,
             result: Some(serde_json::json!({
                 "activities": cached_activities,
-                "provider": "strava",
+                "provider": provider_name,
                 "count": cached_activities.len()
             })),
             error: None,
@@ -177,12 +105,13 @@ fn build_activities_success_response(
     activities: &[crate::models::Activity],
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
+    provider_name: &str,
 ) -> UniversalResponse {
     UniversalResponse {
         success: true,
         result: Some(serde_json::json!({
             "activities": activities,
-            "provider": "strava",
+            "provider": provider_name,
             "count": activities.len()
         })),
         error: None,
@@ -260,74 +189,41 @@ async fn cache_athlete_result(
 
 /// Fetch athlete from API and cache result
 async fn fetch_and_cache_athlete(
-    provider_registry: &Arc<crate::providers::ProviderRegistry>,
+    provider: &dyn FitnessProvider,
     cache: &Arc<Cache>,
-    token_data: &crate::protocols::universal::auth_service::TokenData,
     cache_key: &CacheKey,
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
-    config: &crate::config::environment::OAuthProviderConfig,
 ) -> Result<UniversalResponse, ProtocolError> {
-    match provider_registry.create_provider(oauth_providers::STRAVA) {
-        Ok(provider) => {
-            let credentials = crate::providers::OAuth2Credentials {
-                client_id: config.client_id.clone().unwrap_or_default(),
-                client_secret: config.client_secret.clone().unwrap_or_default(),
-                access_token: Some(token_data.access_token.clone()),
-                refresh_token: Some(token_data.refresh_token.clone()),
-                expires_at: Some(token_data.expires_at),
-                scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
-                    .split(',')
-                    .map(str::to_owned)
-                    .collect(),
-            };
+    match provider.get_athlete().await {
+        Ok(athlete) => {
+            cache_athlete_result(cache, cache_key, &athlete).await;
 
-            provider.set_credentials(credentials).await.map_err(|e| {
-                ProtocolError::ConfigurationError(format!(
-                    "Failed to set provider credentials: {e}"
-                ))
-            })?;
-
-            match provider.get_athlete().await {
-                Ok(athlete) => {
-                    cache_athlete_result(cache, cache_key, &athlete).await;
-
-                    Ok(UniversalResponse {
-                        success: true,
-                        result: Some(serde_json::to_value(&athlete).map_err(|e| {
-                            ProtocolError::SerializationError(format!(
-                                "Failed to serialize athlete: {e}"
-                            ))
-                        })?),
-                        error: None,
-                        metadata: Some({
-                            let mut map = std::collections::HashMap::new();
-                            map.insert(
-                                "user_id".to_owned(),
-                                serde_json::Value::String(user_uuid.to_string()),
-                            );
-                            map.insert(
-                                "tenant_id".to_owned(),
-                                tenant_id
-                                    .map_or(serde_json::Value::Null, serde_json::Value::String),
-                            );
-                            map.insert("cached".to_owned(), serde_json::Value::Bool(false));
-                            map
-                        }),
-                    })
-                }
-                Err(e) => Ok(UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Failed to fetch athlete profile: {e}")),
-                    metadata: None,
+            Ok(UniversalResponse {
+                success: true,
+                result: Some(serde_json::to_value(&athlete).map_err(|e| {
+                    ProtocolError::SerializationError(format!("Failed to serialize athlete: {e}"))
+                })?),
+                error: None,
+                metadata: Some({
+                    let mut map = std::collections::HashMap::new();
+                    map.insert(
+                        "user_id".to_owned(),
+                        serde_json::Value::String(user_uuid.to_string()),
+                    );
+                    map.insert(
+                        "tenant_id".to_owned(),
+                        tenant_id.map_or(serde_json::Value::Null, serde_json::Value::String),
+                    );
+                    map.insert("cached".to_owned(), serde_json::Value::Bool(false));
+                    map
                 }),
-            }
+            })
         }
         Err(e) => Ok(UniversalResponse {
             success: false,
             result: None,
-            error: Some(e.to_string()),
+            error: Some(format!("Failed to fetch athlete profile: {e}")),
             metadata: None,
         }),
     }
@@ -388,6 +284,13 @@ pub fn handle_get_activities(
         // Parse user ID from request
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
+        // Extract provider from request parameters
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
+
         // Extract limit parameter with bounds checking
         let requested_limit = request
             .parameters
@@ -422,7 +325,7 @@ pub fn handle_get_activities(
         let cache_key = CacheKey::new(
             tenant_uuid,
             user_uuid,
-            oauth_providers::STRAVA.to_owned(),
+            provider_name.clone(),
             CacheResource::ActivityList { page: 1, per_page },
         );
 
@@ -433,6 +336,7 @@ pub fn handle_get_activities(
             user_uuid,
             request.tenant_id.as_ref(),
             limit,
+            &provider_name,
         )
         .await
         {
@@ -465,23 +369,21 @@ pub fn handle_get_activities(
             }
         }
 
-        // Get valid Strava token (with automatic refresh if needed)
+        // Create authenticated provider
         match executor
             .auth_service
-            .get_valid_token(
-                user_uuid,
-                oauth_providers::STRAVA,
-                request.tenant_id.as_deref(),
-            )
+            .create_authenticated_provider(&provider_name, user_uuid, request.tenant_id.as_deref())
             .await
         {
-            Ok(Some(token_data)) => {
+            Ok(provider) => {
                 // Report progress after successful auth
                 if let Some(reporter) = &request.progress_reporter {
                     reporter.report(
                         50.0,
                         Some(100.0),
-                        Some("Authenticated - fetching activities from Strava...".to_owned()),
+                        Some(format!(
+                            "Authenticated - fetching activities from {provider_name}..."
+                        )),
                     );
                 }
 
@@ -494,70 +396,44 @@ pub fn handle_get_activities(
                     }
                 }
 
-                // Create and configure Strava provider
-                match create_configured_strava_provider(
-                    &executor.resources.provider_registry,
-                    &token_data,
-                    &executor.resources.config.oauth.strava,
-                )
-                .await
-                {
-                    Ok(provider) => {
-                        // Report progress before API call
+                // Get activities from provider
+                match provider.get_activities(Some(limit), None).await {
+                    Ok(activities) => {
+                        // Report completion
                         if let Some(reporter) = &request.progress_reporter {
                             reporter.report(
-                                75.0,
+                                100.0,
                                 Some(100.0),
-                                Some("Calling Strava API...".to_owned()),
+                                Some(format!(
+                                    "Successfully fetched {} activities",
+                                    activities.len()
+                                )),
                             );
                         }
 
-                        // Get activities from provider
-                        match provider.get_activities(Some(limit), None).await {
-                            Ok(activities) => {
-                                // Report completion
-                                if let Some(reporter) = &request.progress_reporter {
-                                    reporter.report(
-                                        100.0,
-                                        Some(100.0),
-                                        Some(format!(
-                                            "Successfully fetched {} activities",
-                                            activities.len()
-                                        )),
-                                    );
-                                }
-
-                                cache_activities_result(
-                                    &executor.resources.cache,
-                                    &cache_key,
-                                    &activities,
-                                    per_page,
-                                )
-                                .await;
-                                Ok(build_activities_success_response(
-                                    &activities,
-                                    user_uuid,
-                                    request.tenant_id,
-                                ))
-                            }
-                            Err(e) => Ok(UniversalResponse {
-                                success: false,
-                                result: None,
-                                error: Some(format!("Failed to fetch activities: {e}")),
-                                metadata: None,
-                            }),
-                        }
+                        cache_activities_result(
+                            &executor.resources.cache,
+                            &cache_key,
+                            &activities,
+                            per_page,
+                        )
+                        .await;
+                        Ok(build_activities_success_response(
+                            &activities,
+                            user_uuid,
+                            request.tenant_id,
+                            &provider_name,
+                        ))
                     }
                     Err(e) => Ok(UniversalResponse {
                         success: false,
                         result: None,
-                        error: Some(e),
+                        error: Some(format!("Failed to fetch activities: {e}")),
                         metadata: None,
                     }),
                 }
             }
-            Ok(None) => Ok(create_no_token_response()),
-            Err(e) => Ok(create_auth_error_response(&e.to_string())),
+            Err(response) => Ok(response),
         }
     })
 }
@@ -582,6 +458,13 @@ pub fn handle_get_athlete(
         // Parse user ID from request
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
+        // Extract provider from request parameters
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
+
         // Create cache key for athlete profile
         let tenant_uuid = request
             .tenant_id
@@ -602,7 +485,7 @@ pub fn handle_get_athlete(
         let cache_key = CacheKey::new(
             tenant_uuid,
             user_uuid,
-            oauth_providers::STRAVA.to_owned(),
+            provider_name.clone(),
             CacheResource::AthleteProfile,
         );
 
@@ -644,17 +527,13 @@ pub fn handle_get_athlete(
             }
         }
 
-        // Get valid Strava token (with automatic refresh if needed)
+        // Create authenticated provider
         match executor
             .auth_service
-            .get_valid_token(
-                user_uuid,
-                oauth_providers::STRAVA,
-                request.tenant_id.as_deref(),
-            )
+            .create_authenticated_provider(&provider_name, user_uuid, request.tenant_id.as_deref())
             .await
         {
-            Ok(Some(token_data)) => {
+            Ok(provider) => {
                 // Report progress after auth
                 if let Some(reporter) = &request.progress_reporter {
                     reporter.report(
@@ -674,13 +553,11 @@ pub fn handle_get_athlete(
                 }
 
                 let result = fetch_and_cache_athlete(
-                    &executor.resources.provider_registry,
+                    provider.as_ref(),
                     &executor.resources.cache,
-                    &token_data,
                     &cache_key,
                     user_uuid,
                     request.tenant_id,
-                    &executor.resources.config.oauth.strava,
                 )
                 .await;
 
@@ -697,20 +574,7 @@ pub fn handle_get_athlete(
 
                 result
             }
-            Ok(None) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(
-                    "No valid Strava token found. Please connect your Strava account.".to_owned(),
-                ),
-                metadata: None,
-            }),
-            Err(e) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Authentication error: {e}")),
-                metadata: None,
-            }),
+            Err(response) => Ok(response),
         }
     })
 }
@@ -774,98 +638,65 @@ async fn try_get_cached_stats(
 
 /// Fetch stats from API and cache both athlete and stats
 async fn fetch_and_cache_stats(
-    provider_registry: &Arc<crate::providers::ProviderRegistry>,
+    provider: &dyn FitnessProvider,
     cache: &Arc<Cache>,
-    token_data: &crate::protocols::universal::auth_service::TokenData,
     athlete_cache_key: &CacheKey,
     tenant_uuid: uuid::Uuid,
     user_uuid: uuid::Uuid,
-    config: &crate::config::environment::OAuthProviderConfig,
+    provider_name: &str,
 ) -> Result<UniversalResponse, ProtocolError> {
-    match provider_registry.create_provider(oauth_providers::STRAVA) {
-        Ok(provider) => {
-            let credentials = crate::providers::OAuth2Credentials {
-                client_id: config.client_id.clone().unwrap_or_default(),
-                client_secret: config.client_secret.clone().unwrap_or_default(),
-                access_token: Some(token_data.access_token.clone()),
-                refresh_token: Some(token_data.refresh_token.clone()),
-                expires_at: Some(token_data.expires_at),
-                scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
-                    .split(',')
-                    .map(str::to_owned)
-                    .collect(),
-            };
-
-            provider.set_credentials(credentials).await.map_err(|e| {
-                ProtocolError::ConfigurationError(format!(
-                    "Failed to set provider credentials: {e}"
-                ))
-            })?;
-
-            match provider.get_stats().await {
-                Ok(stats) => {
-                    // Get athlete to extract athlete_id for caching
-                    if let Ok(athlete) = provider.get_athlete().await {
-                        if let Ok(athlete_id) = athlete.id.parse::<u64>() {
-                            // Cache athlete
-                            let athlete_ttl = CacheResource::AthleteProfile.recommended_ttl();
-                            if let Err(e) =
-                                cache.set(athlete_cache_key, &athlete, athlete_ttl).await
-                            {
-                                tracing::warn!("Failed to cache athlete: {}", e);
-                            }
-
-                            // Cache stats
-                            let stats_cache_key = CacheKey::new(
-                                tenant_uuid,
-                                user_uuid,
-                                oauth_providers::STRAVA.to_owned(),
-                                CacheResource::Stats { athlete_id },
-                            );
-                            let stats_ttl = CacheResource::Stats { athlete_id }.recommended_ttl();
-                            if let Err(e) = cache.set(&stats_cache_key, &stats, stats_ttl).await {
-                                tracing::warn!("Failed to cache stats: {}", e);
-                            } else {
-                                tracing::info!("Cached stats with TTL {:?}", stats_ttl);
-                            }
-                        }
+    match provider.get_stats().await {
+        Ok(stats) => {
+            // Get athlete to extract athlete_id for caching
+            if let Ok(athlete) = provider.get_athlete().await {
+                if let Ok(athlete_id) = athlete.id.parse::<u64>() {
+                    // Cache athlete
+                    let athlete_ttl = CacheResource::AthleteProfile.recommended_ttl();
+                    if let Err(e) = cache.set(athlete_cache_key, &athlete, athlete_ttl).await {
+                        tracing::warn!("Failed to cache athlete: {}", e);
                     }
 
-                    Ok(UniversalResponse {
-                        success: true,
-                        result: Some(serde_json::to_value(&stats).map_err(|e| {
-                            ProtocolError::SerializationError(format!(
-                                "Failed to serialize stats: {e}"
-                            ))
-                        })?),
-                        error: None,
-                        metadata: Some({
-                            let mut map = std::collections::HashMap::new();
-                            map.insert(
-                                "user_id".to_owned(),
-                                serde_json::Value::String(user_uuid.to_string()),
-                            );
-                            map.insert(
-                                "tenant_id".to_owned(),
-                                serde_json::Value::String(tenant_uuid.to_string()),
-                            );
-                            map.insert("cached".to_owned(), serde_json::Value::Bool(false));
-                            map
-                        }),
-                    })
+                    // Cache stats
+                    let stats_cache_key = CacheKey::new(
+                        tenant_uuid,
+                        user_uuid,
+                        provider_name.to_owned(),
+                        CacheResource::Stats { athlete_id },
+                    );
+                    let stats_ttl = CacheResource::Stats { athlete_id }.recommended_ttl();
+                    if let Err(e) = cache.set(&stats_cache_key, &stats, stats_ttl).await {
+                        tracing::warn!("Failed to cache stats: {}", e);
+                    } else {
+                        tracing::info!("Cached stats with TTL {:?}", stats_ttl);
+                    }
                 }
-                Err(e) => Ok(UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Failed to fetch stats: {e}")),
-                    metadata: None,
-                }),
             }
+
+            Ok(UniversalResponse {
+                success: true,
+                result: Some(serde_json::to_value(&stats).map_err(|e| {
+                    ProtocolError::SerializationError(format!("Failed to serialize stats: {e}"))
+                })?),
+                error: None,
+                metadata: Some({
+                    let mut map = std::collections::HashMap::new();
+                    map.insert(
+                        "user_id".to_owned(),
+                        serde_json::Value::String(user_uuid.to_string()),
+                    );
+                    map.insert(
+                        "tenant_id".to_owned(),
+                        serde_json::Value::String(tenant_uuid.to_string()),
+                    );
+                    map.insert("cached".to_owned(), serde_json::Value::Bool(false));
+                    map
+                }),
+            })
         }
         Err(e) => Ok(UniversalResponse {
             success: false,
             result: None,
-            error: Some(e.to_string()),
+            error: Some(format!("Failed to fetch stats: {e}")),
             metadata: None,
         }),
     }
@@ -891,6 +722,13 @@ pub fn handle_get_stats(
         // Parse user ID from request
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
+        // Extract provider from request parameters
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
+
         // Create cache key for stats (need athlete_id from athlete profile)
         let tenant_uuid = request
             .tenant_id
@@ -911,7 +749,7 @@ pub fn handle_get_stats(
         let athlete_cache_key = CacheKey::new(
             tenant_uuid,
             user_uuid,
-            oauth_providers::STRAVA.to_owned(),
+            provider_name.clone(),
             CacheResource::AthleteProfile,
         );
 
@@ -922,7 +760,7 @@ pub fn handle_get_stats(
             let stats_cache_key = CacheKey::new(
                 tenant_uuid,
                 user_uuid,
-                oauth_providers::STRAVA.to_owned(),
+                provider_name.clone(),
                 CacheResource::Stats { athlete_id },
             );
 
@@ -964,17 +802,13 @@ pub fn handle_get_stats(
             }
         }
 
-        // Get valid Strava token (with automatic refresh if needed)
+        // Create authenticated provider
         match executor
             .auth_service
-            .get_valid_token(
-                user_uuid,
-                oauth_providers::STRAVA,
-                request.tenant_id.as_deref(),
-            )
+            .create_authenticated_provider(&provider_name, user_uuid, request.tenant_id.as_deref())
             .await
         {
-            Ok(Some(token_data)) => {
+            Ok(provider) => {
                 // Report progress after auth
                 if let Some(reporter) = &request.progress_reporter {
                     reporter.report(
@@ -994,13 +828,12 @@ pub fn handle_get_stats(
                 }
 
                 let result = fetch_and_cache_stats(
-                    &executor.resources.provider_registry,
+                    provider.as_ref(),
                     &executor.resources.cache,
-                    &token_data,
                     &athlete_cache_key,
                     tenant_uuid,
                     user_uuid,
-                    &executor.resources.config.oauth.strava,
+                    &provider_name,
                 )
                 .await;
 
@@ -1017,20 +850,7 @@ pub fn handle_get_stats(
 
                 result
             }
-            Ok(None) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(
-                    "No valid Strava token found. Please connect your Strava account.".to_owned(),
-                ),
-                metadata: None,
-            }),
-            Err(e) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Authentication error: {e}")),
-                metadata: None,
-            }),
+            Err(response) => Ok(response),
         }
     })
 }
@@ -1054,6 +874,14 @@ pub fn handle_analyze_activity(
 
         // Parse user ID and extract activity ID from request
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+
+        // Extract provider from request parameters
+        let provider_name = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .map_or_else(crate::config::environment::default_provider, String::from);
+
         let activity_id = request
             .parameters
             .get("activity_id")
@@ -1081,17 +909,13 @@ pub fn handle_analyze_activity(
             }
         }
 
-        // Get valid Strava token (with automatic refresh if needed)
+        // Create authenticated provider
         match executor
             .auth_service
-            .get_valid_token(
-                user_uuid,
-                oauth_providers::STRAVA,
-                request.tenant_id.as_deref(),
-            )
+            .create_authenticated_provider(&provider_name, user_uuid, request.tenant_id.as_deref())
             .await
         {
-            Ok(Some(token_data)) => {
+            Ok(provider) => {
                 // Report progress after auth
                 if let Some(reporter) = &request.progress_reporter {
                     reporter.report(
@@ -1110,81 +934,45 @@ pub fn handle_analyze_activity(
                     }
                 }
 
-                // Create and configure Strava provider
-                match create_configured_strava_provider(
-                    &executor.resources.provider_registry,
-                    &token_data,
-                    &executor.resources.config.oauth.strava,
-                )
-                .await
-                {
-                    Ok(provider) => {
-                        // Fetch the specific activity directly - efficient single API call
-                        match provider.get_activity(&activity_id).await {
-                            Ok(_activity) => {
-                                // Report progress before analysis
-                                if let Some(reporter) = &request.progress_reporter {
-                                    reporter.report(
-                                        60.0,
-                                        Some(100.0),
-                                        Some("Activity retrieved - analyzing...".to_owned()),
-                                    );
-                                }
-
-                                // Activity found - process analysis
-                                // Note: process_activity_analysis takes ownership of request
-                                process_activity_analysis(
-                                    executor,
-                                    request,
-                                    &activity_id,
-                                    user_uuid,
-                                )
-                                .await
-                            }
-                            Err(e) => {
-                                // Activity not found or API error
-                                Ok(UniversalResponse {
-                                    success: false,
-                                    result: None,
-                                    error: Some(format!("Activity {activity_id} not found: {e}")),
-                                    metadata: Some({
-                                        let mut map = std::collections::HashMap::new();
-                                        map.insert(
-                                            "activity_id".to_owned(),
-                                            serde_json::Value::String(activity_id.clone()),
-                                        );
-                                        map.insert(
-                                            "provider".to_owned(),
-                                            serde_json::Value::String("strava".to_owned()),
-                                        );
-                                        map
-                                    }),
-                                })
-                            }
+                // Fetch the specific activity directly - efficient single API call
+                match provider.get_activity(&activity_id).await {
+                    Ok(_activity) => {
+                        // Report progress before analysis
+                        if let Some(reporter) = &request.progress_reporter {
+                            reporter.report(
+                                60.0,
+                                Some(100.0),
+                                Some("Activity retrieved - analyzing...".to_owned()),
+                            );
                         }
+
+                        // Activity found - process analysis
+                        // Note: process_activity_analysis takes ownership of request
+                        process_activity_analysis(executor, request, &activity_id, user_uuid).await
                     }
-                    Err(e) => Ok(UniversalResponse {
-                        success: false,
-                        result: None,
-                        error: Some(e),
-                        metadata: None,
-                    }),
+                    Err(e) => {
+                        // Activity not found or API error
+                        Ok(UniversalResponse {
+                            success: false,
+                            result: None,
+                            error: Some(format!("Activity {activity_id} not found: {e}")),
+                            metadata: Some({
+                                let mut map = std::collections::HashMap::new();
+                                map.insert(
+                                    "activity_id".to_owned(),
+                                    serde_json::Value::String(activity_id.clone()),
+                                );
+                                map.insert(
+                                    "provider".to_owned(),
+                                    serde_json::Value::String(provider_name.clone()),
+                                );
+                                map
+                            }),
+                        })
+                    }
                 }
             }
-            Ok(None) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(
-                    "No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned(),
-                ),
-                metadata: None,
-            }),
-            Err(e) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Authentication error: {e}")),
-                metadata: None,
-            }),
+            Err(response) => Ok(response),
         }
     })
 }

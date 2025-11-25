@@ -129,10 +129,16 @@ impl LthrAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// use pierre_mcp_server::intelligence::algorithms::lthr::LthrAlgorithm;
+    /// use pierre_mcp_server::errors::AppResult;
+    ///
+    /// # fn example() -> AppResult<()> {
     /// let algorithm = LthrAlgorithm::From30MinTest { avg_hr_30min: 165.0 };
     /// let lthr = algorithm.estimate_lthr()?;
     /// // lthr = 169.95 bpm (165 x 1.03)
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn estimate_lthr(&self) -> AppResult<f64> {
         match self {

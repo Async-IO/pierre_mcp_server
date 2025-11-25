@@ -80,6 +80,28 @@ jobs:
       - name: Secret Pattern Validation
         run: ./scripts/validate-no-secrets.sh
 
+      - name: Validate no ignored doctests
+        run: |
+          echo "🔍 Checking for ignored doctests..."
+          DOCTEST_OUTPUT=$(cargo test --doc 2>&1 || true)
+          IGNORED_COUNT=$(echo "$DOCTEST_OUTPUT" | grep -E "test result:.*ignored" | grep -oE "[0-9]+ ignored" | grep -oE "[0-9]+" | head -1 || echo "0")
+          if [ "${IGNORED_COUNT:-0}" -gt 0 ]; then
+            echo "❌ ERROR: Found $IGNORED_COUNT ignored doctests!"
+            echo "Doctests marked with 'ignore' are not compiled or tested."
+            echo "Use 'no_run' if code should compile but not execute,"
+            echo "or 'text' for documentation-only examples."
+            echo ""
+            echo "To find ignored doctests, run: cargo test --doc 2>&1 | grep -i ignore"
+            exit 1
+          fi
+          echo "✅ No ignored doctests found"
+        env:
+          DATABASE_URL: "sqlite::memory:"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+
       - name: Setup Node.js (for SDK build)
         uses: actions/setup-node@v4
         with:

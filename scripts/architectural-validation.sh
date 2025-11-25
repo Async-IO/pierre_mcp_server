@@ -52,6 +52,25 @@ pass_validation() {
 }
 
 # ============================================================================
+# FAST-FAIL: Check for backup files BEFORE any other validation
+# ============================================================================
+# This must run first to avoid corrupting validation metrics output
+
+echo ""
+echo -e "${BLUE}==== Checking for backup files (fast-fail) ====${NC}"
+
+BACKUP_FILES=$(find src tests -name "*.backup" -o -name "*.bak" 2>/dev/null)
+if [ -n "$BACKUP_FILES" ]; then
+    echo -e "${RED}[FAIL] Backup files found (must be removed):${NC}"
+    echo "$BACKUP_FILES"
+    echo -e "${RED}❌ ARCHITECTURAL VALIDATION FAILED${NC}"
+    echo -e "${RED}Remove backup files before running validation${NC}"
+    exit 1
+fi
+
+pass_validation "No backup files found"
+
+# ============================================================================
 # TABLE FORMATTING HELPERS
 # ============================================================================
 
@@ -340,22 +359,6 @@ echo -e "${BLUE}==== Binary Size Validation ====${NC}"
 # Binary size is validated at the end of lint-and-test.sh after release build
 # Skip this check during early architectural validation
 pass_validation "Binary size check deferred to release build step"
-
-# ============================================================================
-# BACKUP FILES CHECK (Development Hygiene)
-# ============================================================================
-
-echo ""
-echo -e "${BLUE}==== Checking for backup files ====${NC}"
-
-BACKUP_FILES=$(find src tests -name "*.backup" -o -name "*.bak" 2>/dev/null)
-if [ -n "$BACKUP_FILES" ]; then
-    echo -e "${RED}[FAIL] Backup files found (must be removed):${NC}"
-    echo "$BACKUP_FILES"
-    fail_validation "Remove backup files before commit"
-else
-    pass_validation "No backup files found"
-fi
 
 # ============================================================================
 # LEGACY FUNCTION DETECTION (UX Anti-Patterns)

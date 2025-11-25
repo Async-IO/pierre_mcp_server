@@ -158,10 +158,16 @@ impl FtpAlgorithm {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// use pierre_mcp_server::intelligence::algorithms::ftp::FtpAlgorithm;
+    /// use pierre_mcp_server::errors::AppResult;
+    ///
+    /// # fn example() -> AppResult<()> {
     /// let algorithm = FtpAlgorithm::From20MinTest { avg_power_20min: 250.0 };
     /// let ftp = algorithm.estimate_ftp()?;
     /// // ftp = 237.5 watts (250 x 0.95)
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn estimate_ftp(&self) -> AppResult<f64> {
         match self {

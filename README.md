@@ -35,6 +35,32 @@ See [Intelligence and Analytics Methodology](docs/intelligence-methodology.md) a
 - **RS256/JWKS**: Asymmetric JWT signing with public key distribution
 - **Plugin System**: Compile-time plugin architecture with lifecycle management
 - **TypeScript SDK**: npm package `pierre-mcp-client` for stdio transport integration ([SDK documentation](./sdk/README.md))
+- **Pluggable Providers**: Service Provider Interface (SPI) with feature flags for compile-time provider selection
+
+### Provider Architecture
+
+Pierre supports multiple fitness providers through a pluggable architecture:
+
+| Provider | Feature Flag | Status | Capabilities |
+|----------|-------------|--------|--------------|
+| Strava | `provider-strava` | ✅ Full | Activities, Stats, Routes |
+| Garmin | `provider-garmin` | ✅ Full | Activities, Sleep, Health |
+| Synthetic | `provider-synthetic` | ✅ Full | Development/Testing (no OAuth) |
+| Fitbit | `provider-fitbit` | 🚧 Planned | Activities, Sleep, Health |
+
+**Build with specific providers:**
+```bash
+# All providers (default)
+cargo build --release
+
+# Only Strava
+cargo build --release --no-default-features --features "sqlite,provider-strava"
+
+# Strava + Garmin (no synthetic)
+cargo build --release --no-default-features --features "sqlite,provider-strava,provider-garmin"
+```
+
+See [Chapter 17.5: Pluggable Provider Architecture](docs/tutorial/chapter-17.5-pluggable-providers.md) for detailed documentation on adding custom providers.
 
 ## Architecture
 
