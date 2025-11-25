@@ -1,47 +1,107 @@
-<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="logo-title-dark logo-desc-dark">
-  <title id="logo-title-dark">Pierre Fitness Platform</title>
-  <desc id="logo-desc-dark">Dynamic energy wave optimized for dark backgrounds with enhanced contrast</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <title>Pierre Fitness Platform (Light Theme)</title>
+  <desc>Holistic fitness intelligence logo optimized for dark backgrounds - brighter colors for visibility</desc>
 
   <defs>
-    <!-- Brighter gradient for dark backgrounds -->
-    <linearGradient id="wave-gradient-dark" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#fca5a5;stop-opacity:1" />
-      <stop offset="37%" style="stop-color:#5eead4;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#86efac;stop-opacity:1" />
+    <!-- Pierre Primary Gradient (brighter for dark bg) -->
+    <linearGradient id="pierreGradLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#A78BFA"/>
+      <stop offset="100%" style="stop-color:#22D3EE"/>
     </linearGradient>
+
+    <!-- Activity (Brighter Emerald) -->
+    <linearGradient id="activityGradLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#34D399"/>
+      <stop offset="100%" style="stop-color:#10B981"/>
+    </linearGradient>
+
+    <!-- Nutrition (Brighter Amber) -->
+    <linearGradient id="nutritionGradLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FBBF24"/>
+      <stop offset="100%" style="stop-color:#F59E0B"/>
+    </linearGradient>
+
+    <!-- Recovery (Brighter Indigo) -->
+    <linearGradient id="recoveryGradLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#818CF8"/>
+      <stop offset="100%" style="stop-color:#6366F1"/>
+    </linearGradient>
+
+    <filter id="glowLight">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
 
-  <!-- Dark outline for depth -->
-  <path d="M 15 65 Q 30 45, 45 50 T 75 35"
-        fill="none" stroke="#000000" stroke-width="10"
-        stroke-linecap="round" vector-effect="non-scaling-stroke" opacity="0.3"/>
+  <!-- Data connection lines -->
+  <g stroke-width="2.5" opacity="0.6" stroke-linecap="round">
+    <!-- Activity connections (emerald) -->
+    <line x1="40" y1="30" x2="52" y2="42" stroke="url(#activityGradLight)"/>
+    <line x1="52" y1="42" x2="70" y2="35" stroke="url(#activityGradLight)"/>
+    <line x1="52" y1="42" x2="48" y2="55" stroke="url(#pierreGradLight)"/>
 
-  <!-- Primary dynamic wave (brighter colors) -->
-  <path d="M 15 65 Q 30 45, 45 50 T 75 35"
-        fill="none" stroke="url(#wave-gradient-dark)" stroke-width="8"
-        stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+    <!-- To nutrition nodes -->
+    <line x1="48" y1="55" x2="75" y2="52" stroke="url(#nutritionGradLight)"/>
+    <line x1="75" y1="52" x2="88" y2="60" stroke="url(#nutritionGradLight)"/>
 
-  <!-- Secondary wave (motion effect) -->
-  <path d="M 20 70 Q 35 52, 50 56 T 80 42"
-        fill="none" stroke="url(#wave-gradient-dark)" stroke-width="5"
-        stroke-linecap="round" opacity="0.35" vector-effect="non-scaling-stroke"
-        class="secondary-wave"/>
+    <!-- To recovery nodes -->
+    <line x1="48" y1="55" x2="55" y2="72" stroke="url(#pierreGradLight)"/>
+    <line x1="55" y1="72" x2="35" y2="85" stroke="url(#recoveryGradLight)"/>
+    <line x1="55" y1="72" x2="72" y2="82" stroke="url(#recoveryGradLight)"/>
 
-  <!-- Tertiary wave (motion effect) -->
-  <path d="M 25 75 Q 40 59, 55 62 T 85 49"
-        fill="none" stroke="url(#wave-gradient-dark)" stroke-width="3"
-        stroke-linecap="round" opacity="0.18" vector-effect="non-scaling-stroke"
-        class="tertiary-wave"/>
+    <!-- Cross connections -->
+    <line x1="70" y1="35" x2="88" y2="60" stroke="url(#pierreGradLight)" opacity="0.4"/>
+    <line x1="35" y1="85" x2="72" y2="82" stroke="url(#pierreGradLight)" opacity="0.4"/>
+  </g>
 
-  <!-- Energy burst at endpoint (brighter for dark mode) -->
-  <circle cx="75" cy="35" r="4" fill="#86efac"/>
-  <circle cx="75" cy="35" r="7" fill="none" stroke="#86efac" stroke-width="1.5" opacity="0.6" vector-effect="non-scaling-stroke"/>
-  <circle cx="75" cy="35" r="10" fill="none" stroke="#86efac" stroke-width="1" opacity="0.4" vector-effect="non-scaling-stroke"/>
+  <!-- Running figure nodes - Activity (Emerald) -->
+  <g filter="url(#glowLight)">
+    <!-- Head -->
+    <circle cx="40" cy="30" r="7" fill="url(#activityGradLight)"/>
+    <!-- Shoulder/chest -->
+    <circle cx="52" cy="42" r="5" fill="url(#activityGradLight)"/>
+    <!-- Arm forward -->
+    <circle cx="70" cy="35" r="3.5" fill="url(#activityGradLight)"/>
+  </g>
 
-  <style>
-    /* Hide secondary/tertiary waves at small sizes */
-    @media (max-width: 32px) {
-      .secondary-wave, .tertiary-wave { display: none; }
-    }
-  </style>
+  <!-- Core/center node - Pierre primary -->
+  <circle cx="48" cy="55" r="6" fill="url(#pierreGradLight)" filter="url(#glowLight)"/>
+  <circle cx="48" cy="55" r="3" fill="#ffffff"/>
+
+  <!-- Nutrition nodes (Amber) -->
+  <g filter="url(#glowLight)">
+    <circle cx="75" cy="52" r="4.5" fill="url(#nutritionGradLight)"/>
+    <circle cx="88" cy="60" r="3.5" fill="url(#nutritionGradLight)"/>
+  </g>
+
+  <!-- Lower body + Recovery nodes (Indigo) -->
+  <g filter="url(#glowLight)">
+    <!-- Knee/stride node -->
+    <circle cx="55" cy="72" r="5" fill="url(#recoveryGradLight)"/>
+    <!-- Feet/rest -->
+    <circle cx="35" cy="85" r="4" fill="url(#recoveryGradLight)"/>
+    <circle cx="72" cy="82" r="4" fill="url(#recoveryGradLight)"/>
+  </g>
+
+  <!-- Motion trails (brighter) -->
+  <g fill="none" stroke-width="1.5" stroke-linecap="round" opacity="0.5">
+    <path d="M28,32 Q20,36 16,44" stroke="url(#activityGradLight)"/>
+    <path d="M30,38 Q22,42 20,50" stroke="url(#activityGradLight)"/>
+  </g>
+
+  <!-- Small accent details -->
+  <g opacity="0.7">
+    <!-- Activity sparkle -->
+    <circle cx="82" cy="28" r="1.5" fill="#34D399"/>
+    <!-- Nutrition sparkle -->
+    <circle cx="98" cy="50" r="1.5" fill="#FBBF24"/>
+    <!-- Recovery sparkle -->
+    <circle cx="25" cy="95" r="1.5" fill="#818CF8"/>
+  </g>
+
+  <!-- Pulse line accent -->
+  <path d="M15,105 l4,-5 l2,10 l3,-8 l2,5 l4,-3" fill="none" stroke="url(#pierreGradLight)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
 </svg>

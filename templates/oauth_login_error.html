@@ -4,194 +4,78 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <meta name="referrer" content="no-referrer">
-    <title>Login Error - Pierre MCP Server</title>
+    <title>Login Failed - Pierre</title>
     <style>
-        /* Pierre OAuth Template Design System */
-        :root {
-            --pierre-gray-50: #f9fafb;
-            --pierre-gray-200: #e5e7eb;
-            --pierre-gray-700: #374151;
-            --pierre-blue-600: #2563eb;
-            --pierre-green-600: #16a34a;
-            --pierre-red-500: #ef4444;
-            --pierre-red-600: #dc2626;
-            --pierre-red-700: #b91c1c;
-            --pierre-red-50: #fef2f2;
-            --pierre-red-100: #fee2e2;
-            --pierre-teal-500: #14b8a6;
-            --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            --font-mono: Monaco, Menlo, Ubuntu Mono, Consolas, monospace;
-            --spacing-4: 1rem;
-            --spacing-6: 1.5rem;
-            --spacing-8: 2rem;
-            --spacing-10: 2.5rem;
-            --text-sm: 0.875rem;
-            --text-base: 1rem;
-            --text-lg: 1.125rem;
-            --text-2xl: 1.5rem;
-            --radius-md: 0.5rem;
-            --radius-lg: 0.75rem;
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: var(--font-sans);
-            margin: var(--spacing-10);
-            background-color: var(--pierre-gray-50);
-            line-height: 1.6;
-            color: var(--pierre-gray-700);
-        }
-
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background: white;
-            padding: var(--spacing-8);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-md);
-        }
-
-        .logo-container {
-            text-align: center;
-            margin-bottom: var(--spacing-6);
-        }
-
-        .error {
-            color: var(--pierre-red-700);
-            font-size: var(--text-2xl);
-            margin-bottom: var(--spacing-6);
-            font-weight: 600;
-        }
-
-        .error-box {
-            background-color: var(--pierre-red-50);
-            border: 1px solid var(--pierre-red-100);
-            padding: var(--spacing-4);
-            border-radius: var(--radius-md);
-            margin-bottom: var(--spacing-6);
-        }
-
-        .error-message {
-            color: var(--pierre-red-700);
-            font-weight: 500;
-            font-size: var(--text-base);
-        }
-
-        .info {
-            color: var(--pierre-gray-700);
-            margin: var(--spacing-4) 0;
-            font-size: var(--text-base);
-        }
-
-        .link {
-            display: inline-flex;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f9fafb;
+            min-height: 100vh;
+            display: flex;
             align-items: center;
-            color: var(--pierre-blue-600);
+            justify-content: center;
+            padding: 1rem;
+        }
+        .card {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 400px;
+            position: relative;
+            overflow: hidden;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #7C3AED, #06B6D4);
+        }
+        .logo { margin-bottom: 1rem; }
+        .brand { font-size: 1.125rem; font-weight: 700; color: #1f2937; letter-spacing: -0.5px; margin-bottom: 2rem; }
+        h1 { color: #dc2626; font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem; }
+        p { color: #4b5563; line-height: 1.6; margin-bottom: 1.5rem; }
+        a {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #7C3AED, #06B6D4);
+            color: white;
             text-decoration: none;
+            border-radius: 0.5rem;
             font-weight: 500;
-            font-size: var(--text-base);
-            transition: color var(--transition-base);
         }
-
-        .link:hover {
-            color: var(--pierre-red-600);
-            text-decoration: underline;
-        }
-
-        .link:focus {
-            outline: none;
-        }
-
-        .link:focus-visible {
-            outline: 2px solid var(--pierre-blue-600);
-            outline-offset: 2px;
-            border-radius: 2px;
-        }
-
-        .link::before {
-            content: '← ';
-            margin-right: 0.25rem;
-        }
-
-        @media (max-width: 640px) {
-            body {
-                margin: var(--spacing-4);
-            }
-            .container {
-                padding: var(--spacing-6);
-            }
-            .error {
-                font-size: 1.25rem;
-            }
-        }
-
-        @media (min-width: 641px) and (max-width: 1024px) {
-            body {
-                margin: var(--spacing-6);
-            }
-            .container {
-                padding: 1.75rem;
-                max-width: 540px;
-            }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-            * {
-                animation-duration: 0.01ms !important;
-                transition-duration: 0.01ms !important;
-            }
-        }
-
-        @media print {
-            body {
-                background: white;
-                margin: 0;
-            }
-            .link {
-                display: none;
-            }
-        }
+        a:hover { opacity: 0.9; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Pierre Fitness Platform Logo -->
-        <div class="logo-container">
-            <svg width="60" height="60" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="logo-title logo-desc">
-                <title id="logo-title">Pierre Fitness Platform</title>
-                <desc id="logo-desc">Dynamic energy wave flowing upward, representing fitness progression and momentum with gradient from red through teal to green</desc>
+    <div class="card">
+        <div class="logo">
+            <svg width="80" height="80" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
                 <defs>
-                    <linearGradient id="wave-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" style="stop-color:#ef4444;stop-opacity:1" />
-                        <stop offset="37%" style="stop-color:#14b8a6;stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:#16a34a;stop-opacity:1" />
-                    </linearGradient>
+                    <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#7C3AED"/><stop offset="100%" style="stop-color:#06B6D4"/></linearGradient>
+                    <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#10B981"/><stop offset="100%" style="stop-color:#059669"/></linearGradient>
+                    <linearGradient id="ng" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#F59E0B"/><stop offset="100%" style="stop-color:#D97706"/></linearGradient>
+                    <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#6366F1"/><stop offset="100%" style="stop-color:#4F46E5"/></linearGradient>
                 </defs>
-                <path d="M 15 65 Q 30 45, 45 50 T 75 35" fill="none" stroke="url(#wave-gradient)" stroke-width="8" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
-                <path d="M 20 70 Q 35 52, 50 56 T 80 42" fill="none" stroke="url(#wave-gradient)" stroke-width="5" stroke-linecap="round" opacity="0.35" vector-effect="non-scaling-stroke" class="secondary-wave"/>
-                <path d="M 25 75 Q 40 59, 55 62 T 85 49" fill="none" stroke="url(#wave-gradient)" stroke-width="3" stroke-linecap="round" opacity="0.18" vector-effect="non-scaling-stroke" class="tertiary-wave"/>
-                <circle cx="75" cy="35" r="4" fill="#16a34a"/>
-                <circle cx="75" cy="35" r="7" fill="none" stroke="#16a34a" stroke-width="1.5" opacity="0.5" vector-effect="non-scaling-stroke"/>
-                <circle cx="75" cy="35" r="10" fill="none" stroke="#16a34a" stroke-width="1" opacity="0.3" vector-effect="non-scaling-stroke"/>
-                <style>
-                    @media (max-width: 32px) { .secondary-wave, .tertiary-wave { display: none; } }
-                </style>
+                <g stroke-width="2" opacity="0.5" stroke-linecap="round">
+                    <line x1="40" y1="30" x2="52" y2="42" stroke="url(#ag)"/><line x1="52" y1="42" x2="70" y2="35" stroke="url(#ag)"/>
+                    <line x1="52" y1="42" x2="48" y2="55" stroke="url(#pg)"/><line x1="48" y1="55" x2="75" y2="52" stroke="url(#ng)"/>
+                    <line x1="48" y1="55" x2="55" y2="72" stroke="url(#pg)"/><line x1="55" y1="72" x2="35" y2="85" stroke="url(#rg)"/><line x1="55" y1="72" x2="72" y2="82" stroke="url(#rg)"/>
+                </g>
+                <circle cx="40" cy="30" r="7" fill="url(#ag)"/><circle cx="52" cy="42" r="5" fill="url(#ag)"/><circle cx="70" cy="35" r="3.5" fill="url(#ag)"/>
+                <circle cx="48" cy="55" r="6" fill="url(#pg)"/><circle cx="48" cy="55" r="3" fill="#fff" opacity="0.9"/>
+                <circle cx="75" cy="52" r="4.5" fill="url(#ng)"/><circle cx="88" cy="60" r="3.5" fill="url(#ng)"/>
+                <circle cx="55" cy="72" r="5" fill="url(#rg)"/><circle cx="35" cy="85" r="4" fill="url(#rg)"/><circle cx="72" cy="82" r="4" fill="url(#rg)"/>
             </svg>
         </div>
-
-        <h1 class="error">Authentication Failed</h1>
-
-        <div class="error-box">
-            <p class="error-message">{{ERROR_MESSAGE}}</p>
-        </div>
-
-        <p class="info">Invalid email or password. Please verify your credentials and try again.</p>
-
-        <a href="/oauth2/login?client_id={{CLIENT_ID}}&redirect_uri={{REDIRECT_URI}}&response_type={{RESPONSE_TYPE}}&state={{STATE}}&scope={{SCOPE}}&code_challenge={{CODE_CHALLENGE}}&code_challenge_method={{CODE_CHALLENGE_METHOD}}"
-           class="link"
-           aria-label="Return to login page">Back to Login</a>
+        <div class="brand">Pierre Fitness Platform</div>
+        <h1>Login Failed</h1>
+        <p>Invalid email or password.</p>
+        <a href="/oauth2/login?client_id={{CLIENT_ID}}&redirect_uri={{REDIRECT_URI}}&response_type={{RESPONSE_TYPE}}&state={{STATE}}&scope={{SCOPE}}&code_challenge={{CODE_CHALLENGE}}&code_challenge_method={{CODE_CHALLENGE_METHOD}}">Try Again</a>
     </div>
 </body>
 </html>

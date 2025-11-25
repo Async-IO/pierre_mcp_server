@@ -301,9 +301,9 @@ tests/
 
 ```
 templates/
-├── pierre-logo.svg                 # primary logo (gradient wave design)
-├── pierre-logo-small.svg           # compact logo variant
-├── pierre-logo-dark.svg            # dark theme logo
+├── pierre-logo.svg                 # primary logo (holistic node design - running figure with three pillars)
+├── pierre-logo-small.svg           # compact P icon with data nodes (64x64)
+├── pierre-logo-dark.svg            # brighter colors for dark backgrounds
 ├── pierre-logo.png                 # raster logo
 ├── oauth_success.html              # oauth success page (89 lines)
 │   # features: pierre design system, responsive, accessibility

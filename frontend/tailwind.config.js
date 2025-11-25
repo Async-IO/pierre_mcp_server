@@ -7,8 +7,42 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Pierre brand colors
+        // Pierre brand colors - Holistic Intelligence design system
         pierre: {
+          // Primary brand colors
+          violet: '#7C3AED',  // Intelligence, AI, sophistication
+          cyan: '#06B6D4',    // Data flow, connectivity, freshness
+
+          // Three Pillars - Semantic accent colors
+          activity: '#10B981',   // Emerald - Movement, fitness, energy
+          nutrition: '#F59E0B',  // Amber - Food, fuel, nourishment
+          recovery: '#6366F1',   // Indigo - Rest, sleep, restoration
+
+          // Dark theme backgrounds
+          dark: '#0F0F1A',       // Deep Space - Primary dark bg
+          slate: '#1E1E2E',      // Secondary dark bg
+
+          // Extended violet palette
+          'violet-light': '#A78BFA',
+          'violet-dark': '#5B21B6',
+
+          // Extended cyan palette
+          'cyan-light': '#22D3EE',
+          'cyan-dark': '#0891B2',
+
+          // Extended activity (emerald) palette
+          'activity-light': '#34D399',
+          'activity-dark': '#059669',
+
+          // Extended nutrition (amber) palette
+          'nutrition-light': '#FBBF24',
+          'nutrition-dark': '#D97706',
+
+          // Extended recovery (indigo) palette
+          'recovery-light': '#818CF8',
+          'recovery-dark': '#4F46E5',
+
+          // Legacy color scales (for backward compatibility)
           blue: {
             50: '#eff6ff',
             100: '#dbeafe',
