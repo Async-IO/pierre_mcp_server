@@ -1,0 +1,69 @@
+# ABOUTME: Publishes the TypeScript SDK to npm when a GitHub release is published.
+# ABOUTME: Triggers automatically after the main release workflow completes.
+
+name: SDK Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish-npm:
+    name: Publish SDK to npm
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+          cache-dependency-path: sdk/package-lock.json
+
+      - name: Validate SDK version matches release
+        run: |
+          RELEASE_VERSION="${{ github.event.release.tag_name }}"
+          RELEASE_VERSION_NUM="${RELEASE_VERSION#v}"
+          SDK_VERSION=$(grep '"version"' sdk/package.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/')
+
+          echo "Release version: ${RELEASE_VERSION_NUM}"
+          echo "SDK package.json version: ${SDK_VERSION}"
+
+          if [ "$SDK_VERSION" != "$RELEASE_VERSION_NUM" ]; then
+            echo "::error::SDK version ($SDK_VERSION) does not match release ($RELEASE_VERSION_NUM)"
+            exit 1
+          fi
+          echo "SDK version validation passed"
+
+      - name: Install dependencies
+        working-directory: sdk
+        run: npm ci --prefer-offline
+
+      - name: Build SDK
+        working-directory: sdk
+        run: npm run build
+
+      - name: Run SDK tests
+        working-directory: sdk
+        run: npm run test:unit
+
+      - name: Publish to npm
+        working-directory: sdk
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish summary
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          echo "✅ SDK ${VERSION} published to npm!"
+          echo ""
+          echo "📦 Package: pierre-mcp-client"
+          echo "🔗 npm: https://www.npmjs.com/package/pierre-mcp-client"

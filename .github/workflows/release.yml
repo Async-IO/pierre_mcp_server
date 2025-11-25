@@ -18,8 +18,148 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
+  # Validation job runs first to catch version mismatches early
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.VERSION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate Cargo.toml version matches tag
+        run: |
+          TAG_VERSION="${{ steps.get_version.outputs.VERSION }}"
+          TAG_VERSION_NUM="${TAG_VERSION#v}"
+          CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+
+          echo "Tag version: ${TAG_VERSION_NUM}"
+          echo "Cargo.toml version: ${CARGO_VERSION}"
+
+          if [ "$CARGO_VERSION" != "$TAG_VERSION_NUM" ]; then
+            echo "::error::Version mismatch! Cargo.toml ($CARGO_VERSION) does not match tag ($TAG_VERSION_NUM)"
+            echo "::error::Please update Cargo.toml version to $TAG_VERSION_NUM before tagging"
+            exit 1
+          fi
+          echo "Version validation passed"
+
+      - name: Validate SDK version matches tag
+        run: |
+          TAG_VERSION="${{ steps.get_version.outputs.VERSION }}"
+          TAG_VERSION_NUM="${TAG_VERSION#v}"
+          SDK_VERSION=$(grep '"version"' sdk/package.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/')
+
+          echo "Tag version: ${TAG_VERSION_NUM}"
+          echo "SDK package.json version: ${SDK_VERSION}"
+
+          if [ "$SDK_VERSION" != "$TAG_VERSION_NUM" ]; then
+            echo "::error::Version mismatch! sdk/package.json ($SDK_VERSION) does not match tag ($TAG_VERSION_NUM)"
+            echo "::error::Please update sdk/package.json version to $TAG_VERSION_NUM before tagging"
+            exit 1
+          fi
+          echo "SDK version validation passed"
+
+      - name: Check release does not already exist
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          if gh release view "$VERSION" > /dev/null 2>&1; then
+            echo "::error::Release $VERSION already exists! Delete it first or use a different version."
+            exit 1
+          fi
+          echo "No existing release found for $VERSION"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Create draft release before building (prevents race conditions)
+  create-draft:
+    name: Create Draft Release
+    needs: [validate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check if CHANGELOG exists
+        id: check_changelog
+        run: |
+          if [ -f "CHANGELOG.md" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Extract release notes from CHANGELOG
+        if: steps.check_changelog.outputs.exists == 'true'
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          awk "/^## \[${VERSION#v}\]/ {flag=1; next} /^## \[/ {flag=0} flag" CHANGELOG.md > release-notes.md
+
+          if [ ! -s release-notes.md ]; then
+            echo "No release notes found in CHANGELOG.md for version ${VERSION}"
+            echo "## What's New" > release-notes.md
+            echo "" >> release-notes.md
+            echo "See [CHANGELOG.md](CHANGELOG.md) for details." >> release-notes.md
+          fi
+
+      - name: Create default release notes
+        if: steps.check_changelog.outputs.exists == 'false'
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          cat > release-notes.md <<EOF
+          ## Pierre MCP Server ${VERSION}
+
+          Multi-protocol fitness data API for LLMs with MCP and A2A support.
+
+          ### Installation
+
+          Download the appropriate binary for your platform below.
+
+          **Linux (Recommended):**
+          - \`pierre-mcp-server-${VERSION}-linux-x86_64-musl.tar.gz\` - Static binary, no dependencies
+
+          **macOS:**
+          - \`pierre-mcp-server-${VERSION}-macos-x86_64.tar.gz\` - Intel Macs
+          - \`pierre-mcp-server-${VERSION}-macos-aarch64.tar.gz\` - Apple Silicon (M1/M2/M3)
+
+          **Windows:**
+          - \`pierre-mcp-server-${VERSION}-windows-x86_64.zip\`
+
+          ### Verification
+
+          Verify your download with SHA256 checksums:
+          \`\`\`bash
+          sha256sum -c SHA256SUMS.txt
+          \`\`\`
+
+          ### Documentation
+
+          See [README.md](https://github.com/Async-IO/pierre_mcp_server) for configuration and usage.
+          EOF
+
+      - name: Create draft release
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          gh release create "$VERSION" \
+            --draft \
+            --title "Pierre MCP Server $VERSION" \
+            --notes-file release-notes.md
+          echo "Draft release $VERSION created"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build:
     name: Build ${{ matrix.target }}
+    needs: [validate, create-draft]
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -118,20 +258,10 @@ jobs:
           strip target/${{ matrix.target }}/release/diagnose-weather-api || true
           strip target/${{ matrix.target }}/release/serve-docs || true
 
-      - name: Get version from tag
-        id: get_version
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Create package directory structure (Unix)
         if: matrix.os != 'windows-latest'
         run: |
-          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          VERSION="${{ needs.validate.outputs.version }}"
           PACKAGE_NAME="pierre-mcp-server-${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.variant && format('-{0}', matrix.variant) || '' }}"
           mkdir -p "dist/${PACKAGE_NAME}/bin"
 
@@ -173,7 +303,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          $VERSION = "${{ steps.get_version.outputs.VERSION }}"
+          $VERSION = "${{ needs.validate.outputs.version }}"
           $PACKAGE_NAME = "pierre-mcp-server-${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}"
           New-Item -ItemType Directory -Force -Path "dist\${PACKAGE_NAME}\bin"
 
@@ -234,9 +364,10 @@ jobs:
             dist/*.zip
           retention-days: 1
 
-  create-release:
-    name: Create GitHub Release
-    needs: [build]
+  # Upload assets to draft and publish
+  publish-release:
+    name: Publish Release
+    needs: [validate, create-draft, build]
     runs-on: ubuntu-latest
 
     steps:
@@ -260,92 +391,26 @@ jobs:
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
-      - name: Get version from tag
-        id: get_version
+      - name: Upload assets to draft release
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
+          VERSION="${{ needs.validate.outputs.version }}"
+          echo "Uploading assets to draft release $VERSION..."
+          gh release upload "$VERSION" release-assets/* --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check if CHANGELOG exists
-        id: check_changelog
+      - name: Publish release (remove draft status)
         run: |
-          if [ -f "CHANGELOG.md" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Extract release notes from CHANGELOG
-        if: steps.check_changelog.outputs.exists == 'true'
-        id: extract_notes
-        run: |
-          VERSION="${{ steps.get_version.outputs.VERSION }}"
-
-          # Extract section for this version from CHANGELOG.md
-          awk "/^## \[${VERSION#v}\]/ {flag=1; next} /^## \[/ {flag=0} flag" CHANGELOG.md > release-notes.md
-
-          if [ ! -s release-notes.md ]; then
-            echo "No release notes found in CHANGELOG.md for version ${VERSION}"
-            echo "## What's New" > release-notes.md
-            echo "" >> release-notes.md
-            echo "See [CHANGELOG.md](CHANGELOG.md) for details." >> release-notes.md
-          fi
-
-      - name: Create default release notes
-        if: steps.check_changelog.outputs.exists == 'false'
-        run: |
-          VERSION="${{ steps.get_version.outputs.VERSION }}"
-          cat > release-notes.md <<EOF
-          ## Pierre MCP Server ${VERSION}
-
-          Multi-protocol fitness data API for LLMs with MCP and A2A support.
-
-          ### Installation
-
-          Download the appropriate binary for your platform below.
-
-          **Linux (Recommended):**
-          - \`pierre-mcp-server-${VERSION}-linux-x86_64-musl.tar.gz\` - Static binary, no dependencies
-
-          **macOS:**
-          - \`pierre-mcp-server-${VERSION}-macos-x86_64.tar.gz\` - Intel Macs
-          - \`pierre-mcp-server-${VERSION}-macos-aarch64.tar.gz\` - Apple Silicon (M1/M2/M3)
-
-          **Windows:**
-          - \`pierre-mcp-server-${VERSION}-windows-x86_64.zip\`
-
-          ### Verification
-
-          Verify your download with SHA256 checksums:
-          \`\`\`bash
-          sha256sum -c SHA256SUMS.txt
-          \`\`\`
-
-          ### Documentation
-
-          See [README.md](https://github.com/Async-IO/pierre_mcp_server) for configuration and usage.
-          EOF
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: release-assets/*
-          body_path: release-notes.md
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-          name: Pierre MCP Server ${{ steps.get_version.outputs.VERSION }}
-          fail_on_unmatched_files: true
+          VERSION="${{ needs.validate.outputs.version }}"
+          echo "Publishing release $VERSION..."
+          gh release edit "$VERSION" --draft=false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Release summary
         run: |
-          VERSION="${{ steps.get_version.outputs.VERSION }}"
-          echo "✅ Release ${VERSION} created successfully!"
+          VERSION="${{ needs.validate.outputs.version }}"
+          echo "✅ Release ${VERSION} published successfully!"
           echo ""
           echo "📦 Released binaries:"
           ls -lh release-assets/ | grep -v total
