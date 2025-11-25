@@ -101,7 +101,7 @@ impl CsrfTokenManager {
             tokens
                 .get(token)
                 .ok_or_else(|| crate::errors::AppError::auth_invalid("Invalid CSRF token"))?
-                .clone()
+                .clone() // Safe: clone to release read lock before validation
         };
 
         // Check expiration

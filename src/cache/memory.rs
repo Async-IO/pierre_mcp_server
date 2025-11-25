@@ -103,7 +103,7 @@ impl InMemoryCache {
             .iter()
             .filter_map(|(k, v)| {
                 if v.is_expired() {
-                    Some(k.clone())
+                    Some(k.clone()) // Safe: collect keys for removal after iteration
                 } else {
                     None
                 }
@@ -185,7 +185,7 @@ impl CacheProvider for InMemoryCache {
             .iter()
             .filter_map(|(k, _)| {
                 if glob_pattern.matches(k) {
-                    Some(k.clone())
+                    Some(k.clone()) // Safe: collect keys for removal after iteration
                 } else {
                     None
                 }

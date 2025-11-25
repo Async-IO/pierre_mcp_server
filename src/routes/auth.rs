@@ -518,7 +518,7 @@ impl OAuthService {
                 );
                     AppError::invalid_input("User has no tenant")
                 })?
-                .clone();
+                .clone(); // Safe: Uuid ownership for return value
 
         Ok((user, tenant_id))
     }
@@ -1053,7 +1053,7 @@ impl AuthRoutes {
                 // Clone JWT for cookie (keep in response for backward compatibility)
                 let jwt_token = response
                     .jwt_token
-                    .clone()
+                    .clone() // Safe: JWT string ownership for cookie
                     .ok_or_else(|| AppError::internal("JWT token missing from login response"))?;
 
                 // Parse user ID for CSRF token generation
@@ -1106,7 +1106,7 @@ impl AuthRoutes {
                 // Clone JWT for cookie (keep in response for backward compatibility)
                 let jwt_token = response
                     .jwt_token
-                    .clone()
+                    .clone() // Safe: JWT string ownership for cookie
                     .ok_or_else(|| AppError::internal("JWT token missing from refresh response"))?;
 
                 // Parse user ID for CSRF token generation

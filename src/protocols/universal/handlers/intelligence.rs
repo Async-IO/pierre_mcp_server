@@ -271,6 +271,7 @@ async fn fetch_and_calculate_metrics(
         .create_provider(provider_name)
         .map_err(|e| ProtocolError::InternalError(format!("Failed to create provider: {e}")))?;
 
+    // Safe: OAuth credential clones needed for struct field ownership
     let credentials = crate::providers::OAuth2Credentials {
         client_id: executor
             .resources
@@ -278,7 +279,7 @@ async fn fetch_and_calculate_metrics(
             .oauth
             .strava
             .client_id
-            .clone()
+            .clone() // Safe: OAuth config ownership
             .unwrap_or_default(),
         client_secret: executor
             .resources
@@ -286,7 +287,7 @@ async fn fetch_and_calculate_metrics(
             .oauth
             .strava
             .client_secret
-            .clone()
+            .clone() // Safe: OAuth config ownership
             .unwrap_or_default(),
         access_token: Some(token_data.access_token.clone()),
         refresh_token: Some(token_data.refresh_token.clone()),
