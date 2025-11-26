@@ -18,6 +18,26 @@ const UnifiedConnections = lazy(() => import('./UnifiedConnections'));
 const UserManagement = lazy(() => import('./UserManagement'));
 const LazyLineChart = lazy(() => import('react-chartjs-2').then(module => ({ default: module.Line })));
 
+const PierreLogo = () => (
+  <svg width="48" height="48" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#7C3AED"/><stop offset="100%" stopColor="#06B6D4"/></linearGradient>
+      <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#10B981"/><stop offset="100%" stopColor="#059669"/></linearGradient>
+      <linearGradient id="ng" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#F59E0B"/><stop offset="100%" stopColor="#D97706"/></linearGradient>
+      <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#6366F1"/><stop offset="100%" stopColor="#4F46E5"/></linearGradient>
+    </defs>
+    <g strokeWidth="2" opacity="0.5" strokeLinecap="round">
+      <line x1="40" y1="30" x2="52" y2="42" stroke="url(#ag)"/><line x1="52" y1="42" x2="70" y2="35" stroke="url(#ag)"/>
+      <line x1="52" y1="42" x2="48" y2="55" stroke="url(#pg)"/><line x1="48" y1="55" x2="75" y2="52" stroke="url(#ng)"/>
+      <line x1="48" y1="55" x2="55" y2="72" stroke="url(#pg)"/><line x1="55" y1="72" x2="35" y2="85" stroke="url(#rg)"/><line x1="55" y1="72" x2="72" y2="82" stroke="url(#rg)"/>
+    </g>
+    <circle cx="40" cy="30" r="7" fill="url(#ag)"/><circle cx="52" cy="42" r="5" fill="url(#ag)"/><circle cx="70" cy="35" r="3.5" fill="url(#ag)"/>
+    <circle cx="48" cy="55" r="6" fill="url(#pg)"/><circle cx="48" cy="55" r="3" fill="#fff" opacity="0.9"/>
+    <circle cx="75" cy="52" r="4.5" fill="url(#ng)"/><circle cx="88" cy="60" r="3.5" fill="url(#ng)"/>
+    <circle cx="55" cy="72" r="5" fill="url(#rg)"/><circle cx="35" cy="85" r="4" fill="url(#rg)"/><circle cx="72" cy="82" r="4" fill="url(#rg)"/>
+  </svg>
+);
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
@@ -59,8 +79,8 @@ export default function Dashboard() {
       {
         label: 'Requests',
         data: weeklyUsage?.time_series?.slice(-7).map((point: TimeSeriesPoint) => point.request_count) || [],
-        borderColor: 'rgb(37, 99, 235)',
-        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+        borderColor: 'rgb(124, 58, 237)',
+        backgroundColor: 'rgba(124, 58, 237, 0.1)',
         tension: 0.4,
         fill: true,
         pointRadius: 3,
@@ -136,82 +156,75 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-pierre-gray-50 flex">
-      {/* Sidebar Navigation */}
-      <aside className="w-32 bg-white shadow-lg border-r border-pierre-gray-200 flex flex-col">
-        {/* Logo */}
-        <div className="flex items-center justify-center px-4 h-16 border-b border-pierre-gray-200">
-          <span className="text-2xl">🗿</span>
-        </div>
-        
-        {/* User section */}
-        <div className="border-b border-pierre-gray-200 p-2">
-          <div className="flex flex-col items-center mb-2">
-            <div className="w-8 h-8 bg-pierre-blue-100 rounded-full flex items-center justify-center mb-1">
-              <span className="text-xs font-medium text-pierre-blue-600">
-                {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
-              </span>
+    <div className="min-h-screen bg-pierre-gray-50 flex flex-col">
+      {/* Top Header Bar - Full Width */}
+      <header className="bg-white shadow-sm border-b border-pierre-gray-200 relative">
+        {/* Violet accent bar */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-pierre-violet via-pierre-cyan to-pierre-activity"></div>
+        <div className="px-6 py-3">
+          <div className="flex items-center justify-between">
+            {/* Logo + Welcome */}
+            <div className="flex items-center gap-4">
+              <PierreLogo />
+              <h1 className="text-xl font-medium text-pierre-gray-700">Welcome back, {user?.display_name || user?.email}</h1>
             </div>
-            <p className="text-xs font-medium text-pierre-gray-900 text-center truncate w-full">
-              {user?.display_name || user?.email?.split('@')[0]}
-            </p>
+            {/* User profile section - right side */}
+            <div className="flex items-center gap-4">
+              <RealTimeIndicator className="text-xs" />
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center shadow-sm">
+                  <span className="text-sm font-bold text-white">
+                    {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-pierre-gray-900">
+                    {user?.display_name || user?.email?.split('@')[0]}
+                  </p>
+                  <button
+                    onClick={logout}
+                    className="text-xs text-pierre-gray-500 hover:text-pierre-violet"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-          <Button 
-            variant="secondary" 
-            onClick={logout}
-            className="w-full text-xs py-1"
-          >
-            Sign out
-          </Button>
         </div>
-        
-        {/* Navigation Items */}
-        <nav className="flex-1 px-2 py-4 space-y-1">
+      </header>
+
+      {/* Horizontal Navigation Bar */}
+      <nav className="bg-white border-b border-pierre-gray-200 px-6">
+        <div className="flex gap-1">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={clsx(
-                'w-full flex flex-col items-center px-2 py-2 rounded-lg text-sm font-medium transition-colors relative',
+                'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all relative border-b-2',
                 {
-                  'bg-pierre-blue-50 text-pierre-blue-600 border border-pierre-blue-200': activeTab === tab.id,
-                  'text-pierre-gray-600 hover:text-pierre-gray-900 hover:bg-pierre-gray-50': activeTab !== tab.id,
+                  'border-pierre-violet text-pierre-violet bg-pierre-violet/5': activeTab === tab.id,
+                  'border-transparent text-pierre-gray-600 hover:text-pierre-violet hover:bg-pierre-gray-50': activeTab !== tab.id,
                 }
               )}
             >
-              <div className="mb-1 relative">
+              <div className="relative">
                 {tab.icon}
                 {tab.badge && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold text-[10px]">
                     {tab.badge}
                   </span>
                 )}
               </div>
-              <span className="text-xs text-center">{tab.name}</span>
+              <span>{tab.name}</span>
             </button>
           ))}
-        </nav>
-      </aside>
+        </div>
+      </nav>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="bg-white shadow-sm border-b border-pierre-gray-200">
-          <div className="px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-pierre-gray-900">Pierre Fitness API</h1>
-                <div className="flex items-center space-x-4 mt-1">
-                  <p className="text-pierre-gray-600">Welcome back, {user?.display_name || user?.email}</p>
-                  <RealTimeIndicator />
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Content Area */}
-        <div className="flex-1 px-6 py-8 overflow-auto">
+      {/* Content Area */}
+      <div className="flex-1 px-6 py-8 overflow-auto">
 
           {/* Content */}
         {activeTab === 'overview' && (
@@ -224,8 +237,8 @@ export default function Dashboard() {
               <>
                 {/* Unified Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <Card variant="stat">
-                    <div className="text-2xl font-bold text-pierre-blue-600">
+                  <Card variant="stat" className="bg-gradient-to-br from-white to-pierre-violet/5 border-pierre-violet/20">
+                    <div className="text-3xl font-bold text-pierre-violet">
                       {(overview?.total_api_keys || 0) + (a2aOverview?.total_clients || 0)}
                     </div>
                     <div className="text-sm text-pierre-gray-600">Total Connections</div>
@@ -233,8 +246,8 @@ export default function Dashboard() {
                       {overview?.total_api_keys || 0} API Keys • {a2aOverview?.total_clients || 0} Apps
                     </div>
                   </Card>
-                  <Card variant="stat">
-                    <div className="text-2xl font-bold text-pierre-green-600">
+                  <Card variant="stat" className="bg-gradient-to-br from-white to-pierre-activity/5 border-pierre-activity/20">
+                    <div className="text-3xl font-bold text-pierre-activity">
                       {(overview?.active_api_keys || 0) + (a2aOverview?.active_clients || 0)}
                     </div>
                     <div className="text-sm text-pierre-gray-600">Active Connections</div>
@@ -242,8 +255,8 @@ export default function Dashboard() {
                       {overview?.active_api_keys || 0} Keys • {a2aOverview?.active_clients || 0} Apps
                     </div>
                   </Card>
-                  <Card variant="stat">
-                    <div className="text-2xl font-bold text-pierre-yellow-600">
+                  <Card variant="stat" className="bg-gradient-to-br from-white to-pierre-nutrition/5 border-pierre-nutrition/20">
+                    <div className="text-3xl font-bold text-pierre-nutrition">
                       {(overview?.total_requests_today || 0) + (a2aOverview?.requests_today || 0)}
                     </div>
                     <div className="text-sm text-pierre-gray-600">Requests Today</div>
@@ -251,8 +264,8 @@ export default function Dashboard() {
                       All connections combined
                     </div>
                   </Card>
-                  <Card variant="stat">
-                    <div className="text-2xl font-bold text-pierre-gray-700">
+                  <Card variant="stat" className="bg-gradient-to-br from-white to-pierre-recovery/5 border-pierre-recovery/20">
+                    <div className="text-3xl font-bold text-pierre-recovery">
                       {(overview?.total_requests_this_month || 0) + (a2aOverview?.requests_this_month || 0)}
                     </div>
                     <div className="text-sm text-pierre-gray-600">Requests This Month</div>
@@ -323,9 +336,9 @@ export default function Dashboard() {
                               </div>
                               <div className="w-full bg-pierre-gray-200 rounded-full h-2">
                                 <div
-                                  className={`h-2 rounded-full ${
-                                    item.usage_percentage > 90 ? 'bg-pierre-red-600' :
-                                    item.usage_percentage > 70 ? 'bg-pierre-yellow-600' : 'bg-pierre-green-600'
+                                  className={`h-2 rounded-full transition-all duration-300 ${
+                                    item.usage_percentage > 90 ? 'bg-red-600' :
+                                    item.usage_percentage > 70 ? 'bg-pierre-nutrition' : 'bg-pierre-activity'
                                   }`}
                                   style={{ width: `${Math.min(item.usage_percentage, 100)}%` }}
                                 ></div>
@@ -395,7 +408,6 @@ export default function Dashboard() {
             </Suspense>
           </div>
         )}
-        </div>
       </div>
     </div>
   );

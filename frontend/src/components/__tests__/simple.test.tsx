@@ -40,23 +40,23 @@ describe('Component Tests', () => {
   it('should render Login component', async () => {
     renderWithProviders(<Login />)
     
-    expect(screen.getByRole('heading', { name: /pierre mcp admin/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /pierre fitness platform/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
-    
+
     // Wait for setup status check to complete
     await waitFor(() => {
-      expect(screen.getByText(/admin setup complete/i)).toBeInTheDocument()
+      expect(screen.getByText(/ready to login/i)).toBeInTheDocument()
     })
   })
 
   it('should show admin setup complete', async () => {
     renderWithProviders(<Login />)
-    
+
     // Wait for setup status check to complete
     await waitFor(() => {
-      expect(screen.getByText(/admin setup complete/i)).toBeInTheDocument()
+      expect(screen.getByText(/ready to login/i)).toBeInTheDocument()
     })
   })
 })

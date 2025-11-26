@@ -239,25 +239,6 @@ export default function UsageAnalytics() {
         )}
       </div>
 
-      <div className="card bg-green-50 border-green-200">
-        <h3 className="font-semibold text-green-800 mb-3">✅ Analytics Features</h3>
-        <ul className="text-sm text-green-700 space-y-2">
-          <li>• ✅ Interactive charts and graphs</li>
-          <li>• ✅ Real-time usage statistics</li>
-          <li>• ✅ Time-based filtering</li>
-          <li>• ✅ Tool usage distribution</li>
-          <li>• ✅ Response time monitoring</li>
-        </ul>
-        
-        <h4 className="font-semibold text-blue-800 mt-4 mb-2">🚀 Available Features</h4>
-        <ul className="text-sm text-blue-700 space-y-1">
-          <li>• Real-time usage monitoring via WebSocket</li>
-          <li>• Interactive charts and visualizations</li>
-          <li>• Time-based filtering (7, 30, 90 days)</li>
-          <li>• API rate limit tracking</li>
-          <li>• Tool usage distribution analysis</li>
-        </ul>
-      </div>
     </div>
   );
 }

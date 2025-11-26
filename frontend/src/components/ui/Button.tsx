@@ -2,7 +2,7 @@ import React from 'react';
 import { clsx } from 'clsx';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'success' | 'outline';
+  variant?: 'primary' | 'gradient' | 'secondary' | 'danger' | 'success' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   children: React.ReactNode;
@@ -21,6 +21,7 @@ export const Button: React.FC<ButtonProps> = ({
     'btn-base',
     {
       'btn-primary': variant === 'primary',
+      'btn-gradient': variant === 'gradient',
       'btn-secondary': variant === 'secondary',
       'btn-danger': variant === 'danger',
       'btn-success': variant === 'success',

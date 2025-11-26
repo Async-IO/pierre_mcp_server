@@ -26,6 +26,10 @@
   .btn-primary {
     @apply btn-base bg-pierre-blue-600 text-white shadow-sm hover:bg-pierre-blue-700 hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
   }
+
+  .btn-gradient {
+    @apply btn-base bg-gradient-to-r from-pierre-violet to-pierre-cyan text-white shadow-md hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+  }
   
   .btn-secondary {
     @apply btn-base bg-white text-pierre-gray-700 border border-pierre-gray-300 hover:bg-pierre-gray-50 hover:border-pierre-gray-400;
@@ -57,7 +61,12 @@
   }
   
   .stat-card {
-    @apply bg-gradient-to-br from-white to-pierre-blue-50 border border-pierre-blue-200 rounded-lg p-6 text-center hover:-translate-y-0.5 transition-transform duration-base;
+    @apply bg-white border border-pierre-gray-200 rounded-lg p-6 text-center hover:-translate-y-0.5 transition-transform duration-base relative overflow-hidden;
+  }
+
+  .stat-card::before {
+    @apply absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-pierre-violet via-pierre-cyan to-pierre-activity;
+    content: '';
   }
 
   /* Pierre Form Components */

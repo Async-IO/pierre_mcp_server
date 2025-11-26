@@ -93,8 +93,10 @@ describe('Dashboard Component', () => {
       renderDashboard();
     });
 
-    expect(screen.getByText('Pierre Fitness API')).toBeInTheDocument();
-    expect(screen.getByText('🗿')).toBeInTheDocument(); // Logo
+    // Check for welcome header text
+    expect(screen.getByText(/welcome back/i)).toBeInTheDocument();
+    // Check for sign out link
+    expect(screen.getByText('Sign out')).toBeInTheDocument();
   });
 
   it('should render navigation tabs', async () => {

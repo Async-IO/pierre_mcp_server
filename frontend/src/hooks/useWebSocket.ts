@@ -56,11 +56,11 @@ export function useWebSocket(): UseWebSocketReturn {
     }
 
     try {
-      // Use the same host but WebSocket protocol
+      // Use the same host but WebSocket protocol (goes through Vite proxy in development)
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      // Get WebSocket URL from environment or use default based on current location
+      // Get WebSocket URL from environment or use current location host (Vite proxy handles /ws)
       const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL;
-      const wsUrl = wsBaseUrl || `${wsProtocol}//${window.location.hostname === 'localhost' ? 'localhost:8081' : window.location.host}/ws`;
+      const wsUrl = wsBaseUrl || `${wsProtocol}//${window.location.host}/ws`;
       
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
