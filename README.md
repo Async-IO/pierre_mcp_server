@@ -699,12 +699,16 @@ Complete documentation is in the `docs/` directory:
 - **[Configuration](docs/configuration.md)** - environment variables and settings
 - **[Contributing](docs/contributing.md)** - development guidelines
 
+Component documentation:
+- **[SDK Documentation](sdk/README.md)** - TypeScript SDK for MCP client integration
+- **[Scripts Documentation](scripts/README.md)** - development, testing, and deployment scripts
+
 Installation guide for MCP clients:
 - **[MCP Client Installation](docs/installation-guides/install-mcp-client.md)** - claude desktop, chatgpt, and other mcp clients
 
 ## Code Quality
 
-Pierre Fitness Platform uses validation scripts to maintain code quality and prevent common issues:
+Pierre Fitness Platform uses validation scripts to maintain code quality and prevent common issues. See [Scripts Documentation](scripts/README.md) for the complete script inventory.
 
 **Pre-commit Validation**:
 - Pattern validation via `scripts/validation-patterns.toml`
@@ -719,7 +723,7 @@ Pierre Fitness Platform uses validation scripts to maintain code quality and pre
 
 Install git hooks:
 ```bash
-./scripts/install-hooks.sh
+./scripts/setup-git-hooks.sh
 ```
 
 ## Contributing
