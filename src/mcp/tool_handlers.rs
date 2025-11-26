@@ -1322,6 +1322,60 @@ impl ToolHandlers {
         )
     }
 
+    /// Check if notifications should be fetched for this response
+    fn should_fetch_notifications(response: &McpResponse, tool_name: &str, user_id: Uuid) -> bool {
+        if response.error.is_some() {
+            debug!(
+                "NOTIFICATION_CHECK: Skipping due to error response for user {}",
+                user_id
+            );
+            return false;
+        }
+
+        if Self::should_skip_notification_check(tool_name) {
+            debug!(
+                "NOTIFICATION_CHECK: Skipping for notification-related tool {} for user {}",
+                tool_name, user_id
+            );
+            return false;
+        }
+
+        true
+    }
+
+    /// Fetch unread notifications if any exist
+    async fn fetch_unread_notifications(
+        database: &crate::database_plugins::factory::Database,
+        user_id: Uuid,
+        tool_name: &str,
+    ) -> Option<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+        match database.get_unread_oauth_notifications(user_id).await {
+            Ok(notifications) if !notifications.is_empty() => {
+                debug!(
+                    "Found {} unread OAuth notifications for user {} during {} tool call",
+                    notifications.len(),
+                    user_id,
+                    tool_name
+                );
+                Some(notifications)
+            }
+            Ok(_) => {
+                debug!(
+                    "NOTIFICATION_CHECK: No unread notifications found for user {} during {} tool call",
+                    user_id, tool_name
+                );
+                None
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to check OAuth notifications for user {} during {} tool call: {}",
+                    user_id, tool_name, e
+                );
+                None
+            }
+        }
+    }
+
     /// Automatically append unread OAuth notifications to successful tool responses
     async fn append_oauth_notifications_to_response(
         mut response: McpResponse,
@@ -1334,47 +1388,15 @@ impl ToolHandlers {
             user_id, tool_name
         );
 
-        if response.error.is_some() {
-            debug!(
-                "NOTIFICATION_CHECK: Skipping due to error response for user {}",
-                user_id
-            );
+        if !Self::should_fetch_notifications(&response, tool_name, user_id) {
             return response;
         }
 
-        if Self::should_skip_notification_check(tool_name) {
-            debug!(
-                "NOTIFICATION_CHECK: Skipping for notification-related tool {} for user {}",
-                tool_name, user_id
-            );
+        let Some(unread_notifications) =
+            Self::fetch_unread_notifications(database, user_id, tool_name).await
+        else {
             return response;
-        }
-
-        let unread_notifications = match database.get_unread_oauth_notifications(user_id).await {
-            Ok(notifications) => notifications,
-            Err(e) => {
-                warn!(
-                    "Failed to check OAuth notifications for user {} during {} tool call: {}",
-                    user_id, tool_name, e
-                );
-                return response;
-            }
         };
-
-        if unread_notifications.is_empty() {
-            debug!(
-                "NOTIFICATION_CHECK: No unread notifications found for user {} during {} tool call",
-                user_id, tool_name
-            );
-            return response;
-        }
-
-        debug!(
-            "Found {} unread OAuth notifications for user {} during {} tool call",
-            unread_notifications.len(),
-            user_id,
-            tool_name
-        );
 
         let notification_text = Self::build_notification_text(&unread_notifications);
 

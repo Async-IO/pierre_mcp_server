@@ -113,6 +113,48 @@ impl PluginManager {
         self.plugins.push(plugin);
     }
 
+    /// Handle plugin initialization result and log appropriately
+    fn handle_plugin_init(
+        result: Result<Result<(), AppError>, tokio::time::error::Elapsed>,
+        plugin_name: &str,
+        is_required: bool,
+        timeout: Duration,
+    ) -> Result<(), AppError> {
+        match result {
+            Ok(Ok(())) => {
+                info!("Plugin '{}' initialized successfully", plugin_name);
+                Ok(())
+            }
+            Ok(Err(e)) if is_required => {
+                error!(
+                    "Required plugin '{}' failed to initialize: {}",
+                    plugin_name, e
+                );
+                Err(e)
+            }
+            Ok(Err(e)) => {
+                warn!(
+                    "Optional plugin '{}' failed to initialize: {}",
+                    plugin_name, e
+                );
+                Ok(())
+            }
+            Err(_) if is_required => {
+                error!(
+                    "Required plugin '{}' initialization timed out after {:?}",
+                    plugin_name, timeout
+                );
+                Err(AppError::internal(format!(
+                    "Plugin initialization timeout: {plugin_name}"
+                )))
+            }
+            Err(_) => {
+                warn!("Optional plugin '{}' initialization timed out", plugin_name);
+                Ok(())
+            }
+        }
+    }
+
     /// Initialize all plugins in priority order
     ///
     /// # Errors
@@ -120,8 +162,8 @@ impl PluginManager {
     pub async fn initialize_all(&mut self) -> AppResult<()> {
         info!("Initializing {} plugins", self.plugins.len());
 
-        // Sort plugins by priority (lower number = higher priority)
         self.plugins.sort_by_key(|p| p.priority());
+        let timeout = self.initialization_timeout;
 
         for plugin in &mut self.plugins {
             let plugin_name = plugin.name().to_owned();
@@ -133,36 +175,9 @@ impl PluginManager {
                 plugin_name, priority, is_required
             );
 
-            match tokio::time::timeout(self.initialization_timeout, plugin.initialize()).await {
-                Ok(Ok(())) => {
-                    info!("Plugin '{}' initialized successfully", plugin_name);
-                }
-                Ok(Err(e)) => {
-                    if is_required {
-                        error!(
-                            "Required plugin '{}' failed to initialize: {}",
-                            plugin_name, e
-                        );
-                        return Err(e);
-                    }
-                    warn!(
-                        "Optional plugin '{}' failed to initialize: {}",
-                        plugin_name, e
-                    );
-                }
-                Err(_) => {
-                    if is_required {
-                        error!(
-                            "Required plugin '{}' initialization timed out after {:?}",
-                            plugin_name, self.initialization_timeout
-                        );
-                        return Err(AppError::internal(format!(
-                            "Plugin initialization timeout: {plugin_name}"
-                        )));
-                    }
-                    warn!("Optional plugin '{}' initialization timed out", plugin_name);
-                }
-            }
+            let result = tokio::time::timeout(timeout, plugin.initialize()).await;
+
+            Self::handle_plugin_init(result, &plugin_name, is_required, timeout)?;
         }
 
         info!("All plugins initialized successfully");

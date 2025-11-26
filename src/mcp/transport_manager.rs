@@ -46,91 +46,111 @@ impl TransportManager {
         self.start_legacy_unified_server(port).await
     }
 
-    /// Unified server startup using existing transport coordination
-    async fn start_legacy_unified_server(&self, port: u16) -> AppResult<()> {
-        info!("Starting MCP server with stdio and HTTP transports (Axum framework)");
+    /// Prepare shared resources with notification channels and sampling peer
+    fn prepare_shared_resources(&self) -> Arc<ServerResources> {
+        let mut resources_clone = (*self.resources).clone();
+        resources_clone.set_oauth_notification_sender(self.notification_sender.clone());
 
-        // Use the notification sender from the struct instance
-        let notification_receiver = self.notification_sender.subscribe();
-        let sse_notification_receiver = self.notification_sender.subscribe();
-
-        // Set up notification sender in resources for OAuth callbacks
-        let mut resources_clone = (*self.resources).clone(); // Safe: ServerResources clone for notification setup
-        resources_clone.set_oauth_notification_sender(self.notification_sender.clone()); // Safe: Sender clone for notification
-
-        // Create sampling peer for bidirectional stdio communication (MUST be done before Arc::new)
         let stdout = Arc::new(tokio::sync::Mutex::new(tokio::io::stdout()));
         let sampling_peer = Arc::new(super::sampling_peer::SamplingPeer::new(stdout));
-        resources_clone.set_sampling_peer(sampling_peer.clone());
+        resources_clone.set_sampling_peer(sampling_peer);
 
-        // Create progress notification channel
+        Arc::new(resources_clone)
+    }
+
+    /// Spawn progress notification handler
+    fn spawn_progress_handler(resources: &mut ServerResources) {
         let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
-        resources_clone.set_progress_notification_sender(progress_tx);
+        resources.set_progress_notification_sender(progress_tx);
 
-        let shared_resources = Arc::new(resources_clone);
-
-        // Spawn progress notification handler for stdio
         tokio::spawn(async move {
             while let Some(progress_notification) = progress_rx.recv().await {
-                // Send progress notification to stdout
-                // ProgressNotification already has the correct structure
                 if let Ok(json) = serde_json::to_string(&progress_notification) {
                     println!("{json}");
                 }
             }
         });
+    }
 
-        // Start stdio transport in background
-        let resources_for_stdio = shared_resources.clone();
+    /// Spawn stdio transport task
+    fn spawn_stdio_transport(
+        resources: Arc<ServerResources>,
+        notification_receiver: broadcast::Receiver<OAuthCompletedNotification>,
+    ) {
         let stdio_handle = tokio::spawn(async move {
-            let stdio_transport = StdioTransport::new(resources_for_stdio);
+            let stdio_transport = StdioTransport::new(resources);
             match stdio_transport.run(notification_receiver).await {
                 Ok(()) => info!("stdio transport completed successfully"),
                 Err(e) => warn!("stdio transport failed: {}", e),
             }
         });
 
-        // Monitor stdio transport in background
         tokio::spawn(async move {
             match stdio_handle.await {
                 Ok(()) => info!("stdio transport task completed"),
                 Err(e) => warn!("stdio transport task failed: {}", e),
             }
         });
+    }
 
-        // Start SSE notification forwarder task
-        let resources_for_sse = shared_resources.clone();
+    /// Spawn SSE notification forwarder task
+    fn spawn_sse_forwarder(
+        resources: Arc<ServerResources>,
+        notification_receiver: broadcast::Receiver<OAuthCompletedNotification>,
+    ) {
         tokio::spawn(async move {
-            let sse_forwarder = SseNotificationForwarder::new(resources_for_sse);
-            if let Err(e) = sse_forwarder.run(sse_notification_receiver).await {
+            let sse_forwarder = SseNotificationForwarder::new(resources);
+            if let Err(e) = sse_forwarder.run(notification_receiver).await {
                 error!("SSE notification forwarder failed: {}", e);
             }
         });
+    }
 
-        // Run unified HTTP server with all routes (OAuth2, MCP, etc.) - this should run indefinitely
+    /// Run HTTP server with restart on failure
+    async fn run_http_server_loop(shared_resources: Arc<ServerResources>, port: u16) -> ! {
         loop {
             info!("Starting unified Axum HTTP server on port {}", port);
 
-            // Clone shared resources for each iteration since run_http_server_with_resources takes ownership
             let server = super::multitenant::MultiTenantMcpServer::new(shared_resources.clone());
-
             let result = server
                 .run_http_server_with_resources_axum(port, shared_resources.clone())
                 .await;
 
             match result {
                 Ok(()) => {
-                    error!("HTTP server unexpectedly completed - this should never happen");
-                    error!("HTTP server should run indefinitely. Restarting in 5 seconds...");
+                    error!("HTTP server unexpectedly completed - restarting in 5 seconds...");
                     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                 }
                 Err(e) => {
-                    error!("HTTP server failed: {}", e);
-                    error!("Restarting HTTP server in 10 seconds...");
+                    error!("HTTP server failed: {} - restarting in 10 seconds...", e);
                     tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
                 }
             }
         }
+    }
+
+    /// Unified server startup using existing transport coordination
+    async fn start_legacy_unified_server(&self, port: u16) -> AppResult<()> {
+        info!("Starting MCP server with stdio and HTTP transports (Axum framework)");
+
+        let notification_receiver = self.notification_sender.subscribe();
+        let sse_notification_receiver = self.notification_sender.subscribe();
+
+        let mut resources_clone = (*self.resources).clone();
+        resources_clone.set_oauth_notification_sender(self.notification_sender.clone());
+
+        let stdout = Arc::new(tokio::sync::Mutex::new(tokio::io::stdout()));
+        let sampling_peer = Arc::new(super::sampling_peer::SamplingPeer::new(stdout));
+        resources_clone.set_sampling_peer(sampling_peer);
+
+        Self::spawn_progress_handler(&mut resources_clone);
+
+        let shared_resources = Arc::new(resources_clone);
+
+        Self::spawn_stdio_transport(shared_resources.clone(), notification_receiver);
+        Self::spawn_sse_forwarder(shared_resources.clone(), sse_notification_receiver);
+
+        Self::run_http_server_loop(shared_resources, port).await
     }
 }
 

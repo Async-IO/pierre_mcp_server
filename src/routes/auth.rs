@@ -1308,6 +1308,55 @@ impl AuthRoutes {
         Ok((axum::http::StatusCode::OK, axum::Json(provider_statuses)).into_response())
     }
 
+    /// Parse a user ID string to UUID
+    fn parse_user_id(user_id_str: &str) -> Result<uuid::Uuid, AppError> {
+        uuid::Uuid::parse_str(user_id_str).map_err(|_| {
+            tracing::error!("Invalid user_id format: {}", user_id_str);
+            AppError::invalid_input("Invalid user ID format")
+        })
+    }
+
+    /// Retrieve user from database with proper error handling
+    async fn get_user_for_oauth(
+        database: &crate::database_plugins::factory::Database,
+        user_id: uuid::Uuid,
+    ) -> Result<crate::models::User, AppError> {
+        match database.get_user(user_id).await {
+            Ok(Some(user)) => Ok(user),
+            Ok(None) => {
+                tracing::error!("User {} not found in database", user_id);
+                Err(AppError::not_found("User account not found"))
+            }
+            Err(e) => {
+                tracing::error!("Failed to get user {} for OAuth: {}", user_id, e);
+                Err(AppError::database(format!(
+                    "Failed to retrieve user information: {e}"
+                )))
+            }
+        }
+    }
+
+    /// Extract tenant ID from user, falling back to user_id if no tenant
+    fn extract_tenant_id(
+        user: &crate::models::User,
+        user_id: uuid::Uuid,
+    ) -> Result<uuid::Uuid, AppError> {
+        let Some(tid) = &user.tenant_id else {
+            tracing::debug!(user_id = %user_id, "User has no tenant_id - using user_id as tenant");
+            return Ok(user_id);
+        };
+
+        uuid::Uuid::parse_str(tid.as_str()).map_err(|e| {
+            tracing::error!(
+                user_id = %user_id,
+                tenant_id_str = %tid,
+                error = ?e,
+                "Invalid tenant_id format in database - tenant isolation compromised"
+            );
+            AppError::internal("User tenant configuration is invalid - please contact support")
+        })
+    }
+
     /// Handle OAuth authorization initiation (Axum)
     async fn handle_oauth_auth_initiate(
         axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
@@ -1321,50 +1370,10 @@ impl AuthRoutes {
             user_id_str
         );
 
-        // Parse and validate user UUID
-        let user_id = uuid::Uuid::parse_str(&user_id_str).map_err(|_| {
-            tracing::error!("Invalid user_id format: {}", user_id_str);
-            AppError::invalid_input("Invalid user ID format")
-        })?;
+        let user_id = Self::parse_user_id(&user_id_str)?;
+        let user = Self::get_user_for_oauth(&resources.database, user_id).await?;
+        let tenant_id = Self::extract_tenant_id(&user, user_id)?;
 
-        // Retrieve user from database
-        let user = match resources.database.get_user(user_id).await {
-            Ok(Some(user)) => user,
-            Ok(None) => {
-                tracing::error!("User {} not found in database", user_id);
-                return Err(AppError::not_found("User account not found"));
-            }
-            Err(e) => {
-                tracing::error!("Failed to get user {} for OAuth: {}", user_id, e);
-                return Err(AppError::database(format!(
-                    "Failed to retrieve user information: {e}"
-                )));
-            }
-        };
-
-        // Get tenant_id from user - CRITICAL: must parse correctly for tenant isolation
-        let tenant_id = if let Some(tid) = &user.tenant_id {
-            match uuid::Uuid::parse_str(tid.as_str()) {
-                Ok(parsed_tid) => parsed_tid,
-                Err(e) => {
-                    tracing::error!(
-                        user_id = %user_id,
-                        tenant_id_str = %tid,
-                        error = ?e,
-                        "Invalid tenant_id format in database - tenant isolation compromised"
-                    );
-                    return Err(AppError::internal(
-                        "User tenant configuration is invalid - please contact support",
-                    ));
-                }
-            }
-        } else {
-            // User has no tenant - use user_id as single-tenant fallback
-            tracing::debug!(user_id = %user_id, "User has no tenant_id - using user_id as tenant");
-            user_id
-        };
-
-        // Get OAuth authorization URL
         let server_context = crate::context::ServerContext::from(resources.as_ref());
         let oauth_service = OAuthService::new(
             server_context.data().clone(),
@@ -1372,40 +1381,34 @@ impl AuthRoutes {
             server_context.notification().clone(),
         );
 
-        match oauth_service
+        let auth_response = oauth_service
             .get_auth_url(user_id, tenant_id, &provider)
             .await
-        {
-            Ok(auth_response) => {
-                tracing::info!(
-                    "Generated OAuth URL for {} user {}: {}",
-                    provider,
-                    user_id,
-                    auth_response.authorization_url
-                );
-                // Redirect to the provider's OAuth authorization page
-                // Use 302 Found (not 307) for OAuth redirects (standard HTTP temporary redirect)
-                Ok((
-                    axum::http::StatusCode::FOUND,
-                    [(
-                        axum::http::header::LOCATION,
-                        auth_response.authorization_url,
-                    )],
-                )
-                    .into_response())
-            }
-            Err(e) => {
+            .map_err(|e| {
                 tracing::error!(
                     "Failed to generate OAuth URL for {} user {}: {}",
                     provider,
                     user_id,
                     e
                 );
-                Err(AppError::internal(format!(
-                    "Failed to generate OAuth URL for {provider}: {e}"
-                )))
-            }
-        }
+                AppError::internal(format!("Failed to generate OAuth URL for {provider}: {e}"))
+            })?;
+
+        tracing::info!(
+            "Generated OAuth URL for {} user {}: {}",
+            provider,
+            user_id,
+            auth_response.authorization_url
+        );
+
+        Ok((
+            axum::http::StatusCode::FOUND,
+            [(
+                axum::http::header::LOCATION,
+                auth_response.authorization_url,
+            )],
+        )
+            .into_response())
     }
 
     /// Categorize OAuth errors for better user messaging
