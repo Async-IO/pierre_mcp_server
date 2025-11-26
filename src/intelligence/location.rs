@@ -119,50 +119,37 @@ impl LocationService {
         }
     }
 
-    /// Get location information from GPS coordinates
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the reverse geocoding request fails or the response cannot be parsed
-    pub async fn get_location_from_coordinates(
-        &mut self,
-        latitude: f64,
-        longitude: f64,
-    ) -> AppResult<LocationData> {
-        // Check if service is enabled
-        if !self.enabled {
-            return Ok(LocationData {
-                city: None,
-                country: None,
-                region: None,
-                trail_name: None,
-                amenity: None,
-                natural: None,
-                tourism: None,
-                leisure: None,
-                display_name: "Location service disabled".into(),
-                coordinates: (latitude, longitude),
-            });
+    /// Create disabled location response
+    fn disabled_location(latitude: f64, longitude: f64) -> LocationData {
+        LocationData {
+            city: None,
+            country: None,
+            region: None,
+            trail_name: None,
+            amenity: None,
+            natural: None,
+            tourism: None,
+            leisure: None,
+            display_name: "Location service disabled".into(),
+            coordinates: (latitude, longitude),
         }
+    }
 
-        let cache_key = format!("{latitude:.6},{longitude:.6}");
-
-        // Check cache first
-        if let Some(entry) = self.cache.get(&cache_key) {
+    /// Check cache for existing location data
+    fn check_cache(&mut self, cache_key: &str) -> Option<LocationData> {
+        if let Some(entry) = self.cache.get(cache_key) {
             if entry.timestamp.elapsed().unwrap_or(Duration::from_secs(0)) < self.cache_duration {
                 debug!("Using cached location data for {}", cache_key);
-                return Ok(entry.location.clone()); // Safe: LocationResult ownership from cache
+                return Some(entry.location.clone()); // Safe: LocationResult ownership from cache
             }
             debug!("Cache entry expired for {}", cache_key);
-            self.cache.remove(&cache_key);
+            self.cache.remove(cache_key);
         }
+        None
+    }
 
-        info!(
-            "Fetching location data for coordinates: {}, {}",
-            latitude, longitude
-        );
-
-        // Make request to configured geocoding API
+    /// Fetch location from geocoding API
+    async fn fetch_from_api(&self, latitude: f64, longitude: f64) -> AppResult<NominatimResponse> {
         let url = format!(
             "{}/reverse?format=json&lat={}&lon={}&zoom=14&addressdetails=1",
             self.base_url, latitude, longitude
@@ -183,13 +170,40 @@ impl LocationService {
             ));
         }
 
-        let nominatim_response: NominatimResponse = response.json().await.map_err(|e| {
+        response.json().await.map_err(|e| {
             AppError::external_service(
                 "Nominatim",
                 format!("Failed to parse reverse geocoding response: {e}"),
             )
-        })?;
+        })
+    }
 
+    /// Get location information from GPS coordinates
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the reverse geocoding request fails or the response cannot be parsed
+    pub async fn get_location_from_coordinates(
+        &mut self,
+        latitude: f64,
+        longitude: f64,
+    ) -> AppResult<LocationData> {
+        if !self.enabled {
+            return Ok(Self::disabled_location(latitude, longitude));
+        }
+
+        let cache_key = format!("{latitude:.6},{longitude:.6}");
+
+        if let Some(cached) = self.check_cache(&cache_key) {
+            return Ok(cached);
+        }
+
+        info!(
+            "Fetching location data for coordinates: {}, {}",
+            latitude, longitude
+        );
+
+        let nominatim_response = self.fetch_from_api(latitude, longitude).await?;
         let location_data =
             Self::parse_nominatim_response(&nominatim_response, latitude, longitude);
 

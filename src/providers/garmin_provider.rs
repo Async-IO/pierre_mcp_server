@@ -603,6 +603,48 @@ impl GarminProvider {
         false
     }
 
+    /// Fetch a single page of activities and add to collection
+    async fn fetch_activities_page(
+        &self,
+        all_activities: &mut Vec<Activity>,
+        page_index: usize,
+        pages_needed: usize,
+        start_offset: usize,
+        activities_per_page: usize,
+        total_limit: usize,
+    ) -> AppResult<bool> {
+        let remaining = total_limit - all_activities.len();
+        let current_page_limit = remaining.min(activities_per_page);
+        let current_offset = start_offset + (page_index * activities_per_page);
+
+        let endpoint = Self::build_activities_endpoint(current_offset, current_page_limit);
+        tracing::info!(
+            "Fetching page {} of {} - endpoint: {}",
+            page_index + 1,
+            pages_needed,
+            endpoint
+        );
+
+        let garmin_activities = self
+            .api_request::<Vec<GarminActivityResponse>>(&endpoint)
+            .await?;
+
+        tracing::info!(
+            "Page {} returned {} activities",
+            page_index + 1,
+            garmin_activities.len()
+        );
+
+        Self::add_converted_activities(all_activities, garmin_activities, total_limit)?;
+
+        Ok(Self::should_stop_pagination(
+            all_activities.len(),
+            page_index,
+            activities_per_page,
+            total_limit,
+        ))
+    }
+
     async fn get_activities_multi_page(
         &self,
         total_limit: usize,
@@ -620,36 +662,18 @@ impl GarminProvider {
         );
 
         for page_index in 0..pages_needed {
-            let remaining = total_limit - all_activities.len();
-            let current_page_limit = remaining.min(activities_per_page);
-            let current_offset = start_offset + (page_index * activities_per_page);
-
-            let endpoint = Self::build_activities_endpoint(current_offset, current_page_limit);
-            tracing::info!(
-                "Fetching page {} of {} - endpoint: {}",
-                page_index + 1,
-                pages_needed,
-                endpoint
-            );
-
-            let garmin_activities = self
-                .api_request::<Vec<GarminActivityResponse>>(&endpoint)
+            let should_stop = self
+                .fetch_activities_page(
+                    &mut all_activities,
+                    page_index,
+                    pages_needed,
+                    start_offset,
+                    activities_per_page,
+                    total_limit,
+                )
                 .await?;
 
-            tracing::info!(
-                "Page {} returned {} activities",
-                page_index + 1,
-                garmin_activities.len()
-            );
-
-            Self::add_converted_activities(&mut all_activities, garmin_activities, total_limit)?;
-
-            if Self::should_stop_pagination(
-                all_activities.len(),
-                page_index,
-                activities_per_page,
-                total_limit,
-            ) {
+            if should_stop {
                 break;
             }
         }
