@@ -6,7 +6,7 @@ import type { DashboardOverview, RateLimitOverview, TierUsage } from '../types/a
 import type { AnalyticsData, TimeSeriesPoint } from '../types/chart';
 import { useWebSocketContext } from '../hooks/useWebSocketContext';
 import { useEffect } from 'react';
-import { Button, Card, Badge } from './ui';
+import { Card, Badge } from './ui';
 import RealTimeIndicator from './RealTimeIndicator';
 import { clsx } from 'clsx';
 
@@ -161,34 +161,30 @@ export default function Dashboard() {
       <header className="bg-white shadow-sm border-b border-pierre-gray-200 relative">
         {/* Violet accent bar */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-pierre-violet via-pierre-cyan to-pierre-activity"></div>
-        <div className="px-6 py-3">
+        <div className="px-6 py-5">
           <div className="flex items-center justify-between">
             {/* Logo + Welcome */}
             <div className="flex items-center gap-4">
               <PierreLogo />
               <h1 className="text-xl font-medium text-pierre-gray-700">Welcome back, {user?.display_name || user?.email}</h1>
             </div>
-            {/* User profile section - right side */}
-            <div className="flex items-center gap-4">
-              <RealTimeIndicator className="text-xs" />
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center shadow-sm">
-                  <span className="text-sm font-bold text-white">
-                    {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-pierre-gray-900">
-                    {user?.display_name || user?.email?.split('@')[0]}
-                  </p>
-                  <button
-                    onClick={logout}
-                    className="text-xs text-pierre-gray-500 hover:text-pierre-violet"
-                  >
-                    Sign out
-                  </button>
-                </div>
+            {/* User profile section - right side, vertical layout */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-10 h-10 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center shadow-sm">
+                <span className="text-sm font-bold text-white">
+                  {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
+                </span>
               </div>
+              <p className="text-sm font-medium text-pierre-gray-900">
+                {user?.display_name || user?.email?.split('@')[0]}
+              </p>
+              <RealTimeIndicator className="text-[10px]" />
+              <button
+                onClick={logout}
+                className="text-xs text-pierre-gray-500 hover:text-pierre-violet"
+              >
+                Sign out
+              </button>
             </div>
           </div>
         </div>
