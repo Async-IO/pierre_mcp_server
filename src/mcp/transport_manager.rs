@@ -156,7 +156,7 @@ impl StdioTransport {
     /// Route a sampling response to the sampling peer
     async fn route_sampling_response(
         message: &serde_json::Value,
-        sampling_peer: &Option<Arc<super::sampling_peer::SamplingPeer>>,
+        sampling_peer: Option<&Arc<super::sampling_peer::SamplingPeer>>,
     ) {
         let Some(peer) = sampling_peer else {
             warn!("Received sampling response but no sampling peer available");
@@ -215,7 +215,7 @@ impl StdioTransport {
     async fn process_stdio_message(
         message: serde_json::Value,
         resources: Arc<ServerResources>,
-        sampling_peer: &Option<Arc<super::sampling_peer::SamplingPeer>>,
+        sampling_peer: Option<&Arc<super::sampling_peer::SamplingPeer>>,
     ) {
         if Self::is_sampling_response(&message) {
             Self::route_sampling_response(&message, sampling_peer).await;
@@ -253,8 +253,12 @@ impl StdioTransport {
 
             match serde_json::from_str::<serde_json::Value>(&line) {
                 Ok(message) => {
-                    Self::process_stdio_message(message, self.resources.clone(), &sampling_peer)
-                        .await;
+                    Self::process_stdio_message(
+                        message,
+                        self.resources.clone(),
+                        sampling_peer.as_ref(),
+                    )
+                    .await;
                 }
                 Err(e) => {
                     warn!("Invalid JSON-RPC message: {}", e);
