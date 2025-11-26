@@ -150,7 +150,11 @@ OBSOLETE_FUNCTIONS=$(rg "fn.*run_http_server\(" src/ 2>/dev/null | wc -l | awk '
 PROBLEMATIC_UNWRAPS=$(rg "\.unwrap\(\)" src/ | rg -v "// Safe|hardcoded.*valid|static.*data|00000000-0000-0000-0000-000000000000" | wc -l 2>/dev/null | tr -d ' ' || echo 0)
 PROBLEMATIC_EXPECTS=$(rg "\.expect\(" src/ | rg -v "// Safe|ServerResources.*required" | wc -l 2>/dev/null | tr -d ' ' || echo 0)
 PANICS=$(rg "panic!\(" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-TODOS=$(rg "TODO|FIXME|XXX" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+TODOS_SRC=$(rg "TODO|FIXME|XXX" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+TODOS_TESTS=$(rg "TODO|FIXME|XXX" tests/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+TODOS_SDK=$(rg "TODO|FIXME|XXX" sdk/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+TODOS_FRONTEND=$(rg "TODO|FIXME|XXX" frontend/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+TODOS=$((TODOS_SRC + TODOS_TESTS + TODOS_SDK + TODOS_FRONTEND))
 PRODUCTION_MOCKS=$(rg "mock_|get_mock|return.*mock|demo purposes|for demo|stub implementation|mock implementation" src/ -g "!src/bin/*" -g "!tests/*" | wc -l 2>/dev/null | tr -d ' ' || echo 0)
 PROBLEMATIC_UNDERSCORE_NAMES=$(rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ | rg -v "let _[[:space:]]*=" | rg -v "let _result|let _response|let _output" | wc -l 2>/dev/null | tr -d ' ' || echo 0)
 CFG_TEST_IN_SRC=$(rg "#\[cfg\(test\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
@@ -481,12 +485,12 @@ else
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_PANIC"
 fi
 
-printf "│ %-35s │ %5d │ " "TODOs/FIXMEs" "$TODOS"
+printf "│ %-35s │ %5d │ " "TODOs/FIXMEs (all dirs)" "$TODOS"
 if [ "$TODOS" -eq 0 ]; then
     printf "$(format_status "✅ PASS")│ %-39s │\n" "No incomplete code"
 else
-    FIRST_TODO=$(get_first_location 'rg "TODO|FIXME|XXX" src/ -n')
-    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_TODO"
+    TODO_BREAKDOWN="src:$TODOS_SRC tests:$TODOS_TESTS sdk:$TODOS_SDK fe:$TODOS_FRONTEND"
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$TODO_BREAKDOWN"
 fi
 
 printf "│ %-35s │ %5d │ " "Production mock implementations" "$PRODUCTION_MOCKS"
