@@ -260,7 +260,7 @@ impl ServerResources {
         database: &Arc<Database>,
         jwks_manager: &mut JwksManager,
         rsa_key_size_bits: usize,
-    ) -> Result<(), anyhow::Error> {
+    ) -> crate::errors::AppResult<()> {
         let kid = Self::generate_key_id();
         jwks_manager.generate_rsa_key_pair_with_size(&kid, rsa_key_size_bits)?;
 
