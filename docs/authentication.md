@@ -15,7 +15,8 @@ Pierre supports multiple authentication methods for different use cases.
 ### registration
 
 ```bash
-curl -X POST http://localhost:8081/auth/register \
+curl -X POST http://localhost:8081/api/auth/register \
+  -H "Authorization: Bearer <admin_jwt_token>" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -37,7 +38,7 @@ Response:
 ### login
 
 ```bash
-curl -X POST http://localhost:8081/auth/login \
+curl -X POST http://localhost:8081/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -61,7 +62,7 @@ Default: 24 hours (configurable via `JWT_EXPIRY_HOURS`)
 
 Refresh before expiry:
 ```bash
-curl -X POST http://localhost:8081/auth/refresh \
+curl -X POST http://localhost:8081/api/auth/refresh \
   -H "Authorization: Bearer <current_token>"
 ```
 
@@ -103,11 +104,12 @@ curl -H "X-API-Key: <api_key>" \
 
 ### api key tiers
 
-- `free`: 100 requests/day
-- `professional`: 10,000 requests/day
-- `enterprise`: unlimited
+- `trial`: 1,000 requests/month (auto-expires after 14 days)
+- `starter`: 10,000 requests/month
+- `professional`: 100,000 requests/month
+- `enterprise`: unlimited (no fixed monthly cap)
 
-Rate limits enforced per tier.
+Rate limits are enforced per API key over a rolling 30-day window.
 
 ## oauth2 (mcp client authentication)
 

@@ -86,7 +86,7 @@ pub struct TenantOAuthClient {
 
 **via authorization request headers:**
 ```bash
-curl -X GET "http://localhost:8081/api/oauth/authorize/strava?user_id=uuid" \
+curl -X GET "http://localhost:8081/api/oauth/auth/strava/uuid" \
   -H "x-strava-client-id: tenant_client_id" \
   -H "x-strava-client_secret: tenant_client_secret"
 ```
@@ -144,7 +144,7 @@ user: "connect to strava"
 **via rest api:**
 ```bash
 curl -H "Authorization: Bearer <jwt>" \
-  "http://localhost:8081/api/oauth/authorize/strava?user_id=<user_id>"
+  "http://localhost:8081/api/oauth/auth/strava/<user_id>"
 ```
 
 **flow manager** (`src/oauth2_client/flow_manager.rs:29-105`):
@@ -358,10 +358,8 @@ Response:
 ```
 
 **disconnect provider:**
-```bash
-curl -X DELETE -H "Authorization: Bearer <jwt>" \
-  http://localhost:8081/api/oauth/disconnect/strava
-```
+
+Use the `disconnect_provider` MCP tool to revoke a provider connection; there is no standalone REST `DELETE /api/oauth/disconnect/{provider}` endpoint.
 
 Implementation: `src/routes/auth.rs`
 

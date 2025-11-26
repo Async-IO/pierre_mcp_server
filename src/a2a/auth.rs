@@ -246,7 +246,8 @@ impl A2AAuthenticator {
         // Verify the client exists and is active
         let client = self
             .get_client(&client_id)
-            .await?
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to fetch A2A client: {e}")))?
             .ok_or_else(|| AppError::not_found(format!("A2A client {client_id}")))?;
 
         if !client.is_active {

@@ -1497,7 +1497,8 @@ impl EncryptedToken {
 
         let mut access_data = access_ciphertext.to_vec();
         let access_plaintext = key.open_in_place(access_nonce, Aad::empty(), &mut access_data)?;
-        let access_token = String::from_utf8(access_plaintext.to_vec())?;
+        let access_token = String::from_utf8(access_plaintext.to_vec())
+            .map_err(|e| AppError::invalid_input(format!("Invalid UTF-8 in access token: {e}")))?;
 
         // Decrypt refresh token: extract nonce from prepended data
         let refresh_combined = general_purpose::STANDARD.decode(&self.refresh_token)?;
@@ -1514,7 +1515,8 @@ impl EncryptedToken {
         let mut refresh_data = refresh_ciphertext.to_vec();
         let refresh_plaintext =
             key2.open_in_place(refresh_nonce, Aad::empty(), &mut refresh_data)?;
-        let refresh_token = String::from_utf8(refresh_plaintext.to_vec())?;
+        let refresh_token = String::from_utf8(refresh_plaintext.to_vec())
+            .map_err(|e| AppError::invalid_input(format!("Invalid UTF-8 in refresh token: {e}")))?;
 
         Ok(DecryptedToken {
             access_token,

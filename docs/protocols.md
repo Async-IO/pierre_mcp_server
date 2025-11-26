@@ -9,7 +9,7 @@ Json-rpc 2.0 protocol for ai assistant integration.
 ### endpoints
 
 - `POST /mcp` - main mcp endpoint
-- `GET /mcp/sse` - sse transport for streaming
+- `GET /mcp/sse/{session_id}` - sse transport for streaming (session-scoped)
 
 ### transport
 
@@ -346,17 +346,16 @@ Traditional rest endpoints for web applications.
 
 ### authentication endpoints
 
-- `POST /auth/register` - user registration
-- `POST /auth/login` - user login
-- `POST /auth/logout` - logout
-- `POST /auth/refresh` - refresh jwt token
+- `POST /api/auth/register` - user registration (admin-provisioned)
+- `POST /api/auth/login` - user login
+- `POST /api/auth/logout` - logout
+- `POST /api/auth/refresh` - refresh jwt token
 
 ### provider oauth endpoints
 
-- `GET /api/oauth/connect/{provider}` - initiate oauth (strava, garmin, fitbit)
+- `GET /api/oauth/auth/{provider}/{user_id}` - initiate oauth (strava, garmin, fitbit)
 - `GET /api/oauth/callback/{provider}` - oauth callback
 - `GET /api/oauth/status` - connection status
-- `POST /api/oauth/disconnect/{provider}` - disconnect provider
 
 ### admin endpoints
 

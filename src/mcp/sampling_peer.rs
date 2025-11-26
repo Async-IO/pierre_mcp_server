@@ -62,7 +62,7 @@ impl SamplingPeer {
     pub async fn create_message(
         &self,
         request: CreateMessageRequest,
-    ) -> Result<CreateMessageResult> {
+    ) -> AppResult<CreateMessageResult> {
         let request_id = self.next_request_id().await;
 
         // Create oneshot channel for response
@@ -105,7 +105,8 @@ impl SamplingPeer {
         // Wait for response with timeout
         let response = timeout(Duration::from_secs(30), rx)
             .await
-            .map_err(|_| AppError::internal("Sampling request timed out after 30 seconds"))??;
+            .map_err(|_| AppError::internal("Sampling request timed out after 30 seconds"))?
+            .map_err(|_| AppError::internal("Channel closed before receiving response"))?;
 
         // Parse response as CreateMessageResult
         match response {
@@ -127,7 +128,7 @@ impl SamplingPeer {
         id: Value,
         result: Option<Value>,
         error: Option<Value>,
-    ) -> Result<bool> {
+    ) -> AppResult<bool> {
         let mut pending = self.pending_requests.lock().await;
 
         pending.remove(&id).map_or_else(
