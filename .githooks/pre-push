@@ -14,6 +14,21 @@ echo ""
 echo "🔍 Running pre-push validation..."
 echo ""
 
+# Run architectural validation first (fast, catches pattern violations)
+if [ -f "$PROJECT_ROOT/scripts/architectural-validation.sh" ]; then
+    echo "📐 Running architectural validation..."
+    if ! "$PROJECT_ROOT/scripts/architectural-validation.sh"; then
+        echo ""
+        echo "❌ Architectural validation failed!"
+        echo ""
+        echo "Fix the violations above before pushing."
+        echo "To bypass (NOT RECOMMENDED): git push --no-verify"
+        echo ""
+        exit 1
+    fi
+    echo ""
+fi
+
 # Check if pre-push tests script exists
 if [ ! -f "$PROJECT_ROOT/scripts/pre-push-tests.sh" ]; then
     echo "⚠️  Warning: pre-push-tests.sh not found, skipping tests"
