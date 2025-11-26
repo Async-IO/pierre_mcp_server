@@ -63,7 +63,7 @@ cargo fmt
 ./scripts/architectural-validation.sh
 
 # 3. Zero tolerance clippy strict mode (includes tests)
-cargo clippy --tests -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
+cargo clippy --tests -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
 
 # 4. Run all tests
 cargo test

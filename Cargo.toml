@@ -216,3 +216,9 @@ await_holding_lock = "warn"
 
 # Catch string allocation inefficiencies
 str_to_string = "deny"
+
+# Cognitive complexity - keep functions simple and readable
+cognitive_complexity = "warn"
+
+# Module naming - allow repetition for clarity (e.g., error::ErrorKind)
+module_name_repetitions = "allow"

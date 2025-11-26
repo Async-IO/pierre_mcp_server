@@ -15,9 +15,7 @@ cargo fmt --check && echo "✅" || { echo "❌"; exit 1; }
 
 # 2. Clippy on main code only (skip tests)
 echo -n "🔍 Clippy (lib + bins)... "
-cargo clippy --lib --bins --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery \
-  -A clippy::module_name_repetitions -A clippy::missing_errors_doc -A clippy::missing_panics_doc \
-  -A clippy::too_many_lines -A clippy::must_use_candidate && echo "✅" || { echo "❌"; exit 1; }
+cargo clippy --lib --bins --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity && echo "✅" || { echo "❌"; exit 1; }
 
 # 3. Unit tests only
 echo -n "🧪 Unit tests... "

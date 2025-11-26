@@ -119,9 +119,9 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            cargo clippy --all-targets --all-features --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -A clippy::module_name_repetitions -A clippy::missing_errors_doc -A clippy::missing_panics_doc -A clippy::too_many_lines -A clippy::must_use_candidate
+            cargo clippy --all-targets --all-features --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
           else
-            cargo clippy --all-targets --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -A clippy::module_name_repetitions -A clippy::missing_errors_doc -A clippy::missing_panics_doc -A clippy::too_many_lines -A clippy::must_use_candidate
+            cargo clippy --all-targets --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
           fi
         env:
           DATABASE_URL: ${{ matrix.os == 'ubuntu-latest' && 'postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server' || 'sqlite::memory:' }}

@@ -471,7 +471,7 @@ print_task "Cargo clippy + build (zero tolerance linting)"
 # Explicit -D flags deny all clippy violations (matching CCFW strictness)
 # CRITICAL: All lint groups use -D (deny) to match production CI validation
 # ZERO TOLERANCE: No allowances - all warnings must be fixed
-if cargo clippy --all-targets --all-features --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery; then
+if cargo clippy --all-targets --all-features --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity; then
     echo -e "${GREEN}[OK] Clippy passed - ZERO code warnings (enforced by Cargo.toml)${NC}"
     echo -e "${GREEN}[OK] Debug build completed (reused for all validation)${NC}"
 else
