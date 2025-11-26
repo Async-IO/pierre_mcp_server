@@ -1,0 +1,55 @@
+name: Cognitive Complexity
+
+on:
+  push:
+    branches: [ "main", "debug/*", "feature/*", "claude/*" ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  cognitive-complexity:
+    name: Cognitive Complexity Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@1.91.0
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-complexity-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-complexity-
+
+      - name: Analyze Cognitive Complexity
+        run: |
+          echo "🧠 Analyzing cognitive complexity..."
+          cargo clippy --all-targets --all-features -- -W clippy::cognitive_complexity 2>&1 | tee complexity-report.txt
+          
+          # Check if there are any warnings
+          if grep -q "warning.*cognitive_complexity" complexity-report.txt; then
+            echo "⚠️ Functions with high cognitive complexity detected"
+            echo "Review the report above and consider refactoring complex functions"
+            exit 0  # Don't fail the build, just warn
+          else
+            echo "✅ All functions have acceptable cognitive complexity"
+          fi
+
+      - name: Upload complexity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cognitive-complexity-report
+          path: complexity-report.txt
+          retention-days: 30
