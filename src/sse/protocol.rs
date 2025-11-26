@@ -142,6 +142,48 @@ impl McpProtocolStream {
 
     /// Send OAuth notification through MCP protocol stream
     ///
+    /// Build JSON-RPC notification for OAuth completion
+    fn build_oauth_notification_json(
+        notification: &crate::database::oauth_notifications::OAuthNotification,
+    ) -> Result<String, AppError> {
+        let mcp_notification = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "notifications/oauth_completed",
+            "params": {
+                "provider": notification.provider,
+                "success": notification.success,
+                "message": notification.message,
+                "user_id": notification.user_id,
+            }
+        });
+
+        serde_json::to_string(&mcp_notification)
+            .map_err(|e| AppError::internal(format!("Failed to serialize notification: {e}")))
+    }
+
+    /// Broadcast notification via sender
+    fn broadcast_notification(
+        sender: &tokio::sync::broadcast::Sender<String>,
+        json_data: String,
+        provider: &str,
+    ) -> Result<(), AppError> {
+        match sender.send(json_data) {
+            Ok(count) => {
+                tracing::info!(
+                    "OAuth notification broadcast succeeded! Reached {} receiver(s) for provider {}",
+                    count, provider
+                );
+                Ok(())
+            }
+            Err(e) => {
+                tracing::error!("OAuth notification broadcast FAILED: {}", e);
+                Err(AppError::internal(format!(
+                    "Failed to send OAuth notification: {e}"
+                )))
+            }
+        }
+    }
+
     /// # Errors
     ///
     /// Returns an error if:
@@ -158,48 +200,19 @@ impl McpProtocolStream {
         );
 
         let sender_guard = self.sender.read().await;
-
-        if let Some(sender) = sender_guard.as_ref() {
-            let receiver_count = sender.receiver_count();
-            tracing::debug!("Active SSE receivers for this stream: {}", receiver_count);
-
-            // Format as proper JSON-RPC notification (no id field)
-            let mcp_notification = serde_json::json!({
-                "jsonrpc": "2.0",
-                "method": "notifications/oauth_completed",
-                "params": {
-                    "provider": notification.provider,
-                    "success": notification.success,
-                    "message": notification.message,
-                    "user_id": notification.user_id,
-                }
-            });
-
-            // Send only the JSON data - SSE formatting handled by Axum SSE helper
-            let json_data = serde_json::to_string(&mcp_notification).map_err(|e| {
-                AppError::internal(format!("Failed to serialize notification: {e}"))
-            })?;
-
-            tracing::debug!("JSON data to send: {}", json_data);
-
-            let result = sender.send(json_data);
-
-            match result {
-                Ok(receiver_count) => {
-                    tracing::info!("OAuth notification broadcast succeeded! Reached {} receiver(s) for provider {}", receiver_count, notification.provider);
-                }
-                Err(e) => {
-                    tracing::error!("OAuth notification broadcast FAILED: {}", e);
-                    return Err(AppError::internal(format!(
-                        "Failed to send OAuth notification: {e}"
-                    )));
-                }
-            }
-
-            Ok(())
-        } else {
+        let Some(sender) = sender_guard.as_ref() else {
             tracing::error!("No active sender for protocol stream");
-            Err(AppError::internal("No active sender for protocol stream"))
-        }
+            return Err(AppError::internal("No active sender for protocol stream"));
+        };
+
+        tracing::debug!(
+            "Active SSE receivers for this stream: {}",
+            sender.receiver_count()
+        );
+
+        let json_data = Self::build_oauth_notification_json(notification)?;
+        tracing::debug!("JSON data to send: {}", json_data);
+
+        Self::broadcast_notification(sender, json_data, &notification.provider)
     }
 }

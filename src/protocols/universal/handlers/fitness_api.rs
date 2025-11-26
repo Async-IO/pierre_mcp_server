@@ -636,6 +636,73 @@ async fn try_get_cached_stats(
     Ok(None)
 }
 
+/// Create metadata for stats responses
+fn create_stats_metadata(
+    user_uuid: uuid::Uuid,
+    tenant_uuid: uuid::Uuid,
+    cached: bool,
+) -> std::collections::HashMap<String, serde_json::Value> {
+    let mut map = std::collections::HashMap::new();
+    map.insert(
+        "user_id".to_owned(),
+        serde_json::Value::String(user_uuid.to_string()),
+    );
+    map.insert(
+        "tenant_id".to_owned(),
+        serde_json::Value::String(tenant_uuid.to_string()),
+    );
+    map.insert("cached".to_owned(), serde_json::Value::Bool(cached));
+    map
+}
+
+/// Cache a single item with TTL, logging errors
+async fn cache_item<T: serde::Serialize + Send + Sync>(
+    cache: &Arc<Cache>,
+    key: &CacheKey,
+    item: &T,
+    ttl: std::time::Duration,
+    item_name: &str,
+) {
+    if let Err(e) = cache.set(key, item, ttl).await {
+        tracing::warn!("Failed to cache {}: {}", item_name, e);
+    }
+}
+
+/// Cache athlete and stats data
+async fn cache_athlete_and_stats(
+    cache: &Arc<Cache>,
+    athlete_cache_key: &CacheKey,
+    athlete: &crate::models::Athlete,
+    stats: &crate::models::Stats,
+    tenant_uuid: uuid::Uuid,
+    user_uuid: uuid::Uuid,
+    provider_name: &str,
+) {
+    let Some(athlete_id) = athlete
+        .id
+        .parse::<u64>()
+        .inspect_err(|e| tracing::debug!("Failed to parse athlete ID: {e}"))
+        .ok()
+    else {
+        return;
+    };
+
+    // Cache athlete
+    let athlete_ttl = CacheResource::AthleteProfile.recommended_ttl();
+    cache_item(cache, athlete_cache_key, athlete, athlete_ttl, "athlete").await;
+
+    // Cache stats
+    let stats_cache_key = CacheKey::new(
+        tenant_uuid,
+        user_uuid,
+        provider_name.to_owned(),
+        CacheResource::Stats { athlete_id },
+    );
+    let stats_ttl = CacheResource::Stats { athlete_id }.recommended_ttl();
+    cache_item(cache, &stats_cache_key, stats, stats_ttl, "stats").await;
+    tracing::info!("Cached stats with TTL {:?}", stats_ttl);
+}
+
 /// Fetch stats from API and cache both athlete and stats
 async fn fetch_and_cache_stats(
     provider: &dyn FitnessProvider,
@@ -645,61 +712,40 @@ async fn fetch_and_cache_stats(
     user_uuid: uuid::Uuid,
     provider_name: &str,
 ) -> Result<UniversalResponse, ProtocolError> {
-    match provider.get_stats().await {
-        Ok(stats) => {
-            // Get athlete to extract athlete_id for caching
-            if let Ok(athlete) = provider.get_athlete().await {
-                if let Ok(athlete_id) = athlete.id.parse::<u64>() {
-                    // Cache athlete
-                    let athlete_ttl = CacheResource::AthleteProfile.recommended_ttl();
-                    if let Err(e) = cache.set(athlete_cache_key, &athlete, athlete_ttl).await {
-                        tracing::warn!("Failed to cache athlete: {}", e);
-                    }
-
-                    // Cache stats
-                    let stats_cache_key = CacheKey::new(
-                        tenant_uuid,
-                        user_uuid,
-                        provider_name.to_owned(),
-                        CacheResource::Stats { athlete_id },
-                    );
-                    let stats_ttl = CacheResource::Stats { athlete_id }.recommended_ttl();
-                    if let Err(e) = cache.set(&stats_cache_key, &stats, stats_ttl).await {
-                        tracing::warn!("Failed to cache stats: {}", e);
-                    } else {
-                        tracing::info!("Cached stats with TTL {:?}", stats_ttl);
-                    }
-                }
-            }
-
-            Ok(UniversalResponse {
-                success: true,
-                result: Some(serde_json::to_value(&stats).map_err(|e| {
-                    ProtocolError::SerializationError(format!("Failed to serialize stats: {e}"))
-                })?),
-                error: None,
-                metadata: Some({
-                    let mut map = std::collections::HashMap::new();
-                    map.insert(
-                        "user_id".to_owned(),
-                        serde_json::Value::String(user_uuid.to_string()),
-                    );
-                    map.insert(
-                        "tenant_id".to_owned(),
-                        serde_json::Value::String(tenant_uuid.to_string()),
-                    );
-                    map.insert("cached".to_owned(), serde_json::Value::Bool(false));
-                    map
-                }),
-            })
+    let stats = match provider.get_stats().await {
+        Ok(stats) => stats,
+        Err(e) => {
+            return Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Failed to fetch stats: {e}")),
+                metadata: None,
+            });
         }
-        Err(e) => Ok(UniversalResponse {
-            success: false,
-            result: None,
-            error: Some(format!("Failed to fetch stats: {e}")),
-            metadata: None,
-        }),
+    };
+
+    // Get athlete to extract athlete_id for caching
+    if let Ok(athlete) = provider.get_athlete().await {
+        cache_athlete_and_stats(
+            cache,
+            athlete_cache_key,
+            &athlete,
+            &stats,
+            tenant_uuid,
+            user_uuid,
+            provider_name,
+        )
+        .await;
     }
+
+    Ok(UniversalResponse {
+        success: true,
+        result: Some(serde_json::to_value(&stats).map_err(|e| {
+            ProtocolError::SerializationError(format!("Failed to serialize stats: {e}"))
+        })?),
+        error: None,
+        metadata: Some(create_stats_metadata(user_uuid, tenant_uuid, false)),
+    })
 }
 
 /// Handle `get_stats` tool - retrieve user's activity statistics

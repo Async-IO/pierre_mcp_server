@@ -250,6 +250,44 @@ impl ServerResources {
         ))
     }
 
+    /// Generate a unique key ID based on current timestamp
+    fn generate_key_id() -> String {
+        format!("key_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"))
+    }
+
+    /// Generate and persist a new RSA keypair
+    async fn generate_and_persist_keypair(
+        database: &Arc<Database>,
+        jwks_manager: &mut JwksManager,
+        rsa_key_size_bits: usize,
+    ) -> Result<(), anyhow::Error> {
+        let kid = Self::generate_key_id();
+        jwks_manager.generate_rsa_key_pair_with_size(&kid, rsa_key_size_bits)?;
+
+        let key = jwks_manager
+            .get_active_key()
+            .map_err(|e| AppError::internal(format!("Failed to get active key: {e}")))?;
+
+        let private_pem = key.export_private_key_pem()?;
+        let public_pem = key.export_public_key_pem()?;
+
+        database
+            .save_rsa_keypair(
+                &kid,
+                &private_pem,
+                &public_pem,
+                key.created_at,
+                true,
+                i32::try_from(rsa_key_size_bits).map_err(|e| {
+                    AppError::internal(format!("RSA key size exceeds i32 maximum: {e}"))
+                })?,
+            )
+            .await?;
+
+        tracing::info!("Generated and persisted new RSA keypair: {}", kid);
+        Ok(())
+    }
+
     /// Load persisted RSA keys from database or create new ones
     ///
     /// # Errors
@@ -260,7 +298,6 @@ impl ServerResources {
     ) -> Result<JwksManager, anyhow::Error> {
         let mut jwks_manager = JwksManager::new();
 
-        // Try to load persisted keys from database
         match database.load_rsa_keypairs().await {
             Ok(keypairs) if !keypairs.is_empty() => {
                 tracing::info!(
@@ -271,37 +308,13 @@ impl ServerResources {
                 tracing::info!("Successfully loaded RSA keys from database");
             }
             Ok(_) => {
-                // No keys in database, generate new ones
                 tracing::info!("No persisted RSA keys found, generating new keypair");
-                let kid = format!("key_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
-                jwks_manager.generate_rsa_key_pair_with_size(&kid, rsa_key_size_bits)?;
-
-                // Save to database for persistence
-                let key = jwks_manager
-                    .get_active_key()
-                    .map_err(|e| AppError::internal(format!("Failed to get active key: {e}")))?;
-
-                let private_pem = key.export_private_key_pem()?;
-                let public_pem = key.export_public_key_pem()?;
-
-                database
-                    .save_rsa_keypair(
-                        &kid,
-                        &private_pem,
-                        &public_pem,
-                        key.created_at,
-                        true,
-                        i32::try_from(rsa_key_size_bits).map_err(|e| {
-                            AppError::internal(format!("RSA key size exceeds i32 maximum: {e}"))
-                        })?,
-                    )
+                Self::generate_and_persist_keypair(database, &mut jwks_manager, rsa_key_size_bits)
                     .await?;
-
-                tracing::info!("Generated and persisted new RSA keypair: {}", kid);
             }
             Err(e) => {
                 tracing::warn!("Failed to load RSA keys from database: {}. Generating new keys without persistence.", e);
-                let kid = format!("key_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+                let kid = Self::generate_key_id();
                 jwks_manager.generate_rsa_key_pair_with_size(&kid, rsa_key_size_bits)?;
             }
         }

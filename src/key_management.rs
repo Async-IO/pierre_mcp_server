@@ -267,6 +267,24 @@ impl KeyManager {
         Ok((manager, database_key))
     }
 
+    /// Decode base64-encoded encrypted DEK
+    fn decode_encrypted_dek(encrypted_dek_base64: &str) -> AppResult<Vec<u8>> {
+        base64::engine::general_purpose::STANDARD
+            .decode(encrypted_dek_base64)
+            .map_err(|e| AppError::internal(format!("Invalid base64 encoding for stored DEK: {e}")))
+    }
+
+    /// Store encrypted DEK in database
+    async fn store_dek(
+        database: &crate::database_plugins::factory::Database,
+        encrypted_dek: &[u8],
+    ) -> AppResult<()> {
+        let encrypted_dek_base64 = base64::engine::general_purpose::STANDARD.encode(encrypted_dek);
+        database
+            .update_system_secret("database_encryption_key", &encrypted_dek_base64)
+            .await
+    }
+
     /// Complete initialization after database is available
     ///
     /// # Errors
@@ -280,41 +298,43 @@ impl KeyManager {
     ) -> AppResult<()> {
         info!("Completing two-tier key management initialization");
 
-        // Try to load existing DEK from database
         if let Ok(encrypted_dek_base64) =
             database.get_system_secret("database_encryption_key").await
         {
             info!("Loading existing Database Encryption Key from database");
-
-            // Decode from base64
-            let encrypted_dek = base64::engine::general_purpose::STANDARD
-                .decode(&encrypted_dek_base64)
-                .map_err(|e| {
-                    AppError::internal(format!("Invalid base64 encoding for stored DEK: {e}"))
-                })?;
-
-            // Decrypt with MEK and replace temporary DEK
+            let encrypted_dek = Self::decode_encrypted_dek(&encrypted_dek_base64)?;
             self.dek = DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, &self.mek)?;
-
             info!("Existing Database Encryption Key loaded successfully");
         } else {
             info!("No existing DEK found, storing current Database Encryption Key");
-
-            // Encrypt current DEK with MEK
             let encrypted_dek = self.dek.encrypt_with_mek(&self.mek)?;
-
-            // Store encrypted DEK in database
-            let encrypted_dek_base64 =
-                base64::engine::general_purpose::STANDARD.encode(&encrypted_dek);
-            database
-                .update_system_secret("database_encryption_key", &encrypted_dek_base64)
-                .await?;
-
+            Self::store_dek(database, &encrypted_dek).await?;
             info!("Database Encryption Key stored successfully");
         }
 
         info!("Two-tier key management system fully initialized");
         Ok(())
+    }
+
+    /// Load DEK from database or generate new one
+    async fn load_or_generate_dek(
+        database: &crate::database_plugins::factory::Database,
+        mek: &MasterEncryptionKey,
+    ) -> AppResult<DatabaseEncryptionKey> {
+        if let Ok(encrypted_dek_base64) =
+            database.get_system_secret("database_encryption_key").await
+        {
+            info!("Loading existing Database Encryption Key from database");
+            let encrypted_dek = Self::decode_encrypted_dek(&encrypted_dek_base64)?;
+            return DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, mek);
+        }
+
+        info!("No existing DEK found, generating new Database Encryption Key");
+        let dek = DatabaseEncryptionKey::generate();
+        let encrypted_dek = dek.encrypt_with_mek(mek)?;
+        Self::store_dek(database, &encrypted_dek).await?;
+        info!("Generated and stored new Database Encryption Key");
+        Ok(dek)
     }
 
     /// Initialize key manager with MEK from environment and DEK from database (for existing systems)
@@ -330,46 +350,10 @@ impl KeyManager {
     ) -> AppResult<Self> {
         info!("Initializing two-tier key management system");
 
-        // Load MEK from environment
         let mek = MasterEncryptionKey::load_or_generate()?;
-
-        // Try to load existing DEK from database
-        let dek = if let Ok(encrypted_dek_base64) =
-            database.get_system_secret("database_encryption_key").await
-        {
-            info!("Loading existing Database Encryption Key from database");
-
-            // Decode from base64
-            let encrypted_dek = base64::engine::general_purpose::STANDARD
-                .decode(&encrypted_dek_base64)
-                .map_err(|e| {
-                    AppError::internal(format!("Invalid base64 encoding for stored DEK: {e}"))
-                })?;
-
-            // Decrypt with MEK
-            DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, &mek)?
-        } else {
-            info!("No existing DEK found, generating new Database Encryption Key");
-
-            // Generate new DEK
-            let dek = DatabaseEncryptionKey::generate();
-
-            // Encrypt DEK with MEK
-            let encrypted_dek = dek.encrypt_with_mek(&mek)?;
-
-            // Store encrypted DEK in database
-            let encrypted_dek_base64 =
-                base64::engine::general_purpose::STANDARD.encode(&encrypted_dek);
-            database
-                .update_system_secret("database_encryption_key", &encrypted_dek_base64)
-                .await?;
-
-            info!("Generated and stored new Database Encryption Key");
-            dek
-        };
+        let dek = Self::load_or_generate_dek(database, &mek).await?;
 
         info!("Two-tier key management system initialized successfully");
-
         Ok(Self { mek, dek })
     }
 

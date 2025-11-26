@@ -1115,10 +1115,77 @@ impl AdminRoutes {
 
     /// Handle user approval (Axum)
     /// JUSTIFICATION for `#[allow(clippy::too_many_lines)]`:
-    /// This function handles the complete user approval workflow including permission checks,
-    /// user status updates, optional tenant creation, and comprehensive error handling.
-    /// Splitting this into smaller functions would harm readability by fragmenting the
-    /// business logic flow. The function is cohesive and handles a single logical operation.
+    /// Get user status string
+    fn user_status_str(status: &UserStatus) -> &'static str {
+        match status {
+            UserStatus::Pending => "pending",
+            UserStatus::Active => "active",
+            UserStatus::Suspended => "suspended",
+        }
+    }
+
+    /// Handle tenant creation and linking for user approval
+    async fn create_and_link_tenant(
+        database: &crate::database_plugins::factory::Database,
+        user_uuid: uuid::Uuid,
+        user_email: &str,
+        request: &ApproveUserRequest,
+        display_name: Option<&str>,
+    ) -> AppResult<Option<TenantCreatedInfo>> {
+        if !request.create_default_tenant.unwrap_or(false) {
+            return Ok(None);
+        }
+
+        let tenant_name = request
+            .tenant_name
+            .clone()
+            .unwrap_or_else(|| format!("{}'s Organization", display_name.unwrap_or(user_email)));
+        let tenant_slug = request
+            .tenant_slug
+            .clone()
+            .unwrap_or_else(|| format!("user-{}", user_uuid.as_simple()));
+
+        let tenant =
+            Self::create_default_tenant_for_user(database, user_uuid, &tenant_name, &tenant_slug)
+                .await
+                .map_err(|e| {
+                    tracing::error!(
+                        "Failed to create default tenant for user {}: {}",
+                        user_email,
+                        e
+                    );
+                    AppError::internal(format!("Failed to create tenant: {e}"))
+                })?;
+
+        tracing::info!(
+            "Created default tenant '{}' for user {}",
+            tenant.name,
+            user_email
+        );
+
+        let tenant_id_str = tenant.id.to_string();
+        database
+            .update_user_tenant_id(user_uuid, &tenant_id_str)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to link user {} to tenant {}: {}",
+                    user_email,
+                    tenant.id,
+                    e
+                );
+                AppError::internal(format!("Failed to link user to created tenant: {e}"))
+            })?;
+
+        Ok(Some(TenantCreatedInfo {
+            tenant_id: tenant.id.to_string(),
+            name: tenant.name,
+            slug: tenant.slug,
+            plan: tenant.plan,
+        }))
+    }
+
+    /// Handle user approval workflow
     #[allow(clippy::too_many_lines)]
     async fn handle_approve_user(
         State(context): State<Arc<AdminApiContext>>,
@@ -1126,7 +1193,6 @@ impl AdminRoutes {
         axum::extract::Path(user_id): axum::extract::Path<String>,
         Json(request): Json<ApproveUserRequest>,
     ) -> AppResult<impl axum::response::IntoResponse> {
-        // Check required permission
         if !admin_token
             .permissions
             .has_permission(&crate::admin::AdminPermission::ManageUsers)
@@ -1148,14 +1214,11 @@ impl AdminRoutes {
         );
 
         let ctx = context.as_ref();
-
-        // Parse user ID
         let user_uuid = uuid::Uuid::parse_str(&user_id).map_err(|e| {
             tracing::error!(error = %e, "Invalid user ID format");
             AppError::invalid_input(format!("Invalid user ID format: {e}"))
         })?;
 
-        // Fetch user from database
         let user = ctx
             .database
             .get_user(user_uuid)
@@ -1169,7 +1232,6 @@ impl AdminRoutes {
                 AppError::not_found("User not found")
             })?;
 
-        // Check if user is already approved
         if user.user_status == UserStatus::Active {
             return Ok(json_response(
                 AdminResponse {
@@ -1181,8 +1243,6 @@ impl AdminRoutes {
             ));
         }
 
-        // Update user status to Active (this also sets approved_by and approved_at)
-        // Use admin_token.token_id (UUID) instead of service_name for proper approved_by tracking
         let updated_user = ctx
             .database
             .update_user_status(user_uuid, UserStatus::Active, &admin_token.token_id)
@@ -1192,89 +1252,16 @@ impl AdminRoutes {
                 AppError::internal(format!("Failed to approve user: {e}"))
             })?;
 
-        // Optionally create default tenant
-        let tenant_created = if request.create_default_tenant.unwrap_or(false) {
-            let tenant_name = request.tenant_name.clone().unwrap_or_else(|| {
-                format!(
-                    "{}'s Organization",
-                    updated_user
-                        .display_name
-                        .as_ref()
-                        .unwrap_or(&updated_user.email)
-                )
-            });
-            let tenant_slug = request
-                .tenant_slug
-                .clone() // Safe: Option<String> ownership for tenant creation
-                .unwrap_or_else(|| format!("user-{}", updated_user.id.as_simple()));
-
-            match Self::create_default_tenant_for_user(
-                &ctx.database,
-                user_uuid,
-                &tenant_name,
-                &tenant_slug,
-            )
-            .await
-            {
-                Ok(tenant) => {
-                    tracing::info!(
-                        "Created default tenant '{}' for user {}",
-                        tenant.name,
-                        updated_user.email
-                    );
-
-                    // Update user's tenant_id to link them to the new tenant
-                    let tenant_id_str = tenant.id.to_string();
-                    if let Err(e) = ctx
-                        .database
-                        .update_user_tenant_id(user_uuid, &tenant_id_str)
-                        .await
-                    {
-                        tracing::error!(
-                            "Failed to link user {} to tenant {}: {}",
-                            updated_user.email,
-                            tenant.id,
-                            e
-                        );
-                        return Ok(json_response(
-                            AdminResponse {
-                                success: false,
-                                message: format!("Failed to link user to created tenant: {e}"),
-                                data: None,
-                            },
-                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                        ));
-                    }
-
-                    Some(TenantCreatedInfo {
-                        tenant_id: tenant.id.to_string(),
-                        name: tenant.name,
-                        slug: tenant.slug,
-                        plan: tenant.plan,
-                    })
-                }
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to create default tenant for user {}: {}",
-                        updated_user.email,
-                        e
-                    );
-                    return Ok(json_response(
-                        AdminResponse {
-                            success: false,
-                            message: format!("Failed to create tenant: {e}"),
-                            data: None,
-                        },
-                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    ));
-                }
-            }
-        } else {
-            None
-        };
+        let tenant_created = Self::create_and_link_tenant(
+            &ctx.database,
+            user_uuid,
+            &updated_user.email,
+            &request,
+            updated_user.display_name.as_deref(),
+        )
+        .await?;
 
         let reason = request.reason.as_deref().unwrap_or("No reason provided");
-
         tracing::info!("User {} approved successfully. Reason: {}", user_id, reason);
 
         Ok(json_response(
@@ -1285,11 +1272,7 @@ impl AdminRoutes {
                     "user": {
                         "id": updated_user.id.to_string(),
                         "email": updated_user.email,
-                        "user_status": match updated_user.user_status {
-                            UserStatus::Pending => "pending",
-                            UserStatus::Active => "active",
-                            UserStatus::Suspended => "suspended",
-                        },
+                        "user_status": Self::user_status_str(&updated_user.user_status),
                         "approved_by": updated_user.approved_by,
                         "approved_at": updated_user.approved_at.map(|t| t.to_rfc3339()),
                     },

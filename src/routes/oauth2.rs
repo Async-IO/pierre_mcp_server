@@ -346,41 +346,9 @@ impl OAuth2Routes {
         Json(request): Json<crate::oauth2_server::models::ValidateRefreshRequest>,
     ) -> Response {
         // Extract Bearer token from Authorization header
-        let access_token = if let Some(header) = headers.get(header::AUTHORIZATION) {
-            if let Ok(header_str) = header.to_str() {
-                if let Some(token) = header_str.strip_prefix("Bearer ") {
-                    token.to_owned()
-                } else {
-                    tracing::warn!("Invalid Authorization header format - missing Bearer prefix");
-                    return (
-                        StatusCode::UNAUTHORIZED,
-                        Json(serde_json::json!({
-                            "error": "invalid_request",
-                            "error_description": "Authorization header must use Bearer scheme"
-                        })),
-                    )
-                        .into_response();
-                }
-            } else {
-                return (
-                    StatusCode::UNAUTHORIZED,
-                    Json(serde_json::json!({
-                        "error": "invalid_request",
-                        "error_description": "Invalid Authorization header encoding"
-                    })),
-                )
-                    .into_response();
-            }
-        } else {
-            tracing::warn!("Missing Authorization header in validate-and-refresh request");
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(serde_json::json!({
-                    "error": "invalid_request",
-                    "error_description": "Authorization header is required"
-                })),
-            )
-                .into_response();
+        let access_token = match Self::extract_bearer_token(&headers) {
+            Ok(token) => token,
+            Err(response) => return response,
         };
 
         tracing::debug!(
@@ -724,88 +692,136 @@ impl OAuth2Routes {
     /// Handle JWKS endpoint (GET /oauth2/jwks or GET /.well-known/jwks.json)
     async fn handle_jwks(State(context): State<OAuth2Context>, headers: HeaderMap) -> Response {
         // Return JWKS with RS256 public keys for token validation
-        match context.jwks_manager.get_jwks() {
-            Ok(jwks) => {
-                tracing::debug!("JWKS endpoint accessed, returning {} keys", jwks.keys.len());
-
-                // Calculate ETag from JWKS content for efficient caching
-                // Use spawn_blocking for CPU-intensive serialization and hashing
-                let jwks_clone = jwks.clone();
-                let etag_result = tokio::task::spawn_blocking(move || {
-                    let jwks_json = serde_json::to_string(&jwks_clone)?;
-                    let mut hasher = Sha256::new();
-                    hasher.update(jwks_json.as_bytes());
-                    let hash = hasher.finalize();
-                    let etag = format!(r#""{}""#, hex::encode(&hash[..16]));
-                    Ok::<(String, String), serde_json::Error>((jwks_json, etag))
-                })
-                .await;
-
-                let (_jwks_json, etag) = match etag_result {
-                    Ok(Ok((json, tag))) => (json, tag),
-                    Ok(Err(_)) => {
-                        tracing::error!("Failed to serialize JWKS for ETag calculation");
-                        return (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(serde_json::json!({
-                                "keys": []
-                            })),
-                        )
-                            .into_response();
-                    }
-                    Err(_) => {
-                        tracing::error!("Spawn blocking task panicked during JWKS serialization");
-                        return (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(serde_json::json!({
-                                "keys": []
-                            })),
-                        )
-                            .into_response();
-                    }
-                };
-
-                // Check if client's cached version matches current version
-                if let Some(if_none_match) = headers.get(header::IF_NONE_MATCH) {
-                    if let Ok(client_etag) = if_none_match.to_str() {
-                        if client_etag == etag {
-                            tracing::debug!("JWKS ETag match, returning 304 Not Modified");
-                            // Client has current version - return 304 Not Modified
-                            return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)])
-                                .into_response();
-                        }
-                    }
-                }
-
-                // Return JWKS with ETag and Cache-Control headers
-                (
-                    StatusCode::OK,
-                    [
-                        (header::CACHE_CONTROL, "public, max-age=3600".to_owned()),
-                        (header::ETAG, etag),
-                    ],
-                    Json(jwks),
-                )
-                    .into_response()
-            }
+        let jwks = match context.jwks_manager.get_jwks() {
+            Ok(jwks) => jwks,
             Err(e) => {
                 tracing::error!("Failed to generate JWKS: {}", e);
                 // Return empty JWKS on error (graceful degradation)
-                (
+                return (
                     StatusCode::OK,
                     [(header::CACHE_CONTROL, "public, max-age=3600")],
-                    Json(serde_json::json!({
-                        "keys": []
-                    })),
+                    Json(serde_json::json!({ "keys": [] })),
                 )
-                    .into_response()
+                    .into_response();
             }
+        };
+
+        tracing::debug!("JWKS endpoint accessed, returning {} keys", jwks.keys.len());
+
+        // Calculate ETag from JWKS content for efficient caching
+        let (_jwks_json, etag) = match Self::compute_jwks_etag(jwks.clone()).await {
+            Ok(result) => result,
+            Err(response) => return response,
+        };
+
+        // Check if client's cached version matches current version
+        if Self::check_etag_match(&headers, &etag) {
+            tracing::debug!("JWKS ETag match, returning 304 Not Modified");
+            return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
         }
+
+        // Return JWKS with ETag and Cache-Control headers
+        (
+            StatusCode::OK,
+            [
+                (header::CACHE_CONTROL, "public, max-age=3600".to_owned()),
+                (header::ETAG, etag),
+            ],
+            Json(jwks),
+        )
+            .into_response()
     }
 
     // ============================================================================
     // Helper Functions
     // ============================================================================
+
+    /// Compute JWKS ETag from JSON content
+    async fn compute_jwks_etag(
+        jwks: crate::admin::jwks::JsonWebKeySet,
+    ) -> Result<(String, String), Response> {
+        let etag_result = tokio::task::spawn_blocking(move || {
+            let jwks_json = serde_json::to_string(&jwks)?;
+            let mut hasher = Sha256::new();
+            hasher.update(jwks_json.as_bytes());
+            let hash = hasher.finalize();
+            let etag = format!(r#""{}""#, hex::encode(&hash[..16]));
+            Ok::<(String, String), serde_json::Error>((jwks_json, etag))
+        })
+        .await;
+
+        match etag_result {
+            Ok(Ok((json, tag))) => Ok((json, tag)),
+            Ok(Err(_)) => {
+                tracing::error!("Failed to serialize JWKS for ETag calculation");
+                Err(Self::jwks_error_response())
+            }
+            Err(_) => {
+                tracing::error!("Spawn blocking task panicked during JWKS serialization");
+                Err(Self::jwks_error_response())
+            }
+        }
+    }
+
+    /// Create error response for JWKS endpoint
+    fn jwks_error_response() -> Response {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "keys": []
+            })),
+        )
+            .into_response()
+    }
+
+    /// Check if client has current JWKS version (ETag match)
+    fn check_etag_match(headers: &HeaderMap, etag: &str) -> bool {
+        headers
+            .get(header::IF_NONE_MATCH)
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|client_etag| client_etag == etag)
+    }
+
+    /// Extract Bearer token from Authorization header
+    fn extract_bearer_token(headers: &HeaderMap) -> Result<String, Response> {
+        let header = headers.get(header::AUTHORIZATION).ok_or_else(|| {
+            tracing::warn!("Missing Authorization header");
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "invalid_request",
+                    "error_description": "Authorization header is required"
+                })),
+            )
+                .into_response()
+        })?;
+
+        let header_str = header.to_str().map_err(|_| {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "invalid_request",
+                    "error_description": "Invalid Authorization header encoding"
+                })),
+            )
+                .into_response()
+        })?;
+
+        header_str
+            .strip_prefix("Bearer ")
+            .map(str::to_owned)
+            .ok_or_else(|| {
+                tracing::warn!("Invalid Authorization header format - missing Bearer prefix");
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({
+                        "error": "invalid_request",
+                        "error_description": "Authorization header must use Bearer scheme"
+                    })),
+                )
+                    .into_response()
+            })
+    }
 
     /// Build login URL with OAuth parameters preserved for redirect
     fn build_login_url_with_oauth_params(request: &AuthorizeRequest) -> String {
