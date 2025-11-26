@@ -419,7 +419,8 @@ class ApiService {
       const response = await axios.get('/admin/pending-users');
       return response.data;
     } catch (error) {
-      // Admin endpoint requires admin token authentication
+      // Admin endpoint requires admin token authentication; log and fall back for non-admin users
+      console.error('Failed to load pending users from /admin/pending-users (likely missing admin privileges):', error);
       // Return empty array for non-admin users to prevent dashboard errors
       return [];
     }
