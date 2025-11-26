@@ -66,6 +66,65 @@ impl ServerLifecycle {
             .await
     }
 
+    /// Check if a JSON message is a sampling response
+    fn is_sampling_response(message: &Value) -> bool {
+        message.get("id").is_some()
+            && message.get("method").is_none()
+            && (message.get("result").is_some() || message.get("error").is_some())
+    }
+
+    /// Route a sampling response to the sampling peer
+    async fn route_sampling_response(message: &Value, sampling_peer: &Arc<SamplingPeer>) {
+        let id = message.get("id").cloned().unwrap_or(Value::Null);
+        let result = message.get("result").cloned();
+        let error = message.get("error").cloned();
+
+        match sampling_peer.handle_response(id, result, error).await {
+            Ok(handled) if !handled => {
+                warn!("Received response for unknown sampling request");
+            }
+            Ok(_) => {}
+            Err(e) => {
+                warn!("Failed to handle sampling response: {}", e);
+            }
+        }
+    }
+
+    /// Route an MCP request for processing
+    async fn route_mcp_request(
+        message: Value,
+        resources: &Arc<ServerResources>,
+        stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
+        sampling_peer: &Arc<SamplingPeer>,
+    ) {
+        match serde_json::from_value::<McpRequest>(message.clone()) {
+            Ok(request) => {
+                if let Err(e) =
+                    Self::process_mcp_request(request, resources, stdout, sampling_peer).await
+                {
+                    warn!("Failed to process MCP request: {}", e);
+                }
+            }
+            Err(e) => {
+                debug!("Failed to parse MCP request: {} - Message: {}", e, message);
+            }
+        }
+    }
+
+    /// Process a single incoming message from stdio
+    async fn process_stdio_message(
+        message: Value,
+        resources: &Arc<ServerResources>,
+        stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
+        sampling_peer: &Arc<SamplingPeer>,
+    ) {
+        if Self::is_sampling_response(&message) {
+            Self::route_sampling_response(&message, sampling_peer).await;
+        } else {
+            Self::route_mcp_request(message, resources, stdout, sampling_peer).await;
+        }
+    }
+
     /// Run stdio transport for MCP communication
     ///
     /// # Errors
@@ -79,70 +138,21 @@ impl ServerLifecycle {
         let stdin = tokio::io::stdin();
         let mut reader = BufReader::new(stdin).lines();
         let stdout = Arc::new(tokio::sync::Mutex::new(tokio::io::stdout()));
-
-        // Create sampling peer for bidirectional communication
         let sampling_peer = Arc::new(SamplingPeer::new(stdout.clone()));
 
-        // Spawn notification handler
-        let notification_stdout = stdout.clone();
-        let mut notification_rx = notification_receiver;
-        tokio::spawn(async move {
-            while let Ok(notification) = notification_rx.recv().await {
-                Self::handle_oauth_notification(notification, &notification_stdout).await;
-            }
-        });
+        Self::spawn_notification_handler(notification_receiver, stdout.clone());
 
         info!("MCP stdio transport started with sampling support");
 
-        // Process stdin requests and sampling responses
         while let Some(line) = reader.next_line().await? {
             if line.trim().is_empty() {
                 continue;
             }
 
-            // Parse as generic JSON-RPC message
             match serde_json::from_str::<Value>(&line) {
                 Ok(message) => {
-                    // Check if this is a response to a sampling request
-                    let is_sampling_response = message.get("id").is_some()
-                        && message.get("method").is_none()
-                        && (message.get("result").is_some() || message.get("error").is_some());
-
-                    if is_sampling_response {
-                        // Route to sampling peer
-                        let id = message.get("id").cloned().unwrap_or(Value::Null);
-                        let result = message.get("result").cloned();
-                        let error = message.get("error").cloned();
-
-                        match sampling_peer.handle_response(id, result, error).await {
-                            Ok(handled) if !handled => {
-                                warn!("Received response for unknown sampling request");
-                            }
-                            Ok(_) => {}
-                            Err(e) => {
-                                warn!("Failed to handle sampling response: {}", e);
-                            }
-                        }
-                    } else {
-                        // Parse as MCP request
-                        match serde_json::from_value::<McpRequest>(message.clone()) {
-                            Ok(request) => {
-                                if let Err(e) = Self::process_mcp_request(
-                                    request,
-                                    &self.resources,
-                                    &stdout,
-                                    &sampling_peer,
-                                )
-                                .await
-                                {
-                                    warn!("Failed to process MCP request: {}", e);
-                                }
-                            }
-                            Err(e) => {
-                                debug!("Failed to parse MCP request: {} - Message: {}", e, message);
-                            }
-                        }
-                    }
+                    Self::process_stdio_message(message, &self.resources, &stdout, &sampling_peer)
+                        .await;
                 }
                 Err(e) => {
                     debug!("Failed to parse JSON-RPC message: {} - Line: {}", e, line);
@@ -150,10 +160,21 @@ impl ServerLifecycle {
             }
         }
 
-        // Clean up on exit
         sampling_peer.cancel_all_pending().await;
-
         Ok(())
+    }
+
+    /// Spawn notification handler for OAuth completion events
+    fn spawn_notification_handler(
+        notification_receiver: tokio::sync::broadcast::Receiver<OAuthCompletedNotification>,
+        stdout: Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
+    ) {
+        let mut notification_rx = notification_receiver;
+        tokio::spawn(async move {
+            while let Ok(notification) = notification_rx.recv().await {
+                Self::handle_oauth_notification(notification, &stdout).await;
+            }
+        });
     }
 
     /// Run SSE notification forwarder

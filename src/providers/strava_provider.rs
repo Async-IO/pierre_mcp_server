@@ -254,37 +254,88 @@ impl StravaProvider {
         }
     }
 
+    /// Validate that an access token appears to be legitimate
+    fn validate_access_token(token: &str) -> AppResult<()> {
+        if token.starts_with("at_") || token.len() < 40 {
+            return Err(AppError::internal(
+                "Invalid Strava access token. Please authenticate with Strava first to access real data."
+            ));
+        }
+        Ok(())
+    }
+
+    /// Extract resource details from Strava 404 error response
+    fn parse_not_found_error(text: &str, url: &str) -> Option<ProviderError> {
+        let error_response: StravaErrorResponse = serde_json::from_str(text).ok()?;
+
+        tracing::debug!(
+            "Strava 404 error: {} (errors: {})",
+            error_response.message,
+            error_response.errors.as_ref().map_or(0, std::vec::Vec::len)
+        );
+
+        let first_error = error_response.errors?.into_iter().next()?;
+
+        tracing::debug!(
+            "Strava error details: resource={}, field={}, code={}",
+            first_error.resource,
+            first_error.field,
+            first_error.code
+        );
+
+        let resource_id = url.split('/').next_back().unwrap_or("unknown").to_owned();
+
+        Some(ProviderError::NotFound {
+            provider: oauth_providers::STRAVA.to_owned(),
+            resource_type: first_error.resource,
+            resource_id,
+        })
+    }
+
+    /// Handle non-success API responses
+    fn handle_api_error(status: reqwest::StatusCode, text: &str, url: &str) -> AppError {
+        tracing::error!("Strava API request failed - status: {status}, body: {text}");
+
+        if status.as_u16() == 404 {
+            if let Some(not_found_err) = Self::parse_not_found_error(text, url) {
+                return AppError::external_service("Strava", not_found_err.to_string());
+            }
+        }
+
+        let err = ProviderError::ApiError {
+            provider: oauth_providers::STRAVA.to_owned(),
+            status_code: status.as_u16(),
+            message: format!("Strava API request failed with status {status}: {text}"),
+            retryable: false,
+        };
+        AppError::external_service("Strava", err.to_string())
+    }
+
+    /// Retrieve the current access token from credentials
+    async fn get_access_token(&self) -> AppResult<String> {
+        let token = self
+            .credentials
+            .read()
+            .await
+            .as_ref()
+            .ok_or_else(|| AppError::internal("No credentials available for Strava API request"))?
+            .access_token
+            .clone();
+
+        token.ok_or_else(|| AppError::internal("No access token available"))
+    }
+
     /// Make authenticated API request
     async fn api_request<T>(&self, endpoint: &str) -> AppResult<T>
     where
         T: for<'de> Deserialize<'de>,
     {
-        tracing::info!("Starting API request to endpoint: {}", endpoint);
+        tracing::info!("Starting API request to endpoint: {endpoint}");
 
-        // Refresh token if needed before making request
         self.refresh_token_if_needed().await?;
 
-        // Clone access token to avoid holding lock across await
-        let access_token = {
-            let guard = self.credentials.read().await;
-            let credentials = guard.as_ref().ok_or_else(|| {
-                AppError::internal("No credentials available for Strava API request")
-            })?;
-
-            let token = credentials
-                .access_token
-                .clone() // Safe: String ownership needed for async request
-                .ok_or_else(|| AppError::internal("No access token available"))?;
-            drop(guard); // Release lock immediately after cloning
-            token
-        };
-
-        // Reject test/invalid tokens with proper error message
-        if access_token.starts_with("at_") || access_token.len() < 40 {
-            return Err(AppError::internal(
-                "Invalid Strava access token. Please authenticate with Strava first to access real data."
-            ));
-        }
+        let access_token = self.get_access_token().await?;
+        Self::validate_access_token(&access_token)?;
 
         tracing::debug!("Making authenticated request to Strava API");
 
@@ -294,7 +345,7 @@ impl StravaProvider {
             endpoint.trim_start_matches('/')
         );
 
-        tracing::info!("Making HTTP GET request to: {}", url);
+        tracing::info!("Making HTTP GET request to: {url}");
 
         let response = self
             .client
@@ -306,75 +357,19 @@ impl StravaProvider {
                 AppError::external_service("Strava", format!("Failed to send request: {e}"))
             })?;
 
-        tracing::info!("Received HTTP response with status: {}", response.status());
+        let status = response.status();
+        tracing::info!("Received HTTP response with status: {status}");
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let url_path = url;
+        if !status.is_success() {
             let text = response.text().await.unwrap_or_default();
-            tracing::error!(
-                "Strava API request failed - status: {}, body: {}",
-                status,
-                text
-            );
-
-            // Handle 404 Not Found errors specifically
-            if status.as_u16() == 404 {
-                // Try to parse Strava's error response to extract resource details
-                if let Ok(error_response) = serde_json::from_str::<StravaErrorResponse>(&text) {
-                    tracing::debug!(
-                        "Strava 404 error: {} (errors: {})",
-                        error_response.message,
-                        error_response.errors.as_ref().map_or(0, std::vec::Vec::len)
-                    );
-
-                    if let Some(errors) = error_response.errors {
-                        if let Some(first_error) = errors.first() {
-                            tracing::debug!(
-                                "Strava error details: resource={}, field={}, code={}",
-                                first_error.resource,
-                                first_error.field,
-                                first_error.code
-                            );
-
-                            // Extract resource ID from URL path (e.g., /activities/123456)
-                            let resource_id = url_path
-                                .split('/')
-                                .next_back()
-                                .unwrap_or("unknown")
-                                .to_owned();
-
-                            let err = ProviderError::NotFound {
-                                provider: oauth_providers::STRAVA.to_owned(),
-                                resource_type: first_error.resource.clone(),
-                                resource_id,
-                            };
-                            return Err(AppError::external_service("Strava", err.to_string()));
-                        }
-                    }
-                }
-            }
-
-            let err = ProviderError::ApiError {
-                provider: oauth_providers::STRAVA.to_owned(),
-                status_code: status.as_u16(),
-                message: format!("Strava API request failed with status {status}: {text}"),
-                retryable: false,
-            };
-            return Err(AppError::external_service("Strava", err.to_string()));
+            return Err(Self::handle_api_error(status, &text, &url));
         }
 
         tracing::info!("Parsing JSON response from Strava API");
-        let result = response.json().await.map_err(|e| {
+        response.json().await.map_err(|e| {
+            tracing::error!("Failed to parse JSON response: {e}");
             AppError::external_service("Strava", format!("Failed to parse API response: {e}"))
-        });
-
-        match &result {
-            Ok(_) => tracing::info!("Successfully parsed JSON response"),
-            Err(e) => tracing::error!("Failed to parse JSON response: {}", e),
-        }
-
-        result
+        })
     }
 
     /// Convert Strava activity type to our `SportType` enum
@@ -906,15 +901,55 @@ impl StravaProvider {
     }
 
     /// Fetch activities using multiple API calls (for requests > `BULK_ACTIVITY_FETCH_THRESHOLD`)
+    /// Build the endpoint URL for a page of activities
+    fn build_activities_endpoint(page_limit: usize, page_number: usize) -> String {
+        format!("athlete/activities?per_page={page_limit}&page={page_number}")
+    }
+
+    /// Convert and add Strava activities to the collection
+    fn add_converted_activities(
+        activities: &mut Vec<Activity>,
+        strava_activities: Vec<StravaActivityResponse>,
+        limit: usize,
+    ) -> AppResult<()> {
+        for activity in strava_activities {
+            if activities.len() >= limit {
+                break;
+            }
+            activities.push(Self::convert_strava_activity(activity)?);
+        }
+        Ok(())
+    }
+
+    /// Check if pagination should stop based on current state
+    fn should_stop_pagination(
+        activities_count: usize,
+        page_index: usize,
+        activities_per_page: usize,
+        total_limit: usize,
+    ) -> bool {
+        if activities_count >= total_limit {
+            return true;
+        }
+
+        let expected_count = (page_index + 1) * activities_per_page.min(total_limit);
+        if activities_count < expected_count {
+            tracing::info!(
+                "Reached end of activities - got {} total, breaking early",
+                activities_count
+            );
+            return true;
+        }
+
+        false
+    }
+
     async fn get_activities_multi_page(
         &self,
         total_limit: usize,
         start_offset: usize,
     ) -> AppResult<Vec<Activity>> {
-        // Pre-allocate vector with expected capacity for efficiency
         let mut all_activities = Vec::with_capacity(total_limit);
-
-        // Calculate how many pages we need
         let activities_per_page = api_provider_limits::strava::MAX_ACTIVITIES_PER_REQUEST;
         let pages_needed = total_limit.div_ceil(activities_per_page);
 
@@ -926,17 +961,12 @@ impl StravaProvider {
         );
 
         for page_index in 0..pages_needed {
-            // Calculate how many activities to fetch for this page
-            let remaining_activities = total_limit - all_activities.len();
-            let current_page_limit = remaining_activities.min(activities_per_page);
-
-            // Calculate the actual page number accounting for offset
+            let remaining = total_limit - all_activities.len();
+            let current_page_limit = remaining.min(activities_per_page);
             let current_offset = start_offset + (page_index * activities_per_page);
             let page_number = current_offset / activities_per_page + 1;
 
-            let endpoint =
-                format!("athlete/activities?per_page={current_page_limit}&page={page_number}");
-
+            let endpoint = Self::build_activities_endpoint(current_page_limit, page_number);
             tracing::info!(
                 "Fetching page {} of {} - endpoint: {} (expecting {} activities)",
                 page_index + 1,
@@ -945,49 +975,24 @@ impl StravaProvider {
                 current_page_limit
             );
 
-            match self
+            let strava_activities = self
                 .api_request::<Vec<StravaActivityResponse>>(&endpoint)
-                .await
-            {
-                Ok(strava_activities) => {
-                    tracing::info!(
-                        "Page {} returned {} activities",
-                        page_index + 1,
-                        strava_activities.len()
-                    );
+                .await?;
 
-                    // Convert and add activities from this page
-                    for activity in strava_activities {
-                        if all_activities.len() >= total_limit {
-                            break; // Stop if we've reached the requested limit
-                        }
-                        all_activities.push(Self::convert_strava_activity(activity)?);
-                    }
+            tracing::info!(
+                "Page {} returned {} activities",
+                page_index + 1,
+                strava_activities.len()
+            );
 
-                    // If we got fewer activities than expected, we've reached the end
-                    if all_activities.len()
-                        < (page_index + 1) * activities_per_page.min(total_limit)
-                    {
-                        tracing::info!(
-                            "Reached end of activities - got {} total, breaking early",
-                            all_activities.len()
-                        );
-                        break;
-                    }
-                }
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to fetch page {} of {}: {}",
-                        page_index + 1,
-                        pages_needed,
-                        e
-                    );
-                    return Err(e);
-                }
-            }
+            Self::add_converted_activities(&mut all_activities, strava_activities, total_limit)?;
 
-            // Stop if we have enough activities
-            if all_activities.len() >= total_limit {
+            if Self::should_stop_pagination(
+                all_activities.len(),
+                page_index,
+                activities_per_page,
+                total_limit,
+            ) {
                 break;
             }
         }

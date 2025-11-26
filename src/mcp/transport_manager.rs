@@ -146,6 +146,84 @@ impl StdioTransport {
         Self { resources }
     }
 
+    /// Check if a JSON message is a sampling response
+    fn is_sampling_response(message: &serde_json::Value) -> bool {
+        message.get("id").is_some()
+            && message.get("method").is_none()
+            && (message.get("result").is_some() || message.get("error").is_some())
+    }
+
+    /// Route a sampling response to the sampling peer
+    async fn route_sampling_response(
+        message: &serde_json::Value,
+        sampling_peer: &Option<Arc<super::sampling_peer::SamplingPeer>>,
+    ) {
+        let Some(peer) = sampling_peer else {
+            warn!("Received sampling response but no sampling peer available");
+            return;
+        };
+
+        let id = message
+            .get("id")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
+        let result = message.get("result").cloned();
+        let error = message.get("error").cloned();
+
+        match peer.handle_response(id, result, error).await {
+            Ok(handled) if !handled => {
+                warn!("Received response for unknown sampling request");
+            }
+            Ok(_) => {}
+            Err(e) => {
+                warn!("Failed to handle sampling response: {}", e);
+            }
+        }
+    }
+
+    /// Create a JSON-RPC parse error response
+    fn parse_error_response() -> serde_json::Value {
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "error": {
+                "code": -32700,
+                "message": "Parse error"
+            },
+            "id": null
+        })
+    }
+
+    /// Process an MCP request and send the response
+    async fn process_mcp_request(message: serde_json::Value, resources: Arc<ServerResources>) {
+        match serde_json::from_value::<super::multitenant::McpRequest>(message) {
+            Ok(request) => {
+                let processor = super::mcp_request_processor::McpRequestProcessor::new(resources);
+                if let Some(response) = processor.handle_request(request).await {
+                    if let Ok(json) = serde_json::to_string(&response) {
+                        println!("{json}");
+                    }
+                }
+            }
+            Err(e) => {
+                warn!("Failed to parse MCP request: {}", e);
+                println!("{}", Self::parse_error_response());
+            }
+        }
+    }
+
+    /// Process a single incoming message from stdio
+    async fn process_stdio_message(
+        message: serde_json::Value,
+        resources: Arc<ServerResources>,
+        sampling_peer: &Option<Arc<super::sampling_peer::SamplingPeer>>,
+    ) {
+        if Self::is_sampling_response(&message) {
+            Self::route_sampling_response(&message, sampling_peer).await;
+        } else {
+            Self::process_mcp_request(message, resources).await;
+        }
+    }
+
     /// Run stdio transport for MCP communication
     ///
     /// # Errors
@@ -154,102 +232,37 @@ impl StdioTransport {
         &self,
         notification_receiver: broadcast::Receiver<OAuthCompletedNotification>,
     ) -> anyhow::Result<()> {
-        use serde_json::Value;
         use tokio::io::{AsyncBufReadExt, BufReader};
 
         info!("MCP stdio transport ready - listening on stdin/stdout with sampling support");
 
         let stdin = tokio::io::stdin();
         let mut lines = BufReader::new(stdin).lines();
-
-        // Get sampling peer from resources (will be Some if properly initialized)
         let sampling_peer = self.resources.sampling_peer.clone();
 
-        // Spawn notification handler for stdio transport
         let resources_for_notifications = self.resources.clone();
         let notification_handle = tokio::spawn(async move {
             Self::handle_stdio_notifications(notification_receiver, resources_for_notifications)
                 .await
         });
 
-        // Main stdio loop with sampling response routing
         while let Some(line) = lines.next_line().await? {
             if line.trim().is_empty() {
                 continue;
             }
 
-            // Parse as generic JSON-RPC message
-            match serde_json::from_str::<Value>(&line) {
+            match serde_json::from_str::<serde_json::Value>(&line) {
                 Ok(message) => {
-                    // Check if this is a response to a sampling request (has id, no method, has result/error)
-                    let is_sampling_response = message.get("id").is_some()
-                        && message.get("method").is_none()
-                        && (message.get("result").is_some() || message.get("error").is_some());
-
-                    if is_sampling_response {
-                        // Route to sampling peer if available
-                        if let Some(peer) = &sampling_peer {
-                            let id = message.get("id").cloned().unwrap_or(Value::Null);
-                            let result = message.get("result").cloned();
-                            let error = message.get("error").cloned();
-
-                            match peer.handle_response(id, result, error).await {
-                                Ok(handled) if !handled => {
-                                    warn!("Received response for unknown sampling request");
-                                }
-                                Ok(_) => {}
-                                Err(e) => {
-                                    warn!("Failed to handle sampling response: {}", e);
-                                }
-                            }
-                        } else {
-                            warn!("Received sampling response but no sampling peer available");
-                        }
-                    } else {
-                        // Parse and process as regular MCP request
-                        match serde_json::from_value::<super::multitenant::McpRequest>(message) {
-                            Ok(request) => {
-                                let processor =
-                                    super::mcp_request_processor::McpRequestProcessor::new(
-                                        self.resources.clone(),
-                                    );
-                                if let Some(response) = processor.handle_request(request).await {
-                                    if let Ok(json) = serde_json::to_string(&response) {
-                                        println!("{json}");
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                warn!("Failed to parse MCP request: {}", e);
-                                let error_response = serde_json::json!({
-                                    "jsonrpc": "2.0",
-                                    "error": {
-                                        "code": -32700,
-                                        "message": "Parse error"
-                                    },
-                                    "id": null
-                                });
-                                println!("{error_response}");
-                            }
-                        }
-                    }
+                    Self::process_stdio_message(message, self.resources.clone(), &sampling_peer)
+                        .await;
                 }
                 Err(e) => {
                     warn!("Invalid JSON-RPC message: {}", e);
-                    let error_response = serde_json::json!({
-                        "jsonrpc": "2.0",
-                        "error": {
-                            "code": -32700,
-                            "message": "Parse error"
-                        },
-                        "id": null
-                    });
-                    println!("{error_response}");
+                    println!("{}", Self::parse_error_response());
                 }
             }
         }
 
-        // Clean up sampling peer and notification handler
         if let Some(peer) = &sampling_peer {
             peer.cancel_all_pending().await;
         }
@@ -285,6 +298,61 @@ impl SseNotificationForwarder {
         Self
     }
 
+    /// Process a single OAuth notification
+    fn process_notification(notification: &OAuthCompletedNotification) {
+        let Some(user_id_str) = &notification.params.user_id else {
+            warn!(
+                "OAuth notification missing user_id field: {:?}",
+                notification
+            );
+            return;
+        };
+
+        match uuid::Uuid::parse_str(user_id_str) {
+            Ok(user_id) => {
+                info!(
+                    user_id = %user_id,
+                    provider = %notification.params.provider,
+                    success = notification.params.success,
+                    "OAuth notification processed (SSE disabled)"
+                );
+            }
+            Err(e) => {
+                warn!(
+                    "Invalid user_id in OAuth notification: {} - error: {}",
+                    user_id_str, e
+                );
+            }
+        }
+    }
+
+    /// Handle the result of receiving a notification
+    fn handle_recv_result(
+        result: Result<OAuthCompletedNotification, broadcast::error::RecvError>,
+    ) -> bool {
+        match result {
+            Ok(notification) => {
+                info!(
+                    "Forwarding OAuth notification to SSE clients: {:?}",
+                    notification
+                );
+                Self::process_notification(&notification);
+                true
+            }
+            Err(broadcast::error::RecvError::Closed) => {
+                info!("OAuth notification channel closed, shutting down SSE forwarder");
+                false
+            }
+            Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                warn!(
+                    "SSE notification forwarder lagged, skipped {} notifications",
+                    skipped
+                );
+                true
+            }
+        }
+    }
+
     /// Run SSE notification forwarding
     ///
     /// # Errors
@@ -296,49 +364,9 @@ impl SseNotificationForwarder {
         info!("SSE notification forwarder ready - waiting for OAuth notifications");
 
         loop {
-            match notification_receiver.recv().await {
-                Ok(notification) => {
-                    info!(
-                        "Forwarding OAuth notification to SSE clients: {:?}",
-                        notification
-                    );
-
-                    // Extract user_id from notification
-                    if let Some(user_id_str) = &notification.params.user_id {
-                        match uuid::Uuid::parse_str(user_id_str) {
-                            Ok(user_id) => {
-                                // OAuth notification - SSE notification sending disabled
-                                info!(
-                                    user_id = %user_id,
-                                    provider = %notification.params.provider,
-                                    success = notification.params.success,
-                                    "OAuth notification processed (SSE disabled)"
-                                );
-                            }
-                            Err(e) => {
-                                warn!(
-                                    "Invalid user_id in OAuth notification: {} - error: {}",
-                                    user_id_str, e
-                                );
-                            }
-                        }
-                    } else {
-                        warn!(
-                            "OAuth notification missing user_id field: {:?}",
-                            notification
-                        );
-                    }
-                }
-                Err(broadcast::error::RecvError::Closed) => {
-                    info!("OAuth notification channel closed, shutting down SSE forwarder");
-                    break;
-                }
-                Err(broadcast::error::RecvError::Lagged(skipped)) => {
-                    warn!(
-                        "SSE notification forwarder lagged, skipped {} notifications",
-                        skipped
-                    );
-                }
+            let result = notification_receiver.recv().await;
+            if !Self::handle_recv_result(result) {
+                break;
             }
         }
 

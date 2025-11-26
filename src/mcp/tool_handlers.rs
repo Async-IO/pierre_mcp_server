@@ -627,6 +627,65 @@ impl ToolHandlers {
     }
 
     /// Handle get notifications tool
+    /// Log notification details for debugging
+    fn log_notification_details(
+        notifications: &[crate::database::oauth_notifications::OAuthNotification],
+        user_id: Uuid,
+    ) {
+        tracing::debug!(
+            "Final notification count to return: {}",
+            notifications.len()
+        );
+        for (i, notif) in notifications.iter().enumerate() {
+            tracing::debug!(
+                "Notification {} for user {}: id={}, provider={}, message={}",
+                i,
+                user_id,
+                notif.id,
+                notif.provider,
+                notif.message
+            );
+        }
+    }
+
+    /// Build successful notification response
+    fn build_notification_success_response(
+        notifications: &[crate::database::oauth_notifications::OAuthNotification],
+        request_id: Value,
+    ) -> McpResponse {
+        let response_data = serde_json::json!({
+            "success": true,
+            "notifications": notifications,
+            "count": notifications.len()
+        });
+        tracing::debug!(
+            "MCP Response JSON: {}",
+            serde_json::to_string_pretty(&response_data).unwrap_or_default()
+        );
+
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_owned(),
+            result: Some(response_data),
+            error: None,
+            id: Some(request_id),
+        }
+    }
+
+    /// Filter notifications by provider
+    fn filter_by_provider(
+        notifications: &mut Vec<crate::database::oauth_notifications::OAuthNotification>,
+        provider_filter: &str,
+    ) {
+        let initial_count = notifications.len();
+        notifications.retain(|n| n.provider.as_str() == provider_filter);
+        tracing::debug!(
+            "After provider filter '{}': {} notifications (was {})",
+            provider_filter,
+            notifications.len(),
+            initial_count
+        );
+    }
+
     async fn handle_get_notifications(
         include_read: bool,
         provider: Option<&str>,
@@ -634,17 +693,19 @@ impl ToolHandlers {
         request_id: Value,
         ctx: &ToolRoutingContext<'_>,
     ) -> McpResponse {
-        match if include_read {
+        let result = if include_read {
             ctx.resources
                 .database
                 .get_all_oauth_notifications(user_id, None)
+                .await
         } else {
             ctx.resources
                 .database
                 .get_unread_oauth_notifications(user_id)
-        }
-        .await
-        {
+                .await
+        };
+
+        match result {
             Ok(mut notifications) => {
                 tracing::debug!(
                     "Retrieved {} notifications from database for user {}",
@@ -652,54 +713,12 @@ impl ToolHandlers {
                     user_id
                 );
 
-                // Filter by provider if specified
                 if let Some(provider_filter) = provider {
-                    let initial_count = notifications.len();
-                    notifications.retain(|n| n.provider.as_str() == provider_filter);
-                    tracing::debug!(
-                        "After provider filter '{}': {} notifications (was {})",
-                        provider_filter,
-                        notifications.len(),
-                        initial_count
-                    );
+                    Self::filter_by_provider(&mut notifications, provider_filter);
                 }
 
-                tracing::debug!(
-                    "Final notification count to return: {}",
-                    notifications.len()
-                );
-                for (i, notif) in notifications.iter().enumerate() {
-                    tracing::debug!(
-                        "Notification {}: id={}, provider={}, message={}",
-                        i,
-                        notif.id,
-                        notif.provider,
-                        notif.message
-                    );
-                }
-
-                let response_data = serde_json::json!({
-                    "success": true,
-                    "notifications": notifications,
-                    "count": notifications.len()
-                });
-                tracing::debug!(
-                    "MCP Response JSON: {}",
-                    serde_json::to_string_pretty(&response_data).unwrap_or_default()
-                );
-
-                let mcp_response = McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    result: Some(response_data),
-                    error: None,
-                    id: Some(request_id),
-                };
-                tracing::debug!(
-                    "Full MCP Response: {}",
-                    serde_json::to_string_pretty(&mcp_response).unwrap_or_default()
-                );
-
-                mcp_response
+                Self::log_notification_details(&notifications, user_id);
+                Self::build_notification_success_response(&notifications, request_id)
             }
             Err(e) => {
                 error!("Failed to retrieve notifications: {}", e);
@@ -1225,6 +1244,84 @@ impl ToolHandlers {
         }
     }
 
+    /// Build notification text from a list of OAuth notifications
+    fn build_notification_text(
+        notifications: &[crate::database::oauth_notifications::OAuthNotification],
+    ) -> String {
+        let mut notification_text = String::from("\n\nOAuth Connection Updates:\n");
+        for notification in notifications {
+            let status_indicator = if notification.success {
+                "[SUCCESS]"
+            } else {
+                "[FAILED]"
+            };
+            writeln!(
+                &mut notification_text,
+                "{} {}: {}",
+                status_indicator,
+                notification.provider.to_uppercase(),
+                notification.message
+            )
+            .unwrap_or_else(|_| tracing::warn!("Failed to write notification text"));
+        }
+        notification_text
+    }
+
+    /// Append notification text to an MCP response result
+    fn append_notification_to_result(result: &mut Value, notification_text: &str) {
+        if let Some(content) = result.get_mut("content") {
+            if let Some(text_value) = content.as_array_mut() {
+                text_value.push(json!({
+                    "type": "text",
+                    "text": notification_text
+                }));
+                return;
+            }
+            if let Some(text_str) = content.as_str() {
+                *content = json!(format!("{text_str}{notification_text}"));
+                return;
+            }
+        }
+
+        if let Some(message) = result.get_mut("message") {
+            if let Some(msg_str) = message.as_str() {
+                *message = json!(format!("{msg_str}{notification_text}"));
+                return;
+            }
+        }
+
+        if let Some(obj) = result.as_object_mut() {
+            obj.insert("oauth_notifications".to_owned(), json!(notification_text));
+        }
+    }
+
+    /// Mark a list of notifications as read in the database
+    async fn mark_notifications_read(
+        database: &crate::database_plugins::factory::Database,
+        notifications: &[crate::database::oauth_notifications::OAuthNotification],
+        user_id: Uuid,
+    ) {
+        for notification in notifications {
+            if let Err(e) = database
+                .mark_oauth_notification_read(&notification.id, user_id)
+                .await
+            {
+                warn!(
+                    "Failed to mark notification {} as read after delivery: {}",
+                    notification.id, e
+                );
+            }
+        }
+    }
+
+    /// Check if a tool name should skip notification checking
+    fn should_skip_notification_check(tool_name: &str) -> bool {
+        matches!(
+            tool_name,
+            CHECK_OAUTH_NOTIFICATIONS | GET_NOTIFICATIONS | MARK_NOTIFICATIONS_READ
+        )
+    }
+
     /// Automatically append unread OAuth notifications to successful tool responses
     async fn append_oauth_notifications_to_response(
         mut response: McpResponse,
@@ -1237,115 +1334,62 @@ impl ToolHandlers {
             user_id, tool_name
         );
 
-        // Only append notifications for successful responses
         if response.error.is_some() {
             debug!(
-                "NOTIFICATION_CHECK: Skipping notification check due to error response for user {}",
+                "NOTIFICATION_CHECK: Skipping due to error response for user {}",
                 user_id
             );
             return response;
         }
 
-        // Skip notification check for notification-related tools to avoid recursion
-        if matches!(
-            tool_name,
-            CHECK_OAUTH_NOTIFICATIONS | GET_NOTIFICATIONS | MARK_NOTIFICATIONS_READ
-        ) {
+        if Self::should_skip_notification_check(tool_name) {
             debug!(
-                "NOTIFICATION_CHECK: Skipping notification check for notification-related tool {} for user {}",
+                "NOTIFICATION_CHECK: Skipping for notification-related tool {} for user {}",
                 tool_name, user_id
             );
             return response;
         }
 
-        // Check for unread OAuth notifications
-        match database.get_unread_oauth_notifications(user_id).await {
-            Ok(unread_notifications) if !unread_notifications.is_empty() => {
-                debug!(
-                    "Found {} unread OAuth notifications for user {} during {} tool call",
-                    unread_notifications.len(),
-                    user_id,
-                    tool_name
-                );
-
-                // Build notification alert text
-                let mut notification_text = String::from("\n\nOAuth Connection Updates:\n");
-                for notification in &unread_notifications {
-                    let status_indicator = if notification.success {
-                        "[SUCCESS]"
-                    } else {
-                        "[FAILED]"
-                    };
-                    writeln!(
-                        &mut notification_text,
-                        "{} {}: {}",
-                        status_indicator,
-                        notification.provider.to_uppercase(),
-                        notification.message
-                    )
-                    .unwrap_or_else(|_| tracing::warn!("Failed to write notification text"));
-                }
-
-                // Append notification text to response content
-                if let Some(ref mut result) = response.result {
-                    if let Some(content) = result.get_mut("content") {
-                        if let Some(text_value) = content.as_array_mut() {
-                            // Content is an array, append a new text object
-                            text_value.push(json!({
-                                "type": "text",
-                                "text": notification_text
-                            }));
-                        } else if let Some(text_str) = content.as_str() {
-                            // Content is a string, append notification text
-                            *content = json!(format!("{}{}", text_str, notification_text));
-                        }
-                    } else if let Some(message) = result.get_mut("message") {
-                        if let Some(msg_str) = message.as_str() {
-                            // Result has a message field, append notification text
-                            *message = json!(format!("{}{}", msg_str, notification_text));
-                        }
-                    } else {
-                        // Add notifications as a separate field in result
-                        if let Some(obj) = result.as_object_mut() {
-                            obj.insert("oauth_notifications".to_owned(), json!(notification_text));
-                        }
-                    }
-                }
-
-                info!(
-                    "Automatically delivered {} OAuth notifications to user {} via {} tool response",
-                    unread_notifications.len(),
-                    user_id,
-                    tool_name
-                );
-
-                // Mark all delivered notifications as read
-                for notification in &unread_notifications {
-                    if let Err(e) = database
-                        .mark_oauth_notification_read(&notification.id, user_id)
-                        .await
-                    {
-                        warn!(
-                            "Failed to mark notification {} as read after delivery: {}",
-                            notification.id, e
-                        );
-                    }
-                }
-            }
-            Ok(_) => {
-                // No unread notifications, continue normally
-                debug!(
-                    "NOTIFICATION_CHECK: No unread OAuth notifications found for user {} during {} tool call",
-                    user_id, tool_name
-                );
-            }
+        let unread_notifications = match database.get_unread_oauth_notifications(user_id).await {
+            Ok(notifications) => notifications,
             Err(e) => {
                 warn!(
                     "Failed to check OAuth notifications for user {} during {} tool call: {}",
                     user_id, tool_name, e
                 );
+                return response;
             }
+        };
+
+        if unread_notifications.is_empty() {
+            debug!(
+                "NOTIFICATION_CHECK: No unread notifications found for user {} during {} tool call",
+                user_id, tool_name
+            );
+            return response;
         }
+
+        debug!(
+            "Found {} unread OAuth notifications for user {} during {} tool call",
+            unread_notifications.len(),
+            user_id,
+            tool_name
+        );
+
+        let notification_text = Self::build_notification_text(&unread_notifications);
+
+        if let Some(ref mut result) = response.result {
+            Self::append_notification_to_result(result, &notification_text);
+        }
+
+        info!(
+            "Automatically delivered {} OAuth notifications to user {} via {} tool response",
+            unread_notifications.len(),
+            user_id,
+            tool_name
+        );
+
+        Self::mark_notifications_read(database, &unread_notifications, user_id).await;
 
         response
     }

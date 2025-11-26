@@ -85,6 +85,76 @@ pub mod conversions {
     }
 }
 
+/// Result of checking if a response should be retried
+enum RetryDecision {
+    /// Continue with retry after backoff
+    Retry { backoff_ms: u64 },
+    /// Max retries reached, return error
+    MaxRetriesExceeded,
+    /// Not a retryable status, continue processing
+    NotRetryable,
+}
+
+/// Check if a response status should trigger a retry
+fn check_retry_status(
+    status: StatusCode,
+    attempt: u32,
+    retry_config: &RetryConfig,
+    provider_name: &str,
+) -> RetryDecision {
+    if !retry_config.retryable_status_codes.contains(&status) {
+        return RetryDecision::NotRetryable;
+    }
+
+    let current_attempt = attempt + 1;
+    if current_attempt >= retry_config.max_retries {
+        warn!(
+            "{provider_name} API rate limit exceeded - max retries ({}) reached",
+            retry_config.max_retries
+        );
+        return RetryDecision::MaxRetriesExceeded;
+    }
+
+    let backoff_ms = retry_config.initial_backoff_ms * 2_u64.pow(current_attempt - 1);
+    let status_code = status.as_u16();
+    warn!(
+        "{provider_name} API rate limit hit ({status_code}) - retry {current_attempt}/{} after {backoff_ms}ms backoff",
+        retry_config.max_retries
+    );
+
+    RetryDecision::Retry { backoff_ms }
+}
+
+/// Create a rate limit exceeded error
+fn rate_limit_error(
+    status: StatusCode,
+    provider_name: &str,
+    retry_config: &RetryConfig,
+) -> AppError {
+    let minutes = retry_config.estimated_block_duration_secs / 60;
+    let status_code = status.as_u16();
+    let err = ProviderError::RateLimitExceeded {
+        provider: provider_name.to_owned(),
+        retry_after_secs: retry_config.estimated_block_duration_secs,
+        limit_type: format!(
+            "API rate limit ({status_code}) - max retries reached - wait ~{minutes} minutes"
+        ),
+    };
+    AppError::external_service(provider_name, err.to_string())
+}
+
+/// Create an API error for non-success responses
+fn api_error(status: StatusCode, text: &str, provider_name: &str) -> AppError {
+    tracing::error!("{provider_name} API request failed - status: {status}, body: {text}");
+    let err = ProviderError::ApiError {
+        provider: provider_name.to_owned(),
+        status_code: status.as_u16(),
+        message: format!("{provider_name} API request failed with status {status}: {text}"),
+        retryable: false,
+    };
+    AppError::external_service(provider_name, err.to_string())
+}
+
 /// Make an authenticated HTTP GET request with retry logic
 ///
 /// # Errors
@@ -120,59 +190,28 @@ where
         let status = response.status();
         tracing::info!("Received HTTP response with status: {status}");
 
-        if retry_config.retryable_status_codes.contains(&status) {
-            attempt += 1;
-            if attempt >= retry_config.max_retries {
-                let max_retries = retry_config.max_retries;
-                warn!(
-                    "{provider_name} API rate limit exceeded - max retries ({max_retries}) reached"
-                );
-                let minutes = retry_config.estimated_block_duration_secs / 60;
-                let status_code = status.as_u16();
-                let err = ProviderError::RateLimitExceeded {
-                    provider: provider_name.to_owned(),
-                    retry_after_secs: retry_config.estimated_block_duration_secs,
-                    limit_type: format!(
-                        "API rate limit ({status_code}) - max retries reached - wait ~{minutes} minutes"
-                    ),
-                };
-                return Err(AppError::external_service(provider_name, err.to_string()));
+        match check_retry_status(status, attempt, retry_config, provider_name) {
+            RetryDecision::Retry { backoff_ms } => {
+                attempt += 1;
+                tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
+                continue;
             }
-
-            let backoff_ms = retry_config.initial_backoff_ms * 2_u64.pow(attempt - 1);
-            let max_retries = retry_config.max_retries;
-            let status_code = status.as_u16();
-            warn!(
-                "{provider_name} API rate limit hit ({status_code}) - retry {attempt}/{max_retries} after {backoff_ms}ms backoff"
-            );
-
-            tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
-            continue;
+            RetryDecision::MaxRetriesExceeded => {
+                return Err(rate_limit_error(status, provider_name, retry_config));
+            }
+            RetryDecision::NotRetryable => {}
         }
 
         if !status.is_success() {
             let text = response.text().await.unwrap_or_default();
-            tracing::error!("{provider_name} API request failed - status: {status}, body: {text}");
-            let err = ProviderError::ApiError {
-                provider: provider_name.to_owned(),
-                status_code: status.as_u16(),
-                message: format!("{provider_name} API request failed with status {status}: {text}"),
-                retryable: false,
-            };
-            return Err(AppError::external_service(provider_name, err.to_string()));
+            return Err(api_error(status, &text, provider_name));
         }
 
         tracing::info!("Parsing JSON response from {provider_name} API");
-        let result = response.json().await.map_err(|e| {
+        return response.json().await.map_err(|e| {
+            tracing::error!("Failed to parse JSON response: {e}");
             AppError::external_service(provider_name, format!("Failed to parse API response: {e}"))
         });
-
-        match &result {
-            Ok(_) => tracing::info!("Successfully parsed JSON response"),
-            Err(e) => tracing::error!("Failed to parse JSON response: {e}"),
-        }
-
-        return result;
     }
 }
 
