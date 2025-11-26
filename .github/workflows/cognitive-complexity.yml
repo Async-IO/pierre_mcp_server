@@ -39,9 +39,9 @@ jobs:
           
           # Check if there are any warnings
           if grep -q "warning.*cognitive_complexity" complexity-report.txt; then
-            echo "⚠️ Functions with high cognitive complexity detected"
-            echo "Review the report above and consider refactoring complex functions"
-            exit 0  # Don't fail the build, just warn
+            echo "❌ Functions with high cognitive complexity detected"
+            echo "Review the report above and refactor complex functions before merging"
+            exit 1  # Fail the build
           else
             echo "✅ All functions have acceptable cognitive complexity"
           fi
