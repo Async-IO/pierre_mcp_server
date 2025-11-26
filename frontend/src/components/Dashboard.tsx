@@ -63,11 +63,9 @@ export default function Dashboard() {
     queryFn: () => apiService.getA2ADashboardOverview(),
   });
 
-  const { data: pendingUsers = [] } = useQuery({
-    queryKey: ['pending-users'],
-    queryFn: () => apiService.getPendingUsers(),
-    refetchInterval: 30000,
-  });
+  // Pending users query disabled - requires admin token authentication
+  // This functionality is only available in the admin panel
+  const pendingUsers: unknown[] = [];
 
   // Prepare mini chart data for the overview
   const miniChartData = {

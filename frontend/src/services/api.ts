@@ -415,8 +415,14 @@ class ApiService {
 
   // User Management Endpoints
   async getPendingUsers() {
-    const response = await axios.get('/admin/pending-users');
-    return response.data;
+    try {
+      const response = await axios.get('/admin/pending-users');
+      return response.data;
+    } catch (error) {
+      // Admin endpoint requires admin token authentication
+      // Return empty array for non-admin users to prevent dashboard errors
+      return [];
+    }
   }
 
   async approveUser(userId: string, reason?: string) {
