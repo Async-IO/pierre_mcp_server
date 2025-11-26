@@ -453,27 +453,21 @@ impl FromStr for Vo2maxAlgorithm {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "from_vdot" | "vdot" => Ok(Self::FromVdot { vdot: 0.0 }),
-            "cooper" | "cooper_test" => Ok(Self::CooperTest {
-                distance_meters: 0.0,
-            }),
-            "rockport" | "rockport_walk" => Ok(Self::RockportWalk {
-                weight_kg: 0.0,
-                age: 0,
-                gender: 0,
-                time_seconds: 0.0,
-                heart_rate: 0.0,
-            }),
-            "astrand" | "astrand_ryhming" => Ok(Self::AstrandRyhming {
-                gender: 0,
-                heart_rate: 0.0,
-                power_watts: 0.0,
-                weight_kg: 0.0,
-            }),
-            "from_pace" | "pace" => Ok(Self::FromPace {
-                max_speed_ms: 0.0,
-                recovery_speed_ms: 0.0,
-            }),
+            "from_vdot" | "vdot" => Err(AppError::invalid_input(
+                "FromVdot algorithm requires VDOT parameter. Use Vo2maxAlgorithm::FromVdot { vdot: value }".to_owned()
+            )),
+            "cooper" | "cooper_test" => Err(AppError::invalid_input(
+                "Cooper test algorithm requires distance_meters parameter. Use Vo2maxAlgorithm::CooperTest { distance_meters: value }".to_owned()
+            )),
+            "rockport" | "rockport_walk" => Err(AppError::invalid_input(
+                "Rockport walk algorithm requires test parameters (weight_kg, age, gender, time_seconds, heart_rate). Use Vo2maxAlgorithm::RockportWalk { ... }".to_owned()
+            )),
+            "astrand" | "astrand_ryhming" => Err(AppError::invalid_input(
+                "Astrand-Ryhming algorithm requires test parameters (gender, heart_rate, power_watts, weight_kg). Use Vo2maxAlgorithm::AstrandRyhming { ... }".to_owned()
+            )),
+            "from_pace" | "pace" => Err(AppError::invalid_input(
+                "FromPace algorithm requires speed parameters (max_speed_ms, recovery_speed_ms). Use Vo2maxAlgorithm::FromPace { ... }".to_owned()
+            )),
             "hybrid" => Ok(Self::Hybrid),
             other => Err(AppError::invalid_input(format!(
                 "Unknown VO2max algorithm: '{other}'. Valid options: from_vdot, cooper_test, rockport_walk, astrand_ryhming, from_pace, hybrid"
