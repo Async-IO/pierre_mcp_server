@@ -245,7 +245,7 @@ JWT_TOKEN=$(curl -s -X POST http://localhost:8081/api/auth/login \
   -d '{"email": "your@email.com", "password": "your_password"}' | jq -r '.jwt_token')
 
 # Get Strava authorization URL
-curl "http://localhost:8081/oauth/strava/connect" \
+curl "http://localhost:8081/api/oauth/auth/strava/<user_id>" \
   -H "Authorization: Bearer $JWT_TOKEN"
 
 # Open the URL in your browser to authorize
@@ -254,8 +254,8 @@ curl "http://localhost:8081/oauth/strava/connect" \
 ### Connect to Garmin
 
 ```bash
-# Get Garmin authorization URL
-curl "http://localhost:8081/oauth/garmin/connect" \
+# Get Garmin authorization URL (manual flow)
+curl "http://localhost:8081/api/oauth/auth/garmin/<user_id>" \
   -H "Authorization: Bearer $JWT_TOKEN"
 
 # Complete authorization in browser
@@ -264,7 +264,7 @@ curl "http://localhost:8081/oauth/garmin/connect" \
 ### Verify Connection
 
 ```bash
-curl "http://localhost:8081/oauth/status" \
+curl "http://localhost:8081/api/oauth/status" \
   -H "Authorization: Bearer $JWT_TOKEN"
 ```
 
@@ -342,21 +342,13 @@ Should return server metadata including authorization and token endpoints.
 **1. Verify OAuth connection:**
 
 ```bash
-curl "http://localhost:8081/oauth/status" \
+curl "http://localhost:8081/api/oauth/status" \
   -H "Authorization: Bearer $JWT_TOKEN"
 ```
 
 **2. Reconnect provider:**
 
-```bash
-# Disconnect
-curl -X POST "http://localhost:8081/oauth/disconnect/strava" \
-  -H "Authorization: Bearer $JWT_TOKEN"
-
-# Get new authorization URL
-curl "http://localhost:8081/oauth/strava/connect" \
-  -H "Authorization: Bearer $JWT_TOKEN"
-```
+Use the `disconnect_provider` and `connect_provider` MCP tools from your AI client, or repeat the manual authorization flow above (`/api/oauth/auth/{provider}/{user_id}`) to refresh the connection.
 
 ### JWT Token Caching Issues
 

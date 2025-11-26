@@ -322,6 +322,24 @@ error_context_antipatterns = [
     "\\?.*anyhow!\\(",               # chained with ? operator - FORBIDDEN
 ]
 
+# Anyhow import anti-patterns - use structured AppResult/AppError instead (CLAUDE.md: structured errors only)
+anyhow_import_antipatterns = [
+    "use anyhow::",                  # Any anyhow import - use crate::errors instead
+    "use anyhow;",                   # Blanket anyhow import - FORBIDDEN
+]
+
+# Anyhow type anti-patterns - use AppResult<T> instead of anyhow::Result (CLAUDE.md: structured errors only)
+anyhow_type_antipatterns = [
+    "anyhow::Result",                # Should be AppResult<T>
+    "Result<.*anyhow::Error>",       # Should be AppResult<T>
+    "-> Result<.*anyhow",            # Function returns anyhow types
+]
+
+# Anyhow method anti-patterns - use .map_err() with AppError instead of .context()
+anyhow_method_antipatterns = [
+    "\\.context\\(",                 # anyhow's .context() - use .map_err() instead
+]
+
 # Async anti-patterns - blocking operations in async contexts
 async_antipatterns = [
     "async fn.*std::fs::",          # Blocking file I/O in async
@@ -374,6 +392,9 @@ max_string_allocation_antipatterns = 0  # Round-trip conversions should never oc
 max_function_string_parameters = 0      # All fixed - functions should use &str
 max_iterator_antipatterns = 15
 max_error_context_antipatterns = 0  # ZERO TOLERANCE: anyhow! macro is FORBIDDEN (use structured error types)
+max_anyhow_import_antipatterns = 0  # ZERO TOLERANCE: use AppResult/AppError instead of anyhow imports
+max_anyhow_type_antipatterns = 0    # ZERO TOLERANCE: use AppResult<T> instead of anyhow::Result
+max_anyhow_method_antipatterns = 20 # WARNING ONLY: .context() should migrate to .map_err() (20 existing uses in providers)
 max_async_antipatterns = 5
 max_lifetime_antipatterns = 3
 

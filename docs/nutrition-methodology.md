@@ -95,7 +95,7 @@ Pierre's nutrition system uses a **foundation modules** approach integrated with
 - **error handling** with retry logic and graceful degradation
 - **caching** with ttl for api response optimization
 
-**`src/external/models.rs`** - usda data structures
+**`src/external/usda_client.rs`** - usda data structures (models re-exported via `src/external/mod.rs`)
 - **food** representation with fdc_id and description
 - **nutrient** structure with name, amount, unit
 - **search results** with pagination metadata

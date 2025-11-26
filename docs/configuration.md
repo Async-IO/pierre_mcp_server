@@ -434,14 +434,18 @@ REDIS_URL=redis://localhost:6379  # redis connection url
 ### rate limiting
 
 ```bash
-# global defaults
-RATE_LIMIT_REQUESTS_PER_MINUTE=60
-RATE_LIMIT_BURST=10
+# burst limits per tier (requests in short window)
+RATE_LIMIT_FREE_TIER_BURST=100        # default: 100
+RATE_LIMIT_PROFESSIONAL_BURST=500     # default: 500
+RATE_LIMIT_ENTERPRISE_BURST=2000      # default: 2000
 
-# per-tier overrides
-API_TIER_FREE_LIMIT=100           # requests per day
-API_TIER_PROFESSIONAL_LIMIT=10000
-API_TIER_ENTERPRISE_LIMIT=0       # unlimited (0 = no limit)
+# OAuth2 endpoint rate limits (requests per minute)
+OAUTH_AUTHORIZE_RATE_LIMIT_RPM=60     # default: 60
+OAUTH_TOKEN_RATE_LIMIT_RPM=30         # default: 30
+OAUTH_REGISTER_RATE_LIMIT_RPM=10      # default: 10
+
+# Admin-provisioned API key monthly limit (Starter tier default)
+PIERRE_ADMIN_API_KEY_MONTHLY_LIMIT=10000
 ```
 
 ### multi-tenancy

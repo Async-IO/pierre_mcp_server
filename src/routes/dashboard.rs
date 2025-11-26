@@ -43,13 +43,54 @@ struct RequestLogsQuery {
     // Removed to avoid unused field warning
 }
 
+/// Query parameters for tool usage
+#[derive(Deserialize)]
+struct ToolUsageQuery {
+    #[serde(default)]
+    api_key_id: Option<String>,
+    #[serde(default = "default_time_range")]
+    time_range: String,
+}
+
+fn default_time_range() -> String {
+    "7d".to_owned()
+}
+
 /// Dashboard routes
 pub struct DashboardRoutes;
 
 impl DashboardRoutes {
     /// Create all dashboard routes
+    ///
+    /// Routes are prefixed with /api to match frontend API conventions:
+    /// - /api/dashboard/overview - Dashboard overview (status, user, admin)
+    /// - /api/dashboard/analytics - Usage analytics with configurable time range
+    /// - /api/dashboard/rate-limits - Rate limit status
+    /// - /api/dashboard/request-logs - Request logs with filtering
+    /// - /api/dashboard/request-stats - Detailed request statistics
+    /// - /api/dashboard/tool-usage - Tool usage breakdown
     pub fn routes(resources: Arc<ServerResources>) -> Router {
         Router::new()
+            // Primary dashboard endpoints matching frontend API calls
+            .route(
+                "/api/dashboard/overview",
+                get(Self::handle_dashboard_overview),
+            )
+            .route(
+                "/api/dashboard/analytics",
+                get(Self::handle_usage_analytics),
+            )
+            .route("/api/dashboard/rate-limits", get(Self::handle_rate_limits))
+            .route(
+                "/api/dashboard/request-logs",
+                get(Self::handle_request_logs),
+            )
+            .route(
+                "/api/dashboard/request-stats",
+                get(Self::handle_detailed_stats),
+            )
+            .route("/api/dashboard/tool-usage", get(Self::handle_tool_usage))
+            // Legacy routes for backward compatibility
             .route("/dashboard/status", get(Self::handle_dashboard_overview))
             .route("/dashboard/user", get(Self::handle_dashboard_overview))
             .route("/dashboard/admin", get(Self::handle_dashboard_overview))
@@ -60,19 +101,29 @@ impl DashboardRoutes {
             .with_state(resources)
     }
 
-    /// Extract and authenticate user from authorization header
+    /// Extract and authenticate user from authorization header or cookie
     async fn authenticate(
         headers: &axum::http::HeaderMap,
         resources: &Arc<ServerResources>,
     ) -> Result<crate::auth::AuthResult, AppError> {
-        let auth_header = headers
-            .get("authorization")
-            .and_then(|h| h.to_str().ok())
-            .ok_or_else(|| AppError::auth_invalid("Missing authorization header"))?;
+        // Try Authorization header first
+        let auth_value =
+            if let Some(auth_header) = headers.get("authorization").and_then(|h| h.to_str().ok()) {
+                auth_header.to_owned()
+            } else if let Some(token) =
+                crate::security::cookies::get_cookie_value(headers, "auth_token")
+            {
+                // Fall back to auth_token cookie, format as Bearer token
+                format!("Bearer {token}")
+            } else {
+                return Err(AppError::auth_invalid(
+                    "Missing authorization header or cookie",
+                ));
+            };
 
         resources
             .auth_middleware
-            .authenticate_request(Some(auth_header))
+            .authenticate_request(Some(&auth_value))
             .await
             .map_err(|e| AppError::auth_invalid(format!("Authentication failed: {e}")))
     }
@@ -143,6 +194,26 @@ impl DashboardRoutes {
         // Ignoring limit parameter for now - needs proper implementation
         let response = service
             .get_request_logs(auth, params.api_key.as_deref(), None, None, None)
+            .await?;
+
+        Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Handle tool usage breakdown request
+    async fn handle_tool_usage(
+        State(resources): State<Arc<ServerResources>>,
+        headers: axum::http::HeaderMap,
+        Query(params): Query<ToolUsageQuery>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+
+        let service = DashboardService::new(resources);
+        let response = service
+            .get_tool_usage_breakdown(
+                auth,
+                params.api_key_id.as_deref(),
+                Some(params.time_range.as_str()),
+            )
             .await?;
 
         Ok((StatusCode::OK, Json(response)).into_response())

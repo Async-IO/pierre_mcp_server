@@ -786,7 +786,7 @@ impl A2AClientManager {
     }
 
     /// Calculate the start of next month for rate limit reset
-    fn calculate_next_month_start() -> Result<DateTime<Utc>, anyhow::Error> {
+    fn calculate_next_month_start() -> crate::errors::AppResult<DateTime<Utc>> {
         let now = Utc::now();
 
         // Use chrono's built-in date construction to avoid edge cases
@@ -796,9 +796,9 @@ impl A2AClientManager {
             Utc.with_ymd_and_hms(now.year(), now.month() + 1, 1, 0, 0, 0)
         };
 
-        next_month_start.single().ok_or_else(|| {
-            AppError::internal("Failed to create valid date for next month start").into()
-        })
+        next_month_start
+            .single()
+            .ok_or_else(|| AppError::internal("Failed to create valid date for next month start"))
     }
 
     /// Get client credentials for authentication

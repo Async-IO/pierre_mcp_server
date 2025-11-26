@@ -568,26 +568,16 @@ Returned as json in response body:
 
 ## configuration
 
-### environment variables
+### token lifetimes
 
-| variable | default | description |
-|----------|---------|-------------|
-| `OAUTH2_AUTH_CODE_TTL` | 600 | authorization code lifetime (seconds) |
-| `OAUTH2_ACCESS_TOKEN_TTL` | 3600 | access token lifetime (seconds) |
-| `OAUTH2_REFRESH_TOKEN_TTL` | 2592000 | refresh token lifetime (seconds, 30 days) |
-| `OAUTH2_STATE_TTL` | 600 | state parameter lifetime (seconds) |
+Pierre currently uses fixed lifetimes for OAuth2 artifacts (configured in code, not via environment variables):
 
-### customization
+- Authorization codes: 10 minutes (single-use)
+- Access tokens: 1 hour
+- Refresh tokens: 30 days
+- State parameters: 10 minutes
 
-Modify defaults in `.env`:
-
-```bash
-# shorter authorization code lifetime (5 minutes)
-OAUTH2_AUTH_CODE_TTL=300
-
-# longer access token lifetime (2 hours)
-OAUTH2_ACCESS_TOKEN_TTL=7200
-```
+Changing these values requires a code change in the OAuth2 server configuration (see `src/oauth2_server/` and `src/constants/`).
 
 ## see also
 

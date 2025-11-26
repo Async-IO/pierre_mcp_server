@@ -5,8 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use super::schema::{CreateMessageRequest, CreateMessageResult};
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -15,7 +14,7 @@ use tokio::time::{timeout, Duration};
 use tracing::{debug, warn};
 
 /// Type alias for pending request sender
-type ResponseSender = oneshot::Sender<Result<Value>>;
+type ResponseSender = oneshot::Sender<AppResult<Value>>;
 
 /// Manages server-initiated sampling requests to MCP clients
 ///
@@ -63,7 +62,7 @@ impl SamplingPeer {
     pub async fn create_message(
         &self,
         request: CreateMessageRequest,
-    ) -> Result<CreateMessageResult> {
+    ) -> AppResult<CreateMessageResult> {
         let request_id = self.next_request_id().await;
 
         // Create oneshot channel for response
@@ -106,12 +105,13 @@ impl SamplingPeer {
         // Wait for response with timeout
         let response = timeout(Duration::from_secs(30), rx)
             .await
-            .map_err(|_| AppError::internal("Sampling request timed out after 30 seconds"))??;
+            .map_err(|_| AppError::internal("Sampling request timed out after 30 seconds"))?
+            .map_err(|_| AppError::internal("Channel closed before receiving response"))?;
 
         // Parse response as CreateMessageResult
         match response {
             Ok(value) => serde_json::from_value(value)
-                .map_err(|e| AppError::internal(format!("Invalid sampling response: {e}")).into()),
+                .map_err(|e| AppError::internal(format!("Invalid sampling response: {e}"))),
             Err(e) => Err(e),
         }
     }
@@ -128,7 +128,7 @@ impl SamplingPeer {
         id: Value,
         result: Option<Value>,
         error: Option<Value>,
-    ) -> Result<bool> {
+    ) -> AppResult<bool> {
         let mut pending = self.pending_requests.lock().await;
 
         pending.remove(&id).map_or_else(
@@ -144,15 +144,13 @@ impl SamplingPeer {
                     let _ = tx.send(Err(AppError::external_service(
                         "MCP Client",
                         format!("Sampling error: {error_msg}"),
-                    )
-                    .into()));
+                    )));
                 } else if let Some(res) = result {
                     let _ = tx.send(Ok(res));
                 } else {
                     let _ = tx.send(Err(AppError::invalid_input(
                         "Response missing both result and error",
-                    )
-                    .into()));
+                    )));
                 }
 
                 Ok(true)

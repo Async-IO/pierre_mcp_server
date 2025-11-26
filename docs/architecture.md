@@ -46,7 +46,7 @@ Pierre Fitness Platform is a multi-protocol fitness data platform that connects 
 ### protocols layer (`src/protocols/`)
 - `universal/` - protocol-agnostic business logic
 - shared by mcp and a2a protocols
-- 36 fitness tools (activities, analysis, goals, sleep, recovery, nutrition, configuration)
+- dozens of fitness tools (activities, analysis, goals, sleep, recovery, nutrition, configuration)
 
 ### mcp implementation (`src/mcp/`)
 - json-rpc 2.0 over http

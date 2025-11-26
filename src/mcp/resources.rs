@@ -295,7 +295,7 @@ impl ServerResources {
     async fn load_or_create_jwks_manager(
         database: &Arc<Database>,
         rsa_key_size_bits: usize,
-    ) -> Result<JwksManager, anyhow::Error> {
+    ) -> crate::errors::AppResult<JwksManager> {
         let mut jwks_manager = JwksManager::new();
 
         match database.load_rsa_keypairs().await {

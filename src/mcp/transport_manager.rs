@@ -244,7 +244,7 @@ impl StdioTransport {
     pub async fn run(
         &self,
         notification_receiver: broadcast::Receiver<OAuthCompletedNotification>,
-    ) -> anyhow::Result<()> {
+    ) -> crate::errors::AppResult<()> {
         use tokio::io::{AsyncBufReadExt, BufReader};
 
         info!("MCP stdio transport ready - listening on stdin/stdout with sampling support");

@@ -1425,7 +1425,7 @@ impl EncryptedToken {
         expires_at: DateTime<Utc>,
         scope: String,
         encryption_key: &[u8],
-    ) -> Result<Self, anyhow::Error> {
+    ) -> crate::errors::AppResult<Self> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
         use ring::rand::{SecureRandom, SystemRandom};
@@ -1479,14 +1479,14 @@ impl EncryptedToken {
     /// # Errors
     ///
     /// Returns an error if decryption fails, nonce is invalid, or the encryption key is incorrect
-    pub fn decrypt(&self, encryption_key: &[u8]) -> Result<DecryptedToken, anyhow::Error> {
+    pub fn decrypt(&self, encryption_key: &[u8]) -> crate::errors::AppResult<DecryptedToken> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
         // Decrypt access token: extract nonce from prepended data
         let access_combined = general_purpose::STANDARD.decode(&self.access_token)?;
         if access_combined.len() < 12 {
-            return Err(AppError::invalid_input("Invalid access token: too short").into());
+            return Err(AppError::invalid_input("Invalid access token: too short"));
         }
 
         let (access_nonce_bytes, access_ciphertext) = access_combined.split_at(12);
@@ -1497,12 +1497,13 @@ impl EncryptedToken {
 
         let mut access_data = access_ciphertext.to_vec();
         let access_plaintext = key.open_in_place(access_nonce, Aad::empty(), &mut access_data)?;
-        let access_token = String::from_utf8(access_plaintext.to_vec())?;
+        let access_token = String::from_utf8(access_plaintext.to_vec())
+            .map_err(|e| AppError::invalid_input(format!("Invalid UTF-8 in access token: {e}")))?;
 
         // Decrypt refresh token: extract nonce from prepended data
         let refresh_combined = general_purpose::STANDARD.decode(&self.refresh_token)?;
         if refresh_combined.len() < 12 {
-            return Err(AppError::invalid_input("Invalid refresh token: too short").into());
+            return Err(AppError::invalid_input("Invalid refresh token: too short"));
         }
 
         let (refresh_nonce_bytes, refresh_ciphertext) = refresh_combined.split_at(12);
@@ -1514,7 +1515,8 @@ impl EncryptedToken {
         let mut refresh_data = refresh_ciphertext.to_vec();
         let refresh_plaintext =
             key2.open_in_place(refresh_nonce, Aad::empty(), &mut refresh_data)?;
-        let refresh_token = String::from_utf8(refresh_plaintext.to_vec())?;
+        let refresh_token = String::from_utf8(refresh_plaintext.to_vec())
+            .map_err(|e| AppError::invalid_input(format!("Invalid UTF-8 in refresh token: {e}")))?;
 
         Ok(DecryptedToken {
             access_token,

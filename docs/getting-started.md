@@ -2,7 +2,7 @@
 
 ## prerequisites
 
-- rust 1.70+
+- rust 1.91+ (matches `rust-toolchain`)
 - sqlite3 (or postgresql for production)
 - node 18+ (for sdk)
 
@@ -147,7 +147,7 @@ In claude desktop, ask:
 
 ## available tools
 
-Pierre Fitness Platform provides 36 mcp tools:
+Pierre Fitness Platform exposes dozens of MCP tools:
 
 **fitness data:**
 - `get_activities` - fetch activities

@@ -146,6 +146,12 @@ RESOURCE_CREATION=$(rg "AuthManager::new|OAuthManager::new|A2AClientManager::new
 FAKE_RESOURCES=$(rg "Arc::new\(ServerResources\s*[\{\:]" src/ -g "!src/bin/*" 2>/dev/null | wc -l | awk '{print $1+0}')
 OBSOLETE_FUNCTIONS=$(rg "fn.*run_http_server\(" src/ 2>/dev/null | wc -l | awk '{print $1+0}')
 
+# Error Handling Pattern Detection
+TOML_ERROR_CONTEXT=$(rg "$ERROR_CONTEXT_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+ANYHOW_IMPORTS=$(rg "$ANYHOW_IMPORT_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+ANYHOW_TYPES=$(rg "$ANYHOW_TYPE_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+ANYHOW_METHODS=$(rg "$ANYHOW_METHOD_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
 # Code Quality Analysis
 PROBLEMATIC_UNWRAPS=$(rg "\.unwrap\(\)" src/ | rg -v "// Safe|hardcoded.*valid|static.*data|00000000-0000-0000-0000-000000000000" | wc -l 2>/dev/null | tr -d ' ' || echo 0)
 PROBLEMATIC_EXPECTS=$(rg "\.expect\(" src/ | rg -v "// Safe|ServerResources.*required" | wc -l 2>/dev/null | tr -d ' ' || echo 0)
@@ -216,7 +222,6 @@ if [ "$IMPLEMENTATION_PLACEHOLDERS" -gt 0 ]; then
 fi
 
 # FORBIDDEN anyhow! macro usage (CLAUDE.md violation)
-TOML_ERROR_CONTEXT=$(rg "$ERROR_CONTEXT_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 if [ "$TOML_ERROR_CONTEXT" -gt 0 ]; then
     echo -e "${RED}❌ FORBIDDEN: Found $TOML_ERROR_CONTEXT uses of anyhow! macro${NC}"
     rg "\\banyhow!\\(|anyhow::anyhow!\\(" src/ -g "!src/bin/*" -g "!tests/*" -n | head -5
@@ -449,6 +454,37 @@ if [ "$TOML_ERROR_CONTEXT" -eq 0 ]; then
 else
     FIRST_ANYHOW=$(get_first_location 'rg "\\banyhow!\\(|anyhow::anyhow!\\(" src/ -g "!src/bin/*" -g "!tests/*" -n')
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_ANYHOW"
+    VALIDATION_FAILED=true
+fi
+
+printf "│ %-35s │ %5d │ " "Forbidden anyhow imports" "$ANYHOW_IMPORTS"
+if [ "$ANYHOW_IMPORTS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Using AppResult imports"
+else
+    FIRST_IMPORT=$(get_first_location 'rg "$ANYHOW_IMPORT_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_IMPORT"
+    VALIDATION_FAILED=true
+fi
+
+printf "│ %-35s │ %5d │ " "Forbidden anyhow::Result types" "$ANYHOW_TYPES"
+if [ "$ANYHOW_TYPES" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Using AppResult types"
+else
+    FIRST_TYPE=$(get_first_location 'rg "$ANYHOW_TYPE_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_TYPE"
+    VALIDATION_FAILED=true
+fi
+
+printf "│ %-35s │ %5d │ " "Anyhow .context() method usage" "$ANYHOW_METHODS"
+if [ "$ANYHOW_METHODS" -le "$MAX_ANYHOW_METHOD_ANTIPATTERNS" ]; then
+    if [ "$ANYHOW_METHODS" -eq 0 ]; then
+        printf "$(format_status "✅ PASS")│ %-39s │\n" "Using .map_err() pattern"
+    else
+        printf "$(format_status "⚠️ INFO")│ %-39s │\n" "Migration in progress (threshold: $MAX_ANYHOW_METHOD_ANTIPATTERNS)"
+    fi
+else
+    FIRST_CONTEXT=$(get_first_location 'rg "$ANYHOW_METHOD_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_CONTEXT"
 fi
 
 printf "│ %-35s │ %5d │ " "Algorithm DI violations" "$TOTAL_ALGORITHM_VIOLATIONS"
