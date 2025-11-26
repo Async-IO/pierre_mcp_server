@@ -251,23 +251,20 @@ impl KeyRotationManager {
         Ok(())
     }
 
-    /// Perform actual key rotation
-    async fn perform_key_rotation(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
-        tracing::info!("Starting key rotation for tenant {:?}", tenant_id);
+    /// Update rotation status to in-progress
+    async fn set_rotation_in_progress(&self, tenant_id: Option<Uuid>) {
+        let mut status = self.rotation_status.write().await;
+        status.insert(
+            tenant_id,
+            RotationStatus::InProgress {
+                started_at: chrono::Utc::now(),
+            },
+        );
+    }
 
-        {
-            let mut status = self.rotation_status.write().await;
-            status.insert(
-                tenant_id,
-                RotationStatus::InProgress {
-                    started_at: chrono::Utc::now(),
-                },
-            );
-        }
-
-        let result = self.execute_key_rotation(tenant_id).await;
-
-        match &result {
+    /// Update rotation status after completion or failure
+    async fn update_rotation_status(&self, tenant_id: Option<Uuid>, result: &AppResult<()>) {
+        match result {
             Ok(()) => {
                 self.rotation_status.write().await.insert(
                     tenant_id,
@@ -275,7 +272,6 @@ impl KeyRotationManager {
                         completed_at: chrono::Utc::now(),
                     },
                 );
-
                 tracing::info!(
                     "Key rotation completed successfully for tenant {:?}",
                     tenant_id
@@ -289,10 +285,19 @@ impl KeyRotationManager {
                         error: e.to_string(),
                     },
                 );
-
                 tracing::error!("Key rotation failed for tenant {:?}: {}", tenant_id, e);
             }
         }
+    }
+
+    /// Perform actual key rotation
+    async fn perform_key_rotation(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
+        tracing::info!("Starting key rotation for tenant {:?}", tenant_id);
+
+        self.set_rotation_in_progress(tenant_id).await;
+
+        let result = self.execute_key_rotation(tenant_id).await;
+        self.update_rotation_status(tenant_id, &result).await;
 
         result
     }
@@ -473,6 +478,26 @@ impl KeyRotationManager {
             .unwrap_or(RotationStatus::Current)
     }
 
+    /// Build emergency key rotation audit event
+    fn build_emergency_rotation_audit_event(
+        tenant_id: Option<Uuid>,
+        reason: &str,
+    ) -> super::audit::AuditEvent {
+        let event = super::audit::AuditEvent::new(
+            super::audit::AuditEventType::KeyRotated,
+            super::audit::AuditSeverity::Critical,
+            format!("Emergency key rotation: {reason}"),
+            "emergency_rotation".to_owned(),
+            "initiated".to_owned(),
+        );
+
+        if let Some(tid) = tenant_id {
+            event.with_tenant_id(tid)
+        } else {
+            event
+        }
+    }
+
     /// Force immediate key rotation (for emergency scenarios)
     ///
     /// # Errors
@@ -490,20 +515,7 @@ impl KeyRotationManager {
         );
 
         // Log critical audit event
-        let event = super::audit::AuditEvent::new(
-            super::audit::AuditEventType::KeyRotated,
-            super::audit::AuditSeverity::Critical,
-            format!("Emergency key rotation: {reason}"),
-            "emergency_rotation".to_owned(),
-            "initiated".to_owned(),
-        );
-
-        let event = if let Some(tid) = tenant_id {
-            event.with_tenant_id(tid)
-        } else {
-            event
-        };
-
+        let event = Self::build_emergency_rotation_audit_event(tenant_id, reason);
         if let Err(e) = self.auditor.log_event(event).await {
             tracing::error!("Failed to log emergency key rotation audit: {}", e);
         }

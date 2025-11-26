@@ -195,12 +195,11 @@ impl ServerLifecycle {
         Ok(())
     }
 
-    /// Handle OAuth completion notification
-    async fn handle_oauth_notification(
-        notification: OAuthCompletedNotification,
-        stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
-    ) {
-        let notification_msg = serde_json::json!({
+    /// Build OAuth notification JSON message
+    fn build_oauth_notification_json(
+        notification: &OAuthCompletedNotification,
+    ) -> serde_json::Value {
+        serde_json::json!({
             "jsonrpc": "2.0",
             "method": "notifications/oauth_completed",
             "params": {
@@ -209,20 +208,32 @@ impl ServerLifecycle {
                 "success": notification.params.success,
                 "message": notification.params.message
             }
-        });
+        })
+    }
+
+    /// Write JSON message to stdout with newline and flush
+    async fn write_json_to_stdout(json: &str, stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>) {
+        let mut stdout_lock = stdout.lock().await;
+        if let Err(e) = stdout_lock.write_all(json.as_bytes()).await {
+            tracing::error!(error = ?e, "Failed to write OAuth notification to stdout");
+        }
+        if let Err(e) = stdout_lock.write_all(b"\n").await {
+            tracing::error!(error = ?e, "Failed to write newline to stdout");
+        }
+        if let Err(e) = stdout_lock.flush().await {
+            tracing::error!(error = ?e, "Failed to flush stdout");
+        }
+    }
+
+    /// Handle OAuth completion notification
+    async fn handle_oauth_notification(
+        notification: OAuthCompletedNotification,
+        stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
+    ) {
+        let notification_msg = Self::build_oauth_notification_json(&notification);
 
         if let Ok(json) = serde_json::to_string(&notification_msg) {
-            let mut stdout_lock = stdout.lock().await;
-            if let Err(e) = stdout_lock.write_all(json.as_bytes()).await {
-                tracing::error!(error = ?e, "Failed to write OAuth notification to stdout");
-            }
-            if let Err(e) = stdout_lock.write_all(b"\n").await {
-                tracing::error!(error = ?e, "Failed to write newline to stdout");
-            }
-            if let Err(e) = stdout_lock.flush().await {
-                tracing::error!(error = ?e, "Failed to flush stdout");
-            }
-            drop(stdout_lock);
+            Self::write_json_to_stdout(&json, stdout).await;
         }
     }
 

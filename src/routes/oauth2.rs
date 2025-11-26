@@ -348,7 +348,7 @@ impl OAuth2Routes {
         // Extract Bearer token from Authorization header
         let access_token = match Self::extract_bearer_token(&headers) {
             Ok(token) => token,
-            Err(response) => return response,
+            Err(response) => return *response,
         };
 
         tracing::debug!(
@@ -387,6 +387,64 @@ impl OAuth2Routes {
         }
     }
 
+    /// Build validation response for valid credentials
+    fn validation_success_response() -> Response {
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "valid": true
+            })),
+        )
+            .into_response()
+    }
+
+    /// Build validation response for invalid client
+    fn validation_invalid_client_response() -> Response {
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "valid": false,
+                "error": "invalid_client",
+                "error_description": "Client ID not found or invalid"
+            })),
+        )
+            .into_response()
+    }
+
+    /// Build validation response for missing credentials
+    fn validation_missing_credentials_response() -> Response {
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "valid": false,
+                "error": "invalid_request",
+                "error_description": "Either access token or client_id must be provided"
+            })),
+        )
+            .into_response()
+    }
+
+    /// Validate `client_id` and return appropriate response
+    async fn validate_client_id_response(
+        database: Arc<crate::database_plugins::factory::Database>,
+        client_id: &str,
+    ) -> Response {
+        let client_manager = ClientRegistrationManager::new(database);
+        match client_manager.get_client(client_id).await {
+            Ok(_) => {
+                tracing::info!(
+                    "Credentials validated successfully for client_id: {}",
+                    client_id
+                );
+                Self::validation_success_response()
+            }
+            Err(e) => {
+                tracing::debug!("Client validation failed for {}: {}", client_id, e);
+                Self::validation_invalid_client_response()
+            }
+        }
+    }
+
     /// Handle token validation request (POST /oauth2/token-validate)
     async fn handle_token_validate(
         State(context): State<OAuth2Context>,
@@ -405,57 +463,18 @@ impl OAuth2Routes {
             &context.jwks_manager,
         ) {
             Ok(valid) => valid,
-            Err(response) => return response,
+            Err(response) => return *response,
         };
 
         // Validate client_id if provided
         if let Some(cid) = client_id {
-            let client_manager = ClientRegistrationManager::new(context.database);
-            match client_manager.get_client(cid).await {
-                Ok(_) => {
-                    // Both token (if provided) and client_id are valid
-                    tracing::info!("Credentials validated successfully for client_id: {}", cid);
-                    (
-                        StatusCode::OK,
-                        Json(serde_json::json!({
-                            "valid": true
-                        })),
-                    )
-                        .into_response()
-                }
-                Err(e) => {
-                    tracing::debug!("Client validation failed for {}: {}", cid, e);
-                    (
-                        StatusCode::OK,
-                        Json(serde_json::json!({
-                            "valid": false,
-                            "error": "invalid_client",
-                            "error_description": "Client ID not found or invalid"
-                        })),
-                    )
-                        .into_response()
-                }
-            }
-        } else if token_valid {
-            // Only token was provided and it's valid
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "valid": true
-                })),
-            )
-                .into_response()
+            return Self::validate_client_id_response(context.database, cid).await;
+        }
+
+        if token_valid {
+            Self::validation_success_response()
         } else {
-            // Neither token nor client_id provided
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "valid": false,
-                    "error": "invalid_request",
-                    "error_description": "Either access token or client_id must be provided"
-                })),
-            )
-                .into_response()
+            Self::validation_missing_credentials_response()
         }
     }
 
@@ -696,7 +715,7 @@ impl OAuth2Routes {
     // Helper Functions
     // ============================================================================
 
-    /// Compute JWKS ETag from JSON content
+    /// Compute JWKS `ETag` from JSON content
     async fn compute_jwks_etag(
         jwks: crate::admin::jwks::JsonWebKeySet,
     ) -> Result<(String, String), Response> {
@@ -734,7 +753,7 @@ impl OAuth2Routes {
             .into_response()
     }
 
-    /// Check if client has current JWKS version (ETag match)
+    /// Check if client has current JWKS version (`ETag` match)
     fn check_etag_match(headers: &HeaderMap, etag: &str) -> bool {
         headers
             .get(header::IF_NONE_MATCH)
@@ -743,28 +762,32 @@ impl OAuth2Routes {
     }
 
     /// Extract Bearer token from Authorization header
-    fn extract_bearer_token(headers: &HeaderMap) -> Result<String, Response> {
+    fn extract_bearer_token(headers: &HeaderMap) -> Result<String, Box<Response>> {
         let header = headers.get(header::AUTHORIZATION).ok_or_else(|| {
             tracing::warn!("Missing Authorization header");
-            (
-                StatusCode::UNAUTHORIZED,
-                Json(serde_json::json!({
-                    "error": "invalid_request",
-                    "error_description": "Authorization header is required"
-                })),
+            Box::new(
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({
+                        "error": "invalid_request",
+                        "error_description": "Authorization header is required"
+                    })),
+                )
+                    .into_response(),
             )
-                .into_response()
         })?;
 
         let header_str = header.to_str().map_err(|_| {
-            (
-                StatusCode::UNAUTHORIZED,
-                Json(serde_json::json!({
-                    "error": "invalid_request",
-                    "error_description": "Invalid Authorization header encoding"
-                })),
+            Box::new(
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({
+                        "error": "invalid_request",
+                        "error_description": "Invalid Authorization header encoding"
+                    })),
+                )
+                    .into_response(),
             )
-                .into_response()
         })?;
 
         header_str
@@ -772,14 +795,16 @@ impl OAuth2Routes {
             .map(str::to_owned)
             .ok_or_else(|| {
                 tracing::warn!("Invalid Authorization header format - missing Bearer prefix");
-                (
-                    StatusCode::UNAUTHORIZED,
-                    Json(serde_json::json!({
-                        "error": "invalid_request",
-                        "error_description": "Authorization header must use Bearer scheme"
-                    })),
+                Box::new(
+                    (
+                        StatusCode::UNAUTHORIZED,
+                        Json(serde_json::json!({
+                            "error": "invalid_request",
+                            "error_description": "Authorization header must use Bearer scheme"
+                        })),
+                    )
+                        .into_response(),
                 )
-                    .into_response()
             })
     }
 
@@ -788,49 +813,55 @@ impl OAuth2Routes {
         headers: &HeaderMap,
         auth_manager: &crate::auth::AuthManager,
         jwks_manager: &crate::admin::jwks::JwksManager,
-    ) -> Result<bool, Response> {
+    ) -> Result<bool, Box<Response>> {
         let Some(header) = headers.get(header::AUTHORIZATION) else {
             // No token provided - not an error, just return false
             return Ok(false);
         };
 
         let header_str = header.to_str().map_err(|_| {
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "valid": false,
-                    "error": "invalid_request",
-                    "error_description": "Invalid Authorization header encoding"
-                })),
+            Box::new(
+                (
+                    StatusCode::OK,
+                    Json(serde_json::json!({
+                        "valid": false,
+                        "error": "invalid_request",
+                        "error_description": "Invalid Authorization header encoding"
+                    })),
+                )
+                    .into_response(),
             )
-                .into_response()
         })?;
 
         let token = header_str.strip_prefix("Bearer ").ok_or_else(|| {
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "valid": false,
-                    "error": "invalid_request",
-                    "error_description": "Authorization header must use Bearer scheme"
-                })),
+            Box::new(
+                (
+                    StatusCode::OK,
+                    Json(serde_json::json!({
+                        "valid": false,
+                        "error": "invalid_request",
+                        "error_description": "Authorization header must use Bearer scheme"
+                    })),
+                )
+                    .into_response(),
             )
-                .into_response()
         })?;
 
         match auth_manager.validate_token(token, jwks_manager) {
             Ok(_) => Ok(true),
             Err(e) => {
                 tracing::debug!("Token validation failed: {}", e);
-                Err((
-                    StatusCode::OK,
-                    Json(serde_json::json!({
-                        "valid": false,
-                        "error": "invalid_token",
-                        "error_description": "Access token is invalid or expired"
-                    })),
-                )
-                    .into_response())
+                Err(Box::new(
+                    (
+                        StatusCode::OK,
+                        Json(serde_json::json!({
+                            "valid": false,
+                            "error": "invalid_token",
+                            "error_description": "Access token is invalid or expired"
+                        })),
+                    )
+                        .into_response(),
+                ))
             }
         }
     }

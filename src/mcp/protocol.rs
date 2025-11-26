@@ -42,6 +42,64 @@ fn default_request_id() -> Value {
     serde_json::Value::Number(serde_json::Number::from(0))
 }
 
+/// Extract and validate user ID from auth token
+fn extract_user_id_from_token(
+    auth_token: Option<&String>,
+    resources: &Arc<ServerResources>,
+    request_id: &Value,
+) -> Result<Uuid, Box<McpResponse>> {
+    let Some(token) = auth_token else {
+        return Err(Box::new(McpResponse::error(
+            Some(request_id.clone()),
+            ERROR_INVALID_PARAMS,
+            "Authentication token required".to_owned(),
+        )));
+    };
+
+    let claims = resources
+        .auth_manager
+        .validate_token(token, &resources.jwks_manager)
+        .map_err(|e| {
+            error!("Authentication failed: {}", e);
+            Box::new(McpResponse::error(
+                Some(request_id.clone()),
+                ERROR_INVALID_PARAMS,
+                "Authentication required".to_owned(),
+            ))
+        })?;
+
+    Uuid::parse_str(&claims.sub).map_err(|_| {
+        error!("Invalid user ID in token: {}", claims.sub);
+        Box::new(McpResponse::error(
+            Some(request_id.clone()),
+            ERROR_INVALID_PARAMS,
+            "Invalid user ID in token".to_owned(),
+        ))
+    })
+}
+
+/// Parse resource read parameters from request
+fn parse_resource_params(
+    params: Option<&Value>,
+    request_id: &Value,
+) -> Result<json_schemas::ResourceReadParams, Box<McpResponse>> {
+    let Some(params) = params else {
+        return Err(Box::new(McpResponse::error(
+            Some(request_id.clone()),
+            ERROR_INVALID_PARAMS,
+            "Missing parameters".to_owned(),
+        )));
+    };
+
+    serde_json::from_value::<json_schemas::ResourceReadParams>(params.clone()).map_err(|e| {
+        Box::new(McpResponse::error(
+            Some(request_id.clone()),
+            ERROR_INVALID_PARAMS,
+            format!("Invalid resource read parameters: {e}"),
+        ))
+    })
+}
+
 impl ProtocolHandler {
     /// Supported MCP protocol versions (in preference order)
     const SUPPORTED_VERSIONS: &'static [&'static str] = &["2025-06-18", "2024-11-05"];
@@ -61,7 +119,40 @@ impl ProtocolHandler {
         Self::handle_initialize_internal(request, Some(resources))
     }
 
-    /// Handle initialize request with `ServerResources` for OAuth credential storage  
+    /// Try to store OAuth credentials from an initialize request
+    async fn try_store_oauth_credentials(request: &McpRequest, resources: &Arc<ServerResources>) {
+        // Extract params
+        let Some(params) = &request.params else {
+            return;
+        };
+
+        // Parse initialize request
+        let Ok(init_request) = serde_json::from_value::<InitializeRequest>(params.clone()) else {
+            return;
+        };
+
+        // Check for OAuth credentials
+        let Some(oauth_creds) = init_request.oauth_credentials else {
+            return;
+        };
+
+        // Authenticate and store credentials
+        let Ok(user_id) = Self::authenticate_request(request, resources) else {
+            warn!("OAuth credentials provided but authentication failed - credentials not stored");
+            return;
+        };
+
+        if let Err(e) = Self::store_oauth_credentials(oauth_creds, &user_id, resources).await {
+            warn!(
+                "Failed to store OAuth credentials during initialization: {}",
+                e
+            );
+        } else {
+            info!("Successfully stored OAuth credentials for user {}", user_id);
+        }
+    }
+
+    /// Handle initialize request with `ServerResources` for OAuth credential storage
     pub async fn handle_initialize_with_oauth(
         request: McpRequest,
         resources: &Arc<ServerResources>,
@@ -71,30 +162,7 @@ impl ProtocolHandler {
 
         // If initialization successful and OAuth credentials provided, try to store them
         if response.error.is_none() {
-            if let Some(params) = &request.params {
-                if let Ok(init_request) =
-                    serde_json::from_value::<InitializeRequest>(params.clone())
-                {
-                    if let Some(oauth_creds) = init_request.oauth_credentials {
-                        // Only try to store OAuth credentials if authentication is valid
-                        if let Ok(user_id) = Self::authenticate_request(&request, resources) {
-                            if let Err(e) =
-                                Self::store_oauth_credentials(oauth_creds, &user_id, resources)
-                                    .await
-                            {
-                                warn!(
-                                    "Failed to store OAuth credentials during initialization: {}",
-                                    e
-                                );
-                            } else {
-                                info!("Successfully stored OAuth credentials for user {}", user_id);
-                            }
-                        } else {
-                            warn!("OAuth credentials provided but authentication failed - credentials not stored");
-                        }
-                    }
-                }
-            }
+            Self::try_store_oauth_credentials(&request, resources).await;
         }
 
         response
@@ -243,61 +311,18 @@ impl ProtocolHandler {
     ) -> McpResponse {
         let request_id = request.id.unwrap_or_else(default_request_id);
 
-        // Extract user_id from auth context
-        let user_id = if let Some(auth_token) = &request.auth_token {
-            match resources
-                .auth_manager
-                .validate_token(auth_token, &resources.jwks_manager)
-            {
-                Ok(claims) => {
-                    if let Ok(id) = Uuid::parse_str(&claims.sub) {
-                        id
-                    } else {
-                        error!("Invalid user ID in token: {}", claims.sub);
-                        return McpResponse::error(
-                            Some(request_id),
-                            ERROR_INVALID_PARAMS,
-                            "Invalid user ID in token".to_owned(),
-                        );
-                    }
-                }
-                Err(e) => {
-                    error!("Authentication failed: {}", e);
-                    return McpResponse::error(
-                        Some(request_id),
-                        ERROR_INVALID_PARAMS,
-                        "Authentication required".to_owned(),
-                    );
-                }
-            }
-        } else {
-            return McpResponse::error(
-                Some(request_id),
-                ERROR_INVALID_PARAMS,
-                "Authentication token required".to_owned(),
-            );
-        };
-
-        // Extract resource URI from params with type safety
-        let Some(params) = &request.params else {
-            return McpResponse::error(
-                Some(request_id),
-                ERROR_INVALID_PARAMS,
-                "Missing parameters".to_owned(),
-            );
-        };
-
-        let resource_params =
-            match serde_json::from_value::<json_schemas::ResourceReadParams>(params.clone()) {
-                Ok(p) => p,
-                Err(e) => {
-                    return McpResponse::error(
-                        Some(request_id),
-                        ERROR_INVALID_PARAMS,
-                        format!("Invalid resource read parameters: {e}"),
-                    );
-                }
+        // Extract and validate user ID from auth token
+        let user_id =
+            match extract_user_id_from_token(request.auth_token.as_ref(), resources, &request_id) {
+                Ok(id) => id,
+                Err(response) => return *response,
             };
+
+        // Parse resource parameters
+        let resource_params = match parse_resource_params(request.params.as_ref(), &request_id) {
+            Ok(p) => p,
+            Err(response) => return *response,
+        };
 
         let uri = &resource_params.uri;
 

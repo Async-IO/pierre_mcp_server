@@ -106,6 +106,43 @@ impl ClientRegistrationManager {
         })
     }
 
+    /// Verify client secret using Argon2 password hash
+    fn verify_client_secret(
+        client_id: &str,
+        client_secret: &str,
+        client_secret_hash: &str,
+    ) -> Result<(), OAuth2Error> {
+        let parsed_hash = PasswordHash::new(client_secret_hash).map_err(|e| {
+            tracing::error!("Failed to parse stored password hash: {}", e);
+            OAuth2Error::invalid_client()
+        })?;
+
+        let argon2 = Argon2::default();
+        if argon2
+            .verify_password(client_secret.as_bytes(), &parsed_hash)
+            .is_err()
+        {
+            tracing::warn!("OAuth client {} secret validation failed", client_id);
+            return Err(OAuth2Error::invalid_client());
+        }
+
+        Ok(())
+    }
+
+    /// Check if client is expired
+    fn check_client_expiry(
+        client_id: &str,
+        expires_at: Option<chrono::DateTime<Utc>>,
+    ) -> Result<(), OAuth2Error> {
+        if let Some(expires_at) = expires_at {
+            if Utc::now() > expires_at {
+                tracing::warn!("OAuth client {} has expired", client_id);
+                return Err(OAuth2Error::invalid_client());
+            }
+        }
+        Ok(())
+    }
+
     /// Validate client credentials
     ///
     /// # Errors
@@ -125,27 +162,10 @@ impl ClientRegistrationManager {
         tracing::debug!("OAuth client {} found, validating secret", client_id);
 
         // Verify client secret using constant-time comparison via Argon2
-        let parsed_hash = PasswordHash::new(&client.client_secret_hash).map_err(|e| {
-            tracing::error!("Failed to parse stored password hash: {}", e);
-            OAuth2Error::invalid_client()
-        })?;
-
-        let argon2 = Argon2::default();
-        if argon2
-            .verify_password(client_secret.as_bytes(), &parsed_hash)
-            .is_err()
-        {
-            tracing::warn!("OAuth client {} secret validation failed", client_id);
-            return Err(OAuth2Error::invalid_client());
-        }
+        Self::verify_client_secret(client_id, client_secret, &client.client_secret_hash)?;
 
         // Check if client is expired
-        if let Some(expires_at) = client.expires_at {
-            if Utc::now() > expires_at {
-                tracing::warn!("OAuth client {} has expired", client_id);
-                return Err(OAuth2Error::invalid_client());
-            }
-        }
+        Self::check_client_expiry(client_id, client.expires_at)?;
 
         tracing::info!("OAuth client {} validated successfully", client_id);
         Ok(client)

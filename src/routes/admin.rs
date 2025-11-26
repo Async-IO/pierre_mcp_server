@@ -1113,10 +1113,8 @@ impl AdminRoutes {
         ))
     }
 
-    /// Handle user approval (Axum)
-    /// JUSTIFICATION for `#[allow(clippy::too_many_lines)]`:
     /// Get user status string
-    fn user_status_str(status: &UserStatus) -> &'static str {
+    const fn user_status_str(status: UserStatus) -> &'static str {
         match status {
             UserStatus::Pending => "pending",
             UserStatus::Active => "active",
@@ -1272,7 +1270,7 @@ impl AdminRoutes {
                     "user": {
                         "id": updated_user.id.to_string(),
                         "email": updated_user.email,
-                        "user_status": Self::user_status_str(&updated_user.user_status),
+                        "user_status": Self::user_status_str(updated_user.user_status),
                         "approved_by": updated_user.approved_by,
                         "approved_at": updated_user.approved_at.map(|t| t.to_rfc3339()),
                     },

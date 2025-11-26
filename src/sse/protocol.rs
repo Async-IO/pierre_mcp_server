@@ -200,10 +200,12 @@ impl McpProtocolStream {
         );
 
         let sender_guard = self.sender.read().await;
-        let Some(sender) = sender_guard.as_ref() else {
+        let Some(sender) = sender_guard.as_ref().cloned() else {
+            drop(sender_guard);
             tracing::error!("No active sender for protocol stream");
             return Err(AppError::internal("No active sender for protocol stream"));
         };
+        drop(sender_guard);
 
         tracing::debug!(
             "Active SSE receivers for this stream: {}",
@@ -213,6 +215,6 @@ impl McpProtocolStream {
         let json_data = Self::build_oauth_notification_json(notification)?;
         tracing::debug!("JSON data to send: {}", json_data);
 
-        Self::broadcast_notification(sender, json_data, &notification.provider)
+        Self::broadcast_notification(&sender, json_data, &notification.provider)
     }
 }

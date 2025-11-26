@@ -46,20 +46,6 @@ impl TransportManager {
         self.start_legacy_unified_server(port).await
     }
 
-    /// Prepare shared resources with notification channels and sampling peer
-    fn prepare_shared_resources(&self) -> Arc<ServerResources> {
-        let mut resources_clone = (*self.resources).clone();
-        resources_clone.set_oauth_notification_sender(self.notification_sender.clone());
-
-        let stdout = Arc::new(tokio::sync::Mutex::new(tokio::io::stdout()));
-        let sampling_peer = Arc::new(super::sampling_peer::SamplingPeer::new(stdout));
-        resources_clone.set_sampling_peer(sampling_peer);
-
-        Self::spawn_progress_handler(&mut resources_clone);
-
-        Arc::new(resources_clone)
-    }
-
     /// Spawn progress notification handler
     fn spawn_progress_handler(resources: &mut ServerResources) {
         let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -138,7 +124,16 @@ impl TransportManager {
         let notification_receiver = self.notification_sender.subscribe();
         let sse_notification_receiver = self.notification_sender.subscribe();
 
-        let shared_resources = self.prepare_shared_resources();
+        let mut resources_clone = (*self.resources).clone();
+        resources_clone.set_oauth_notification_sender(self.notification_sender.clone());
+
+        let stdout = Arc::new(tokio::sync::Mutex::new(tokio::io::stdout()));
+        let sampling_peer = Arc::new(super::sampling_peer::SamplingPeer::new(stdout));
+        resources_clone.set_sampling_peer(sampling_peer);
+
+        Self::spawn_progress_handler(&mut resources_clone);
+
+        let shared_resources = Arc::new(resources_clone);
 
         Self::spawn_stdio_transport(shared_resources.clone(), notification_receiver);
         Self::spawn_sse_forwarder(shared_resources.clone(), sse_notification_receiver);

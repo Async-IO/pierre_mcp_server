@@ -787,6 +787,74 @@ impl ToolHandlers {
         }
     }
 
+    /// Build empty notifications response
+    fn build_no_notifications_response(request_id: Value) -> McpResponse {
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_owned(),
+            result: Some(serde_json::json!({
+                "success": true,
+                "message": "No new OAuth notifications",
+                "notifications_count": 0
+            })),
+            error: None,
+            id: Some(request_id),
+        }
+    }
+
+    /// Process and mark notifications as read, returning announcements
+    async fn process_notifications(
+        notifications: &[crate::database::oauth_notifications::OAuthNotification],
+        user_id: Uuid,
+        ctx: &ToolRoutingContext<'_>,
+    ) -> Vec<String> {
+        let mut announcements = Vec::new();
+
+        for notification in notifications {
+            let announcement = format!(
+                "OAuth Connection Successful!\n\nConnected to {}\n{}",
+                notification.provider.to_uppercase(),
+                notification.message
+            );
+            announcements.push(announcement);
+
+            // Mark this notification as read
+            if let Err(e) = ctx
+                .resources
+                .database
+                .mark_oauth_notification_read(&notification.id, user_id)
+                .await
+            {
+                debug!(
+                    "Failed to mark notification {} as read: {}",
+                    notification.id, e
+                );
+            }
+        }
+
+        announcements
+    }
+
+    /// Build response with notifications
+    fn build_notifications_response(
+        announcements: &[String],
+        notifications_count: usize,
+        request_id: Value,
+    ) -> McpResponse {
+        let combined_announcement = announcements.join("\n\n---\n\n");
+
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_owned(),
+            result: Some(serde_json::json!({
+                "success": true,
+                "announcement": combined_announcement,
+                "notifications_count": notifications_count,
+                "visible_to_user": true
+            })),
+            error: None,
+            id: Some(request_id),
+        }
+    }
+
     /// Handle check OAuth notifications tool - looks for new unread notifications and announces them
     async fn handle_check_oauth_notifications(
         user_id: Uuid,
@@ -801,59 +869,13 @@ impl ToolHandlers {
             .get_unread_oauth_notifications(user_id)
             .await
         {
+            Ok(notifications) if notifications.is_empty() => {
+                Self::build_no_notifications_response(request_id)
+            }
             Ok(notifications) => {
-                if notifications.is_empty() {
-                    // No new notifications
-                    McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_owned(),
-                        result: Some(serde_json::json!({
-                            "success": true,
-                            "message": "No new OAuth notifications",
-                            "notifications_count": 0
-                        })),
-                        error: None,
-                        id: Some(request_id),
-                    }
-                } else {
-                    // Announce all new notifications
-                    let mut announcements = Vec::new();
-
-                    for notification in &notifications {
-                        let announcement = format!(
-                            "OAuth Connection Successful!\n\nConnected to {}\n{}",
-                            notification.provider.to_uppercase(),
-                            notification.message
-                        );
-                        announcements.push(announcement);
-
-                        // Mark this notification as read
-                        if let Err(e) = ctx
-                            .resources
-                            .database
-                            .mark_oauth_notification_read(&notification.id, user_id)
-                            .await
-                        {
-                            debug!(
-                                "Failed to mark notification {} as read: {}",
-                                notification.id, e
-                            );
-                        }
-                    }
-
-                    let combined_announcement = announcements.join("\n\n---\n\n");
-
-                    McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_owned(),
-                        result: Some(serde_json::json!({
-                            "success": true,
-                            "announcement": combined_announcement,
-                            "notifications_count": notifications.len(),
-                            "visible_to_user": true
-                        })),
-                        error: None,
-                        id: Some(request_id),
-                    }
-                }
+                let count = notifications.len();
+                let announcements = Self::process_notifications(&notifications, user_id, ctx).await;
+                Self::build_notifications_response(&announcements, count, request_id)
             }
             Err(e) => {
                 error!("Failed to check OAuth notifications: {}", e);

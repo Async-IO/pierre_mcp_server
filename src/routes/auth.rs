@@ -681,47 +681,29 @@ impl OAuthService {
         Ok(())
     }
 
-    /// Notify bridge about successful OAuth (for client-side token storage and focus recovery)
-    async fn notify_bridge_oauth_success(
-        &self,
-        provider: &str,
-        token: &crate::oauth2_client::OAuth2Token,
-    ) {
-        let oauth_callback_port = self.config.config().oauth_callback_port;
-        let callback_url =
-            format!("http://localhost:{oauth_callback_port}/oauth/provider-callback/{provider}");
-
+    /// Build OAuth token data for bridge notification
+    fn build_bridge_token_data(token: &crate::oauth2_client::OAuth2Token) -> serde_json::Value {
         // Calculate expires_in from expires_at if available
         let expires_in = token.expires_at.map(|expires_at| {
             let duration = expires_at - chrono::Utc::now();
             duration.num_seconds().max(0)
         });
 
-        let token_data = serde_json::json!({
+        serde_json::json!({
             "access_token": token.access_token,
             "refresh_token": token.refresh_token,
             "expires_in": expires_in,
             "token_type": token.token_type,
             "scope": token.scope
-        });
+        })
+    }
 
-        tracing::debug!(
-            "Notifying bridge about {} OAuth success at {}",
-            provider,
-            callback_url
-        );
-
-        // Best-effort notification with configured timeout - don't fail OAuth flow if bridge notification fails
-        // Configuration must be initialized via initialize_http_clients() at server startup
-        let timeout_secs =
-            crate::utils::http_client::get_oauth_callback_notification_timeout_secs();
-        match reqwest::Client::new()
-            .post(&callback_url)
-            .json(&token_data)
-            .timeout(std::time::Duration::from_secs(timeout_secs))
-            .send()
-            .await
-        {
+    /// Log bridge notification response
+    fn log_bridge_notification_result(
+        result: Result<reqwest::Response, reqwest::Error>,
+        provider: &str,
+    ) {
+        match result {
             Ok(response) if response.status().is_success() => {
                 tracing::info!(
                     "✅ Successfully notified bridge about {} OAuth completion",
@@ -743,6 +725,38 @@ impl OAuthService {
                 );
             }
         }
+    }
+
+    /// Notify bridge about successful OAuth (for client-side token storage and focus recovery)
+    async fn notify_bridge_oauth_success(
+        &self,
+        provider: &str,
+        token: &crate::oauth2_client::OAuth2Token,
+    ) {
+        let oauth_callback_port = self.config.config().oauth_callback_port;
+        let callback_url =
+            format!("http://localhost:{oauth_callback_port}/oauth/provider-callback/{provider}");
+
+        let token_data = Self::build_bridge_token_data(token);
+
+        tracing::debug!(
+            "Notifying bridge about {} OAuth success at {}",
+            provider,
+            callback_url
+        );
+
+        // Best-effort notification with configured timeout - don't fail OAuth flow if bridge notification fails
+        // Configuration must be initialized via initialize_http_clients() at server startup
+        let timeout_secs =
+            crate::utils::http_client::get_oauth_callback_notification_timeout_secs();
+        let result = reqwest::Client::new()
+            .post(&callback_url)
+            .json(&token_data)
+            .timeout(std::time::Duration::from_secs(timeout_secs))
+            .send()
+            .await;
+
+        Self::log_bridge_notification_result(result, provider);
     }
 
     /// Disconnect OAuth provider for user
@@ -1336,7 +1350,7 @@ impl AuthRoutes {
         }
     }
 
-    /// Extract tenant ID from user, falling back to user_id if no tenant
+    /// Extract tenant ID from user, falling back to `user_id` if no tenant
     fn extract_tenant_id(
         user: &crate::models::User,
         user_id: uuid::Uuid,

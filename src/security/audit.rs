@@ -223,13 +223,8 @@ impl SecurityAuditor {
         Self { database }
     }
 
-    /// Log an audit event
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the audit event cannot be stored
-    pub async fn log_event(&self, event: AuditEvent) -> AppResult<()> {
-        // Log to structured logger first (for immediate visibility)
+    /// Log audit event to structured logger based on severity
+    fn log_to_structured_logger(event: &AuditEvent) {
         match event.severity {
             AuditSeverity::Info => {
                 tracing::info!(
@@ -284,6 +279,16 @@ impl SecurityAuditor {
                 );
             }
         }
+    }
+
+    /// Log an audit event
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the audit event cannot be stored
+    pub async fn log_event(&self, event: AuditEvent) -> AppResult<()> {
+        // Log to structured logger first (for immediate visibility)
+        Self::log_to_structured_logger(&event);
 
         // Store in database for persistence and analysis
         self.store_audit_event(&event).await?;
