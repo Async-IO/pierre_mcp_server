@@ -55,6 +55,8 @@ impl TransportManager {
         let sampling_peer = Arc::new(super::sampling_peer::SamplingPeer::new(stdout));
         resources_clone.set_sampling_peer(sampling_peer);
 
+        Self::spawn_progress_handler(&mut resources_clone);
+
         Arc::new(resources_clone)
     }
 
@@ -136,16 +138,7 @@ impl TransportManager {
         let notification_receiver = self.notification_sender.subscribe();
         let sse_notification_receiver = self.notification_sender.subscribe();
 
-        let mut resources_clone = (*self.resources).clone();
-        resources_clone.set_oauth_notification_sender(self.notification_sender.clone());
-
-        let stdout = Arc::new(tokio::sync::Mutex::new(tokio::io::stdout()));
-        let sampling_peer = Arc::new(super::sampling_peer::SamplingPeer::new(stdout));
-        resources_clone.set_sampling_peer(sampling_peer);
-
-        Self::spawn_progress_handler(&mut resources_clone);
-
-        let shared_resources = Arc::new(resources_clone);
+        let shared_resources = self.prepare_shared_resources();
 
         Self::spawn_stdio_transport(shared_resources.clone(), notification_receiver);
         Self::spawn_sse_forwarder(shared_resources.clone(), sse_notification_receiver);

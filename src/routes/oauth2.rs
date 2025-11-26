@@ -399,53 +399,13 @@ impl OAuth2Routes {
         let client_id = request.get("client_id").and_then(|v| v.as_str());
 
         // Validate access token if provided
-        let token_valid = if let Some(header) = headers.get(header::AUTHORIZATION) {
-            if let Ok(header_str) = header.to_str() {
-                if let Some(token) = header_str.strip_prefix("Bearer ") {
-                    // Validate JWT token using RS256
-                    match context
-                        .auth_manager
-                        .validate_token(token, &context.jwks_manager)
-                    {
-                        Ok(_) => true,
-                        Err(e) => {
-                            tracing::debug!("Token validation failed: {}", e);
-                            return (
-                                StatusCode::OK,
-                                Json(serde_json::json!({
-                                    "valid": false,
-                                    "error": "invalid_token",
-                                    "error_description": "Access token is invalid or expired"
-                                })),
-                            )
-                                .into_response();
-                        }
-                    }
-                } else {
-                    return (
-                        StatusCode::OK,
-                        Json(serde_json::json!({
-                            "valid": false,
-                            "error": "invalid_request",
-                            "error_description": "Authorization header must use Bearer scheme"
-                        })),
-                    )
-                        .into_response();
-                }
-            } else {
-                return (
-                    StatusCode::OK,
-                    Json(serde_json::json!({
-                        "valid": false,
-                        "error": "invalid_request",
-                        "error_description": "Invalid Authorization header encoding"
-                    })),
-                )
-                    .into_response();
-            }
-        } else {
-            // No token provided - only validate client_id
-            false
+        let token_valid = match Self::validate_bearer_token_for_validate_endpoint(
+            &headers,
+            &context.auth_manager,
+            &context.jwks_manager,
+        ) {
+            Ok(valid) => valid,
+            Err(response) => return response,
         };
 
         // Validate client_id if provided
@@ -821,6 +781,58 @@ impl OAuth2Routes {
                 )
                     .into_response()
             })
+    }
+
+    /// Validate Bearer token for token-validate endpoint (returns OK with valid:false on errors)
+    fn validate_bearer_token_for_validate_endpoint(
+        headers: &HeaderMap,
+        auth_manager: &crate::auth::AuthManager,
+        jwks_manager: &crate::admin::jwks::JwksManager,
+    ) -> Result<bool, Response> {
+        let Some(header) = headers.get(header::AUTHORIZATION) else {
+            // No token provided - not an error, just return false
+            return Ok(false);
+        };
+
+        let header_str = header.to_str().map_err(|_| {
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "valid": false,
+                    "error": "invalid_request",
+                    "error_description": "Invalid Authorization header encoding"
+                })),
+            )
+                .into_response()
+        })?;
+
+        let token = header_str.strip_prefix("Bearer ").ok_or_else(|| {
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "valid": false,
+                    "error": "invalid_request",
+                    "error_description": "Authorization header must use Bearer scheme"
+                })),
+            )
+                .into_response()
+        })?;
+
+        match auth_manager.validate_token(token, jwks_manager) {
+            Ok(_) => Ok(true),
+            Err(e) => {
+                tracing::debug!("Token validation failed: {}", e);
+                Err((
+                    StatusCode::OK,
+                    Json(serde_json::json!({
+                        "valid": false,
+                        "error": "invalid_token",
+                        "error_description": "Access token is invalid or expired"
+                    })),
+                )
+                    .into_response())
+            }
+        }
     }
 
     /// Build login URL with OAuth parameters preserved for redirect
