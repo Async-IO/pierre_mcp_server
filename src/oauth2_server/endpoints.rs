@@ -36,7 +36,7 @@ struct AuthCodeParams<'a> {
     code_challenge_method: Option<&'a str>,
 }
 
-/// Validate PKCE code_verifier format per RFC 7636 Section 4.1
+/// Validate PKCE `code_verifier` format per RFC 7636 Section 4.1
 fn validate_pkce_verifier_format(verifier: &str) -> Result<(), OAuth2Error> {
     // Length: 43-128 characters
     if verifier.len() < 43 || verifier.len() > 128 {
