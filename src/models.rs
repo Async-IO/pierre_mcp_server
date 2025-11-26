@@ -1425,7 +1425,7 @@ impl EncryptedToken {
         expires_at: DateTime<Utc>,
         scope: String,
         encryption_key: &[u8],
-    ) -> Result<Self, anyhow::Error> {
+    ) -> crate::errors::AppResult<Self> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
         use ring::rand::{SecureRandom, SystemRandom};
@@ -1479,14 +1479,14 @@ impl EncryptedToken {
     /// # Errors
     ///
     /// Returns an error if decryption fails, nonce is invalid, or the encryption key is incorrect
-    pub fn decrypt(&self, encryption_key: &[u8]) -> Result<DecryptedToken, anyhow::Error> {
+    pub fn decrypt(&self, encryption_key: &[u8]) -> crate::errors::AppResult<DecryptedToken> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
         // Decrypt access token: extract nonce from prepended data
         let access_combined = general_purpose::STANDARD.decode(&self.access_token)?;
         if access_combined.len() < 12 {
-            return Err(AppError::invalid_input("Invalid access token: too short").into());
+            return Err(AppError::invalid_input("Invalid access token: too short"));
         }
 
         let (access_nonce_bytes, access_ciphertext) = access_combined.split_at(12);
@@ -1502,7 +1502,7 @@ impl EncryptedToken {
         // Decrypt refresh token: extract nonce from prepended data
         let refresh_combined = general_purpose::STANDARD.decode(&self.refresh_token)?;
         if refresh_combined.len() < 12 {
-            return Err(AppError::invalid_input("Invalid refresh token: too short").into());
+            return Err(AppError::invalid_input("Invalid refresh token: too short"));
         }
 
         let (refresh_nonce_bytes, refresh_ciphertext) = refresh_combined.split_at(12);

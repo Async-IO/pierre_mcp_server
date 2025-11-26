@@ -52,8 +52,8 @@ fn get_config() -> &'static RouteTimeoutConfig {
 /// ```rust,no_run
 /// use pierre_mcp_server::utils::route_timeout::with_database_timeout;
 ///
-/// # async fn example() -> Result<(), anyhow::Error> {
-/// # struct Database; impl Database { async fn get_user_by_id(&self, _: &str) -> Result<String, anyhow::Error> { Ok(String::new()) } }
+/// # async fn example() -> pierre_mcp_server::errors::AppResult<()> {
+/// # struct Database; impl Database { async fn get_user_by_id(&self, _: &str) -> pierre_mcp_server::errors::AppResult<String> { Ok(String::new()) } }
 /// # let database = Database; let user_id = "test";
 /// let user = with_database_timeout(async {
 ///     database.get_user_by_id(user_id).await
@@ -61,10 +61,10 @@ fn get_config() -> &'static RouteTimeoutConfig {
 /// # Ok(())
 /// # }
 /// ```
-pub async fn with_database_timeout<F, T, E>(operation: F) -> Result<T, anyhow::Error>
+pub async fn with_database_timeout<F, T, E>(operation: F) -> crate::errors::AppResult<T>
 where
     F: Future<Output = Result<T, E>>,
-    E: Into<anyhow::Error>,
+    E: Into<crate::errors::AppError>,
 {
     let config = get_config();
     let duration = Duration::from_secs(config.database_timeout_secs);
@@ -74,8 +74,7 @@ where
             Err(AppError::internal(format!(
                 "Database operation timed out after {}s",
                 config.database_timeout_secs
-            ))
-            .into())
+            )))
         },
         |result| result.map_err(Into::into),
     )
@@ -96,8 +95,8 @@ where
 /// ```rust,no_run
 /// use pierre_mcp_server::utils::route_timeout::with_provider_api_timeout;
 ///
-/// # async fn example() -> Result<(), anyhow::Error> {
-/// # struct Provider; impl Provider { async fn get_activities(&self, _: usize, _: usize) -> Result<Vec<()>, anyhow::Error> { Ok(vec![]) } }
+/// # async fn example() -> pierre_mcp_server::errors::AppResult<()> {
+/// # struct Provider; impl Provider { async fn get_activities(&self, _: usize, _: usize) -> pierre_mcp_server::errors::AppResult<Vec<()>> { Ok(vec![]) } }
 /// # let provider = Provider; let limit = 10; let page = 1;
 /// let activities = with_provider_api_timeout(async {
 ///     provider.get_activities(limit, page).await
@@ -105,10 +104,10 @@ where
 /// # Ok(())
 /// # }
 /// ```
-pub async fn with_provider_api_timeout<F, T, E>(operation: F) -> Result<T, anyhow::Error>
+pub async fn with_provider_api_timeout<F, T, E>(operation: F) -> crate::errors::AppResult<T>
 where
     F: Future<Output = Result<T, E>>,
-    E: Into<anyhow::Error>,
+    E: Into<crate::errors::AppError>,
 {
     let config = get_config();
     let duration = Duration::from_secs(config.provider_api_timeout_secs);
@@ -118,8 +117,7 @@ where
             Err(AppError::internal(format!(
                 "Provider API operation timed out after {}s",
                 config.provider_api_timeout_secs
-            ))
-            .into())
+            )))
         },
         |result| result.map_err(Into::into),
     )
@@ -140,8 +138,8 @@ where
 /// ```rust,no_run
 /// use pierre_mcp_server::utils::route_timeout::with_sse_timeout;
 ///
-/// # async fn example() -> Result<(), anyhow::Error> {
-/// # struct SseManager; impl SseManager { async fn send_event(&self, _: &str, _: &str) -> Result<(), anyhow::Error> { Ok(()) } }
+/// # async fn example() -> pierre_mcp_server::errors::AppResult<()> {
+/// # struct SseManager; impl SseManager { async fn send_event(&self, _: &str, _: &str) -> pierre_mcp_server::errors::AppResult<()> { Ok(()) } }
 /// # let sse_manager = SseManager; let user_id = "test"; let event = "data";
 /// with_sse_timeout(async {
 ///     sse_manager.send_event(user_id, event).await
@@ -149,10 +147,10 @@ where
 /// # Ok(())
 /// # }
 /// ```
-pub async fn with_sse_timeout<F, T, E>(operation: F) -> Result<T, anyhow::Error>
+pub async fn with_sse_timeout<F, T, E>(operation: F) -> crate::errors::AppResult<T>
 where
     F: Future<Output = Result<T, E>>,
-    E: Into<anyhow::Error>,
+    E: Into<crate::errors::AppError>,
 {
     let config = get_config();
     let duration = Duration::from_secs(config.sse_event_timeout_secs);
@@ -162,8 +160,7 @@ where
             Err(AppError::internal(format!(
                 "SSE event operation timed out after {}s",
                 config.sse_event_timeout_secs
-            ))
-            .into())
+            )))
         },
         |result| result.map_err(Into::into),
     )
@@ -184,8 +181,8 @@ where
 /// ```rust,no_run
 /// use pierre_mcp_server::utils::route_timeout::with_oauth_timeout;
 ///
-/// # async fn example() -> Result<(), anyhow::Error> {
-/// # struct AuthServer; impl AuthServer { async fn exchange_token(&self, _: &str, _: &str) -> Result<String, anyhow::Error> { Ok(String::new()) } }
+/// # async fn example() -> pierre_mcp_server::errors::AppResult<()> {
+/// # struct AuthServer; impl AuthServer { async fn exchange_token(&self, _: &str, _: &str) -> pierre_mcp_server::errors::AppResult<String> { Ok(String::new()) } }
 /// # let auth_server = AuthServer; let code = "test"; let verifier = "test";
 /// let token = with_oauth_timeout(async {
 ///     auth_server.exchange_token(code, verifier).await
@@ -193,10 +190,10 @@ where
 /// # Ok(())
 /// # }
 /// ```
-pub async fn with_oauth_timeout<F, T, E>(operation: F) -> Result<T, anyhow::Error>
+pub async fn with_oauth_timeout<F, T, E>(operation: F) -> crate::errors::AppResult<T>
 where
     F: Future<Output = Result<T, E>>,
-    E: Into<anyhow::Error>,
+    E: Into<crate::errors::AppError>,
 {
     let config = get_config();
     let duration = Duration::from_secs(config.oauth_operation_timeout_secs);
@@ -206,8 +203,7 @@ where
             Err(AppError::internal(format!(
                 "OAuth operation timed out after {}s",
                 config.oauth_operation_timeout_secs
-            ))
-            .into())
+            )))
         },
         |result| result.map_err(Into::into),
     )

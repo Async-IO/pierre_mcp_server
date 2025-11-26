@@ -246,6 +246,10 @@ if [ -f "$SCRIPT_DIR/architectural-validation.sh" ]; then
     RESOURCE_PATTERNS=$(echo "$ARCH_OUTPUT" | grep "Resource creation patterns" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
     FAKE_RESOURCES=$(echo "$ARCH_OUTPUT" | grep "Fake resource assemblies" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
     UNSAFE=$(echo "$ARCH_OUTPUT" | grep "Unsafe code blocks" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    ANYHOW_MACRO=$(echo "$ARCH_OUTPUT" | grep "Forbidden anyhow! macro usage" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    ANYHOW_IMPORTS=$(echo "$ARCH_OUTPUT" | grep "Forbidden anyhow imports" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    ANYHOW_TYPES=$(echo "$ARCH_OUTPUT" | grep "Forbidden anyhow::Result types" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
+    ANYHOW_CONTEXT=$(echo "$ARCH_OUTPUT" | grep "Anyhow .context() method usage" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
     UNWRAPS=$(echo "$ARCH_OUTPUT" | grep "Problematic unwraps" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
     EXPECTS=$(echo "$ARCH_OUTPUT" | grep "Problematic expects" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
     PANICS=$(echo "$ARCH_OUTPUT" | grep "Panic calls" | grep -o "[0-9]*" | head -1 | tr -d '\n\r\t ' || echo 0)
@@ -271,6 +275,23 @@ if [ -f "$SCRIPT_DIR/architectural-validation.sh" ]; then
 
     [ "${FAKE_RESOURCES:-0}" -eq 0 ] && add_validation "Fake resource assemblies" "0" "✅ PASS" "No fake ServerResources" || \
         { add_validation "Fake resource assemblies" "$FAKE_RESOURCES" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Fake resource assemblies" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    [ "${ANYHOW_MACRO:-0}" -eq 0 ] && add_validation "Forbidden anyhow! macro" "0" "✅ PASS" "Using structured error types" || \
+        { add_validation "Forbidden anyhow! macro" "$ANYHOW_MACRO" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Forbidden anyhow! macro usage" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    [ "${ANYHOW_IMPORTS:-0}" -eq 0 ] && add_validation "Forbidden anyhow imports" "0" "✅ PASS" "Using AppResult imports" || \
+        { add_validation "Forbidden anyhow imports" "$ANYHOW_IMPORTS" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Forbidden anyhow imports" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    [ "${ANYHOW_TYPES:-0}" -eq 0 ] && add_validation "Forbidden anyhow::Result types" "0" "✅ PASS" "Using AppResult types" || \
+        { add_validation "Forbidden anyhow::Result types" "$ANYHOW_TYPES" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Forbidden anyhow::Result types" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
+
+    if [ "${ANYHOW_CONTEXT:-0}" -eq 0 ]; then
+        add_validation "Anyhow .context() usage" "0" "✅ PASS" "Using .map_err() pattern"
+    elif [ "${ANYHOW_CONTEXT:-0}" -le 20 ]; then
+        add_validation "Anyhow .context() usage" "$ANYHOW_CONTEXT" "⚠️ INFO" "Migration in progress (threshold: 20)"
+    else
+        add_validation "Anyhow .context() usage" "$ANYHOW_CONTEXT" "⚠️ WARN" "$(echo "$ARCH_OUTPUT" | grep "Anyhow .context() method usage" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"
+    fi
 
     [ "${UNWRAPS:-0}" -eq 0 ] && add_validation "Problematic unwraps" "0" "✅ PASS" "Proper error handling" || \
         { add_validation "Problematic unwraps" "$UNWRAPS" "❌ FAIL" "$(echo "$ARCH_OUTPUT" | grep "Problematic unwraps" | awk -F'│' '{print $5}' | tr -d '\n\r\t ' | sed 's/^ *//;s/ *$//')"; VALIDATION_FAILED=true; }
@@ -388,6 +409,10 @@ if [ "$VALIDATION_FAILED" = true ]; then
         echo ""
         echo -e "${RED}Architectural validation output:${NC}"
         echo "$ARCH_OUTPUT" | grep -E "❌|FAIL|Error" | head -20
+        echo ""
+        echo -e "${RED}[CRITICAL] Architectural validation failed - STOPPING${NC}"
+        echo -e "${RED}Fix all issues above before proceeding${NC}"
+        exit 1
     fi
 
     ALL_PASSED=false

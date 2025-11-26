@@ -5,8 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use super::schema::{CreateMessageRequest, CreateMessageResult};
-use crate::errors::AppError;
-use anyhow::Result;
+use crate::errors::{AppError, AppResult};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -15,7 +14,7 @@ use tokio::time::{timeout, Duration};
 use tracing::{debug, warn};
 
 /// Type alias for pending request sender
-type ResponseSender = oneshot::Sender<Result<Value>>;
+type ResponseSender = oneshot::Sender<AppResult<Value>>;
 
 /// Manages server-initiated sampling requests to MCP clients
 ///
@@ -111,7 +110,7 @@ impl SamplingPeer {
         // Parse response as CreateMessageResult
         match response {
             Ok(value) => serde_json::from_value(value)
-                .map_err(|e| AppError::internal(format!("Invalid sampling response: {e}")).into()),
+                .map_err(|e| AppError::internal(format!("Invalid sampling response: {e}"))),
             Err(e) => Err(e),
         }
     }
@@ -144,15 +143,13 @@ impl SamplingPeer {
                     let _ = tx.send(Err(AppError::external_service(
                         "MCP Client",
                         format!("Sampling error: {error_msg}"),
-                    )
-                    .into()));
+                    )));
                 } else if let Some(res) = result {
                     let _ = tx.send(Ok(res));
                 } else {
                     let _ = tx.send(Err(AppError::invalid_input(
                         "Response missing both result and error",
-                    )
-                    .into()));
+                    )));
                 }
 
                 Ok(true)

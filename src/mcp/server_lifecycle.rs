@@ -259,7 +259,7 @@ impl ServerLifecycle {
         resources: &Arc<ServerResources>,
         stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
         _sampling_peer: &Arc<SamplingPeer>,
-    ) -> anyhow::Result<()> {
+    ) -> crate::errors::AppResult<()> {
         debug!(
             "Processing MCP request: method={}, id={:?}",
             request.method, request.id

@@ -197,14 +197,12 @@ impl A2AAuthenticator {
     async fn get_a2a_client_by_api_key(
         &self,
         api_key_id: &str,
-    ) -> Result<Option<A2AClient>, anyhow::Error> {
+    ) -> crate::errors::AppResult<Option<A2AClient>> {
         self.resources
             .database
             .get_a2a_client_by_api_key_id(api_key_id)
             .await
-            .map_err(|e| {
-                AppError::database(format!("Failed to lookup A2A client by API key: {e}")).into()
-            })
+            .map_err(|e| AppError::database(format!("Failed to lookup A2A client by API key: {e}")))
     }
 
     /// Authenticate using `OAuth2` token
@@ -219,7 +217,7 @@ impl A2AAuthenticator {
     /// # Panics
     ///
     /// Panics if the token subject has `a2a_client_` prefix but cannot be stripped (should never happen)
-    pub async fn authenticate_oauth2(&self, token: &str) -> Result<AuthResult, anyhow::Error> {
+    pub async fn authenticate_oauth2(&self, token: &str) -> crate::errors::AppResult<AuthResult> {
         // OAuth2 token validation for A2A using JWT tokens
 
         // Try to decode the JWT token using RS256
@@ -242,8 +240,7 @@ impl A2AAuthenticator {
             // Try to extract from custom claims if available
             return Err(AppError::auth_invalid(
                 "Token does not contain valid A2A client identifier",
-            )
-            .into());
+            ));
         };
 
         // Verify the client exists and is active
@@ -253,9 +250,9 @@ impl A2AAuthenticator {
             .ok_or_else(|| AppError::not_found(format!("A2A client {client_id}")))?;
 
         if !client.is_active {
-            return Err(
-                AppError::auth_invalid(format!("A2A client is deactivated: {client_id}")).into(),
-            );
+            return Err(AppError::auth_invalid(format!(
+                "A2A client is deactivated: {client_id}"
+            )));
         }
 
         // Check token expiration (already handled by validate_token)

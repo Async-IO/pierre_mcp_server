@@ -2729,7 +2729,7 @@ fn format_overtraining_signals(
 async fn generate_activity_intelligence_with_claude(
     sampling_peer: &std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>,
     activity: &crate::models::Activity,
-) -> anyhow::Result<serde_json::Value> {
+) -> crate::errors::AppResult<serde_json::Value> {
     use crate::mcp::schema::{
         Content, CreateMessageRequest, ModelHint, ModelPreferences, PromptMessage,
     };
@@ -2834,7 +2834,7 @@ async fn generate_recommendations_with_claude(
     sampling_peer: &std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>,
     activities: &[crate::models::Activity],
     recommendation_type: &str,
-) -> anyhow::Result<serde_json::Value> {
+) -> crate::errors::AppResult<serde_json::Value> {
     use crate::mcp::schema::{
         Content, CreateMessageRequest, ModelHint, ModelPreferences, PromptMessage,
     };
