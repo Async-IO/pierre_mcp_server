@@ -313,8 +313,9 @@ export async function createSecureStorage(
   log(`[DEBUG]   process.env.GITHUB_ACTIONS = "${process.env.GITHUB_ACTIONS}"`);
   log(`[DEBUG]   CI check: ${process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true'}`);
 
-  // TODO: Fix keytar to work properly on Linux CI (currently hangs on D-Bus access)
-  // Temporarily skip keytar in CI environments to prevent MCP validator timeout
+  // KNOWN ISSUE: keytar hangs on Linux CI due to D-Bus access requirements.
+  // Workaround: Use encrypted file storage in CI environments to prevent MCP validator timeout.
+  // Background: keytar requires D-Bus for credential storage on Linux, which is not available in CI containers.
   if (process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true') {
     log('CI environment detected - using encrypted file storage (keytar disabled for now)');
     const encryptedStorage = new EncryptedFileStorage(logFunction);

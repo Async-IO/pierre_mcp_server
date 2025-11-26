@@ -112,6 +112,7 @@ export default function UnifiedConnections() {
   const [selectedToken, setSelectedToken] = useState<AdminToken | null>(null);
   const [showTokenSuccess, setShowTokenSuccess] = useState(false);
   const [tokenResponse, setTokenResponse] = useState<CreateAdminTokenResponse | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const renderTabs = () => (
     <div className="border-b border-pierre-gray-200 mb-8">
@@ -122,6 +123,7 @@ export default function UnifiedConnections() {
             setActiveConnectionType('admin-tokens');
             setActiveView('overview');
             setSelectedToken(null);
+            setErrorMessage(null);
           }}
         >
           <span>🛡️</span>
@@ -133,6 +135,7 @@ export default function UnifiedConnections() {
             setActiveConnectionType('api-keys');
             setActiveView('overview');
             setSelectedToken(null);
+            setErrorMessage(null);
           }}
         >
           <span>🔑</span>
@@ -144,6 +147,7 @@ export default function UnifiedConnections() {
             setActiveConnectionType('oauth-apps');
             setActiveView('overview');
             setSelectedToken(null);
+            setErrorMessage(null);
           }}
         >
           <span>🤖</span>
@@ -237,9 +241,11 @@ export default function UnifiedConnections() {
               const tokenDetails = await apiService.getAdminTokenDetails(tokenId);
               setSelectedToken(tokenDetails);
               setActiveView('details');
+              setErrorMessage(null);
             } catch (error) {
               console.error('Failed to fetch token details:', error);
-              // TODO: Add proper error handling with user feedback
+              const message = error instanceof Error ? error.message : 'Failed to fetch token details';
+              setErrorMessage(message);
             }
           }}
         />
@@ -286,6 +292,28 @@ export default function UnifiedConnections() {
           onClose={handleTokenSuccess}
           response={tokenResponse}
         />
+      )}
+      {errorMessage && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <svg className="w-6 h-6 text-red-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="flex-1">
+              <h4 className="font-medium text-red-800">Error</h4>
+              <p className="text-sm text-red-700 mt-1">{errorMessage}</p>
+            </div>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="text-red-500 hover:text-red-700"
+              aria-label="Dismiss error"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
       )}
       {renderTabs()}
       {renderContent()}
