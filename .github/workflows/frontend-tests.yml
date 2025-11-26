@@ -2,13 +2,9 @@ name: Frontend Tests
 
 on:
   push:
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/frontend-tests.yml'
+    branches: [ "main", "debug/*", "feature/*", "claude/*" ]
   pull_request:
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/frontend-tests.yml'
+    branches: [ main ]
   workflow_dispatch:  # Allow manual triggering
 
 jobs:
