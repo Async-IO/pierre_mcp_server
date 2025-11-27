@@ -6,6 +6,8 @@ export { Button } from './Button';
 export { Card, CardHeader } from './Card';
 export { Badge } from './Badge';
 export { StatusIndicator } from './StatusIndicator';
+export { StatusFilter } from './StatusFilter';
+export type { StatusFilterProps, StatusFilterValue } from './StatusFilter';
 
 // Form components
 export { Input } from './Input';
@@ -18,6 +20,8 @@ export type { SliderProps } from './Slider';
 // Overlay components
 export { Modal, ModalActions } from './Modal';
 export type { ModalProps, ModalActionsProps } from './Modal';
+export { ConfirmDialog } from './ConfirmDialog';
+export type { ConfirmDialogProps, ConfirmDialogVariant } from './ConfirmDialog';
 
 // Navigation components
 export { Tabs, TabPanel } from './Tabs';
