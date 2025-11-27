@@ -32,7 +32,7 @@ Edit `.envrc` for your environment. Development defaults included.
 
 Required:
 ```bash
-export DATABASE_URL="sqlite:./data/pierre.db"
+export DATABASE_URL="sqlite:./data/users.db"
 export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
 ```
 

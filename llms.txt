@@ -536,7 +536,7 @@ pub async fn consume_oauth2_state(state: &str) -> Result<OAuth2State>
 ### environment variables
 ```bash
 # required
-DATABASE_URL="sqlite:./data/pierre.db"
+DATABASE_URL="sqlite:./data/users.db"
 PIERRE_MASTER_ENCRYPTION_KEY="base64_encoded_key"
 
 # server

@@ -60,7 +60,7 @@ Common installation issues and solutions:
 ### Database Connection Issues
 ```bash
 # Check database connectivity
-DATABASE_URL=sqlite:./data/pierre.db cargo run --bin pierre-mcp-server
+DATABASE_URL=sqlite:./data/users.db cargo run --bin pierre-mcp-server
 ```
 
 ### Port Conflicts

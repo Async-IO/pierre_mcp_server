@@ -43,7 +43,7 @@ let database = Database::connect(&config.database_url).await?;
 
 #### List Migration Status
 ```bash
-export DATABASE_URL=sqlite:./pierre.db
+export DATABASE_URL=sqlite:./data/users.db
 sqlx migrate info
 ```
 
@@ -143,7 +143,7 @@ To switch between SQLite and PostgreSQL:
 2. Set the appropriate `DATABASE_URL`:
    ```bash
    # SQLite
-   DATABASE_URL=sqlite:./pierre.db
+   DATABASE_URL=sqlite:./data/users.db
 
    # PostgreSQL
    DATABASE_URL=postgres://user:pass@localhost/pierre
@@ -182,7 +182,7 @@ sqlx migrate revert
 
 ### Reset Database (Development Only)
 ```bash
-rm pierre.db
+rm data/users.db
 sqlx migrate run
 ```
 
@@ -192,7 +192,7 @@ Before deploying migrations to production:
 
 1. ✅ **Backup database**
    ```bash
-   sqlite3 pierre.db ".backup pierre_backup_$(date +%Y%m%d).db"
+   sqlite3 data/users.db ".backup users_backup_$(date +%Y%m%d).db"
    ```
 
 2. ✅ **Test on staging**
@@ -209,7 +209,7 @@ Before deploying migrations to production:
 
 4. ✅ **Apply to production**
    ```bash
-   export DATABASE_URL=sqlite:./pierre.db
+   export DATABASE_URL=sqlite:./data/users.db
    sqlx migrate run
    ```
 

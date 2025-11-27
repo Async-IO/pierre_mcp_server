@@ -8,7 +8,7 @@ Pierre Fitness Platform configured entirely via environment variables. No config
 
 ```bash
 # database
-DATABASE_URL="sqlite:./data/pierre.db"  # or postgresql://...
+DATABASE_URL="sqlite:./data/users.db"  # or postgresql://...
 
 # encryption (generate: openssl rand -base64 32)
 PIERRE_MASTER_ENCRYPTION_KEY="<base64_encoded_32_bytes>"
@@ -404,7 +404,7 @@ export PIERRE_RECOVERY_ALGORITHM=neural
 #### sqlite (development)
 
 ```bash
-DATABASE_URL="sqlite:./data/pierre.db"
+DATABASE_URL="sqlite:./data/users.db"
 ```
 
 Creates database file at path if not exists.
@@ -587,7 +587,7 @@ Edit `.envrc` in project root:
 # development overrides
 export RUST_LOG=debug
 export HTTP_PORT=8081
-export DATABASE_URL=sqlite:./data/pierre.db
+export DATABASE_URL=sqlite:./data/users.db
 
 # provider credentials (dev)
 export STRAVA_CLIENT_ID=dev_client_id

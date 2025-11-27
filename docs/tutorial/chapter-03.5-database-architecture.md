@@ -404,7 +404,7 @@ pub fn detect_database_type(database_url: &str) -> Result<DatabaseType> {
 ```rust
 // Automatically selects SQLite or PostgreSQL based on URL
 let database = Database::new(
-    "sqlite:pierre.db",  // or "postgresql://localhost/pierre"
+    "sqlite:users.db",  // or "postgresql://localhost/pierre"
     encryption_key,
 ).await?;
 ```

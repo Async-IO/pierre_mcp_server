@@ -944,7 +944,7 @@ export USDA_API_KEY=your_api_key_here
 
 # Server configuration
 export HTTP_PORT=8081
-export DATABASE_URL=sqlite:./data/pierre.db
+export DATABASE_URL=sqlite:./data/users.db
 ```
 
 ### dependency injection

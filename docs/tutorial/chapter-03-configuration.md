@@ -31,7 +31,7 @@ Pierre uses `dotenvy` to load environment variables from `.envrc` files in devel
 
 ```bash
 # Database configuration
-export DATABASE_URL="sqlite:./data/pierre.db"
+export DATABASE_URL="sqlite:./data/users.db"
 export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
 
 # Server configuration

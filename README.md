@@ -155,7 +155,7 @@ The `.envrc` file includes all required configuration with development defaults.
 
 **Required Environment Variables**:
 ```bash
-export DATABASE_URL="sqlite:./data/pierre.db"
+export DATABASE_URL="sqlite:./data/users.db"
 export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
 ```
 
@@ -219,7 +219,7 @@ Before starting the server, ensure these environment variables are set:
 
 ```bash
 # Database connection
-export DATABASE_URL="sqlite:./data/pierre.db"
+export DATABASE_URL="sqlite:./data/users.db"
 
 # Encryption key (generate with: openssl rand -base64 32)
 export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
