@@ -8,7 +8,7 @@ use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
 use base64::Engine;
 use std::env;
-use tracing::{info, warn};
+use tracing::info;
 
 /// Master Encryption Key (MEK) - Tier 1
 /// Loaded from environment variable or external key management system
@@ -28,22 +28,30 @@ impl MasterEncryptionKey {
     pub const fn from_bytes(key: [u8; 32]) -> Self {
         Self { key }
     }
-    /// Load MEK from environment variable or generate for development
+    /// Load MEK from environment variable (required)
     ///
     /// # Errors
     ///
     /// Returns an error if:
+    /// - The `PIERRE_MASTER_ENCRYPTION_KEY` environment variable is not set
     /// - The environment variable contains invalid base64 encoding
     /// - The decoded key is not exactly 32 bytes
-    /// - Random key generation fails in development mode
     pub fn load_or_generate() -> AppResult<Self> {
-        // Try to load from environment first
-        if let Ok(encoded_key) = env::var("PIERRE_MASTER_ENCRYPTION_KEY") {
-            return Self::load_from_environment(&encoded_key);
-        }
-
-        // Development mode: generate and log warning
-        Ok(Self::generate_for_development())
+        env::var("PIERRE_MASTER_ENCRYPTION_KEY").map_or_else(
+            |_| {
+                Err(AppError::config(
+                    "PIERRE_MASTER_ENCRYPTION_KEY environment variable is required.\n\n\
+                     This key is used to encrypt sensitive data (OAuth tokens, admin secrets, etc.).\n\
+                     Without a persistent key, encrypted data becomes unreadable after server restart.\n\n\
+                     To generate a key, run:\n\
+                     \x20\x20openssl rand -base64 32\n\n\
+                     Then set it in your environment:\n\
+                     \x20\x20export PIERRE_MASTER_ENCRYPTION_KEY=\"<your-generated-key>\"\n\n\
+                     Or add it to your .env file.",
+                ))
+            },
+            |encoded_key| Self::load_from_environment(&encoded_key),
+        )
     }
 
     /// Load MEK from base64-encoded environment variable
@@ -70,53 +78,6 @@ impl MasterEncryptionKey {
         let mut key = [0u8; 32];
         key.copy_from_slice(&key_bytes);
         Ok(Self { key })
-    }
-
-    /// Generate temporary MEK for development with appropriate warnings
-    ///
-    /// Generate a new key for development (never fails)
-    fn generate_for_development() -> Self {
-        Self::log_development_warnings();
-        let key = crate::database::generate_encryption_key();
-        Self::log_generated_key(&key);
-        Self { key }
-    }
-
-    /// Log warning messages for development key generation
-    fn log_development_warnings() {
-        warn!("PIERRE_MASTER_ENCRYPTION_KEY not found in environment");
-        warn!("Generating temporary MEK for development - NOT SECURE FOR PRODUCTION");
-    }
-
-    /// Log the generated key for development use
-    ///
-    /// # Security
-    /// Only logs MEK in debug builds AND when `PIERRE_LOG_MEK=true` env var is set
-    /// This prevents accidental key exposure in production logs
-    fn log_generated_key(key: &[u8; 32]) {
-        // Only log MEK in debug builds with explicit environment flag
-        #[cfg(debug_assertions)]
-        {
-            if std::env::var("PIERRE_LOG_MEK").unwrap_or_default() == "true" {
-                let encoded = base64::engine::general_purpose::STANDARD.encode(key);
-                warn!(
-                    "Generated MEK (save for production): PIERRE_MASTER_ENCRYPTION_KEY={}",
-                    encoded
-                );
-                warn!("Add this to your environment variables for production deployment");
-            } else {
-                warn!("Generated MEK - Set PIERRE_LOG_MEK=true to display (debug builds only)");
-            }
-        }
-
-        // In release builds, never log the key
-        #[cfg(not(debug_assertions))]
-        {
-            let _ = key; // Silence unused warning
-            warn!(
-                "Generated temporary MEK - Use PIERRE_MASTER_ENCRYPTION_KEY env var for production"
-            );
-        }
     }
 
     /// Get the raw key bytes for encryption operations

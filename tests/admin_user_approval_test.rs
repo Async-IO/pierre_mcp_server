@@ -15,6 +15,7 @@ use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
     models::{User, UserStatus, UserTier},
 };
+use serial_test::serial;
 use uuid::Uuid;
 
 const TEST_JWT_SECRET: &str = "test_jwt_secret_for_admin_user_approval_tests";
@@ -30,6 +31,12 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
 
     let db_path = format!("./test_data/admin_approval_test_{test_id}.db");
     let db_url = format!("sqlite:{db_path}");
+
+    // Set MEK for test (required for KeyManager::bootstrap())
+    std::env::set_var(
+        "PIERRE_MASTER_ENCRYPTION_KEY",
+        "Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2M=",
+    );
 
     // Create database with proper encryption
     let (mut key_manager, database_key) =
@@ -91,6 +98,7 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_get_pending_users() -> Result<()> {
     let (database, _admin_token_id, admin_user_id) = setup_test_database().await?;
 
@@ -138,10 +146,14 @@ async fn test_get_pending_users() -> Result<()> {
     assert_eq!(pending_users.len(), 1);
     assert_eq!(pending_users[0].email, "pending@test.com");
 
+    // Clean up test environment variable
+    std::env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
+
     Ok(())
 }
 
 #[tokio::test]
+#[serial]
 async fn test_approve_user() -> Result<()> {
     let (database, _admin_token_id, admin_user_id) = setup_test_database().await?;
 
@@ -202,10 +214,14 @@ async fn test_approve_user() -> Result<()> {
     assert_eq!(created_user.approved_by, Some(admin_user_id));
     assert!(created_user.approved_at.is_some());
 
+    // Clean up test environment variable
+    std::env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
+
     Ok(())
 }
 
 #[tokio::test]
+#[serial]
 async fn test_suspend_user() -> Result<()> {
     let (database, admin_token_id, admin_user_id) = setup_test_database().await?;
 
@@ -239,10 +255,14 @@ async fn test_suspend_user() -> Result<()> {
     let updated_user = database.get_user(user_id).await?.unwrap();
     assert_eq!(updated_user.user_status, UserStatus::Suspended);
 
+    // Clean up test environment variable
+    std::env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
+
     Ok(())
 }
 
 #[tokio::test]
+#[serial]
 async fn test_user_status_transitions() -> Result<()> {
     let (database, _admin_token_id, _admin_user_id) = setup_test_database().await?;
 
@@ -271,6 +291,9 @@ async fn test_user_status_transitions() -> Result<()> {
     let retrieved_user = database.get_user(user_id).await?.unwrap();
     assert_eq!(retrieved_user.user_status, UserStatus::Pending);
     assert!(retrieved_user.approved_by.is_none());
+
+    // Clean up test environment variable
+    std::env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
 
     Ok(())
 }

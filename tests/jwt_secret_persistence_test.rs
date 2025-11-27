@@ -16,11 +16,18 @@ use serial_test::serial;
 use tempfile::TempDir;
 
 #[tokio::test]
+#[serial]
 async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
     // Create temporary directory for test database
     let temp_dir = TempDir::new()?;
     let db_path = temp_dir.path().join("test_jwt_persistence.db");
     let db_url = format!("sqlite:{}", db_path.display());
+
+    // Set consistent MEK for test (32 bytes base64 encoded) - required for KeyManager::bootstrap()
+    std::env::set_var(
+        "PIERRE_MASTER_ENCRYPTION_KEY",
+        "YmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI=",
+    );
 
     // Initialize JWKS manager for RS256 admin token signing (shared across "restarts")
     let jwks_manager = common::get_shared_test_jwks();
@@ -97,6 +104,9 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
         "Admin token validation failed after restart: {:?}",
         validation_result.err()
     );
+
+    // Clean up test environment variable
+    std::env::remove_var("PIERRE_MASTER_ENCRYPTION_KEY");
 
     println!(" JWT secret persistence test PASSED");
     println!(" Admin tokens survive server restarts");
