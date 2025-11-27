@@ -126,10 +126,9 @@ describe('Dashboard Component', () => {
       renderDashboard();
     });
 
-    // Wait for the pending users query to load and badge to appear
-    await waitFor(() => {
-      expect(screen.getByText('1')).toBeInTheDocument();
-    }, { timeout: 2000 });
+    // Wait for the pending users query to resolve and badge to appear
+    const badge = await screen.findByTestId('pending-users-badge', {}, { timeout: 5000 });
+    expect(badge).toHaveTextContent('1');
   });
 
   it('should switch to Analytics tab', async () => {
