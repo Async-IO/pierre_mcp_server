@@ -2,7 +2,7 @@
 
 ## environment variables
 
-Pierre Fitness Intelligence configured entirely via environment variables. No config files.
+Pierre Fitness Platform configured entirely via environment variables. No config files.
 
 ### required variables
 
@@ -648,7 +648,7 @@ RATE_LIMIT_REQUESTS_PER_MINUTE=120
 
 ```ini
 [Unit]
-Description=Pierre Fitness Intelligence
+Description=Pierre MCP Server
 After=network.target postgresql.service
 
 [Service]

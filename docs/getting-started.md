@@ -130,7 +130,7 @@ Restart claude desktop.
 ## authentication flow
 
 Sdk handles oauth2 automatically:
-1. Registers oauth2 client with Pierre Fitness Intelligence (rfc 7591)
+1. Registers oauth2 client with Pierre Fitness Platform (rfc 7591)
 2. Opens browser for login
 3. Handles callback and token exchange
 4. Stores jwt token
@@ -147,7 +147,7 @@ In claude desktop, ask:
 
 ## available tools
 
-Pierre Fitness Intelligence exposes dozens of MCP tools:
+Pierre Fitness Platform exposes dozens of MCP tools:
 
 **fitness data:**
 - `get_activities` - fetch activities

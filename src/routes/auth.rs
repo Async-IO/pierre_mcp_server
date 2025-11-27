@@ -62,6 +62,8 @@ pub struct UserInfo {
     pub email: String,
     /// User's display name if set
     pub display_name: Option<String>,
+    /// Whether the user has admin privileges
+    pub is_admin: bool,
 }
 
 /// User login response
@@ -278,8 +280,9 @@ impl AuthService {
             expires_at: expires_at.to_rfc3339(),
             user: UserInfo {
                 user_id: user.id.to_string(),
-                email: user.email,
+                email: user.email.clone(),
                 display_name: user.display_name,
+                is_admin: user.is_admin,
             },
         })
     }
@@ -339,8 +342,9 @@ impl AuthService {
             expires_at: expires_at.to_rfc3339(),
             user: UserInfo {
                 user_id: user.id.to_string(),
-                email: user.email,
+                email: user.email.clone(),
                 display_name: user.display_name,
+                is_admin: user.is_admin,
             },
         })
     }

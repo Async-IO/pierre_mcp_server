@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from './ui';
 import { apiService } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
 import ApiKeyList from './ApiKeyList';
 import CreateApiKey from './CreateApiKey';
 import A2AClientList from './A2AClientList';
@@ -107,7 +108,8 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({ isOpen, onClose, 
 };
 
 export default function UnifiedConnections() {
-  const [activeConnectionType, setActiveConnectionType] = useState<ConnectionType>('admin-tokens');
+  const { user } = useAuth();
+  const [activeConnectionType, setActiveConnectionType] = useState<ConnectionType>('api-keys');
   const [activeView, setActiveView] = useState<View>('overview');
   const [selectedToken, setSelectedToken] = useState<AdminToken | null>(null);
   const [showTokenSuccess, setShowTokenSuccess] = useState(false);
@@ -117,18 +119,20 @@ export default function UnifiedConnections() {
   const renderTabs = () => (
     <div className="border-b border-pierre-gray-200 mb-8">
       <nav className="-mb-px flex space-x-8">
-        <button
-          className={`tab ${activeConnectionType === 'admin-tokens' ? 'tab-active' : ''}`}
-          onClick={() => {
-            setActiveConnectionType('admin-tokens');
-            setActiveView('overview');
-            setSelectedToken(null);
-            setErrorMessage(null);
-          }}
-        >
-          <span>🛡️</span>
-          <span>Admin Tokens</span>
-        </button>
+        {user?.is_admin && (
+          <button
+            className={`tab ${activeConnectionType === 'admin-tokens' ? 'tab-active' : ''}`}
+            onClick={() => {
+              setActiveConnectionType('admin-tokens');
+              setActiveView('overview');
+              setSelectedToken(null);
+              setErrorMessage(null);
+            }}
+          >
+            <span>🛡️</span>
+            <span>Admin Tokens</span>
+          </button>
+        )}
         <button
           className={`tab ${activeConnectionType === 'api-keys' ? 'tab-active' : ''}`}
           onClick={() => {

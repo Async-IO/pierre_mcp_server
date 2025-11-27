@@ -12,7 +12,7 @@ interface AdminTokenListProps {
 }
 
 export default function AdminTokenList({ onCreateToken, onViewDetails }: AdminTokenListProps) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedTokens, setSelectedTokens] = useState<Set<string>>(new Set());
   const [showInactive, setShowInactive] = useState(false);
@@ -20,7 +20,7 @@ export default function AdminTokenList({ onCreateToken, onViewDetails }: AdminTo
   const { data: tokensResponse, isLoading, error } = useQuery({
     queryKey: ['admin-tokens', showInactive],
     queryFn: () => apiService.getAdminTokens({ include_inactive: showInactive }),
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && user?.is_admin === true,
   });
 
   const revokeTokenMutation = useMutation({

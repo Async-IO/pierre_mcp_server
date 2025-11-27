@@ -1,4 +1,4 @@
-# Contributing to Pierre Fitness Intelligence
+# Contributing to Pierre Fitness Platform
 
 Thank you for your interest in contributing! This guide covers everything you need to make your first contribution.
 

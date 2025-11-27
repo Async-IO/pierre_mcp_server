@@ -1,6 +1,6 @@
 # chapter 09: JSON-RPC 2.0 foundation
 
-This chapter explores the JSON-RPC 2.0 protocol that forms the foundation of the Model Context Protocol (MCP) in the Pierre Fitness Intelligence. You'll learn about request/response structures, error codes, notifications, and how Pierre extends JSON-RPC for authentication and multi-tenancy.
+This chapter explores the JSON-RPC 2.0 protocol that forms the foundation of the Model Context Protocol (MCP) in the Pierre Fitness Platform. You'll learn about request/response structures, error codes, notifications, and how Pierre extends JSON-RPC for authentication and multi-tenancy.
 
 ## what you'll learn
 

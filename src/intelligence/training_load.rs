@@ -216,20 +216,18 @@ impl TrainingLoadCalculator {
             return 0.0;
         }
 
-        // Sort data by date (oldest first) - required for correct EMA calculation
-        // Activity APIs typically return newest-first, so we must sort here
-        let mut sorted_data: Vec<&TssDataPoint> = tss_data.iter().collect();
-        sorted_data.sort_by_key(|p| p.date);
-
         // Calculate smoothing factor: α = 2 / (N + 1)
         #[allow(clippy::cast_precision_loss)]
         let alpha = 2.0 / (window_days as f64 + 1.0);
 
         // Fill in missing days with zero TSS to create continuous time series
-        let first_date = sorted_data[0].date;
-        let last_date = sorted_data[sorted_data.len() - 1].date;
+        let first_date = tss_data[0].date;
+        let last_date = tss_data[tss_data.len() - 1].date;
 
         let days_span = (last_date - first_date).num_days();
+        if days_span < 0 {
+            return 0.0;
+        }
 
         // Create a map of date -> TSS for quick lookup
         let mut tss_map = std::collections::HashMap::new();

@@ -1,11 +1,10 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
 import type { DashboardOverview, RateLimitOverview, TierUsage, User } from '../types/api';
 import type { AnalyticsData, TimeSeriesPoint } from '../types/chart';
 import { useWebSocketContext } from '../hooks/useWebSocketContext';
-import { useEffect } from 'react';
 import { Card, Badge } from './ui';
 import RealTimeIndicator from './RealTimeIndicator';
 import { clsx } from 'clsx';
@@ -41,6 +40,7 @@ const PierreLogo = () => (
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { lastMessage } = useWebSocketContext();
 
   const { data: overview, isLoading: overviewLoading, refetch: refetchOverview } = useQuery<DashboardOverview>({
@@ -63,12 +63,13 @@ export default function Dashboard() {
     queryFn: () => apiService.getA2ADashboardOverview(),
   });
 
-  // Pending users badge - visible for admins, safely falls back to [] for non-admin users
+  // Pending users badge - only fetch for admin users
   const { data: pendingUsers = [] } = useQuery<User[]>({
     queryKey: ['pending-users'],
     queryFn: () => apiService.getPendingUsers(),
     staleTime: 30_000,
     retry: false,
+    enabled: user?.is_admin === true,
   });
 
   // Prepare mini chart data for the overview
@@ -150,82 +151,179 @@ export default function Dashboard() {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ) },
-    { id: 'users', name: 'Users', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ), badge: pendingUsers.length > 0 ? pendingUsers.length : undefined },
+    // Users tab - only visible to admin users
+    ...(user?.is_admin ? [{
+      id: 'users', name: 'Users', icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      ), badge: pendingUsers.length > 0 ? pendingUsers.length : undefined,
+    }] : []),
   ];
 
   return (
-    <div className="min-h-screen bg-pierre-gray-50 flex flex-col">
-      {/* Top Header Bar - Full Width */}
-      <header className="bg-white shadow-sm border-b border-pierre-gray-200 relative">
-        {/* Violet accent bar */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-pierre-violet via-pierre-cyan to-pierre-activity"></div>
-        <div className="px-6 py-5">
-          <div className="flex items-center justify-between">
-            {/* Logo + Welcome */}
-            <div className="flex items-center gap-4">
-              <PierreLogo />
-              <h1 className="text-xl font-medium text-pierre-gray-700">Welcome back, {user?.display_name || user?.email}</h1>
-            </div>
-            {/* User profile section - right side, vertical layout */}
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-10 h-10 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center shadow-sm">
-                <span className="text-sm font-bold text-white">
-                  {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <p className="text-sm font-medium text-pierre-gray-900">
-                {user?.display_name || user?.email?.split('@')[0]}
-              </p>
-              <RealTimeIndicator className="text-[10px]" />
-              <button
-                onClick={logout}
-                className="text-xs text-pierre-gray-500 hover:text-pierre-violet"
-              >
-                Sign out
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-pierre-gray-50 flex">
+      {/* Vertical Sidebar */}
+      <aside
+        className={clsx(
+          'fixed left-0 top-0 h-screen bg-white border-r border-pierre-gray-200 flex flex-col z-40 transition-all duration-300 ease-in-out',
+          sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'
+        )}
+      >
+        {/* Sidebar accent bar */}
+        <div className="absolute top-0 left-0 bottom-0 w-1 bg-gradient-to-b from-pierre-violet via-pierre-cyan to-pierre-activity"></div>
 
-      {/* Horizontal Navigation Bar */}
-      <nav className="bg-white border-b border-pierre-gray-200 px-6">
-        <div className="flex gap-1">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={clsx(
-                'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all relative border-b-2',
-                {
-                  'border-pierre-violet text-pierre-violet bg-pierre-violet/5': activeTab === tab.id,
-                  'border-transparent text-pierre-gray-600 hover:text-pierre-violet hover:bg-pierre-gray-50': activeTab !== tab.id,
-                }
-              )}
-            >
-              <div className="relative">
-                {tab.icon}
-                {tab.badge && (
-                  <span
-                    data-testid="pending-users-badge"
-                    className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold text-[10px]"
+        {/* Logo Section */}
+        <div className={clsx(
+          'flex items-center border-b border-pierre-gray-100 transition-all duration-300',
+          sidebarCollapsed ? 'px-3 py-4 justify-center' : 'px-5 py-5 gap-3'
+        )}>
+          <PierreLogo />
+          {!sidebarCollapsed && (
+            <div className="flex flex-col">
+              <span className="text-lg font-semibold bg-gradient-to-r from-pierre-violet to-pierre-cyan bg-clip-text text-transparent">
+                Pierre
+              </span>
+              <span className="text-[10px] text-pierre-gray-500 tracking-wide uppercase">
+                Fitness Intelligence
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Navigation Items */}
+        <nav className="flex-1 py-4 overflow-y-auto">
+          <ul className="space-y-1 px-3">
+            {tabs.map((tab) => (
+              <li key={tab.id}>
+                <button
+                  onClick={() => setActiveTab(tab.id)}
+                  className={clsx(
+                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group relative',
+                    {
+                      'bg-gradient-to-r from-pierre-violet/10 to-pierre-cyan/5 text-pierre-violet shadow-sm': activeTab === tab.id,
+                      'text-pierre-gray-600 hover:bg-pierre-gray-50 hover:text-pierre-violet': activeTab !== tab.id,
+                    },
+                    sidebarCollapsed && 'justify-center'
+                  )}
+                  title={sidebarCollapsed ? tab.name : undefined}
+                >
+                  {/* Active indicator */}
+                  {activeTab === tab.id && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-pierre-violet rounded-r-full" />
+                  )}
+                  <div className="relative flex-shrink-0">
+                    {tab.icon}
+                    {tab.badge && (
+                      <span
+                        data-testid="pending-users-badge"
+                        className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold text-[10px]"
+                      >
+                        {tab.badge}
+                      </span>
+                    )}
+                  </div>
+                  {!sidebarCollapsed && <span>{tab.name}</span>}
+                  {/* Tooltip for collapsed state */}
+                  {sidebarCollapsed && (
+                    <div className="absolute left-full ml-2 px-2 py-1 bg-pierre-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-50">
+                      {tab.name}
+                    </div>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        {/* User Profile Section - Bottom of sidebar */}
+        <div className={clsx(
+          'border-t border-pierre-gray-100 transition-all duration-300',
+          sidebarCollapsed ? 'p-3' : 'p-4'
+        )}>
+          <div className={clsx(
+            'flex items-center transition-all duration-300',
+            sidebarCollapsed ? 'flex-col gap-2' : 'gap-3'
+          )}>
+            <div className="w-10 h-10 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center shadow-sm flex-shrink-0">
+              <span className="text-sm font-bold text-white">
+                {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            {!sidebarCollapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-pierre-gray-900 truncate">
+                  {user?.display_name || user?.email?.split('@')[0]}
+                </p>
+                <div className="flex items-center gap-2">
+                  <RealTimeIndicator className="text-[10px]" />
+                  <button
+                    onClick={logout}
+                    className="text-xs text-pierre-gray-500 hover:text-pierre-violet transition-colors"
                   >
-                    {tab.badge}
-                  </span>
-                )}
+                    Sign out
+                  </button>
+                </div>
               </div>
-              <span>{tab.name}</span>
+            )}
+          </div>
+          {sidebarCollapsed && (
+            <button
+              onClick={logout}
+              className="mt-2 text-xs text-pierre-gray-500 hover:text-pierre-violet transition-colors"
+              title="Sign out"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
             </button>
-          ))}
+          )}
         </div>
-      </nav>
 
-      {/* Content Area */}
-      <div className="flex-1 px-6 py-8 overflow-auto">
+        {/* Collapse Toggle Button */}
+        <button
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          className="absolute -right-3 top-20 w-6 h-6 bg-white border border-pierre-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-pierre-gray-50 hover:border-pierre-violet transition-all duration-200 z-50"
+          title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <svg
+            className={clsx(
+              'w-3 h-3 text-pierre-gray-500 transition-transform duration-300',
+              sidebarCollapsed && 'rotate-180'
+            )}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+      </aside>
+
+      {/* Main Content Area */}
+      <main
+        className={clsx(
+          'flex-1 min-h-screen transition-all duration-300 ease-in-out',
+          sidebarCollapsed ? 'ml-[72px]' : 'ml-[260px]'
+        )}
+      >
+        {/* Top Header Bar */}
+        <header className="bg-white shadow-sm border-b border-pierre-gray-200 sticky top-0 z-30">
+          <div className="px-6 py-4 flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-medium text-pierre-gray-800">
+                {tabs.find(t => t.id === activeTab)?.name}
+              </h1>
+              <p className="text-sm text-pierre-gray-500">
+                Welcome back, {user?.display_name || user?.email?.split('@')[0]}
+              </p>
+            </div>
+            <RealTimeIndicator />
+          </div>
+        </header>
+
+        {/* Content Area */}
+        <div className="p-6 overflow-auto">
 
           {/* Content */}
         {activeTab === 'overview' && (
@@ -409,7 +507,8 @@ export default function Dashboard() {
             </Suspense>
           </div>
         )}
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

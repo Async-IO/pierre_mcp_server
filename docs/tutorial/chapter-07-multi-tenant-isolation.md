@@ -1,6 +1,6 @@
 # chapter 07: multi-tenant database isolation
 
-This chapter explores how the Pierre Fitness Intelligence enforces strict tenant boundaries at the database layer, ensuring complete data isolation between different organizations using the same server instance. You'll learn about tenant context extraction, role-based access control, and query-level tenant filtering.
+This chapter explores how the Pierre Fitness Platform enforces strict tenant boundaries at the database layer, ensuring complete data isolation between different organizations using the same server instance. You'll learn about tenant context extraction, role-based access control, and query-level tenant filtering.
 
 ## what you'll learn
 

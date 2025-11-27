@@ -34,7 +34,7 @@
 - Commit without AI assistant-related commit messages. Do not reference AI assistance in git commits.
 - Do not add AI-generated commit text in commit messages
 - Always create a branch when adding new features. Bug fixes go directly to main branch.
-- always run validation after making changes: cargo fmt, then ./scripts/architectural-validation.sh, then clippy strict mode, then TARGETED tests (see "Tiered Validation Approach")
+- always run validation after making changes: cargo fmt, then ./scripts/architectural-validation.sh, then clippy strict mode, then cargo test
 - avoid #[cfg(test)] in the src code. Only in tests
 
 ## Command Permissions
@@ -53,31 +53,8 @@ Everything else, including all read-only operations and analysis tools, can be r
 
 ## Required Pre-Commit Validation
 
-### IMPORTANT: Test Suite Timing Context
-- Full test suite: ~13 minutes (647 tests across 163 files)
-- Full clippy with tests: ~2 minutes
-- Clippy without tests: ~2.5 minutes
-- **DO NOT run `cargo test` without targeting** - use targeted tests during development
+Always run these commands in order before claiming completion:
 
-### Tiered Validation Approach
-
-#### Tier 1: Quick Iteration (during development)
-Run after each code change to catch errors fast:
-```bash
-# 1. Format code
-cargo fmt
-
-# 2. Compile check only (fast - no linting)
-cargo check --quiet
-
-# 3. Run ONLY tests related to your changes
-cargo test <test_name_pattern> -- --nocapture
-# Example: cargo test test_training_load -- --nocapture
-# Example: cargo test --test intelligence_test -- --nocapture
-```
-
-#### Tier 2: Pre-Commit (before committing)
-Run before creating a commit:
 ```bash
 # 1. Format code
 cargo fmt
@@ -85,55 +62,11 @@ cargo fmt
 # 2. Architectural validation
 ./scripts/architectural-validation.sh
 
-# 3. Clippy WITHOUT --tests flag (saves time - tests validated by CI)
-cargo clippy -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
-
-# 4. Run TARGETED tests for changed modules
-cargo test <module_pattern> -- --nocapture
-```
-
-#### Tier 3: Full Validation (before PR/merge only)
-Run the full suite only when preparing a PR or merging:
-```bash
-./scripts/lint-and-test.sh
-# OR manually:
-cargo fmt
-./scripts/architectural-validation.sh
+# 3. Zero tolerance clippy strict mode (includes tests)
 cargo clippy --tests -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
+
+# 4. Run all tests
 cargo test
-```
-
-### Test Targeting Patterns
-Use these patterns to run only relevant tests:
-
-```bash
-# By test name (partial match)
-cargo test test_training_load
-cargo test test_oauth
-
-# By test file
-cargo test --test intelligence_test
-cargo test --test oauth_test
-
-# Multiple patterns
-cargo test training_load fitness_score
-
-# By module path
-cargo test intelligence::
-cargo test database::
-
-# Show output during test
-cargo test <pattern> -- --nocapture
-```
-
-### Finding Related Tests
-When you modify a file, find related tests:
-```bash
-# Find test files mentioning your module
-rg "mod_name" tests/ --files-with-matches
-
-# List tests in a specific test file
-cargo test --test <test_file> -- --list
 ```
 
 ## Error Handling Requirements
@@ -287,16 +220,12 @@ Mocks are permitted ONLY in test code for:
 
 ### Before Claiming ANY Task Complete:
 
-1. **Run Tiered Validation (see "Required Pre-Commit Validation" above):**
-   - For normal commits: Use Tier 2 (targeted tests)
-   - For PRs/merges: Use Tier 3 (full suite via `./scripts/lint-and-test.sh`)
-
-   **Quick reference for targeted validation:**
+1. **Run Full Validation Suite:**
    ```bash
    cargo fmt
    ./scripts/architectural-validation.sh
-   cargo clippy -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
-   cargo test <relevant_pattern> -- --nocapture
+   cargo clippy --tests -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
+   cargo test
    ```
 
 2. **Manual Pattern Audit:**
@@ -324,13 +253,6 @@ Mocks are permitted ONLY in test code for:
 
 ### Failure Criteria
 If ANY of the above checks fail, the task is NOT complete regardless of test passing status.
-
-### When Full Test Suite is Required
-Run `cargo test` (all tests) ONLY when:
-- Creating a PR for review
-- Merging to main branch
-- Major refactoring touching multiple modules
-- CI has failed and you need to reproduce locally
 
 # Getting help
 

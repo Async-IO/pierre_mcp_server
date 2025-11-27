@@ -15,11 +15,11 @@ This unified guide covers installation for all MCP-compatible applications:
 
 ### Server Installation
 
-Refer to the [main README.md](../../README.md) for Pierre Fitness Intelligence installation and setup.
+Refer to the [main README.md](../../README.md) for Pierre MCP Server installation and setup.
 
 ## Installation Methods
 
-Pierre Fitness Intelligence can be installed using several methods:
+Pierre MCP Server can be installed using several methods:
 
 1. **Pre-built Binary**
    - Download from releases
@@ -45,7 +45,7 @@ cd pierre_mcp_server
 
 ## Security Best Practices
 
-When installing Pierre Fitness Intelligence:
+When installing Pierre MCP Server:
 
 1. **Use Environment Variables** for sensitive configuration
 2. **Enable HTTPS** in production deployments

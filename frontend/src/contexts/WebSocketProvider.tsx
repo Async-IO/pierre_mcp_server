@@ -52,8 +52,8 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
     try {
       isConnectingRef.current = true;
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsHost = window.location.hostname === 'localhost' ? 'localhost:8081' : window.location.host;
-      const wsUrl = `${wsProtocol}//${wsHost}/ws`;
+      // Use current host - Vite proxy handles forwarding /ws to backend
+      const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
       
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;

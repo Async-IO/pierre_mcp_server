@@ -7,10 +7,27 @@
     <meta name="referrer" content="no-referrer">
     <title>Login - Pierre</title>
     <style>
+        /* Pierre Design System - BRAND.md compliant */
+        :root {
+            --pierre-violet: #7C3AED;
+            --pierre-cyan: #06B6D4;
+            --pierre-activity: #10B981;
+            --pierre-activity-dark: #059669;
+            --pierre-nutrition: #F59E0B;
+            --pierre-nutrition-dark: #D97706;
+            --pierre-recovery: #6366F1;
+            --pierre-recovery-dark: #4F46E5;
+            --pierre-gray-50: #f9fafb;
+            --pierre-gray-100: #f3f4f6;
+            --pierre-gray-200: #e5e7eb;
+            --pierre-gray-500: #6b7280;
+            --pierre-gray-700: #374151;
+            --pierre-gray-900: #1f2937;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background: #f9fafb;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--pierre-gray-50);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -21,7 +38,7 @@
             background: white;
             padding: 2.5rem;
             border-radius: 1rem;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
             width: 100%;
             max-width: 400px;
             position: relative;
@@ -34,25 +51,49 @@
             left: 0;
             right: 0;
             height: 4px;
-            background: linear-gradient(90deg, #7C3AED, #06B6D4);
+            background: linear-gradient(90deg, var(--pierre-violet), var(--pierre-cyan));
         }
         .logo { text-align: center; margin-bottom: 1rem; }
-        .brand { text-align: center; font-size: 1.125rem; font-weight: 700; color: #1f2937; letter-spacing: -0.5px; margin-bottom: 2rem; }
-        h1 { text-align: center; font-size: 1.25rem; font-weight: 600; color: #374151; margin-bottom: 1.5rem; }
+        .brand {
+            text-align: center;
+            font-size: 1.125rem;
+            font-weight: 700;
+            color: var(--pierre-gray-900);
+            letter-spacing: -0.5px;
+            margin-bottom: 2rem;
+        }
+        h1 {
+            text-align: center;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--pierre-gray-700);
+            margin-bottom: 1.5rem;
+        }
         .form-group { margin-bottom: 1rem; }
-        label { display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem; }
+        label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--pierre-gray-700);
+            margin-bottom: 0.5rem;
+        }
         input[type="email"], input[type="password"] {
             width: 100%;
             padding: 0.75rem;
-            border: 1px solid #d1d5db;
+            border: 1px solid var(--pierre-gray-200);
             border-radius: 0.5rem;
             font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
-        input:focus { outline: none; border-color: #7C3AED; box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
+        input:focus {
+            outline: none;
+            border-color: var(--pierre-violet);
+            box-shadow: 0 0 0 3px rgba(124,58,237,0.1);
+        }
         button {
             width: 100%;
             padding: 0.75rem;
-            background: linear-gradient(135deg, #7C3AED, #06B6D4);
+            background: linear-gradient(135deg, var(--pierre-violet), var(--pierre-cyan));
             color: white;
             border: none;
             border-radius: 0.5rem;
@@ -60,32 +101,66 @@
             font-weight: 500;
             cursor: pointer;
             margin-top: 0.5rem;
+            transition: opacity 0.2s, transform 0.1s;
         }
         button:hover { opacity: 0.9; }
+        button:active { transform: scale(0.99); }
+        @media (max-width: 640px) {
+            body { padding: 0.75rem; }
+            .card { padding: 1.5rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+        }
     </style>
 </head>
 <body>
     <div class="card">
         <div class="logo">
-            <svg width="80" height="80" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+            <!-- Pierre Data Nodes Logo - Three Pillars Design -->
+            <svg width="80" height="80" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="logo-title logo-desc">
+                <title id="logo-title">Pierre Fitness Platform</title>
+                <desc id="logo-desc">Holistic fitness intelligence - running figure composed of data nodes representing Activity, Nutrition, and Recovery pillars</desc>
                 <defs>
-                    <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#7C3AED"/><stop offset="100%" style="stop-color:#06B6D4"/></linearGradient>
-                    <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#10B981"/><stop offset="100%" style="stop-color:#059669"/></linearGradient>
-                    <linearGradient id="ng" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#F59E0B"/><stop offset="100%" style="stop-color:#D97706"/></linearGradient>
-                    <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#6366F1"/><stop offset="100%" style="stop-color:#4F46E5"/></linearGradient>
+                    <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#7C3AED"/>
+                        <stop offset="100%" style="stop-color:#06B6D4"/>
+                    </linearGradient>
+                    <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#10B981"/>
+                        <stop offset="100%" style="stop-color:#059669"/>
+                    </linearGradient>
+                    <linearGradient id="ng" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#F59E0B"/>
+                        <stop offset="100%" style="stop-color:#D97706"/>
+                    </linearGradient>
+                    <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#6366F1"/>
+                        <stop offset="100%" style="stop-color:#4F46E5"/>
+                    </linearGradient>
                 </defs>
                 <g stroke-width="2" opacity="0.5" stroke-linecap="round">
-                    <line x1="40" y1="30" x2="52" y2="42" stroke="url(#ag)"/><line x1="52" y1="42" x2="70" y2="35" stroke="url(#ag)"/>
-                    <line x1="52" y1="42" x2="48" y2="55" stroke="url(#pg)"/><line x1="48" y1="55" x2="75" y2="52" stroke="url(#ng)"/>
-                    <line x1="48" y1="55" x2="55" y2="72" stroke="url(#pg)"/><line x1="55" y1="72" x2="35" y2="85" stroke="url(#rg)"/><line x1="55" y1="72" x2="72" y2="82" stroke="url(#rg)"/>
+                    <line x1="40" y1="30" x2="52" y2="42" stroke="url(#ag)"/>
+                    <line x1="52" y1="42" x2="70" y2="35" stroke="url(#ag)"/>
+                    <line x1="52" y1="42" x2="48" y2="55" stroke="url(#pg)"/>
+                    <line x1="48" y1="55" x2="75" y2="52" stroke="url(#ng)"/>
+                    <line x1="48" y1="55" x2="55" y2="72" stroke="url(#pg)"/>
+                    <line x1="55" y1="72" x2="35" y2="85" stroke="url(#rg)"/>
+                    <line x1="55" y1="72" x2="72" y2="82" stroke="url(#rg)"/>
                 </g>
-                <circle cx="40" cy="30" r="7" fill="url(#ag)"/><circle cx="52" cy="42" r="5" fill="url(#ag)"/><circle cx="70" cy="35" r="3.5" fill="url(#ag)"/>
-                <circle cx="48" cy="55" r="6" fill="url(#pg)"/><circle cx="48" cy="55" r="3" fill="#fff" opacity="0.9"/>
-                <circle cx="75" cy="52" r="4.5" fill="url(#ng)"/><circle cx="88" cy="60" r="3.5" fill="url(#ng)"/>
-                <circle cx="55" cy="72" r="5" fill="url(#rg)"/><circle cx="35" cy="85" r="4" fill="url(#rg)"/><circle cx="72" cy="82" r="4" fill="url(#rg)"/>
+                <circle cx="40" cy="30" r="7" fill="url(#ag)"/>
+                <circle cx="52" cy="42" r="5" fill="url(#ag)"/>
+                <circle cx="70" cy="35" r="3.5" fill="url(#ag)"/>
+                <circle cx="48" cy="55" r="6" fill="url(#pg)"/>
+                <circle cx="48" cy="55" r="3" fill="#fff" opacity="0.9"/>
+                <circle cx="75" cy="52" r="4.5" fill="url(#ng)"/>
+                <circle cx="88" cy="60" r="3.5" fill="url(#ng)"/>
+                <circle cx="55" cy="72" r="5" fill="url(#rg)"/>
+                <circle cx="35" cy="85" r="4" fill="url(#rg)"/>
+                <circle cx="72" cy="82" r="4" fill="url(#rg)"/>
             </svg>
         </div>
-        <div class="brand">Pierre Fitness Intelligence</div>
+        <div class="brand">Pierre Fitness Platform</div>
         <h1>Login</h1>
         <form method="post" action="/oauth2/login">
             <input type="hidden" name="client_id" value="{{CLIENT_ID}}">

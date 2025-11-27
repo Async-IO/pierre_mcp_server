@@ -1,6 +1,6 @@
 # chapter 11: MCP transport layers
 
-This chapter explores how the Pierre Fitness Intelligence supports multiple transport mechanisms for MCP communication. You'll learn about stdio, HTTP, WebSocket, and SSE transports, and how the platform coordinates them for flexible client integration.
+This chapter explores how the Pierre Fitness Platform supports multiple transport mechanisms for MCP communication. You'll learn about stdio, HTTP, WebSocket, and SSE transports, and how the platform coordinates them for flexible client integration.
 
 ## what you'll learn
 

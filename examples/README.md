@@ -8,7 +8,7 @@ Comprehensive examples demonstrating both **MCP (Model Context Protocol)** for A
 
 ### Gemini Fitness Assistant (`mcp_clients/gemini_fitness_assistant/`)
 
-An interactive AI fitness assistant using **Google's free Gemini API** with Pierre Fitness Intelligence:
+An interactive AI fitness assistant using **Google's free Gemini API** with Pierre MCP Server:
 
 - **Free LLM Integration**: Uses Gemini API (1,500 requests/day, no credit card)
 - **MCP Protocol**: Direct HTTP JSON-RPC communication with Pierre
@@ -27,7 +27,7 @@ python gemini_fitness_assistant.py
 
 Get a free Gemini API key at: https://ai.google.dev/gemini-api/docs/api-key
 
-**What it demonstrates**: How any free LLM service with function calling can interact with Pierre Fitness Intelligence to build an AI fitness assistant without proprietary solutions like Claude Desktop.
+**What it demonstrates**: How any free LLM service with function calling can interact with Pierre MCP Server to build an AI fitness assistant without proprietary solutions like Claude Desktop.
 
 ---
 

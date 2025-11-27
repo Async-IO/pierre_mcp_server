@@ -193,20 +193,20 @@ impl TrainingLoadAlgorithm {
             )));
         }
 
-        // Sort data by date (oldest first) - required for correct EMA calculation
-        // Activity APIs typically return newest-first, so we must sort here
-        let mut sorted_data: Vec<&TssDataPoint> = tss_data.iter().collect();
-        sorted_data.sort_by_key(|p| p.date);
-
         // Calculate smoothing factor: α = 2 / (N + 1)
         #[allow(clippy::cast_precision_loss)]
         let alpha = 2.0 / (window_days as f64 + 1.0);
 
         // Fill in missing days with zero TSS to create continuous time series
-        let first_date = sorted_data[0].date;
-        let last_date = sorted_data[sorted_data.len() - 1].date;
+        let first_date = tss_data[0].date;
+        let last_date = tss_data[tss_data.len() - 1].date;
 
         let days_span = (last_date - first_date).num_days();
+        if days_span < 0 {
+            return Err(AppError::invalid_input(
+                "TSS data not sorted by date".to_owned(),
+            ));
+        }
 
         // Create a map of date -> TSS for quick lookup
         let mut tss_map = std::collections::HashMap::new();
@@ -243,12 +243,8 @@ impl TrainingLoadAlgorithm {
             )));
         }
 
-        // Find the most recent date (data may be in any order)
-        let last_date = tss_data
-            .iter()
-            .map(|p| p.date)
-            .max()
-            .unwrap_or(tss_data[0].date);
+        // Get the most recent window_days of data
+        let last_date = tss_data[tss_data.len() - 1].date;
         let window_start = last_date - Duration::days(window_days - 1);
 
         // Sum TSS values in window
@@ -280,12 +276,7 @@ impl TrainingLoadAlgorithm {
             )));
         }
 
-        // Find the most recent date (data may be in any order)
-        let last_date = tss_data
-            .iter()
-            .map(|p| p.date)
-            .max()
-            .unwrap_or(tss_data[0].date);
+        let last_date = tss_data[tss_data.len() - 1].date;
         let window_start = last_date - Duration::days(window_days - 1);
 
         // Create daily TSS map
@@ -341,13 +332,15 @@ impl TrainingLoadAlgorithm {
             ));
         }
 
-        // Sort data by date (oldest first) - required for correct Kalman filter processing
-        let mut sorted_data: Vec<&TssDataPoint> = tss_data.iter().collect();
-        sorted_data.sort_by_key(|p| p.date);
-
-        let first_date = sorted_data[0].date;
-        let last_date = sorted_data[sorted_data.len() - 1].date;
+        let first_date = tss_data[0].date;
+        let last_date = tss_data[tss_data.len() - 1].date;
         let days_span = (last_date - first_date).num_days();
+
+        if days_span < 0 {
+            return Err(AppError::invalid_input(
+                "TSS data not sorted by date".to_owned(),
+            ));
+        }
 
         // Create daily TSS map
         let mut tss_map = std::collections::HashMap::new();
@@ -356,8 +349,8 @@ impl TrainingLoadAlgorithm {
             *tss_map.entry(date_key).or_insert(0.0) += point.tss;
         }
 
-        // Initialize Kalman filter state with oldest data point
-        let mut estimate = sorted_data[0].tss; // Initial estimate
+        // Initialize Kalman filter state
+        let mut estimate = tss_data[0].tss; // Initial estimate
         let mut error_covariance = 1.0; // Initial error covariance
 
         // Process each day

@@ -1,6 +1,6 @@
 # chapter 06: JWT authentication with RS256
 
-This chapter explores JWT (JSON Web Token) authentication using RS256 asymmetric signing in the Pierre Fitness Intelligence. You'll learn how the platform implements secure token generation, validation, and session management using RSA key pairs from the JWKS system covered in Chapter 5.
+This chapter explores JWT (JSON Web Token) authentication using RS256 asymmetric signing in the Pierre Fitness Platform. You'll learn how the platform implements secure token generation, validation, and session management using RSA key pairs from the JWKS system covered in Chapter 5.
 
 ## what you'll learn
 

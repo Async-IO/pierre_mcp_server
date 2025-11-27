@@ -1,6 +1,6 @@
 # Scripts Directory
 
-This directory contains shell scripts and utilities for development, testing, deployment, and validation of the Pierre Fitness Intelligence.
+This directory contains shell scripts and utilities for development, testing, deployment, and validation of the Pierre MCP Server.
 
 ## Script Inventory
 

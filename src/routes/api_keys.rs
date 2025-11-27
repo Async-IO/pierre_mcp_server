@@ -36,19 +36,29 @@ impl ApiKeyRoutes {
             .with_state(resources)
     }
 
-    /// Extract and authenticate user from authorization header
+    /// Extract and authenticate user from authorization header or cookie
     async fn authenticate(
         headers: &axum::http::HeaderMap,
         resources: &Arc<ServerResources>,
     ) -> Result<crate::auth::AuthResult, AppError> {
-        let auth_header = headers
-            .get("authorization")
-            .and_then(|h| h.to_str().ok())
-            .ok_or_else(|| AppError::auth_invalid("Missing authorization header"))?;
+        // Try Authorization header first, then fall back to auth_token cookie
+        let auth_value =
+            if let Some(auth_header) = headers.get("authorization").and_then(|h| h.to_str().ok()) {
+                auth_header.to_owned()
+            } else if let Some(token) =
+                crate::security::cookies::get_cookie_value(headers, "auth_token")
+            {
+                // Fall back to auth_token cookie, format as Bearer token
+                format!("Bearer {token}")
+            } else {
+                return Err(AppError::auth_invalid(
+                    "Missing authorization header or cookie",
+                ));
+            };
 
         resources
             .auth_middleware
-            .authenticate_request(Some(auth_header))
+            .authenticate_request(Some(&auth_value))
             .await
             .map_err(|e| AppError::auth_invalid(format!("Authentication failed: {e}")))
     }

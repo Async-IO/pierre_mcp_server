@@ -6,7 +6,7 @@ Install and configure the Pierre MCP Client SDK for any MCP-compatible applicati
 
 - **MCP-compatible application** installed (Claude Desktop, ChatGPT Desktop, etc.)
 - **Node.js 24+** and npm
-- **Pierre Fitness Intelligence** running (see [main README](../../README.md) for server setup)
+- **Pierre Fitness Platform** running (see [main README](../../README.md) for server setup)
 
 ## Quick Start
 
@@ -33,7 +33,7 @@ npm install
 npm run build
 ```
 
-### 2. Start Pierre Fitness Intelligence
+### 2. Start Pierre Fitness Platform
 
 ```bash
 # If you haven't already, start the server

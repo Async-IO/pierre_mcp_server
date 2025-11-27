@@ -10,7 +10,7 @@
 
 ## introduction
 
-Pierre Fitness Intelligence is a production Rust application with 224 source files organized into a coherent module hierarchy. This chapter teaches you how to navigate the codebase, understand the module system, and recognize organizational patterns used throughout.
+Pierre Fitness Platform is a production Rust application with 224 source files organized into a coherent module hierarchy. This chapter teaches you how to navigate the codebase, understand the module system, and recognize organizational patterns used throughout.
 
 The codebase follows a **"library + binaries"** pattern where most functionality lives in `src/lib.rs` and binary entry points import from the library.
 

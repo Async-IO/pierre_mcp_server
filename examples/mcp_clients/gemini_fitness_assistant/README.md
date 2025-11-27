@@ -1,6 +1,6 @@
 # Gemini Fitness Assistant - Free LLM MCP Client Example
 
-An end-to-end example demonstrating how to use **Google's free Gemini API** with Pierre Fitness Intelligence to build an AI fitness assistant. This example shows how any free LLM service with function calling can interact with Pierre's MCP protocol.
+An end-to-end example demonstrating how to use **Google's free Gemini API** with Pierre MCP Server to build an AI fitness assistant. This example shows how any free LLM service with function calling can interact with Pierre's MCP protocol.
 
 ## Why This Example?
 

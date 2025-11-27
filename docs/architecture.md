@@ -1,6 +1,6 @@
 # architecture
 
-Pierre Fitness Intelligence is a multi-protocol fitness data platform that connects AI assistants to strava, garmin, and fitbit. Single binary, single port (8081), multiple protocols.
+Pierre Fitness Platform is a multi-protocol fitness data platform that connects AI assistants to strava, garmin, and fitbit. Single binary, single port (8081), multiple protocols.
 
 ## system design
 
@@ -17,7 +17,7 @@ Pierre Fitness Intelligence is a multi-protocol fitness data platform that conne
          │ http + oauth2
          ▼
 ┌─────────────────────────────────────────┐
-│   Pierre Fitness Intelligence (rust)        │
+│   Pierre Fitness Platform (rust)        │
 │   port 8081 (all protocols)             │
 │                                          │
 │   • mcp protocol (json-rpc 2.0)        │
@@ -134,7 +134,7 @@ let api_key = db.api_keys().get_by_key(key).await?;
 
 ## error handling
 
-Pierre Fitness Intelligence uses structured error types for precise error handling and propagation. The codebase **does not use anyhow** - all errors are structured types using `thiserror` (commits b592b5e, 3219f07).
+Pierre Fitness Platform uses structured error types for precise error handling and propagation. The codebase **does not use anyhow** - all errors are structured types using `thiserror` (commits b592b5e, 3219f07).
 
 ### error type hierarchy
 

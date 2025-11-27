@@ -1,4 +1,4 @@
-# Claude Code Configuration for Pierre Fitness Intelligence
+# Claude Code Configuration for Pierre Fitness Platform
 
 This directory contains Claude Code agents, skills, and commands optimized for the Pierre MCP Server codebase.
 
