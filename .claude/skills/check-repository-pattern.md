@@ -1,3 +1,8 @@
+---
+name: check-repository-pattern
+description: Validates database access follows repository pattern, detects god-trait regression, ensures focused repositories
+---
+
 # Check Repository Pattern Skill
 
 ## Purpose

@@ -1,3 +1,8 @@
+---
+name: generate-sdk-types
+description: Generates TypeScript type definitions for SDK from Rust tool schemas, ensuring type safety between server and client
+---
+
 # Generate SDK Types Skill
 
 ## Purpose

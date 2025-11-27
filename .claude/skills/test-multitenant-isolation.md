@@ -1,3 +1,8 @@
+---
+name: test-multitenant-isolation
+description: Validates complete data isolation between tenants, tests cross-tenant access, ensures proper query scoping
+---
+
 # Multi-Tenant Isolation Testing Skill
 
 ## Purpose

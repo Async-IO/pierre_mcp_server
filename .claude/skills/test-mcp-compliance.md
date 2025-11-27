@@ -1,3 +1,8 @@
+---
+name: test-mcp-compliance
+description: Validates Model Context Protocol (MCP) compliance by running official compliance test suite against Pierre server
+---
+
 # MCP Compliance Validation Skill
 
 ## Purpose

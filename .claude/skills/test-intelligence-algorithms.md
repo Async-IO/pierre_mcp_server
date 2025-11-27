@@ -1,3 +1,8 @@
+---
+name: test-intelligence-algorithms
+description: Validates sports science algorithms (VDOT, TSS, TRIMP, FTP, VO2max, Recovery, Nutrition) for correctness
+---
+
 # Test Intelligence Algorithms Skill
 
 ## Purpose

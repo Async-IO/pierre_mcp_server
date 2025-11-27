@@ -1,3 +1,8 @@
+---
+name: validate-architecture
+description: Validates architectural patterns and code quality per CLAUDE.md, detects anti-patterns and design violations
+---
+
 # Validate Architecture Skill
 
 ## Purpose

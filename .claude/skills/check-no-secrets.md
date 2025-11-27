@@ -1,3 +1,8 @@
+---
+name: check-no-secrets
+description: Scans codebase for accidentally committed secrets, credentials, API keys, and sensitive data to prevent security breaches
+---
+
 # Check for Secrets Skill
 
 ## Purpose

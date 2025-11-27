@@ -1,3 +1,8 @@
+---
+name: strict-clippy-check
+description: Enforces zero-tolerance code quality policy using Clippy with strict lints, all warnings treated as errors
+---
+
 # Strict Clippy Check Skill
 
 ## Purpose
