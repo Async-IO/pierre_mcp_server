@@ -4,7 +4,7 @@
 
 - rust 1.91+ (matches `rust-toolchain`)
 - sqlite3 (or postgresql for production)
-- node 18+ (for sdk)
+- node 24+ (for sdk)
 
 ## installation
 

@@ -5,7 +5,7 @@ Install and configure the Pierre MCP Client SDK for any MCP-compatible applicati
 ## Prerequisites
 
 - **MCP-compatible application** installed (Claude Desktop, ChatGPT Desktop, etc.)
-- **Node.js 18+** and npm
+- **Node.js 24+** and npm
 - **Pierre Fitness Platform** running (see [main README](../../README.md) for server setup)
 
 ## Quick Start
@@ -278,7 +278,7 @@ curl "http://localhost:8081/api/oauth/status" \
 curl http://localhost:8081/health
 ```
 
-Expected response: `{"status":"healthy","version":"0.1.0"}`
+Expected response: `{"status":"healthy","version":"0.2.0"}`
 
 **2. Check configuration file syntax:**
 
@@ -304,7 +304,7 @@ Get-Content "$env:APPDATA\Claude\claude_desktop_config.json" | ConvertFrom-Json
 **Node.js version too old:**
 
 ```bash
-node --version  # Should be 18.0.0 or higher
+node --version  # Should be 24.0.0 or higher
 ```
 
 Update Node.js if needed: https://nodejs.org/
@@ -574,9 +574,9 @@ Once you have Pierre MCP Client connected:
 ## Version Information
 
 - **Package**: `pierre-mcp-client`
-- **Current Version**: 0.1.0
+- **Current Version**: 0.2.0
 - **NPM Tag**: `next` (pre-release)
-- **Minimum Node.js**: 18.0.0
+- **Minimum Node.js**: 24.0.0
 - **License**: MIT
 
 Once Pierre reaches v1.0.0, the package will be available on the `latest` tag:

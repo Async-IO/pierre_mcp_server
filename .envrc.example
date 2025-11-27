@@ -32,7 +32,7 @@ export PIERRE_STRAVA_CLIENT_SECRET=your-strava-client-secret
 # Legacy Variables (backward compatible - will be used if PIERRE_* vars not set)
 export STRAVA_CLIENT_ID=your-strava-client-id
 export STRAVA_CLIENT_SECRET=your-strava-client-secret
-export STRAVA_REDIRECT_URI=http://localhost:8080/api/oauth/callback/strava
+export STRAVA_REDIRECT_URI=http://localhost:8081/api/oauth/callback/strava
 
 # ----------------------------------------------------------------------------
 # Garmin Connect Provider Configuration
@@ -54,7 +54,7 @@ export PIERRE_GARMIN_CLIENT_SECRET=your-garmin-consumer-secret
 # Legacy Variables (backward compatible - will be used if PIERRE_* vars not set)
 export GARMIN_CLIENT_ID=your-garmin-consumer-key
 export GARMIN_CLIENT_SECRET=your-garmin-consumer-secret
-export GARMIN_REDIRECT_URI=http://localhost:8080/api/oauth/callback/garmin
+export GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin
 
 # ----------------------------------------------------------------------------
 # Synthetic Provider Configuration
@@ -71,7 +71,7 @@ export OAUTH_CALLBACK_PORT=35535
 export OPENWEATHER_API_KEY="your-openweathermap-api-key"
 
 # Server Configuration - Unified Single Port Architecture
-export HTTP_PORT="8080"
+export HTTP_PORT="8081"
 export RUST_LOG="info"
 
 # Database Configuration

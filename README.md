@@ -445,7 +445,7 @@ Streamable http connections use oauth 2.0 authorization code flow:
 
 ## Available MCP Tools
 
-Pierre Fitness Platform provides 36 tools through the MCP protocol. Tool definitions are in `src/protocols/universal/tool_registry.rs` (ToolId enum).
+Pierre Fitness Platform provides 46 tools through the MCP protocol. Tool definitions are in `src/protocols/universal/tool_registry.rs` (ToolId enum).
 
 ### Core Fitness Data
 

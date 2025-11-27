@@ -53,7 +53,7 @@ No manual token management required!
 
 ## Available Tools
 
-Once connected, your AI assistant can access 36 fitness tools including:
+Once connected, your AI assistant can access 46 fitness tools including:
 - Activity retrieval and analysis
 - Goal setting and progress tracking
 - Performance trend analysis
@@ -64,7 +64,7 @@ Ask your AI assistant: *"What fitness tools do you have access to?"*
 
 ## Requirements
 
-- **Node.js**: 18.0.0 or higher
+- **Node.js**: 24.0.0 or higher
 - **Pierre MCP Server**: Running on port 8081 (or custom port)
 
 ## Configuration Options
