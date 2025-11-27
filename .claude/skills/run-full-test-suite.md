@@ -1,3 +1,8 @@
+---
+name: run-full-test-suite
+description: Executes comprehensive test suite across unit, integration, E2E, database, protocols, and intelligence algorithms
+---
+
 # Run Full Test Suite Skill
 
 ## Purpose

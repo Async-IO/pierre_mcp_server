@@ -1,3 +1,8 @@
+---
+name: check-error-handling
+description: Validates error handling follows AppResult/AppError pattern, detects anyhow regression, ensures ErrorCode usage
+---
+
 # Check Error Handling Skill
 
 ## Purpose
