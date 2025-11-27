@@ -19,19 +19,16 @@ echo -e "Project root: ${PROJECT_ROOT}"
 
 cd "$PROJECT_ROOT"
 
-# Load .envrc - check local first, then parent repo (for worktrees)
+# Load .envrc
 ENVRC_PATH="$PROJECT_ROOT/.envrc"
-if [ ! -f "$ENVRC_PATH" ]; then
-    ENVRC_PATH="/Users/jeanfrancoisarcand/workspace/strava_ai/pierre_mcp_server/.envrc"
-fi
-
 if [ -f "$ENVRC_PATH" ]; then
     echo -e "${GREEN}Loading environment from: ${ENVRC_PATH}${NC}"
     set -a
     source "$ENVRC_PATH"
     set +a
 else
-    echo -e "${RED}ERROR: No .envrc found${NC}"
+    echo -e "${RED}ERROR: .envrc not found at ${ENVRC_PATH}${NC}"
+    echo -e "${RED}Please create .envrc with required environment variables${NC}"
     exit 1
 fi
 
