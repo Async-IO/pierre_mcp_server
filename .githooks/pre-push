@@ -10,6 +10,24 @@ set -e
 # Get the project root (git hooks run from repo root)
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 
+# Check if this is a delete operation (no validation needed)
+# Pre-push hook receives: <local ref> <local sha1> <remote ref> <remote sha1>
+# For deletes, local sha1 is all zeros
+ZERO_SHA="0000000000000000000000000000000000000000"
+IS_DELETE=true
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    if [ "$local_sha" != "$ZERO_SHA" ]; then
+        IS_DELETE=false
+        break
+    fi
+done
+
+if [ "$IS_DELETE" = true ]; then
+    echo "🗑️  Branch delete operation - skipping validation"
+    exit 0
+fi
+
 echo ""
 echo "🔍 Running pre-push validation..."
 echo ""
