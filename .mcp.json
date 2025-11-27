@@ -18,6 +18,10 @@
         "STRAVA_CLIENT_SECRET": "${STRAVA_CLIENT_SECRET}",
         "STRAVA_REDIRECT_URI": "http://localhost:8081/api/oauth/callback/strava"
       }
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/"
     }
   }
 }
