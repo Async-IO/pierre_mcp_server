@@ -1,6 +1,6 @@
 # chapter 10: MCP protocol deep dive - request flow
 
-This chapter explores how the Pierre Fitness Platform processes Model Context Protocol (MCP) requests from start to finish. You'll learn about request validation, method routing, authentication extraction, tool dispatch, and response serialization.
+This chapter explores how the Pierre Fitness Intelligence processes Model Context Protocol (MCP) requests from start to finish. You'll learn about request validation, method routing, authentication extraction, tool dispatch, and response serialization.
 
 ## what you'll learn
 

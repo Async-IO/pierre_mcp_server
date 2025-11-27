@@ -107,7 +107,7 @@ Quick reference mapping natural language prompts to Pierre MCP tools.
 
 **End of Tutorial**
 
-You've completed the comprehensive Pierre Fitness Platform tutorial! You now understand:
+You've completed the comprehensive Pierre Fitness Intelligence tutorial! You now understand:
 - **Part I**: Foundation (architecture, errors, config, DI)
 - **Part II**: Authentication & Security (cryptography, JWT, multi-tenancy, middleware)
 - **Part III**: MCP Protocol (JSON-RPC, request flow, transports, tool registry)

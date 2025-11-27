@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Pierre Fitness Platform will be documented in this file.
+All notable changes to Pierre Fitness Intelligence will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 And this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -90,7 +90,7 @@ And this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Rate limiting** with DashMap replacing Mutex for concurrent access
 
 ### Changed
-- **Project Rebranding**: "Pierre MCP Server" → "Pierre Fitness Platform"
+- **Project Rebranding**: "Pierre MCP Server" → "Pierre Fitness Intelligence"
   - Updated all documentation to reflect new branding
   - Name better represents the multi-protocol nature (MCP, A2A, OAuth2, REST)
   - "Platform" emphasizes extensibility and comprehensive fitness data infrastructure

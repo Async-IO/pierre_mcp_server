@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="templates/pierre-logo.svg" width="150" height="150" alt="Pierre Fitness Platform Logo">
-  <h1>Pierre Fitness Platform</h1>
+  <img src="templates/pierre-logo.svg" width="150" height="150" alt="Pierre Fitness Intelligence Logo">
+  <h1>Pierre Fitness Intelligence</h1>
 </div>
 
 [![Backend CI](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml)
@@ -11,7 +11,7 @@
 
 **Development Status**: This project is under active development. APIs and features may change.
 
-Pierre Fitness Platform connects AI assistants to fitness data from Strava, Garmin, and Fitbit. The platform implements the Model Context Protocol (MCP), A2A protocol, OAuth 2.0, and REST APIs for integration with Claude, ChatGPT, and other AI assistants.
+Pierre Fitness Intelligence connects AI assistants to fitness data from Strava, Garmin, and Fitbit. The platform implements the Model Context Protocol (MCP), A2A protocol, OAuth 2.0, and REST APIs for integration with Claude, ChatGPT, and other AI assistants.
 
 ### Intelligence System
 
@@ -65,7 +65,7 @@ See [Chapter 17.5: Pluggable Provider Architecture](docs/tutorial/chapter-17.5-p
 
 ## Architecture
 
-Pierre Fitness Platform runs as a single HTTP server on port 8081 (configurable). All protocols (MCP, OAuth 2.0, REST API) share the same port.
+Pierre Fitness Intelligence runs as a single HTTP server on port 8081 (configurable). All protocols (MCP, OAuth 2.0, REST API) share the same port.
 
 ### mcp transport modes
 
@@ -135,7 +135,7 @@ cargo build --release
 
 #### Using `.envrc` (Recommended)
 
-Pierre Fitness Platform includes a `.envrc` file for environment configuration. Use [direnv](https://direnv.net/) to automatically load environment variables:
+Pierre Fitness Intelligence includes a `.envrc` file for environment configuration. Use [direnv](https://direnv.net/) to automatically load environment variables:
 
 ```bash
 # Install direnv (macOS)
@@ -327,7 +327,7 @@ The script creates:
 
 ## MCP Client Integration
 
-Pierre Fitness Platform includes an SDK bridge for direct integration with MCP clients that only support stdin/out. The SDK handles OAuth 2.0 authentication automatically.
+Pierre Fitness Intelligence includes an SDK bridge for direct integration with MCP clients that only support stdin/out. The SDK handles OAuth 2.0 authentication automatically.
 
 ### SDK Installation
 
@@ -413,7 +413,7 @@ Replace `/absolute/path/to/` with your actual path for local installations.
 
 When the MCP client starts, the SDK will:
 
-1. Register an OAuth 2.0 client with Pierre Fitness Platform (RFC 7591)
+1. Register an OAuth 2.0 client with Pierre Fitness Intelligence (RFC 7591)
 2. Open your browser for authentication
 3. Handle the OAuth callback and token exchange
 4. Use JWT tokens for all MCP requests
@@ -445,7 +445,7 @@ Streamable http connections use oauth 2.0 authorization code flow:
 
 ## Available MCP Tools
 
-Pierre Fitness Platform provides 46 tools through the MCP protocol. Tool definitions are in `src/protocols/universal/tool_registry.rs` (ToolId enum).
+Pierre Fitness Intelligence provides 46 tools through the MCP protocol. Tool definitions are in `src/protocols/universal/tool_registry.rs` (ToolId enum).
 
 ### Core Fitness Data
 
@@ -506,7 +506,7 @@ Tool descriptions from `src/protocols/universal/tool_registry.rs` (ToolId enum d
 
 ## A2A (Agent-to-Agent) Protocol
 
-Pierre Fitness Platform supports agent-to-agent communication for autonomous AI systems. Implementation in `src/a2a/`.
+Pierre Fitness Intelligence supports agent-to-agent communication for autonomous AI systems. Implementation in `src/a2a/`.
 
 **A2A Features**:
 - Agent Cards for capability discovery (`src/a2a/agent_card.rs`)
@@ -546,7 +546,7 @@ async fn main() -> Result<()> {
 
 ## Testing
 
-Pierre Fitness Platform includes test coverage using synthetic data for intelligence tools.
+Pierre Fitness Intelligence includes test coverage using synthetic data for intelligence tools.
 
 ```bash
 # Run all tests
@@ -618,7 +618,7 @@ See `tests/intelligence_tools_basic_test.rs` and `tests/intelligence_tools_advan
 
 ### RSA Key Size Configuration
 
-Pierre Fitness Platform uses RS256 asymmetric signing for JWT tokens. Key size affects both security and performance:
+Pierre Fitness Intelligence uses RS256 asymmetric signing for JWT tokens. Key size affects both security and performance:
 
 **Production (4096-bit keys - default)**:
 - Higher security with larger key size
@@ -636,7 +636,7 @@ export PIERRE_RSA_KEY_SIZE=2048
 
 ### Test Performance Optimization
 
-Pierre Fitness Platform includes a shared test JWKS manager to eliminate RSA key generation overhead:
+Pierre Fitness Intelligence includes a shared test JWKS manager to eliminate RSA key generation overhead:
 
 **Shared Test JWKS Pattern** (implemented in `tests/common.rs:40-52`):
 ```rust
@@ -709,7 +709,7 @@ Installation guide for MCP clients:
 
 ## Code Quality
 
-Pierre Fitness Platform uses validation scripts to maintain code quality and prevent common issues. See [Scripts Documentation](scripts/README.md) for the complete script inventory.
+Pierre Fitness Intelligence uses validation scripts to maintain code quality and prevent common issues. See [Scripts Documentation](scripts/README.md) for the complete script inventory.
 
 **Pre-commit Validation**:
 - Pattern validation via `scripts/validation-patterns.toml`

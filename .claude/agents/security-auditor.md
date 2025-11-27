@@ -1,7 +1,7 @@
 # Security & Multi-Tenancy Auditor Agent
 
 ## Overview
-Comprehensive security audit agent ensuring tenant isolation, cryptographic best practices, and OWASP compliance across the Pierre Fitness Platform codebase.
+Comprehensive security audit agent ensuring tenant isolation, cryptographic best practices, and OWASP compliance across the Pierre Fitness Intelligence codebase.
 
 ## Coding Directives (CLAUDE.md)
 
@@ -234,7 +234,7 @@ cargo test api_key -- --quiet
 After completing all audits, generate a markdown report:
 
 ```markdown
-# Security Audit Report - Pierre Fitness Platform
+# Security Audit Report - Pierre Fitness Intelligence
 
 **Date:** {current_date}
 **Auditor:** Claude Code Security Agent

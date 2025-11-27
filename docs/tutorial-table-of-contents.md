@@ -1,4 +1,4 @@
-# Pierre Fitness Platform - Comprehensive Rust Tutorial
+# Pierre Fitness Intelligence - Comprehensive Rust Tutorial
 
 > **Target Audience**: Junior Rust developers with 6-12 months experience
 >
