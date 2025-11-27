@@ -682,20 +682,53 @@ echo "JWT Token: ${JWT_TOKEN:0:50}..."
 
 ### Management Dashboard
 
-A web dashboard is available for monitoring:
+A React + Vite web dashboard is available for monitoring and administration.
+
+#### Quick Start
+
+```bash
+# Start backend server (terminal 1)
+./bin/start-server.sh
+
+# Start frontend dev server (terminal 2)
+./bin/start-frontend.sh
+```
+
+The frontend script loads `.envrc` for `VITE_BACKEND_URL` configuration (defaults to `http://localhost:8081`).
+
+#### Manual Setup
 
 ```bash
 cd frontend
-npm install && npm run dev
+npm install
+npm run dev
 ```
+
+#### Environment Configuration
+
+Add to `.envrc` for custom backend URL:
+```bash
+export VITE_BACKEND_URL="http://localhost:8081"
+```
+
+#### Frontend Features
 
 Access at `http://localhost:5173` for:
 - User management and approval
 - API key monitoring
 - Usage analytics
 - Real-time request monitoring
+- OAuth connection status
 
-See `frontend/README.md` for details.
+#### Available Scripts
+
+| Script | Location | Description |
+|--------|----------|-------------|
+| `./bin/start-server.sh` | Project root | Start backend on port 8081 |
+| `./bin/stop-server.sh` | Project root | Stop backend server |
+| `./bin/start-frontend.sh` | Project root | Start Vite dev server |
+
+See `frontend/README.md` for detailed frontend documentation.
 
 ## Documentation
 
