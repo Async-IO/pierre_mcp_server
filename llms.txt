@@ -856,6 +856,25 @@ source .workflow_test_env
 echo "JWT Token: ${JWT_TOKEN:0:50}..."
 ```
 
+### server management scripts
+```bash
+# start server (loads .envrc, runs in background, health check)
+./bin/start-server.sh
+
+# stop server (graceful shutdown with force-kill fallback)
+./bin/stop-server.sh
+
+# check health
+curl http://localhost:8081/health
+```
+
+### oauth token lifecycle
+- strava tokens expire after 6 hours
+- server automatically refreshes expired tokens using stored refresh_token
+- refresh is transparent to tool execution (no user action needed)
+- if refresh fails, user must re-authenticate via oauth flow
+- implementation: `src/protocols/universal/auth_service.rs`
+
 ### admin cli tool
 ```bash
 # create admin user

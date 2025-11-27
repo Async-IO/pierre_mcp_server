@@ -1,13 +1,9 @@
 {
   "mcpServers": {
     "pierre": {
-      "command": "cargo",
-      "args": [
-        "run",
-        "--bin",
-        "pierre-mcp-server",
-        "--quiet"
-      ]
+      "command": "node",
+      "args": ["/Users/jeanfrancoisarcand/workspace/strava_ai/pierre_mcp_server/sdk/dist/cli.js"],
+      "env": {}
     },
     "github": {
       "command": "npx",

@@ -67,77 +67,142 @@ impl AuthService {
         provider: &str,
         tenant_id: Option<&str>,
     ) -> Result<Option<TokenData>, OAuthError> {
-        // If we have tenant context, use tenant-specific OAuth credentials
+        // If we have tenant context, initialize tenant-specific OAuth credentials
         if let Some(tenant_id_str) = tenant_id {
-            // Convert string tenant ID to UUID and look up full tenant context
-            if let Ok(tenant_uuid) = Uuid::parse_str(tenant_id_str) {
-                // Look up tenant information from database to create proper TenantContext
-                if let Ok(tenant) = (*self.resources.database)
-                    .get_tenant_by_id(tenant_uuid)
-                    .await
-                {
-                    let tenant_context = crate::tenant::TenantContext {
-                        tenant_id: tenant_uuid,
-                        tenant_name: tenant.name.clone(), // Safe: String ownership needed for tenant context
-                        user_id,
-                        user_role: crate::tenant::TenantRole::Member,
-                    };
+            self.initialize_tenant_oauth_context(user_id, tenant_id_str, provider)
+                .await;
+        }
 
-                    // Get tenant-specific OAuth credentials using proper TenantContext
-                    match self
-                        .resources
-                        .tenant_oauth_client
-                        .get_oauth_client(&tenant_context, provider, &self.resources.database)
-                        .await
-                    {
-                        Ok(_oauth_client) => {
-                            // Tenant-specific OAuth client found
-                            // Continue to database lookup below which will find the token
-                        }
-                        Err(_e) => {
-                            // No tenant-specific client, will use global config
-                        }
-                    }
-                }
+        // Look up token from database with tenant context
+        let Some(tenant_id_str) = tenant_id else {
+            return Ok(None);
+        };
+
+        // Direct database lookup with tenant_id
+        let Ok(Some(oauth_token)) = (*self.resources.database)
+            .get_user_oauth_token(user_id, tenant_id_str, provider)
+            .await
+        else {
+            return Ok(None);
+        };
+
+        // Process the token - validate expiration and refresh if needed
+        self.process_oauth_token(user_id, tenant_id_str, provider, oauth_token)
+            .await
+    }
+
+    /// Initialize tenant-specific OAuth context if available
+    async fn initialize_tenant_oauth_context(
+        &self,
+        user_id: Uuid,
+        tenant_id_str: &str,
+        provider: &str,
+    ) {
+        let Ok(tenant_uuid) = Uuid::parse_str(tenant_id_str) else {
+            return;
+        };
+
+        let Ok(tenant) = (*self.resources.database)
+            .get_tenant_by_id(tenant_uuid)
+            .await
+        else {
+            return;
+        };
+
+        let tenant_context = crate::tenant::TenantContext {
+            tenant_id: tenant_uuid,
+            tenant_name: tenant.name.clone(), // Safe: String ownership needed for tenant context
+            user_id,
+            user_role: crate::tenant::TenantRole::Member,
+        };
+
+        // Get tenant-specific OAuth credentials - result is unused but initializes context
+        let _ = self
+            .resources
+            .tenant_oauth_client
+            .get_oauth_client(&tenant_context, provider, &self.resources.database)
+            .await;
+    }
+
+    /// Process OAuth token - validate expiration and refresh if needed
+    async fn process_oauth_token(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+        oauth_token: crate::models::UserOAuthToken,
+    ) -> Result<Option<TokenData>, OAuthError> {
+        // Check if token is expired (with 5-minute buffer)
+        if let Some(expires_at) = oauth_token.expires_at {
+            if Self::is_token_expired(expires_at) {
+                return self
+                    .handle_expired_token(user_id, tenant_id, provider, &oauth_token)
+                    .await;
             }
         }
 
-        // Use pre-registered global config
-        // If tenant_id was provided, look up token directly from database with tenant context
-        if let Some(tenant_id_str) = tenant_id {
-            // Direct database lookup with tenant_id
-            match (*self.resources.database)
-                .get_user_oauth_token(user_id, tenant_id_str, provider)
-                .await
-            {
-                Ok(Some(oauth_token)) => {
-                    // Check if token is expired (with 5-minute buffer)
-                    if let Some(expires_at) = oauth_token.expires_at {
-                        let now = chrono::Utc::now();
-                        if expires_at <= now + chrono::Duration::minutes(5) {
-                            // Token is expired or expiring soon - return None to force re-authentication
-                            return Ok(None);
-                        }
-                    }
+        // Token is valid, return it
+        Ok(Some(TokenData {
+            provider: provider.to_owned(),
+            access_token: oauth_token.access_token,
+            refresh_token: oauth_token.refresh_token.unwrap_or_default(),
+            expires_at: oauth_token.expires_at.unwrap_or_else(chrono::Utc::now),
+            scopes: oauth_token.scope.unwrap_or_default(),
+        }))
+    }
 
-                    let token_data = TokenData {
-                        provider: provider.to_owned(),
-                        access_token: oauth_token.access_token,
-                        refresh_token: oauth_token.refresh_token.unwrap_or_default(),
-                        expires_at: oauth_token.expires_at.unwrap_or_else(chrono::Utc::now),
-                        scopes: oauth_token.scope.unwrap_or_default(),
-                    };
-                    return Ok(Some(token_data));
-                }
-                Ok(None) => return Ok(None),
-                Err(_) => {
-                    // Continue to global manager as fallback
-                }
-            }
+    /// Check if token is expired or expiring within 5 minutes
+    fn is_token_expired(expires_at: DateTime<Utc>) -> bool {
+        let now = chrono::Utc::now();
+        expires_at <= now + chrono::Duration::minutes(5)
+    }
+
+    /// Handle expired token by attempting refresh
+    async fn handle_expired_token(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+        oauth_token: &crate::models::UserOAuthToken,
+    ) -> Result<Option<TokenData>, OAuthError> {
+        // Check if we have a valid refresh token
+        let Some(ref refresh_token) = oauth_token.refresh_token else {
+            return Ok(None);
+        };
+
+        if refresh_token.is_empty() {
+            return Ok(None);
         }
 
-        // If no token found in database, return None
-        Ok(None)
+        tracing::info!(
+            "Token expired for user {} provider {}, attempting refresh",
+            user_id,
+            provider
+        );
+
+        // Attempt to refresh the token
+        match self
+            .refresh_provider_token(user_id, tenant_id, provider, refresh_token)
+            .await
+        {
+            Ok(refreshed_token) => {
+                tracing::info!(
+                    "Token refreshed successfully for user {} provider {}",
+                    user_id,
+                    provider
+                );
+                Ok(Some(refreshed_token))
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Token refresh failed for user {} provider {}: {}",
+                    user_id,
+                    provider,
+                    e
+                );
+                Ok(None)
+            }
+        }
     }
 
     /// Create authenticated provider with proper tenant-aware credentials
@@ -323,6 +388,82 @@ impl AuthService {
                 })?;
 
         Ok((client_id.clone(), client_secret.clone()))
+    }
+
+    /// Refresh an expired OAuth token for a provider
+    ///
+    /// Calls the provider's token refresh endpoint and stores the new token in the database.
+    ///
+    /// # Errors
+    /// Returns `OAuthError` if token refresh or database operations fail
+    async fn refresh_provider_token(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+        refresh_token: &str,
+    ) -> Result<TokenData, OAuthError> {
+        // Get OAuth credentials for the provider
+        let (client_id, client_secret) = Self::get_default_oauth_credentials(provider)
+            .map_err(|e| OAuthError::TokenRefreshFailed(e.error.unwrap_or_default()))?;
+
+        // Call provider-specific token refresh
+        let new_token = match provider.to_lowercase().as_str() {
+            "strava" => {
+                let http_client = crate::utils::http_client::api_client();
+                crate::oauth2_client::client::strava::refresh_strava_token(
+                    &http_client,
+                    &client_id,
+                    &client_secret,
+                    refresh_token,
+                )
+                .await
+                .map_err(|e| OAuthError::TokenRefreshFailed(e.to_string()))?
+            }
+            "fitbit" => {
+                let http_client = crate::utils::http_client::api_client();
+                crate::oauth2_client::client::fitbit::refresh_fitbit_token(
+                    &http_client,
+                    &client_id,
+                    &client_secret,
+                    refresh_token,
+                )
+                .await
+                .map_err(|e| OAuthError::TokenRefreshFailed(e.to_string()))?
+            }
+            other => {
+                return Err(OAuthError::TokenRefreshFailed(format!(
+                    "Token refresh not supported for provider: {other}"
+                )));
+            }
+        };
+
+        // Prepare token data for database update
+        let new_access_token = new_token.access_token.clone();
+        let new_refresh_token = new_token.refresh_token.clone();
+        let new_expires_at = new_token.expires_at;
+
+        // Update the token in the database
+        (*self.resources.database)
+            .refresh_user_oauth_token(
+                user_id,
+                tenant_id,
+                provider,
+                &new_access_token,
+                new_refresh_token.as_deref(),
+                new_expires_at,
+            )
+            .await
+            .map_err(|e| OAuthError::DatabaseError(e.to_string()))?;
+
+        // Return the refreshed token data
+        Ok(TokenData {
+            provider: provider.to_owned(),
+            access_token: new_access_token,
+            refresh_token: new_refresh_token.unwrap_or_default(),
+            expires_at: new_expires_at.unwrap_or_else(chrono::Utc::now),
+            scopes: new_token.scope.unwrap_or_default(),
+        })
     }
 
     /// Check if user has valid authentication for a provider

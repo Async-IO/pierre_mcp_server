@@ -20,6 +20,7 @@ use pierre_mcp_server::{
     config::environment::ServerConfig,
     database_plugins::factory::Database,
     database_plugins::DatabaseProvider,
+    errors::AppError,
     logging,
     mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
 };
@@ -64,6 +65,9 @@ fn parse_args_or_default() -> Args {
 
 /// Setup server configuration from environment and arguments
 fn setup_configuration(args: &Args) -> Result<ServerConfig> {
+    // Validate required environment variables before loading config
+    validate_required_environment()?;
+
     let mut config = ServerConfig::from_env()?;
 
     if let Some(http_port) = args.http_port {
@@ -77,6 +81,105 @@ fn setup_configuration(args: &Args) -> Result<ServerConfig> {
     validate_oauth_providers(&config);
 
     Ok(config)
+}
+
+/// Environment variable validation result
+struct EnvValidation {
+    name: &'static str,
+    value: Option<String>,
+    required: bool,
+    description: &'static str,
+}
+
+/// Validate required environment variables at startup
+///
+/// Fails fast with clear error messages if critical variables are missing.
+/// This prevents cryptic errors later in the startup process.
+fn validate_required_environment() -> Result<()> {
+    let validations = vec![
+        EnvValidation {
+            name: "DATABASE_URL",
+            value: std::env::var("DATABASE_URL").ok(),
+            required: true,
+            description: "Database connection string (e.g., sqlite:./data/users.db)",
+        },
+        EnvValidation {
+            name: "PIERRE_MASTER_ENCRYPTION_KEY",
+            value: std::env::var("PIERRE_MASTER_ENCRYPTION_KEY").ok(),
+            required: false, // Warning only - server generates temp key for dev
+            description:
+                "Base64-encoded 32-byte master encryption key (generate: openssl rand -base64 32)",
+        },
+        EnvValidation {
+            name: "STRAVA_CLIENT_ID",
+            value: std::env::var("STRAVA_CLIENT_ID").ok(),
+            required: false,
+            description: "Strava OAuth application client ID",
+        },
+        EnvValidation {
+            name: "STRAVA_CLIENT_SECRET",
+            value: std::env::var("STRAVA_CLIENT_SECRET").ok(),
+            required: false,
+            description: "Strava OAuth application client secret",
+        },
+    ];
+
+    let mut missing_required = Vec::new();
+    let mut missing_optional = Vec::new();
+
+    for validation in &validations {
+        if validation.value.is_none() {
+            if validation.required {
+                missing_required.push(validation);
+            } else {
+                missing_optional.push(validation);
+            }
+        }
+    }
+
+    // Print warnings for missing optional variables
+    for validation in &missing_optional {
+        eprintln!(
+            "WARNING: {} not set - {}",
+            validation.name, validation.description
+        );
+    }
+
+    // Special handling for MEK - explain consequences
+    if std::env::var("PIERRE_MASTER_ENCRYPTION_KEY").is_err() {
+        eprintln!();
+        eprintln!("IMPORTANT: PIERRE_MASTER_ENCRYPTION_KEY is not set!");
+        eprintln!("A temporary key will be generated, but:");
+        eprintln!("  - OAuth tokens will become unreadable after server restart");
+        eprintln!("  - Users will need to re-authenticate with providers");
+        eprintln!();
+        eprintln!("To fix: Add to .envrc: export PIERRE_MASTER_ENCRYPTION_KEY=\"$(openssl rand -base64 32)\"");
+        eprintln!();
+    }
+
+    // Fail fast if required variables are missing
+    if !missing_required.is_empty() {
+        eprintln!();
+        eprintln!("ERROR: Required environment variables are missing!");
+        eprintln!();
+        for validation in &missing_required {
+            eprintln!("  {} - {}", validation.name, validation.description);
+        }
+        eprintln!();
+        eprintln!("Have you sourced your .envrc? Run: source .envrc");
+        eprintln!();
+        let missing_names = missing_required
+            .iter()
+            .map(|v| v.name)
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(AppError::config(format!(
+            "Missing required environment variables: {missing_names}"
+        ))
+        .into());
+    }
+
+    Ok(())
 }
 
 /// Validate OAuth provider credentials at startup

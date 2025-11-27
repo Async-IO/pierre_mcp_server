@@ -1,8 +1,8 @@
 // esbuild configuration for bundling the SDK with Node 24 target
 // This bundles all TypeScript and resolves ESM/CJS module issues
 import * as esbuild from 'esbuild';
-import { readFileSync } from 'fs';
-import { resolve, dirname } from 'path';
+import { readFileSync, mkdirSync, copyFileSync, existsSync } from 'fs';
+import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -22,6 +22,23 @@ const commonOptions = {
 };
 
 console.log('🔨 Building SDK with esbuild (Node 24 target)...\n');
+
+// Copy OAuth templates from project root to dist/templates/
+const templatesDir = join(__dirname, 'dist', 'templates');
+const sourceTemplatesDir = join(__dirname, '..', 'templates');
+mkdirSync(templatesDir, { recursive: true });
+
+const templateFiles = ['oauth_success.html', 'oauth_error.html'];
+for (const file of templateFiles) {
+  const src = join(sourceTemplatesDir, file);
+  const dest = join(templatesDir, file);
+  if (existsSync(src)) {
+    copyFileSync(src, dest);
+    console.log(`📋 Copied ${file} to dist/templates/`);
+  } else {
+    console.warn(`⚠️  Template not found: ${src}`);
+  }
+}
 
 // Build CLI entry point (shebang already in source file)
 await esbuild.build({

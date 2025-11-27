@@ -25,8 +25,39 @@
 //!   *International Journal of Sports Physiology and Performance*, 8(5), 512-519.
 
 use crate::errors::AppError;
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
+use serde::{Deserialize, Deserializer, Serialize};
+
+/// Custom deserializer for flexible date parsing
+/// Accepts both full ISO 8601 datetime ("2025-11-26T00:00:00Z") and simple date ("2025-11-26")
+fn deserialize_flexible_datetime<'de, D>(deserializer: D) -> Result<DateTime<Utc>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+
+    // Try full ISO 8601 datetime first
+    if let Ok(dt) = DateTime::parse_from_rfc3339(&s) {
+        return Ok(dt.with_timezone(&Utc));
+    }
+
+    // Try ISO 8601 without timezone (assume UTC)
+    if let Ok(dt) = NaiveDateTime::parse_from_str(&s, "%Y-%m-%dT%H:%M:%S") {
+        return Ok(Utc.from_utc_datetime(&dt));
+    }
+
+    // Try simple date format (YYYY-MM-DD), convert to midnight UTC
+    if let Ok(date) = NaiveDate::parse_from_str(&s, "%Y-%m-%d") {
+        let datetime = date
+            .and_hms_opt(0, 0, 0)
+            .ok_or_else(|| serde::de::Error::custom("Invalid date"))?;
+        return Ok(Utc.from_utc_datetime(&datetime));
+    }
+
+    Err(serde::de::Error::custom(format!(
+        "Invalid date format: '{s}'. Expected 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:MM:SSZ'"
+    )))
+}
 
 /// Sleep quality score result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,6 +102,8 @@ pub enum SleepQualityCategory {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SleepData {
     /// Date of sleep session
+    /// Accepts both "YYYY-MM-DD" and full ISO 8601 "YYYY-MM-DDTHH:MM:SSZ" formats
+    #[serde(deserialize_with = "deserialize_flexible_datetime")]
     pub date: DateTime<Utc>,
 
     /// Total sleep duration (hours)

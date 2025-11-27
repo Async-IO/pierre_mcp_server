@@ -72,16 +72,18 @@ impl Default for UsdaClientConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FoodSearchResult {
     /// `FoodData` Central ID
+    #[serde(rename = "fdcId")]
     pub fdc_id: u64,
     /// Food description
     pub description: String,
     /// Data type (e.g., "Survey (FNDDS)", "Foundation", "SR Legacy")
+    #[serde(rename = "dataType")]
     pub data_type: String,
     /// Publication date
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "publishedDate", skip_serializing_if = "Option::is_none")]
     pub publication_date: Option<String>,
     /// Brand owner (for branded foods)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "brandOwner", skip_serializing_if = "Option::is_none")]
     pub brand_owner: Option<String>,
 }
 

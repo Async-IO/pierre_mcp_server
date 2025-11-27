@@ -37,14 +37,14 @@ import {
 import { z } from "zod";
 import { createSecureStorage, SecureTokenStorage } from "./secure-storage.js";
 
-// Load OAuth HTML templates from shared templates/ directory
-// __dirname is available in CommonJS, TypeScript will compile this correctly
+// Load OAuth HTML templates from dist/templates/ (copied during build)
+// Templates are self-contained in the SDK bundle for portability
 const OAUTH_SUCCESS_TEMPLATE = readFileSync(
-  join(__dirname, "../../templates/oauth_success.html"),
+  join(__dirname, "templates/oauth_success.html"),
   "utf-8",
 );
 const OAUTH_ERROR_TEMPLATE = readFileSync(
-  join(__dirname, "../../templates/oauth_error.html"),
+  join(__dirname, "templates/oauth_error.html"),
   "utf-8",
 );
 

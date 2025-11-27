@@ -14,6 +14,48 @@
 
 ### Starting a new project
 
+## Development Quick Start
+
+### Server Management Scripts
+Use these shell scripts to manage the Pierre MCP Server:
+
+```bash
+# Start the server (loads .envrc, runs in background, shows health check)
+./bin/start-server.sh
+
+# Stop the server (graceful shutdown with fallback to force kill)
+./bin/stop-server.sh
+
+# Check server health
+curl http://localhost:8081/health
+```
+
+### Admin User and Token Management
+The `admin-setup` binary manages admin users and API tokens:
+
+```bash
+# Create admin user for frontend login
+RUST_LOG=info cargo run --bin admin-setup -- create-admin-user --email admin@example.com --password SecurePassword123
+
+# Generate API token for a service
+RUST_LOG=info cargo run --bin admin-setup -- generate-token --service my_service --expires-days 30
+
+# Generate super admin token (no expiry, all permissions)
+RUST_LOG=info cargo run --bin admin-setup -- generate-token --service admin_console --super-admin
+
+# List all admin tokens
+RUST_LOG=warn cargo run --bin admin-setup -- list-tokens --detailed
+
+# Revoke a token
+cargo run --bin admin-setup -- revoke-token <token_id>
+```
+
+### OAuth Token Lifecycle
+- Strava tokens expire after 6 hours
+- The server automatically refreshes expired tokens using stored refresh_token
+- Token refresh is transparent to tool execution
+- If refresh fails, user must re-authenticate via OAuth flow
+
 # Writing code
 
 - CRITICAL: NEVER USE --no-verify WHEN COMMITTING CODE

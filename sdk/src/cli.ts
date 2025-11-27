@@ -31,7 +31,7 @@ program
   .name('pierre-mcp-client')
   .description('MCP client connecting to Pierre Fitness MCP Server')
   .version('1.0.0')
-  .option('-s, --server <url>', 'Pierre MCP server URL', process.env.PIERRE_SERVER_URL || 'http://localhost:8080')
+  .option('-s, --server <url>', 'Pierre MCP server URL', process.env.PIERRE_SERVER_URL || 'http://localhost:8081')
   .option('-t, --token <jwt>', 'JWT authentication token', process.env.PIERRE_JWT_TOKEN)
   .option('--oauth-client-id <id>', 'OAuth 2.0 client ID', process.env.PIERRE_OAUTH_CLIENT_ID)
   .option('--oauth-client-secret <secret>', 'OAuth 2.0 client secret', process.env.PIERRE_OAUTH_CLIENT_SECRET)
