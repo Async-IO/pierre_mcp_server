@@ -449,141 +449,214 @@ pub fn handle_suggest_rest_day(
                 ))
             })?;
 
-        // Get sleep data
-        let sleep_data_json = request.parameters.get("sleep_data").ok_or_else(|| {
-            ProtocolError::InvalidRequest("sleep_data parameter is required".to_owned())
-        })?;
-
-        let sleep_data: SleepData =
-            serde_json::from_value(sleep_data_json.clone()).map_err(|e| {
-                ProtocolError::InvalidRequest(format!("Invalid sleep_data format: {e}"))
-            })?;
-
         // Get sleep/recovery config
         let config =
             &crate::config::intelligence_config::IntelligenceConfig::global().sleep_recovery;
 
-        let sleep_quality =
-            SleepAnalyzer::calculate_sleep_quality(&sleep_data, config).map_err(|e| {
+        // Sleep data is OPTIONAL - allows recommendation based on training load only
+        let sleep_data_result: Option<SleepData> = request
+            .parameters
+            .get("sleep_data")
+            .and_then(|json| {
+                serde_json::from_value::<SleepData>(json.clone())
+                    .inspect_err(|e| {
+                        tracing::debug!(
+                            error = %e,
+                            "Failed to deserialize sleep_data, will use training-only recommendation"
+                        );
+                    })
+                    .ok()
+            });
+
+        // Branch based on whether sleep data is available
+        if let Some(sleep_data) = sleep_data_result {
+            // Full recommendation path with sleep data
+            let sleep_quality = SleepAnalyzer::calculate_sleep_quality(&sleep_data, config)
+                .map_err(|e| {
+                    ProtocolError::InternalError(format!(
+                        "sleep_analyzer: Sleep quality calculation failed: {e}"
+                    ))
+                })?;
+
+            // HRV analysis
+            let hrv_analysis = if let Some(rmssd) = sleep_data.hrv_rmssd_ms {
+                let recent_hrv = request
+                    .parameters
+                    .get("recent_hrv_values")
+                    .and_then(|v| {
+                        serde_json::from_value::<Vec<f64>>(v.clone())
+                            .inspect_err(|e| {
+                                tracing::debug!(
+                                    error = %e,
+                                    "Failed to deserialize recent_hrv_values, using empty default"
+                                );
+                            })
+                            .ok()
+                    })
+                    .unwrap_or_default();
+
+                let baseline_hrv = request
+                    .parameters
+                    .get("baseline_hrv")
+                    .and_then(serde_json::Value::as_f64);
+
+                Some(
+                    SleepAnalyzer::analyze_hrv_trends(rmssd, &recent_hrv, baseline_hrv, config)
+                        .map_err(|e| {
+                            ProtocolError::InternalError(format!(
+                                "sleep_analyzer: HRV analysis failed: {e}"
+                            ))
+                        })?,
+                )
+            } else {
+                None
+            };
+
+            // Get recovery aggregation algorithm (default to WeightedAverage with config weights)
+            let algorithm = request
+                .parameters
+                .get("algorithm")
+                .and_then(|v| {
+                    serde_json::from_value::<RecoveryAggregationAlgorithm>(v.clone()).ok()
+                })
+                .unwrap_or(RecoveryAggregationAlgorithm::WeightedAverage {
+                    tsb_weight_full: config.recovery_scoring.tsb_weight_full,
+                    sleep_weight_full: config.recovery_scoring.sleep_weight_full,
+                    hrv_weight_full: config.recovery_scoring.hrv_weight_full,
+                    tsb_weight_no_hrv: config.recovery_scoring.tsb_weight_no_hrv,
+                    sleep_weight_no_hrv: config.recovery_scoring.sleep_weight_no_hrv,
+                });
+
+            // Calculate recovery score
+            let recovery_score = RecoveryCalculator::calculate_recovery_score(
+                &training_load,
+                &sleep_quality,
+                hrv_analysis.as_ref(),
+                config,
+                &algorithm,
+            )
+            .map_err(|e| {
                 ProtocolError::InternalError(format!(
-                    "sleep_analyzer: Sleep quality calculation failed: {e}"
+                    "sleep_analyzer: Recovery score calculation failed: {e}"
                 ))
             })?;
 
-        // HRV analysis
-        let hrv_analysis = if let Some(rmssd) = sleep_data.hrv_rmssd_ms {
-            let recent_hrv = request
-                .parameters
-                .get("recent_hrv_values")
-                .and_then(|v| {
-                    serde_json::from_value::<Vec<f64>>(v.clone())
-                        .inspect_err(|e| {
-                            tracing::debug!(
-                                error = %e,
-                                "Failed to deserialize recent_hrv_values, using empty default"
-                            );
-                        })
-                        .ok()
-                })
-                .unwrap_or_default();
+            // Generate rest day recommendation with full data
+            let recommendation = RecoveryCalculator::recommend_rest_day(
+                &recovery_score,
+                &sleep_data,
+                &training_load,
+                config,
+            )
+            .map_err(|e| {
+                ProtocolError::InternalError(format!(
+                    "sleep_analyzer: Rest day recommendation failed: {e}"
+                ))
+            })?;
 
-            let baseline_hrv = request
-                .parameters
-                .get("baseline_hrv")
-                .and_then(serde_json::Value::as_f64);
-
-            Some(
-                SleepAnalyzer::analyze_hrv_trends(rmssd, &recent_hrv, baseline_hrv, config)
+            Ok(UniversalResponse {
+                success: true,
+                result: Some(serde_json::json!({
+                    "recommendation": recommendation,
+                    "recovery_summary": {
+                        "overall_score": recovery_score.overall_score,
+                        "category": recovery_score.recovery_category,
+                        "training_readiness": recovery_score.training_readiness,
+                    },
+                    "key_factors": {
+                        "tsb": training_load.tsb,
+                        "sleep_score": sleep_quality.overall_score,
+                        "sleep_hours": sleep_data.duration_hours,
+                        "hrv_status": hrv_analysis.as_ref().map(|h| &h.recovery_status),
+                    },
+                })),
+                error: None,
+                metadata: Some({
+                    let mut map = HashMap::new();
+                    map.insert(
+                        "recommendation_timestamp".into(),
+                        serde_json::Value::String(Utc::now().to_rfc3339()),
+                    );
+                    map.insert(
+                        "data_source".into(),
+                        serde_json::Value::String("full_recovery_analysis".to_owned()),
+                    );
+                    // Only include confidence if it's a valid f64 value
+                    if let Some(confidence_number) =
+                        serde_json::Number::from_f64(recommendation.confidence)
+                    {
+                        map.insert(
+                            "confidence_percent".into(),
+                            serde_json::Value::Number(confidence_number),
+                        );
+                    } else {
+                        tracing::warn!(
+                            confidence = recommendation.confidence,
+                            "Invalid confidence value (NaN/Infinity), omitting from metadata"
+                        );
+                    }
+                    map
+                }),
+            })
+        } else {
+            // Training-only recommendation path (no sleep data provided)
+            let recommendation =
+                RecoveryCalculator::recommend_rest_day_training_only(&training_load, config)
                     .map_err(|e| {
                         ProtocolError::InternalError(format!(
-                            "sleep_analyzer: HRV analysis failed: {e}"
+                            "sleep_analyzer: Rest day recommendation failed: {e}"
                         ))
-                    })?,
-            )
-        } else {
-            None
-        };
+                    })?;
 
-        // Get recovery aggregation algorithm (default to WeightedAverage with config weights)
-        let algorithm = request
-            .parameters
-            .get("algorithm")
-            .and_then(|v| serde_json::from_value::<RecoveryAggregationAlgorithm>(v.clone()).ok())
-            .unwrap_or(RecoveryAggregationAlgorithm::WeightedAverage {
-                tsb_weight_full: config.recovery_scoring.tsb_weight_full,
-                sleep_weight_full: config.recovery_scoring.sleep_weight_full,
-                hrv_weight_full: config.recovery_scoring.hrv_weight_full,
-                tsb_weight_no_hrv: config.recovery_scoring.tsb_weight_no_hrv,
-                sleep_weight_no_hrv: config.recovery_scoring.sleep_weight_no_hrv,
-            });
-
-        // Calculate recovery score
-        let recovery_score = RecoveryCalculator::calculate_recovery_score(
-            &training_load,
-            &sleep_quality,
-            hrv_analysis.as_ref(),
-            config,
-            &algorithm,
-        )
-        .map_err(|e| {
-            ProtocolError::InternalError(format!(
-                "sleep_analyzer: Recovery score calculation failed: {e}"
-            ))
-        })?;
-
-        // Generate rest day recommendation
-        let recommendation = RecoveryCalculator::recommend_rest_day(
-            &recovery_score,
-            &sleep_data,
-            &training_load,
-            config,
-        )
-        .map_err(|e| {
-            ProtocolError::InternalError(format!(
-                "sleep_analyzer: Rest day recommendation failed: {e}"
-            ))
-        })?;
-
-        Ok(UniversalResponse {
-            success: true,
-            result: Some(serde_json::json!({
-                "recommendation": recommendation,
-                "recovery_summary": {
-                    "overall_score": recovery_score.overall_score,
-                    "category": recovery_score.recovery_category,
-                    "training_readiness": recovery_score.training_readiness,
-                },
-                "key_factors": {
-                    "tsb": training_load.tsb,
-                    "sleep_score": sleep_quality.overall_score,
-                    "sleep_hours": sleep_data.duration_hours,
-                    "hrv_status": hrv_analysis.as_ref().map(|h| &h.recovery_status),
-                },
-            })),
-            error: None,
-            metadata: Some({
-                let mut map = HashMap::new();
-                map.insert(
-                    "recommendation_timestamp".into(),
-                    serde_json::Value::String(Utc::now().to_rfc3339()),
-                );
-                // Only include confidence if it's a valid f64 value
-                if let Some(confidence_number) =
-                    serde_json::Number::from_f64(recommendation.confidence)
-                {
+            Ok(UniversalResponse {
+                success: true,
+                result: Some(serde_json::json!({
+                    "recommendation": recommendation,
+                    "recovery_summary": {
+                        "overall_score": recommendation.recovery_score,
+                        "category": if recommendation.recovery_score >= 70.0 { "good" }
+                                   else if recommendation.recovery_score >= 50.0 { "fair" }
+                                   else { "poor" },
+                        "training_readiness": if recommendation.rest_recommended { "rest_recommended" }
+                                              else { "ready_for_training" },
+                    },
+                    "key_factors": {
+                        "tsb": training_load.tsb,
+                        "atl": training_load.atl,
+                        "ctl": training_load.ctl,
+                        "sleep_data_available": false,
+                    },
+                    "note": "Recommendation based on training load only. Provide sleep_data for more accurate assessment.",
+                })),
+                error: None,
+                metadata: Some({
+                    let mut map = HashMap::new();
                     map.insert(
-                        "confidence_percent".into(),
-                        serde_json::Value::Number(confidence_number),
+                        "recommendation_timestamp".into(),
+                        serde_json::Value::String(Utc::now().to_rfc3339()),
                     );
-                } else {
-                    tracing::warn!(
-                        confidence = recommendation.confidence,
-                        "Invalid confidence value (NaN/Infinity), omitting from metadata"
+                    map.insert(
+                        "data_source".into(),
+                        serde_json::Value::String("training_load_only".to_owned()),
                     );
-                }
-                map
-            }),
-        })
+                    // Only include confidence if it's a valid f64 value
+                    if let Some(confidence_number) =
+                        serde_json::Number::from_f64(recommendation.confidence)
+                    {
+                        map.insert(
+                            "confidence_percent".into(),
+                            serde_json::Value::Number(confidence_number),
+                        );
+                    } else {
+                        tracing::warn!(
+                            confidence = recommendation.confidence,
+                            "Invalid confidence value (NaN/Infinity), omitting from metadata"
+                        );
+                    }
+                    map
+                }),
+            })
+        }
     })
 }
 

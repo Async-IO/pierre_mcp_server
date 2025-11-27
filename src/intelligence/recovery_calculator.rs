@@ -531,6 +531,204 @@ impl RecoveryCalculator {
         })
     }
 
+    /// Generate rest day recommendation based on training load only
+    ///
+    /// Used when sleep data is not available - provides recommendations based solely on
+    /// training load metrics (form, fitness, and fatigue indicators).
+    ///
+    /// # Errors
+    /// Returns error if input data is invalid
+    pub fn recommend_rest_day_training_only(
+        training_load: &TrainingLoad,
+        config: &crate::config::intelligence_config::SleepRecoveryConfig,
+    ) -> Result<RestDayRecommendation, AppError> {
+        let highly_fatigued_tsb = config.training_stress_balance.highly_fatigued_tsb;
+        let fatigued_tsb = config.training_stress_balance.fatigued_tsb;
+        let fresh_tsb_min = config.training_stress_balance.fresh_tsb_min;
+
+        // Determine if rest is recommended based on TSB thresholds
+        let rest_recommended = training_load.tsb < fatigued_tsb;
+
+        // Calculate confidence (lower without sleep data, as we have fewer signals)
+        let confidence = Self::calculate_training_only_confidence(training_load, config);
+
+        // Identify primary reasons based on training load
+        let mut primary_reasons = Vec::new();
+        let mut supporting_factors = Vec::new();
+
+        if training_load.tsb < highly_fatigued_tsb {
+            primary_reasons.push(format!(
+                "Extreme training fatigue (TSB: {:.1})",
+                training_load.tsb
+            ));
+        } else if training_load.tsb < fatigued_tsb {
+            primary_reasons.push(format!(
+                "Accumulated training fatigue (TSB: {:.1})",
+                training_load.tsb
+            ));
+        }
+
+        if training_load.atl > training_load.ctl * 1.3 {
+            supporting_factors.push(format!(
+                "High acute training load (ATL: {:.1} vs CTL: {:.1})",
+                training_load.atl, training_load.ctl
+            ));
+        }
+
+        if training_load.tsb >= fresh_tsb_min {
+            supporting_factors.push(format!(
+                "Well-recovered with positive TSB ({:.1})",
+                training_load.tsb
+            ));
+        }
+
+        // Generate alternatives
+        let alternatives = if rest_recommended {
+            vec![
+                "If you must train: very easy, short (<30min) active recovery only".to_owned(),
+                "Focus on mobility, stretching, or yoga instead of traditional training".to_owned(),
+                "Consider light cross-training to maintain fitness without adding load".to_owned(),
+            ]
+        } else {
+            vec![
+                "Continue with planned training but monitor fatigue levels".to_owned(),
+                "Consider adding sleep tracking data for more accurate recommendations".to_owned(),
+            ]
+        };
+
+        // Estimate recovery time if rest is needed
+        let estimated_recovery_hours = if rest_recommended {
+            Some(Self::estimate_recovery_time_training_only(
+                training_load,
+                config,
+            ))
+        } else {
+            None
+        };
+
+        // Calculate an approximate recovery score based on TSB
+        let recovery_score_estimate = Self::estimate_recovery_score_from_tsb(training_load, config);
+
+        Ok(RestDayRecommendation {
+            rest_recommended,
+            confidence,
+            recovery_score: recovery_score_estimate,
+            primary_reasons,
+            supporting_factors,
+            alternatives,
+            estimated_recovery_hours,
+        })
+    }
+
+    /// Calculate confidence for training-only recommendation
+    ///
+    /// Confidence reflects how clearly the training load data signals a recommendation.
+    /// Higher confidence when TSB is at extremes (clearly fatigued or clearly fresh).
+    /// Lower confidence in the moderate zone where the decision is less clear-cut.
+    ///
+    /// # Confidence factors
+    ///
+    /// - **TSB clarity (0-50%)**: Extreme values (highly fatigued or fresh) give high confidence;
+    ///   moderate values near thresholds give lower confidence since the recommendation is ambiguous.
+    /// - **Load ratio clarity (0-30%)**: When ATL/CTL ratio is far from 1.0, it provides a clear
+    ///   signal about recent training intensity relative to fitness.
+    /// - **Data availability (0-20%)**: Having sufficient training history (CTL > 0) adds confidence.
+    ///
+    /// Note: Without sleep/HRV data, recommendations rely solely on training metrics.
+    /// Users should consider adding sleep data for more comprehensive assessment.
+    fn calculate_training_only_confidence(
+        training_load: &TrainingLoad,
+        config: &crate::config::intelligence_config::SleepRecoveryConfig,
+    ) -> f64 {
+        let highly_fatigued_tsb = config.training_stress_balance.highly_fatigued_tsb;
+        let fatigued_tsb = config.training_stress_balance.fatigued_tsb;
+        let fresh_tsb_min = config.training_stress_balance.fresh_tsb_min;
+
+        let mut confidence_score: f64 = 0.0;
+
+        // TSB clarity contributes up to 50% confidence
+        // Extreme values = clear signal, moderate values = ambiguous
+        if training_load.tsb < highly_fatigued_tsb {
+            confidence_score += 50.0; // Clearly fatigued - high confidence in rest recommendation
+        } else if training_load.tsb < fatigued_tsb {
+            confidence_score += 35.0; // Moderately fatigued
+        } else if training_load.tsb >= fresh_tsb_min {
+            confidence_score += 50.0; // Clearly fresh - high confidence in training readiness
+        } else {
+            confidence_score += 20.0; // Moderate zone - recommendation is less clear
+        }
+
+        // Load ratio clarity contributes up to 30%
+        // ATL/CTL ratio far from 1.0 = clear signal about recent training intensity
+        if training_load.ctl > 0.0 {
+            let load_ratio = training_load.atl / training_load.ctl;
+            if !(0.7..=1.5).contains(&load_ratio) {
+                confidence_score += 30.0; // Clear over/under-training signal
+            } else if !(0.8..=1.2).contains(&load_ratio) {
+                confidence_score += 15.0; // Moderate signal
+            }
+            // Ratio near 1.0 = balanced, adds minimal confidence
+        }
+
+        // Data availability contributes up to 20%
+        // Having training history (CTL > 0) means we have data to base recommendations on
+        if training_load.ctl > 0.0 {
+            confidence_score += 20.0;
+        }
+
+        confidence_score
+    }
+
+    /// Estimate recovery time based on training load only
+    fn estimate_recovery_time_training_only(
+        training_load: &TrainingLoad,
+        config: &crate::config::intelligence_config::SleepRecoveryConfig,
+    ) -> f64 {
+        let highly_fatigued_tsb = config.training_stress_balance.highly_fatigued_tsb;
+        let fatigued_tsb = config.training_stress_balance.fatigued_tsb;
+
+        // Base recovery time on TSB severity
+        if training_load.tsb < highly_fatigued_tsb {
+            48.0 // Severe fatigue: 2 days
+        } else if training_load.tsb < fatigued_tsb {
+            24.0 // Moderate fatigue: 1 day
+        } else {
+            12.0 // Mild fatigue: half day
+        }
+    }
+
+    /// Estimate recovery score from TSB when sleep data is unavailable
+    fn estimate_recovery_score_from_tsb(
+        training_load: &TrainingLoad,
+        config: &crate::config::intelligence_config::SleepRecoveryConfig,
+    ) -> f64 {
+        let highly_fatigued_tsb = config.training_stress_balance.highly_fatigued_tsb;
+        let fatigued_tsb = config.training_stress_balance.fatigued_tsb;
+        let fresh_tsb_min = config.training_stress_balance.fresh_tsb_min;
+
+        // Map TSB to approximate recovery score (0-100)
+        if training_load.tsb >= fresh_tsb_min {
+            85.0 // Fresh = excellent recovery
+        } else if training_load.tsb >= 0.0 {
+            // Scale between 70-85 for positive TSB
+            (training_load.tsb / fresh_tsb_min).mul_add(15.0, 70.0)
+        } else if training_load.tsb >= fatigued_tsb {
+            // Scale between 50-70 for mild negative TSB
+            let ratio = (training_load.tsb - fatigued_tsb) / (0.0 - fatigued_tsb);
+            ratio.mul_add(20.0, 50.0)
+        } else if training_load.tsb >= highly_fatigued_tsb {
+            // Scale between 30-50 for moderate negative TSB
+            let ratio =
+                (training_load.tsb - highly_fatigued_tsb) / (fatigued_tsb - highly_fatigued_tsb);
+            ratio.mul_add(20.0, 30.0)
+        } else {
+            // Below highly fatigued = poor recovery (20-30)
+            (training_load.tsb / highly_fatigued_tsb)
+                .mul_add(10.0, 20.0)
+                .max(10.0)
+        }
+    }
+
     /// Calculate confidence in rest day recommendation
     fn calculate_recommendation_confidence(
         recovery_score: &RecoveryScore,

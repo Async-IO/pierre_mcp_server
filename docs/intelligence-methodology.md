@@ -3181,6 +3181,122 @@ Example 5: Boundary condition (extreme fatigue, excellent sleep/HRV)
    Assert abs(total_contribution - recovery_score) < 0.1  # floating point tolerance
    ```
 
+### Training-Only Rest Day Recommendations
+
+When sleep data is unavailable, Pierre provides rest day recommendations based solely on training load metrics. This enables `suggest_rest_day` to function without requiring sleep data input.
+
+#### when training-only mode activates
+
+Pierre uses training-only mode when:
+- `sleep_data` parameter is not provided
+- `sleep_data` fails to parse
+
+Recommendations are based entirely on Training Stress Balance (TSB), Chronic Training Load (CTL), and Acute Training Load (ATL).
+
+#### confidence calculation
+
+Confidence reflects how clearly training data signals a recommendation. Pierre calculates training-only confidence from signal clarity rather than data completeness:
+
+**confidence factors**:
+
+| Factor | Contribution | Description |
+|--------|--------------|-------------|
+| TSB clarity | 0-50% | Extreme TSB values provide clear signals; moderate values are ambiguous |
+| Load ratio clarity | 0-30% | ATL/CTL ratio far from 1.0 indicates clear over/under-training |
+| Data availability | 0-20% | Having training history (CTL > 0) enables meaningful analysis |
+
+**TSB clarity scoring**:
+- TSB < highly_fatigued (-15): **50%** - clearly fatigued, high confidence rest needed
+- TSB < fatigued (-10): **35%** - moderately fatigued
+- TSB ≥ fresh_tsb_min (+5): **50%** - clearly fresh, high confidence ready to train
+- Moderate zone: **20%** - ambiguous, lower confidence
+
+**load ratio scoring** (when CTL > 0):
+- Ratio outside 0.7-1.5: **30%** - clear over/under-training signal
+- Ratio outside 0.8-1.2: **15%** - moderate signal
+- Ratio near 1.0: **0%** - balanced, no additional signal
+
+**rust implementation**:
+
+```rust
+// src/intelligence/recovery_calculator.rs:639
+fn calculate_training_only_confidence(
+    training_load: &TrainingLoad,
+    config: &SleepRecoveryConfig,
+) -> f64 {
+    let mut confidence: f64 = 0.0;
+
+    // TSB clarity (0-50%)
+    if training_load.tsb < config.highly_fatigued_tsb {
+        confidence += 50.0;  // Clearly fatigued
+    } else if training_load.tsb < config.fatigued_tsb {
+        confidence += 35.0;  // Moderately fatigued
+    } else if training_load.tsb >= config.fresh_tsb_min {
+        confidence += 50.0;  // Clearly fresh
+    } else {
+        confidence += 20.0;  // Ambiguous moderate zone
+    }
+
+    // Load ratio clarity (0-30%)
+    if training_load.ctl > 0.0 {
+        let ratio = training_load.atl / training_load.ctl;
+        if !(0.7..=1.5).contains(&ratio) {
+            confidence += 30.0;  // Clear signal
+        } else if !(0.8..=1.2).contains(&ratio) {
+            confidence += 15.0;  // Moderate signal
+        }
+    }
+
+    // Data availability (0-20%)
+    if training_load.ctl > 0.0 {
+        confidence += 20.0;  // Have training history
+    }
+
+    confidence  // Range: 0-100%
+}
+```
+
+#### recovery score estimation from TSB
+
+When sleep data is unavailable, Pierre estimates recovery score from TSB alone:
+
+| TSB Range | Estimated Recovery Score | Interpretation |
+|-----------|-------------------------|----------------|
+| ≥ fresh_tsb_min (+5) | 85 | Excellent - ready for hard training |
+| 0 to fresh_tsb_min | 70-85 (scaled) | Good - positive form |
+| fatigued to 0 | 50-70 (scaled) | Fair - mild fatigue |
+| highly_fatigued to fatigued | 30-50 (scaled) | Poor - significant fatigue |
+| < highly_fatigued | 10-30 | Very poor - rest required |
+
+#### limitations
+
+Training-only recommendations have inherent limitations:
+1. **no sleep quality signal**: cannot detect poor sleep that impairs recovery
+2. **no HRV signal**: cannot detect autonomic stress or illness
+3. **delayed feedback**: TSB reflects past training, not current readiness
+
+Users should provide sleep data for more accurate recovery assessment.
+
+#### API response differences
+
+Training-only responses include additional context indicating data source:
+
+```json
+{
+  "recommendation": { ... },
+  "recovery_summary": { ... },
+  "key_factors": {
+    "tsb": -12.5,
+    "atl": 85.0,
+    "ctl": 72.0,
+    "sleep_data_available": false
+  },
+  "note": "Recommendation based on training load only. Provide sleep_data for more accurate assessment."
+}
+```
+
+The `metadata.data_source` field indicates `"training_load_only"` vs `"full_recovery_analysis"`.
+
 ### Configuration
 
 All sleep/recovery thresholds configurable via environment variables:
