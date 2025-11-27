@@ -226,59 +226,67 @@ impl SecurityAuditor {
     /// Log audit event to structured logger based on severity
     fn log_to_structured_logger(event: &AuditEvent) {
         match event.severity {
-            AuditSeverity::Info => {
-                tracing::info!(
-                    event_id = %event.event_id,
-                    event_type = ?event.event_type,
-                    user_id = ?event.user_id,
-                    tenant_id = ?event.tenant_id,
-                    resource = ?event.resource,
-                    action = %event.action,
-                    result = %event.result,
-                    "Security audit event: {}",
-                    event.description
-                );
-            }
-            AuditSeverity::Warning => {
-                tracing::warn!(
-                    event_id = %event.event_id,
-                    event_type = ?event.event_type,
-                    user_id = ?event.user_id,
-                    tenant_id = ?event.tenant_id,
-                    resource = ?event.resource,
-                    action = %event.action,
-                    result = %event.result,
-                    "Security audit warning: {}",
-                    event.description
-                );
-            }
-            AuditSeverity::Error => {
-                tracing::error!(
-                    event_id = %event.event_id,
-                    event_type = ?event.event_type,
-                    user_id = ?event.user_id,
-                    tenant_id = ?event.tenant_id,
-                    resource = ?event.resource,
-                    action = %event.action,
-                    result = %event.result,
-                    "Security audit error: {}",
-                    event.description
-                );
-            }
-            AuditSeverity::Critical => {
-                tracing::error!(
-                    event_id = %event.event_id,
-                    event_type = ?event.event_type,
-                    user_id = ?event.user_id,
-                    tenant_id = ?event.tenant_id,
-                    resource = ?event.resource,
-                    action = %event.action,
-                    result = %event.result,
-                    "CRITICAL security audit event: {}",
-                    event.description
-                );
-            }
+            AuditSeverity::Info => Self::log_info_event(event),
+            AuditSeverity::Warning => Self::log_warning_event(event),
+            AuditSeverity::Error => Self::log_error_event(event),
+            AuditSeverity::Critical => Self::log_critical_event(event),
         }
+    }
+
+    fn log_info_event(event: &AuditEvent) {
+        tracing::info!(
+            event_id = %event.event_id,
+            event_type = ?event.event_type,
+            user_id = ?event.user_id,
+            tenant_id = ?event.tenant_id,
+            resource = ?event.resource,
+            action = %event.action,
+            result = %event.result,
+            "Security audit event: {}",
+            event.description
+        );
+    }
+
+    fn log_warning_event(event: &AuditEvent) {
+        tracing::warn!(
+            event_id = %event.event_id,
+            event_type = ?event.event_type,
+            user_id = ?event.user_id,
+            tenant_id = ?event.tenant_id,
+            resource = ?event.resource,
+            action = %event.action,
+            result = %event.result,
+            "Security audit warning: {}",
+            event.description
+        );
+    }
+
+    fn log_error_event(event: &AuditEvent) {
+        tracing::error!(
+            event_id = %event.event_id,
+            event_type = ?event.event_type,
+            user_id = ?event.user_id,
+            tenant_id = ?event.tenant_id,
+            resource = ?event.resource,
+            action = %event.action,
+            result = %event.result,
+            "Security audit error: {}",
+            event.description
+        );
+    }
+
+    fn log_critical_event(event: &AuditEvent) {
+        tracing::error!(
+            event_id = %event.event_id,
+            event_type = ?event.event_type,
+            user_id = ?event.user_id,
+            tenant_id = ?event.tenant_id,
+            resource = ?event.resource,
+            action = %event.action,
+            result = %event.result,
+            "CRITICAL security audit event: {}",
+            event.description
+        );
     }
 
     /// Log an audit event

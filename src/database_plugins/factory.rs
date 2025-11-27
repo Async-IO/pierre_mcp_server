@@ -102,28 +102,57 @@ impl Database {
         let db_type = detect_database_type(database_url)?;
         info!("Detected database type: {:?}", db_type);
 
+        Self::create_database_instance(
+            db_type,
+            database_url,
+            encryption_key,
+            #[cfg(feature = "postgresql")]
+            pool_config,
+        )
+        .await
+    }
+
+    async fn create_database_instance(
+        db_type: DatabaseType,
+        database_url: &str,
+        encryption_key: Vec<u8>,
+        #[cfg(feature = "postgresql")] pool_config: &crate::config::environment::PostgresPoolConfig,
+    ) -> AppResult<Self> {
         match db_type {
-            DatabaseType::SQLite => {
-                info!("Initializing SQLite database");
-                let db = SqliteDatabase::new(database_url, encryption_key).await?;
-                info!("SQLite database initialized successfully");
-                Ok(Self::SQLite(db))
-            }
+            DatabaseType::SQLite => Self::initialize_sqlite(database_url, encryption_key).await,
             #[cfg(feature = "postgresql")]
             DatabaseType::PostgreSQL => {
-                info!("Initializing PostgreSQL database");
-                let db = PostgresDatabase::new(database_url, encryption_key, pool_config).await?;
-                info!("PostgreSQL database initialized successfully");
-                Ok(Self::PostgreSQL(db))
+                Self::initialize_postgresql(database_url, encryption_key, pool_config).await
             }
             #[cfg(not(feature = "postgresql"))]
-            DatabaseType::PostgreSQL => {
-                let err_msg =
-                    "PostgreSQL support not enabled. Enable the 'postgresql' feature flag.";
-                tracing::error!("{}", err_msg);
-                Err(AppError::config(err_msg))
-            }
+            DatabaseType::PostgreSQL => Self::postgresql_not_enabled(),
         }
+    }
+
+    async fn initialize_sqlite(database_url: &str, encryption_key: Vec<u8>) -> AppResult<Self> {
+        info!("Initializing SQLite database");
+        let db = SqliteDatabase::new(database_url, encryption_key).await?;
+        info!("SQLite database initialized successfully");
+        Ok(Self::SQLite(db))
+    }
+
+    #[cfg(feature = "postgresql")]
+    async fn initialize_postgresql(
+        database_url: &str,
+        encryption_key: Vec<u8>,
+        pool_config: &crate::config::environment::PostgresPoolConfig,
+    ) -> AppResult<Self> {
+        info!("Initializing PostgreSQL database");
+        let db = PostgresDatabase::new(database_url, encryption_key, pool_config).await?;
+        info!("PostgreSQL database initialized successfully");
+        Ok(Self::PostgreSQL(db))
+    }
+
+    #[cfg(not(feature = "postgresql"))]
+    fn postgresql_not_enabled() -> AppResult<Self> {
+        let err_msg = "PostgreSQL support not enabled. Enable the 'postgresql' feature flag.";
+        tracing::error!("{}", err_msg);
+        Err(AppError::config(err_msg))
     }
 
     /// Create a new database instance based on the connection string (public API)

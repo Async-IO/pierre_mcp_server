@@ -221,8 +221,12 @@ impl McpProtocolTester {
     #[allow(clippy::large_stack_frames)] // Multiple async calls create large stack frames
     async fn test_all_tools(&mut self) {
         println!("Testing all MCP tools through protocol...");
+        self.test_core_data_tools().await;
+        self.test_analytics_tools().await;
+        self.test_goal_tools().await;
+    }
 
-        // Core data tools
+    async fn test_core_data_tools(&mut self) {
         self.test_tool(GET_ACTIVITIES, json!({ "provider": "strava", "limit": 5 }))
             .await;
         self.test_tool(GET_ATHLETE, json!({ "provider": "strava" }))
@@ -234,8 +238,9 @@ impl McpProtocolTester {
             json!({ "activity_id": "test_123", "provider": "strava" }),
         )
         .await;
+    }
 
-        // Analytics tools
+    async fn test_analytics_tools(&mut self) {
         self.test_tool(
             ANALYZE_ACTIVITY,
             json!({ "provider": "strava", "activity_id": "test_123" }),
@@ -261,8 +266,9 @@ impl McpProtocolTester {
             json!({ "provider": "strava", "timeframe": "30_days" }),
         )
         .await;
+    }
 
-        // Goal tools
+    async fn test_goal_tools(&mut self) {
         self.test_tool(SET_GOAL, json!({ "goal_type": "distance", "target_value": 100.0, "target_unit": "km", "timeframe": "weekly" })).await;
         self.test_tool(
             SUGGEST_GOALS,

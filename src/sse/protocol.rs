@@ -199,6 +199,14 @@ impl McpProtocolStream {
             notification.provider
         );
 
+        let sender = self.get_active_sender().await?;
+        let json_data = Self::build_oauth_notification_json(notification)?;
+
+        tracing::debug!("JSON data to send: {}", json_data);
+        Self::broadcast_notification(&sender, json_data, &notification.provider)
+    }
+
+    async fn get_active_sender(&self) -> Result<tokio::sync::broadcast::Sender<String>, AppError> {
         let sender_guard = self.sender.read().await;
         let Some(sender) = sender_guard.as_ref().cloned() else {
             drop(sender_guard);
@@ -211,10 +219,6 @@ impl McpProtocolStream {
             "Active SSE receivers for this stream: {}",
             sender.receiver_count()
         );
-
-        let json_data = Self::build_oauth_notification_json(notification)?;
-        tracing::debug!("JSON data to send: {}", json_data);
-
-        Self::broadcast_notification(&sender, json_data, &notification.provider)
+        Ok(sender)
     }
 }

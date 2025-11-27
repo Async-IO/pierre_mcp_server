@@ -48,30 +48,37 @@ impl McpRequestProcessor {
         }
 
         // Process request and generate response
-        let response = match self.process_request(request.clone()).await {
-            Ok(response) => response,
-            Err(e) => {
-                error!(
-                    "Failed to process MCP request: {} | Request: method={}, jsonrpc={}, id={:?}",
-                    e, request.method, request.jsonrpc, request.id
-                );
-                error!("Request params: {:?}", request.params);
-                error!("Full error details: {:#}", e);
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_owned(),
-                    id: request.id.clone(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INTERNAL_ERROR,
-                        message: format!("Internal server error: {e}"),
-                        data: None,
-                    }),
-                }
-            }
-        };
+        let response = self.process_or_error(request).await;
 
         Self::log_completion("request", start_time);
         Some(response)
+    }
+
+    async fn process_or_error(&self, request: McpRequest) -> McpResponse {
+        match self.process_request(request.clone()).await {
+            Ok(response) => response,
+            Err(e) => Self::create_error_response(&request, &e),
+        }
+    }
+
+    fn create_error_response(request: &McpRequest, e: &crate::errors::AppError) -> McpResponse {
+        error!(
+            "Failed to process MCP request: {} | Request: method={}, jsonrpc={}, id={:?}",
+            e, request.method, request.jsonrpc, request.id
+        );
+        error!("Request params: {:?}", request.params);
+        error!("Full error details: {:#}", e);
+
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_owned(),
+            id: request.id.clone(),
+            result: None,
+            error: Some(McpError {
+                code: ERROR_INTERNAL_ERROR,
+                message: format!("Internal server error: {e}"),
+                data: None,
+            }),
+        }
     }
 
     /// Process an MCP request and generate response

@@ -125,33 +125,47 @@ impl PluginManager {
                 info!("Plugin '{}' initialized successfully", plugin_name);
                 Ok(())
             }
-            Ok(Err(e)) if is_required => {
-                error!(
-                    "Required plugin '{}' failed to initialize: {}",
-                    plugin_name, e
-                );
-                Err(e)
-            }
-            Ok(Err(e)) => {
-                warn!(
-                    "Optional plugin '{}' failed to initialize: {}",
-                    plugin_name, e
-                );
-                Ok(())
-            }
-            Err(_) if is_required => {
-                error!(
-                    "Required plugin '{}' initialization timed out after {:?}",
-                    plugin_name, timeout
-                );
-                Err(AppError::internal(format!(
-                    "Plugin initialization timeout: {plugin_name}"
-                )))
-            }
-            Err(_) => {
-                warn!("Optional plugin '{}' initialization timed out", plugin_name);
-                Ok(())
-            }
+            Ok(Err(e)) => Self::handle_init_error(e, plugin_name, is_required),
+            Err(_) => Self::handle_init_timeout(plugin_name, is_required, timeout),
+        }
+    }
+
+    fn handle_init_error(
+        e: AppError,
+        plugin_name: &str,
+        is_required: bool,
+    ) -> Result<(), AppError> {
+        if is_required {
+            error!(
+                "Required plugin '{}' failed to initialize: {}",
+                plugin_name, e
+            );
+            Err(e)
+        } else {
+            warn!(
+                "Optional plugin '{}' failed to initialize: {}",
+                plugin_name, e
+            );
+            Ok(())
+        }
+    }
+
+    fn handle_init_timeout(
+        plugin_name: &str,
+        is_required: bool,
+        timeout: Duration,
+    ) -> Result<(), AppError> {
+        if is_required {
+            error!(
+                "Required plugin '{}' initialization timed out after {:?}",
+                plugin_name, timeout
+            );
+            Err(AppError::internal(format!(
+                "Plugin initialization timeout: {plugin_name}"
+            )))
+        } else {
+            warn!("Optional plugin '{}' initialization timed out", plugin_name);
+            Ok(())
         }
     }
 
@@ -219,17 +233,21 @@ impl PluginManager {
         self.plugins.reverse();
 
         for plugin in &mut self.plugins {
-            let plugin_name = plugin.name().to_owned();
-            info!("Shutting down plugin '{}'", plugin_name);
-
-            if let Err(e) = plugin.shutdown().await {
-                error!("Plugin '{}' shutdown error: {}", plugin_name, e);
-                // Continue shutting down other plugins even if one fails
-            }
+            Self::shutdown_plugin(plugin).await;
         }
 
         info!("All plugins shut down");
         Ok(())
+    }
+
+    async fn shutdown_plugin(plugin: &mut Box<dyn Plugin>) {
+        let plugin_name = plugin.name().to_owned();
+        info!("Shutting down plugin '{}'", plugin_name);
+
+        if let Err(e) = plugin.shutdown().await {
+            error!("Plugin '{}' shutdown error: {}", plugin_name, e);
+            // Continue shutting down other plugins even if one fails
+        }
     }
 
     /// Get overall system health status

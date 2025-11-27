@@ -193,41 +193,10 @@ impl OAuth2Routes {
             Err(error) => return Self::render_oauth_error_response(&error),
         };
 
+        let redirect_uri = request.redirect_uri.clone();
+
         // Check if user is authenticated via session cookie
-        let (user_id, tenant_id) = headers
-            .get(header::COOKIE)
-            .and_then(|cookie_value| {
-                cookie_value.to_str().ok().and_then(|cookie_str| {
-                    Self::extract_session_token(cookie_str).and_then(|token| {
-                        match context
-                            .auth_manager
-                            .validate_token(&token, &context.jwks_manager)
-                        {
-                            Ok(claims) => {
-                                tracing::info!(
-                                    "OAuth authorization for authenticated user: {}",
-                                    claims.email
-                                );
-                                // Parse user ID from JWT claims
-                                if let Ok(user_uuid) = uuid::Uuid::parse_str(&claims.sub) {
-                                    Some((user_uuid, claims.tenant_id))
-                                } else {
-                                    tracing::warn!("Invalid user ID format in JWT: {}", claims.sub);
-                                    None
-                                }
-                            }
-                            Err(e) => {
-                                tracing::warn!(
-                                    "Invalid session token in OAuth authorization: {}",
-                                    e
-                                );
-                                None
-                            }
-                        }
-                    })
-                })
-            })
-            .map_or((None, None), |(uid, tid)| (Some(uid), tid));
+        let (user_id, tenant_id) = Self::extract_authenticated_user(&headers, &context);
 
         // If no authenticated user, redirect to login page with OAuth parameters
         let Some(authenticated_user_id) = user_id else {
@@ -238,21 +207,76 @@ impl OAuth2Routes {
             return Redirect::to(&login_url).into_response();
         };
 
-        // User is authenticated - proceed with OAuth authorization
+        Self::execute_authorization(
+            &context,
+            request,
+            authenticated_user_id,
+            tenant_id,
+            redirect_uri,
+        )
+        .await
+    }
+
+    fn extract_authenticated_user(
+        headers: &HeaderMap,
+        context: &OAuth2Context,
+    ) -> (Option<uuid::Uuid>, Option<String>) {
+        headers
+            .get(header::COOKIE)
+            .and_then(|cookie_value| {
+                cookie_value.to_str().ok().and_then(|cookie_str| {
+                    Self::extract_session_token(cookie_str)
+                        .and_then(|token| Self::validate_session_token(&token, context))
+                })
+            })
+            .map_or((None, None), |(uid, tid)| (Some(uid), tid))
+    }
+
+    fn validate_session_token(
+        token: &str,
+        context: &OAuth2Context,
+    ) -> Option<(uuid::Uuid, Option<String>)> {
+        match context
+            .auth_manager
+            .validate_token(token, &context.jwks_manager)
+        {
+            Ok(claims) => {
+                tracing::info!(
+                    "OAuth authorization for authenticated user: {}",
+                    claims.email
+                );
+                if let Ok(user_uuid) = uuid::Uuid::parse_str(&claims.sub) {
+                    Some((user_uuid, claims.tenant_id))
+                } else {
+                    tracing::warn!("Invalid user ID format in JWT: {}", claims.sub);
+                    None
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Invalid session token in OAuth authorization: {}", e);
+                None
+            }
+        }
+    }
+
+    async fn execute_authorization(
+        context: &OAuth2Context,
+        request: crate::oauth2_server::models::AuthorizeRequest,
+        authenticated_user_id: uuid::Uuid,
+        tenant_id: Option<String>,
+        redirect_uri: String,
+    ) -> Response {
         let auth_server = OAuth2AuthorizationServer::new(
-            context.database,
-            context.auth_manager,
-            context.jwks_manager,
+            context.database.clone(),
+            context.auth_manager.clone(),
+            context.jwks_manager.clone(),
         );
-        let redirect_uri = request.redirect_uri.clone(); // Safe: OAuth redirect URI needed for response
 
         match auth_server
             .authorize(request, Some(authenticated_user_id), tenant_id)
             .await
         {
             Ok(response) => {
-                // OAuth 2.0 specification requires redirecting to redirect_uri with code
-                // Build redirect URL with authorization code and state
                 let mut final_redirect_url = format!("{}?code={}", redirect_uri, response.code);
                 if let Some(state) = response.state {
                     use std::fmt::Write;
@@ -285,33 +309,14 @@ impl OAuth2Routes {
     ) -> Response {
         // Extract client IP from connection using Axum's ConnectInfo extractor
         let client_ip = addr.ip();
-        let rate_status = context.rate_limiter.check_rate_limit("token", client_ip);
 
-        if rate_status.is_limited {
-            return (
-                StatusCode::TOO_MANY_REQUESTS,
-                Json(serde_json::json!({
-                    "error": "too_many_requests",
-                    "error_description": "Rate limit exceeded"
-                })),
-            )
-                .into_response();
+        if let Some(rate_limit_response) = Self::check_token_rate_limit(&context, client_ip) {
+            return rate_limit_response;
         }
 
-        // Debug: Log the incoming form data (excluding sensitive info)
-        tracing::debug!(
-            "OAuth token request received with grant_type: {:?}, client_id: {:?}",
-            form.get("grant_type"),
-            form.get("client_id")
-        );
-
-        // Parse form data into TokenRequest
-        let request = match Self::parse_token_request(&form) {
+        let request = match Self::parse_and_log_token_request(&form) {
             Ok(req) => req,
-            Err(error) => {
-                tracing::warn!("OAuth token request parsing failed: {:?}", error);
-                return (StatusCode::BAD_REQUEST, Json(error)).into_response();
-            }
+            Err(error) => return (StatusCode::BAD_REQUEST, Json(error)).into_response(),
         };
 
         let auth_server = OAuth2AuthorizationServer::new(
@@ -320,6 +325,52 @@ impl OAuth2Routes {
             context.jwks_manager,
         );
 
+        Self::execute_token_exchange(auth_server, request, &form).await
+    }
+
+    fn check_token_rate_limit(
+        context: &OAuth2Context,
+        client_ip: std::net::IpAddr,
+    ) -> Option<Response> {
+        let rate_status = context.rate_limiter.check_rate_limit("token", client_ip);
+
+        if rate_status.is_limited {
+            Some(
+                (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    Json(serde_json::json!({
+                        "error": "too_many_requests",
+                        "error_description": "Rate limit exceeded"
+                    })),
+                )
+                    .into_response(),
+            )
+        } else {
+            None
+        }
+    }
+
+    fn parse_and_log_token_request(
+        form: &HashMap<String, String>,
+    ) -> Result<crate::oauth2_server::models::TokenRequest, crate::oauth2_server::models::OAuth2Error>
+    {
+        tracing::debug!(
+            "OAuth token request received with grant_type: {:?}, client_id: {:?}",
+            form.get("grant_type"),
+            form.get("client_id")
+        );
+
+        Self::parse_token_request(form).map_err(|error| {
+            tracing::warn!("OAuth token request parsing failed: {:?}", error);
+            error
+        })
+    }
+
+    async fn execute_token_exchange(
+        auth_server: OAuth2AuthorizationServer,
+        request: crate::oauth2_server::models::TokenRequest,
+        form: &HashMap<String, String>,
+    ) -> Response {
         match auth_server.token(request).await {
             Ok(response) => {
                 tracing::info!(

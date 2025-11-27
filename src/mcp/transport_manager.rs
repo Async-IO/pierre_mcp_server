@@ -104,15 +104,19 @@ impl TransportManager {
                 .run_http_server_with_resources_axum(port, shared_resources.clone())
                 .await;
 
-            match result {
-                Ok(()) => {
-                    error!("HTTP server unexpectedly completed - restarting in 5 seconds...");
-                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                }
-                Err(e) => {
-                    error!("HTTP server failed: {} - restarting in 10 seconds...", e);
-                    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-                }
+            Self::handle_server_restart(result).await;
+        }
+    }
+
+    async fn handle_server_restart(result: AppResult<()>) {
+        match result {
+            Ok(()) => {
+                error!("HTTP server unexpectedly completed - restarting in 5 seconds...");
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            }
+            Err(e) => {
+                error!("HTTP server failed: {} - restarting in 10 seconds...", e);
+                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
             }
         }
     }

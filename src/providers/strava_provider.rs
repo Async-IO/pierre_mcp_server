@@ -337,32 +337,45 @@ impl StravaProvider {
         let access_token = self.get_access_token().await?;
         Self::validate_access_token(&access_token)?;
 
-        tracing::debug!("Making authenticated request to Strava API");
-
         let url = format!(
             "{}/{}",
             self.config.api_base_url,
             endpoint.trim_start_matches('/')
         );
 
+        let response = self.send_authenticated_request(&url, &access_token).await?;
+        self.parse_response(response, &url).await
+    }
+
+    /// Send authenticated HTTP request to Strava API
+    async fn send_authenticated_request(
+        &self,
+        url: &str,
+        access_token: &str,
+    ) -> AppResult<reqwest::Response> {
         tracing::info!("Making HTTP GET request to: {url}");
 
-        let response = self
-            .client
-            .get(&url)
+        self.client
+            .get(url)
             .header("Authorization", format!("Bearer {access_token}"))
             .send()
             .await
             .map_err(|e| {
                 AppError::external_service("Strava", format!("Failed to send request: {e}"))
-            })?;
+            })
+    }
 
+    /// Parse Strava API response or handle errors
+    async fn parse_response<T>(&self, response: reqwest::Response, url: &str) -> AppResult<T>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
         let status = response.status();
         tracing::info!("Received HTTP response with status: {status}");
 
         if !status.is_success() {
             let text = response.text().await.unwrap_or_default();
-            return Err(Self::handle_api_error(status, &text, &url));
+            return Err(Self::handle_api_error(status, &text, url));
         }
 
         tracing::info!("Parsing JSON response from Strava API");
@@ -961,31 +974,15 @@ impl StravaProvider {
         );
 
         for page_index in 0..pages_needed {
-            let remaining = total_limit - all_activities.len();
-            let current_page_limit = remaining.min(activities_per_page);
-            let current_offset = start_offset + (page_index * activities_per_page);
-            let page_number = current_offset / activities_per_page + 1;
-
-            let endpoint = Self::build_activities_endpoint(current_page_limit, page_number);
-            tracing::info!(
-                "Fetching page {} of {} - endpoint: {} (expecting {} activities)",
-                page_index + 1,
+            self.fetch_and_add_page(
+                &mut all_activities,
+                page_index,
                 pages_needed,
-                endpoint,
-                current_page_limit
-            );
-
-            let strava_activities = self
-                .api_request::<Vec<StravaActivityResponse>>(&endpoint)
-                .await?;
-
-            tracing::info!(
-                "Page {} returned {} activities",
-                page_index + 1,
-                strava_activities.len()
-            );
-
-            Self::add_converted_activities(&mut all_activities, strava_activities, total_limit)?;
+                total_limit,
+                start_offset,
+                activities_per_page,
+            )
+            .await?;
 
             if Self::should_stop_pagination(
                 all_activities.len(),
@@ -1004,6 +1001,42 @@ impl StravaProvider {
         );
 
         Ok(all_activities)
+    }
+
+    async fn fetch_and_add_page(
+        &self,
+        all_activities: &mut Vec<Activity>,
+        page_index: usize,
+        pages_needed: usize,
+        total_limit: usize,
+        start_offset: usize,
+        activities_per_page: usize,
+    ) -> AppResult<()> {
+        let remaining = total_limit - all_activities.len();
+        let current_page_limit = remaining.min(activities_per_page);
+        let current_offset = start_offset + (page_index * activities_per_page);
+        let page_number = current_offset / activities_per_page + 1;
+
+        let endpoint = Self::build_activities_endpoint(current_page_limit, page_number);
+        tracing::info!(
+            "Fetching page {} of {} - endpoint: {} (expecting {} activities)",
+            page_index + 1,
+            pages_needed,
+            endpoint,
+            current_page_limit
+        );
+
+        let strava_activities = self
+            .api_request::<Vec<StravaActivityResponse>>(&endpoint)
+            .await?;
+
+        tracing::info!(
+            "Page {} returned {} activities",
+            page_index + 1,
+            strava_activities.len()
+        );
+
+        Self::add_converted_activities(all_activities, strava_activities, total_limit)
     }
 }
 

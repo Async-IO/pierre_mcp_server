@@ -301,18 +301,31 @@ impl KeyManager {
         if let Ok(encrypted_dek_base64) =
             database.get_system_secret("database_encryption_key").await
         {
-            info!("Loading existing Database Encryption Key from database");
-            let encrypted_dek = Self::decode_encrypted_dek(&encrypted_dek_base64)?;
-            self.dek = DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, &self.mek)?;
-            info!("Existing Database Encryption Key loaded successfully");
+            self.load_existing_dek(&encrypted_dek_base64)?;
         } else {
-            info!("No existing DEK found, storing current Database Encryption Key");
-            let encrypted_dek = self.dek.encrypt_with_mek(&self.mek)?;
-            Self::store_dek(database, &encrypted_dek).await?;
-            info!("Database Encryption Key stored successfully");
+            self.store_new_dek(database).await?;
         }
 
         info!("Two-tier key management system fully initialized");
+        Ok(())
+    }
+
+    fn load_existing_dek(&mut self, encrypted_dek_base64: &str) -> AppResult<()> {
+        info!("Loading existing Database Encryption Key from database");
+        let encrypted_dek = Self::decode_encrypted_dek(encrypted_dek_base64)?;
+        self.dek = DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, &self.mek)?;
+        info!("Existing Database Encryption Key loaded successfully");
+        Ok(())
+    }
+
+    async fn store_new_dek(
+        &self,
+        database: &crate::database_plugins::factory::Database,
+    ) -> AppResult<()> {
+        info!("No existing DEK found, storing current Database Encryption Key");
+        let encrypted_dek = self.dek.encrypt_with_mek(&self.mek)?;
+        Self::store_dek(database, &encrypted_dek).await?;
+        info!("Database Encryption Key stored successfully");
         Ok(())
     }
 

@@ -106,38 +106,58 @@ fn log_validation_result(all_valid: bool) {
 
 /// Bootstrap the complete server with all dependencies
 async fn bootstrap_server(config: ServerConfig) -> Result<()> {
-    // Initialize HTTP client configuration (must be done before any HTTP clients are created)
+    initialize_global_configs(&config)?;
+    let (database, auth_manager, jwt_secret) = initialize_core_systems(&config).await?;
+    let cache = initialize_cache().await?;
+    let server = create_server(database, auth_manager, &jwt_secret, &config, cache);
+    run_server(server, &config).await
+}
+
+fn initialize_global_configs(config: &ServerConfig) -> Result<()> {
     pierre_mcp_server::utils::http_client::initialize_http_clients(config.http_client.clone());
     info!("HTTP client configuration initialized");
 
-    // Initialize route timeout configuration (must be done before any route handlers execute)
     pierre_mcp_server::utils::route_timeout::initialize_route_timeouts(
         config.route_timeouts.clone(),
     );
     info!("Route timeout configuration initialized");
 
-    // Initialize static server configuration (must be done before any code accesses get_server_config())
     pierre_mcp_server::constants::init_server_config()?;
     info!("Static server configuration initialized");
 
-    let (database, auth_manager, jwt_secret) = initialize_core_systems(&config).await?;
+    Ok(())
+}
 
-    // Initialize cache from environment
+async fn initialize_cache() -> Result<Cache> {
     let cache = Cache::from_env().await?;
     info!("Cache initialized successfully");
-
-    let server = create_server(database, auth_manager, &jwt_secret, &config, cache);
-    run_server(server, &config).await
+    Ok(cache)
 }
 
 /// Initialize core systems (key management, database, auth)
 async fn initialize_core_systems(config: &ServerConfig) -> Result<(Database, AuthManager, String)> {
-    // Initialize two-tier key management system
-    let (mut key_manager, database_encryption_key) =
+    let (mut key_manager, database_encryption_key) = bootstrap_key_management()?;
+    let database = initialize_database(config, database_encryption_key).await?;
+    key_manager.complete_initialization(&database).await?;
+    info!("Two-tier key management system fully initialized");
+
+    let jwt_secret_string = initialize_jwt_secret(&database).await?;
+    let auth_manager = create_auth_manager(config);
+
+    Ok((database, auth_manager, jwt_secret_string))
+}
+
+fn bootstrap_key_management() -> Result<(pierre_mcp_server::key_management::KeyManager, [u8; 32])> {
+    let (key_manager, database_encryption_key) =
         pierre_mcp_server::key_management::KeyManager::bootstrap()?;
     info!("Two-tier key management system bootstrapped");
+    Ok((key_manager, database_encryption_key))
+}
 
-    // Initialize database with DEK from key manager
+async fn initialize_database(
+    config: &ServerConfig,
+    database_encryption_key: [u8; 32],
+) -> Result<Database> {
     let database = Database::new(
         &config.database.url.to_connection_string(),
         database_encryption_key.to_vec(),
@@ -153,30 +173,26 @@ async fn initialize_core_systems(config: &ServerConfig) -> Result<(Database, Aut
         "Database URL: {}",
         &config.database.url.to_connection_string()
     );
+    Ok(database)
+}
 
-    // Complete key manager initialization with database
-    key_manager.complete_initialization(&database).await?;
-    info!("Two-tier key management system fully initialized");
-
-    // Get or create JWT secret from database (for server-first bootstrap)
+async fn initialize_jwt_secret(database: &Database) -> Result<String> {
     let jwt_secret_string = database
         .get_or_create_system_secret("admin_jwt_secret")
         .await?;
 
     info!("Admin JWT secret ready for secure token generation");
     info!("Server is ready for admin setup via POST /admin/setup");
+    Ok(jwt_secret_string)
+}
 
-    // Initialize authentication manager with RS256 (no HS256 secret needed)
-    let auth_manager = {
-        // Safe: JWT expiry hours are small positive configuration values (1-168)
-        #[allow(clippy::cast_possible_wrap)]
-        {
-            AuthManager::new(config.auth.jwt_expiry_hours as i64)
-        }
-    };
-    info!("Authentication manager initialized with RS256");
-
-    Ok((database, auth_manager, jwt_secret_string))
+fn create_auth_manager(config: &ServerConfig) -> AuthManager {
+    #[allow(clippy::cast_possible_wrap)]
+    {
+        let auth_manager = AuthManager::new(config.auth.jwt_expiry_hours as i64);
+        info!("Authentication manager initialized with RS256");
+        auth_manager
+    }
 }
 
 /// Create server instance with all resources

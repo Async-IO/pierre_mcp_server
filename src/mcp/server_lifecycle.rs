@@ -214,15 +214,17 @@ impl ServerLifecycle {
     /// Write JSON message to stdout with newline and flush
     async fn write_json_to_stdout(json: &str, stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>) {
         let mut stdout_lock = stdout.lock().await;
-        if let Err(e) = stdout_lock.write_all(json.as_bytes()).await {
-            tracing::error!(error = ?e, "Failed to write OAuth notification to stdout");
+
+        if let Err(e) = Self::write_json_data(&mut stdout_lock, json).await {
+            tracing::error!(error = ?e, "Failed to write JSON to stdout");
         }
-        if let Err(e) = stdout_lock.write_all(b"\n").await {
-            tracing::error!(error = ?e, "Failed to write newline to stdout");
-        }
-        if let Err(e) = stdout_lock.flush().await {
-            tracing::error!(error = ?e, "Failed to flush stdout");
-        }
+    }
+
+    async fn write_json_data(stdout: &mut tokio::io::Stdout, json: &str) -> std::io::Result<()> {
+        stdout.write_all(json.as_bytes()).await?;
+        stdout.write_all(b"\n").await?;
+        stdout.flush().await?;
+        Ok(())
     }
 
     /// Handle OAuth completion notification

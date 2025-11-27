@@ -300,26 +300,53 @@ impl ServerResources {
 
         match database.load_rsa_keypairs().await {
             Ok(keypairs) if !keypairs.is_empty() => {
-                tracing::info!(
-                    "Loading {} persisted RSA keypairs from database",
-                    keypairs.len()
-                );
-                jwks_manager.load_keys_from_database(keypairs)?;
-                tracing::info!("Successfully loaded RSA keys from database");
+                Self::load_existing_keys(&mut jwks_manager, keypairs)?;
             }
             Ok(_) => {
-                tracing::info!("No persisted RSA keys found, generating new keypair");
-                Self::generate_and_persist_keypair(database, &mut jwks_manager, rsa_key_size_bits)
-                    .await?;
+                Self::generate_new_keys(database, &mut jwks_manager, rsa_key_size_bits).await?;
             }
             Err(e) => {
-                tracing::warn!("Failed to load RSA keys from database: {}. Generating new keys without persistence.", e);
-                let kid = Self::generate_key_id();
-                jwks_manager.generate_rsa_key_pair_with_size(&kid, rsa_key_size_bits)?;
+                Self::fallback_generate_keys(&mut jwks_manager, rsa_key_size_bits, &e)?;
             }
         }
 
         Ok(jwks_manager)
+    }
+
+    fn load_existing_keys(
+        jwks_manager: &mut JwksManager,
+        keypairs: Vec<(String, String, String, chrono::DateTime<chrono::Utc>, bool)>,
+    ) -> crate::errors::AppResult<()> {
+        tracing::info!(
+            "Loading {} persisted RSA keypairs from database",
+            keypairs.len()
+        );
+        jwks_manager.load_keys_from_database(keypairs)?;
+        tracing::info!("Successfully loaded RSA keys from database");
+        Ok(())
+    }
+
+    async fn generate_new_keys(
+        database: &Arc<Database>,
+        jwks_manager: &mut JwksManager,
+        rsa_key_size_bits: usize,
+    ) -> crate::errors::AppResult<()> {
+        tracing::info!("No persisted RSA keys found, generating new keypair");
+        Self::generate_and_persist_keypair(database, jwks_manager, rsa_key_size_bits).await
+    }
+
+    fn fallback_generate_keys(
+        jwks_manager: &mut JwksManager,
+        rsa_key_size_bits: usize,
+        error: &crate::errors::AppError,
+    ) -> crate::errors::AppResult<()> {
+        tracing::warn!(
+            "Failed to load RSA keys from database: {}. Generating new keys without persistence.",
+            error
+        );
+        let kid = Self::generate_key_id();
+        jwks_manager.generate_rsa_key_pair_with_size(&kid, rsa_key_size_bits)?;
+        Ok(())
     }
 
     /// Set the OAuth notification sender for push notifications

@@ -2,7 +2,7 @@ import { useState, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
-import type { DashboardOverview, RateLimitOverview, TierUsage } from '../types/api';
+import type { DashboardOverview, RateLimitOverview, TierUsage, User } from '../types/api';
 import type { AnalyticsData, TimeSeriesPoint } from '../types/chart';
 import { useWebSocketContext } from '../hooks/useWebSocketContext';
 import { useEffect } from 'react';
@@ -63,9 +63,13 @@ export default function Dashboard() {
     queryFn: () => apiService.getA2ADashboardOverview(),
   });
 
-  // Pending users query disabled - requires admin token authentication
-  // This functionality is only available in the admin panel
-  const pendingUsers: unknown[] = [];
+  // Pending users badge - visible for admins, safely falls back to [] for non-admin users
+  const { data: pendingUsers = [] } = useQuery<User[]>({
+    queryKey: ['pending-users'],
+    queryFn: () => apiService.getPendingUsers(),
+    staleTime: 30_000,
+    retry: false,
+  });
 
   // Prepare mini chart data for the overview
   const miniChartData = {

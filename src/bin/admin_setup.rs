@@ -254,7 +254,29 @@ async fn generate_token_command(
 ) -> Result<()> {
     info!("Key Generating admin token for service: {}", service);
 
-    // Check if service already has an active token
+    // Check for existing active token
+    check_existing_token(database, &service).await?;
+
+    // Build token request
+    let mut request = build_token_request(service, description, expires_days, super_admin);
+
+    // Apply custom permissions if provided
+    apply_custom_permissions(&mut request, permissions, super_admin)?;
+
+    // Load JWT secret
+    let jwt_secret = load_jwt_secret(database).await?;
+
+    // Generate and display token
+    let generated_token = database
+        .create_admin_token(&request, &jwt_secret, jwks_manager)
+        .await?;
+
+    display_generated_token(&generated_token);
+
+    Ok(())
+}
+
+async fn check_existing_token(database: &Database, service: &str) -> Result<()> {
     if let Ok(existing_tokens) = database.list_admin_tokens(false).await {
         if existing_tokens
             .iter()
@@ -267,15 +289,20 @@ async fn generate_token_command(
             info!("Use 'rotate-token' command to replace the existing token");
             return Err(AppError::invalid_input("Service already has an active token").into());
         }
-    } else {
-        // Ignore error - might be first time setup
     }
+    Ok(())
+}
 
-    // Create token request
+fn build_token_request(
+    service: String,
+    description: Option<String>,
+    expires_days: u64,
+    super_admin: bool,
+) -> CreateAdminTokenRequest {
     let mut request = if super_admin {
-        CreateAdminTokenRequest::super_admin(service.clone()) // Safe: String ownership for request
+        CreateAdminTokenRequest::super_admin(service)
     } else {
-        CreateAdminTokenRequest::new(service.clone()) // Safe: String ownership for request
+        CreateAdminTokenRequest::new(service)
     };
 
     if let Some(desc) = description {
@@ -283,56 +310,92 @@ async fn generate_token_command(
     }
 
     if expires_days == 0 {
-        request.expires_in_days = None; // Never expires
+        request.expires_in_days = None;
     } else {
         request.expires_in_days = Some(expires_days);
     }
 
-    // Parse custom permissions if provided
-    if let Some(permissions_str) = permissions {
-        if super_admin {
-            warn!("Custom permissions ignored for super admin tokens (has all permissions)");
-        } else {
-            info!("List Parsing custom permissions: {}", permissions_str);
-            let mut parsed_permissions = Vec::new();
+    request
+}
 
-            for perm_str in permissions_str.split(',') {
-                let trimmed = perm_str.trim();
-                if let Ok(permission) =
-                    trimmed.parse::<pierre_mcp_server::admin::models::AdminPermission>()
-                {
-                    info!("  Success Added permission: {}", permission);
-                    parsed_permissions.push(permission);
-                } else {
-                    error!("Error Invalid permission: '{}'", trimmed);
-                    info!("Valid permissions are:");
-                    info!("   - provision_keys");
-                    info!("   - list_keys");
-                    info!("   - revoke_keys");
-                    info!("   - update_key_limits");
-                    info!("   - manage_admin_tokens");
-                    info!("   - view_audit_logs");
-                    info!("   - manage_users");
-                    return Err(
-                        AppError::invalid_input(format!("Invalid permission: {trimmed}")).into(),
-                    );
-                }
-            }
+fn apply_custom_permissions(
+    request: &mut CreateAdminTokenRequest,
+    permissions: Option<String>,
+    super_admin: bool,
+) -> Result<()> {
+    let Some(permissions_str) = permissions else {
+        return Ok(());
+    };
 
-            if !parsed_permissions.is_empty() {
-                let permissions_count = parsed_permissions.len();
-                request.permissions = Some(parsed_permissions);
-                info!("Success Applied {} custom permissions", permissions_count);
-            }
-        }
+    if super_admin {
+        warn!("Custom permissions ignored for super admin tokens (has all permissions)");
+        return Ok(());
     }
 
-    // Load JWT secret from database (must exist - created by create-admin-user)
+    let parsed_permissions = parse_permissions_list(&permissions_str)?;
+    apply_permissions_to_request(request, parsed_permissions);
+
+    Ok(())
+}
+
+fn parse_permissions_list(
+    permissions_str: &str,
+) -> Result<Vec<pierre_mcp_server::admin::models::AdminPermission>> {
+    info!("List Parsing custom permissions: {}", permissions_str);
+    let mut parsed_permissions = Vec::new();
+
+    for perm_str in permissions_str.split(',') {
+        let permission = parse_single_permission(perm_str.trim())?;
+        info!("  Success Added permission: {}", permission);
+        parsed_permissions.push(permission);
+    }
+
+    Ok(parsed_permissions)
+}
+
+fn parse_single_permission(
+    trimmed: &str,
+) -> Result<pierre_mcp_server::admin::models::AdminPermission> {
+    trimmed
+        .parse::<pierre_mcp_server::admin::models::AdminPermission>()
+        .map_err(|_| {
+            error!("Error Invalid permission: '{}'", trimmed);
+            print_valid_permissions();
+            AppError::invalid_input(format!("Invalid permission: {trimmed}")).into()
+        })
+}
+
+fn apply_permissions_to_request(
+    request: &mut CreateAdminTokenRequest,
+    parsed_permissions: Vec<pierre_mcp_server::admin::models::AdminPermission>,
+) {
+    if !parsed_permissions.is_empty() {
+        let permissions_count = parsed_permissions.len();
+        request.permissions = Some(parsed_permissions);
+        info!("Success Applied {} custom permissions", permissions_count);
+    }
+}
+
+fn print_valid_permissions() {
+    let permissions = [
+        "provision_keys",
+        "list_keys",
+        "revoke_keys",
+        "update_key_limits",
+        "manage_admin_tokens",
+        "view_audit_logs",
+        "manage_users",
+    ];
+    info!("Valid permissions are:");
+    for perm in &permissions {
+        info!("   - {}", perm);
+    }
+}
+
+async fn load_jwt_secret(database: &Database) -> Result<String> {
     info!("Loading JWT secret from database for token generation...");
     let Ok(jwt_secret) = database.get_system_secret("admin_jwt_secret").await else {
-        error!("Admin JWT secret not found in database!");
-        error!("Please run admin-setup create-admin-user first:");
-        error!("  cargo run --bin admin-setup -- create-admin-user --email admin@example.com --password yourpassword");
+        log_jwt_secret_error();
         return Err(AppError::config(
             "Admin JWT secret not found. Run admin-setup create-admin-user first.",
         )
@@ -340,16 +403,13 @@ async fn generate_token_command(
     };
 
     info!("JWT signing key loaded successfully for token generation");
+    Ok(jwt_secret)
+}
 
-    // Generate token using RS256 asymmetric signing
-    let generated_token = database
-        .create_admin_token(&request, &jwt_secret, jwks_manager)
-        .await?;
-
-    // Display results
-    display_generated_token(&generated_token);
-
-    Ok(())
+fn log_jwt_secret_error() {
+    error!("Admin JWT secret not found in database!");
+    error!("Please run admin-setup create-admin-user first:");
+    error!("  cargo run --bin admin-setup -- create-admin-user --email admin@example.com --password yourpassword");
 }
 
 /// List all admin tokens
@@ -612,70 +672,106 @@ async fn create_admin_user_command(
 ) -> Result<()> {
     info!("User Creating admin user: {}", email);
 
-    // Check if user already exists
+    // Check if user already exists and handle accordingly
     if let Ok(Some(existing_user)) = database.get_user_by_email(&email).await {
-        if !force {
-            error!("Error User '{}' already exists!", email);
-            info!("Use --force flag to update existing user");
-            info!("   Current user details:");
-            info!("   - Email: {}", existing_user.email);
-            info!("   - Name: {:?}", existing_user.display_name);
-            info!(
-                "   - Created: {}",
-                existing_user.created_at.format("%Y-%m-%d %H:%M UTC")
-            );
-            return Err(
-                AppError::invalid_input("User already exists (use --force to update)").into(),
-            );
-        }
-
-        info!("Updating existing admin user...");
-
-        // Update existing user
-        let updated_user = pierre_mcp_server::models::User {
-            id: existing_user.id,
-            email: email.clone(),
-            display_name: Some(name.clone()),
-            password_hash: hash(&password, DEFAULT_COST)?,
-            tier: pierre_mcp_server::models::UserTier::Enterprise, // Admin gets enterprise tier
-            tenant_id: existing_user.tenant_id, // Preserve existing tenant_id or None for system admins
-            strava_token: existing_user.strava_token,
-            fitbit_token: existing_user.fitbit_token,
-            is_active: true,
-            user_status: pierre_mcp_server::models::UserStatus::Active, // Admin is always active
-            is_admin: true,                                             // Mark as admin user
-            approved_by: existing_user.approved_by, // Preserve existing approval
-            approved_at: existing_user.approved_at, // Preserve existing approval
-            created_at: existing_user.created_at,
-            last_active: chrono::Utc::now(),
-        };
-
-        database.create_user(&updated_user).await?;
+        update_existing_admin_user(database, existing_user, &email, &password, &name, force)
+            .await?;
     } else {
-        info!("➕ Creating new admin user...");
-
-        // Create new user
-        let new_user = pierre_mcp_server::models::User {
-            id: Uuid::new_v4(),
-            email: email.clone(),
-            display_name: Some(name.clone()),
-            password_hash: hash(&password, DEFAULT_COST)?,
-            tier: pierre_mcp_server::models::UserTier::Enterprise, // Admin gets enterprise tier
-            tenant_id: None, // System admins don't belong to specific tenants
-            strava_token: None,
-            fitbit_token: None,
-            is_active: true,
-            user_status: pierre_mcp_server::models::UserStatus::Active, // Admin is always active
-            is_admin: true,                                             // Mark as admin user
-            approved_by: None,                     // Admin doesn't need approval
-            approved_at: Some(chrono::Utc::now()), // Auto-approved
-            created_at: chrono::Utc::now(),
-            last_active: chrono::Utc::now(),
-        };
-
-        database.create_user(&new_user).await?;
+        create_new_admin_user(database, &email, &password, &name).await?;
     }
 
+    display_admin_user_success(&email, &name, &password);
+    initialize_admin_jwt_secret(database).await?;
+
+    println!("\nSuccess Admin user is ready to use!");
+
+    Ok(())
+}
+
+async fn update_existing_admin_user(
+    database: &Database,
+    existing_user: pierre_mcp_server::models::User,
+    email: &str,
+    password: &str,
+    name: &str,
+    force: bool,
+) -> Result<()> {
+    if !force {
+        display_existing_user_error(&existing_user);
+        return Err(AppError::invalid_input("User already exists (use --force to update)").into());
+    }
+
+    info!("Updating existing admin user...");
+
+    let updated_user = pierre_mcp_server::models::User {
+        id: existing_user.id,
+        email: email.to_owned(),
+        display_name: Some(name.to_owned()),
+        password_hash: hash(password, DEFAULT_COST)?,
+        tier: pierre_mcp_server::models::UserTier::Enterprise,
+        tenant_id: existing_user.tenant_id,
+        strava_token: existing_user.strava_token,
+        fitbit_token: existing_user.fitbit_token,
+        is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: true,
+        approved_by: existing_user.approved_by,
+        approved_at: existing_user.approved_at,
+        created_at: existing_user.created_at,
+        last_active: chrono::Utc::now(),
+    };
+
+    database.create_user(&updated_user).await?;
+    Ok(())
+}
+
+fn display_existing_user_error(existing_user: &pierre_mcp_server::models::User) {
+    let details = format!(
+        "Email: {}\nName: {:?}\nCreated: {}",
+        existing_user.email,
+        existing_user.display_name,
+        existing_user.created_at.format("%Y-%m-%d %H:%M UTC")
+    );
+
+    error!("Error User '{}' already exists!", existing_user.email);
+    info!("Use --force flag to update existing user");
+    info!(
+        "   Current user details:\n   - {}",
+        details.replace('\n', "\n   - ")
+    );
+}
+
+async fn create_new_admin_user(
+    database: &Database,
+    email: &str,
+    password: &str,
+    name: &str,
+) -> Result<()> {
+    info!("➕ Creating new admin user...");
+
+    let new_user = pierre_mcp_server::models::User {
+        id: Uuid::new_v4(),
+        email: email.to_owned(),
+        display_name: Some(name.to_owned()),
+        password_hash: hash(password, DEFAULT_COST)?,
+        tier: pierre_mcp_server::models::UserTier::Enterprise,
+        tenant_id: None,
+        strava_token: None,
+        fitbit_token: None,
+        is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: true,
+        approved_by: None,
+        approved_at: Some(chrono::Utc::now()),
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+    };
+
+    database.create_user(&new_user).await?;
+    Ok(())
+}
+
+fn display_admin_user_success(email: &str, name: &str, password: &str) {
     println!("\nSuccess Admin User Created Successfully!");
     println!("{}", "=".repeat(50));
     println!("User USER DETAILS:");
@@ -701,16 +797,14 @@ async fn create_admin_user_command(
     println!("2. Open the frontend interface (usually http://localhost:8080)");
     println!("3. Login with the credentials above");
     println!("4. Generate your first admin token for API key provisioning");
+}
 
-    // Generate and store admin JWT secret if it doesn't exist
+async fn initialize_admin_jwt_secret(database: &Database) -> Result<()> {
     info!("Ensuring admin JWT secret exists...");
     database
         .get_or_create_system_secret("admin_jwt_secret")
         .await?;
     info!("Admin JWT signing key initialized successfully");
-
-    println!("\nSuccess Admin user is ready to use!");
-
     Ok(())
 }
 
