@@ -11,6 +11,7 @@ use anyhow::Result;
 use base64::{engine::general_purpose, Engine as _};
 use reqwest::Client;
 use serde_json::json;
+use serial_test::serial;
 use std::time::Duration;
 
 mod common;
@@ -145,6 +146,7 @@ async fn test_jwt_token_parsing() -> Result<()> {
 }
 
 #[test]
+#[serial]
 fn test_token_refresh_environment_variables() {
     println!("🔧 Testing token refresh environment variables");
 

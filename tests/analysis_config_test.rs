@@ -10,6 +10,7 @@
 #![allow(missing_docs)]
 
 use pierre_mcp_server::intelligence::{AnalysisConfig, ConfidenceLevel};
+use serial_test::serial;
 
 #[test]
 fn test_default_config_validation() {
@@ -51,6 +52,7 @@ fn test_confidence_level_calculation() {
 }
 
 #[test]
+#[serial]
 fn test_environment_variable_override() {
     std::env::set_var("INTELLIGENCE_FITNESS_SCORE_WEEKS", "8");
     std::env::set_var("INTELLIGENCE_HIGH_R_SQUARED_THRESHOLD", "0.75");

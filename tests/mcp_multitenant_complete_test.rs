@@ -21,6 +21,7 @@ use pierre_mcp_server::{
 use rand::Rng;
 use reqwest::Client;
 use serde_json::{json, Value};
+use serial_test::serial;
 use std::{net::TcpListener, sync::Arc, time::Duration};
 use tempfile::TempDir;
 use tokio::time::{sleep, timeout};
@@ -463,6 +464,7 @@ async fn setup_test_environment() -> Result<(Database, AuthManager, u16, TempDir
 
 /// Test complete multi-tenant MCP server workflow
 #[tokio::test]
+#[serial]
 async fn test_complete_multitenant_workflow() -> Result<()> {
     // Set required environment variables for OAuth
     std::env::set_var("STRAVA_CLIENT_ID", "test_client_id");

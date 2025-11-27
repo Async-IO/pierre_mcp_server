@@ -11,6 +11,7 @@ use anyhow::Result;
 use base64::prelude::*;
 use rand::Rng;
 use serde_json::json;
+use serial_test::serial;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -31,6 +32,7 @@ use std::{path::PathBuf, sync::Arc};
 mod common;
 
 #[tokio::test]
+#[serial]
 async fn test_complete_multitenant_workflow() -> Result<(), Box<dyn std::error::Error>> {
     common::init_server_config();
     println!("Pierre MCP Server - Comprehensive Tool Testing Harness");

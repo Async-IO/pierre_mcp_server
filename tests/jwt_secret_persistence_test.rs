@@ -12,6 +12,7 @@ mod common;
 use anyhow::Result;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::key_management::KeyManager;
+use serial_test::serial;
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -105,6 +106,7 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_mek_ensures_consistent_jwt_storage() -> Result<()> {
     // This test verifies that the MEK properly encrypts/decrypts JWT secrets
     // ensuring they remain consistent across restarts

@@ -8,6 +8,7 @@
 #![allow(missing_docs)]
 
 use anyhow::Result;
+use serial_test::serial;
 use uuid::Uuid;
 
 mod common;
@@ -474,6 +475,7 @@ async fn test_tenant_burst_requests(
 /// - Rate limit counters are tenant-isolated
 /// - No cross-tenant rate limit contamination
 #[tokio::test]
+#[serial]
 async fn test_rate_limiting_per_tenant_isolation() -> Result<()> {
     common::init_test_logging();
     common::init_test_http_clients();

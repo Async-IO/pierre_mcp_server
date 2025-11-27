@@ -23,6 +23,7 @@ use pierre_mcp_server::{
     models::{Tenant, User, UserOAuthToken, UserStatus, UserTier},
     tenant::oauth_manager::{CredentialConfig, TenantOAuthManager},
 };
+use serial_test::serial;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -548,6 +549,7 @@ async fn test_token_refresh_uses_tenant_credentials() -> Result<()> {
 ///
 /// Verifies that different tenants can have different rate limit configurations
 #[tokio::test]
+#[serial]
 async fn test_tenant_specific_rate_limits() -> Result<()> {
     let database = setup_test_database().await?;
     let oauth_config = Arc::new(pierre_mcp_server::config::environment::OAuthConfig {

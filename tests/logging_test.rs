@@ -11,9 +11,11 @@
 #![allow(missing_docs)]
 
 use pierre_mcp_server::logging::{LogFormat, LoggingConfig};
+use serial_test::serial;
 use std::env;
 
 #[test]
+#[serial]
 fn test_logging_config_from_env() {
     // Set test environment variables
     env::set_var("RUST_LOG", "debug");
@@ -37,6 +39,7 @@ fn test_logging_config_from_env() {
 }
 
 #[test]
+#[serial]
 fn test_default_logging_config() {
     let config = LoggingConfig::default();
 

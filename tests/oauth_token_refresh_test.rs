@@ -161,6 +161,7 @@ use pierre_mcp_server::{
     protocols::universal::{UniversalRequest, UniversalToolExecutor},
 };
 use serde_json::json;
+use serial_test::serial;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -486,6 +487,7 @@ async fn create_test_executor_without_oauth() -> (Arc<UniversalToolExecutor>, Ar
 
 /// Test that get_activities uses token refresh
 #[tokio::test]
+#[serial]
 async fn test_get_activities_with_expired_token() {
     common::init_server_config();
     let (executor, database) = create_test_executor().await;
@@ -572,6 +574,7 @@ async fn test_get_activities_with_expired_token() {
 
 /// Test connection status with OAuth manager integration
 #[tokio::test]
+#[serial]
 async fn test_connection_status_with_oauth_manager() {
     common::init_server_config();
     let (executor, database) = create_test_executor().await;
@@ -644,6 +647,7 @@ async fn test_connection_status_with_oauth_manager() {
 
 /// Test that analyze_activity uses token refresh
 #[tokio::test]
+#[serial]
 async fn test_analyze_activity_token_refresh() {
     common::init_server_config();
     let (executor, database) = create_test_executor().await;
@@ -734,6 +738,7 @@ async fn test_analyze_activity_token_refresh() {
 
 /// Test concurrent token refresh attempts
 #[tokio::test]
+#[serial]
 async fn test_concurrent_token_operations() {
     common::init_server_config();
     let (executor, database) = create_test_executor().await;

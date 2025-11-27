@@ -22,6 +22,7 @@ use pierre_mcp_server::{
     },
     tenant::TenantOAuthCredentials,
 };
+use serial_test::serial;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -1331,6 +1332,7 @@ async fn test_password_validation_comprehensive() -> Result<()> {
 // === Integration Tests ===
 
 #[tokio::test]
+#[serial]
 #[allow(clippy::too_many_lines)] // Long function: Complex test with full setup
 async fn test_complete_auth_flow() -> Result<()> {
     common::init_server_config();
