@@ -20,32 +20,32 @@ This chapter explores pierre's pluggable provider architecture that enables runt
 Pierre implements a **fully pluggable provider system** where fitness providers are registered at runtime through a factory pattern. The system supports **1 to x providers simultaneously**, meaning you can use just Strava, or Strava + Garmin + Fitbit + custom providers all at once.
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│               ProviderRegistry (runtime)                │
-│  Manages 1 to x providers with dynamic discovery        │
-└────────────┬────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                      ProviderRegistry (runtime)                        │
+│           Manages 1 to x providers with dynamic discovery              │
+└────────────┬──────────────────────────────────────────────────────────┘
              │
-    ┌────────┴────────┬───────────┬────────────┬──────────┐
-    │                 │           │            │          │
-    ▼                 ▼           ▼            ▼          ▼
-┌─────────┐    ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐
-│ Strava  │    │ Garmin  │  │ Fitbit  │  │Synthetic│  │ Custom  │
-│ Factory │    │ Factory │  │ Factory │  │ Factory │  │ Factory │
-└────┬────┘    └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘
-     │              │           │            │           │
-     ▼              ▼           ▼            ▼           ▼
-┌─────────┐    ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐
-│ Strava  │    │ Garmin  │  │ Fitbit  │  │Synthetic│  │ Custom  │
-│Provider │    │Provider │  │Provider │  │Provider │  │Provider │
-└─────────┘    └─────────┘  └─────────┘  └─────────┘  └─────────┘
-     │              │           │            │           │
-     └──────────────┴───────────┴────────────┴───────────┘
-                           │
-                           ▼
-            ┌──────────────────────────┐
-            │   FitnessProvider Trait  │
-            │   (shared interface)     │
-            └──────────────────────────┘
+    ┌────────┴────────┬───────────┬────────────┬──────────┬─────────────┐
+    │                 │           │            │          │             │
+    ▼                 ▼           ▼            ▼          ▼             ▼
+┌─────────┐    ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐
+│ Strava  │    │ Garmin  │  │  WHOOP  │  │ Fitbit  │  │Synthetic│  │ Custom  │
+│ Factory │    │ Factory │  │ Factory │  │ Factory │  │ Factory │  │ Factory │
+└────┬────┘    └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘
+     │              │           │            │            │            │
+     ▼              ▼           ▼            ▼            ▼            ▼
+┌─────────┐    ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐
+│ Strava  │    │ Garmin  │  │  WHOOP  │  │ Fitbit  │  │Synthetic│  │ Custom  │
+│Provider │    │Provider │  │Provider │  │Provider │  │Provider │  │Provider │
+└─────────┘    └─────────┘  └─────────┘  └─────────┘  └─────────┘  └─────────┘
+     │              │           │            │            │            │
+     └──────────────┴───────────┴────────────┴────────────┴────────────┘
+                                    │
+                                    ▼
+                     ┌──────────────────────────┐
+                     │   FitnessProvider Trait  │
+                     │   (shared interface)     │
+                     └──────────────────────────┘
 ```
 
 **Key benefit**: Add, remove, or swap providers without modifying tool code, connection handlers, or application logic.
@@ -54,13 +54,14 @@ Pierre implements a **fully pluggable provider system** where fitness providers 
 
 Pierre uses Cargo feature flags for compile-time provider selection. This allows minimal binaries with only the providers you need:
 
-**Source**: Cargo.toml:49-53
+**Source**: Cargo.toml:49-54
 ```toml
 # Provider feature flags - enable/disable individual fitness data providers
 provider-strava = []
 provider-garmin = []
+provider-whoop = []
 provider-synthetic = []
-all-providers = ["provider-strava", "provider-garmin", "provider-synthetic"]
+all-providers = ["provider-strava", "provider-garmin", "provider-whoop", "provider-synthetic"]
 ```
 
 **Build with specific providers**:
@@ -83,6 +84,9 @@ pub mod strava_provider;
 
 #[cfg(feature = "provider-garmin")]
 pub mod garmin_provider;
+
+#[cfg(feature = "provider-whoop")]
+pub mod whoop_provider;
 
 #[cfg(feature = "provider-synthetic")]
 pub mod synthetic_provider;

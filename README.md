@@ -46,6 +46,7 @@ Pierre supports multiple fitness providers through a pluggable architecture:
 |----------|-------------|--------|--------------|
 | Strava | `provider-strava` | ✅ Full | Activities, Stats, Routes |
 | Garmin | `provider-garmin` | ✅ Full | Activities, Sleep, Health |
+| WHOOP | `provider-whoop` | ✅ Full | Sleep, Recovery, Activities, Health |
 | Synthetic | `provider-synthetic` | ✅ Full | Development/Testing (no OAuth) |
 | Fitbit | `provider-fitbit` | 🚧 Planned | Activities, Sleep, Health |
 
@@ -59,6 +60,9 @@ cargo build --release --no-default-features --features "sqlite,provider-strava"
 
 # Strava + Garmin (no synthetic)
 cargo build --release --no-default-features --features "sqlite,provider-strava,provider-garmin"
+
+# Strava + WHOOP (sleep, recovery, activities)
+cargo build --release --no-default-features --features "sqlite,provider-strava,provider-whoop"
 ```
 
 See [Chapter 17.5: Pluggable Provider Architecture](docs/tutorial/chapter-17.5-pluggable-providers.md) for detailed documentation on adding custom providers.
@@ -176,9 +180,15 @@ export GARMIN_CLIENT_ID=your_consumer_key
 export GARMIN_CLIENT_SECRET=your_consumer_secret
 export GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin  # local dev only
 
+# WHOOP OAuth (optional)
+export WHOOP_CLIENT_ID=your_client_id
+export WHOOP_CLIENT_SECRET=your_client_secret
+export WHOOP_REDIRECT_URI=http://localhost:8081/api/oauth/callback/whoop  # local dev only
+
 # Production: Use HTTPS for callback URLs
 # export STRAVA_REDIRECT_URI=https://api.example.com/api/oauth/callback/strava
 # export GARMIN_REDIRECT_URI=https://api.example.com/api/oauth/callback/garmin
+# export WHOOP_REDIRECT_URI=https://api.example.com/api/oauth/callback/whoop
 
 # Weather data (optional)
 export OPENWEATHER_API_KEY=your_api_key

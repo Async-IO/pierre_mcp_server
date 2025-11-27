@@ -21,6 +21,10 @@ pub const FITBIT: &str = "fitbit";
 #[cfg(feature = "provider-garmin")]
 pub const GARMIN: &str = "garmin";
 
+/// WHOOP fitness provider identifier
+#[cfg(feature = "provider-whoop")]
+pub const WHOOP: &str = "whoop";
+
 /// Synthetic fitness provider identifier (for testing)
 #[cfg(feature = "provider-synthetic")]
 pub const SYNTHETIC: &str = "synthetic";
@@ -37,7 +41,7 @@ pub const SYNTHETIC: &str = "synthetic";
 pub const fn all() -> &'static [&'static str] {
     // This is a compile-time constant, so we include all potential providers
     // For runtime checking, use the registry
-    &["strava", "fitbit", "garmin", "synthetic"]
+    &["strava", "fitbit", "garmin", "whoop", "synthetic"]
 }
 
 /// Check if a provider is statically known
@@ -64,3 +68,15 @@ pub const FITBIT_DEFAULT_SCOPES: &str = "activity profile";
 /// Garmin default scopes
 #[cfg(feature = "provider-garmin")]
 pub const GARMIN_DEFAULT_SCOPES: &str = "wellness:read,activities:read";
+
+/// WHOOP default scopes (space-separated as per WHOOP API requirements)
+/// - `offline`: Required for refresh tokens
+/// - `read:profile`: Access to user profile information
+/// - `read:body_measurement`: Access to height, weight, max heart rate
+/// - `read:workout`: Access to workout/activity data
+/// - `read:sleep`: Access to sleep data
+/// - `read:recovery`: Access to recovery scores
+/// - `read:cycles`: Access to cycle data (strain, recovery aggregation)
+#[cfg(feature = "provider-whoop")]
+pub const WHOOP_DEFAULT_SCOPES: &str =
+    "offline read:profile read:body_measurement read:workout read:sleep read:recovery read:cycles";

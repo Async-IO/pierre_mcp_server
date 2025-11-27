@@ -49,8 +49,9 @@ telemetry = []
 # Provider feature flags - enable/disable individual fitness data providers
 provider-strava = []
 provider-garmin = []
+provider-whoop = []
 provider-synthetic = []
-all-providers = ["provider-strava", "provider-garmin", "provider-synthetic"]
+all-providers = ["provider-strava", "provider-garmin", "provider-whoop", "provider-synthetic"]
 
 [profile.dev]
 debug = 1

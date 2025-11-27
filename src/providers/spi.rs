@@ -445,3 +445,57 @@ impl ProviderDescriptor for SyntheticDescriptor {
         &[]
     }
 }
+
+/// WHOOP provider descriptor
+///
+/// WHOOP is a full health provider supporting sleep, recovery, workouts,
+/// and body measurements through their v1 Developer API.
+#[cfg(feature = "provider-whoop")]
+pub struct WhoopDescriptor;
+
+#[cfg(feature = "provider-whoop")]
+impl ProviderDescriptor for WhoopDescriptor {
+    fn name(&self) -> &'static str {
+        "whoop"
+    }
+
+    fn display_name(&self) -> &'static str {
+        "WHOOP"
+    }
+
+    fn capabilities(&self) -> ProviderCapabilities {
+        ProviderCapabilities::full_health()
+    }
+
+    fn oauth_endpoints(&self) -> Option<OAuthEndpoints> {
+        Some(OAuthEndpoints {
+            auth_url: "https://api.prod.whoop.com/oauth/oauth2/auth",
+            token_url: "https://api.prod.whoop.com/oauth/oauth2/token",
+            revoke_url: Some("https://api.prod.whoop.com/oauth/oauth2/revoke"),
+        })
+    }
+
+    fn oauth_params(&self) -> Option<OAuthParams> {
+        Some(OAuthParams {
+            scope_separator: " ", // WHOOP uses space-separated scopes
+            use_pkce: true,
+            additional_auth_params: &[],
+        })
+    }
+
+    fn api_base_url(&self) -> &'static str {
+        "https://api.prod.whoop.com/developer/v1"
+    }
+
+    fn default_scopes(&self) -> &'static [&'static str] {
+        &[
+            "offline",
+            "read:profile",
+            "read:body_measurement",
+            "read:workout",
+            "read:sleep",
+            "read:recovery",
+            "read:cycles",
+        ]
+    }
+}

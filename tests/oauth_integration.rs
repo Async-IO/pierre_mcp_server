@@ -648,9 +648,9 @@ async fn test_connection_status_no_providers() {
 
     let statuses = oauth_routes.get_connection_status(user_id).await.unwrap();
 
-    // After pluggable provider architecture, we have 2 OAuth providers: strava, garmin
+    // After pluggable provider architecture, we have 3 OAuth providers: strava, garmin, whoop
     // (synthetic provider doesn't use OAuth)
-    assert_eq!(statuses.len(), 2);
+    assert_eq!(statuses.len(), 3);
 
     let strava_status = statuses.iter().find(|s| s.provider == "strava").unwrap();
     assert!(!strava_status.connected);
@@ -661,6 +661,11 @@ async fn test_connection_status_no_providers() {
     assert!(!garmin_status.connected);
     assert!(garmin_status.expires_at.is_none());
     assert!(garmin_status.scopes.is_none());
+
+    let whoop_status = statuses.iter().find(|s| s.provider == "whoop").unwrap();
+    assert!(!whoop_status.connected);
+    assert!(whoop_status.expires_at.is_none());
+    assert!(whoop_status.scopes.is_none());
 }
 
 #[tokio::test]

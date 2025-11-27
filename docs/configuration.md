@@ -227,6 +227,36 @@ GARMIN_REDIRECT_URI=https://api.example.com/api/oauth/callback/garmin  # product
 
 Get credentials: https://developer.garmin.com/
 
+#### whoop
+
+```bash
+WHOOP_CLIENT_ID=your_client_id
+WHOOP_CLIENT_SECRET=your_client_secret
+WHOOP_REDIRECT_URI=http://localhost:8081/api/oauth/callback/whoop  # local development only
+```
+
+**security warning**: http callback urls only for local development. Production must use https:
+```bash
+WHOOP_REDIRECT_URI=https://api.example.com/api/oauth/callback/whoop  # production
+```
+
+Get credentials: https://developer.whoop.com/
+
+**whoop capabilities**:
+- Sleep tracking (sleep sessions, sleep stages, sleep need)
+- Recovery metrics (HRV, recovery score, strain)
+- Workout activities (with heart rate zones, strain scores)
+- Health metrics (SpO2, skin temperature, body measurements)
+
+**whoop scopes**:
+- `offline`: Required for refresh tokens
+- `read:profile`: User profile information
+- `read:body_measurement`: Height, weight, max heart rate
+- `read:workout`: Workout/activity data
+- `read:sleep`: Sleep tracking data
+- `read:recovery`: Recovery scores
+- `read:cycles`: Physiological cycle data
+
 #### fitbit
 
 ```bash

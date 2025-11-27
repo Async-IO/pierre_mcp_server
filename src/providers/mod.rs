@@ -62,6 +62,9 @@ pub mod strava_provider;
 /// Synthetic provider for development and testing
 #[cfg(feature = "provider-synthetic")]
 pub mod synthetic_provider;
+/// WHOOP provider for sleep, recovery, and workout data
+#[cfg(feature = "provider-whoop")]
+pub mod whoop_provider;
 
 // Re-export key types for convenience
 pub use core::{
@@ -81,5 +84,7 @@ pub use spi::GarminDescriptor;
 pub use spi::StravaDescriptor;
 #[cfg(feature = "provider-synthetic")]
 pub use spi::SyntheticDescriptor;
+#[cfg(feature = "provider-whoop")]
+pub use spi::WhoopDescriptor;
 /// Re-export SPI types for external provider development
 pub use spi::{OAuthEndpoints, ProviderBundle, ProviderCapabilities, ProviderDescriptor};
