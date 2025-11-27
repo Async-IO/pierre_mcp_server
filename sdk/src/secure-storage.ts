@@ -331,8 +331,10 @@ export async function createSecureStorage(
   try {
     log('[DEBUG] Attempting to lazy-load keytar...');
     // Use dynamic import to avoid loading keytar at module-import time
-    const keytar = await import('keytar');
-    log('[DEBUG] keytar loaded successfully');
+    // NOTE: Dynamic import returns a module object {default: ...}, so we need .default
+    const keytarModule = await import('keytar');
+    const keytar = keytarModule.default || keytarModule;
+    log(`[DEBUG] keytar loaded successfully, has setPassword: ${typeof keytar.setPassword === 'function'}`);
 
     const keychainStorage = new KeychainTokenStorage(keytar, logFunction);
 

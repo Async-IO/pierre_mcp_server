@@ -15,8 +15,16 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
-import { readFileSync } from "fs";
+import { readFileSync, appendFileSync } from "fs";
 import { join } from "path";
+import { homedir } from "os";
+
+// Debug file logger for tracing OAuth token save issues
+const DEBUG_LOG_PATH = join(homedir(), ".pierre-mcp-debug.log");
+function debugFileLog(message: string): void {
+  const timestamp = new Date().toISOString();
+  appendFileSync(DEBUG_LOG_PATH, `[${timestamp}] ${message}\n`);
+}
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -270,16 +278,43 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   }
 
   private async saveStoredTokens(): Promise<void> {
+    this.log(`[DEBUG] saveStoredTokens() called`);
+    debugFileLog(`saveStoredTokens() called`);
+    this.log(`[DEBUG]   secureStorage defined: ${!!this.secureStorage}`);
+    debugFileLog(`  secureStorage defined: ${!!this.secureStorage}`);
+    this.log(`[DEBUG]   allStoredTokens keys: ${JSON.stringify(Object.keys(this.allStoredTokens))}`);
+    debugFileLog(`  allStoredTokens keys: ${JSON.stringify(Object.keys(this.allStoredTokens))}`);
+
     try {
       if (!this.secureStorage) {
-        this.log("Secure storage not initialized, cannot save tokens");
+        // CRITICAL: This should never happen after the race condition fix
+        // If we reach here, there's a bug in the initialization flow
+        const errorMsg = "CRITICAL BUG: secureStorage is undefined when trying to save tokens! Tokens will be lost on restart.";
+        this.log(`[DEBUG] ${errorMsg}`);
+        debugFileLog(errorMsg);
+        console.error(`[Pierre SDK] ${errorMsg}`);
         return;
       }
 
+      this.log(`[DEBUG] Calling secureStorage.saveTokens() with ${JSON.stringify(Object.keys(this.allStoredTokens))} keys`);
+      debugFileLog(`Calling secureStorage.saveTokens()...`);
       await this.secureStorage.saveTokens(this.allStoredTokens);
-      this.log(`Saved tokens to OS keychain`);
+      this.log(`[DEBUG] saveTokens() completed successfully - tokens saved to OS keychain`);
+      debugFileLog(`saveTokens() completed successfully`);
+
+      // Verify the save worked by reading back
+      const verification = await this.secureStorage.getTokens();
+      this.log(`[DEBUG] Verification read-back: ${verification ? 'tokens found' : 'NO TOKENS FOUND'}`);
+      debugFileLog(`Verification read-back: ${verification ? 'tokens found' : 'NO TOKENS FOUND'}`);
+
+      if (!verification) {
+        const verifyError = "WARNING: Token save verification failed - tokens may not have persisted!";
+        this.log(`[DEBUG] ${verifyError}`);
+        debugFileLog(verifyError);
+      }
     } catch (error) {
-      this.log(`Failed to save tokens to keychain: ${error}`);
+      this.log(`[DEBUG] EXCEPTION in saveStoredTokens: ${error}`);
+      debugFileLog(`EXCEPTION in saveStoredTokens: ${error}`);
     }
   }
 
@@ -467,6 +502,8 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   }
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {
+    this.log(`[DEBUG] saveTokens() called with access_token length: ${tokens.access_token?.length || 0}`);
+    debugFileLog(`saveTokens() called with access_token length: ${tokens.access_token?.length || 0}`);
     this.savedTokens = tokens;
 
     // Also save to persistent client-side storage
@@ -474,9 +511,12 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       ...tokens,
       saved_at: Math.floor(Date.now() / 1000),
     };
+    this.log(`[DEBUG] Calling saveStoredTokens() from saveTokens()`);
+    debugFileLog(`Calling saveStoredTokens() from saveTokens()`);
     await this.saveStoredTokens();
 
     this.log(`Saved Pierre tokens: expires_in=${tokens.expires_in}`);
+    debugFileLog(`Saved Pierre tokens: expires_in=${tokens.expires_in}`);
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
@@ -696,6 +736,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       this.log(
         `Successfully received JWT token, expires_in=${tokenResponse.expires_in}`,
       );
+      debugFileLog(`exchangeCodeForTokens: Successfully received JWT token, expires_in=${tokenResponse.expires_in}`);
 
       // Convert to MCP SDK OAuthTokens format and save
       const oauthTokens: OAuthTokens = {
@@ -706,9 +747,12 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         scope: tokenResponse.scope,
       };
 
+      debugFileLog(`exchangeCodeForTokens: About to call saveTokens()`);
       await this.saveTokens(oauthTokens);
+      debugFileLog(`exchangeCodeForTokens: saveTokens() completed`);
     } catch (error) {
       this.log(`Token exchange failed: ${error}`);
+      debugFileLog(`exchangeCodeForTokens: FAILED - ${error}`);
       throw error;
     }
   }
@@ -2079,8 +2123,21 @@ export class PierreMcpClient {
   private async handleConnectToPierre(request: any): Promise<any> {
     try {
       this.log("Handling connect_to_pierre tool call - initiating OAuth flow");
+      debugFileLog("handleConnectToPierre: Starting OAuth flow handler");
+
+      // CRITICAL: Wait for proactive connection to complete before OAuth
+      // This ensures secureStorage is fully initialized before we try to save tokens
+      if (this.proactiveConnectionPromise) {
+        this.log("Waiting for initialization to complete before OAuth...");
+        debugFileLog("handleConnectToPierre: Waiting for proactiveConnectionPromise");
+        await this.proactiveConnectionPromise;
+        this.proactiveConnectionPromise = null;
+        this.log("Initialization complete, proceeding with OAuth");
+        debugFileLog("handleConnectToPierre: proactiveConnectionPromise completed");
+      }
 
       if (!this.oauthProvider) {
+        debugFileLog("handleConnectToPierre: ERROR - oauthProvider is null");
         return {
           content: [
             {
@@ -2091,6 +2148,8 @@ export class PierreMcpClient {
           isError: true,
         };
       }
+
+      debugFileLog(`handleConnectToPierre: oauthProvider exists, secureStorage defined: ${!!(this.oauthProvider as any).secureStorage}`);
 
       // Check if already authenticated
       // Credentials were validated at startup, so if they exist they're valid
@@ -2202,8 +2261,21 @@ export class PierreMcpClient {
   private async handleConnectProvider(request: any): Promise<any> {
     try {
       this.log("Handling unified connect_provider tool call");
+      debugFileLog("handleConnectProvider: Starting provider connection flow");
+
+      // CRITICAL: Wait for proactive connection to complete before OAuth
+      // This ensures secureStorage is fully initialized before we try to save tokens
+      if (this.proactiveConnectionPromise) {
+        this.log("Waiting for initialization to complete before provider auth...");
+        debugFileLog("handleConnectProvider: Waiting for proactiveConnectionPromise");
+        await this.proactiveConnectionPromise;
+        this.proactiveConnectionPromise = null;
+        this.log("Initialization complete, proceeding with provider auth");
+        debugFileLog("handleConnectProvider: proactiveConnectionPromise completed");
+      }
 
       if (!this.oauthProvider) {
+        debugFileLog("handleConnectProvider: ERROR - oauthProvider is null");
         return {
           content: [
             {

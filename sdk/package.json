@@ -62,6 +62,7 @@
     "@types/node": "^20.0.0",
     "esbuild": "^0.27.0",
     "jest": "^29.7.0",
+    "ts-jest": "^29.4.5",
     "tsx": "^4.0.0",
     "typescript": "^5.9.2"
   },
@@ -79,11 +80,14 @@
     "verbose": true,
     "collectCoverage": false,
     "testMatch": [
-      "**/test/**/*.test.js"
+      "**/test/**/*.test.js",
+      "**/src/**/*.test.ts"
     ],
     "transformIgnorePatterns": [
       "node_modules/(?!(node-fetch)/)"
     ],
-    "transform": {}
+    "transform": {
+      "^.+\\.tsx?$": "ts-jest"
+    }
   }
 }
