@@ -465,6 +465,46 @@ class ApiService {
     // Backend returns { users: [...], total_count: n } - extract users array for component compatibility
     return response.data.users || [];
   }
+
+  async resetUserPassword(userId: string): Promise<{
+    success: boolean;
+    temporary_password: string;
+    expires_at: string;
+    user_email: string;
+  }> {
+    const response = await axios.post(`/admin/users/${userId}/reset-password`);
+    return response.data;
+  }
+
+  async getUserRateLimit(userId: string): Promise<{
+    user_id: string;
+    tier: string;
+    rate_limits: {
+      daily: { limit: number | null; used: number; remaining: number | null };
+      monthly: { limit: number | null; used: number; remaining: number | null };
+    };
+    reset_times: {
+      daily_reset: string;
+      monthly_reset: string;
+    };
+  }> {
+    const response = await axios.get(`/admin/users/${userId}/rate-limit`);
+    return response.data;
+  }
+
+  async getUserActivity(userId: string, days: number = 30): Promise<{
+    user_id: string;
+    period_days: number;
+    total_requests: number;
+    top_tools: Array<{
+      tool_name: string;
+      call_count: number;
+      percentage: number;
+    }>;
+  }> {
+    const response = await axios.get(`/admin/users/${userId}/activity?days=${days}`);
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();

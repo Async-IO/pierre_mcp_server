@@ -5,6 +5,7 @@ import type { User } from '../types/api';
 import { Button, Card, Badge } from './ui';
 import PendingUsersList from './PendingUsersList';
 import UserApprovalModal from './UserApprovalModal';
+import UserDetailDrawer from './UserDetailDrawer';
 
 type UserTab = 'pending' | 'active' | 'suspended' | 'all';
 
@@ -13,6 +14,7 @@ export default function UserManagement() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [modalAction, setModalAction] = useState<'approve' | 'suspend'>('approve');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Queries for different user types
@@ -105,10 +107,21 @@ export default function UserManagement() {
     setSelectedUser(user);
     setModalAction(action);
     setIsModalOpen(true);
+    setIsDrawerOpen(false);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setSelectedUser(null);
+  };
+
+  const handleOpenDrawer = (user: User) => {
+    setSelectedUser(user);
+    setIsDrawerOpen(true);
+  };
+
+  const handleCloseDrawer = () => {
+    setIsDrawerOpen(false);
     setSelectedUser(null);
   };
 
@@ -259,7 +272,11 @@ export default function UserManagement() {
       ) : (
         <div className="space-y-4">
           {filteredUsers.map((user) => (
-            <Card key={user.id} className="p-4 hover:shadow-md transition-shadow">
+            <Card
+              key={user.id}
+              className="p-4 hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => handleOpenDrawer(user)}
+            >
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-1">
@@ -282,8 +299,8 @@ export default function UserManagement() {
                     )}
                   </div>
                 </div>
-                
-                <div className="flex space-x-2 ml-4">
+
+                <div className="flex space-x-2 ml-4" onClick={(e) => e.stopPropagation()}>
                   {user.user_status === 'pending' && (
                     <Button
                       onClick={() => handleUserAction(user, 'approve')}
@@ -324,6 +341,13 @@ export default function UserManagement() {
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         action={modalAction}
+      />
+
+      <UserDetailDrawer
+        user={selectedUser}
+        isOpen={isDrawerOpen}
+        onClose={handleCloseDrawer}
+        onAction={handleUserAction}
       />
     </div>
   );
