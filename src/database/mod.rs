@@ -2234,7 +2234,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Ok(analytics_logs
             .into_iter()
             .map(|log| crate::dashboard_routes::RequestLog {
-                id: log.id.to_string(),
+                id: log.id,
                 timestamp: log.timestamp,
                 api_key_id: log.api_key_id.unwrap_or_default(),
                 api_key_name: "Unknown".into(),

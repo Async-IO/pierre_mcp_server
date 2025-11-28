@@ -56,7 +56,7 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
   };
 
   const formatDuration = (ms: number) => {
-    if (ms < 1000) return `${ms}ms`;
+    if (ms < 1000) return `${Math.round(ms)}ms`;
     return `${(ms / 1000).toFixed(2)}s`;
   };
 

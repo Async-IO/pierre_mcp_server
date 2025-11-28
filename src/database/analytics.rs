@@ -15,8 +15,8 @@ use uuid::Uuid;
 /// Log entry for API requests including timing and status information
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RequestLog {
-    /// Database record ID
-    pub id: i64,
+    /// Database record ID (UUID stored as text in database)
+    pub id: String,
     /// Optional user ID for authenticated requests
     pub user_id: Option<Uuid>,
     /// Optional API key ID used for the request
@@ -444,7 +444,7 @@ impl Database {
                 .map(|s| Uuid::parse_str(s))
                 .transpose()?;
 
-            let log_id: i64 = row.get("id");
+            let log_id: String = row.get("id");
             let status_code = u16::try_from(row.get::<i32, _>("status_code")).unwrap_or_else(|e| {
                 tracing::warn!(
                     log_id = %log_id,

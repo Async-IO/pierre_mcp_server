@@ -1021,7 +1021,7 @@ impl MultiTenantMcpServer {
             .merge(WebSocketRoutes::routes(Arc::clone(
                 &resources.websocket_manager,
             )))
-            .merge(A2ARoutes::routes())
+            .merge(A2ARoutes::routes(Arc::clone(resources)))
             .merge(ApiKeyRoutes::routes(Arc::clone(resources)))
             .merge(TenantRoutes::routes(Arc::clone(resources)))
             .merge(DashboardRoutes::routes(Arc::clone(resources)))

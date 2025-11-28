@@ -157,24 +157,35 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Weekly Trend */}
-        {weeklyUsage?.time_series && weeklyUsage.time_series.length > 0 && (
-          <Card className="!p-5">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h3 className="text-base font-semibold text-pierre-gray-900">7-Day Activity</h3>
-                <p className="text-xs text-pierre-gray-500 mt-0.5">Request volume trend</p>
+        {weeklyUsage?.time_series && weeklyUsage.time_series.length > 0 && (() => {
+          const last7Days = weeklyUsage.time_series.slice(-7);
+          const totalRequests = last7Days.reduce((sum: number, point: TimeSeriesPoint) => sum + point.request_count, 0);
+          const avgPerDay = Math.round(totalRequests / last7Days.length);
+          const peakDay = last7Days.reduce((max: TimeSeriesPoint, point: TimeSeriesPoint) =>
+            point.request_count > max.request_count ? point : max, last7Days[0]);
+          const peakDayName = new Date(peakDay.date).toLocaleDateString('en-US', { weekday: 'short' });
+
+          return (
+            <Card className="!p-5">
+              <div className="flex justify-between items-center mb-3">
+                <div>
+                  <h3 className="text-base font-semibold text-pierre-gray-900">7-Day Activity</h3>
+                  <p className="text-xs text-pierre-gray-500 mt-0.5">
+                    Avg {avgPerDay.toLocaleString()}/day · Peak {peakDayName}
+                  </p>
+                </div>
+                <span className="px-3 py-1 text-sm font-medium bg-pierre-violet/10 text-pierre-violet rounded-full">
+                  {totalRequests.toLocaleString()} total
+                </span>
               </div>
-              <span className="px-3 py-1 text-sm font-medium bg-pierre-violet/10 text-pierre-violet rounded-full">
-                {weeklyUsage?.time_series?.reduce((sum: number, point: TimeSeriesPoint) => sum + point.request_count, 0).toLocaleString() || 0}
-              </span>
-            </div>
-            <div style={{ height: '120px' }}>
-              <Suspense fallback={<div className="h-[120px] flex items-center justify-center"><div className="pierre-spinner"></div></div>}>
-                <LazyLineChart data={miniChartData} options={miniChartOptions} />
-              </Suspense>
-            </div>
-          </Card>
-        )}
+              <div style={{ height: '120px' }}>
+                <Suspense fallback={<div className="h-[120px] flex items-center justify-center"><div className="pierre-spinner"></div></div>}>
+                  <LazyLineChart data={miniChartData} options={miniChartOptions} />
+                </Suspense>
+              </div>
+            </Card>
+          );
+        })()}
 
         {/* Rate Limit Overview */}
         {rateLimits && rateLimits.length > 0 && (

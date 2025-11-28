@@ -196,8 +196,8 @@ export default function Dashboard() {
 
         {/* User Profile Section - Bottom of sidebar */}
         <div className={clsx(
-          'border-t border-pierre-gray-100 transition-all duration-300',
-          sidebarCollapsed ? 'p-3' : 'p-4'
+          'transition-all duration-300',
+          sidebarCollapsed ? 'p-3 flex flex-col items-center' : 'p-4 border-t border-pierre-gray-100'
         )}>
           <div className={clsx(
             'flex items-center transition-all duration-300',
