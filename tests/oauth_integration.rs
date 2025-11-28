@@ -648,9 +648,9 @@ async fn test_connection_status_no_providers() {
 
     let statuses = oauth_routes.get_connection_status(user_id).await.unwrap();
 
-    // After pluggable provider architecture, we have 3 OAuth providers: strava, garmin, fitbit
+    // After pluggable provider architecture, we have 5 OAuth providers: strava, garmin, fitbit, terra, whoop
     // (synthetic provider doesn't use OAuth)
-    assert_eq!(statuses.len(), 3);
+    assert_eq!(statuses.len(), 5);
 
     let strava_status = statuses.iter().find(|s| s.provider == "strava").unwrap();
     assert!(!strava_status.connected);
