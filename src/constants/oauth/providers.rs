@@ -14,7 +14,8 @@
 #[cfg(feature = "provider-strava")]
 pub const STRAVA: &str = "strava";
 
-/// Fitbit fitness provider identifier (future)
+/// Fitbit fitness provider identifier
+#[cfg(feature = "provider-fitbit")]
 pub const FITBIT: &str = "fitbit";
 
 /// Garmin fitness provider identifier
@@ -62,8 +63,9 @@ pub fn is_supported(provider: &str) -> bool {
 #[cfg(feature = "provider-strava")]
 pub const STRAVA_DEFAULT_SCOPES: &str = "activity:read_all";
 
-/// Fitbit default scopes
-pub const FITBIT_DEFAULT_SCOPES: &str = "activity profile";
+/// Fitbit default scopes (space-separated as per Fitbit API requirements)
+#[cfg(feature = "provider-fitbit")]
+pub const FITBIT_DEFAULT_SCOPES: &str = "activity profile sleep heartrate weight";
 
 /// Garmin default scopes
 #[cfg(feature = "provider-garmin")]

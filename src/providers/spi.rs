@@ -411,6 +411,49 @@ impl ProviderDescriptor for GarminDescriptor {
     }
 }
 
+/// Fitbit provider descriptor
+#[cfg(feature = "provider-fitbit")]
+pub struct FitbitDescriptor;
+
+#[cfg(feature = "provider-fitbit")]
+impl ProviderDescriptor for FitbitDescriptor {
+    fn name(&self) -> &'static str {
+        "fitbit"
+    }
+
+    fn display_name(&self) -> &'static str {
+        "Fitbit"
+    }
+
+    fn capabilities(&self) -> ProviderCapabilities {
+        ProviderCapabilities::full_health()
+    }
+
+    fn oauth_endpoints(&self) -> Option<OAuthEndpoints> {
+        Some(OAuthEndpoints {
+            auth_url: "https://www.fitbit.com/oauth2/authorize",
+            token_url: "https://api.fitbit.com/oauth2/token",
+            revoke_url: Some("https://api.fitbit.com/oauth2/revoke"),
+        })
+    }
+
+    fn oauth_params(&self) -> Option<OAuthParams> {
+        Some(OAuthParams {
+            scope_separator: " ", // Fitbit uses space-separated scopes
+            use_pkce: true,
+            additional_auth_params: &[],
+        })
+    }
+
+    fn api_base_url(&self) -> &'static str {
+        "https://api.fitbit.com/1"
+    }
+
+    fn default_scopes(&self) -> &'static [&'static str] {
+        &["activity", "profile", "sleep", "heartrate", "weight"]
+    }
+}
+
 /// Synthetic provider descriptor (for development/testing)
 #[cfg(feature = "provider-synthetic")]
 pub struct SyntheticDescriptor;

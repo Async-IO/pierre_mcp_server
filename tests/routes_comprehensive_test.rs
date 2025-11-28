@@ -1092,17 +1092,16 @@ async fn test_oauth_get_auth_url_fitbit() -> Result<()> {
     let (oauth_routes, tenant_id, _database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let result = oauth_routes
+    let response = oauth_routes
         .get_auth_url(user_id, tenant_id, "fitbit")
-        .await;
+        .await?;
 
-    // Fitbit was removed from feature flags (not in all-providers)
-    // Test should expect "Unsupported provider" error
-    assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Unsupported provider"));
+    // Fitbit is now fully implemented with provider-fitbit feature
+    assert!(response.authorization_url.contains("fitbit.com"));
+    assert!(response.authorization_url.contains("authorize"));
+    assert!(!response.state.is_empty());
+    assert!(!response.instructions.is_empty());
+    assert!(response.expires_in_minutes > 0);
 
     Ok(())
 }

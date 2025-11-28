@@ -13,22 +13,22 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 // Conditional imports for provider-specific types
+#[cfg(feature = "provider-fitbit")]
+use super::fitbit_provider::FitbitProviderFactory;
 #[cfg(feature = "provider-garmin")]
 use super::garmin_provider::GarminProviderFactory;
+#[cfg(feature = "provider-fitbit")]
+use super::spi::FitbitDescriptor;
 #[cfg(feature = "provider-garmin")]
 use super::spi::GarminDescriptor;
 #[cfg(feature = "provider-strava")]
 use super::spi::StravaDescriptor;
 #[cfg(feature = "provider-synthetic")]
 use super::spi::SyntheticDescriptor;
-#[cfg(feature = "provider-whoop")]
-use super::spi::WhoopDescriptor;
 #[cfg(feature = "provider-strava")]
 use super::strava_provider::StravaProviderFactory;
 #[cfg(feature = "provider-synthetic")]
 use super::synthetic_provider::SyntheticProviderFactory;
-#[cfg(feature = "provider-whoop")]
-use super::whoop_provider::WhoopProviderFactory;
 
 /// Factory wrapper for bundle-based provider registration
 struct BundleFactory {
@@ -57,11 +57,7 @@ impl ProviderRegistry {
     ///
     /// Providers are configured from environment variables with fallback to hardcoded defaults.
     /// See `crate::config::environment::load_provider_env_config()` for environment variable format.
-    ///
-    /// Long function: Provider registration requires individual configuration blocks per provider.
-    /// This function grows linearly with the number of supported providers, which is expected.
     #[must_use]
-    #[allow(clippy::too_many_lines)]
     pub fn new() -> Self {
         let mut registry = Self {
             factories: HashMap::new(),
@@ -69,115 +65,11 @@ impl ProviderRegistry {
             descriptors: HashMap::new(),
         };
 
-        // Register Strava provider with environment-based configuration
-        #[cfg(feature = "provider-strava")]
-        {
-            registry.register_factory(oauth_providers::STRAVA, Box::new(StravaProviderFactory));
-            registry.register_descriptor(oauth_providers::STRAVA, Box::new(StravaDescriptor));
-            let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
-                crate::config::environment::load_provider_env_config(
-                    oauth_providers::STRAVA,
-                    "https://www.strava.com/oauth/authorize",
-                    "https://www.strava.com/oauth/token",
-                    "https://www.strava.com/api/v3",
-                    Some("https://www.strava.com/oauth/deauthorize"),
-                    &[oauth_providers::STRAVA_DEFAULT_SCOPES.to_owned()],
-                );
-            registry.set_default_config(
-                oauth_providers::STRAVA,
-                ProviderConfig {
-                    name: oauth_providers::STRAVA.to_owned(),
-                    auth_url,
-                    token_url,
-                    api_base_url,
-                    revoke_url,
-                    default_scopes: scopes,
-                },
-            );
-        }
-
-        // Register Garmin provider with environment-based configuration
-        #[cfg(feature = "provider-garmin")]
-        {
-            registry.register_factory(oauth_providers::GARMIN, Box::new(GarminProviderFactory));
-            registry.register_descriptor(oauth_providers::GARMIN, Box::new(GarminDescriptor));
-            let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
-                crate::config::environment::load_provider_env_config(
-                    oauth_providers::GARMIN,
-                    "https://connect.garmin.com/oauthConfirm",
-                    "https://connectapi.garmin.com/oauth-service/oauth/access_token",
-                    "https://apis.garmin.com/wellness-api/rest",
-                    Some("https://connectapi.garmin.com/oauth-service/oauth/revoke"),
-                    &crate::constants::oauth::GARMIN_DEFAULT_SCOPES
-                        .split(',')
-                        .map(str::to_owned)
-                        .collect::<Vec<_>>(),
-                );
-            registry.set_default_config(
-                oauth_providers::GARMIN,
-                ProviderConfig {
-                    name: oauth_providers::GARMIN.to_owned(),
-                    auth_url,
-                    token_url,
-                    api_base_url,
-                    revoke_url,
-                    default_scopes: scopes,
-                },
-            );
-        }
-
-        // Register WHOOP provider with environment-based configuration
-        #[cfg(feature = "provider-whoop")]
-        {
-            registry.register_factory(oauth_providers::WHOOP, Box::new(WhoopProviderFactory));
-            registry.register_descriptor(oauth_providers::WHOOP, Box::new(WhoopDescriptor));
-            let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
-                crate::config::environment::load_provider_env_config(
-                    oauth_providers::WHOOP,
-                    "https://api.prod.whoop.com/oauth/oauth2/auth",
-                    "https://api.prod.whoop.com/oauth/oauth2/token",
-                    "https://api.prod.whoop.com/developer/v1",
-                    Some("https://api.prod.whoop.com/oauth/oauth2/revoke"),
-                    &oauth_providers::WHOOP_DEFAULT_SCOPES
-                        .split(' ')
-                        .map(str::to_owned)
-                        .collect::<Vec<_>>(),
-                );
-            registry.set_default_config(
-                oauth_providers::WHOOP,
-                ProviderConfig {
-                    name: oauth_providers::WHOOP.to_owned(),
-                    auth_url,
-                    token_url,
-                    api_base_url,
-                    revoke_url,
-                    default_scopes: scopes,
-                },
-            );
-        }
-
-        // Register Synthetic provider (for development and testing)
-        #[cfg(feature = "provider-synthetic")]
-        {
-            registry.register_factory(
-                oauth_providers::SYNTHETIC,
-                Box::new(SyntheticProviderFactory),
-            );
-            registry.register_descriptor(oauth_providers::SYNTHETIC, Box::new(SyntheticDescriptor));
-            registry.set_default_config(
-                oauth_providers::SYNTHETIC,
-                ProviderConfig {
-                    name: oauth_providers::SYNTHETIC.to_owned(),
-                    auth_url: "http://localhost/synthetic/auth".to_owned(),
-                    token_url: "http://localhost/synthetic/token".to_owned(),
-                    api_base_url: "http://localhost/synthetic/api".to_owned(),
-                    revoke_url: None,
-                    default_scopes: vec!["activity:read_all".to_owned()],
-                },
-            );
-        }
-
-        // Future providers can be added with their own feature flags
+        // Register all enabled providers
+        Self::register_strava(&mut registry);
+        Self::register_garmin(&mut registry);
+        Self::register_fitbit(&mut registry);
+        Self::register_synthetic(&mut registry);
 
         // Log registered providers at startup
         let providers = registry.supported_providers().join(", ");
@@ -189,6 +81,126 @@ impl ProviderRegistry {
 
         registry
     }
+
+    /// Register Strava provider with environment-based configuration
+    #[cfg(feature = "provider-strava")]
+    fn register_strava(registry: &mut Self) {
+        registry.register_factory(oauth_providers::STRAVA, Box::new(StravaProviderFactory));
+        registry.register_descriptor(oauth_providers::STRAVA, Box::new(StravaDescriptor));
+        let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
+            crate::config::environment::load_provider_env_config(
+                oauth_providers::STRAVA,
+                "https://www.strava.com/oauth/authorize",
+                "https://www.strava.com/oauth/token",
+                "https://www.strava.com/api/v3",
+                Some("https://www.strava.com/oauth/deauthorize"),
+                &[oauth_providers::STRAVA_DEFAULT_SCOPES.to_owned()],
+            );
+        registry.set_default_config(
+            oauth_providers::STRAVA,
+            ProviderConfig {
+                name: oauth_providers::STRAVA.to_owned(),
+                auth_url,
+                token_url,
+                api_base_url,
+                revoke_url,
+                default_scopes: scopes,
+            },
+        );
+    }
+
+    #[cfg(not(feature = "provider-strava"))]
+    fn register_strava(_registry: &mut Self) {}
+
+    /// Register Garmin provider with environment-based configuration
+    #[cfg(feature = "provider-garmin")]
+    fn register_garmin(registry: &mut Self) {
+        registry.register_factory(oauth_providers::GARMIN, Box::new(GarminProviderFactory));
+        registry.register_descriptor(oauth_providers::GARMIN, Box::new(GarminDescriptor));
+        let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
+            crate::config::environment::load_provider_env_config(
+                oauth_providers::GARMIN,
+                "https://connect.garmin.com/oauthConfirm",
+                "https://connectapi.garmin.com/oauth-service/oauth/access_token",
+                "https://apis.garmin.com/wellness-api/rest",
+                Some("https://connectapi.garmin.com/oauth-service/oauth/revoke"),
+                &crate::constants::oauth::GARMIN_DEFAULT_SCOPES
+                    .split(',')
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>(),
+            );
+        registry.set_default_config(
+            oauth_providers::GARMIN,
+            ProviderConfig {
+                name: oauth_providers::GARMIN.to_owned(),
+                auth_url,
+                token_url,
+                api_base_url,
+                revoke_url,
+                default_scopes: scopes,
+            },
+        );
+    }
+
+    #[cfg(not(feature = "provider-garmin"))]
+    fn register_garmin(_registry: &mut Self) {}
+
+    /// Register Fitbit provider with environment-based configuration
+    #[cfg(feature = "provider-fitbit")]
+    fn register_fitbit(registry: &mut Self) {
+        registry.register_factory(oauth_providers::FITBIT, Box::new(FitbitProviderFactory));
+        registry.register_descriptor(oauth_providers::FITBIT, Box::new(FitbitDescriptor));
+        let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
+            crate::config::environment::load_provider_env_config(
+                oauth_providers::FITBIT,
+                "https://www.fitbit.com/oauth2/authorize",
+                "https://api.fitbit.com/oauth2/token",
+                "https://api.fitbit.com/1",
+                Some("https://api.fitbit.com/oauth2/revoke"),
+                &oauth_providers::FITBIT_DEFAULT_SCOPES
+                    .split(' ')
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>(),
+            );
+        registry.set_default_config(
+            oauth_providers::FITBIT,
+            ProviderConfig {
+                name: oauth_providers::FITBIT.to_owned(),
+                auth_url,
+                token_url,
+                api_base_url,
+                revoke_url,
+                default_scopes: scopes,
+            },
+        );
+    }
+
+    #[cfg(not(feature = "provider-fitbit"))]
+    fn register_fitbit(_registry: &mut Self) {}
+
+    /// Register Synthetic provider for development and testing
+    #[cfg(feature = "provider-synthetic")]
+    fn register_synthetic(registry: &mut Self) {
+        registry.register_factory(
+            oauth_providers::SYNTHETIC,
+            Box::new(SyntheticProviderFactory),
+        );
+        registry.register_descriptor(oauth_providers::SYNTHETIC, Box::new(SyntheticDescriptor));
+        registry.set_default_config(
+            oauth_providers::SYNTHETIC,
+            ProviderConfig {
+                name: oauth_providers::SYNTHETIC.to_owned(),
+                auth_url: "http://localhost/synthetic/auth".to_owned(),
+                token_url: "http://localhost/synthetic/token".to_owned(),
+                api_base_url: "http://localhost/synthetic/api".to_owned(),
+                revoke_url: None,
+                default_scopes: vec!["activity:read_all".to_owned()],
+            },
+        );
+    }
+
+    #[cfg(not(feature = "provider-synthetic"))]
+    fn register_synthetic(_registry: &mut Self) {}
 
     /// Register a provider factory
     pub fn register_factory(

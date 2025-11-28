@@ -53,6 +53,9 @@ pub mod utils;
 
 // Provider implementations (conditionally compiled based on feature flags)
 
+/// Fitbit API provider implementation
+#[cfg(feature = "provider-fitbit")]
+pub mod fitbit_provider;
 /// Garmin Connect provider implementation
 #[cfg(feature = "provider-garmin")]
 pub mod garmin_provider;
@@ -78,6 +81,8 @@ pub use registry::{
     create_provider, create_registry_with_external_providers, create_tenant_provider,
     get_supported_providers, global_registry, is_provider_supported, ProviderRegistry,
 };
+#[cfg(feature = "provider-fitbit")]
+pub use spi::FitbitDescriptor;
 #[cfg(feature = "provider-garmin")]
 pub use spi::GarminDescriptor;
 #[cfg(feature = "provider-strava")]

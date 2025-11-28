@@ -186,11 +186,11 @@ fn test_oauth_scopes_for_all_providers() {
         "Strava scope should be activity:read_all"
     );
 
-    // Fitbit scopes
+    // Fitbit scopes - expanded for full health metrics support
     assert_eq!(
         oauth::FITBIT_DEFAULT_SCOPES,
-        "activity profile",
-        "Fitbit scope should be 'activity profile' (space-separated)"
+        "activity profile sleep heartrate weight",
+        "Fitbit scope should include activity, profile, sleep, heartrate, weight (space-separated)"
     );
 }
 
