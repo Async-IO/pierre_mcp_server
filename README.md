@@ -653,34 +653,9 @@ Component documentation:
 Installation guide for MCP clients:
 - **[MCP Client Installation](docs/installation-guides/install-mcp-client.md)** - claude desktop, chatgpt, and other mcp clients
 
-## Code Quality
-
-Pierre Fitness Platform uses validation scripts to maintain code quality and prevent common issues. See [Scripts Documentation](scripts/README.md) for the complete script inventory.
-
-**Pre-commit Validation**:
-- Pattern validation via `scripts/validation-patterns.toml`
-- Clippy linting with strict warnings
-- Test execution
-- Format checking
-
-**Run validation**:
-```bash
-./scripts/lint-and-test.sh
-```
-
-Install git hooks:
-```bash
-./scripts/setup-git-hooks.sh
-```
-
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/new-feature`)
-3. Run validation (`./scripts/lint-and-test.sh`)
-4. Commit changes (`git commit -m 'feat: add new feature'`)
-5. Push to branch (`git push origin feature/new-feature`)
-6. Open a Pull Request
+See [docs/contributing.md](docs/contributing.md) for development setup, code standards, testing requirements, and contribution workflow.
 
 ## License
 
