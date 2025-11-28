@@ -50,8 +50,9 @@ telemetry = []
 provider-strava = []
 provider-garmin = []
 provider-fitbit = []
+provider-whoop = []
 provider-synthetic = []
-all-providers = ["provider-strava", "provider-garmin", "provider-fitbit", "provider-synthetic"]
+all-providers = ["provider-strava", "provider-garmin", "provider-fitbit", "provider-whoop", "provider-synthetic"]
 
 [profile.dev]
 debug = 1
