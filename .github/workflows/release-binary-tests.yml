@@ -97,7 +97,8 @@ jobs:
           fi
 
       - name: Run tests with release binary
-        run: cargo test --release --all-targets --no-fail-fast -- --test-threads=1
+        # Using --test-threads=4 - concurrent tests use #[serial] for isolation (issue #36)
+        run: cargo test --release --all-targets --no-fail-fast -- --test-threads=4
         env:
           DATABASE_URL: "sqlite::memory:"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="

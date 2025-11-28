@@ -18,6 +18,7 @@ use pierre_mcp_server::{
     models::{Tenant, User},
 };
 use serde_json::json;
+use serial_test::serial;
 
 mod common;
 
@@ -610,6 +611,7 @@ async fn test_handle_authenticated_tool_call_edge_cases() -> Result<()> {
 // === Concurrency Tests ===
 
 #[tokio::test]
+#[serial]
 async fn test_concurrent_requests() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
 

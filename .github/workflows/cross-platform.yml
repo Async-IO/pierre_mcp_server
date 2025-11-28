@@ -129,14 +129,15 @@ jobs:
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
 
       - name: Run platform-specific tests
+        # Using --test-threads=4 - concurrent tests use #[serial] for isolation (issue #36)
         shell: bash
         run: |
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            cargo test --all-targets --all-features --quiet -- --test-threads=1
+            cargo test --all-targets --all-features --quiet -- --test-threads=4
           elif [ "${{ matrix.os }}" == "windows-latest" ]; then
-            cargo test --all-targets --release --quiet
+            cargo test --all-targets --release --quiet -- --test-threads=4
           else
-            cargo test --all-targets --quiet
+            cargo test --all-targets --quiet -- --test-threads=4
           fi
         env:
           DATABASE_URL: ${{ matrix.os == 'ubuntu-latest' && 'postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server' || 'sqlite::memory:' }}

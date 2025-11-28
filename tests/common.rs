@@ -911,3 +911,186 @@ pub async fn spawn_http_mcp_server(resources: &Arc<ServerResources>) -> Result<H
 
     Ok(HttpServerHandle { task_handle, port })
 }
+
+// ============================================================================
+// PostgreSQL Test Database Isolation
+// ============================================================================
+// Each PostgreSQL test gets its own unique database to prevent concurrent
+// schema creation conflicts when running with --test-threads=4.
+// See issue #36 for context on the race condition this solves.
+
+/// Handle for an isolated `PostgreSQL` test database with RAII cleanup
+/// Automatically drops the database when the handle goes out of scope
+#[cfg(feature = "postgresql")]
+pub struct IsolatedPostgresDb {
+    /// Connection URL for this isolated test database
+    pub url: String,
+    /// Database name (used for cleanup)
+    pub db_name: String,
+    /// Base URL for connecting to postgres admin database
+    admin_url: String,
+}
+
+#[cfg(feature = "postgresql")]
+impl IsolatedPostgresDb {
+    /// Create a new isolated `PostgreSQL` database for testing
+    ///
+    /// Creates a unique database with UUID suffix to prevent conflicts
+    /// between concurrent tests.
+    ///
+    /// # Errors
+    /// Returns error if database creation fails
+    pub async fn new() -> Result<Self> {
+        let base_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server".to_owned()
+        });
+
+        // Generate unique database name using UUID
+        let db_name = format!("pierre_test_{}", Uuid::new_v4().as_simple());
+
+        // Connect to postgres admin database to create test database
+        let admin_url = base_url
+            .replace("/pierre_mcp_server", "/postgres")
+            .replace("/pierre_test_", "/postgres"); // Handle nested test URLs
+
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .max_connections(1)
+            .acquire_timeout(std::time::Duration::from_secs(10))
+            .connect(&admin_url)
+            .await?;
+
+        // Create the isolated test database
+        sqlx::query(&format!("CREATE DATABASE {db_name}"))
+            .execute(&pool)
+            .await?;
+
+        // Build test database URL
+        let test_url = base_url.replace("/pierre_mcp_server", &format!("/{db_name}"));
+
+        Ok(Self {
+            url: test_url,
+            db_name,
+            admin_url,
+        })
+    }
+
+    /// Get a Database instance connected to this isolated database
+    ///
+    /// # Errors
+    /// Returns error if connection or migration fails
+    pub async fn get_database(&self) -> Result<Database> {
+        let encryption_key = generate_encryption_key().to_vec();
+        let pool_config = pierre_mcp_server::config::environment::PostgresPoolConfig {
+            max_connections: 5,
+            min_connections: 1,
+            acquire_timeout_secs: 30,
+        };
+
+        let db = Database::new(&self.url, encryption_key, &pool_config).await?;
+        db.migrate().await?;
+
+        Ok(db)
+    }
+
+    /// Cleanup the isolated database
+    /// Called automatically on Drop, but can be called explicitly
+    async fn cleanup(&self) -> Result<()> {
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .max_connections(1)
+            .acquire_timeout(std::time::Duration::from_secs(5))
+            .connect(&self.admin_url)
+            .await?;
+
+        // Terminate all connections to the test database first
+        let terminate_query = format!(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{}'",
+            self.db_name
+        );
+        let _ = sqlx::query(&terminate_query).execute(&pool).await;
+
+        // Drop the database
+        let drop_query = format!("DROP DATABASE IF EXISTS {}", self.db_name);
+        let _ = sqlx::query(&drop_query).execute(&pool).await;
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "postgresql")]
+impl Drop for IsolatedPostgresDb {
+    fn drop(&mut self) {
+        // Spawn a blocking task to cleanup the database
+        // We can't use async in Drop, so we spawn a new runtime
+        let admin_url = self.admin_url.clone();
+        let db_name = self.db_name.clone();
+
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to create runtime for cleanup");
+
+            rt.block_on(async {
+                if let Ok(pool) = sqlx::postgres::PgPoolOptions::new()
+                    .max_connections(1)
+                    .acquire_timeout(std::time::Duration::from_secs(5))
+                    .connect(&admin_url)
+                    .await
+                {
+                    // Terminate connections
+                    let terminate_query = format!(
+                        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{}'",
+                        db_name
+                    );
+                    let _ = sqlx::query(&terminate_query).execute(&pool).await;
+
+                    // Drop database
+                    let drop_query = format!("DROP DATABASE IF EXISTS {}", db_name);
+                    let _ = sqlx::query(&drop_query).execute(&pool).await;
+                }
+            });
+        });
+    }
+}
+
+/// Create an isolated `PostgreSQL` database for a single test
+/// Returns the database URL and database name for cleanup
+///
+/// # Errors
+/// Returns error if database creation fails
+#[cfg(feature = "postgresql")]
+pub async fn create_isolated_postgres_db() -> Result<(String, String)> {
+    let isolated_db = IsolatedPostgresDb::new().await?;
+    Ok((isolated_db.url.clone(), isolated_db.db_name.clone()))
+}
+
+/// Clean up an isolated `PostgreSQL` test database
+///
+/// # Errors
+/// Returns error if cleanup fails
+#[cfg(feature = "postgresql")]
+pub async fn cleanup_postgres_db(db_name: &str) -> Result<()> {
+    let base_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server".to_owned()
+    });
+
+    let admin_url = base_url.replace("/pierre_mcp_server", "/postgres");
+
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(std::time::Duration::from_secs(5))
+        .connect(&admin_url)
+        .await?;
+
+    // Terminate all connections to the test database
+    let terminate_query = format!(
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{db_name}'"
+    );
+    let _ = sqlx::query(&terminate_query).execute(&pool).await;
+
+    // Drop the database
+    let drop_query = format!("DROP DATABASE IF EXISTS {db_name}");
+    sqlx::query(&drop_query).execute(&pool).await?;
+
+    Ok(())
+}

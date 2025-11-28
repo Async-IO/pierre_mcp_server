@@ -1593,6 +1593,7 @@ async fn test_complete_auth_flow() -> Result<()> {
 // === Concurrency Tests ===
 
 #[tokio::test]
+#[serial]
 async fn test_concurrent_registrations() -> Result<()> {
     common::init_server_config();
     let auth_routes = create_test_auth_routes().await?;
@@ -1622,6 +1623,7 @@ async fn test_concurrent_registrations() -> Result<()> {
 }
 
 #[tokio::test]
+#[serial]
 #[allow(clippy::too_many_lines)] // Long function: Complex test with full setup
 async fn test_concurrent_logins() -> Result<()> {
     common::init_server_config();

@@ -21,8 +21,10 @@ use pierre_mcp_server::{
     models::{User, UserOAuthToken, UserTier},
     rate_limiting::JwtUsage,
 };
-
+use serial_test::serial;
 use uuid::Uuid;
+
+mod common;
 
 #[tokio::test]
 async fn test_sqlite_database_creation() -> Result<()> {
@@ -547,6 +549,7 @@ async fn test_jwt_usage_tracking() -> Result<()> {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_concurrent_database_operations() -> Result<()> {
     let encryption_key = generate_encryption_key().to_vec();
     #[cfg(feature = "postgresql")]
@@ -913,60 +916,21 @@ async fn test_database_connection_reuse() -> Result<()> {
 }
 
 // PostgreSQL-specific tests (only run when feature is enabled)
+// Each test uses an isolated database to prevent race conditions with --test-threads=4
 #[cfg(feature = "postgresql")]
 mod postgres_tests {
     use super::*;
-
-    fn get_postgres_test_url() -> String {
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server".to_owned()
-        })
-    }
-
-    // Per-test database instances to prevent connection leaks
-
-    async fn get_postgres_db() -> Result<Database> {
-        // Create fresh database instance per test to eliminate connection leaks
-        std::env::set_var("POSTGRES_MAX_CONNECTIONS", "5");
-        std::env::set_var("POSTGRES_MIN_CONNECTIONS", "1");
-        std::env::set_var("POSTGRES_ACQUIRE_TIMEOUT", "30");
-        std::env::set_var("CI", "true");
-
-        let encryption_key = generate_encryption_key().to_vec();
-        let test_url = get_postgres_test_url();
-        let pool_config = pierre_mcp_server::config::environment::PostgresPoolConfig::default();
-
-        let db = Database::new(&test_url, encryption_key, &pool_config).await?;
-        let _ = db.migrate().await; // Ignore migration errors if already applied
-
-        Ok(db)
-    }
-
-    // Helper function to clean up test data between tests
-    async fn cleanup_test_data(db: &Database, user_email: &str) -> Result<()> {
-        // Clean up any test data to prevent conflicts between tests
-        if let Ok(Some(_user)) = db.get_user_by_email(user_email).await {
-            // Note: There's no delete_user method in DatabaseProvider trait
-            // Cleanup would need to be handled differently if required
-            // For now we just acknowledge the user exists
-        }
-        Ok(())
-    }
+    use common::IsolatedPostgresDb;
 
     #[tokio::test]
     async fn test_postgres_database_creation() -> Result<()> {
-        let db = get_postgres_db().await?;
-
-        // Use unique test identifier to avoid conflicts
-        let test_id = uuid::Uuid::new_v4();
-        let user_email = format!("postgres_creation_test_{test_id}@example.com");
-
-        // Clean up any existing data
-        cleanup_test_data(&db, &user_email).await?;
+        // Each test gets its own isolated database - prevents race conditions
+        let isolated_db = IsolatedPostgresDb::new().await?;
+        let db = isolated_db.get_database().await?;
 
         // Verify database is operational
         let user = User::new(
-            user_email.clone(),
+            "postgres_creation_test@example.com".to_owned(),
             "password123".to_owned(),
             Some("PostgreSQL Creation Test".to_owned()),
         );
@@ -974,17 +938,14 @@ mod postgres_tests {
         let user_id = db.create_user(&user).await?;
         assert_eq!(user_id, user.id);
 
-        // Clean up after test
-        cleanup_test_data(&db, &user_email).await?;
-
-        // Clean up would happen on test drop or next run
-
+        // Database cleanup happens automatically when isolated_db is dropped
         Ok(())
     }
 
     #[tokio::test]
     async fn test_postgres_migration_idempotency() -> Result<()> {
-        let db = get_postgres_db().await?;
+        let isolated_db = IsolatedPostgresDb::new().await?;
+        let db = isolated_db.get_database().await?;
 
         // Run migration multiple times - should be idempotent
         for _ in 0..3 {
@@ -997,7 +958,8 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn test_postgres_user_operations() -> Result<()> {
-        let db = get_postgres_db().await?;
+        let isolated_db = IsolatedPostgresDb::new().await?;
+        let db = isolated_db.get_database().await?;
 
         // Create user with all tiers
         let tiers = [
@@ -1041,7 +1003,8 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn test_postgres_api_key_comprehensive() -> Result<()> {
-        let db = get_postgres_db().await?;
+        let isolated_db = IsolatedPostgresDb::new().await?;
+        let db = isolated_db.get_database().await?;
 
         let user = User::new(
             format!("postgres_api_test_{}@example.com", uuid::Uuid::new_v4()),
@@ -1123,7 +1086,8 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn test_postgres_token_operations() -> Result<()> {
-        let db = get_postgres_db().await?;
+        let isolated_db = IsolatedPostgresDb::new().await?;
+        let db = isolated_db.get_database().await?;
 
         let user = User::new(
             format!("postgres_token_test_{}@example.com", uuid::Uuid::new_v4()),
@@ -1222,7 +1186,8 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn test_postgres_concurrent_operations() -> Result<()> {
-        let db = get_postgres_db().await?;
+        let isolated_db = IsolatedPostgresDb::new().await?;
+        let db = isolated_db.get_database().await?;
 
         // Test concurrent user creation
         let mut handles = vec![];
@@ -1285,7 +1250,8 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn test_postgres_jwt_usage_tracking() -> Result<()> {
-        let db = get_postgres_db().await?;
+        let isolated_db = IsolatedPostgresDb::new().await?;
+        let db = isolated_db.get_database().await?;
 
         // Create a test user first for foreign key reference
         let user = User::new(
@@ -1321,7 +1287,8 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn test_postgres_error_scenarios() -> Result<()> {
-        let db = get_postgres_db().await?;
+        let isolated_db = IsolatedPostgresDb::new().await?;
+        let db = isolated_db.get_database().await?;
 
         // Test non-existent user operations
         let fake_user_id = Uuid::new_v4();
@@ -1350,7 +1317,8 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn test_postgres_connection_pooling() -> Result<()> {
-        let db = get_postgres_db().await?;
+        let isolated_db = IsolatedPostgresDb::new().await?;
+        let db = isolated_db.get_database().await?;
 
         // Perform operations that should use connection pooling
         // Reduced for CI stability - testing pooling behavior, not stress testing
@@ -1392,17 +1360,17 @@ mod postgres_tests {
     async fn test_postgres_users_schema_no_duplicate_columns() -> Result<()> {
         use sqlx::postgres::PgPoolOptions;
 
-        let db_url = get_postgres_test_url();
-        let pool_config = pierre_mcp_server::config::environment::PostgresPoolConfig::default();
-        let encryption_key = generate_encryption_key().to_vec();
-        let db = Database::new(&db_url, encryption_key, &pool_config).await?;
+        // Use isolated database to prevent race conditions with parallel tests
+        let isolated_db = IsolatedPostgresDb::new().await?;
+        let db = isolated_db.get_database().await?;
 
+        // Migrations already run by get_database(), but ensure idempotency
         db.migrate().await?;
 
-        // Create a separate pool for schema introspection queries
+        // Create a separate pool for schema introspection queries using isolated DB URL
         let pool = PgPoolOptions::new()
             .max_connections(1)
-            .connect(&db_url)
+            .connect(&isolated_db.url)
             .await?;
 
         // Query PostgreSQL information_schema to get column names

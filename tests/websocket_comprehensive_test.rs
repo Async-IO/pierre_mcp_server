@@ -155,6 +155,7 @@ use pierre_mcp_server::{
     websocket::{WebSocketManager, WebSocketMessage},
 };
 use serde_json::json;
+use serial_test::serial;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -387,6 +388,7 @@ async fn test_websocket_connection_with_invalid_auth() -> Result<()> {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_websocket_concurrent_client_management() -> Result<()> {
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();

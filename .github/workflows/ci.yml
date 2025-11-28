@@ -116,7 +116,9 @@ jobs:
           npm run build
 
       - name: Run all backend tests with coverage (SQLite)
-        run: cargo llvm-cov --lib --bins --tests --lcov --output-path lcov-sqlite.info -- --test-threads=1
+        # Tests marked with #[serial] (concurrent/stress tests) run in isolation
+        # Using --test-threads=4 for parallelism - see issue #36 for serial_test approach
+        run: cargo llvm-cov --lib --bins --tests --lcov --output-path lcov-sqlite.info -- --test-threads=4
         env:
           DATABASE_URL: "sqlite::memory:"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
@@ -222,7 +224,8 @@ jobs:
           npm run build
 
       - name: Run database plugin tests (PostgreSQL)
-        run: cargo test --features postgresql database_plugins_test -- --test-threads=1
+        # Using --test-threads=4 - concurrent tests use #[serial] for isolation (issue #36)
+        run: cargo test --features postgresql database_plugins_test -- --test-threads=4
         env:
           DATABASE_URL: "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
@@ -242,7 +245,8 @@ jobs:
           df -h
 
       - name: Run all tests with coverage (PostgreSQL)
-        run: timeout 3600 cargo llvm-cov --lib --bins --tests --features postgresql --lcov --output-path lcov-postgres.info -- --test-threads=1
+        # Using --test-threads=4 - concurrent tests use #[serial] for isolation (issue #36)
+        run: timeout 3600 cargo llvm-cov --lib --bins --tests --features postgresql --lcov --output-path lcov-postgres.info -- --test-threads=4
         timeout-minutes: 60
         env:
           DATABASE_URL: "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server"

@@ -91,6 +91,8 @@ jobs:
         CARGO_INCREMENTAL: 0
     
     - name: Run tests with coverage (parallel execution)
+      # Tests marked with #[serial] (concurrent/stress tests) run in isolation
+      # Other tests run in parallel for faster CI - see issue #36
       run: cargo llvm-cov --all-targets --lcov --output-path lcov.info -- --test-threads=4
       env:
         DATABASE_URL: "sqlite::memory:"
