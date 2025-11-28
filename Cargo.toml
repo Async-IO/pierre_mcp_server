@@ -49,10 +49,11 @@ telemetry = []
 # Provider feature flags - enable/disable individual fitness data providers
 provider-strava = []
 provider-garmin = []
+provider-terra = []
 provider-fitbit = []
 provider-whoop = []
 provider-synthetic = []
-all-providers = ["provider-strava", "provider-garmin", "provider-fitbit", "provider-whoop", "provider-synthetic"]
+all-providers = ["provider-strava", "provider-garmin", "provider-terra", "provider-fitbit", "provider-whoop", "provider-synthetic"]
 
 [profile.dev]
 debug = 1
@@ -205,6 +206,10 @@ struct_excessive_bools = "allow"
 # Long functions - allowed with mandatory documentation comment
 # Script validates: "// Long function:" or "// Safe:" comment required
 too_many_lines = "allow"
+
+# Significant drop tightening - false positives with async lock guards
+# The suggestions given are often syntactically invalid
+significant_drop_tightening = "allow"
 
 # ============================================================================
 # Additional Code Quality Lints

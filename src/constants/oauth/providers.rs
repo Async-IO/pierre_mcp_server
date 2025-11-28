@@ -22,6 +22,10 @@ pub const FITBIT: &str = "fitbit";
 #[cfg(feature = "provider-garmin")]
 pub const GARMIN: &str = "garmin";
 
+/// Terra unified fitness provider identifier (150+ wearables)
+#[cfg(feature = "provider-terra")]
+pub const TERRA: &str = "terra";
+
 /// WHOOP fitness provider identifier
 #[cfg(feature = "provider-whoop")]
 pub const WHOOP: &str = "whoop";
@@ -70,6 +74,10 @@ pub const FITBIT_DEFAULT_SCOPES: &str = "activity profile sleep heartrate weight
 /// Garmin default scopes
 #[cfg(feature = "provider-garmin")]
 pub const GARMIN_DEFAULT_SCOPES: &str = "wellness:read,activities:read";
+
+/// Terra default scopes (data types)
+#[cfg(feature = "provider-terra")]
+pub const TERRA_DEFAULT_SCOPES: &str = "activity,sleep,body,daily,nutrition";
 
 /// WHOOP default scopes (space-separated as per WHOOP API requirements)
 /// - `offline`: Required for refresh tokens

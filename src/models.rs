@@ -526,6 +526,113 @@ pub struct HealthMetrics {
     pub provider: String,
 }
 
+/// Nutrition log entry for tracking food intake
+///
+/// Represents daily or per-meal nutrition data from wearable integrations
+/// like `MyFitnessPal` (via Terra) or other nutrition tracking apps.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NutritionLog {
+    /// Unique identifier for this nutrition log entry
+    pub id: String,
+    /// Date of the nutrition log
+    pub date: DateTime<Utc>,
+    /// Total calories consumed
+    pub total_calories: Option<f64>,
+    /// Total protein in grams
+    pub protein_g: Option<f64>,
+    /// Total carbohydrates in grams
+    pub carbohydrates_g: Option<f64>,
+    /// Total fat in grams
+    pub fat_g: Option<f64>,
+    /// Fiber in grams
+    pub fiber_g: Option<f64>,
+    /// Sugar in grams
+    pub sugar_g: Option<f64>,
+    /// Sodium in mg
+    pub sodium_mg: Option<f64>,
+    /// Water intake in mL
+    pub water_ml: Option<f64>,
+    /// Individual meals/entries
+    pub meals: Vec<MealEntry>,
+    /// Provider of this nutrition data
+    pub provider: String,
+}
+
+/// Individual meal entry within a nutrition log
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MealEntry {
+    /// Meal name/type (breakfast, lunch, dinner, snack)
+    pub meal_type: MealType,
+    /// Timestamp when meal was logged
+    pub timestamp: Option<DateTime<Utc>>,
+    /// Meal description or name
+    pub name: Option<String>,
+    /// Calories for this meal
+    pub calories: Option<f64>,
+    /// Protein in grams
+    pub protein_g: Option<f64>,
+    /// Carbohydrates in grams
+    pub carbohydrates_g: Option<f64>,
+    /// Fat in grams
+    pub fat_g: Option<f64>,
+    /// Individual food items (if available)
+    pub food_items: Vec<FoodItem>,
+}
+
+/// Type of meal
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum MealType {
+    /// Breakfast meal
+    Breakfast,
+    /// Lunch meal
+    Lunch,
+    /// Dinner meal
+    Dinner,
+    /// Snack between meals
+    Snack,
+    /// Unspecified or other meal type
+    Other,
+}
+
+impl MealType {
+    /// Parse meal type from string
+    #[must_use]
+    pub fn from_str_lossy(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "breakfast" => Self::Breakfast,
+            "lunch" => Self::Lunch,
+            "dinner" => Self::Dinner,
+            "snack" => Self::Snack,
+            _ => Self::Other,
+        }
+    }
+}
+
+/// Individual food item within a meal
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FoodItem {
+    /// Food name
+    pub name: String,
+    /// Brand name (if applicable)
+    pub brand: Option<String>,
+    /// Serving size amount
+    pub serving_size: Option<f64>,
+    /// Serving unit (g, oz, cup, etc.)
+    pub serving_unit: Option<String>,
+    /// Number of servings consumed
+    pub servings: Option<f64>,
+    /// Calories per serving
+    pub calories: Option<f64>,
+    /// Protein per serving (grams)
+    pub protein_g: Option<f64>,
+    /// Carbohydrates per serving (grams)
+    pub carbohydrates_g: Option<f64>,
+    /// Fat per serving (grams)
+    pub fat_g: Option<f64>,
+}
+
 impl SleepSession {
     /// Calculate sleep stages summary
     #[must_use]

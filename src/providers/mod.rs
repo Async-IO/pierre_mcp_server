@@ -65,6 +65,9 @@ pub mod strava_provider;
 /// Synthetic provider for development and testing
 #[cfg(feature = "provider-synthetic")]
 pub mod synthetic_provider;
+/// Terra unified API provider (150+ wearables)
+#[cfg(feature = "provider-terra")]
+pub mod terra;
 /// WHOOP provider for sleep, recovery, and workout data
 #[cfg(feature = "provider-whoop")]
 pub mod whoop_provider;
@@ -76,6 +79,8 @@ pub use core::{
 };
 /// Re-export provider error types
 pub use errors::{ProviderError, ProviderResult};
+#[cfg(feature = "provider-terra")]
+pub use registry::global_terra_cache;
 /// Re-export provider registry functions
 pub use registry::{
     create_provider, create_registry_with_external_providers, create_tenant_provider,
@@ -93,3 +98,8 @@ pub use spi::SyntheticDescriptor;
 pub use spi::WhoopDescriptor;
 /// Re-export SPI types for external provider development
 pub use spi::{OAuthEndpoints, ProviderBundle, ProviderCapabilities, ProviderDescriptor};
+/// Re-export Terra types
+#[cfg(feature = "provider-terra")]
+pub use terra::{
+    TerraDataCache, TerraDescriptor, TerraProvider, TerraProviderFactory, TerraWebhookHandler,
+};

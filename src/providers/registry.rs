@@ -29,6 +29,8 @@ use super::spi::SyntheticDescriptor;
 use super::strava_provider::StravaProviderFactory;
 #[cfg(feature = "provider-synthetic")]
 use super::synthetic_provider::SyntheticProviderFactory;
+#[cfg(feature = "provider-terra")]
+use super::terra::{TerraDataCache, TerraDescriptor, TerraProviderFactory};
 
 /// Factory wrapper for bundle-based provider registration
 struct BundleFactory {
@@ -69,6 +71,7 @@ impl ProviderRegistry {
         Self::register_strava(&mut registry);
         Self::register_garmin(&mut registry);
         Self::register_fitbit(&mut registry);
+        Self::register_terra(&mut registry);
         Self::register_synthetic(&mut registry);
 
         // Log registered providers at startup
@@ -177,6 +180,34 @@ impl ProviderRegistry {
 
     #[cfg(not(feature = "provider-fitbit"))]
     fn register_fitbit(_registry: &mut Self) {}
+
+    /// Register Terra provider with environment-based configuration
+    #[cfg(feature = "provider-terra")]
+    fn register_terra(registry: &mut Self) {
+        let terra_cache = global_terra_cache();
+        registry.register_factory(
+            oauth_providers::TERRA,
+            Box::new(TerraProviderFactory::new(terra_cache)),
+        );
+        registry.register_descriptor(oauth_providers::TERRA, Box::new(TerraDescriptor));
+        registry.set_default_config(
+            oauth_providers::TERRA,
+            ProviderConfig {
+                name: oauth_providers::TERRA.to_owned(),
+                auth_url: "https://api.tryterra.co/v2/auth/generateWidgetSession".to_owned(),
+                token_url: "https://api.tryterra.co/v2/auth/token".to_owned(),
+                api_base_url: "https://api.tryterra.co/v2".to_owned(),
+                revoke_url: Some("https://api.tryterra.co/v2/auth/deauthenticateUser".to_owned()),
+                default_scopes: oauth_providers::TERRA_DEFAULT_SCOPES
+                    .split(',')
+                    .map(str::to_owned)
+                    .collect(),
+            },
+        );
+    }
+
+    #[cfg(not(feature = "provider-terra"))]
+    fn register_terra(_registry: &mut Self) {}
 
     /// Register Synthetic provider for development and testing
     #[cfg(feature = "provider-synthetic")]
@@ -493,4 +524,28 @@ pub fn create_registry_with_external_providers(bundles: Vec<ProviderBundle>) -> 
         registry.register_provider_bundle(bundle);
     }
     registry
+}
+
+// ============================================================================
+// Terra Global Cache (conditionally compiled)
+// ============================================================================
+
+/// Global Terra data cache instance
+///
+/// Terra uses a webhook-based model where data is pushed to your endpoint.
+/// This global cache stores webhook data and makes it available to `TerraProvider`
+/// instances for the `FitnessProvider` trait implementation.
+#[cfg(feature = "provider-terra")]
+static TERRA_CACHE: std::sync::OnceLock<Arc<TerraDataCache>> = std::sync::OnceLock::new();
+
+/// Get the global Terra data cache
+///
+/// Returns a shared reference to the Terra webhook data cache.
+/// Use this cache with `TerraWebhookHandler` to store incoming webhook data.
+#[cfg(feature = "provider-terra")]
+#[must_use]
+pub fn global_terra_cache() -> Arc<TerraDataCache> {
+    TERRA_CACHE
+        .get_or_init(|| Arc::new(TerraDataCache::new_in_memory()))
+        .clone() // Safe: Arc clone for shared cache access
 }
