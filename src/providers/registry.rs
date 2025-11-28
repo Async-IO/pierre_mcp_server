@@ -25,12 +25,16 @@ use super::spi::GarminDescriptor;
 use super::spi::StravaDescriptor;
 #[cfg(feature = "provider-synthetic")]
 use super::spi::SyntheticDescriptor;
+#[cfg(feature = "provider-whoop")]
+use super::spi::WhoopDescriptor;
 #[cfg(feature = "provider-strava")]
 use super::strava_provider::StravaProviderFactory;
 #[cfg(feature = "provider-synthetic")]
 use super::synthetic_provider::SyntheticProviderFactory;
 #[cfg(feature = "provider-terra")]
 use super::terra::{TerraDataCache, TerraDescriptor, TerraProviderFactory};
+#[cfg(feature = "provider-whoop")]
+use super::whoop_provider::WhoopProviderFactory;
 
 /// Factory wrapper for bundle-based provider registration
 struct BundleFactory {
@@ -72,6 +76,7 @@ impl ProviderRegistry {
         Self::register_garmin(&mut registry);
         Self::register_fitbit(&mut registry);
         Self::register_terra(&mut registry);
+        Self::register_whoop(&mut registry);
         Self::register_synthetic(&mut registry);
 
         // Log registered providers at startup
@@ -208,6 +213,39 @@ impl ProviderRegistry {
 
     #[cfg(not(feature = "provider-terra"))]
     fn register_terra(_registry: &mut Self) {}
+
+    /// Register WHOOP provider with environment-based configuration
+    #[cfg(feature = "provider-whoop")]
+    fn register_whoop(registry: &mut Self) {
+        registry.register_factory(oauth_providers::WHOOP, Box::new(WhoopProviderFactory));
+        registry.register_descriptor(oauth_providers::WHOOP, Box::new(WhoopDescriptor));
+        let (_, _, auth_url, token_url, api_base_url, revoke_url, scopes) =
+            crate::config::environment::load_provider_env_config(
+                oauth_providers::WHOOP,
+                "https://api.prod.whoop.com/oauth/oauth2/auth",
+                "https://api.prod.whoop.com/oauth/oauth2/token",
+                "https://api.prod.whoop.com/developer/v1",
+                Some("https://api.prod.whoop.com/oauth/oauth2/revoke"),
+                &oauth_providers::WHOOP_DEFAULT_SCOPES
+                    .split(' ')
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>(),
+            );
+        registry.set_default_config(
+            oauth_providers::WHOOP,
+            ProviderConfig {
+                name: oauth_providers::WHOOP.to_owned(),
+                auth_url,
+                token_url,
+                api_base_url,
+                revoke_url,
+                default_scopes: scopes,
+            },
+        );
+    }
+
+    #[cfg(not(feature = "provider-whoop"))]
+    fn register_whoop(_registry: &mut Self) {}
 
     /// Register Synthetic provider for development and testing
     #[cfg(feature = "provider-synthetic")]
