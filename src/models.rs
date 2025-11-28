@@ -201,6 +201,16 @@ impl UserStatus {
     }
 }
 
+impl std::fmt::Display for UserStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Pending => write!(f, "pending"),
+            Self::Active => write!(f, "active"),
+            Self::Suspended => write!(f, "suspended"),
+        }
+    }
+}
+
 impl UserTier {
     /// Get monthly request limit for this tier
     #[must_use]

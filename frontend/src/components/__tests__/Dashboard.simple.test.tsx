@@ -32,7 +32,7 @@ vi.mock('react-chartjs-2', () => ({
 // Mock contexts
 vi.mock('../../hooks/useAuth', () => ({
   useAuth: () => ({
-    user: { email: 'admin@test.com', display_name: 'Admin User' },
+    user: { email: 'admin@test.com', display_name: 'Admin User', is_admin: true },
     logout: vi.fn(),
     isAuthenticated: true,
     isLoading: false
@@ -104,12 +104,13 @@ describe('Dashboard Component', () => {
       renderDashboard();
     });
 
-    expect(screen.getByText('Overview')).toBeInTheDocument();
-    expect(screen.getByText('Connections')).toBeInTheDocument();
-    expect(screen.getByText('Analytics')).toBeInTheDocument();
-    expect(screen.getByText('Monitor')).toBeInTheDocument();
-    expect(screen.getByText('Tools')).toBeInTheDocument();
-    expect(screen.getByText('Users')).toBeInTheDocument();
+    // Use getAllByText since nav items appear in sidebar and may appear in header
+    expect(screen.getAllByText('Overview').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Connections').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Analytics').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Monitor').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Tools').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Users').length).toBeGreaterThan(0);
   });
 
   it('should show user information', async () => {
@@ -133,13 +134,15 @@ describe('Dashboard Component', () => {
 
   it('should switch to Analytics tab', async () => {
     const user = userEvent.setup();
-    
+
     await act(async () => {
       renderDashboard();
     });
 
-    await user.click(screen.getByText('Analytics'));
-    
+    // Click the sidebar nav button (first element found)
+    const buttons = screen.getAllByText('Analytics');
+    await user.click(buttons[0]);
+
     // Wait for lazy component to load
     await waitFor(() => {
       expect(screen.getByTestId('usage-analytics')).toBeInTheDocument();
@@ -148,13 +151,15 @@ describe('Dashboard Component', () => {
 
   it('should switch to Connections tab', async () => {
     const user = userEvent.setup();
-    
+
     await act(async () => {
       renderDashboard();
     });
 
-    await user.click(screen.getByText('Connections'));
-    
+    // Click the sidebar nav button (first element found)
+    const buttons = screen.getAllByText('Connections');
+    await user.click(buttons[0]);
+
     // Wait for lazy component to load
     await waitFor(() => {
       expect(screen.getByTestId('connections')).toBeInTheDocument();
@@ -163,13 +168,15 @@ describe('Dashboard Component', () => {
 
   it('should switch to Monitor tab', async () => {
     const user = userEvent.setup();
-    
+
     await act(async () => {
       renderDashboard();
     });
 
-    await user.click(screen.getByText('Monitor'));
-    
+    // Click the sidebar nav button (first element found)
+    const buttons = screen.getAllByText('Monitor');
+    await user.click(buttons[0]);
+
     // Wait for lazy component to load
     await waitFor(() => {
       expect(screen.getByTestId('request-monitor')).toBeInTheDocument();
@@ -178,13 +185,15 @@ describe('Dashboard Component', () => {
 
   it('should switch to Tools tab', async () => {
     const user = userEvent.setup();
-    
+
     await act(async () => {
       renderDashboard();
     });
 
-    await user.click(screen.getByText('Tools'));
-    
+    // Click the sidebar nav button (first element found)
+    const buttons = screen.getAllByText('Tools');
+    await user.click(buttons[0]);
+
     // Wait for lazy component to load
     await waitFor(() => {
       expect(screen.getByTestId('tool-breakdown')).toBeInTheDocument();
@@ -193,13 +202,15 @@ describe('Dashboard Component', () => {
 
   it('should switch to Users tab', async () => {
     const user = userEvent.setup();
-    
+
     await act(async () => {
       renderDashboard();
     });
 
-    await user.click(screen.getByText('Users'));
-    
+    // Click the sidebar nav button (first element found)
+    const buttons = screen.getAllByText('Users');
+    await user.click(buttons[0]);
+
     // Wait for lazy component to load
     await waitFor(() => {
       expect(screen.getByTestId('user-management')).toBeInTheDocument();

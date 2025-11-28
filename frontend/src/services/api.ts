@@ -318,8 +318,11 @@ class ApiService {
     if (params?.include_inactive !== undefined) {
       queryParams.append('include_inactive', params.include_inactive.toString());
     }
-    
-    const response = await axios.get(`/admin/tokens?${queryParams}`);
+
+    // Use /api/admin/tokens for JWT cookie auth (web admin), fall back to /admin/tokens for admin token auth
+    const queryString = queryParams.toString();
+    const url = queryString ? `/api/admin/tokens?${queryString}` : '/api/admin/tokens';
+    const response = await axios.get(url);
     return response.data;
   }
 
@@ -398,6 +401,18 @@ class ApiService {
     return response.data;
   }
 
+  // Tier configuration - returns system-wide tier limits
+  async getTierDefaults(): Promise<Record<string, { daily_limit: number | null; monthly_limit: number | null }>> {
+    // Return the default tier limits configured in the system
+    // These match the Rust backend tier configurations
+    return Promise.resolve({
+      trial: { daily_limit: 100, monthly_limit: 1000 },
+      starter: { daily_limit: 1000, monthly_limit: 10000 },
+      professional: { daily_limit: 10000, monthly_limit: 100000 },
+      enterprise: { daily_limit: null, monthly_limit: null },
+    });
+  }
+
   async getAdminTokenAudit(tokenId: string) {
     const response = await axios.get(`/admin/tokens/${tokenId}/audit`);
     return response.data;
@@ -416,7 +431,8 @@ class ApiService {
   // User Management Endpoints
   async getPendingUsers() {
     const response = await axios.get('/api/admin/pending-users');
-    return response.data;
+    // Backend returns { count, users } - extract users array for component compatibility
+    return response.data.users || [];
   }
 
   async approveUser(userId: string, reason?: string) {
@@ -442,9 +458,12 @@ class ApiService {
     if (params?.status) queryParams.append('status', params.status);
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     if (params?.offset) queryParams.append('offset', params.offset.toString());
-    
-    const response = await axios.get(`/admin/users?${queryParams}`);
-    return response.data;
+
+    const queryString = queryParams.toString();
+    const url = queryString ? `/api/admin/users?${queryString}` : '/api/admin/users';
+    const response = await axios.get(url);
+    // Backend returns { users: [...], total_count: n } - extract users array for component compatibility
+    return response.data.users || [];
   }
 }
 

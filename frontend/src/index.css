@@ -24,7 +24,7 @@
   }
   
   .btn-primary {
-    @apply btn-base bg-pierre-blue-600 text-white shadow-sm hover:bg-pierre-blue-700 hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+    @apply btn-base bg-pierre-violet text-white shadow-sm hover:bg-pierre-violet-dark hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
   }
 
   .btn-gradient {
@@ -71,7 +71,7 @@
 
   /* Pierre Form Components */
   .input-field {
-    @apply w-full px-4 py-3 border border-pierre-gray-300 rounded-md text-sm font-sans transition-all duration-base focus:outline-none focus:border-pierre-blue-500 focus:ring-2 focus:ring-pierre-blue-500 focus:ring-opacity-10;
+    @apply w-full px-4 py-3 border border-pierre-gray-300 rounded-md text-sm font-sans transition-all duration-base focus:outline-none focus:border-pierre-violet focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-20;
   }
   
   .label {
@@ -150,11 +150,16 @@
   }
   
   .tab-active {
-    @apply text-pierre-blue-600 border-pierre-blue-600;
+    @apply text-pierre-violet border-pierre-violet;
   }
 
   /* Pierre Loading Spinner */
   .pierre-spinner {
-    @apply border-2 border-pierre-gray-200 border-t-pierre-blue-600 rounded-full w-4 h-4 animate-spin;
+    @apply border-2 border-pierre-gray-200 border-t-pierre-violet rounded-full w-4 h-4 animate-spin;
+  }
+
+  /* Pierre Focus Ring */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:ring-opacity-50 focus:ring-offset-2;
   }
 }

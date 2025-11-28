@@ -38,6 +38,16 @@ export default function UsageAnalytics() {
     queryFn: () => apiService.getUsageAnalytics(timeRange),
   });
 
+  // Pierre Design System colors for charts
+  const pierreColors = {
+    violet: '#7C3AED',
+    cyan: '#06B6D4',
+    activity: '#10B981',
+    nutrition: '#F59E0B',
+    recovery: '#6366F1',
+    red: '#EF4444',
+  };
+
   // Prepare chart data
   const timeSeriesData: ChartData = {
     labels: analytics?.time_series?.map((point: TimeSeriesPoint) => {
@@ -48,16 +58,16 @@ export default function UsageAnalytics() {
       {
         label: 'API Requests',
         data: analytics?.time_series?.map((point: TimeSeriesPoint) => point.request_count) || [],
-        borderColor: 'rgb(37, 99, 235)',
-        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+        borderColor: pierreColors.violet,
+        backgroundColor: `${pierreColors.violet}1A`,
         tension: 0.4,
         fill: true,
       },
       {
         label: 'Errors',
         data: analytics?.time_series?.map((point: TimeSeriesPoint) => point.error_count) || [],
-        borderColor: 'rgb(220, 38, 38)',
-        backgroundColor: 'rgba(220, 38, 38, 0.1)',
+        borderColor: pierreColors.red,
+        backgroundColor: `${pierreColors.red}1A`,
         tension: 0.4,
         fill: true,
       },
@@ -71,18 +81,18 @@ export default function UsageAnalytics() {
         label: 'Request Count',
         data: analytics?.top_tools?.map((tool: TopTool) => tool.request_count) || [],
         backgroundColor: [
-          'rgba(37, 99, 235, 0.8)',
-          'rgba(5, 150, 105, 0.8)',
-          'rgba(217, 119, 6, 0.8)',
-          'rgba(220, 38, 38, 0.8)',
-          'rgba(147, 51, 234, 0.8)',
+          `${pierreColors.violet}CC`,
+          `${pierreColors.activity}CC`,
+          `${pierreColors.nutrition}CC`,
+          `${pierreColors.cyan}CC`,
+          `${pierreColors.recovery}CC`,
         ],
         borderColor: [
-          'rgb(37, 99, 235)',
-          'rgb(5, 150, 105)',
-          'rgb(217, 119, 6)',
-          'rgb(220, 38, 38)',
-          'rgb(147, 51, 234)',
+          pierreColors.violet,
+          pierreColors.activity,
+          pierreColors.nutrition,
+          pierreColors.cyan,
+          pierreColors.recovery,
         ],
         borderWidth: 1,
       },
@@ -95,8 +105,8 @@ export default function UsageAnalytics() {
       {
         label: 'Average Response Time (ms)',
         data: analytics?.top_tools?.map((tool: TopTool) => tool.average_response_time || 0) || [],
-        backgroundColor: 'rgba(5, 150, 105, 0.6)',
-        borderColor: 'rgb(5, 150, 105)',
+        backgroundColor: `${pierreColors.activity}99`,
+        borderColor: pierreColors.activity,
         borderWidth: 1,
       },
     ],
@@ -119,7 +129,7 @@ export default function UsageAnalytics() {
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-api-blue"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pierre-violet"></div>
       </div>
     );
   }
@@ -142,34 +152,34 @@ export default function UsageAnalytics() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="stat-card">
-            <div className="text-2xl font-bold text-api-blue">
+            <div className="text-2xl font-bold text-pierre-violet">
               {analytics?.time_series?.reduce((sum: number, point: TimeSeriesPoint) => sum + point.request_count, 0) || 0}
             </div>
-            <div className="text-sm text-gray-600">Total Requests</div>
+            <div className="text-sm text-pierre-gray-600">Total Requests</div>
           </div>
           <div className="stat-card">
-            <div className="text-2xl font-bold text-api-red">
+            <div className="text-2xl font-bold text-pierre-red-500">
               {analytics?.error_rate?.toFixed(1) || 0}%
             </div>
-            <div className="text-sm text-gray-600">Error Rate</div>
+            <div className="text-sm text-pierre-gray-600">Error Rate</div>
           </div>
           <div className="stat-card">
-            <div className="text-2xl font-bold text-api-green">
+            <div className="text-2xl font-bold text-pierre-activity">
               {analytics?.average_response_time?.toFixed(0) || 0}ms
             </div>
-            <div className="text-sm text-gray-600">Avg Response Time</div>
+            <div className="text-sm text-pierre-gray-600">Avg Response Time</div>
           </div>
         </div>
 
         {/* Time Series Chart */}
         <div className="mb-8">
           <h3 className="text-lg font-medium mb-4">Request Volume Over Time</h3>
-          <div className="bg-white rounded-lg p-4 border border-gray-200">
+          <div className="bg-white rounded-lg p-4 border border-pierre-gray-200">
             {analytics?.time_series && analytics.time_series.length > 0 ? (
               <Line data={timeSeriesData} options={chartOptions} />
             ) : (
-              <div className="bg-gray-100 rounded-lg p-8 text-center text-gray-500">
-                📈 No time series data available yet
+              <div className="bg-pierre-gray-100 rounded-lg p-8 text-center text-pierre-gray-500">
+                No time series data available yet
                 <br />
                 <small>Make some API calls to see request patterns</small>
               </div>
@@ -182,9 +192,9 @@ export default function UsageAnalytics() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             <div>
               <h3 className="text-lg font-medium mb-4">Tool Usage Distribution</h3>
-              <div className="bg-white rounded-lg p-4 border border-gray-200">
-                <Doughnut 
-                  data={toolUsageData} 
+              <div className="bg-white rounded-lg p-4 border border-pierre-gray-200">
+                <Doughnut
+                  data={toolUsageData}
                   options={{
                     responsive: true,
                     plugins: {
@@ -192,13 +202,13 @@ export default function UsageAnalytics() {
                         position: 'bottom' as const,
                       },
                     },
-                  }} 
+                  }}
                 />
               </div>
             </div>
             <div>
               <h3 className="text-lg font-medium mb-4">Response Time by Tool</h3>
-              <div className="bg-white rounded-lg p-4 border border-gray-200">
+              <div className="bg-white rounded-lg p-4 border border-pierre-gray-200">
                 <Bar data={responseTimeData} options={chartOptions} />
               </div>
             </div>
@@ -211,16 +221,16 @@ export default function UsageAnalytics() {
             <h3 className="text-lg font-medium mb-4">Most Used Tools</h3>
             <div className="space-y-3">
               {analytics.top_tools.map((tool: TopTool) => (
-                <div key={tool.tool_name} className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                <div key={tool.tool_name} className="flex justify-between items-center p-3 bg-pierre-gray-50 rounded hover:bg-pierre-gray-100 transition-colors">
                   <div>
-                    <span className="font-medium">{tool.tool_name}</span>
-                    <span className="text-gray-500 ml-2">
+                    <span className="font-medium text-pierre-gray-900">{tool.tool_name}</span>
+                    <span className="text-pierre-gray-500 ml-2">
                       {((tool.success_rate || 0) * 100).toFixed(1)}% success rate
                     </span>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold">{tool.request_count.toLocaleString()}</div>
-                    <div className="text-sm text-gray-500">
+                    <div className="font-bold text-pierre-violet">{tool.request_count.toLocaleString()}</div>
+                    <div className="text-sm text-pierre-gray-500">
                       {(tool.average_response_time || 0).toFixed(0)}ms avg
                     </div>
                   </div>
@@ -231,8 +241,7 @@ export default function UsageAnalytics() {
         )}
 
         {(!analytics?.time_series?.length && !analytics?.top_tools?.length) && (
-          <div className="text-center py-8 text-gray-500">
-            <div className="text-4xl mb-4">📊</div>
+          <div className="text-center py-8 text-pierre-gray-500">
             <p className="text-lg mb-2">No usage data yet</p>
             <p>Start making API calls to see analytics here</p>
           </div>

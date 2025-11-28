@@ -158,7 +158,7 @@ describe('API Service - Admin Functionality', () => {
 
       const result = await apiService.getAdminTokens({ include_inactive: true });
 
-      expect(mockedAxios.get).toHaveBeenCalledWith('/admin/tokens?include_inactive=true');
+      expect(mockedAxios.get).toHaveBeenCalledWith('/api/admin/tokens?include_inactive=true');
       expect(result).toEqual(mockTokens);
     });
 
@@ -239,11 +239,13 @@ describe('API Service - Admin Functionality', () => {
         { id: 'user-2', email: 'user2@example.com', display_name: 'User Two', created_at: '2025-01-02T00:00:00Z' }
       ];
 
-      mockedAxios.get.mockResolvedValueOnce({ data: mockPendingUsers });
+      // Backend returns { count, users } structure
+      mockedAxios.get.mockResolvedValueOnce({ data: { count: 2, users: mockPendingUsers } });
 
       const result = await apiService.getPendingUsers();
 
-      expect(mockedAxios.get).toHaveBeenCalledWith('/admin/pending-users');
+      expect(mockedAxios.get).toHaveBeenCalledWith('/api/admin/pending-users');
+      // getPendingUsers extracts the users array
       expect(result).toEqual(mockPendingUsers);
     });
 
@@ -274,24 +276,23 @@ describe('API Service - Admin Functionality', () => {
     });
 
     it('should fetch all users with status filter', async () => {
-      const mockUsers = {
-        users: [
-          { id: 'user-1', email: 'user1@example.com', status: 'active' },
-          { id: 'user-2', email: 'user2@example.com', status: 'active' }
-        ],
-        total_count: 2
-      };
+      const mockUsersList = [
+        { id: 'user-1', email: 'user1@example.com', status: 'active' },
+        { id: 'user-2', email: 'user2@example.com', status: 'active' }
+      ];
 
-      mockedAxios.get.mockResolvedValueOnce({ data: mockUsers });
+      // Backend returns { users: [...], total_count: n } structure
+      mockedAxios.get.mockResolvedValueOnce({ data: { users: mockUsersList, total_count: 2 } });
 
-      const result = await apiService.getAllUsers({ 
-        status: 'active', 
-        limit: 50, 
-        offset: 0 
+      const result = await apiService.getAllUsers({
+        status: 'active',
+        limit: 50,
+        offset: 0
       });
 
-      expect(mockedAxios.get).toHaveBeenCalledWith('/admin/users?status=active&limit=50');
-      expect(result).toEqual(mockUsers);
+      expect(mockedAxios.get).toHaveBeenCalledWith('/api/admin/users?status=active&limit=50');
+      // getAllUsers extracts the users array
+      expect(result).toEqual(mockUsersList);
     });
   });
 

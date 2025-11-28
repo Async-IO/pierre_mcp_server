@@ -95,21 +95,21 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-pierre-gray-50">
       <div className="max-w-md w-full">
         {/* Card with gradient accent bar */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden relative">
           {/* Gradient accent bar at top */}
-          <div className="h-1 w-full bg-gradient-to-r from-[#7C3AED] to-[#06B6D4]" />
+          <div className="h-1 w-full bg-gradient-pierre-horizontal" />
 
           <div className="px-8 py-10 space-y-6">
             {/* Logo and brand */}
             <div className="flex flex-col items-center">
               <PierreLogo />
-              <h1 className="mt-4 text-xl font-bold text-gray-900 tracking-tight">
+              <h1 className="mt-4 text-xl font-bold text-pierre-gray-900 tracking-tight">
                 Pierre Fitness Platform
               </h1>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-pierre-gray-500">
                 Sign in to manage admin tokens and API keys
               </p>
             </div>
@@ -124,7 +124,7 @@ export default function Login() {
 
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="email" className="block text-sm font-medium text-pierre-gray-700 mb-1">
                     Email address
                   </label>
                   <input
@@ -132,14 +132,14 @@ export default function Login() {
                     name="email"
                     type="email"
                     required
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent outline-none transition-all"
+                    className="w-full px-4 py-2.5 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-violet focus:border-transparent outline-none transition-all"
                     placeholder="Enter your email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="password" className="block text-sm font-medium text-pierre-gray-700 mb-1">
                     Password
                   </label>
                   <div className="relative">
@@ -148,14 +148,14 @@ export default function Login() {
                       name="password"
                       type={showPassword ? 'text' : 'password'}
                       required
-                      className="w-full px-4 py-2.5 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent outline-none transition-all"
+                      className="w-full px-4 py-2.5 pr-12 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-violet focus:border-transparent outline-none transition-all"
                       placeholder="Enter your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                     />
                     <button
                       type="button"
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-pierre-gray-400 hover:text-pierre-gray-600"
                       onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? (
@@ -176,31 +176,31 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 px-4 text-white font-medium rounded-lg bg-gradient-to-r from-[#7C3AED] to-[#06B6D4] hover:opacity-90 disabled:opacity-50 transition-all"
+                className="w-full py-3 px-4 text-white font-medium rounded-lg bg-gradient-pierre-horizontal hover:opacity-90 disabled:opacity-50 transition-all shadow-md hover:shadow-lg"
               >
                 {isLoading ? 'Signing in...' : 'Sign in'}
               </button>
 
               {/* Setup status indicator */}
               {isCheckingSetup && (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
-                  <p className="text-sm text-gray-500">Checking setup status...</p>
+                <div className="bg-pierre-gray-50 border border-pierre-gray-200 rounded-lg p-3 text-center">
+                  <p className="text-sm text-pierre-gray-500">Checking setup status...</p>
                 </div>
               )}
 
               {!isCheckingSetup && setupStatus?.needs_setup && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
-                  <p className="text-sm text-gray-700 font-medium">Setup Required</p>
-                  <p className="text-xs text-gray-500 mt-1">
+                <div className="bg-pierre-nutrition-light/20 border border-pierre-nutrition rounded-lg p-3 text-center">
+                  <p className="text-sm text-pierre-gray-700 font-medium">Setup Required</p>
+                  <p className="text-xs text-pierre-gray-500 mt-1">
                     {setupStatus.message || 'Create admin via POST /admin/setup'}
                   </p>
                 </div>
               )}
 
               {!isCheckingSetup && setupStatus && !setupStatus.needs_setup && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
-                  <p className="text-sm text-gray-700 font-medium">Ready to Login</p>
-                  <p className="text-xs text-gray-500 mt-1">Admin user configured</p>
+                <div className="bg-pierre-activity-light/20 border border-pierre-activity rounded-lg p-3 text-center">
+                  <p className="text-sm text-pierre-gray-700 font-medium">Ready to Login</p>
+                  <p className="text-xs text-pierre-gray-500 mt-1">Admin user configured</p>
                 </div>
               )}
             </form>

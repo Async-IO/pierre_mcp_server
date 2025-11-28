@@ -2,20 +2,20 @@ import { useState, lazy, Suspense, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
-import type { DashboardOverview, RateLimitOverview, TierUsage, User } from '../types/api';
-import type { AnalyticsData, TimeSeriesPoint } from '../types/chart';
+import type { DashboardOverview, RateLimitOverview, User } from '../types/api';
+import type { AnalyticsData } from '../types/chart';
 import { useWebSocketContext } from '../hooks/useWebSocketContext';
-import { Card, Badge } from './ui';
+import { Card } from './ui';
 import RealTimeIndicator from './RealTimeIndicator';
 import { clsx } from 'clsx';
 
 // Lazy load heavy components to reduce initial bundle size
+const OverviewTab = lazy(() => import('./OverviewTab'));
 const UsageAnalytics = lazy(() => import('./UsageAnalytics'));
 const RequestMonitor = lazy(() => import('./RequestMonitor'));
 const ToolUsageBreakdown = lazy(() => import('./ToolUsageBreakdown'));
 const UnifiedConnections = lazy(() => import('./UnifiedConnections'));
 const UserManagement = lazy(() => import('./UserManagement'));
-const LazyLineChart = lazy(() => import('react-chartjs-2').then(module => ({ default: module.Line })));
 
 const PierreLogo = () => (
   <svg width="48" height="48" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
@@ -71,48 +71,6 @@ export default function Dashboard() {
     retry: false,
     enabled: user?.is_admin === true,
   });
-
-  // Prepare mini chart data for the overview
-  const miniChartData = {
-    labels: weeklyUsage?.time_series?.slice(-7).map((point: TimeSeriesPoint) => {
-      const date = new Date(point.date);
-      return date.toLocaleDateString('en-US', { weekday: 'short' });
-    }) || [],
-    datasets: [
-      {
-        label: 'Requests',
-        data: weeklyUsage?.time_series?.slice(-7).map((point: TimeSeriesPoint) => point.request_count) || [],
-        borderColor: 'rgb(124, 58, 237)',
-        backgroundColor: 'rgba(124, 58, 237, 0.1)',
-        tension: 0.4,
-        fill: true,
-        pointRadius: 3,
-      },
-    ],
-  };
-
-  const miniChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false,
-      },
-    },
-    scales: {
-      x: {
-        display: false,
-      },
-      y: {
-        display: false,
-      },
-    },
-    elements: {
-      point: {
-        hoverRadius: 6,
-      },
-    },
-  };
 
   // Refresh data when WebSocket updates are received
   useEffect(() => {
@@ -255,7 +213,7 @@ export default function Dashboard() {
                 <p className="text-sm font-medium text-pierre-gray-900 truncate">
                   {user?.display_name || user?.email?.split('@')[0]}
                 </p>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col items-start gap-0.5">
                   <RealTimeIndicator className="text-[10px]" />
                   <button
                     onClick={logout}
@@ -318,7 +276,6 @@ export default function Dashboard() {
                 Welcome back, {user?.display_name || user?.email?.split('@')[0]}
               </p>
             </div>
-            <RealTimeIndicator />
           </div>
         </header>
 
@@ -327,135 +284,17 @@ export default function Dashboard() {
 
           {/* Content */}
         {activeTab === 'overview' && (
-          <div className="space-y-6">
-            {overviewLoading ? (
-              <div className="flex justify-center py-8">
-                <div className="pierre-spinner"></div>
-              </div>
-            ) : (
-              <>
-                {/* Unified Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <Card variant="stat" className="bg-gradient-to-br from-white to-pierre-violet/5 border-pierre-violet/20">
-                    <div className="text-3xl font-bold text-pierre-violet">
-                      {(overview?.total_api_keys || 0) + (a2aOverview?.total_clients || 0)}
-                    </div>
-                    <div className="text-sm text-pierre-gray-600">Total Connections</div>
-                    <div className="text-xs text-pierre-gray-500 mt-1">
-                      {overview?.total_api_keys || 0} API Keys • {a2aOverview?.total_clients || 0} Apps
-                    </div>
-                  </Card>
-                  <Card variant="stat" className="bg-gradient-to-br from-white to-pierre-activity/5 border-pierre-activity/20">
-                    <div className="text-3xl font-bold text-pierre-activity">
-                      {(overview?.active_api_keys || 0) + (a2aOverview?.active_clients || 0)}
-                    </div>
-                    <div className="text-sm text-pierre-gray-600">Active Connections</div>
-                    <div className="text-xs text-pierre-gray-500 mt-1">
-                      {overview?.active_api_keys || 0} Keys • {a2aOverview?.active_clients || 0} Apps
-                    </div>
-                  </Card>
-                  <Card variant="stat" className="bg-gradient-to-br from-white to-pierre-nutrition/5 border-pierre-nutrition/20">
-                    <div className="text-3xl font-bold text-pierre-nutrition">
-                      {(overview?.total_requests_today || 0) + (a2aOverview?.requests_today || 0)}
-                    </div>
-                    <div className="text-sm text-pierre-gray-600">Requests Today</div>
-                    <div className="text-xs text-pierre-gray-500 mt-1">
-                      All connections combined
-                    </div>
-                  </Card>
-                  <Card variant="stat" className="bg-gradient-to-br from-white to-pierre-recovery/5 border-pierre-recovery/20">
-                    <div className="text-3xl font-bold text-pierre-recovery">
-                      {(overview?.total_requests_this_month || 0) + (a2aOverview?.requests_this_month || 0)}
-                    </div>
-                    <div className="text-sm text-pierre-gray-600">Requests This Month</div>
-                    <div className="text-xs text-pierre-gray-500 mt-1">
-                      All connections combined
-                    </div>
-                  </Card>
-                </div>
-
-                {/* Weekly Trend Mini Chart */}
-                {weeklyUsage?.time_series && weeklyUsage.time_series.length > 0 && (
-                  <Card>
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-lg font-medium">7-Day Request Trend</h3>
-                      <span className="text-sm text-pierre-gray-500">
-                        Total: {weeklyUsage?.time_series?.reduce((sum: number, point: TimeSeriesPoint) => sum + point.request_count, 0) || 0}
-                      </span>
-                    </div>
-                    <div style={{ height: '120px' }}>
-                      <Suspense fallback={<div className="h-[120px] flex items-center justify-center"><div className="pierre-spinner"></div></div>}>
-                        <LazyLineChart data={miniChartData} options={miniChartOptions} />
-                      </Suspense>
-                    </div>
-                  </Card>
-                )}
-
-                {/* Usage by Tier */}
-                {overview?.current_month_usage_by_tier && overview.current_month_usage_by_tier.length > 0 && (
-                  <Card>
-                    <h3 className="text-lg font-medium mb-4">Usage by Tier</h3>
-                    <div className="space-y-3">
-                      {overview.current_month_usage_by_tier?.map((tier: TierUsage) => (
-                        <div key={tier.tier} className="flex justify-between items-center">
-                          <div>
-                            <span className="font-medium capitalize">{tier.tier}</span>
-                            <span className="text-pierre-gray-500 ml-2">({tier.key_count} keys)</span>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold">{tier.total_requests.toLocaleString()}</div>
-                            <div className="text-sm text-pierre-gray-500">
-                              Avg: {Math.round(tier.average_requests_per_key)}/key
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                )}
-
-                {/* Rate Limit Status */}
-                {rateLimits && rateLimits.length > 0 && (
-                  <Card>
-                    <h3 className="text-lg font-medium mb-4">Rate Limit Status</h3>
-                    <div className="space-y-4">
-                      {rateLimits.map((item: RateLimitOverview) => (
-                        <div key={item.api_key_id} className="border border-pierre-gray-200 rounded-lg p-4">
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="font-medium">{item.api_key_name}</span>
-                            <Badge variant={item.tier as 'starter' | 'professional' | 'enterprise' | 'trial'}>
-                              {item.tier}
-                            </Badge>
-                          </div>
-                          {item.limit ? (
-                            <>
-                              <div className="flex justify-between text-sm text-pierre-gray-600 mb-1">
-                                <span>Usage: {item.current_usage.toLocaleString()} / {item.limit.toLocaleString()}</span>
-                                <span>{Math.round(item.usage_percentage)}%</span>
-                              </div>
-                              <div className="w-full bg-pierre-gray-200 rounded-full h-2">
-                                <div
-                                  className={`h-2 rounded-full transition-all duration-300 ${
-                                    item.usage_percentage > 90 ? 'bg-red-600' :
-                                    item.usage_percentage > 70 ? 'bg-pierre-nutrition' : 'bg-pierre-activity'
-                                  }`}
-                                  style={{ width: `${Math.min(item.usage_percentage, 100)}%` }}
-                                ></div>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="text-sm text-pierre-gray-600">
-                              Unlimited usage - {item.current_usage.toLocaleString()} requests used
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                )}
-              </>
-            )}
-          </div>
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+            <OverviewTab
+              overview={overview}
+              overviewLoading={overviewLoading}
+              rateLimits={rateLimits}
+              weeklyUsage={weeklyUsage}
+              a2aOverview={a2aOverview}
+              pendingUsersCount={pendingUsers.length}
+              onNavigate={setActiveTab}
+            />
+          </Suspense>
         )}
 
         {activeTab === 'connections' && (

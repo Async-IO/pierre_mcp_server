@@ -125,8 +125,8 @@ export default {
         'api-yellow': '#ca8a04',
       },
       fontFamily: {
-        sans: ['system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
-        mono: ['Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'monospace'],
+        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'monospace'],
       },
       fontSize: {
         'xs': '0.75rem',
@@ -168,7 +168,38 @@ export default {
         'fast': '150ms',
         'base': '200ms',
         'slow': '300ms',
-      }
+      },
+      backgroundImage: {
+        'gradient-pierre': 'linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%)',
+        'gradient-activity': 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+        'gradient-nutrition': 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+        'gradient-recovery': 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
+        'gradient-pierre-horizontal': 'linear-gradient(90deg, #7C3AED 0%, #06B6D4 100%)',
+      },
+      animation: {
+        'slide-up': 'slideUp 0.2s ease-out',
+        'fade-in': 'fadeIn 0.15s ease-out',
+        'scale-in': 'scaleIn 0.2s ease-out',
+        'shimmer': 'shimmer 2s infinite linear',
+      },
+      keyframes: {
+        slideUp: {
+          '0%': { transform: 'translateY(10px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        scaleIn: {
+          '0%': { transform: 'scale(0.95)', opacity: '0' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
+      },
     },
   },
   plugins: [
