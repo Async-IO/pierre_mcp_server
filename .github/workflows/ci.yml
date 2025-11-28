@@ -35,8 +35,8 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.91.0
         with:
-          components: rustfmt, clippy
-      
+          components: rustfmt
+
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
@@ -55,14 +55,11 @@ jobs:
       - name: Install rustfmt
         run: rustup component add rustfmt
 
-      - name: Install clippy
-        run: rustup component add clippy
-
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Lint with Clippy (Zero Tolerance)
-        run: cargo clippy --all-targets --all-features -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
+      # NOTE: Clippy linting is handled by rust.yml workflow to avoid redundant runs
+      # Cross-platform.yml handles platform-specific clippy checks
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@cargo-deny
