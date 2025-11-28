@@ -266,3 +266,100 @@ jobs:
           name: backend-postgresql-coverage
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
+
+  redis-tests:
+    name: Cache Tests (Redis)
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.91.0
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-redis-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Redis tools
+        run: sudo apt-get update && sudo apt-get install -y redis-tools
+
+      - name: Wait for Redis
+        run: |
+          echo "🔴 Waiting for Redis to be ready..."
+          timeout 60 bash -c 'until redis-cli -h localhost -p 6379 ping | grep -q PONG; do sleep 2; done'
+          echo "✅ Redis is ready!"
+
+      - name: Verify Redis connection
+        run: |
+          echo "🔧 Testing Redis connection..."
+          redis-cli -h localhost -p 6379 INFO server | head -10
+
+      - name: Run Redis cache tests
+        run: cargo test --test cache_redis_test -- --test-threads=1
+        env:
+          REDIS_URL: "redis://localhost:6379"
+          DATABASE_URL: "sqlite::memory:"
+          ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_RSA_KEY_SIZE: "2048"
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+          RUST_LOG: "info"
+
+      - name: Run Redis cache tests with coverage
+        run: cargo llvm-cov --test cache_redis_test --lcov --output-path lcov-redis.info -- --test-threads=1
+        env:
+          REDIS_URL: "redis://localhost:6379"
+          DATABASE_URL: "sqlite::memory:"
+          ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_RSA_KEY_SIZE: "2048"
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+          RUST_LOG: "warn"
+          CARGO_INCREMENTAL: 0
+
+      - name: Upload Redis coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: lcov-redis.info
+          flags: cache-redis
+          name: cache-redis-coverage
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
