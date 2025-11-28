@@ -576,6 +576,27 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
+    async fn update_user_password(&self, user_id: Uuid, password_hash: &str) -> AppResult<()> {
+        let result = sqlx::query(
+            r"
+            UPDATE users
+            SET password_hash = $1, last_active = CURRENT_TIMESTAMP
+            WHERE id = $2
+            ",
+        )
+        .bind(password_hash)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update user password: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::not_found(format!("User with ID: {user_id}")));
+        }
+
+        Ok(())
+    }
+
     async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> AppResult<()> {
         let now = chrono::Utc::now().to_rfc3339();
         sqlx::query(

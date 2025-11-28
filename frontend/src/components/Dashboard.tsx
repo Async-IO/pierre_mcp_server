@@ -6,7 +6,6 @@ import type { DashboardOverview, RateLimitOverview, User } from '../types/api';
 import type { AnalyticsData } from '../types/chart';
 import { useWebSocketContext } from '../hooks/useWebSocketContext';
 import { Card } from './ui';
-import RealTimeIndicator from './RealTimeIndicator';
 import { clsx } from 'clsx';
 
 // Lazy load heavy components to reduce initial bundle size
@@ -196,52 +195,54 @@ export default function Dashboard() {
 
         {/* User Profile Section - Bottom of sidebar */}
         <div className={clsx(
-          'border-t border-pierre-gray-100 transition-all duration-300',
-          sidebarCollapsed ? 'p-2' : 'px-3 py-3'
+          'border-t border-pierre-gray-100',
+          sidebarCollapsed ? 'p-1.5' : 'px-2 py-1.5'
         )}>
-          <div className="flex flex-col items-center text-center">
-            {/* User Avatar */}
-            <div className="w-8 h-8 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center shadow-sm flex-shrink-0">
-              <span className="text-xs font-bold text-white">
-                {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
-              </span>
+          <div className={clsx(
+            'flex items-center',
+            sidebarCollapsed ? 'flex-col gap-1' : 'gap-2'
+          )}>
+            {/* User Avatar with online indicator */}
+            <div className="relative flex-shrink-0">
+              <div className="w-5 h-5 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center">
+                <span className="text-[9px] font-bold text-white">
+                  {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              {/* Online status dot */}
+              <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white" />
             </div>
 
             {!sidebarCollapsed && (
-              <>
-                {/* Display Name or Email */}
-                <p className="mt-1.5 text-xs font-medium text-pierre-gray-900 truncate max-w-full">
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-medium text-pierre-gray-900 truncate leading-none">
                   {user?.display_name || user?.email}
                 </p>
+                <span className="text-[8px] text-pierre-gray-500 uppercase">
+                  {user?.is_admin ? 'Admin' : 'User'}
+                </span>
+              </div>
+            )}
 
-                {/* Role */}
-                <p className="text-[9px] text-pierre-gray-500 uppercase tracking-wide">
-                  {user?.is_admin ? 'Administrator' : 'User'}
-                </p>
-
-                {/* Active Status */}
-                <RealTimeIndicator className="mt-0.5 text-[9px]" />
-
-                {/* Logout Button */}
-                <button
-                  onClick={logout}
-                  className="mt-1.5 flex items-center gap-1 text-[10px] text-pierre-gray-500 hover:text-pierre-violet transition-colors"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  Sign out
-                </button>
-              </>
+            {!sidebarCollapsed && (
+              <button
+                onClick={logout}
+                className="text-pierre-gray-400 hover:text-pierre-violet transition-colors flex-shrink-0"
+                title="Sign out"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
             )}
 
             {sidebarCollapsed && (
               <button
                 onClick={logout}
-                className="mt-1.5 text-pierre-gray-500 hover:text-pierre-violet transition-colors"
+                className="text-pierre-gray-500 hover:text-pierre-violet transition-colors"
                 title="Sign out"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
               </button>

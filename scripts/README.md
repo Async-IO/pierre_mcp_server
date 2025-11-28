@@ -21,6 +21,7 @@ This directory contains shell scripts and utilities for development, testing, de
 | **pre-push-tests.sh** | Git Hooks | Pre-push validation - Critical path tests (5-10 minutes). Runs essential tests to catch 80% of issues before pushing. |
 | **run_bridge_tests.sh** | Testing | Complete bridge test suite runner. Validates bridge functionality from CLI parsing to full MCP Client simulation. |
 | **safe-test-runner.sh** | Testing | Safe incremental test runner. Runs tests in small batches with memory cleanup pauses to prevent OOM. |
+| **seed-demo-data.sh** | Development | Seeds the SQLite database with demo data for dashboard visualization. Creates users, API keys, A2A clients, usage records, and admin tokens. |
 | **setup-git-hooks.sh** | Git Hooks | Installs git hooks for code quality enforcement. Sets up pre-commit, commit-msg, and pre-push hooks. |
 | **smoke-test.sh** | Testing | Quick validation script for rapid development feedback (2-3 minutes). Format check, clippy, unit tests, one integration test. |
 | **test_trial_keys.sh** | Testing | Tests business API key provisioning system. Full workflow: creates admin, registers user, provisions API keys, tests MCP access. |
@@ -41,6 +42,7 @@ This directory contains shell scripts and utilities for development, testing, de
 ```bash
 ./scripts/dev-start.sh              # Start development environment
 ./scripts/fresh-start.sh            # Clean reset of database
+./scripts/seed-demo-data.sh         # Populate database with demo data
 ./scripts/setup-git-hooks.sh        # Install git hooks (run once)
 ```
 
