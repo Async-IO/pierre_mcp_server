@@ -129,6 +129,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
+            ..pierre_mcp_server::config::environment::AuthConfig::default()
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {

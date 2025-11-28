@@ -148,7 +148,7 @@ impl A2ARoutes {
     ///
     /// Returns `A2AError` if the agent card cannot be created
     pub fn get_agent_card(&self) -> Result<AgentCard, A2AError> {
-        Ok(AgentCard::new())
+        Ok(AgentCard::with_base_url(&self.resources.config.base_url))
     }
 
     /// Get A2A dashboard overview

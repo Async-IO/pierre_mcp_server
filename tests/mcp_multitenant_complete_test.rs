@@ -68,6 +68,7 @@ fn create_test_config(port: u16) -> Arc<pierre_mcp_server::config::environment::
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
+            ..pierre_mcp_server::config::environment::AuthConfig::default()
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {

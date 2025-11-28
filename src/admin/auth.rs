@@ -35,17 +35,18 @@ pub struct AdminAuthService {
 }
 
 impl AdminAuthService {
-    /// Default cache TTL (5 minutes)
-    const DEFAULT_CACHE_TTL_SECS: u64 = 300;
+    /// Default cache TTL (5 minutes) - exposed for test configuration
+    pub const DEFAULT_CACHE_TTL_SECS: u64 = 300;
 
     /// Create new admin auth service with RS256 (REQUIRED)
+    ///
+    /// The `cache_ttl_secs` parameter should come from `ServerConfig.auth.admin_token_cache_ttl_secs`.
     #[must_use]
-    pub fn new(database: Database, jwks_manager: Arc<crate::admin::jwks::JwksManager>) -> Self {
-        let cache_ttl_secs = std::env::var("ADMIN_TOKEN_CACHE_TTL_SECS")
-            .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(Self::DEFAULT_CACHE_TTL_SECS);
-
+    pub fn new(
+        database: Database,
+        jwks_manager: Arc<crate::admin::jwks::JwksManager>,
+        cache_ttl_secs: u64,
+    ) -> Self {
         Self {
             database,
             jwt_manager: AdminJwtManager::new(),

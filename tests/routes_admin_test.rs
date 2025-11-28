@@ -196,6 +196,7 @@ impl AdminTestSetup {
             auth_manager.clone(),
             jwks_manager.clone(),
             admin_api_key_monthly_limit,
+            pierre_mcp_server::admin::AdminAuthService::DEFAULT_CACHE_TTL_SECS,
         );
 
         // Create test user

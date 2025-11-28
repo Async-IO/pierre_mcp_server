@@ -41,7 +41,11 @@ async fn test_admin_authentication_flow() {
 
     // Create auth service
     let jwt_secret = "test_jwt_secret_for_admin_auth";
-    let auth_service = AdminAuthService::new(database.clone(), jwks_manager.clone());
+    let auth_service = AdminAuthService::new(
+        database.clone(),
+        jwks_manager.clone(),
+        AdminAuthService::DEFAULT_CACHE_TTL_SECS,
+    );
 
     // Manually create an RS256 token with a known secret and store it in database
     let jwt_manager = AdminJwtManager::new();

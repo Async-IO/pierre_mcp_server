@@ -321,7 +321,11 @@ async fn test_admin_auth_service_construction() -> Result<()> {
     let jwks_manager = common::get_shared_test_jwks();
 
     // Test that AdminAuthService can be constructed successfully
-    let auth_service = AdminAuthService::new((*db).clone(), jwks_manager);
+    let auth_service = AdminAuthService::new(
+        (*db).clone(),
+        jwks_manager,
+        AdminAuthService::DEFAULT_CACHE_TTL_SECS,
+    );
 
     // Test basic functionality - invalid token should fail
     let invalid_result = auth_service

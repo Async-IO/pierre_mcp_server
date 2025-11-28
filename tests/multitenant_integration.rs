@@ -200,6 +200,7 @@ async fn test_multitenant_auth_flow() -> Result<()> {
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
+            ..pierre_mcp_server::config::environment::AuthConfig::default()
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
@@ -665,6 +666,7 @@ async fn test_input_validation() -> Result<()> {
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
+            ..pierre_mcp_server::config::environment::AuthConfig::default()
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {

@@ -1024,6 +1024,7 @@ impl AuthRoutes {
         let admin_auth_service = crate::admin::AdminAuthService::new(
             resources.database.as_ref().clone(),
             resources.jwks_manager.clone(),
+            resources.config.auth.admin_token_cache_ttl_secs,
         );
 
         // Authenticate admin (no specific permission check - any valid admin token can register users)

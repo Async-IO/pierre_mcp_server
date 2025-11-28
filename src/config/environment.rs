@@ -521,12 +521,24 @@ pub struct BackupConfig {
 }
 
 /// Authentication configuration for JWT tokens
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthConfig {
     /// JWT expiry time in hours
     pub jwt_expiry_hours: u64,
     /// Enable JWT refresh tokens
     pub enable_refresh_tokens: bool,
+    /// Admin token cache TTL in seconds (default: 300 = 5 minutes)
+    pub admin_token_cache_ttl_secs: u64,
+}
+
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            jwt_expiry_hours: 24,
+            enable_refresh_tokens: false,
+            admin_token_cache_ttl_secs: 300, // 5 minutes
+        }
+    }
 }
 
 /// OAuth provider configuration for fitness platforms
@@ -1396,6 +1408,10 @@ impl ServerConfig {
                 .map_err(|e| {
                     AppError::invalid_input(format!("Invalid ENABLE_REFRESH_TOKENS value: {e}"))
                 })?,
+            admin_token_cache_ttl_secs: env::var("ADMIN_TOKEN_CACHE_TTL_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(300),
         })
     }
 

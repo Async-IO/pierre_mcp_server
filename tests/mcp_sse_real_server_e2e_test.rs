@@ -123,6 +123,7 @@ impl TestServer {
             auth: pierre_mcp_server::config::environment::AuthConfig {
                 jwt_expiry_hours: 24,
                 enable_refresh_tokens: false,
+                ..pierre_mcp_server::config::environment::AuthConfig::default()
             },
             oauth: pierre_mcp_server::config::environment::OAuthConfig::default(),
             security: pierre_mcp_server::config::environment::SecurityConfig {

@@ -115,6 +115,7 @@ async fn test_register_user() {
         auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
+            ..pierre_mcp_server::config::environment::AuthConfig::default()
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {
@@ -276,6 +277,7 @@ async fn test_register_duplicate_user() {
         auth: AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
+            ..pierre_mcp_server::config::environment::AuthConfig::default()
         },
         oauth: OAuthConfig {
             strava: OAuthProviderConfig {

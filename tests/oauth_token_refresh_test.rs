@@ -188,6 +188,7 @@ fn create_test_server_config_without_oauth(
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
+            ..pierre_mcp_server::config::environment::AuthConfig::default()
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
@@ -287,6 +288,7 @@ fn create_test_server_config(
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
+            ..pierre_mcp_server::config::environment::AuthConfig::default()
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {

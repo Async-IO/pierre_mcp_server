@@ -168,6 +168,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthService, Uuid, Arc<Database>
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
+            ..pierre_mcp_server::config::environment::AuthConfig::default()
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
@@ -434,6 +435,7 @@ async fn test_user_login_success() -> Result<()> {
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
+            ..pierre_mcp_server::config::environment::AuthConfig::default()
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
@@ -696,6 +698,7 @@ async fn test_token_refresh_success() -> Result<()> {
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
+            ..pierre_mcp_server::config::environment::AuthConfig::default()
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
@@ -906,6 +909,7 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
+            ..pierre_mcp_server::config::environment::AuthConfig::default()
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
@@ -1364,6 +1368,7 @@ async fn test_complete_auth_flow() -> Result<()> {
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
+            ..pierre_mcp_server::config::environment::AuthConfig::default()
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
@@ -1650,6 +1655,7 @@ async fn test_concurrent_logins() -> Result<()> {
         auth: pierre_mcp_server::config::environment::AuthConfig {
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
+            ..pierre_mcp_server::config::environment::AuthConfig::default()
         },
         oauth: pierre_mcp_server::config::environment::OAuthConfig {
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {

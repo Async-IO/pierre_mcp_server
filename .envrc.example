@@ -79,6 +79,10 @@ export DATABASE_URL="sqlite:./data/users.db"
 # For PostgreSQL: export DATABASE_URL="postgresql://user:pass@localhost/pierre_db"
 export JWT_EXPIRY_HOURS="24"
 
+# Admin Token Cache Configuration
+# Cache validated admin tokens to reduce database lookups (seconds)
+export ADMIN_TOKEN_CACHE_TTL_SECS="300"  # Default: 300 (5 minutes)
+
 # PostgreSQL Connection Pool Configuration (when using PostgreSQL)
 # These values are automatically optimized for CI vs production environments
 export POSTGRES_MAX_CONNECTIONS="10"     # Default: 10 (prod), 5 (CI)

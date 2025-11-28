@@ -113,9 +113,14 @@ pub struct ToolExample {
 }
 
 impl AgentCard {
-    /// Create a new Agent Card for Pierre
+    /// Default base URL when none is provided
+    const DEFAULT_BASE_URL: &'static str = "http://localhost:8080";
+
+    /// Create a new Agent Card for Pierre with specified base URL
+    ///
+    /// Prefer this constructor when you have access to server configuration.
     #[must_use]
-    pub fn new() -> Self {
+    pub fn with_base_url(base_url: &str) -> Self {
         Self {
             name: "Pierre Fitness AI".into(),
             description: "AI-powered fitness data analysis and insights platform providing comprehensive activity analysis, performance tracking, and intelligent recommendations for athletes and fitness enthusiasts.".into(),
@@ -128,7 +133,7 @@ impl AgentCard {
                 "training-analytics".into(),
                 "provider-integration".into(),
             ],
-            transports: Self::create_transport_definitions(),
+            transports: Self::create_transport_definitions(base_url),
             authentication: AuthenticationInfo {
                 schemes: vec!["api-key".into(), "oauth2".into()],
                 oauth2: Some(OAuth2Info {
@@ -152,12 +157,16 @@ impl AgentCard {
         }
     }
 
-    /// Create transport definitions for the agent card
-    fn create_transport_definitions() -> Vec<TransportInfo> {
-        // Get base URL from environment or use default
-        let base_url =
-            std::env::var("PIERRE_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_owned());
+    /// Create a new Agent Card for Pierre using default base URL
+    ///
+    /// For production use, prefer `with_base_url()` with `config.base_url`.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::with_base_url(Self::DEFAULT_BASE_URL)
+    }
 
+    /// Create transport definitions for the agent card
+    fn create_transport_definitions(base_url: &str) -> Vec<TransportInfo> {
         let mut config_map = HashMap::new();
         config_map.insert(
             "capabilities".to_owned(),

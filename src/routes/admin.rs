@@ -226,9 +226,14 @@ impl AdminApiContext {
         auth_manager: Arc<AuthManager>,
         jwks_manager: Arc<crate::admin::jwks::JwksManager>,
         admin_api_key_monthly_limit: u32,
+        admin_token_cache_ttl_secs: u64,
     ) -> Self {
         tracing::info!("AdminApiContext initialized with JWT signing key");
-        let auth_service = AdminAuthService::new((*database).clone(), jwks_manager.clone());
+        let auth_service = AdminAuthService::new(
+            (*database).clone(),
+            jwks_manager.clone(),
+            admin_token_cache_ttl_secs,
+        );
         Self {
             database,
             auth_service,
@@ -597,13 +602,9 @@ impl AdminRoutes {
     pub fn routes(context: AdminApiContext) -> axum::Router {
         use axum::{middleware, Router};
 
+        // Reuse auth service from context (already configured with proper TTL)
+        let auth_service = context.auth_service.clone();
         let context = Arc::new(context);
-
-        // Create admin auth service for middleware
-        let auth_service = crate::admin::AdminAuthService::new(
-            context.database.as_ref().clone(),
-            context.jwks_manager.clone(),
-        );
 
         // Protected routes require admin authentication
         let api_key_routes =

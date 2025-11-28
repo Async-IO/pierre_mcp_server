@@ -981,12 +981,14 @@ impl MultiTenantMcpServer {
             .config
             .rate_limiting
             .admin_provisioned_api_key_monthly_limit;
+        let admin_token_cache_ttl = resources.config.auth.admin_token_cache_ttl_secs;
         let admin_context = crate::routes::admin::AdminApiContext::new(
             resources.database.clone(),
             &resources.admin_jwt_secret,
             resources.auth_manager.clone(),
             resources.jwks_manager.clone(),
             admin_api_key_limit,
+            admin_token_cache_ttl,
         );
         let admin_routes = AdminRoutes::routes(admin_context);
 
