@@ -1,8 +1,8 @@
-# chapter 13: SDK bridge architecture
+# Chapter 13: SDK Bridge Architecture
 
 This chapter explores how the TypeScript SDK bridges MCP hosts (like Claude Desktop) to the Pierre server, translating between stdio (MCP standard) and HTTP (Pierre's transport).
 
-## what you'll learn
+## What You'll Learn
 
 - SDK bridge architecture pattern
 - stdio to HTTP translation
@@ -12,7 +12,7 @@ This chapter explores how the TypeScript SDK bridges MCP hosts (like Claude Desk
 - Bidirectional message routing
 - Automatic OAuth flow handling
 
-## SDK bridge pattern
+## SDK Bridge Pattern
 
 The SDK acts as a transparent bridge between MCP hosts and Pierre server:
 
@@ -56,7 +56,7 @@ export interface BridgeConfig {
 - `userEmail`/`userPassword`: Login credentials
 - `callbackPort`: OAuth callback listener port
 
-## OAuth client provider
+## OAuth Client Provider
 
 The SDK implements OAuth 2.0 client for Pierre authentication:
 
@@ -111,7 +111,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 5. **Token exchange**: POST to `/oauth/token` with authorization code
 6. **Token storage**: Save to OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service)
 
-## secure token storage
+## Secure Token Storage
 
 The SDK stores OAuth tokens in OS-native secure storage:
 
@@ -136,7 +136,7 @@ interface StoredTokens {
 
 **Security**: Tokens never stored in plaintext files. OS-native encryption protects credentials.
 
-## MCP host integration
+## MCP Host Integration
 
 The SDK integrates with MCP hosts via stdio transport:
 
@@ -154,7 +154,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 - `Client`: MCP client connecting to Pierre
 - `StreamableHTTPClientTransport`: HTTP transport for Pierre connection
 
-## message routing
+## Message Routing
 
 The SDK routes messages bidirectionally:
 
@@ -171,7 +171,7 @@ Claude Desktop ← Server (stdio) ← Client (HTTP) ← Pierre
 5. SDK's Client receives HTTP response
 6. SDK's Server sends JSON-RPC to MCP host via stdio
 
-## automatic OAuth handling
+## Automatic OAuth Handling
 
 The SDK handles OAuth flows transparently:
 
@@ -194,7 +194,7 @@ const OAuthCompletedNotificationSchema = z.object({
 - SDK receives notification and updates stored tokens
 - Future requests use refreshed tokens automatically
 
-## key takeaways
+## Key Takeaways
 
 1. **Bridge pattern**: SDK translates stdio (MCP standard) ↔ HTTP (Pierre transport).
 

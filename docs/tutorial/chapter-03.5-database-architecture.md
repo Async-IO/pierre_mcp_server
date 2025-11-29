@@ -1,8 +1,8 @@
-# database architecture & repository pattern
+# Database Architecture & Repository Pattern
 
 This chapter explores Pierre's modern database architecture using the repository pattern, which replaced a monolithic 135-method god-trait with 13 focused repository traits following SOLID principles.
 
-## what you'll learn
+## What You'll Learn
 
 - Repository pattern for database abstraction
 - 13 focused repository traits
@@ -15,7 +15,7 @@ This chapter explores Pierre's modern database architecture using the repository
 - Connection pooling strategies
 - Multi-tenant data isolation at database level
 
-## repository pattern architecture
+## Repository Pattern Architecture
 
 Pierre uses a repository pattern to provide focused, cohesive interfaces for database operations:
 
@@ -70,7 +70,7 @@ The previous architecture used a monolithic `DatabaseProvider` trait with 135+ m
 - **Lines changed**: +8,388 insertions, -7,645 deletions
 - **Result**: 13 focused repository traits, each with 5-20 cohesive methods
 
-## repository accessor pattern
+## Repository Accessor Pattern
 
 The `Database` struct provides accessor methods that return repository implementations:
 
@@ -203,9 +203,9 @@ let keys = database.api_keys().list_by_user(user_id).await?;
 - **Testability**: Can mock individual repositories
 - **Interface Segregation**: Only depend on repositories you use
 
-## the 13 repository traits
+## The 13 Repository Traits
 
-### 1. UserRepository - user account management
+### 1. Userrepository - User Account Management
 
 **Source**: `src/database/repositories/mod.rs:68-108`
 ```rust
@@ -253,7 +253,7 @@ pub trait UserRepository: Send + Sync {
 }
 ```
 
-### 2. OAuthTokenRepository - OAuth token storage (tenant-scoped)
+### 2. Oauthtokenrepository - OAuth Token Storage (Tenant-scoped)
 
 **Source**: `src/database/repositories/mod.rs:110-160`
 ```rust
@@ -305,7 +305,7 @@ pub trait OAuthTokenRepository: Send + Sync {
 }
 ```
 
-### 3. ApiKeyRepository - API key management
+### 3. Apikeyrepository - API Key Management
 
 **Source**: `src/database/repositories/mod.rs:162-200`
 ```rust
@@ -355,7 +355,7 @@ The remaining repositories follow the same focused pattern:
 
 **Complete trait definitions**: `src/database/repositories/mod.rs`
 
-## factory pattern for database selection
+## Factory Pattern for Database Selection
 
 Pierre automatically detects and instantiates the correct database backend:
 
@@ -409,7 +409,7 @@ let database = Database::new(
 ).await?;
 ```
 
-## feature flags for database backends
+## Feature Flags for Database Backends
 
 Pierre uses Cargo feature flags for conditional compilation:
 
@@ -445,7 +445,7 @@ cargo build --features postgresql
 cargo build --all-features
 ```
 
-## AAD-based encryption for OAuth tokens
+## AAD-Based Encryption for OAuth Tokens
 
 Pierre encrypts OAuth tokens with Additional Authenticated Data (AAD) binding:
 
@@ -501,7 +501,7 @@ where
 tenant-123|550e8400-e29b-41d4-a716-446655440000|strava|user_oauth_tokens
 ```
 
-## transaction retry patterns
+## Transaction Retry Patterns
 
 Pierre handles database deadlocks and transient errors with exponential backoff:
 
@@ -594,7 +594,7 @@ retry_transaction(
 ).await?;
 ```
 
-## shared database utilities
+## Shared Database Utilities
 
 The `shared` module provides reusable components across backends (880 lines total), eliminating massive code duplication. The refactoring deleted the 3,058-line `sqlite.rs` wrapper file entirely.
 
@@ -617,7 +617,7 @@ src/database_plugins/shared/
 4. **Maintainability**: Bug fixes apply to all backends
 5. **Code reduction**: Eliminated 3,058 lines of wrapper boilerplate
 
-### enum conversions (enums.rs)
+### Enum Conversions (Enums.rs)
 
 **Source**: `src/database_plugins/shared/enums.rs:24-50`
 ```rust
@@ -650,7 +650,7 @@ pub fn str_to_user_tier(s: &str) -> UserTier {
 
 **Why this matters**: Both SQLite and PostgreSQL store enums as TEXT, requiring identical conversion logic. Sharing this eliminates duplicate code and ensures consistent enum handling.
 
-### generic row parsing (mappers.rs)
+### Generic Row Parsing (Mappers.rs)
 
 **Database-agnostic User parsing**:
 
@@ -722,7 +722,7 @@ where
 
 **Also includes**: `parse_a2a_task_from_row<R>()` for A2A task parsing with JSON deserialization.
 
-### input validation (validation.rs)
+### Input Validation (Validation.rs)
 
 **Email validation**:
 
@@ -794,7 +794,7 @@ pub fn validate_scope_granted(
 
 **Why this matters**: Multi-tenant authorization and OAuth validation logic is identical across backends. Centralizing prevents divergence.
 
-### HasEncryption trait
+### Hasencryption Trait
 
 Both database backends implement this shared encryption interface:
 
@@ -812,7 +812,7 @@ pub trait HasEncryption {
 
 **Why this matters**: Allows shared encryption utilities to work with both SQLite and PostgreSQL implementations through trait bounds.
 
-## rust idioms: repository pattern
+## Rust Idioms: Repository Pattern
 
 **Pattern**: Focused, cohesive interfaces
 ```rust
@@ -833,7 +833,7 @@ let token = db.oauth_tokens().get(user_id, tenant_id, provider).await?;
 - **Testability**: Can mock individual repositories
 - **Clarity**: `db.users().create()` is clearer than `db.create_user()`
 
-## rust idioms: conditional compilation
+## Rust Idioms: Conditional Compilation
 
 **Pattern**: Feature-gated code with clear error messages
 ```rust
@@ -853,7 +853,7 @@ DatabaseType::PostgreSQL => {
 - **Compilation speed**: Only compile enabled backends
 - **Clear errors**: Helpful messages when feature missing
 
-## connection pooling (PostgreSQL)
+## Connection Pooling PostgreSQL
 
 PostgreSQL implementation uses connection pooling for performance:
 
@@ -886,33 +886,48 @@ let pool = PgPoolOptions::new()
 - **Resource limits**: Cap max connections to database
 - **Health**: Recycle connections after max lifetime
 
-## migration system
+## Migration System
 
-Pierre uses SQLx migrations for schema management:
+Pierre uses SQLx migrations for schema management. See [migrations/README.md](../../migrations/README.md) for comprehensive documentation.
 
-**Migration files** (migrations/*.sql):
+**10 migration files covering 27+ tables**:
+
+| Migration | Tables |
+|-----------|--------|
+| `20250120000001_users_schema.sql` | users, user_profiles, user_oauth_app_credentials |
+| `20250120000002_api_keys_schema.sql` | api_keys, api_key_usage |
+| `20250120000003_analytics_schema.sql` | analytics, goals, insights, request_logs |
+| `20250120000004_a2a_schema.sql` | a2a_clients, a2a_sessions, a2a_tasks, a2a_usage |
+| `20250120000005_admin_schema.sql` | admin_tokens, system_secrets |
+| `20250120000006_oauth_tokens_schema.sql` | user_oauth_tokens |
+| `20250120000007_oauth_notifications_schema.sql` | oauth_notifications |
+| `20250120000008_oauth2_schema.sql` | oauth2_clients, oauth2_tokens, oauth2_authorization_codes |
+| `20250120000009_tenant_management_schema.sql` | tenants, tenant_oauth_credentials, oauth_apps, key_versions, audit_events, tenant_users |
+| `20250120000010_fitness_configurations_schema.sql` | fitness_configurations |
+
+**Example schema** (migrations/20250120000006_oauth_tokens_schema.sql):
 ```sql
--- migrations/20240101000001_create_users.sql
-CREATE TABLE users (
-    id UUID PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    status TEXT NOT NULL DEFAULT 'pending'
-);
-
--- migrations/20240101000002_create_oauth_tokens.sql
-CREATE TABLE user_oauth_tokens (
-    user_id UUID NOT NULL,
+CREATE TABLE IF NOT EXISTS user_oauth_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
     tenant_id TEXT NOT NULL,
     provider TEXT NOT NULL,
-    access_token TEXT NOT NULL,  -- Encrypted
-    refresh_token TEXT,           -- Encrypted
-    expires_at TIMESTAMP,
-    PRIMARY KEY (user_id, tenant_id, provider),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    access_token TEXT NOT NULL,  -- Encrypted with AAD
+    refresh_token TEXT,           -- Encrypted with AAD
+    token_type TEXT NOT NULL DEFAULT 'bearer',
+    expires_at TEXT,
+    scope TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(user_id, tenant_id, provider)
 );
 ```
+
+**Cross-database compatibility**:
+- All types use TEXT (portable across SQLite and PostgreSQL)
+- Timestamps stored as ISO8601 strings (app-generated)
+- UUIDs stored as TEXT (app-generated)
+- Booleans stored as INTEGER (0/1)
 
 **Migration execution**:
 ```rust
@@ -930,7 +945,7 @@ async fn migrate(&self) -> Result<()> {
 - **Rollback**: Down migrations for reverting changes
 - **Type safety**: SQLx compile-time query verification
 
-## multi-tenant data isolation
+## Multi-Tenant Data Isolation
 
 Database schema enforces tenant isolation:
 
@@ -954,7 +969,7 @@ db.oauth_tokens()
 
 **AAD encryption binding**: Tenant ID in AAD prevents cross-tenant token copying at encryption layer.
 
-## key takeaways
+## Key Takeaways
 
 1. **Repository pattern**: 13 focused traits replaced 135-method god-trait (commit `6f3efef`).
 

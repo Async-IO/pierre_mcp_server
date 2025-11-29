@@ -1,8 +1,8 @@
-# chapter 20: sports science algorithms & intelligence
+# Chapter 20: Sports Science Algorithms & Intelligence
 
 This chapter explores how Pierre implements sports science algorithms for training load management, fitness tracking, and performance estimation. You'll learn about TSS calculation, CTL/ATL/TSB (Performance Manager Chart), VO2 max estimation, FTP detection, and algorithm configuration patterns.
 
-## what you'll learn
+## What You'll Learn
 
 - Training Stress Score (TSS) calculation
 - CTL/ATL/TSB (Chronic/Acute Training Load, Training Stress Balance)
@@ -13,7 +13,7 @@ This chapter explores how Pierre implements sports science algorithms for traini
 - Scientific references and validation
 - Enum-based algorithm selection
 
-## algorithm configuration pattern
+## Algorithm Configuration Pattern
 
 Pierre uses enums to select between multiple algorithm implementations:
 
@@ -27,7 +27,7 @@ User selects algorithm → Enum variant → Implementation strategy → Result
 - **User choice**: Power users can optimize for their data/use case
 - **Backwards compatibility**: Default impl when new algorithms added
 
-## Training Stress Score (TSS)
+## Training Stress Score TSS
 
 TSS quantifies training load from a single workout.
 
@@ -117,7 +117,7 @@ NP = ⁴√(mean(mean_per_30s_window(power⁴)))
 
 **Why 4th power**: Matches physiological stress curve (glycogen depletion, lactate accumulation).
 
-## CTL/ATL/TSB (Performance Manager Chart)
+## CTL/ATL/TSB (performance Manager Chart)
 
 CTL/ATL/TSB track fitness, fatigue, and form over time.
 
@@ -215,7 +215,7 @@ For CTL (N=42): α = 2/43 ≈ 0.0465 (slow adaptation)
 For ATL (N=7):  α = 2/8  = 0.25   (fast response)
 ```
 
-## VO2 max estimation
+## VO2 Max Estimation
 
 VO2 max represents maximal aerobic capacity (ml/kg/min).
 
@@ -283,7 +283,7 @@ Distance: 3000 meters in 12 minutes
 VO2max = (3000 - 504.9) / 44.73 ≈ 55.8 ml/kg/min (well-trained)
 ```
 
-## algorithm selection pattern
+## Algorithm Selection Pattern
 
 All algorithms follow the same pattern:
 
@@ -312,7 +312,7 @@ impl Algorithm {
 4. **Configuration**: Serialize/deserialize for user preferences
 5. **Testing**: Compare algorithms for validation
 
-## scientific validation
+## Scientific Validation
 
 Pierre includes scientific references for algorithms:
 
@@ -333,7 +333,7 @@ Pierre includes scientific references for algorithms:
 - **Industry standards**: TrainingPeaks, Strava algorithms as benchmarks
 - **Correlation studies**: Verify against physiological measurements
 
-## key takeaways
+## Key Takeaways
 
 1. **Enum-based selection**: All algorithms use enum pattern for flexibility and type safety.
 

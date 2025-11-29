@@ -1,4 +1,4 @@
-# chapter 3: configuration management & environment variables
+# Chapter 3: Configuration Management & Environment Variables
 
 > **Learning Objectives**: Master environment-driven configuration in Rust, understand type-safe config patterns, and learn how Pierre implements the algorithm selection system.
 >
@@ -8,7 +8,7 @@
 
 ---
 
-## introduction
+## Introduction
 
 Production applications require flexible configuration that works across development, staging, and production environments. Pierre uses a multi-layered configuration system:
 
@@ -21,11 +21,11 @@ This chapter teaches you how to build configuration systems that are both flexib
 
 ---
 
-## environment variables with dotenvy
+## Environment Variables with Dotenvy
 
 Pierre uses `dotenvy` to load environment variables from `.envrc` files in development.
 
-### .envrc file pattern
+### .envrc File Pattern
 
 **Source**: `.envrc.example` (root directory)
 
@@ -86,11 +86,11 @@ async fn main() -> Result<()> {
 
 ---
 
-## type-safe configuration enums
+## Type-Safe Configuration Enums
 
 Pierre uses enums to represent configuration values, gaining compile-time type safety.
 
-### loglevel enum
+### Loglevel Enum
 
 **Source**: `src/config/environment.rs:18-71`
 
@@ -190,7 +190,7 @@ tracing_subscriber::fmt()
 
 **Reference**: [Rust Book - Default Trait](https://doc.rust-lang.org/std/default/trait.Default.html)
 
-### environment enum (development vs production)
+### Environment Enum (development vs Production)
 
 **Source**: `src/config/environment.rs:73-124`
 
@@ -270,7 +270,7 @@ if env.is_production() {
 
 ---
 
-## database configuration with type-safe enums
+## Database Configuration with Type-Safe Enums
 
 Pierre uses an enum to represent different database types, avoiding string-based type checking.
 
@@ -388,7 +388,7 @@ match db_url {
 
 ---
 
-## algorithm selection system
+## Algorithm Selection System
 
 Pierre allows runtime selection of sports science algorithms via environment variables.
 
@@ -525,7 +525,7 @@ pub fn calculate_max_hr(age: u32, gender: Gender, algorithm: &str) -> u16 {
 
 ---
 
-## global static configuration with OnceLock
+## Global Static Configuration with Oncelock
 
 Pierre uses `OnceLock` for global configuration that's initialized once at startup.
 
@@ -608,7 +608,7 @@ fn some_function() -> Result<()> {
 
 ---
 
-## const generics for compile-time validation
+## Const Generics for Compile-Time Validation
 
 Pierre uses const generics to track validation state at compile time.
 
@@ -685,7 +685,7 @@ validated_config.use_in_production();
 
 ---
 
-## diagram: configuration layers
+## Diagram: Configuration Layers
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -742,9 +742,9 @@ validated_config.use_in_production();
 
 ---
 
-## practical exercises
+## Practical Exercises
 
-### exercise 1: create a custom config enum
+### Exercise 1: Create a Custom Config Enum
 
 Define a `CacheBackend` enum for cache configuration:
 
@@ -787,7 +787,7 @@ impl CacheBackend {
 }
 ```
 
-### exercise 2: add validation to config struct
+### Exercise 2: Add Validation to Config Struct
 
 Implement validation for algorithm configuration:
 
@@ -830,7 +830,7 @@ impl AlgorithmConfig {
 
 ---
 
-## rust idioms summary
+## Rust Idioms Summary
 
 | Idiom | Purpose | Example Location |
 |-------|---------|-----------------|
@@ -850,7 +850,7 @@ impl AlgorithmConfig {
 
 ---
 
-## key takeaways
+## Key Takeaways
 
 1. **Environment variables for flexibility** - Runtime configuration without recompilation
 2. **Type-safe enums over strings** - Compiler catches configuration errors
@@ -862,6 +862,6 @@ impl AlgorithmConfig {
 
 ---
 
-## next chapter
+## Next Chapter
 
 [Chapter 4: Dependency Injection with Context Pattern](./chapter-04-dependency-injection.md) - Learn how Pierre avoids the "AppState" anti-pattern with focused dependency injection contexts.

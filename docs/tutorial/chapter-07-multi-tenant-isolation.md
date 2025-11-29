@@ -1,8 +1,8 @@
-# chapter 07: multi-tenant database isolation
+# Chapter 07: Multi-Tenant Database Isolation
 
 This chapter explores how the Pierre Fitness Platform enforces strict tenant boundaries at the database layer, ensuring complete data isolation between different organizations using the same server instance. You'll learn about tenant context extraction, role-based access control, and query-level tenant filtering.
 
-## what you'll learn
+## What You'll Learn
 
 - Multi-tenant architecture patterns for SaaS applications
 - `TenantContext` structure and lifecycle
@@ -15,11 +15,11 @@ This chapter explores how the Pierre Fitness Platform enforces strict tenant bou
 - Provider usage tracking per tenant
 - Security patterns for preventing cross-tenant data leaks
 
-## multi-tenant architecture overview
+## Multi-Tenant Architecture Overview
 
 The Pierre platform implements true multi-tenancy, where multiple organizations (tenants) share the same database and application server while maintaining complete data isolation.
 
-### architecture layers
+### Architecture Layers
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -58,7 +58,7 @@ The Pierre platform implements true multi-tenancy, where multiple organizations 
 
 **Key principle**: Every database query includes `WHERE tenant_id = <current_tenant_id>` to enforce row-level security. No query can access data from a different tenant, even if the application code has a bug.
 
-## tenant context structure
+## Tenant Context Structure
 
 The `TenantContext` struct carries tenant information throughout the request lifecycle:
 
@@ -114,7 +114,7 @@ The `Clone` derive enables passing `TenantContext` across async boundaries. The 
 
 The `Serialize` and `Deserialize` derives allow embedding `TenantContext` in JSON responses and session data.
 
-## tenant roles and permissions
+## Tenant Roles and Permissions
 
 The platform defines four tenant roles with increasing privileges:
 
@@ -176,7 +176,7 @@ impl TenantRole {
 
 The `from_db_string` method defaults to `Member` for unknown roles. This "fail-safe" approach ensures that database corruption or future role additions don't accidentally grant excessive permissions. Always default to the most restrictive option when parsing untrusted data.
 
-## JWT claims and tenant extraction
+## JWT Claims and Tenant Extraction
 
 User authentication tokens (Chapter 6) include an optional `tenant_id` claim for multi-tenant deployment:
 
@@ -242,7 +242,7 @@ pub async fn validate_tenant_access(&self, jwt_token: &str) -> Result<TenantCont
 5. Look up user's role within the tenant (Owner/Admin/Billing/Member)
 6. Construct `TenantContext` for the request
 
-### extracting tenant_id from user record
+### Extracting Tenant_id from User Record
 
 Users belong to exactly one tenant (single-tenancy per user):
 
@@ -272,11 +272,11 @@ pub fn extract_tenant_id(&self, user: &crate::models::User) -> Result<Uuid> {
 
 The platform attempts UUID parsing first, then falls back to slug lookup.
 
-## database isolation with WHERE clauses
+## Database Isolation with where Clauses
 
 Every database query that accesses tenant-scoped data includes a `WHERE tenant_id = ?` clause:
 
-### OAuth credentials isolation
+### OAuth Credentials Isolation
 
 Tenant OAuth credentials are stored separately from user credentials:
 
@@ -297,7 +297,7 @@ WHERE tenant_id = $1 AND provider = $2 AND is_active = true
 
 **Security**: The `WHERE tenant_id = ?` clause ensures that even if application code passes the wrong tenant ID, the database returns no results. This "defense in depth" prevents cross-tenant data leaks from programming errors.
 
-### listing tenant OAuth apps
+### Listing Tenant OAuth Apps
 
 **Source**: src/database_plugins/sqlite.rs:1249-1254
 ```sql
@@ -322,7 +322,7 @@ ORDER BY provider
 3. WHERE tenant_id = $param AND is_active = true
 4. ORDER BY for deterministic results
 
-## tenant isolation manager
+## Tenant Isolation Manager
 
 The `TenantIsolation` manager coordinates tenant context extraction and validation:
 
@@ -350,7 +350,7 @@ impl TenantIsolation {
 
 The `const` qualifier allows creating `TenantIsolation` at compile time if all dependencies support it. In practice, `Arc<ServerResources>` isn't const-constructible, but the pattern future-proofs the API.
 
-### role-based access control
+### Role-Based Access Control
 
 The platform validates user permissions for specific actions:
 
@@ -406,7 +406,7 @@ The `matches!(user_role, TenantRole::Owner | TenantRole::Member)` macro provides
 user_role == TenantRole::Owner || user_role == TenantRole::Member
 ```
 
-### resource access validation
+### Resource Access Validation
 
 The platform validates access to specific resource types:
 
@@ -440,7 +440,7 @@ pub async fn check_resource_access(
 
 **Security**: Unknown resource types return `false` (deny by default). This ensures that new resources added to the platform require explicit permission configuration.
 
-## tenant resources wrapper
+## Tenant Resources Wrapper
 
 The `TenantResources` struct provides tenant-scoped access to database operations:
 
@@ -536,7 +536,7 @@ impl TenantResources {
 
 The `store_oauth_credentials` method validates that `credential.tenant_id == self.tenant_id` before storing. This prevents accidentally storing credentials for the wrong tenant, which would leak sensitive data.
 
-## tenant-aware logging
+## Tenant-Aware Logging
 
 The platform provides structured logging utilities that include tenant context:
 
@@ -572,7 +572,7 @@ impl TenantLogger {
 - Performance debugging (is one tenant causing slow queries?)
 - Billing and chargeback (which tenant consumed how many resources)
 
-### authentication logging
+### Authentication Logging
 
 **Source**: src/logging/tenant.rs:54-81
 ```rust
@@ -612,7 +612,7 @@ pub fn log_auth_event(
 - Cross-tenant authentication attempts (attacker trying tenant A credentials against tenant B)
 - Compromised user accounts
 
-### HTTP request logging
+### HTTP Request Logging
 
 **Source**: src/logging/tenant.rs:84-115
 ```rust
@@ -655,7 +655,7 @@ pub fn log_http_request(
 
 Not all requests have tenant context (e.g., health check endpoints, public landing pages). Using `Option<Uuid>` allows logging these requests with `None` values, which serialize as `null` in structured logs.
 
-### database operation logging
+### Database Operation Logging
 
 **Source**: src/logging/tenant.rs:118-138
 ```rust
@@ -685,7 +685,7 @@ pub fn log_database_operation(
 
 **Performance**: Database logs use `tracing::debug!()` level to avoid overwhelming production systems. Enable in development with `RUST_LOG=debug` to troubleshoot slow queries.
 
-## tenant provider isolation
+## Tenant Provider Isolation
 
 Fitness provider requests use tenant-specific OAuth credentials:
 
@@ -735,7 +735,7 @@ pub trait TenantFitnessProvider: Send + Sync {
 
 This allows multiple tenants to use the same Strava integration with different OAuth apps.
 
-### tenant provider factory
+### Tenant Provider Factory
 
 **Source**: src/providers/tenant_provider.rs:49-80
 ```rust
@@ -775,7 +775,7 @@ impl TenantProviderFactory {
 
 **Extensibility**: The factory pattern makes it easy to add new providers (Garmin, Fitbit, Polar) by implementing `TenantFitnessProvider` and adding a match arm.
 
-## tenant schema and models
+## Tenant Schema and Models
 
 The database schema enforces tenant isolation with foreign key constraints:
 
@@ -828,7 +828,7 @@ impl Tenant {
 - `subscription_tier`: For tiered pricing (starter, professional, enterprise)
 - `is_active`: Soft delete (deactivate tenant without deleting data)
 
-### tenant-user relationship
+### Tenant-User Relationship
 
 **Source**: src/tenant/schema.rs:95-122
 ```rust
@@ -869,7 +869,7 @@ impl TenantUser {
 
 Currently, users belong to exactly one tenant, but the schema allows future enhancement.
 
-### tenant usage tracking
+### Tenant Usage Tracking
 
 **Source**: src/tenant/schema.rs:124-143
 ```rust
@@ -905,9 +905,9 @@ pub struct TenantProviderUsage {
 
 Using `NaiveDate` (date without time zone) for `usage_date` avoids time zone confusion. The platform aggregates usage per calendar day in UTC, regardless of the tenant's time zone.
 
-## security patterns and best practices
+## Security Patterns and Best Practices
 
-### defense in depth
+### Defense in Depth
 
 The platform employs multiple layers of security:
 
@@ -919,7 +919,7 @@ The platform employs multiple layers of security:
 
 **Principle**: Even if one layer fails (e.g., application bug passes wrong tenant ID), the database filtering prevents cross-tenant leaks.
 
-### preventing common vulnerabilities
+### Preventing Common Vulnerabilities
 
 **SQL injection**: All queries use parameterized statements (`?1`, `$1`) instead of string concatenation:
 ```rust
@@ -960,7 +960,7 @@ let tenant_id = request.headers.get("x-tenant-id")?;
 let activities = database.get_activities(tenant_id, user_id).await?;
 ```
 
-## key takeaways
+## Key Takeaways
 
 1. **True multi-tenancy**: Multiple organizations share infrastructure with complete data isolation. Every database query filters by `tenant_id`.
 

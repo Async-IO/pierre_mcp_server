@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS tenants (
 CREATE TABLE IF NOT EXISTS tenant_oauth_credentials (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    provider TEXT NOT NULL CHECK (provider IN ('strava', 'fitbit')),
+    provider TEXT NOT NULL CHECK (provider IN ('strava', 'garmin', 'fitbit', 'whoop', 'terra')),
     client_id TEXT NOT NULL,
     client_secret_encrypted TEXT NOT NULL,
     redirect_uri TEXT NOT NULL,

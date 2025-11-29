@@ -1,8 +1,8 @@
-# appendix E: API keys, rate limiting & real-time dashboard
+# Appendix E: API Keys, Rate Limiting & Real-Time Dashboard
 
 This appendix covers Pierre's B2B API key system, unified rate limiting engine, and real-time usage dashboard/WebSocket updates. You'll learn how API keys are modeled, how quotas and bursts are enforced, and how the dashboard surfaces this information to end users.
 
-## what you'll learn
+## What You'll Learn
 
 - API key tiers, lifecycle, and storage (`src/api_keys.rs`)
 - Unified rate limiting for API keys and JWTs (`src/rate_limiting.rs`)
@@ -11,7 +11,7 @@ This appendix covers Pierre's B2B API key system, unified rate limiting engine, 
 - Dashboard overview and analytics models (`src/dashboard_routes.rs`)
 - How these pieces fit together with MCP tools
 
-## API key model & tiers
+## API Key Model & Tiers
 
 Pierre exposes a B2B API via API keys that carry their own tier and quota metadata.
 
@@ -67,7 +67,7 @@ impl ApiKeyTier {
 - **Professional**: 100,000 requests/month (`PROFESSIONAL_MONTHLY_LIMIT`).
 - **Enterprise**: Unlimited (`monthly_limit() -> None`).
 
-### API key structure
+### API Key Structure
 
 Each API key stores its hashed value, tier, and rate limiting parameters.
 
@@ -110,7 +110,7 @@ pub struct ApiKey {
 - **Prefix**: `key_prefix` lets the dashboard identify which key made a request without revealing the whole key.
 - **Tier + limit**: `tier` encodes semantic tier (trial/starter/...), while `rate_limit_requests` stores the actual numeric limit for flexibility.
 
-## unified rate limiting engine
+## Unified Rate Limiting Engine
 
 The unified rate limiting engine applies the same logic to both API keys and JWT-authenticated users.
 
@@ -136,7 +136,7 @@ pub struct UnifiedRateLimitInfo {
 
 **Key idea**: whether a request is authenticated via API key or JWT, the **same** rate limiting structure is used, so downstream code can render consistent responses, dashboard metrics, and WebSocket updates.
 
-### tenant-level limit tiers
+### Tenant-Level Limit Tiers
 
 Tenants have their own rate limit tiers layered on top of key-level limits.
 
@@ -187,7 +187,7 @@ impl TenantRateLimitTier {
 - **Multipliers**: `multiplier` allows custom boosts for specific tenants (e.g., 2× quota during migration).
 - **Unlimited**: `unlimited = true` maps to `u32::MAX` effective limit.
 
-## WebSocket real-time updates
+## WebSocket Real-Time Updates
 
 The WebSocket subsystem streams API usage and rate limit status in real time to dashboards.
 
@@ -238,7 +238,7 @@ pub enum WebSocketMessage {
 - `system_stats`: aggregate metrics for all keys (e.g., for an admin dashboard).
 - `auth` / `subscribe`: initial handshake; clients authenticate then opt into topics.
 
-### WebSocket manager
+### WebSocket Manager
 
 The `WebSocketManager` coordinates authentication, subscriptions, and broadcast.
 
@@ -287,7 +287,7 @@ impl WebSocketManager {
 3. Client sends `Subscribe { topics }` (e.g., `"usage_update"`, `"system_stats"`).
 4. Server periodically pushes `UsageUpdate` and `SystemStats` messages.
 
-## dashboard overview & analytics
+## Dashboard Overview & Analytics
 
 The dashboard HTTP routes expose human-friendly analytics built on top of usage and rate limiting data.
 
@@ -326,7 +326,7 @@ pub struct RecentActivity {
 
 Additional structs like `UsageAnalytics`, `UsageDataPoint`, `ToolUsage`, `RateLimitOverview`, and `RequestLog` provide time series and per-tool breakdowns used by the frontend dashboard to render charts and tables.
 
-## how this ties into MCP tools
+## How This Ties Into MCP Tools
 
 From the MCP side, API key and rate limit status surfaces via:
 
@@ -341,7 +341,7 @@ Typical workflow for a B2B integrator:
 3. **Monitor usage** via dashboard or WebSocket feed.
 4. **Upgrade tier** (trial → starter → professional) to unlock higher quotas.
 
-## key takeaways
+## Key Takeaways
 
 1. **API keys**: Tiered API keys with hashed storage and explicit monthly limits enable safe B2B access.
 2. **Unified rate limiting**: `UnifiedRateLimitInfo` abstracts over API key vs JWT, ensuring consistent quota behavior.

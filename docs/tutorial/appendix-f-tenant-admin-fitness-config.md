@@ -1,8 +1,8 @@
-# appendix F: tenant admin APIs & fitness configuration
+# Appendix F: Tenant Admin APIs & Fitness Configuration
 
 This appendix explains Pierre's tenant administration HTTP APIs and how tenant-scoped fitness configurations are managed. You'll see how tenants, OAuth apps, and fitness configs are modeled and exposed via REST routes.
 
-## what you'll learn
+## What You'll Learn
 
 - Tenant creation and listing APIs (`src/tenant_routes.rs`)
 - Tenant OAuth credential management
@@ -10,11 +10,11 @@ This appendix explains Pierre's tenant administration HTTP APIs and how tenant-s
 - Tenant-scoped fitness configurations (`src/fitness_configuration_routes.rs`)
 - How these APIs relate to earlier multi-tenant and OAuth chapters
 
-## tenant management APIs
+## Tenant Management APIs
 
 Tenants represent logical customers or organizations in the Pierre platform. The tenant routes provide CRUD-style operations for tenants and their OAuth settings.
 
-### creating tenants
+### Creating Tenants
 
 **Source**: src/tenant_routes.rs:27-57
 ```rust
@@ -46,7 +46,7 @@ pub struct CreateTenantResponse {
 
 **Usage**: an admin-facing HTTP route accepts `CreateTenantRequest`, persists the tenant, and returns `CreateTenantResponse` with a derived API endpoint URL (e.g., `https://api.pierre.ai/t/{slug}` or custom domain).
 
-### listing tenants
+### Listing Tenants
 
 **Source**: src/tenant_routes.rs:59-84
 ```rust
@@ -75,7 +75,7 @@ pub struct TenantSummary {
 
 The list endpoint returns lightweight `TenantSummary` objects, including which OAuth providers are currently configured for each tenant.
 
-## tenant OAuth credential management
+## Tenant OAuth Credential Management
 
 Per-tenant OAuth credentials allow each tenant to bring their own Strava/Fitbit apps instead of sharing a global client ID/secret.
 
@@ -115,7 +115,7 @@ pub struct ConfigureTenantOAuthResponse {
 3. Response returns non-sensitive fields (client ID, redirect URI, scopes, timestamp).
 4. Later, `TenantOAuthManager` (see Chapter 16) resolves tenant-specific credentials when performing provider OAuth flows.
 
-### listing tenant OAuth providers
+### Listing Tenant OAuth Providers
 
 **Source**: src/tenant_routes.rs:126-161
 ```rust
@@ -140,7 +140,7 @@ pub struct TenantOAuthProvider {
 
 This view powers an admin UI where operators can confirm which providers are active per tenant, rotate credentials, or temporarily disable a misconfigured provider.
 
-## OAuth app registration for MCP clients
+## OAuth App Registration for MCP Clients
 
 Beyond provider OAuth, Pierre exposes an OAuth server (Chapter 15) for MCP clients themselves. Tenant routes provide a convenience wrapper to register OAuth apps.
 
@@ -176,11 +176,11 @@ pub struct RegisterOAuthAppResponse {
 
 **Pattern**: tenants can programmatically register OAuth clients to integrate their own MCP tooling with Pierre, receiving a `client_id`/`client_secret` and the relevant auth/token endpoints.
 
-## fitness configuration APIs
+## Fitness Configuration APIs
 
 The fitness configuration routes expose tenant- and user-scoped configuration blobs used by the intelligence layer (e.g., thresholds, algorithm choices, personalized presets).
 
-### models
+### Models
 
 **Source**: src/fitness_configuration_routes.rs:15-64
 ```rust
@@ -217,7 +217,7 @@ pub struct FitnessConfigurationListResponse {
 
 `FitnessConfig` (from `crate::config::fitness_config`) holds the actual structured configuration (zones, algorithm selection enums, etc.), while the routes add multi-tenant context and standard response metadata.
 
-### listing configurations
+### Listing Configurations
 
 **Source**: src/fitness_configuration_routes.rs:90-141
 ```rust
@@ -268,7 +268,7 @@ impl FitnessConfigurationRoutes {
 
 **Key detail**: the list endpoint merges user-specific and tenant-level configs, deduplicates them, and returns a simple list of names. This mirrors how the MCP tools can resolve configuration precedence (user overrides tenant defaults).
 
-### resolving tenant context
+### Resolving Tenant Context
 
 `get_user_tenant` extracts the tenant ID from the authenticated user.
 
@@ -296,13 +296,13 @@ async fn get_user_tenant(&self, user_id: Uuid) -> AppResult<Uuid> {
 
 This helper is reused across fitness configuration handlers to ensure every configuration is bound to the correct tenant.
 
-## relationship to earlier chapters
+## Relationship to Earlier Chapters
 
 - **Chapter 7 (multi-tenant isolation)**: Covered database-level tenant separation; here you see the **HTTP admin surface** for managing tenants.
 - **Chapters 15–16 (OAuth server & client)**: Explained OAuth protocols; tenant routes add **per-tenant OAuth credentials and app registration**.
 - **Chapter 19 (tools guide)**: Configuration tools like `get_fitness_config` and `set_fitness_config` ultimately call into these REST routes under the hood (directly or via internal services).
 
-## key takeaways
+## Key Takeaways
 
 1. **Tenants**: Represent customers, each with their own slug, domain, plan, and OAuth configuration.
 2. **Tenant OAuth**: `ConfigureTenantOAuthRequest` binds provider credentials to a tenant, enabling "bring your own app" flows.

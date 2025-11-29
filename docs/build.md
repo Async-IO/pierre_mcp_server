@@ -1,13 +1,13 @@
-# build configuration
+# Build Configuration
 
 Technical documentation for build system configuration, linting enforcement, and compilation settings.
 
-## rust toolchain management
+## Rust Toolchain Management
 
 **File**: `rust-toolchain`
 **Current version**: `1.91.0`
 
-### version pinning strategy
+### Version Pinning Strategy
 
 The project pins the exact Rust version to ensure reproducible builds across development and CI/CD environments. This eliminates "works on my machine" issues and enforces consistent compiler behavior.
 
@@ -17,7 +17,7 @@ The project pins the exact Rust version to ensure reproducible builds across dev
 - sqlx compile-time query checking compatibility
 - tokio 1.x runtime stability
 
-### updating rust version
+### Updating Rust Version
 
 Update process requires validation across:
 1. clippy lint compatibility (all/pedantic/nursery groups)
@@ -31,15 +31,15 @@ echo "1.XX.0" > rust-toolchain
 ./scripts/lint-and-test.sh
 ```
 
-## cargo.toml linting configuration
+## Cargo.toml Linting Configuration
 
-### zero-tolerance enforcement model
+### Zero-Tolerance Enforcement Model
 
 Lines 148-208 define compile-time error enforcement via `[lints.rust]` and `[lints.clippy]`.
 
 **Design decision**: All clippy warnings are build errors via `level = "deny"`. This eliminates the "fix it later" anti-pattern and prevents technical debt accumulation.
 
-### clippy lint groups
+### Clippy Lint Groups
 
 ```toml
 [lints.clippy]
@@ -56,7 +56,7 @@ nursery = { level = "deny", priority = -1 }
 
 **Trade-off**: Nursery lints may change behavior between rust versions. Accepted for early detection of potential issues.
 
-### unsafe code policy
+### Unsafe Code Policy
 
 ```toml
 [lints.rust]
@@ -76,7 +76,7 @@ unsafe_code = "deny"
 3. Code review focuses on unsafe boundaries
 4. FFI interactions are contained
 
-### error handling enforcement
+### Error Handling Enforcement
 
 ```toml
 unwrap_used = "deny"
@@ -97,7 +97,7 @@ panic = "deny"
 
 **Rationale**: `unwrap()` causes panics on `None`/`Err`, crashing the server. Production services must handle errors gracefully and return structured error responses.
 
-### type conversion safety
+### Type Conversion Safety
 
 ```toml
 cast_possible_truncation = "allow"
@@ -112,7 +112,7 @@ cast_precision_loss = "allow"
 
 **Requirement**: Casts must be documented with safety justification when non-obvious.
 
-### function size policy
+### Function Size Policy
 
 ```toml
 too_many_lines = "allow"
@@ -126,7 +126,7 @@ too_many_lines = "allow"
 
 **Rationale**: Some functions have legitimate complexity (e.g., protocol parsers, error handling dispatchers). Blanket 50-line limit creates artificial decomposition that reduces readability.
 
-### additional quality lints
+### Additional Quality Lints
 
 ```toml
 clone_on_copy = "warn"      # Cloning Copy types is inefficient
@@ -135,9 +135,9 @@ await_holding_lock = "warn"  # Deadlock prevention
 str_to_string = "deny"       # Prefer .to_owned() for clarity
 ```
 
-## build profiles
+## Build Profiles
 
-### dev profile
+### Dev Profile
 
 ```toml
 [profile.dev]
@@ -148,7 +148,7 @@ overflow-checks = true   # catch integer overflow in debug builds
 
 **Use case**: Development iteration speed. Prioritizes compilation time over runtime performance.
 
-### release profile
+### Release Profile
 
 ```toml
 [profile.release]
@@ -168,7 +168,7 @@ strip = true         # remove debug symbols
 - `panic = "abort"`: Production services should crash on panic (no recovery)
 - `strip = true`: Debug symbols not needed in production
 
-### release-lto profile
+### Release-LTO Profile
 
 ```toml
 [profile.release-lto]
@@ -182,7 +182,7 @@ lto = "fat"          # cross-crate optimization
 
 **Use case**: Distribution builds where binary size critical. Not used in CI/CD due to compilation time.
 
-## feature flags
+## Feature Flags
 
 ```toml
 [features]
@@ -205,9 +205,9 @@ telemetry = []
 - sqlite+postgresql: ~48MB
 - All features: ~50MB
 
-## dependency strategy
+## Dependency Strategy
 
-### principle: minimal dependencies
+### Principle: Minimal Dependencies
 
 Each dependency increases:
 - Binary size (transitive dependencies)
@@ -221,7 +221,7 @@ Each dependency increases:
 3. Is the crate maintained? (recent commits, issue response)
 4. What's the transitive dependency count? (`cargo tree`)
 
-### pinned dependencies
+### Pinned Dependencies
 
 ```toml
 base64ct = "=1.6.0"
@@ -229,7 +229,7 @@ base64ct = "=1.6.0"
 
 **Rationale**: base64ct 1.7.0+ requires rust edition 2024, incompatible with dependencies still on edition 2021. Pin eliminates upgrade-time breakage.
 
-### feature-gated dependencies
+### Feature-Gated Dependencies
 
 ```toml
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
@@ -242,9 +242,9 @@ sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "postgre
 
 **Binary size savings**: ~5MB from feature pruning
 
-## validation commands
+## Validation Commands
 
-### pre-commit checks
+### Pre-Commit Checks
 
 ```bash
 # Linting (zero warnings)
@@ -266,7 +266,7 @@ cargo deny check
 ./scripts/lint-and-test.sh
 ```
 
-### ci/cd validation
+### CI/CD Validation
 
 The project uses five GitHub Actions workflows for comprehensive validation:
 
@@ -296,11 +296,11 @@ The project uses five GitHub Actions workflows for comprehensive validation:
 
 **See [ci/cd.md](ci-cd.md) for comprehensive workflow documentation, troubleshooting guides, and local validation commands.**
 
-## cargo-deny configuration
+## Cargo-Deny Configuration
 
 **File**: `deny.toml`
 
-### security advisory scanning
+### Security Advisory Scanning
 
 ```toml
 [advisories]
@@ -313,7 +313,7 @@ ignore = [
 
 **Rationale**: Ignored advisories have no safe upgrade path or are false positives for our usage. Requires periodic review.
 
-### license compliance
+### License Compliance
 
 ```toml
 [licenses]
@@ -329,7 +329,7 @@ allow = [
 
 **Policy**: Only OSI-approved permissive licenses allowed. Copyleft licenses (GPL, AGPL) prohibited due to distribution restrictions.
 
-### supply chain protection
+### Supply Chain Protection
 
 ```toml
 [sources]
@@ -340,9 +340,9 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 
 **Rationale**: Only crates.io dependencies allowed. Prevents supply chain attacks via malicious git repositories or alternate registries.
 
-## compilation optimization notes
+## Compilation Optimization Notes
 
-### lto trade-offs
+### LTO Trade-offs
 
 **thin lto**: Optimizes within each crate, respects crate boundaries
 - Compilation time: Moderate
@@ -356,7 +356,7 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 
 **Decision**: Use thin LTO for CI/CD (balance), fat LTO for releases (when available).
 
-### codegen-units
+### Codegen-Units
 
 `codegen-units = 1` forces single-threaded LLVM optimization.
 
@@ -367,7 +367,7 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 
 **Rationale**: CI/CD runs in parallel on GitHub Actions. Single-codegen-unit optimization per build is acceptable.
 
-### panic handling
+### Panic Handling
 
 `panic = "abort"` eliminates unwinding machinery.
 
@@ -376,9 +376,9 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 
 **Rationale**: Production services using structured error handling should never panic. If panic occurs, it's a bug requiring process restart.
 
-## historical notes
+## Historical Notes
 
-### removed configurations
+### Removed Configurations
 
 **toml dependency** (line 91): Removed in favor of environment-only configuration
 - Rationale: Environment variables eliminate config file complexity

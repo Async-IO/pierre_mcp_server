@@ -1,6 +1,6 @@
-# contributing
+# Contributing
 
-## development setup
+## Development Setup
 
 ```bash
 git clone https://github.com/Async-IO/pierre_mcp_server.git
@@ -20,9 +20,9 @@ cargo test
 ./scripts/lint-and-test.sh
 ```
 
-## code standards
+## Code Standards
 
-### rust idiomatic code
+### Rust Idiomatic Code
 
 - prefer borrowing (`&T`) over cloning
 - use `Result<T, E>` for all fallible operations
@@ -30,7 +30,7 @@ cargo test
 - document all public apis with `///` comments
 - follow rust naming conventions (snake_case)
 
-### error handling
+### Error Handling
 
 Use structured error types (no anyhow!):
 ```rust
@@ -58,7 +58,7 @@ let value = some_option.ok_or(MyError::NotFound)?;
 
 **Important**: The codebase enforces zero-tolerance for `impl From<anyhow::Error>` via static analysis (commits b592b5e, 3219f07).
 
-### forbidden patterns
+### Forbidden Patterns
 
 - `unwrap()`, `expect()`, `panic!()` in src/ (except tests)
 - `#[allow(clippy::...)]` attributes
@@ -66,7 +66,7 @@ let value = some_option.ok_or(MyError::NotFound)?;
 - hardcoded magic values
 - `todo!()`, `unimplemented!()` placeholders
 
-### required patterns
+### Required Patterns
 
 - all modules start with aboutme comments:
 ```rust
@@ -79,9 +79,9 @@ let value = some_option.ok_or(MyError::NotFound)?;
 let db = database.clone(); // clone for tokio::spawn thread safety
 ```
 
-## testing
+## Testing
 
-### test requirements
+### Test Requirements
 
 Every feature needs:
 1. **unit tests**: test individual functions
@@ -90,7 +90,7 @@ Every feature needs:
 
 No exceptions. If you think a test doesn't apply, ask first.
 
-### running tests
+### Running Tests
 
 ```bash
 # all tests
@@ -109,7 +109,7 @@ cargo test -- --nocapture
 cargo test --quiet
 ```
 
-### test patterns
+### Test Patterns
 
 ```rust
 #[cfg(test)]
@@ -130,15 +130,15 @@ mod tests {
 }
 ```
 
-### test location
+### Test Location
 
 - unit tests: in same file as code (`#[cfg(test)] mod tests`)
 - integration tests: in `tests/` directory
 - avoid `#[cfg(test)]` in src/ (tests only)
 
-## workflow
+## Workflow
 
-### creating features
+### Creating Features
 
 1. Create feature branch:
 ```bash
@@ -162,7 +162,7 @@ git commit -m "feat: add my feature"
 git push origin feature/my-feature
 ```
 
-### fixing bugs
+### Fixing Bugs
 
 Bug fixes go directly to main branch:
 ```bash
@@ -172,7 +172,7 @@ git commit -m "fix: correct issue with X"
 git push origin main
 ```
 
-### commit messages
+### Commit Messages
 
 Follow conventional commits:
 - `feat:` - new feature
@@ -184,9 +184,9 @@ Follow conventional commits:
 
 No ai assistant references in commits (automated text removed).
 
-## validation
+## Validation
 
-### pre-commit checks
+### Pre-commit Checks
 
 ```bash
 ./scripts/lint-and-test.sh
@@ -198,7 +198,7 @@ Runs:
 3. All tests
 4. Format check
 
-### clippy
+### Clippy
 
 ```bash
 cargo clippy -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
@@ -206,7 +206,7 @@ cargo clippy -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warning
 
 Zero tolerance for warnings.
 
-### pattern validation
+### Pattern Validation
 
 Checks for banned patterns:
 ```bash
@@ -223,7 +223,7 @@ rg "#\[allow\(clippy::" src/
 rg "fn _|let _[a-zA-Z]|struct _|enum _" src/
 ```
 
-### git hooks
+### Git Hooks
 
 Install pre-commit hook:
 ```bash
@@ -232,9 +232,9 @@ Install pre-commit hook:
 
 Runs validation automatically before commits.
 
-## architecture guidelines
+## Architecture Guidelines
 
-### dependency injection
+### Dependency Injection
 
 Use `Arc<T>` for shared resources:
 ```rust
@@ -247,7 +247,7 @@ pub struct ServerResources {
 
 Pass resources to components, not global state.
 
-### protocol abstraction
+### Protocol Abstraction
 
 Business logic in `src/protocols/universal/`. Protocol handlers (mcp, a2a) just translate requests/responses.
 
@@ -268,7 +268,7 @@ impl McpHandler {
 }
 ```
 
-### multi-tenant isolation
+### Multi-tenant Isolation
 
 Every request needs tenant context:
 ```rust
@@ -281,7 +281,7 @@ pub struct TenantContext {
 
 Database queries filter by tenant_id.
 
-### error handling
+### Error Handling
 
 Use thiserror for custom errors:
 ```rust
@@ -297,9 +297,9 @@ pub enum MyError {
 
 Propagate with `?` operator.
 
-## adding new features
+## Adding New Features
 
-### new fitness provider
+### New Fitness Provider
 
 1. Implement `FitnessProvider` trait in `src/providers/`:
 ```rust
@@ -319,7 +319,7 @@ impl FitnessProvider for NewProvider {
 3. Add oauth configuration in `src/oauth/`
 4. Add tests
 
-### new mcp tool
+### New MCP Tool
 
 1. Define tool in `src/protocols/universal/tool_registry.rs`:
 ```rust
@@ -355,7 +355,7 @@ git add src/types.ts
 
 **Why**: SDK type definitions are auto-generated from server tool schemas. This ensures TypeScript clients have up-to-date parameter types for the new tool.
 
-### new database backend
+### New Database Backend
 
 1. Implement repository traits in `src/database_plugins/`:
 ```rust
@@ -382,9 +382,9 @@ impl OAuthTokenRepository for MyDbProvider {
 
 **Note**: The codebase uses the repository pattern with 13 focused repository traits (commit 6f3efef). See `src/database/repositories/mod.rs` for the complete list.
 
-## documentation
+## Documentation
 
-### code documentation
+### Code Documentation
 
 All public items need doc comments:
 ```rust
@@ -406,7 +406,7 @@ pub fn my_function(param: Type) -> Result<Type> {
 }
 ```
 
-### updating docs
+### Updating Docs
 
 After significant changes:
 1. Update relevant docs in `docs/`
@@ -414,14 +414,14 @@ After significant changes:
 3. Remove outdated information
 4. Test all code examples
 
-## getting help
+## Getting Help
 
 - check existing code for examples
 - read rust documentation: https://doc.rust-lang.org/
 - ask in github discussions
 - open issue for bugs/questions
 
-## review process
+## Review Process
 
 1. Automated checks must pass (ci) - see [ci/cd documentation](ci-cd.md)
 2. Code review by maintainer
@@ -430,7 +430,7 @@ After significant changes:
 5. Documentation updated
 6. Merge to main
 
-### ci/cd requirements
+### CI/CD Requirements
 
 All GitHub Actions workflows must pass before merge:
 - **Rust**: Core quality gate (formatting, clippy, tests)
@@ -441,7 +441,7 @@ All GitHub Actions workflows must pass before merge:
 
 See [ci/cd.md](ci-cd.md) for detailed workflow documentation, troubleshooting, and local validation commands.
 
-## release process
+## Release Process
 
 Handled by maintainers:
 1. Version bump in `Cargo.toml`
@@ -450,7 +450,7 @@ Handled by maintainers:
 4. Publish to crates.io
 5. Publish sdk to npm
 
-## code of conduct
+## Code of Conduct
 
 - be respectful
 - focus on technical merit

@@ -1,8 +1,8 @@
-# chapter 10: MCP protocol deep dive - request flow
+# Chapter 10: MCP Protocol Deep Dive - Request Flow
 
 This chapter explores how the Pierre Fitness Platform processes Model Context Protocol (MCP) requests from start to finish. You'll learn about request validation, method routing, authentication extraction, tool dispatch, and response serialization.
 
-## what you'll learn
+## What You'll Learn
 
 - MCP request lifecycle from socket to response
 - Request validation (jsonrpc version, method field)
@@ -15,7 +15,7 @@ This chapter explores how the Pierre Fitness Platform processes Model Context Pr
 - Structured logging with tracing spans
 - Performance measurement and monitoring
 
-## MCP request lifecycle
+## MCP Request Lifecycle
 
 Every MCP request flows through multiple processing layers:
 
@@ -159,7 +159,7 @@ impl McpRequestProcessor {
 
 The `handle_request` method returns `Option<McpResponse>` instead of always returning a response. This explicitly represents "notifications don't get responses" in the type system. The transport layer can then handle `None` by not sending anything.
 
-## request validation
+## Request Validation
 
 The platform validates all requests before processing:
 
@@ -190,7 +190,7 @@ fn validate_request(request: &McpRequest) -> Result<()> {
 
 **Security**: Validating `jsonrpc` version prevents processing malformed or legacy JSON-RPC 1.0 requests.
 
-## method routing
+## Method Routing
 
 The processor routes requests to handlers based on the `method` field:
 
@@ -225,9 +225,9 @@ async fn process_request(&self, request: McpRequest) -> Result<McpResponse> {
 
 The `method if method.starts_with("resources/")` pattern uses a guard clause to match all methods with a specific prefix. This is more flexible than enumerating every resource method.
 
-## MCP protocol handlers
+## MCP Protocol Handlers
 
-### initialize handler
+### Initialize Handler
 
 The initialize method establishes the protocol connection:
 
@@ -296,7 +296,7 @@ fn handle_initialize(request: &McpRequest) -> McpResponse {
 
 The `env!()` macro reads Cargo.toml version at compile time. This ensures the server version in responses always matches the actual build version.
 
-### ping handler
+### Ping Handler
 
 The ping method tests connectivity:
 
@@ -317,7 +317,7 @@ fn handle_ping(request: &McpRequest) -> McpResponse {
 
 **Usage**: Clients use `ping` to measure latency and verify the server is responsive.
 
-### tools/list handler
+### tools/list Handler
 
 The tools/list method returns available tools:
 
@@ -347,7 +347,7 @@ fn handle_tools_list(request: &McpRequest) -> McpResponse {
 
 **Design decision**: tools/list does NOT require authentication per MCP spec. This allows AI assistants to discover tools before users authenticate. Authentication is enforced at `tools/call` time.
 
-### tools/call handler
+### tools/call Handler
 
 The tools/call method executes a specific tool:
 
@@ -380,7 +380,7 @@ async fn handle_tools_call(&self, request: &McpRequest) -> Result<McpResponse> {
 
 **Delegation**: The `tools/call` handler delegates to `ToolHandlers::handle_tools_call_with_resources` which performs authentication and tool dispatch.
 
-## authentication extraction
+## Authentication Extraction
 
 The tool handler extracts authentication tokens from multiple sources:
 
@@ -438,7 +438,7 @@ pub async fn handle_tools_call_with_resources(
 
 The expression `request.auth_token.as_deref().or(auth_token_string.as_deref())` tries the first source, then falls back to the second if `None`. This is more concise than `if let` chains.
 
-## authentication and tenant extraction
+## Authentication and Tenant Extraction
 
 After extracting the token, the handler authenticates and extracts tenant context:
 
@@ -524,7 +524,7 @@ match tenant_context {
 }
 ```
 
-## tool handler dispatch
+## Tool Handler Dispatch
 
 The tool execution handler routes to specific tool implementations:
 
@@ -566,7 +566,7 @@ async fn handle_tool_execution_direct(
 
 The handler then dispatches to tool-specific functions based on `tool_name`.
 
-## notification handling
+## Notification Handling
 
 Notifications are requests without responses:
 
@@ -587,7 +587,7 @@ if request.method.starts_with("notifications/") {
 
 **Return value**: `None` indicates no response should be sent. The transport layer handles this by not writing to the connection.
 
-## structured logging
+## Structured Logging
 
 The platform uses tracing spans for structured logging:
 
@@ -623,7 +623,7 @@ tracing::Span::current().record("user_id", auth_result.user_id.to_string());
 tracing::Span::current().record("success", true);
 ```
 
-## error handling patterns
+## Error Handling Patterns
 
 The platform converts `Result<McpResponse>` to `McpResponse` with errors:
 
@@ -660,7 +660,7 @@ let response = match self.process_request(request.clone()).await {
 
 **Response structure**: All errors return `ERROR_INTERNAL_ERROR` (-32603) code. More specific codes (METHOD_NOT_FOUND, INVALID_PARAMS) are returned by individual handlers.
 
-## key takeaways
+## Key Takeaways
 
 1. **Request lifecycle**: MCP requests flow through transport → deserialization → validation → routing → authentication → tenant extraction → tool execution → serialization → transport.
 

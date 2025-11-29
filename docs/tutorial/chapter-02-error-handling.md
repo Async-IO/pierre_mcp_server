@@ -1,4 +1,4 @@
-# chapter 2: error handling & type-safe errors
+# Chapter 2: Error Handling & Type-Safe Errors
 
 > **Learning Objectives**: Master structured error handling in Rust using `thiserror`, understand why Pierre eliminates `anyhow!()` from production code, and learn error propagation patterns.
 >
@@ -8,7 +8,7 @@
 
 ---
 
-## introduction
+## Introduction
 
 Error handling is one of Rust's greatest strengths. Unlike languages with exceptions, Rust uses the type system to enforce error handling at compile time. Pierre takes this further with a **zero-tolerance policy** on ad-hoc errors.
 
@@ -21,11 +21,11 @@ This chapter teaches you why this matters and how Pierre implements production-g
 
 ---
 
-## the problem with anyhow
+## The Problem with Anyhow
 
 The `anyhow` crate is popular for quick prototyping, but has serious issues in production code.
 
-### anyhow example (anti-pattern)
+### Anyhow Example (Anti-pattern)
 
 ```rust
 // DON'T DO THIS - Loses type information
@@ -50,7 +50,7 @@ fn fetch_user(id: &str) -> anyhow::Result<User> {
 4. **Poor API**: Callers can't know what errors to expect
 5. **No HTTP mapping**: How do you convert "User not found" to status code?
 
-### structured error example (correct)
+### Structured Error Example (Correct)
 
 **Source**: `src/database/errors.rs:10-19`
 
@@ -92,7 +92,7 @@ fn fetch_user(id: &str) -> Result<User, DatabaseError> {
 
 ---
 
-## pierre's error hierarchy
+## Pierre's Error Hierarchy
 
 Pierre uses a three-tier error hierarchy:
 
@@ -108,11 +108,11 @@ AppError (src/errors.rs)              ← HTTP-level errors
 
 ---
 
-## thiserror: derive macro for errors
+## Thiserror: Derive Macro for Errors
 
 The `thiserror` crate provides a derive macro that auto-implements `std::error::Error` and `Display`.
 
-### basic thiserror usage
+### Basic Thiserror Usage
 
 **Source**: `src/database/errors.rs:10-46`
 
@@ -201,11 +201,11 @@ impl std::error::Error for DatabaseError {}
 
 ---
 
-## error variant design patterns
+## Error Variant Design Patterns
 
 Pierre uses several patterns for error variants.
 
-### pattern 1: struct-like variants with context
+### Pattern 1: Struct-Like Variants with Context
 
 **Source**: `src/providers/errors.rs:13-23`
 
@@ -239,7 +239,7 @@ match error {
 }
 ```
 
-### pattern 2: tuple variants for simple errors
+### Pattern 2: Tuple Variants for Simple Errors
 
 **Source**: `src/database/errors.rs:57-59`
 
@@ -268,7 +268,7 @@ return Err(DatabaseError::ConnectionError(
 ));
 ```
 
-### pattern 3: unit variants for simple cases
+### Pattern 3: Unit Variants for Simple Cases
 
 ```rust
 #[derive(Error, Debug)]
@@ -283,7 +283,7 @@ pub enum ConfigError {
 
 **Use when**: Error needs no additional context
 
-### pattern 4: wrapping external errors
+### Pattern 4: Wrapping External Errors
 
 **Source**: `src/database/errors.rs:86-96`
 
@@ -340,7 +340,7 @@ fn get_user(id: &str) -> Result<User, DatabaseError> {
 
 ---
 
-## error code system
+## Error Code System
 
 Pierre maps domain errors to HTTP status codes and error codes.
 
@@ -387,7 +387,7 @@ pub enum ErrorCode {
 }
 ```
 
-### http status code mapping
+### HTTP Status Code Mapping
 
 **Source**: `src/errors.rs:87-138`
 
@@ -450,7 +450,7 @@ impl ErrorCode {
 
 **Reference**: [Rust Reference - Const Functions](https://doc.rust-lang.org/reference/const_eval.html#const-functions)
 
-### user-friendly descriptions
+### User-Friendly Descriptions
 
 **Source**: `src/errors.rs:140-172`
 
@@ -481,11 +481,11 @@ impl ErrorCode {
 
 ---
 
-## error conversion with From/Into
+## Error Conversion with From/Into
 
 Rust's `?` operator relies on `From` trait implementations for automatic error conversion.
 
-### automatic From with #[from]
+### Automatic from with #[from]
 
 **Source**: `src/database/errors.rs:86-96`
 
@@ -497,7 +497,7 @@ pub enum DatabaseError {
 }
 ```
 
-### error propagation chain
+### Error Propagation Chain
 
 ```rust
 // Example: Error propagates through multiple layers
@@ -557,7 +557,7 @@ let user = match get_user_from_db(id).await {
 
 ---
 
-## provider error with retry logic
+## Provider Error with Retry Logic
 
 Provider errors include retry information for transient failures.
 
@@ -651,7 +651,7 @@ async fn fetch_with_retry(url: &str) -> Result<Response, ProviderError> {
 
 ---
 
-## result type aliases
+## Result Type Aliases
 
 Pierre defines type aliases for cleaner signatures.
 
@@ -685,9 +685,9 @@ async fn get_user(id: &str) -> DatabaseResult<User> { ... }
 
 ---
 
-## error handling patterns
+## Error Handling Patterns
 
-### pattern 1: map_err for context
+### Pattern 1: Map_err for Context
 
 ```rust
 use crate::database::DatabaseError;
@@ -709,7 +709,7 @@ async fn load_config(path: &str) -> DatabaseResult<Config> {
 
 **Rust Idiom**: `.map_err(|e| ...)` transforms one error type to another, adding context.
 
-### pattern 2: ok_or for Option → Result
+### Pattern 2: Ok_or for Option → Result
 
 ```rust
 fn find_user_by_email(email: &str) -> DatabaseResult<User> {
@@ -723,7 +723,7 @@ fn find_user_by_email(email: &str) -> DatabaseResult<User> {
 
 **Rust Idiom**: Convert `Option<T>` to `Result<T, E>` with custom error.
 
-### pattern 3: and_then for chaining
+### Pattern 3: And_then for Chaining
 
 ```rust
 async fn get_user_and_validate(id: &str) -> DatabaseResult<User> {
@@ -748,7 +748,7 @@ async fn get_user_and_validate(id: &str) -> DatabaseResult<User> {
 
 ---
 
-## diagram: error flow
+## Diagram: Error Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -800,9 +800,9 @@ async fn get_user_and_validate(id: &str) -> DatabaseResult<User> {
 
 ---
 
-## practical exercises
+## Practical Exercises
 
-### exercise 1: define a custom error type
+### Exercise 1: Define a Custom Error Type
 
 Create a configuration error type with `thiserror`:
 
@@ -837,7 +837,7 @@ pub enum ConfigError {
 }
 ```
 
-### exercise 2: implement error conversion
+### Exercise 2: Implement Error Conversion
 
 Add `From<std::io::Error>` for `ConfigError`:
 
@@ -865,7 +865,7 @@ impl From<std::io::Error> for ConfigError {
 }
 ```
 
-### exercise 3: error propagation chain
+### Exercise 3: Error Propagation Chain
 
 Write a function that reads and parses a JSON config file:
 
@@ -904,7 +904,7 @@ async fn load_json_config(path: &str) -> Result<Config, ConfigError> {
 
 ---
 
-## rust idioms summary
+## Rust Idioms Summary
 
 | Idiom | Purpose | Example Location |
 |-------|---------|-----------------|
@@ -925,7 +925,7 @@ async fn load_json_config(path: &str) -> Result<Config, ConfigError> {
 
 ---
 
-## key takeaways
+## Key Takeaways
 
 1. **Never use `anyhow::anyhow!()` in production** - Use structured error types
 2. **thiserror is the standard** - Derive macro for custom errors
@@ -937,6 +937,6 @@ async fn load_json_config(path: &str) -> Result<Config, ConfigError> {
 
 ---
 
-## next chapter
+## Next Chapter
 
 [Chapter 3: Configuration Management & Environment Variables](./chapter-03-configuration.md) - Learn how Pierre uses type-safe configuration with `dotenvy`, `clap`, and the algorithm selection system.

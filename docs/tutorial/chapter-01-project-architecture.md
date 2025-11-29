@@ -1,4 +1,4 @@
-# chapter 1: project architecture & module organization
+# Chapter 1: Project Architecture & Module Organization
 
 > **Learning Objectives**: Understand the Pierre codebase structure, Rust module system, and how the project is organized for maintainability and scalability.
 >
@@ -8,15 +8,15 @@
 
 ---
 
-## introduction
+## Introduction
 
-Pierre Fitness Platform is a production Rust application with 224 source files organized into a coherent module hierarchy. This chapter teaches you how to navigate the codebase, understand the module system, and recognize organizational patterns used throughout.
+Pierre Fitness Platform is a production Rust application with 258 source files organized into a coherent module hierarchy. This chapter teaches you how to navigate the codebase, understand the module system, and recognize organizational patterns used throughout.
 
 The codebase follows a **"library + binaries"** pattern where most functionality lives in `src/lib.rs` and binary entry points import from the library.
 
 ---
 
-## project structure overview
+## Project Structure Overview
 
 ```
 pierre_mcp_server/
@@ -49,7 +49,7 @@ pierre_mcp_server/
 │   ├── helpers/
 │   │   ├── synthetic_data.rs   # fitness data generator
 │   │   └── test_utils.rs       # shared test utilities
-│   └── [90+ test files]
+│   └── [166 test files]
 │
 ├── scripts/                    # build & utility scripts
 │   ├── generate-sdk-types.js   # typescript type generation
@@ -64,11 +64,11 @@ pierre_mcp_server/
 
 ---
 
-## the library root: src/lib.rs
+## The Library Root: src/lib.rs
 
 The `src/lib.rs` file is the central hub of the Pierre library. It declares all public modules and controls what's exported to consumers.
 
-### file header pattern
+### File Header Pattern
 
 **Source**: `src/lib.rs:1-9`
 
@@ -101,7 +101,7 @@ The `src/lib.rs` file is the central hub of the Pierre library. It declares all 
 
 **Reference**: [Rust Reference - Crate Attributes](https://doc.rust-lang.org/reference/attributes.html)
 
-### module documentation
+### Module Documentation
 
 **Source**: `src/lib.rs:10-55`
 
@@ -168,7 +168,7 @@ The `src/lib.rs` file is the central hub of the Pierre library. It declares all 
 
 **Reference**: [Rust Book - Documentation Comments](https://doc.rust-lang.org/book/ch14-02-publishing-to-crates-io.html#making-useful-documentation-comments)
 
-### module declarations
+### Module Declarations
 
 **Source**: `src/lib.rs:57-189`
 
@@ -233,7 +233,7 @@ pub mod configuration;
 
 **Reference**: [Rust Book - Modules](https://doc.rust-lang.org/book/ch07-02-defining-modules-to-control-scope-and-privacy.html)
 
-### conditional compilation
+### Conditional Compilation
 
 **Source**: `src/lib.rs:188-189`
 
@@ -273,11 +273,11 @@ testing = []  # Feature flag for test utilities
 
 ---
 
-## binary entry points: src/bin/
+## Binary Entry Points: src/bin/
 
 Rust crates can define multiple binary targets. Pierre has two main binaries:
 
-### main server binary
+### Main Server Binary
 
 **Source**: `src/bin/pierre-mcp-server.rs:1-42`
 
@@ -367,7 +367,7 @@ fn main() -> Result<()> {
 - [Rust Book - Separating Concerns with Binary Crates](https://doc.rust-lang.org/book/ch12-03-improving-error-handling-and-modularity.html)
 - [Tokio - Runtime](https://tokio.rs/tokio/topics/runtime)
 
-### cargo.toml binary declarations
+### Cargo.toml Binary Declarations
 
 **Source**: `Cargo.toml:14-29`
 
@@ -408,11 +408,11 @@ cargo install --path . --bin pierre-mcp-server
 
 ---
 
-## module organization patterns
+## Module Organization Patterns
 
 Pierre uses several module organization patterns consistently.
 
-### single-file modules
+### Single-File Modules
 
 **Example**: `src/errors.rs`
 
@@ -424,7 +424,7 @@ src/
 
 When module fits in one file (~100-500 lines), use single-file pattern.
 
-### directory modules
+### Directory Modules
 
 **Example**: `src/mcp/` directory
 
@@ -489,7 +489,7 @@ pub use protocol::{McpRequest, McpResponse};
 
 **Reference**: [Rust Book - Separating Modules into Different Files](https://doc.rust-lang.org/book/ch07-05-separating-modules-into-different-files.html)
 
-### nested directory modules
+### Nested Directory Modules
 
 **Example**: `src/protocols/universal/handlers/`
 
@@ -537,7 +537,7 @@ pub use connections::*;
 
 ---
 
-## feature flags & conditional compilation
+## Feature Flags & Conditional Compilation
 
 Pierre uses feature flags for optional dependencies and database backends.
 
@@ -552,7 +552,7 @@ testing = []
 telemetry = []
 ```
 
-### feature flag usage
+### Feature Flag Usage
 
 **1. Default features**
 
@@ -629,11 +629,11 @@ pub async fn new(
 
 ---
 
-## documentation patterns
+## Documentation Patterns
 
 Pierre follows consistent documentation practices across all 224 files.
 
-### dual-comment pattern
+### Dual-Comment Pattern
 
 Every file has both `// ABOUTME:` and `//!` comments:
 
@@ -654,7 +654,7 @@ Every file has both `// ABOUTME:` and `//!` comments:
 - `//!`: Full documentation for `cargo doc` output
 - Separation of concerns: quick ref vs comprehensive docs
 
-### rustdoc formatting
+### Rustdoc Formatting
 
 **Source**: `src/mcp/protocol.rs:1-30`
 
@@ -696,11 +696,11 @@ cargo doc --open  # Generate & open in browser
 
 ---
 
-## import conventions
+## Import Conventions
 
 Pierre follows consistent import patterns for clarity.
 
-### absolute vs relative imports
+### Absolute vs Relative Imports
 
 **Preferred**: Absolute imports from crate root
 
@@ -726,7 +726,7 @@ use super::super::executor::UniversalToolExecutor;  // Acceptable
 use crate::protocols::universal::executor::UniversalToolExecutor;  // Better
 ```
 
-### grouping imports
+### Grouping Imports
 
 **Source**: `src/bin/pierre-mcp-server.rs:15-24`
 
@@ -757,9 +757,9 @@ use pierre_mcp_server::{
 
 ---
 
-## navigating the codebase
+## Navigating the Codebase
 
-### finding functionality
+### Finding Functionality
 
 **Strategy 1**: Start from `src/lib.rs` module declarations
 - Each `pub mod` has a one-line summary
@@ -778,7 +778,7 @@ grep -r "pub struct" src/
 - Open a file, read its `use` statements
 - Imports show dependencies and related modules
 
-### understanding module responsibilities
+### Understanding Module Responsibilities
 
 **MCP Protocol** (`src/mcp/`):
 - **protocol.rs**: Core JSON-RPC handlers
@@ -798,7 +798,7 @@ grep -r "pub struct" src/
 
 ---
 
-## diagram: module dependency graph
+## Diagram: Module Dependency Graph
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -849,9 +849,9 @@ grep -r "pub struct" src/
 
 ---
 
-## practical exercises
+## Practical Exercises
 
-### exercise 1: explore module structure
+### Exercise 1: Explore Module Structure
 
 1. Open `src/lib.rs` and count the `pub mod` declarations
 2. For each protocol module (`mcp`, `a2a`, `protocols`), open its `mod.rs`
@@ -859,7 +859,7 @@ grep -r "pub struct" src/
 
 **Expected output**: Understanding of how modules nest and relate
 
-### exercise 2: trace an import path
+### Exercise 2: Trace an Import Path
 
 1. Open `src/bin/pierre-mcp-server.rs`
 2. Find the import: `use pierre_mcp_server::mcp::multitenant::MultiTenantMcpServer`
@@ -870,7 +870,7 @@ grep -r "pub struct" src/
 
 **Expected output**: Comfortable navigating nested modules
 
-### exercise 3: identify feature flags
+### Exercise 3: Identify Feature Flags
 
 1. Search `Cargo.toml` for `[features]` section
 2. Find all `#[cfg(feature = "...")]` in `src/database_plugins/factory.rs`
@@ -883,7 +883,7 @@ grep -r "pub struct" src/
 
 ---
 
-## rust idioms summary
+## Rust Idioms Summary
 
 | Idiom | Purpose | Example Location |
 |-------|---------|-----------------|
@@ -902,7 +902,7 @@ grep -r "pub struct" src/
 
 ---
 
-## key takeaways
+## Key Takeaways
 
 1. **Library + Binaries Pattern**: Core logic in `lib.rs`, entry points in `bin/`
 2. **Module Hierarchy**: Use `pub mod` in parent, `mod.rs` for directory modules
@@ -913,6 +913,6 @@ grep -r "pub struct" src/
 
 ---
 
-## next chapter
+## Next Chapter
 
 [Chapter 2: Error Handling & Type-Safe Errors](./chapter-02-error-handling.md) - Learn how Pierre uses `thiserror` for structured error types and eliminates `anyhow!` from production code.

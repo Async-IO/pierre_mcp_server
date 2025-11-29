@@ -1,8 +1,8 @@
-# oauth2 server
+# OAuth2 Server
 
 Pierre includes a standards-compliant oauth2 authorization server for secure mcp client authentication.
 
-## features
+## Features
 
 - authorization code flow with pkce (s256 only)
 - dynamic client registration (rfc 7591)
@@ -12,9 +12,9 @@ Pierre includes a standards-compliant oauth2 authorization server for secure mcp
 - refresh token rotation
 - jwt-based access tokens
 
-## quick start
+## Quick Start
 
-### 1. register oauth2 client
+### 1. Register OAuth2 Client
 
 ```bash
 curl -X POST http://localhost:8081/oauth2/register \
@@ -41,7 +41,7 @@ Response:
 
 **important:** save `client_secret` immediately. Cannot be retrieved later.
 
-### 2. generate pkce challenge
+### 2. Generate PKCE Challenge
 
 ```python
 import secrets
@@ -64,7 +64,7 @@ session['code_verifier'] = code_verifier
 session['oauth_state'] = state
 ```
 
-### 3. initiate authorization
+### 3. Initiate Authorization
 
 Redirect user to authorization endpoint:
 
@@ -87,7 +87,7 @@ https://example.com/callback?
   state=<same_random_state>
 ```
 
-### 4. validate state and exchange code
+### 4. Validate State and Exchange Code
 
 ```python
 # validate state parameter (csrf protection)
@@ -124,16 +124,16 @@ Response:
 }
 ```
 
-### 5. use access token
+### 5. Use Access Token
 
 ```bash
 curl -H "Authorization: Bearer jwt_access_token" \
   http://localhost:8081/mcp
 ```
 
-## client registration
+## Client Registration
 
-### register new client
+### Register New Client
 
 Endpoint: `POST /oauth2/register`
 
@@ -147,7 +147,7 @@ Optional fields:
 - `response_types` - defaults to `["code"]`
 - `scope` - space-separated scope list
 
-### redirect uri validation
+### Redirect URI Validation
 
 Pierre enforces strict redirect uri validation:
 
@@ -163,7 +163,7 @@ Pierre enforces strict redirect uri validation:
 - wildcard domains (`*.example.com`)
 - malformed urls
 
-### example registrations
+### Example Registrations
 
 **web application:**
 ```bash
@@ -188,9 +188,9 @@ curl -X POST http://localhost:8081/oauth2/register \
   }'
 ```
 
-## authorization flow
+## Authorization Flow
 
-### step 1: authorization request
+### Step 1: Authorization Request
 
 Build authorization url with required parameters:
 
@@ -212,11 +212,11 @@ auth_url = f"https://pierre.example.com/oauth2/authorize?{urlencode(params)}"
 
 Redirect user to `auth_url`.
 
-### step 2: user authentication
+### Step 2: User Authentication
 
 If user not logged in, pierre displays login form. After successful login, shows authorization consent screen.
 
-### step 3: authorization callback
+### Step 3: Authorization Callback
 
 Pierre redirects to your `redirect_uri` with authorization code:
 
@@ -229,7 +229,7 @@ Error response (if user denies):
 https://example.com/callback?error=access_denied&error_description=User+denied+authorization
 ```
 
-### step 4: token exchange
+### Step 4: Token Exchange
 
 Exchange authorization code for access token:
 
@@ -246,9 +246,9 @@ curl -X POST http://localhost:8081/oauth2/token \
 
 **important:** authorization codes expire in 10 minutes and are single-use.
 
-## token management
+## Token Management
 
-### access tokens
+### Access Tokens
 
 Jwt-based tokens with 1-hour expiration (configurable).
 
@@ -259,7 +259,7 @@ Claims include:
 - `scope` - granted scopes
 - `exp` - expiration timestamp
 
-### refresh tokens
+### Refresh Tokens
 
 Use refresh token to obtain new access token without re-authentication:
 
@@ -285,7 +285,7 @@ Response:
 
 **refresh token rotation:** pierre issues new refresh token with each refresh request. Old refresh token is revoked.
 
-### token validation
+### Token Validation
 
 Validate access token and optionally refresh if expired:
 
@@ -327,9 +327,9 @@ Responses:
 }
 ```
 
-## security features
+## Security Features
 
-### pkce (proof key for code exchange)
+### PKCE (Proof Key for Code Exchange)
 
 Pierre requires pkce for all authorization code flows.
 
@@ -348,7 +348,7 @@ Pierre requires pkce for all authorization code flows.
 
 Prevents authorization code interception attacks.
 
-### state parameter validation
+### State Parameter Validation
 
 Pierre implements defense-in-depth csrf protection with server-side state validation.
 
@@ -381,7 +381,7 @@ if not received_state or received_state != stored_state:
     abort(400, "invalid state - possible csrf attack")
 ```
 
-### client secret hashing
+### Client Secret Hashing
 
 Client secrets hashed with argon2id (memory-hard algorithm resistant to gpu attacks).
 
@@ -396,15 +396,15 @@ curl -X POST http://localhost:8081/oauth2/token \
 
 Pierre verifies secret using constant-time comparison to prevent timing attacks.
 
-### multi-tenant isolation
+### Multi-tenant Isolation
 
 All oauth artifacts (codes, tokens, states) bound to tenant_id. Cross-tenant access prevented at database layer.
 
-## scopes
+## Scopes
 
 Pierre supports fine-grained permission control via oauth scopes.
 
-### available scopes
+### Available Scopes
 
 **fitness data:**
 - `read:activities` - read activity data
@@ -421,7 +421,7 @@ Pierre supports fine-grained permission control via oauth scopes.
 - `admin:users` - manage users
 - `admin:system` - system administration
 
-### requesting scopes
+### Requesting Scopes
 
 Include in authorization request:
 
@@ -431,13 +431,13 @@ Include in authorization request:
   scope=read:activities read:athlete write:goals
 ```
 
-### scope validation
+### Scope Validation
 
 Pierre validates requested scopes against client's registered scopes. Access tokens include granted scopes in jwt claims.
 
-## error handling
+## Error Handling
 
-### authorization errors
+### Authorization Errors
 
 Returned as query parameters in redirect:
 
@@ -456,7 +456,7 @@ https://example.com/callback?
 - `invalid_scope` - requested scope invalid or not allowed
 - `server_error` - internal server error
 
-### token errors
+### Token Errors
 
 Returned as json in response body:
 
@@ -475,9 +475,9 @@ Returned as json in response body:
 - `unauthorized_client` - client not authorized
 - `unsupported_grant_type` - grant type not supported
 
-## common integration patterns
+## Common Integration Patterns
 
-### web application flow
+### Web Application Flow
 
 1. User clicks "connect with pierre"
 2. App redirects to pierre authorization endpoint
@@ -488,7 +488,7 @@ Returned as json in response body:
 7. App uses access token for api requests
 8. App refreshes token before expiration
 
-### native application flow
+### Native Application Flow
 
 1. App opens system browser to authorization url
 2. User authenticates and approves
@@ -497,7 +497,7 @@ Returned as json in response body:
 5. App exchanges code for tokens
 6. App stores tokens securely (os keychain)
 
-### single page application (spa) flow
+### Single Page Application (SPA) Flow
 
 **recommended:** use authorization code flow with pkce:
 
@@ -511,15 +511,15 @@ Returned as json in response body:
 
 **not recommended:** implicit flow (deprecated)
 
-## troubleshooting
+## Troubleshooting
 
-### authorization code expired
+### Authorization Code Expired
 
 **symptom:** `invalid_grant` error when exchanging code
 
 **solution:** authorization codes expire in 10 minutes. Restart authorization flow.
 
-### pkce validation failed
+### PKCE Validation Failed
 
 **symptom:** `invalid_grant: pkce verification failed`
 
@@ -528,7 +528,7 @@ Returned as json in response body:
 - verify code_challenge computed as `base64url(sha256(code_verifier))`
 - check no extra padding (`=`) in base64url encoding
 
-### state validation failed
+### State Validation Failed
 
 **symptom:** `invalid_grant: invalid state parameter`
 
@@ -538,7 +538,7 @@ Returned as json in response body:
 - verify state not reused (single-use)
 - confirm state stored in user session before authorization
 
-### redirect uri mismatch
+### Redirect URI Mismatch
 
 **symptom:** `invalid_request: redirect_uri mismatch`
 
@@ -547,7 +547,7 @@ Returned as json in response body:
 - redirect_uri in token request must match authorization request
 - https required for non-localhost urls
 
-### client authentication failed
+### Client Authentication Failed
 
 **symptom:** `invalid_client`
 
@@ -557,7 +557,7 @@ Returned as json in response body:
 - ensure client_secret not expired
 - check client not deleted
 
-### refresh token revoked
+### Refresh Token Revoked
 
 **symptom:** `invalid_grant: refresh token revoked or expired`
 
@@ -566,9 +566,9 @@ Returned as json in response body:
 - old refresh tokens revoked after successful refresh (rotation)
 - restart authorization flow to obtain new tokens
 
-## configuration
+## Configuration
 
-### token lifetimes
+### Token Lifetimes
 
 Pierre currently uses fixed lifetimes for OAuth2 artifacts (configured in code, not via environment variables):
 
@@ -579,7 +579,7 @@ Pierre currently uses fixed lifetimes for OAuth2 artifacts (configured in code, 
 
 Changing these values requires a code change in the OAuth2 server configuration (see `src/oauth2_server/` and `src/constants/`).
 
-## see also
+## See Also
 
 - [authentication](authentication.md) - jwt and api key authentication
 - [protocols](protocols.md) - fitness provider integrations

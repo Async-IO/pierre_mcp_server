@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 CREATE TABLE IF NOT EXISTS user_oauth_app_credentials (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider TEXT NOT NULL CHECK (provider IN ('strava', 'fitbit')),
+    provider TEXT NOT NULL CHECK (provider IN ('strava', 'garmin', 'fitbit', 'whoop', 'terra')),
     client_id TEXT NOT NULL,
     client_secret TEXT NOT NULL,
     redirect_uri TEXT NOT NULL,

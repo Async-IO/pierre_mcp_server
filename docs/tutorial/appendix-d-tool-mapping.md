@@ -1,26 +1,35 @@
-# appendix D: natural language to tool mapping
+# Appendix D: Natural Language to Tool Mapping
 
 Quick reference mapping natural language prompts to Pierre MCP tools.
 
-## connection & authentication
+## Supported Providers
+
+Pierre supports 5 fitness providers: `strava`, `garmin`, `fitbit`, `whoop`, `terra`
+
+All provider-specific tools accept any of these providers in the `provider` parameter.
+
+## Connection & Authentication
 
 | User says... | Tool | Parameters |
 |--------------|------|------------|
 | "Connect to Pierre" | `connect_to_pierre` | None |
 | "Link my Strava account" | `connect_provider` | `{"provider": "strava"}` |
+| "Connect my Garmin watch" | `connect_provider` | `{"provider": "garmin"}` |
 | "Show my connections" | `get_connection_status` | None |
 | "Disconnect from Fitbit" | `disconnect_provider` | `{"provider": "fitbit"}` |
 
-## data access
+## Data Access
 
 | User says... | Tool | Parameters |
 |--------------|------|------------|
 | "Show my last 10 runs" | `get_activities` | `{"provider": "strava", "limit": 10}` |
+| "Get my WHOOP workouts" | `get_activities` | `{"provider": "whoop", "limit": 10}` |
 | "Get my Strava profile" | `get_athlete` | `{"provider": "strava"}` |
 | "What are my year-to-date stats?" | `get_stats` | `{"provider": "strava"}` |
-| "Analyze activity 12345" | `get_activity_intelligence` | `{"activity_id": "12345", "provider": "strava"}` |
+| "Show my Terra data" | `get_activities` | `{"provider": "terra", "limit": 10}` |
+| "Analyze activity 12345" | `get_activity_intelligence` | `{"activity_id": "12345", "provider": "garmin"}` |
 
-## performance analysis
+## Performance Analysis
 
 | User says... | Tool | Parameters |
 |--------------|------|------------|
@@ -31,7 +40,7 @@ Quick reference mapping natural language prompts to Pierre MCP tools.
 | "What's my current fitness level?" | `calculate_fitness_score` | Activities + user profile |
 | "Predict my marathon time" | `predict_performance` | Current fitness + race details |
 
-## goals
+## Goals
 
 | User says... | Tool | Parameters |
 |--------------|------|------------|
@@ -40,7 +49,7 @@ Quick reference mapping natural language prompts to Pierre MCP tools.
 | "Suggest realistic goals" | `suggest_goals` | Current fitness level |
 | "Can I run a 3-hour marathon?" | `analyze_goal_feasibility` | `{"goal_type": "marathon", "target_time": "03:00:00"}` |
 
-## training recommendations
+## Training Recommendations
 
 | User says... | Tool | Parameters |
 |--------------|------|------------|
@@ -48,7 +57,7 @@ Quick reference mapping natural language prompts to Pierre MCP tools.
 | "Am I overtraining?" | `analyze_training_load` | Recent activities |
 | "Do I need a rest day?" | `suggest_rest_day` | Recovery metrics |
 
-## nutrition
+## Nutrition
 
 | User says... | Tool | Parameters |
 |--------------|------|------------|
@@ -58,7 +67,7 @@ Quick reference mapping natural language prompts to Pierre MCP tools.
 | "Analyze this meal" | `analyze_meal_nutrition` | Array of foods with portions |
 | "When should I eat carbs?" | `get_nutrient_timing` | Training schedule |
 
-## sleep & recovery
+## Sleep & Recovery
 
 | User says... | Tool | Parameters |
 |--------------|------|------------|
@@ -67,7 +76,7 @@ Quick reference mapping natural language prompts to Pierre MCP tools.
 | "Optimize my sleep schedule" | `optimize_sleep_schedule` | Sleep history |
 | "Track my sleep trends" | `track_sleep_trends` | Sleep sessions over time |
 
-## configuration
+## Configuration
 
 | User says... | Tool | Parameters |
 |--------------|------|------------|
@@ -76,7 +85,7 @@ Quick reference mapping natural language prompts to Pierre MCP tools.
 | "Show my configuration" | `get_user_configuration` | None |
 | "What configuration profiles exist?" | `get_configuration_catalog` | None |
 
-## prompt patterns
+## Prompt Patterns
 
 **Pattern 1: Temporal queries**
 - "my last X..." → `limit: X, offset: 0`
@@ -95,13 +104,14 @@ Quick reference mapping natural language prompts to Pierre MCP tools.
 - "can I...?" → `analyze_goal_feasibility`
 - "what if...?" → `predict_performance` with scenarios
 
-## key takeaways
+## Key Takeaways
 
 1. **Natural language**: AI assistants map user prompts to tool calls automatically.
 2. **Temporal context**: "last 10", "this week", "past month" determine filters.
-3. **Implicit parameters**: Provider often inferred from context or connection status.
+3. **Implicit parameters**: Provider (strava, garmin, fitbit, whoop, terra) often inferred from context or connection status.
 4. **Tool chaining**: Complex queries combine multiple tools sequentially.
 5. **Context awareness**: AI remembers previous queries for follow-up questions.
+6. **Multi-provider**: Users can connect multiple providers and query them independently.
 
 ---
 

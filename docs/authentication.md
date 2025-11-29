@@ -1,8 +1,8 @@
-# authentication
+# Authentication
 
 Pierre supports multiple authentication methods for different use cases.
 
-## authentication methods
+## Authentication Methods
 
 | method | use case | header | endpoints |
 |--------|----------|--------|-----------|
@@ -10,9 +10,9 @@ Pierre supports multiple authentication methods for different use cases.
 | api keys | a2a systems | `X-API-Key: <key>` | a2a endpoints |
 | oauth2 | provider integration | varies | fitness provider apis |
 
-## jwt authentication
+## JWT Authentication
 
-### registration
+### Registration
 
 ```bash
 curl -X POST http://localhost:8081/api/auth/register \
@@ -35,7 +35,7 @@ Response:
 }
 ```
 
-### login
+### Login
 
 ```bash
 curl -X POST http://localhost:8081/api/auth/login \
@@ -48,7 +48,7 @@ curl -X POST http://localhost:8081/api/auth/login \
 
 Response includes jwt token. Store securely.
 
-### using jwt tokens
+### Using JWT Tokens
 
 Include in authorization header:
 ```bash
@@ -56,7 +56,7 @@ curl -H "Authorization: Bearer <jwt_token>" \
   http://localhost:8081/mcp
 ```
 
-### token expiry
+### Token Expiry
 
 Default: 24 hours (configurable via `JWT_EXPIRY_HOURS`)
 
@@ -66,11 +66,11 @@ curl -X POST http://localhost:8081/api/auth/refresh \
   -H "Authorization: Bearer <current_token>"
 ```
 
-## api key authentication
+## API Key Authentication
 
 For a2a systems and service-to-service communication.
 
-### creating api keys
+### Creating API Keys
 
 Requires admin or user jwt:
 ```bash
@@ -95,14 +95,14 @@ Response:
 
 Save api key - cannot be retrieved later.
 
-### using api keys
+### Using API Keys
 
 ```bash
 curl -H "X-API-Key: <api_key>" \
   http://localhost:8081/a2a/tools
 ```
 
-### api key tiers
+### API Key Tiers
 
 - `trial`: 1,000 requests/month (auto-expires after 14 days)
 - `starter`: 10,000 requests/month
@@ -111,11 +111,11 @@ curl -H "X-API-Key: <api_key>" \
 
 Rate limits are enforced per API key over a rolling 30-day window.
 
-## oauth2 (mcp client authentication)
+## OAuth2 (MCP Client Authentication)
 
 Pierre acts as oauth2 authorization server for mcp clients.
 
-### oauth2 vs oauth (terminology)
+### OAuth2 vs OAuth (Terminology)
 
 Pierre implements two oauth systems:
 
@@ -125,11 +125,11 @@ Pierre implements two oauth systems:
    - issues jwt access tokens
 
 2. **oauth2_client module** (`src/oauth2_client/`): pierre AS oauth2 client
-   - pierre authenticates TO fitness providers (strava, garmin, fitbit)
+   - pierre authenticates TO fitness providers (strava, garmin, fitbit, whoop)
    - manages provider tokens
    - handles token refresh
 
-### oauth2 flow (mcp clients)
+### OAuth2 Flow (MCP Clients)
 
 Sdk handles automatically. Manual flow:
 
@@ -166,7 +166,7 @@ curl -X POST http://localhost:8081/oauth2/token \
 
 Receives jwt access token.
 
-### pkce enforcement
+### PKCE Enforcement
 
 Pierre requires pkce (rfc 7636) for security:
 - code verifier: 43-128 random characters
@@ -175,11 +175,11 @@ Pierre requires pkce (rfc 7636) for security:
 
 No plain text challenge methods allowed.
 
-## mcp client integration (claude code, vs code, etc.)
+## MCP Client Integration (Claude Code, VS Code, etc.)
 
 mcp clients (claude code, vs code with cline/continue, cursor, etc.) connect to pierre via http-based mcp protocol.
 
-### authentication flow
+### Authentication Flow
 
 1. **user registration and login**:
 ```bash
@@ -293,7 +293,7 @@ pierre's mcp server validates jwt on every request:
 - checks expiration
 - enforces rate limits per tenant
 
-### mcp endpoint authentication requirements
+### MCP Endpoint Authentication Requirements
 
 | endpoint | auth required | notes |
 |----------|---------------|-------|
@@ -305,7 +305,7 @@ pierre's mcp server validates jwt on every request:
 
 implementation: `src/mcp/multitenant.rs:1726`
 
-### token expiry and refresh
+### Token Expiry and Refresh
 
 jwt tokens expire after 24 hours (default, configurable via `JWT_EXPIRY_HOURS`).
 
@@ -315,7 +315,7 @@ when token expires, user must:
 
 automatic refresh not implemented in most mcp clients (requires manual re-login).
 
-### connecting to fitness providers
+### Connecting to Fitness Providers
 
 once authenticated to pierre, connect to fitness providers:
 
@@ -337,7 +337,7 @@ curl -H "Authorization: Bearer <jwt>" \
   http://localhost:8081/api/oauth/auth/strava/<user_id>
 ```
 
-### why no pierre login during strava oauth?
+### Why No Pierre Login During Strava OAuth?
 
 common question: "why don't i need to log into pierre when connecting to strava?"
 
@@ -359,7 +359,7 @@ sequence:
 
 **key insight**: jwt token proves your identity to pierre. strava oauth proves you own the fitness account. no duplicate login needed.
 
-### security considerations
+### Security Considerations
 
 **jwt token storage**: mcp clients store jwt tokens in configuration files:
 - claude code: `~/.config/claude-code/mcp_config.json`
@@ -380,7 +380,7 @@ these files should have restricted permissions (chmod 600 for config files).
 
 **implementation**: `src/routes/auth.rs`, `src/mcp/multitenant.rs`
 
-### troubleshooting
+### Troubleshooting
 
 **"authentication required" error**:
 - check jwt token in your mcp client's configuration file
@@ -422,17 +422,17 @@ echo -n "1dfc45ad0a1f6983b835e4495aa9473d111d03bc" | \
 
 if fingerprints don't match, you're using wrong credentials.
 
-## provider oauth (fitness data)
+## Provider OAuth (Fitness Data)
 
 Pierre acts as oauth client to fitness providers.
 
-### supported providers
+### Supported Providers
 
 - strava (oauth2)
 - garmin (oauth1 + oauth2)
 - fitbit (oauth2)
 
-### configuration
+### Configuration
 
 Set environment variables:
 ```bash
@@ -461,7 +461,7 @@ export GARMIN_REDIRECT_URI=https://api.example.com/api/oauth/callback/garmin  # 
   - vulnerable to token interception
   - most providers reject http callbacks in production
 
-### connecting providers
+### Connecting Providers
 
 Via mcp tool:
 ```
@@ -487,14 +487,14 @@ Pierre exchanges code for access/refresh tokens, stores encrypted.
 
 **security**: authorization codes in callback urls must be protected with tls in production. Http callbacks leak codes to network observers.
 
-### token storage
+### Token Storage
 
 Provider tokens stored encrypted in database:
 - encryption key: tenant-specific key (derived from master key)
 - algorithm: aes-256-gcm
 - rotation: automatic refresh before expiry
 
-### checking connection status
+### Checking Connection Status
 
 ```bash
 curl -H "Authorization: Bearer <jwt>" \
@@ -515,13 +515,13 @@ Response:
 }
 ```
 
-## web application security
+## Web Application Security
 
-### cookie-based authentication (production web apps)
+### Cookie-Based Authentication (Production Web Apps)
 
 Pierre implements secure cookie-based authentication for web applications using httpOnly cookies with CSRF protection.
 
-#### security model
+#### Security Model
 
 **httpOnly cookies** prevent JavaScript access to JWT tokens, eliminating XSS-based token theft:
 ```
@@ -534,7 +534,7 @@ Set-Cookie: csrf_token=<token>; Secure; SameSite=Strict; Max-Age=1800
 X-CSRF-Token: <token>  (sent in request header)
 ```
 
-#### cookie security flags
+#### Cookie Security Flags
 
 | flag | value | purpose |
 |------|-------|---------|
@@ -543,7 +543,7 @@ X-CSRF-Token: <token>  (sent in request header)
 | SameSite | Strict | prevents cross-origin requests (CSRF mitigation) |
 | Max-Age | 86400 (auth), 1800 (csrf) | automatic expiration |
 
-#### authentication flow
+#### Authentication Flow
 
 **login** (`POST /api/auth/login`):
 ```bash
@@ -596,7 +596,7 @@ Set-Cookie: auth_token=; Max-Age=0
 Set-Cookie: csrf_token=; Max-Age=0
 ```
 
-#### csrf protection details
+#### CSRF Protection Details
 
 **token generation**:
 - 256-bit (32 byte) cryptographic randomness
@@ -632,7 +632,7 @@ Set-Cookie: csrf_token=; Max-Age=0
 - attacker cannot reuse old token (user-scoped validation)
 - attacker cannot use expired token (30-minute lifetime)
 
-#### frontend integration (react/typescript)
+#### Frontend Integration (React/TypeScript)
 
 **axios configuration**:
 ```typescript
@@ -695,7 +695,7 @@ async function logout() {
 }
 ```
 
-#### token refresh
+#### Token Refresh
 
 web apps can proactively refresh tokens using the refresh endpoint:
 
@@ -720,7 +720,7 @@ refresh generates:
 - after csrf token expires (30min default)
 - after receiving 401 response with expired token
 
-#### implementation references
+#### Implementation References
 
 **backend**:
 - csrf token manager: `src/security/csrf.rs`
@@ -733,7 +733,7 @@ refresh generates:
 - api service: `frontend/src/services/api.ts`
 - auth context: `frontend/src/contexts/AuthContext.tsx`
 
-#### backward compatibility
+#### Backward Compatibility
 
 pierre supports both cookie-based and bearer token authentication simultaneously:
 
@@ -742,19 +742,19 @@ pierre supports both cookie-based and bearer token authentication simultaneously
 
 middleware tries cookies first, falls back to authorization header.
 
-### api key authentication (service-to-service)
+### API Key Authentication (Service-to-Service)
 
 for a2a systems and service-to-service communication, api keys provide simpler authentication without cookies or csrf.
 
-## security features
+## Security Features
 
-### password hashing
+### Password Hashing
 
 - algorithm: argon2id (default) or bcrypt
 - configurable work factor
 - per-user salt
 
-### token encryption
+### Token Encryption
 
 - jwt signing: rs256 asymmetric (rsa) or hs256 symmetric
   - rs256: 4096-bit rsa keys (production), 2048-bit (tests)
@@ -764,7 +764,7 @@ for a2a systems and service-to-service communication, api keys provide simpler a
   - master key (env: `PIERRE_MASTER_ENCRYPTION_KEY`)
   - tenant keys (derived from master key)
 
-### rs256/jwks
+### RS256/JWKS
 
 Asymmetric signing for distributed token verification.
 
@@ -800,7 +800,7 @@ Benefits:
 
 **key rotation**: when keys are rotated, old keys are retained during grace period to allow existing tokens to validate. New tokens are signed with the current key.
 
-### rate limiting
+### Rate Limiting
 
 Token bucket algorithm per authentication method:
 - jwt tokens: per-tenant limits
@@ -820,7 +820,7 @@ Retry-After: 42
 
 Implementation: `src/rate_limiting.rs`, `src/oauth2/rate_limiting.rs`
 
-### csrf protection
+### CSRF Protection
 
 pierre implements comprehensive csrf protection for web applications:
 
@@ -838,7 +838,7 @@ pierre implements comprehensive csrf protection for web applications:
 
 see "Web Application Security" section above for detailed csrf implementation.
 
-### atomic token operations
+### Atomic Token Operations
 
 Pierre prevents toctou (time-of-check to time-of-use) race conditions in token operations.
 
@@ -912,33 +912,33 @@ Security guarantees:
 
 Implementation: `src/database_plugins/sqlite.rs`, `src/database_plugins/postgres.rs`, `src/oauth2/endpoints.rs`
 
-## troubleshooting
+## Troubleshooting
 
-### "invalid token" errors
+### "Invalid Token" Errors
 
 - check token expiry: jwt tokens expire after 24h (default)
 - verify token format: must be `Bearer <token>`
 - ensure token not revoked: check `/oauth/status`
 
-### oauth2 flow fails
+### OAuth2 Flow Fails
 
 - verify redirect uri exactly matches registration
 - check pkce challenge/verifier match
 - ensure code not expired (10 min lifetime)
 
-### provider oauth fails
+### Provider OAuth Fails
 
 - verify provider credentials (client_id, client_secret)
 - check redirect uri accessible from browser
 - ensure callback endpoint reachable
 
-### api key rejected
+### API Key Rejected
 
 - verify api key active: not deleted or expired
 - check rate limits: may be throttled
 - ensure correct header: `X-API-Key` (case-sensitive)
 
-## implementation references
+## Implementation References
 
 - jwt authentication: `src/auth.rs`
 - api key management: `src/api_keys.rs`

@@ -1,8 +1,8 @@
-# chapter 17.5: pluggable provider architecture
+# Chapter 17.5: Pluggable Provider Architecture
 
 This chapter explores pierre's pluggable provider architecture that enables runtime registration of 1 to x fitness providers simultaneously. You'll learn about provider factories, dynamic discovery, environment-based configuration, and how to add new providers without modifying existing code.
 
-## what you'll learn
+## What You'll Learn
 
 - Provider registry and factory pattern
 - Runtime provider discovery (1 to x providers)
@@ -15,7 +15,7 @@ This chapter explores pierre's pluggable provider architecture that enables runt
 - Synthetic provider for development/testing
 - Multi-provider connection management
 
-## pluggable architecture overview
+## Pluggable Architecture Overview
 
 Pierre implements a **fully pluggable provider system** where fitness providers are registered at runtime through a factory pattern. The system supports **1 to x providers simultaneously**, meaning you can use just Strava, or Strava + Garmin + Fitbit + custom providers all at once.
 
@@ -25,21 +25,21 @@ Pierre implements a **fully pluggable provider system** where fitness providers 
 │           Manages 1 to x providers with dynamic discovery              │
 └────────────┬──────────────────────────────────────────────────────────┘
              │
-    ┌────────┴────────┬───────────┬────────────┬──────────┬─────────────┐
-    │                 │           │            │          │             │
-    ▼                 ▼           ▼            ▼          ▼             ▼
-┌─────────┐    ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐
-│ Strava  │    │ Garmin  │  │  WHOOP  │  │ Fitbit  │  │Synthetic│  │ Custom  │
-│ Factory │    │ Factory │  │ Factory │  │ Factory │  │ Factory │  │ Factory │
-└────┬────┘    └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘
-     │              │           │            │            │            │
-     ▼              ▼           ▼            ▼            ▼            ▼
-┌─────────┐    ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐
-│ Strava  │    │ Garmin  │  │  WHOOP  │  │ Fitbit  │  │Synthetic│  │ Custom  │
-│Provider │    │Provider │  │Provider │  │Provider │  │Provider │  │Provider │
-└─────────┘    └─────────┘  └─────────┘  └─────────┘  └─────────┘  └─────────┘
-     │              │           │            │            │            │
-     └──────────────┴───────────┴────────────┴────────────┴────────────┘
+    ┌────────┴────────┬───────────┬────────────┬──────────┬─────────┬─────────────┐
+    │                 │           │            │          │         │             │
+    ▼                 ▼           ▼            ▼          ▼         ▼             ▼
+┌─────────┐    ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌───────┐  ┌─────────┐  ┌─────────┐
+│ Strava  │    │ Garmin  │  │  Terra  │  │ Fitbit  │  │ WHOOP │  │Synthetic│  │ Custom  │
+│ Factory │    │ Factory │  │ Factory │  │ Factory │  │Factory│  │ Factory │  │ Factory │
+└────┬────┘    └────┬────┘  └────┬────┘  └────┬────┘  └───┬───┘  └────┬────┘  └────┬────┘
+     │              │           │            │           │            │            │
+     ▼              ▼           ▼            ▼           ▼            ▼            ▼
+┌─────────┐    ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌───────┐  ┌─────────┐  ┌─────────┐
+│ Strava  │    │ Garmin  │  │  Terra  │  │ Fitbit  │  │ WHOOP │  │Synthetic│  │ Custom  │
+│Provider │    │Provider │  │Provider │  │Provider │  │Provdr │  │Provider │  │Provider │
+└─────────┘    └─────────┘  └─────────┘  └─────────┘  └───────┘  └─────────┘  └─────────┘
+     │              │           │            │           │            │            │
+     └──────────────┴───────────┴────────────┴───────────┴────────────┴────────────┘
                                     │
                                     ▼
                      ┌──────────────────────────┐
@@ -50,18 +50,20 @@ Pierre implements a **fully pluggable provider system** where fitness providers 
 
 **Key benefit**: Add, remove, or swap providers without modifying tool code, connection handlers, or application logic.
 
-## feature flags (compile-time selection)
+## Feature Flags (compile-Time Selection)
 
 Pierre uses Cargo feature flags for compile-time provider selection. This allows minimal binaries with only the providers you need:
 
-**Source**: Cargo.toml:49-54
+**Source**: Cargo.toml
 ```toml
 # Provider feature flags - enable/disable individual fitness data providers
 provider-strava = []
 provider-garmin = []
+provider-terra = []
+provider-fitbit = []
 provider-whoop = []
 provider-synthetic = []
-all-providers = ["provider-strava", "provider-garmin", "provider-whoop", "provider-synthetic"]
+all-providers = ["provider-strava", "provider-garmin", "provider-terra", "provider-fitbit", "provider-whoop", "provider-synthetic"]
 ```
 
 **Build with specific providers**:
@@ -92,11 +94,11 @@ pub mod whoop_provider;
 pub mod synthetic_provider;
 ```
 
-## service provider interface (SPI)
+## Service Provider Interface (SPI)
 
 The SPI defines the contract for pluggable providers, enabling external crates to register providers without modifying core code.
 
-### ProviderDescriptor trait
+### Providerdescriptor Trait
 
 **Source**: src/providers/spi.rs:129-177
 ```rust
@@ -127,7 +129,7 @@ pub trait ProviderDescriptor: Send + Sync {
 }
 ```
 
-### ProviderCapabilities (bitflags)
+### Providercapabilities (Bitflags)
 
 Provider capabilities use bitflags for efficient storage and combinators:
 
@@ -181,7 +183,7 @@ let caps = ProviderCapabilities::OAUTH | ProviderCapabilities::ACTIVITIES;
 let full_health = ProviderCapabilities::full_health();
 ```
 
-### OAuthParams
+### Oauthparams
 
 OAuth configuration varies by provider (scope separators, PKCE support):
 
@@ -199,7 +201,7 @@ pub struct OAuthParams {
 }
 ```
 
-## provider registry
+## Provider Registry
 
 The `ProviderRegistry` is the central hub for managing all fitness providers:
 
@@ -286,7 +288,7 @@ impl ProviderRegistry {
 - **Configuration management**: Stores default configs loaded from environment
 - **Provider creation**: `create_provider()` instantiates providers on-demand
 
-## provider factory pattern
+## Provider Factory Pattern
 
 Each provider implements a `ProviderFactory` trait for creation:
 
@@ -343,7 +345,7 @@ impl ProviderFactory for SyntheticProviderFactory {
 - **Configuration injection**: Factory receives config at creation time
 - **Type erasure**: Returns `Box<dyn FitnessProvider>` for uniform handling
 
-## environment-based configuration
+## Environment-Based Configuration
 
 Pierre loads provider configuration from environment variables for **cloud-native deployment** (GCP, AWS, etc.):
 
@@ -413,7 +415,7 @@ pub fn load_provider_env_config(
 - **Legacy format**: `STRAVA_CLIENT_ID` (still supported)
 - **Graceful fallback**: Tries new format first, then legacy
 
-## dynamic provider discovery
+## Dynamic Provider Discovery
 
 Connection tools automatically discover available providers at runtime:
 
@@ -473,7 +475,7 @@ if !is_provider_supported(provider, &executor.resources.provider_registry) {
 
 **Result**: Error messages automatically update when you add/remove providers. No hardcoded lists!
 
-## synthetic provider (phase 1)
+## Synthetic Provider (phase 1)
 
 Pierre includes a **synthetic provider** for development and testing **without OAuth**:
 
@@ -545,11 +547,11 @@ pub fn default_provider() -> String {
 2. `PIERRE_DEFAULT_PROVIDER=garmin` → use Garmin
 3. Not set or empty → use Synthetic (OAuth-free development)
 
-## adding a custom provider (SPI approach)
+## Adding a Custom Provider SPI Approach)
 
 Here's how to add a new provider using the SPI architecture:
 
-### step 1: add feature flag
+### Step 1: Add Feature Flag
 
 **Source**: Cargo.toml
 ```toml
@@ -558,7 +560,7 @@ provider-whoop = []
 all-providers = ["provider-strava", "provider-garmin", "provider-synthetic", "provider-whoop"]
 ```
 
-### step 2: implement ProviderDescriptor (SPI)
+### Step 2: Implement Providerdescriptor (SPI)
 
 **Source**: src/providers/spi.rs
 ```rust
@@ -611,7 +613,7 @@ impl ProviderDescriptor for WhoopDescriptor {
 }
 ```
 
-### step 3: implement FitnessProvider trait
+### Step 3: Implement Fitnessprovider Trait
 
 **Source**: src/providers/whoop_provider.rs
 ```rust
@@ -674,7 +676,7 @@ impl FitnessProvider for WhoopProvider {
 }
 ```
 
-### step 4: create provider factory and register
+### Step 4: Create Provider Factory and Register
 
 **Source**: src/providers/registry.rs
 ```rust
@@ -707,7 +709,7 @@ impl ProviderFactory for WhoopProviderFactory {
 }
 ```
 
-### step 5: add to constants and module exports
+### Step 5: Add to Constants and Module Exports
 
 **Source**: src/constants/oauth/providers.rs
 ```rust
@@ -727,7 +729,7 @@ pub mod whoop_provider;
 pub use spi::WhoopDescriptor;
 ```
 
-### step 6: configure environment
+### Step 6: Configure Environment
 
 **Source**: .envrc
 ```bash
@@ -752,7 +754,7 @@ export WHOOP_REDIRECT_URI=http://localhost:8081/api/oauth/callback/whoop
 - ❌ MCP schema generation (automatic)
 - ❌ Test fixtures (provider-agnostic)
 
-## managing 1 to x providers simultaneously
+## Managing 1 to X Providers Simultaneously
 
 Pierre's architecture supports **multiple active providers per tenant/user**:
 
@@ -824,7 +826,7 @@ let provider = registry.create_provider(provider_name)
     .ok_or_else(|| ProtocolError::ProviderNotFound)?;
 ```
 
-## shared request/response traits
+## Shared request/response Traits
 
 All providers implement the same `FitnessProvider` trait, ensuring **uniform request/response patterns**:
 
@@ -852,7 +854,7 @@ All providers implement the same `FitnessProvider` trait, ensuring **uniform req
 3. **Type-safe**: Compiler enforces contract across all providers
 4. **Extensible**: New providers must implement complete interface
 
-## rust idioms: trait object factory
+## Rust Idioms: Trait Object Factory
 
 **Source**: src/providers/registry.rs:43-46
 ```rust
@@ -877,7 +879,7 @@ pub fn register_factory<F: ProviderFactory + 'static>(&mut self, name: &str, fac
 
 **Why trait objects**: Registry needs to store heterogeneous factory types in single collection.
 
-## rust idioms: arc<rwlock<t>> for interior mutability
+## Rust Idioms: arc<rwlock<t>> for Interior Mutability
 
 **Source**: src/providers/synthetic_provider.rs:34-36
 ```rust
@@ -921,7 +923,245 @@ impl FitnessProvider for SyntheticProvider {
 }
 ```
 
-## configuration best practices
+## Provider Resilience Patterns
+
+Pierre implements multiple resilience patterns to handle provider failures gracefully.
+
+### Retry with Exponential Backoff
+
+**Source**: `src/providers/core.rs` (conceptual)
+```rust
+/// Retry configuration for provider requests
+pub struct RetryConfig {
+    /// Maximum number of retry attempts
+    pub max_retries: u32,
+    /// Base delay between retries (doubles each attempt)
+    pub base_delay_ms: u64,
+    /// Maximum delay cap
+    pub max_delay_ms: u64,
+    /// Jitter factor (0.0 to 1.0) to prevent thundering herd
+    pub jitter_factor: f64,
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        Self {
+            max_retries: 3,
+            base_delay_ms: 100,
+            max_delay_ms: 5000,
+            jitter_factor: 0.1,
+        }
+    }
+}
+```
+
+**Retry logic**:
+```rust
+async fn fetch_with_retry<T, F, Fut>(
+    operation: F,
+    config: &RetryConfig,
+) -> Result<T, ProviderError>
+where
+    F: Fn() -> Fut,
+    Fut: Future<Output = Result<T, ProviderError>>,
+{
+    let mut attempt = 0;
+    loop {
+        match operation().await {
+            Ok(result) => return Ok(result),
+            Err(e) if e.is_retryable() && attempt < config.max_retries => {
+                attempt += 1;
+                let delay = calculate_backoff(attempt, config);
+                tokio::time::sleep(Duration::from_millis(delay)).await;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+fn calculate_backoff(attempt: u32, config: &RetryConfig) -> u64 {
+    let base = config.base_delay_ms * 2u64.pow(attempt - 1);
+    let jitter = (base as f64 * config.jitter_factor * rand::random::<f64>()) as u64;
+    (base + jitter).min(config.max_delay_ms)
+}
+```
+
+### Rate Limit Respect
+
+Providers return `Retry-After` headers when rate limited:
+
+```rust
+match provider.get_activities().await {
+    Err(ProviderError::RateLimitExceeded { retry_after_secs, .. }) => {
+        tracing::warn!(
+            provider = %provider.name(),
+            retry_after = retry_after_secs,
+            "Provider rate limited, scheduling retry"
+        );
+        // Queue for later execution
+        scheduler.schedule_retry(request, retry_after_secs).await;
+        Ok(PendingResult::Scheduled)
+    }
+    result => result,
+}
+```
+
+### Token Auto-Refresh
+
+OAuth tokens are automatically refreshed before expiration:
+
+**Source**: `src/oauth2_client/flow_manager.rs` (conceptual)
+```rust
+/// Check if token needs refresh (5 minute buffer)
+fn needs_refresh(token: &UserOAuthToken) -> bool {
+    if let Some(expires_at) = token.expires_at {
+        let refresh_buffer = Duration::from_secs(300); // 5 minutes
+        expires_at - refresh_buffer < Utc::now()
+    } else {
+        false
+    }
+}
+
+/// Transparently refresh token before provider call
+async fn ensure_valid_token(
+    db: &Database,
+    user_id: Uuid,
+    tenant_id: &str,
+    provider: &str,
+) -> Result<String, ProviderError> {
+    let token = db.oauth_tokens().get(user_id, tenant_id, provider).await?;
+
+    if needs_refresh(&token) {
+        let refreshed = refresh_token(&token).await?;
+        db.oauth_tokens().upsert(&refreshed).await?;
+        Ok(refreshed.access_token)
+    } else {
+        Ok(token.access_token)
+    }
+}
+```
+
+### Graceful Degradation
+
+When a provider is unavailable, Pierre continues serving from cache:
+
+```rust
+/// Fetch activities with cache fallback
+async fn get_activities_resilient(
+    provider: &dyn FitnessProvider,
+    cache: &Cache,
+    user_id: Uuid,
+) -> Result<Vec<Activity>, ProviderError> {
+    let cache_key = format!("activities:{}:{}", provider.name(), user_id);
+
+    match provider.get_activities(user_id).await {
+        Ok(activities) => {
+            // Update cache on success
+            cache.set(&cache_key, &activities, Duration::from_secs(3600)).await;
+            Ok(activities)
+        }
+        Err(e) if e.is_transient() => {
+            // Try cache on transient errors
+            if let Some(cached) = cache.get::<Vec<Activity>>(&cache_key).await {
+                tracing::warn!(
+                    provider = %provider.name(),
+                    error = %e,
+                    "Provider unavailable, serving from cache"
+                );
+                Ok(cached)
+            } else {
+                Err(e)
+            }
+        }
+        Err(e) => Err(e),
+    }
+}
+```
+
+### Provider Health Checks
+
+Monitor provider availability proactively:
+
+```rust
+/// Provider health status
+#[derive(Debug, Clone)]
+pub struct ProviderHealth {
+    pub provider: String,
+    pub is_healthy: bool,
+    pub last_check: DateTime<Utc>,
+    pub consecutive_failures: u32,
+    pub average_latency_ms: f64,
+}
+
+/// Check provider health via lightweight endpoint
+async fn check_provider_health(provider: &dyn FitnessProvider) -> ProviderHealth {
+    let start = Instant::now();
+    let result = provider.health_check().await;
+    let latency = start.elapsed().as_millis() as f64;
+
+    ProviderHealth {
+        provider: provider.name().to_string(),
+        is_healthy: result.is_ok(),
+        last_check: Utc::now(),
+        consecutive_failures: if result.is_ok() { 0 } else { 1 },
+        average_latency_ms: latency,
+    }
+}
+```
+
+### Multi-Provider Fallback
+
+When primary provider fails, try alternatives:
+
+```rust
+/// Try multiple providers in order
+async fn get_activities_multi_provider(
+    registry: &ProviderRegistry,
+    user_id: Uuid,
+    preferred_providers: &[&str],
+) -> Result<Vec<Activity>, ProviderError> {
+    let mut last_error = None;
+
+    for provider_name in preferred_providers {
+        if let Some(provider) = registry.get(provider_name) {
+            match provider.get_activities(user_id).await {
+                Ok(activities) => return Ok(activities),
+                Err(e) => {
+                    tracing::warn!(
+                        provider = provider_name,
+                        error = %e,
+                        "Provider failed, trying next"
+                    );
+                    last_error = Some(e);
+                }
+            }
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| ProviderError::NoProvidersAvailable))
+}
+```
+
+### Resilience Configuration
+
+Per-provider resilience settings:
+
+```toml
+# config/providers.toml (conceptual)
+[strava]
+max_retries = 3
+base_delay_ms = 100
+timeout_secs = 30
+circuit_breaker_threshold = 5
+circuit_breaker_reset_secs = 60
+
+[garmin]
+max_retries = 5  # Garmin is slower, more retries
+base_delay_ms = 200
+timeout_secs = 60
+```
+
+## Configuration Best Practices
 
 **Cloud deployment (.envrc for GCP/AWS)**:
 ```bash
@@ -955,7 +1195,7 @@ export PIERRE_STRAVA_CLIENT_ID=test-client-id
 export PIERRE_STRAVA_CLIENT_SECRET=test-secret
 ```
 
-## key takeaways
+## Key Takeaways
 
 1. **Pluggable architecture**: Providers registered at runtime through factory pattern, no compile-time coupling.
 

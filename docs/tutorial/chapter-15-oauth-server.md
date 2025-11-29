@@ -1,8 +1,8 @@
-# chapter 15: OAuth 2.0 server implementation
+# Chapter 15: OAuth 2.0 Server Implementation
 
 This chapter explores how Pierre implements a full OAuth 2.0 authorization server for secure MCP client authentication. You'll learn about RFC 7591 dynamic client registration, PKCE (RFC 7636), authorization code flow, and JWT-based access tokens.
 
-## what you'll learn
+## What You'll Learn
 
 - OAuth 2.0 authorization server implementation
 - RFC 7591 dynamic client registration
@@ -14,7 +14,7 @@ This chapter explores how Pierre implements a full OAuth 2.0 authorization serve
 - Constant-time credential validation
 - Multi-tenant OAuth isolation
 
-## OAuth 2.0 server architecture
+## OAuth 2.0 Server Architecture
 
 Pierre implements a standards-compliant OAuth 2.0 authorization server:
 
@@ -56,7 +56,7 @@ Pierre implements a standards-compliant OAuth 2.0 authorization server:
 
 **OAuth 2.0 flow**: Pierre supports authorization code flow with PKCE (mandatory for security).
 
-## OAuth context and routes
+## OAuth Context and Routes
 
 The OAuth server shares context across all endpoint handlers:
 
@@ -120,7 +120,7 @@ impl OAuth2Routes {
 - `/oauth2/authorize`: Authorization endpoint (user consent)
 - `/oauth2/token`: Token endpoint (code exchange)
 
-## OAuth discovery endpoint
+## OAuth Discovery Endpoint
 
 The discovery endpoint advertises server capabilities (RFC 8414):
 
@@ -180,7 +180,7 @@ async fn handle_discovery(State(context): State<OAuth2Context>) -> Json<serde_js
 - `grant_types_supported`: Authorization code, client credentials, refresh token
 - `token_endpoint_auth_methods_supported`: Client authentication methods
 
-## dynamic client registration (RFC 7591)
+## Dynamic Client Registration (rfc 7591)
 
 MCP clients register dynamically to obtain OAuth credentials:
 
@@ -284,7 +284,7 @@ pub async fn register_client(
 3. **Default grant types**: Only `authorization_code` by default (least privilege)
 4. **Redirect URI validation**: URIs validated during registration
 
-## rust idioms: Argon2 for credential hashing
+## Rust Idioms: Argon2 for Credential Hashing
 
 Pierre uses Argon2 (winner of Password Hashing Competition) for client secret hashing:
 
@@ -313,7 +313,7 @@ fn hash_client_secret(secret: &str) -> Result<String, OAuth2Error> {
 - **Winner of PHC**: Industry-standard recommendation
 - **Constant-time**: Safe against timing attacks
 
-## authorization endpoint with PKCE
+## Authorization Endpoint with PKCE
 
 The authorization endpoint requires PKCE (Proof Key for Code Exchange) for security:
 
@@ -417,7 +417,7 @@ pub async fn authorize(
 2. **S256 only**: SHA-256 method required (plain method rejected for security)
 3. **Length validation**: 43-128 characters (base64url-encoded SHA-256)
 
-## PKCE flow explained
+## PKCE Flow Explained
 
 PKCE prevents authorization code interception attacks:
 
@@ -453,7 +453,7 @@ Server validates:
 
 **Security benefit**: Even if authorization code is intercepted, attacker cannot exchange it without the original `code_verifier` (which never leaves the client).
 
-## token endpoint
+## Token Endpoint
 
 The token endpoint exchanges authorization codes for JWT access tokens:
 
@@ -494,7 +494,7 @@ pub async fn token(&self, request: TokenRequest) -> Result<TokenResponse, OAuth2
 - `client_credentials`: Machine-to-machine authentication (no user context)
 - `refresh_token`: Renew expired access token without re-authentication
 
-## constant-time client validation
+## Constant-Time Client Validation
 
 Client credential validation uses constant-time comparison to prevent timing attacks:
 
@@ -548,7 +548,7 @@ pub async fn validate_client(
 
 **Constant-time guarantee**: Argon2's `verify_password` uses constant-time comparison to prevent timing side-channel attacks.
 
-## rust idioms: constant-time operations
+## Rust Idioms: Constant-Time Operations
 
 **Timing attack vulnerability**:
 ```rust
@@ -572,7 +572,7 @@ argon2.verify_password(client_secret.as_bytes(), &parsed_hash)
 
 **Why this matters**: Timing attacks can recover secrets character-by-character by measuring response times.
 
-## multi-tenant OAuth management
+## Multi-Tenant OAuth Management
 
 Pierre provides tenant-specific OAuth credential isolation:
 
@@ -654,7 +654,7 @@ pub async fn get_credentials(
 2. **Server-level credentials** (fallback): Shared OAuth apps from environment variables
 3. **Error** (no credentials): Inform user how to configure
 
-## OAuth rate limiting
+## OAuth Rate Limiting
 
 Pierre implements rate limiting for OAuth endpoints:
 
@@ -688,7 +688,7 @@ async fn handle_client_registration(
 - `/oauth2/authorize`: Prevent authorization request floods
 - `/oauth2/token`: Prevent token exchange brute-forcing
 
-## key takeaways
+## Key Takeaways
 
 1. **RFC compliance**: Pierre implements RFC 7591 (client registration), RFC 7636 (PKCE), RFC 8414 (discovery).
 

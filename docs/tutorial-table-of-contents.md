@@ -45,7 +45,7 @@
 
 ## Part VI: Tools & Intelligence System
 
-21. [Chapter 19: Comprehensive Tools Guide - All 35+ MCP Tools](tutorial/chapter-19-tools-guide.md)
+21. [Chapter 19: Comprehensive Tools Guide - All 45 MCP Tools](tutorial/chapter-19-tools-guide.md)
 22. [Chapter 20: Sports Science Algorithms & Intelligence](tutorial/chapter-20-sports-science.md)
 23. [Chapter 21: Training Load, Recovery & Sleep Analysis](tutorial/chapter-21-recovery-sleep.md)
 24. [Chapter 22: Nutrition System & USDA Integration](tutorial/chapter-22-nutrition.md)
@@ -60,10 +60,20 @@
 
 ## Appendices
 
+### Reference
 - [Appendix A: Rust Idioms Reference](tutorial/appendix-a-rust-idioms.md)
 - [Appendix B: CLAUDE.md Compliance Checklist](tutorial/appendix-b-claude-md.md)
 - [Appendix C: Pierre Codebase Map](tutorial/appendix-c-codebase-map.md)
 - [Appendix D: Natural Language to Tool Mapping](tutorial/appendix-d-tool-mapping.md)
+
+### Operations
+- [Appendix E: API Keys, Rate Limits & Dashboard](tutorial/appendix-e-api-keys-rate-limits-dashboard.md)
+- [Appendix F: Tenant Admin & Fitness Configuration](tutorial/appendix-f-tenant-admin-fitness-config.md)
+- [Appendix G: SDK & CLI Usage Guide](tutorial/appendix-g-sdk-cli-usage.md)
+
+### Architecture
+- [Appendix H: Error Code Reference](tutorial/appendix-h-error-reference.md)
+- [Appendix I: Performance Characteristics & Benchmarks](tutorial/appendix-i-performance.md)
 
 ---
 
@@ -92,6 +102,6 @@ Complete tutorial from start to finish - recommended for thorough understanding.
 
 ## Summary
 
-**Total**: 25 Chapters + 1 Database Architecture Chapter + 4 Appendices
+**Total**: 25 Chapters + 1 Database Architecture Chapter + 9 Appendices
 **Focus**: Rust idioms, real code examples, progressive complexity
 **Code Citations**: All examples reference actual Pierre codebase with file:line numbers

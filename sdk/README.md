@@ -36,7 +36,7 @@ Add to your MCP client configuration file:
 }
 ```
 
-**Configuration file locations:**
+**Configuration File Locations:**
 - **Claude Desktop**: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 - **ChatGPT**: `~/Library/Application Support/ChatGPT/config.json` (macOS)
 - See [full installation guide](https://github.com/Async-IO/pierre_mcp_server/blob/main/docs/installation-guides/install-mcp-client.md) for all platforms
@@ -53,14 +53,18 @@ No manual token management required!
 
 ## Available Tools
 
-Once connected, your AI assistant can access 46 fitness tools including:
+Once connected, your AI assistant can access 45 fitness tools including:
 - Activity retrieval and analysis
 - Goal setting and progress tracking
 - Performance trend analysis
 - Training recommendations
+- Sleep and recovery analysis
+- Nutrition calculations
 - And more...
 
 Ask your AI assistant: *"What fitness tools do you have access to?"*
+
+See [Tools Reference](../docs/tools-reference.md) for complete documentation.
 
 ## Requirements
 
@@ -77,31 +81,98 @@ pierre-mcp-client --server <url> [--verbose]
 - `--server` - Pierre MCP Server URL (required)
 - `--verbose` - Enable debug logging (optional)
 
-## Example
+## Type System
 
-```bash
-# Start Pierre MCP Server
-cargo run --bin pierre-mcp-server
+The SDK provides comprehensive TypeScript type definitions auto-generated from the server's Rust tool registry, ensuring type safety between server and client.
 
-# In another terminal, test the client
-npx -y pierre-mcp-client@next --server http://localhost:8081 --verbose
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Rust (Server)                                                  │
+│  src/protocols/universal/tool_registry.rs                       │
+│  ToolId enum + JSON schemas                                     │
+└─────────────────────┬───────────────────────────────────────────┘
+                      │ tools/list JSON-RPC
+                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  scripts/generate-sdk-types.js                                  │
+│  Fetches schemas, converts to TypeScript                        │
+└─────────────────────┬───────────────────────────────────────────┘
+                      │ generates
+                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  TypeScript (SDK)                                               │
+│  sdk/src/types.ts                                               │
+│  45 tool parameter interfaces                                   │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## Troubleshooting
+### Generated Types
 
-### Authentication Issues
+Each MCP tool has a corresponding TypeScript interface:
 
-If the browser doesn't open for authentication, check:
-```bash
-# Verify server is running
-curl http://localhost:8081/health
+```typescript
+// Tool: get_activities
+export interface GetActivitiesParams {
+  provider: string;      // required
+  limit?: number;        // optional
+  offset?: number;       // optional
+}
+
+// Tool: analyze_training_load
+export interface AnalyzeTrainingLoadParams {
+  provider: string;
+  days?: number;
+  include_predictions?: boolean;
+}
+
+// Tool: calculate_daily_nutrition
+export interface CalculateDailyNutritionParams {
+  weight_kg: number;
+  height_cm: number;
+  age: number;
+  gender: "male" | "female";
+  activity_level: "sedentary" | "light" | "moderate" | "active" | "very_active";
+  goal: "maintenance" | "weight_loss" | "muscle_gain" | "endurance";
+}
 ```
 
-### Token Cache
+### Type Categories
 
-Tokens are stored in `~/.pierre-mcp-tokens.json`. To force re-authentication:
-```bash
-rm ~/.pierre-mcp-tokens.json
+| Category | Interfaces | Description |
+|----------|------------|-------------|
+| Core Fitness | 7 | Activities, athlete, stats, connections |
+| Goals | 4 | Goal setting, progress, feasibility |
+| Analysis | 10 | Performance, trends, patterns, predictions |
+| Sleep & Recovery | 5 | Sleep quality, recovery scores |
+| Nutrition | 5 | BMR, TDEE, macros, food search |
+| Configuration | 10 | User settings, zones, profiles |
+| OAuth | 4 | Notifications, connection status |
+
+### Benefits
+
+- **Compile-time Safety**: TypeScript catches parameter errors before runtime
+- **IDE Support**: Auto-completion and inline documentation
+- **Schema Sync**: Types always match server expectations
+- **Self-documenting**: JSDoc comments from tool descriptions
+
+### Usage Example
+
+```typescript
+import { GetActivitiesParams, AnalyzeTrainingLoadParams } from 'pierre-mcp-client';
+
+// Type-safe parameter construction
+const activityParams: GetActivitiesParams = {
+  provider: 'strava',
+  limit: 10
+};
+
+const loadParams: AnalyzeTrainingLoadParams = {
+  provider: 'strava',
+  days: 30,
+  include_predictions: true
+};
 ```
 
 ## Development
@@ -130,24 +201,60 @@ cd sdk
 npm run generate-types
 ```
 
-**What happens**:
+**What Happens**:
 1. Script connects to `http://localhost:8081/mcp`
 2. Sends `tools/list` JSON-RPC request
 3. Converts JSON schemas to TypeScript interfaces
 4. Writes to `sdk/src/types.ts`
-5. Generates 45+ tool parameter interfaces and common data types
+5. Generates 45 tool parameter interfaces
 
-**Output**: `src/types.ts` (~450 lines with full type definitions)
+**Output**: `src/types.ts` (~500 lines with full type definitions)
 
 **Troubleshooting**:
 - **Server connection failed**: Ensure server is running and accessible
 - **Authentication error**: Set `PIERRE_JWT_TOKEN` environment variable
 - **Port conflict**: Change server port via `HTTP_PORT` environment variable
 
-**Version sync**: Always regenerate types after pulling changes to tool definitions to ensure SDK types match server schemas.
+**Version Sync**: Always regenerate types after pulling changes to tool definitions to ensure SDK types match server schemas.
+
+### Building from Source
+
+```bash
+cd sdk
+npm install
+npm run build
+```
+
+## Example
+
+```bash
+# Start Pierre MCP Server
+cargo run --bin pierre-mcp-server
+
+# In another terminal, test the client
+npx -y pierre-mcp-client@next --server http://localhost:8081 --verbose
+```
+
+## Troubleshooting
+
+### Authentication Issues
+
+If the browser doesn't open for authentication, check:
+```bash
+# Verify server is running
+curl http://localhost:8081/health
+```
+
+### Token Cache
+
+Tokens are stored in `~/.pierre-mcp-tokens.json`. To force re-authentication:
+```bash
+rm ~/.pierre-mcp-tokens.json
+```
 
 ## Documentation
 
+- [Tools Reference](../docs/tools-reference.md)
 - [Installation Guide](https://github.com/Async-IO/pierre_mcp_server/blob/main/docs/installation-guides/install-mcp-client.md)
 - [Server Documentation](https://github.com/Async-IO/pierre_mcp_server)
 

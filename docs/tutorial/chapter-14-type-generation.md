@@ -1,8 +1,8 @@
-# chapter 14: type generation & tools-to-types system
+# Chapter 14: Type Generation & Tools-to-Types System
 
 This chapter explores Pierre's automated type generation system that converts Rust tool schemas to TypeScript interfaces, ensuring type safety between the server and SDK. You'll learn about schema-driven development, synthetic data generation for testing, and the complete tools-to-types workflow.
 
-## what you'll learn
+## What You'll Learn
 
 - Automated type generation from server schemas
 - JSON Schema to TypeScript conversion
@@ -13,7 +13,7 @@ This chapter explores Pierre's automated type generation system that converts Ru
 - Deterministic testing patterns
 - Builder pattern for test data
 
-## type generation overview
+## Type Generation Overview
 
 Pierre generates TypeScript types directly from server tool schemas:
 
@@ -30,7 +30,7 @@ Pierre generates TypeScript types directly from server tool schemas:
 
 **Key insight**: Tool schemas defined in Rust become the single source of truth for both runtime validation and TypeScript type safety.
 
-## tools-to-types script
+## Tools-to-Types Script
 
 The type generator fetches schemas from a running Pierre server and converts them to TypeScript:
 
@@ -58,7 +58,7 @@ const JWT_TOKEN = process.env.PIERRE_JWT_TOKEN || null;
 - `OUTPUT_FILE`: Generated TypeScript output (sdk/src/types.ts)
 - `JWT_TOKEN`: Optional authentication for protected servers
 
-## fetching tool schemas
+## Fetching Tool Schemas
 
 The script calls `tools/list` to retrieve all tool schemas:
 
@@ -130,7 +130,7 @@ async function fetchToolSchemas() {
 3. **Parse response**: Extract `result.tools` array
 4. **Error handling**: Validate status code and JSON-RPC errors
 
-## JSON schema to TypeScript conversion
+## JSON Schema to Typescript Conversion
 
 The core conversion logic maps JSON Schema types to TypeScript:
 
@@ -198,7 +198,7 @@ function jsonSchemaToTypeScript(property, propertyName, required = false) {
 - `object` → inline interface or `Record<string, T>`
 - Union types: `["string", "null"]` → `string | null`
 
-## TypeScript idioms: union types and literal types
+## Typescript Idioms: Union Types and Literal Types
 
 **Union types for enums**:
 
@@ -217,7 +217,7 @@ provider: "strava" | "fitbit" | "garmin"  // from enum in JSON Schema
 
 This is **idiomatic TypeScript** - using literal union types instead of `enum` provides better type narrowing and inline values.
 
-## interface generation
+## Interface Generation
 
 The script generates named interfaces for each tool's parameters:
 
@@ -266,7 +266,7 @@ export interface GetActivitiesParams {
 
 **Naming convention**: `tool_name` → `ToolNameParams` (PascalCase conversion)
 
-## type-safe tool mapping
+## Type-Safe Tool Mapping
 
 The script generates a union type of all tool names and parameter mapping:
 
@@ -306,7 +306,7 @@ export interface ToolParamsMap {
 
 **Type safety benefit**: TypeScript can validate tool names and infer correct parameter types at compile time.
 
-## common data types
+## Common Data Types
 
 The generator includes manually-defined domain types for fitness data:
 
@@ -364,7 +364,7 @@ export interface Activity {
 
 **Design choice**: While tool parameter types are auto-generated, domain types like `Activity`, `Athlete`, and `Stats` are manually maintained for stability and documentation.
 
-## running type generation
+## Running Type Generation
 
 Invoke the generator via npm script:
 
@@ -411,7 +411,7 @@ npm run generate-types
    import { GetActivitiesParams, Activity } from './types';
 ```
 
-## synthetic data generation
+## Synthetic Data Generation
 
 Pierre includes a synthetic data generator for testing without OAuth connections:
 
@@ -449,7 +449,7 @@ pub struct SyntheticDataBuilder {
 - **Builder pattern**: Fluent API for constructing activities
 - **Realistic data**: Generates physiologically plausible metrics
 
-## rust idioms: builder pattern for test data
+## Rust Idioms: Builder Pattern for Test Data
 
 **Source**: tests/helpers/synthetic_data.rs:47-67
 ```rust
@@ -484,7 +484,7 @@ impl SyntheticDataBuilder {
 2. **Borrowing `&mut self.rng`**: Shares RNG state across builders without cloning
 3. **Clippy pragmas**: Documents why `const fn` isn't applicable (mutable state)
 
-## training pattern generation
+## Training Pattern Generation
 
 The builder generates realistic training patterns for testing intelligence algorithms:
 
@@ -561,7 +561,7 @@ fn beginner_runner_improving(&mut self) -> Vec<Activity> {
 - **Gradual adaptation**: Increasing volume (20→25→30 min) and intensity (6.5→6.0→5.5 min/km)
 - **Heart rate efficiency**: Lower HR at faster paces indicates improved fitness
 
-## synthetic provider for testing
+## Synthetic Provider for Testing
 
 The synthetic provider implements the `FitnessProvider` trait without OAuth:
 
@@ -643,7 +643,7 @@ impl SyntheticProvider {
 - **Dual indexing**: Vec for ordering + HashMap for O(1) ID lookups
 - **Early lock release**: Explicit scopes to drop `RwLock` guards before outer scope
 
-## rust idioms: RwLock scoping
+## Rust Idioms: Rwlock Scoping
 
 **Source**: tests/helpers/synthetic_provider.rs:84-101
 ```rust
@@ -671,7 +671,7 @@ pub fn add_activity(&self, activity: Activity) {
 
 **Why this matters**: Holding multiple locks simultaneously can cause deadlocks. Explicit scoping ensures locks are released in correct order.
 
-## type safety guarantees
+## Type Safety Guarantees
 
 The tools-to-types system provides multiple layers of type safety:
 
@@ -697,7 +697,7 @@ The tools-to-types system provides multiple layers of type safety:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## schema-driven development workflow
+## Schema-Driven Development Workflow
 
 The complete workflow ensures server and client stay synchronized:
 
@@ -739,7 +739,7 @@ The complete workflow ensures server and client stay synchronized:
 
 **Key benefit**: Changes to Rust tool schemas automatically propagate to TypeScript SDK after regeneration.
 
-## testing with synthetic data
+## Testing with Synthetic Data
 
 Combine synthetic data with the provider for comprehensive tests:
 
@@ -769,7 +769,7 @@ async fn test_beginner_progression_detection() {
 - **Realistic**: Patterns match real-world training data
 - **Fast**: In-memory provider, no database required
 
-## key takeaways
+## Key Takeaways
 
 1. **Single source of truth**: Rust tool schemas generate both runtime validation and TypeScript types.
 

@@ -1,8 +1,8 @@
-# chapter 08: middleware & request context
+# Chapter 08: Middleware & Request Context
 
 This chapter explores how the Pierre Fitness Platform uses Axum middleware to extract authentication, tenant context, rate limiting information, and tracing data from HTTP requests before routing to handlers. You'll learn about middleware composition, request ID generation, CORS configuration, and PII-safe logging.
 
-## what you'll learn
+## What You'll Learn
 
 - Axum middleware architecture and Tower layers
 - Request ID generation for distributed tracing
@@ -15,7 +15,7 @@ This chapter explores how the Pierre Fitness Platform uses Axum middleware to ex
 - Request/response tracing spans
 - Security headers and best practices
 
-## middleware stack overview
+## Middleware Stack Overview
 
 The Pierre platform uses a layered middleware stack that processes every HTTP request before it reaches handlers:
 
@@ -154,7 +154,7 @@ pub use tracing::RequestContext;
 
 The `middleware/mod.rs` file acts as a facade, re-exporting commonly used types from submodules. This allows handlers to `use crate::middleware::RequestId` instead of `use crate::middleware::request_id::RequestId`, reducing coupling to internal module organization.
 
-## request ID generation
+## Request ID Generation
 
 Every HTTP request receives a unique identifier for distributed tracing and log correlation:
 
@@ -210,7 +210,7 @@ async fn handler(Extension(request_id): Extension<RequestId>) -> String {
 
 The type system ensures you can't accidentally insert or extract the wrong type.
 
-### RequestId extractor
+### Requestid Extractor
 
 **Source**: src/middleware/request_id.rs:75-90
 ```rust
@@ -241,7 +241,7 @@ impl std::fmt::Display for RequestId {
 - Display trait: Use `{request_id}` in format strings
 - Documentation: Self-documenting API (function signature says "I need a RequestId")
 
-## request context and tracing
+## Request Context and Tracing
 
 The `RequestContext` struct flows through the entire request lifecycle, accumulating metadata:
 
@@ -313,7 +313,7 @@ let span = tracing::info_span!("request", user_id = tracing::field::Empty);
 context.record_in_span(); // Now span has user_id field
 ```
 
-### span creation utilities
+### Span Creation Utilities
 
 The platform provides helpers for creating tracing spans with pre-configured fields:
 
@@ -380,7 +380,7 @@ async fn handle_request() -> Result<Response> {
 }
 ```
 
-## CORS configuration
+## CORS Configuration
 
 The platform configures Cross-Origin Resource Sharing (CORS) for web client access:
 
@@ -482,7 +482,7 @@ config.cors.allowed_origins
 
 This handles malformed configuration gracefully without panicking.
 
-## rate limiting headers
+## Rate Limiting Headers
 
 The platform adds standard HTTP rate limiting headers to all responses:
 
@@ -518,7 +518,7 @@ pub mod headers {
 - `X-RateLimit-Tier`: User's subscription tier (e.g., "free", "premium")
 - `X-RateLimit-AuthMethod`: Authentication type (e.g., "JwtToken", "ApiKey")
 
-### creating rate limit headers
+### Creating Rate Limit Headers
 
 **Source**: src/middleware/rate_limiting.rs:34-82
 ```rust
@@ -579,7 +579,7 @@ pub fn create_rate_limit_headers(rate_limit_info: &UnifiedRateLimitInfo) -> Head
 
 The `X_RATE_LIMIT_WINDOW` uses `from_static` for compile-time constant strings, avoiding runtime allocation. For dynamic values, use `HeaderValue::from_str` which validates UTF-8 and HTTP header constraints.
 
-### rate limit error responses
+### Rate Limit Error Responses
 
 **Source**: src/middleware/rate_limiting.rs:84-111
 ```rust
@@ -626,7 +626,7 @@ async fn api_handler(auth: AuthResult) -> Result<Json<Response>> {
 }
 ```
 
-## PII redaction and data protection
+## Pii Redaction and Data Protection
 
 The platform redacts Personally Identifiable Information (PII) from logs to comply with GDPR, CCPA, and other privacy regulations:
 
@@ -719,7 +719,7 @@ export REDACT_PII=false
 export REDACTION_PLACEHOLDER="***"
 ```
 
-### sensitive headers
+### Sensitive Headers
 
 The platform redacts sensitive HTTP headers before logging:
 - `Authorization`: JWT tokens and API keys
@@ -728,7 +728,7 @@ The platform redacts sensitive HTTP headers before logging:
 - `X-Strava-Client-Secret`: Provider OAuth secrets
 - `X-Fitbit-Client-Secret`: Provider OAuth secrets
 
-### email masking
+### Email Masking
 
 Email addresses are masked to prevent PII leakage:
 ```rust
@@ -738,7 +738,7 @@ mask_email("john.doe@example.com")
 
 This preserves enough information for debugging (first letter and domain) while protecting user identity.
 
-## middleware ordering
+## Middleware Ordering
 
 Middleware order matters! The platform applies middleware in this sequence:
 
@@ -774,7 +774,7 @@ Axum uses Tower's `Layer` trait, which applies middleware in reverse order. The 
 CORS(RequestID(Tracing(Auth(Handler))))
 ```
 
-## security headers
+## Security Headers
 
 The platform adds security headers to all responses:
 - `X-Request-ID`: Request correlation ID
@@ -810,7 +810,7 @@ pub async fn security_headers_middleware(req: Request, next: Next) -> Response {
 }
 ```
 
-## key takeaways
+## Key Takeaways
 
 1. **Middleware stack**: Layered architecture processes requests through CORS, request ID, tracing, auth, tenant isolation, and rate limiting before reaching handlers.
 

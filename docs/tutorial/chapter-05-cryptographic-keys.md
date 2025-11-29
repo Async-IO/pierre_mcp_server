@@ -1,4 +1,4 @@
-# chapter 5: cryptographic key management
+# Chapter 5: Cryptographic Key Management
 
 > **Learning Objectives**: Master Pierre's two-tier key management system (MEK + DEK), understand RSA key generation for JWT signing, learn JWKS management, and use the `zeroize` crate for secure memory cleanup.
 >
@@ -8,7 +8,7 @@
 
 ---
 
-## introduction
+## Introduction
 
 Cryptography in production requires careful key management. Pierre implements a **two-tier key system**:
 
@@ -21,9 +21,9 @@ This chapter teaches secure key generation, storage, and the Rust patterns that 
 
 ---
 
-## two-tier key management system
+## Two-Tier Key Management System
 
-### architecture overview
+### Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -62,11 +62,11 @@ User Data
 
 ---
 
-## master encryption key (MEK)
+## Master Encryption Key MEK
 
 **Source**: `src/key_management.rs:14-188`
 
-### MEK structure
+### MEK Structure
 
 ```rust
 /// Master Encryption Key (MEK) - Tier 1
@@ -88,7 +88,7 @@ pub struct MasterEncryptionKey {
    - Forces use of safe accessor methods
    - Prevents accidental copying
 
-### loading MEK from environment
+### Loading MEK from Environment
 
 **Source**: `src/key_management.rs:40-75`
 
@@ -224,7 +224,7 @@ impl MasterEncryptionKey {
 
 **Reference**: [NIST AES-GCM Spec](https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf)
 
-### development key generation
+### Development Key Generation
 
 **Source**: `src/key_management.rs:77-122`
 
@@ -277,13 +277,13 @@ fn log_generated_key(key: &[u8; 32]) {
 
 ---
 
-## RSA keys for JWT signing
+## RSA Keys for JWT Signing
 
 Pierre uses **RS256** (RSA with SHA-256) for JWT signing, requiring RSA key pairs.
 
 **Source**: `src/admin/jwks.rs:87-133`
 
-### RSA key pair structure
+### RSA Key Pair Structure
 
 ```rust
 /// RSA key pair with metadata
@@ -308,7 +308,7 @@ pub struct RsaKeyPair {
 - **`public_key`**: Distributed via JWKS (anyone can verify)
 - **`is_active`**: Only one active key at a time
 
-### generating RSA keys
+### Generating RSA Keys
 
 **Source**: `src/admin/jwks.rs:103-133`
 
@@ -356,7 +356,7 @@ impl RsaKeyPair {
 
 **Reference**: [RSA Key Sizes](https://www.keylength.com/en/4/)
 
-### JWKS (JSON Web Key Set)
+### JWKS JSON Web Key Set)
 
 **Source**: `src/admin/jwks.rs:62-85`
 
@@ -413,7 +413,7 @@ pub struct JsonWebKeySet {
 
 **Reference**: [RFC 7517 - JSON Web Key](https://tools.ietf.org/html/rfc7517)
 
-### converting to JWK format
+### Converting to Jwk Format
 
 **Source**: `src/admin/jwks.rs:135-162`
 
@@ -461,13 +461,13 @@ impl RsaKeyPair {
 
 ---
 
-## Ed25519 for A2A authentication
+## Ed25519 for A2A Authentication
 
 A2A protocol uses **Ed25519** (elliptic curve) for faster, smaller signatures.
 
 **Source**: `src/crypto/keys.rs:16-66`
 
-### Ed25519 key generation
+### Ed25519 Key Generation
 
 ```rust
 /// Ed25519 keypair for A2A client authentication
@@ -518,13 +518,13 @@ impl A2AKeyManager {
 
 ---
 
-## zeroize: secure memory cleanup
+## Zeroize: Secure Memory Cleanup
 
 The `zeroize` crate prevents key material from lingering in memory.
 
 **Source**: `src/crypto/keys.rs:54`
 
-### the memory leak problem
+### The Memory Leak Problem
 
 ```rust
 // WITHOUT zeroize - INSECURE
@@ -548,7 +548,7 @@ fn generate_key() -> [u8; 32] {
 }
 ```
 
-### zeroize usage
+### Zeroize Usage
 
 **Source**: `src/crypto/keys.rs:45-55`
 
@@ -599,9 +599,9 @@ fn use_key() {
 
 ---
 
-## practical exercises
+## Practical Exercises
 
-### exercise 1: implement AES encryption
+### Exercise 1: Implement AES Encryption
 
 Implement encryption with AES-256-GCM:
 
@@ -617,7 +617,7 @@ fn encrypt_data(key: &[u8; 32], plaintext: &[u8]) -> Result<Vec<u8>> {
 }
 ```
 
-### exercise 2: use zeroize
+### Exercise 2: Use Zeroize
 
 Add secure cleanup to key generation:
 
@@ -640,7 +640,7 @@ fn generate_api_key() -> String {
 
 ---
 
-## key takeaways
+## Key Takeaways
 
 1. **Two-tier keys**: MEK from environment, DEK from database
 2. **AES-256-GCM**: Authenticated encryption with nonces
@@ -652,6 +652,6 @@ fn generate_api_key() -> String {
 
 ---
 
-## next chapter
+## Next Chapter
 
 [Chapter 6: JWT Authentication with RS256](./chapter-06-jwt-authentication.md) - Learn JWT token generation, validation, claims-based authorization, and the `jsonwebtoken` crate.

@@ -1,8 +1,8 @@
-# chapter 17: provider data models & rate limiting
+# Chapter 17: Provider Data Models & Rate Limiting
 
 This chapter explores how Pierre abstracts fitness provider APIs through unified interfaces and handles rate limiting across multiple providers. You'll learn about trait-based provider abstraction, provider-agnostic data models, retry logic, and tenant-aware provider wrappers.
 
-## what you'll learn
+## What You'll Learn
 
 - Trait-based provider abstraction
 - Provider-agnostic data models
@@ -14,7 +14,7 @@ This chapter explores how Pierre abstracts fitness provider APIs through unified
 - Cursor-based vs offset-based pagination
 - Optional trait methods with default implementations
 
-## provider abstraction architecture
+## Provider Abstraction Architecture
 
 Pierre uses a trait-based approach to abstract fitness provider differences:
 
@@ -41,7 +41,7 @@ Pierre uses a trait-based approach to abstract fitness provider differences:
 
 **Key benefit**: Pierre tools call `FitnessProvider` methods without knowing which provider implementation they're using.
 
-## FitnessProvider trait
+## Fitnessprovider Trait
 
 The trait defines a uniform interface for all fitness providers:
 
@@ -123,7 +123,7 @@ pub trait FitnessProvider: Send + Sync {
 - **Send + Sync**: Required for sharing across threads in async Rust
 - **Default implementations**: Optional methods like `get_sleep_sessions` have defaults that return `UnsupportedFeature`
 
-## rust idioms: async trait
+## Rust Idioms: Async Trait
 
 **Source**: src/providers/core.rs:53
 ```rust
@@ -146,7 +146,7 @@ trait FitnessProvider: Send + Sync {
 }
 ```
 
-## provider-agnostic data models
+## Provider-Agnostic Data Models
 
 Pierre defines unified data models that work across all providers:
 
@@ -218,7 +218,7 @@ pub struct Athlete {
 }
 ```
 
-## provider error types
+## Provider Error Types
 
 Pierre defines structured errors with retry information:
 
@@ -320,7 +320,7 @@ impl ProviderError {
 
 **Retryable errors**: Rate limits and network errors can be retried; authentication failures and not-found errors cannot.
 
-## retry logic with exponential backoff
+## Retry Logic with Exponential Backoff
 
 Pierre implements automatic retry with exponential backoff for rate limits:
 
@@ -437,7 +437,7 @@ Attempt 3: initial_backoff_ms * 2^2 = 4000ms  (4 seconds)
 
 **Why exponential backoff**: Prevents thundering herd problem where all clients retry simultaneously.
 
-## rust idioms: HRTB for generic deserialize
+## Rust Idioms: Hrtb for Generic Deserialize
 
 **Source**: src/providers/utils.rs:104-105
 ```rust
@@ -456,7 +456,7 @@ where
     T: Deserialize<'static>, // Too restrictive - only works for 'static lifetime
 ```
 
-## type conversion utilities
+## Type Conversion Utilities
 
 Providers return float values that need safe conversion to integers:
 
@@ -522,7 +522,7 @@ let duration_secs: f64 = activity_json["duration"].as_f64().unwrap_or(0.0);
 let duration: u64 = conversions::f64_to_u64(duration_secs);
 ```
 
-## tenant-aware provider wrapper
+## Tenant-Aware Provider Wrapper
 
 Pierre wraps providers with tenant context for isolation:
 
@@ -595,7 +595,7 @@ impl FitnessProvider for TenantProvider {
 - **Isolation**: Prevent cross-tenant data leaks
 - **Transparent**: Tools don't know they're using wrapped provider
 
-## cursor-based pagination
+## Cursor-Based Pagination
 
 Pierre supports cursor-based pagination for efficient data access:
 
@@ -627,7 +627,7 @@ pub struct CursorPage<T> {
 - **Performance**: Database can seek to cursor position efficiently
 - **Provider support**: Strava, Fitbit, Garmin all support cursor pagination
 
-## key takeaways
+## Key Takeaways
 
 1. **Trait-based abstraction**: `FitnessProvider` trait unifies all provider implementations.
 

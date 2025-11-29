@@ -1,10 +1,10 @@
-# configuration
+# Configuration
 
-## environment variables
+## Environment Variables
 
 Pierre Fitness Platform configured entirely via environment variables. No config files.
 
-### required variables
+### Required Variables
 
 ```bash
 # database
@@ -14,7 +14,7 @@ DATABASE_URL="sqlite:./data/users.db"  # or postgresql://...
 PIERRE_MASTER_ENCRYPTION_KEY="<base64_encoded_32_bytes>"
 ```
 
-### server configuration
+### Server Configuration
 
 ```bash
 # network
@@ -29,11 +29,11 @@ LOG_INCLUDE_THREAD=1              # include thread information (production: auto
 LOG_INCLUDE_SPANS=1               # include tracing spans (production: auto-enabled)
 ```
 
-### logging and observability
+### Logging and Observability
 
 Pierre provides production-ready logging with structured output, request correlation, and performance monitoring.
 
-#### http request logging
+#### HTTP Request Logging
 
 Automatic HTTP request/response logging via tower-http TraceLayer:
 
@@ -54,7 +54,7 @@ INFO request{method=GET uri=/api/activities}: tower_http::trace::on_response sta
 - `RUST_LOG=tower_http=info` - enable HTTP request logs (default)
 - `RUST_LOG=tower_http=debug` - add request/response headers
 
-#### structured logging (json format)
+#### Structured Logging (JSON Format)
 
 JSON format recommended for production deployments:
 
@@ -89,7 +89,7 @@ RUST_LOG=info
 2025-01-13T10:23:45.168Z  INFO tower_http::trace::on_response method=POST uri=/auth/login status=200 latency_ms=45: request completed
 ```
 
-#### request id correlation
+#### Request ID Correlation
 
 Every HTTP request receives unique X-Request-ID header for distributed tracing:
 
@@ -117,7 +117,7 @@ grep "550e8400-e29b-41d4-a716-446655440000" logs/pierre.log
 - trace request flow through database, APIs, external providers
 - essential for production troubleshooting
 
-#### performance monitoring
+#### Performance Monitoring
 
 Automatic timing spans for critical operations:
 
@@ -158,7 +158,7 @@ cat logs/pierre.log | jq 'select(.fields.api_call and .fields.duration_ms > 500)
 cat logs/pierre.log | jq -r 'select(.fields.route) | "\(.fields.route) \(.fields.duration_ms)"' | awk '{sum[$1]+=$2; count[$1]++} END {for (route in sum) print route, sum[route]/count[route]}'
 ```
 
-#### security and privacy
+#### Security and Privacy
 
 **no sensitive data logged**:
 - JWT secrets never logged (removed in production-ready improvements)
@@ -180,7 +180,7 @@ RUST_LOG=debug cargo run 2>&1 | grep -i "secret\|password\|token" | grep -v "acc
 - performance metrics (duration, status codes)
 - error categories (not full stack traces with sensitive data)
 
-### authentication
+### Authentication
 
 ```bash
 # jwt tokens
@@ -195,7 +195,7 @@ OAUTH2_ISSUER_URL=http://localhost:8081  # oauth2 discovery issuer url (default:
 PASSWORD_HASH_ALGORITHM=argon2    # argon2 or bcrypt (default: argon2)
 ```
 
-### fitness providers
+### Fitness Providers
 
 #### strava
 
@@ -212,7 +212,7 @@ STRAVA_REDIRECT_URI=https://api.example.com/api/oauth/callback/strava  # product
 
 Get credentials: https://www.strava.com/settings/api
 
-#### garmin
+#### Garmin
 
 ```bash
 GARMIN_CLIENT_ID=your_consumer_key
@@ -227,7 +227,7 @@ GARMIN_REDIRECT_URI=https://api.example.com/api/oauth/callback/garmin  # product
 
 Get credentials: https://developer.garmin.com/
 
-#### whoop
+#### Whoop
 
 ```bash
 WHOOP_CLIENT_ID=your_client_id
@@ -257,7 +257,24 @@ Get credentials: https://developer.whoop.com/
 - `read:recovery`: Recovery scores
 - `read:cycles`: Physiological cycle data
 
-#### fitbit
+#### Terra
+
+Terra provides unified access to 150+ wearable devices through a single API.
+
+```bash
+TERRA_API_KEY=your_api_key
+TERRA_DEV_ID=your_dev_id
+TERRA_WEBHOOK_SECRET=your_webhook_secret  # for webhook data ingestion
+```
+
+Get credentials: https://tryterra.co/
+
+**terra capabilities**:
+- Unified API for 150+ wearables (Garmin, Polar, WHOOP, Oura, etc.)
+- Webhook-based data ingestion
+- Activity, sleep, and health data aggregation
+
+#### Fitbit
 
 ```bash
 FITBIT_CLIENT_ID=your_id
@@ -282,7 +299,7 @@ Get credentials: https://dev.fitbit.com/apps
   - prevents credential interception
   - required by most oauth providers in production
 
-#### openweather (optional)
+#### OpenWeather (Optional)
 
 For weather-based recommendations:
 ```bash
@@ -291,11 +308,11 @@ OPENWEATHER_API_KEY=your_api_key
 
 Get key: https://openweathermap.org/api
 
-### algorithm configuration
+### Algorithm Configuration
 
 Fitness intelligence algorithms configurable via environment variables. Each algorithm has multiple variants with different accuracy, performance, and data requirements.
 
-#### max heart rate estimation
+#### Max Heart Rate Estimation
 
 ```bash
 PIERRE_MAXHR_ALGORITHM=tanaka  # default
@@ -307,7 +324,7 @@ PIERRE_MAXHR_ALGORITHM=tanaka  # default
 - `nes`: 211 - (0.64 × age) (most accurate for fit individuals)
 - `gulati`: 206 - (0.88 × age) (gender-specific for females)
 
-#### training impulse (trimp)
+#### Training Impulse (TRIMP)
 
 ```bash
 PIERRE_TRIMP_ALGORITHM=hybrid  # default
@@ -320,7 +337,7 @@ PIERRE_TRIMP_ALGORITHM=hybrid  # default
 - `lucia_banded`: Sport-specific intensity bands (cycling, running)
 - `hybrid`: Auto-select Bannister if data available, fallback to Edwards (default)
 
-#### training stress score (tss)
+#### Training Stress Score (TSS)
 
 ```bash
 PIERRE_TSS_ALGORITHM=avg_power  # default
@@ -331,7 +348,7 @@ PIERRE_TSS_ALGORITHM=avg_power  # default
 - `normalized_power`: Industry standard using 30s rolling window (requires power stream)
 - `hybrid`: Try normalized power, fallback to average power if stream unavailable
 
-#### vdot (running performance)
+#### VDOT (Running Performance)
 
 ```bash
 PIERRE_VDOT_ALGORITHM=daniels  # default
@@ -342,7 +359,7 @@ PIERRE_VDOT_ALGORITHM=daniels  # default
 - `riegel`: Power-law model (T2 = T1 × (D2/D1)^1.06) (good for ultra distances)
 - `hybrid`: Auto-select Daniels for 5K-Marathon, Riegel for ultra distances
 
-#### training load (ctl/atl/tsb)
+#### Training Load (CTL/ATL/TSB)
 
 ```bash
 PIERRE_TRAINING_LOAD_ALGORITHM=ema  # default
@@ -354,7 +371,7 @@ PIERRE_TRAINING_LOAD_ALGORITHM=ema  # default
 - `wma`: Weighted Moving Average (linear weights, compromise between EMA and SMA)
 - `kalman`: Kalman Filter (optimal for noisy data, complex tuning)
 
-#### recovery aggregation
+#### Recovery Aggregation
 
 ```bash
 PIERRE_RECOVERY_ALGORITHM=weighted  # default
@@ -367,7 +384,7 @@ PIERRE_RECOVERY_ALGORITHM=weighted  # default
 - `minmax`: Minimum score (conservative, limited by worst metric)
 - `neural`: ML-based aggregation (requires training data)
 
-#### functional threshold power (ftp)
+#### Functional Threshold Power (FTP)
 
 ```bash
 PIERRE_FTP_ALGORITHM=from_vo2max  # default
@@ -382,7 +399,7 @@ PIERRE_FTP_ALGORITHM=from_vo2max  # default
 - `from_vo2max`: Estimate from VO2max (FTP = VO2max × 13.5 × fitness_factor) (default)
 - `hybrid`: Try best available method based on recent activity data
 
-#### lactate threshold heart rate (lthr)
+#### Lactate Threshold Heart Rate (LTHR)
 
 ```bash
 PIERRE_LTHR_ALGORITHM=from_maxhr  # default
@@ -395,7 +412,7 @@ PIERRE_LTHR_ALGORITHM=from_maxhr  # default
 - `lab_test`: Direct lactate measurement (requires lab equipment)
 - `hybrid`: Auto-select best method from available data
 
-#### vo2max estimation
+#### VO2max Estimation
 
 ```bash
 PIERRE_VO2MAX_ALGORITHM=from_vdot  # default
@@ -429,7 +446,7 @@ export PIERRE_TRAINING_LOAD_ALGORITHM=kalman
 export PIERRE_RECOVERY_ALGORITHM=neural
 ```
 
-### database configuration
+### Database Configuration
 
 #### sqlite (development)
 
@@ -439,7 +456,7 @@ DATABASE_URL="sqlite:./data/users.db"
 
 Creates database file at path if not exists.
 
-#### postgresql (production)
+#### PostgreSQL (Production)
 
 ```bash
 DATABASE_URL="postgresql://user:pass@localhost:5432/pierre"
@@ -450,7 +467,7 @@ POSTGRES_MIN_CONNECTIONS=2        # min pool size (default: 2)
 POSTGRES_ACQUIRE_TIMEOUT=30       # connection timeout seconds (default: 30)
 ```
 
-### cache configuration
+### Cache Configuration
 
 ```bash
 # cache configuration (in-memory or redis)
@@ -461,7 +478,7 @@ CACHE_CLEANUP_INTERVAL_SECS=300   # cleanup interval in seconds (default: 300)
 REDIS_URL=redis://localhost:6379  # redis connection url
 ```
 
-### rate limiting
+### Rate Limiting
 
 ```bash
 # burst limits per tier (requests in short window)
@@ -478,7 +495,7 @@ OAUTH_REGISTER_RATE_LIMIT_RPM=10      # default: 10
 PIERRE_ADMIN_API_KEY_MONTHLY_LIMIT=10000
 ```
 
-### multi-tenancy
+### Multi-Tenancy
 
 ```bash
 # tenant isolation
@@ -489,7 +506,7 @@ TENANT_MAX_PROVIDERS=5            # max connected providers per tenant
 TENANT_DEFAULT_FEATURES="activity_analysis,goal_tracking"
 ```
 
-### security
+### Security
 
 ```bash
 # cors
@@ -504,11 +521,11 @@ TLS_CERT_PATH=/path/to/cert.pem
 TLS_KEY_PATH=/path/to/key.pem
 ```
 
-## fitness configuration
+## Fitness Configuration
 
 User-specific fitness parameters managed via mcp tools or rest api.
 
-### configuration profiles
+### Configuration Profiles
 
 Predefined fitness profiles:
 
@@ -518,7 +535,7 @@ Predefined fitness profiles:
 - `elite`: performance-optimized zones
 - `custom`: user-defined parameters
 
-### fitness parameters
+### Fitness Parameters
 
 ```json
 {
@@ -534,7 +551,7 @@ Predefined fitness profiles:
 }
 ```
 
-### training zones
+### Training Zones
 
 Automatically calculated based on profile:
 
@@ -555,7 +572,7 @@ Automatically calculated based on profile:
 }
 ```
 
-### updating configuration
+### Updating Configuration
 
 Via mcp tool:
 ```json
@@ -580,7 +597,7 @@ curl -X PUT http://localhost:8081/api/configuration/user \
   }'
 ```
 
-### configuration catalog
+### Configuration Catalog
 
 Get all available parameters:
 ```bash
@@ -594,11 +611,11 @@ Response describes each parameter:
 - default value
 - description
 
-## using direnv
+## Using direnv
 
 Recommended for local development.
 
-### setup
+### Setup
 
 ```bash
 brew install direnv
@@ -610,7 +627,7 @@ eval "$(direnv hook zsh)"  # or bash
 direnv allow
 ```
 
-### .envrc file
+### .envrc File
 
 Edit `.envrc` in project root:
 ```bash
@@ -632,7 +649,7 @@ fi
 
 Direnv automatically loads/unloads environment when entering/leaving directory.
 
-### .env.local (gitignored)
+### .env.local (Gitignored)
 
 Store secrets in `.env.local`:
 ```bash
@@ -641,7 +658,7 @@ export PIERRE_MASTER_ENCRYPTION_KEY="<generated_key>"
 export STRAVA_CLIENT_SECRET="<real_secret>"
 ```
 
-## production deployment
+## Production Deployment
 
 ### environment file
 
@@ -674,7 +691,7 @@ CACHE_MAX_ENTRIES=50000
 RATE_LIMIT_REQUESTS_PER_MINUTE=120
 ```
 
-### systemd service
+### systemd Service
 
 ```ini
 [Unit]
@@ -695,7 +712,7 @@ RestartSec=10
 WantedBy=multi-user.target
 ```
 
-### docker
+### Docker
 
 ```dockerfile
 FROM rust:1.70 as builder
@@ -728,7 +745,7 @@ docker run -d \
   pierre:latest
 ```
 
-## validation
+## Validation
 
 Check configuration at startup:
 ```bash
@@ -742,7 +759,7 @@ Logs show:
 - configured providers
 - listening address
 
-## troubleshooting
+## Troubleshooting
 
 ### missing environment variables
 
@@ -752,25 +769,25 @@ echo $DATABASE_URL
 echo $PIERRE_MASTER_ENCRYPTION_KEY
 ```
 
-### invalid database url
+### Invalid Database URL
 
 - sqlite: ensure directory exists
 - postgresql: verify connection string, credentials, database exists
 
-### provider oauth fails
+### Provider OAuth Fails
 
 - verify redirect uri exactly matches environment variable
 - ensure uri accessible from browser (not `127.0.0.1` for remote)
 - check provider console for correct credentials
 
-### port conflicts
+### Port Conflicts
 
 Change http_port:
 ```bash
 export HTTP_PORT=8082
 ```
 
-### encryption key errors
+### Encryption Key Errors
 
 Regenerate:
 ```bash
@@ -779,7 +796,7 @@ openssl rand -base64 32
 
 Must be exactly 32 bytes (base64 encoded = 44 characters).
 
-## references
+## References
 
 All configuration constants: `src/constants/mod.rs`
 Fitness profiles: `src/configuration/profiles.rs`

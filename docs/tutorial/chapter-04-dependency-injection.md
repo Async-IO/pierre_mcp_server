@@ -1,4 +1,4 @@
-# chapter 4: dependency injection with context pattern
+# Chapter 4: Dependency Injection with Context Pattern
 
 > **Learning Objectives**: Understand dependency injection in Rust using Arc<T>, learn the service locator anti-pattern and how Pierre is evolving toward focused contexts, master shared ownership patterns.
 >
@@ -8,7 +8,7 @@
 
 ---
 
-## introduction
+## Introduction
 
 Rust's ownership system makes dependency injection (DI) different from languages with garbage collection. You can't just pass references everywhere - you need to think about lifetimes and ownership.
 
@@ -22,7 +22,7 @@ Pierre uses **Arc<T>** (Atomic Reference Counting) for dependency injection, all
 
 ---
 
-## the problem: expensive resource creation
+## The Problem: Expensive Resource Creation
 
 Consider what happens without dependency injection:
 
@@ -51,11 +51,11 @@ async fn handle_request(user_id: &str) -> Result<Response> {
 
 ---
 
-## solution 1: dependency injection with Arc\<T\>
+## Solution 1: Dependency Injection with Arc\<T\>
 
 Arc (Atomic Reference Counting) enables shared ownership across threads.
 
-### Arc basics
+### Arc Basics
 
 ```rust
 use std::sync::Arc;
@@ -94,7 +94,7 @@ let db_clone = Arc::clone(&database);  // Or database.clone()
 
 **Reference**: [Rust Book - Arc](https://doc.rust-lang.org/book/ch16-03-shared-state.html#atomic-reference-counting-with-arct)
 
-### dependency injection example
+### Dependency Injection Example
 
 ```rust
 use std::sync::Arc;
@@ -140,7 +140,7 @@ struct AppState {
 
 ---
 
-## ServerResources: centralized dependency container
+## Serverresources: Centralized Dependency Container
 
 Pierre uses `ServerResources` as a central container for all dependencies.
 
@@ -206,7 +206,7 @@ pub struct ServerResources {
    - `None` means feature disabled
    - `Some(Arc<...>)` when enabled
 
-### creating ServerResources
+### Creating Serverresources
 
 **Source**: `src/mcp/resources.rs:85-150`
 
@@ -280,7 +280,7 @@ impl ServerResources {
    - Shows resource sharing happening
    - Comments explain why (see line 9 note about "Safe" clones)
 
-### using ServerResources
+### Using Serverresources
 
 **Source**: `src/bin/pierre-mcp-server.rs:182-220`
 
@@ -326,7 +326,7 @@ fn create_server(
 
 ---
 
-## the service locator anti-pattern
+## The Service Locator Anti-Pattern
 
 While `ServerResources` works, it's a **service locator anti-pattern**.
 
@@ -369,7 +369,7 @@ async fn process_activity(
 
 ---
 
-## solution 2: focused context pattern
+## Solution 2: Focused Context Pattern
 
 Pierre is evolving toward focused contexts that group related dependencies.
 
@@ -407,7 +407,7 @@ pub use notification::NotificationContext;
 pub use server::ServerContext;
 ```
 
-### focused context example
+### Focused Context Example
 
 ```rust
 // Conceptual example of focused contexts
@@ -503,7 +503,7 @@ tokio::spawn(async move {
 
 ---
 
-## interior mutability with Arc\<Mutex\<T\>\>
+## Interior Mutability with Arc\<Mutex\<T\>\>
 
 Arc provides shared ownership, but data is immutable. For mutable shared state, use `Mutex`.
 
@@ -549,7 +549,7 @@ for _ in 0..10 {
 
 ---
 
-## diagram: dependency injection flow
+## Diagram: Dependency Injection Flow
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -606,9 +606,9 @@ for _ in 0..10 {
 
 ---
 
-## practical exercises
+## Practical Exercises
 
-### exercise 1: implement dependency injection
+### Exercise 1: Implement Dependency Injection
 
 Create a simple service with dependency injection:
 
@@ -657,7 +657,7 @@ fn main() {
 }
 ```
 
-### exercise 2: convert to focused contexts
+### Exercise 2: Convert to Focused Contexts
 
 Refactor this service locator into focused contexts:
 
@@ -695,7 +695,7 @@ async fn authenticate(ctx: &AuthContext, token: &str) -> Result<User> {
 
 ---
 
-## rust idioms summary
+## Rust Idioms Summary
 
 | Idiom | Purpose | Example Location |
 |-------|---------|-----------------|
@@ -713,7 +713,7 @@ async fn authenticate(ctx: &AuthContext, token: &str) -> Result<User> {
 
 ---
 
-## key takeaways
+## Key Takeaways
 
 1. **Arc<T> enables shared ownership** - Thread-safe reference counting
 2. **Cloning Arc is cheap** - Just increments atomic counter
@@ -725,6 +725,6 @@ async fn authenticate(ctx: &AuthContext, token: &str) -> Result<User> {
 
 ---
 
-## next chapter
+## Next Chapter
 
 [Chapter 5: Cryptographic Key Management](./chapter-05-cryptographic-keys.md) - Learn Pierre's two-tier key management system (MEK + DEK), RSA key generation for JWT signing, and the `zeroize` crate for secure memory cleanup.

@@ -1,8 +1,8 @@
-# oauth client (fitness providers)
+# OAuth Client (Fitness Providers)
 
 Pierre acts as an oauth 2.0 client to connect to fitness providers (strava, fitbit, garmin) on behalf of users.
 
-## overview
+## Overview
 
 **oauth2_client module** (`src/oauth2_client/`):
 - pierre connects TO fitness providers as oauth client
@@ -14,19 +14,23 @@ Pierre acts as an oauth 2.0 client to connect to fitness providers (strava, fitb
 - oauth2_server: mcp clients connect TO pierre
 - oauth2_client: pierre connects TO fitness providers
 
-## supported providers
+## Supported Providers
 
-| provider | oauth version | pkce | scopes | implementation |
-|----------|--------------|------|--------|----------------|
-| strava | oauth 2.0 | required | `activity:read_all` | `src/providers/strava.rs` |
-| fitbit | oauth 2.0 | required | `activity`,`heartrate`,`location`,`nutrition`,`profile`,`settings`,`sleep`,`social`,`weight` | `src/providers/fitbit.rs` |
-| garmin | oauth 2.0 | required | `wellness:read`,`activities:read` | `src/providers/garmin_provider.rs` |
+| provider | oauth version | pkce | status | scopes | implementation |
+|----------|--------------|------|--------|--------|----------------|
+| strava | oauth 2.0 | required | active | `activity:read_all` | `src/providers/strava.rs` |
+| fitbit | oauth 2.0 | required | active | `activity`,`heartrate`,`location`,`nutrition`,`profile`,`settings`,`sleep`,`social`,`weight` | `src/providers/fitbit.rs` |
+| garmin | oauth 2.0 | required | active | `wellness:read`,`activities:read` | `src/providers/garmin_provider.rs` |
+| whoop | oauth 2.0 | required | active | `read:profile`,`read:body_measurement`,`read:workout`,`read:sleep`,`read:recovery`,`read:cycles` | `src/providers/whoop_provider.rs` |
+| terra | oauth 2.0 | required | active | device-dependent (150+ wearables) | `src/providers/terra_provider.rs` |
+
+**note**: providers require compile-time feature flags (`provider-strava`, `provider-fitbit`, `provider-whoop`, `provider-terra`, etc.).
 
 Implementation: `src/oauth2_client/mod.rs`
 
-## configuration
+## Configuration
 
-### environment variables
+### Environment Variables
 
 **strava:**
 ```bash
@@ -49,18 +53,26 @@ export GARMIN_CLIENT_SECRET=your_consumer_secret
 export GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin  # dev
 ```
 
+**whoop:**
+```bash
+export WHOOP_CLIENT_ID=your_client_id
+export WHOOP_CLIENT_SECRET=your_client_secret
+export WHOOP_REDIRECT_URI=http://localhost:8081/api/oauth/callback/whoop  # dev
+```
+
 **production:** use https redirect urls:
 ```bash
 export STRAVA_REDIRECT_URI=https://api.example.com/api/oauth/callback/strava
 export FITBIT_REDIRECT_URI=https://api.example.com/api/oauth/callback/fitbit
 export GARMIN_REDIRECT_URI=https://api.example.com/api/oauth/callback/garmin
+export WHOOP_REDIRECT_URI=https://api.example.com/api/oauth/callback/whoop
 ```
 
 Constants: `src/constants/oauth/providers.rs`
 
-## multi-tenant architecture
+## Multi-tenant Architecture
 
-### credential hierarchy
+### Credential Hierarchy
 
 Credentials resolved in priority order:
 1. **tenant-specific credentials** (database, encrypted)
@@ -68,7 +80,7 @@ Credentials resolved in priority order:
 
 Implementation: `src/oauth2_client/tenant_client.rs`
 
-### tenant oauth client
+### Tenant OAuth Client
 
 **`TenantOAuthClient`** (`src/oauth2_client/tenant_client.rs:36-49`):
 ```rust
@@ -82,7 +94,7 @@ pub struct TenantOAuthClient {
 - rate limiting per tenant per provider
 - automatic credential fallback to server config
 
-### storing tenant credentials
+### Storing Tenant Credentials
 
 **via authorization request headers:**
 ```bash
@@ -110,12 +122,13 @@ tenant_oauth_client.store_credentials(
 
 Implementation: `src/oauth2_client/tenant_client.rs:21-34`
 
-### rate limiting
+### Rate Limiting
 
 **default limits** (`src/tenant/oauth_manager.rs`):
 - strava: 1000 requests/day per tenant
 - fitbit: 150 requests/day per tenant
 - garmin: 1000 requests/day per tenant
+- whoop: 1000 requests/day per tenant
 
 **rate limit enforcement:**
 ```rust
@@ -132,9 +145,9 @@ if current_usage >= daily_limit {
 
 Implementation: `src/oauth2_client/tenant_client.rs:64-75`
 
-## oauth flow
+## OAuth Flow
 
-### step 1: initiate authorization
+### Step 1: Initiate Authorization
 
 **via mcp tool:**
 ```
@@ -153,7 +166,7 @@ curl -H "Authorization: Bearer <jwt>" \
 3. Generates authorization redirect url
 4. Returns http 302 redirect to provider
 
-### step 2: user authorizes at provider
+### Step 2: User Authorizes at Provider
 
 Pierre generates authorization url with:
 - **pkce s256 challenge** (128-character verifier)
@@ -184,7 +197,7 @@ pub fn generate() -> PkceParams {
 
 User authenticates with provider and grants permissions.
 
-### step 3: oauth callback
+### Step 3: OAuth Callback
 
 Provider redirects to pierre callback:
 ```
@@ -201,7 +214,7 @@ http://localhost:8081/api/oauth/callback/strava?
 5. Stores in database (tenant-isolated)
 6. Renders success page
 
-### step 4: success page
+### Step 4: Success Page
 
 User sees branded html page:
 - provider name and connection status
@@ -212,9 +225,9 @@ User sees branded html page:
 Template: `templates/oauth_success.html`
 Renderer: `src/oauth2_client/flow_manager.rs:350-393`
 
-## token management
+## Token Management
 
-### oauth2token structure
+### OAuth2Token Structure
 
 **`OAuth2Token`** (`src/oauth2_client/client.rs:61-82`):
 ```rust
@@ -239,7 +252,7 @@ impl OAuth2Token {
 }
 ```
 
-### storage
+### Storage
 
 Tokens stored in `users` table with provider-specific columns:
 
@@ -258,7 +271,7 @@ strava_scope            TEXT      -- comma-separated
 
 Implementation: `src/database/tokens.rs`, `src/crypto/`, `src/key_management.rs`
 
-### automatic refresh
+### Automatic Refresh
 
 Pierre refreshes expired tokens before api requests:
 
@@ -266,38 +279,32 @@ Pierre refreshes expired tokens before api requests:
 - access token expired or expiring within 5 minutes
 - refresh token available and valid
 
-**refresh flow** (`src/oauth2_client/client.rs:178-230`):
+**refresh flow** (`src/oauth2_client/client.rs:272-302`):
 ```rust
-pub async fn refresh_token(
-    &self,
-    refresh_token: &str,
-    code_verifier: Option<&str>,
-) -> Result<OAuth2Token> {
-    let mut params = vec![
-        ("grant_type", "refresh_token"),
+pub async fn refresh_token(&self, refresh_token: &str) -> AppResult<OAuth2Token> {
+    let params = [
+        ("client_id", self.config.client_id.as_str()),
+        ("client_secret", self.config.client_secret.as_str()),
         ("refresh_token", refresh_token),
-        ("client_id", &self.config.client_id),
-        ("client_secret", &self.config.client_secret),
+        ("grant_type", "refresh_token"),
     ];
 
-    if let Some(verifier) = code_verifier {
-        params.push(("code_verifier", verifier));
-    }
-
-    let response = self.client
+    let response: TokenResponse = self
+        .client
         .post(&self.config.token_url)
         .form(&params)
         .send()
         .await?
-        .json::<TokenResponse>()
+        .json()
         .await?;
 
-    // Convert to OAuth2Token with expiry calculation
-    Ok(OAuth2Token { ... })
+    Ok(Self::token_from_response(response))
 }
 ```
 
-### manual token operations
+Note: PKCE (`code_verifier`) is only used during authorization code exchange, not token refresh per RFC 7636.
+
+### Manual Token Operations
 
 **get token:**
 ```rust
@@ -325,7 +332,7 @@ database.clear_oauth_token(user_id, "strava").await?;
 
 Implementation: `src/database/tokens.rs`
 
-## connection status
+## Connection Status
 
 **check connection:**
 ```bash
@@ -363,9 +370,9 @@ Use the `disconnect_provider` MCP tool to revoke a provider connection; there is
 
 Implementation: `src/routes/auth.rs`
 
-## security features
+## Security Features
 
-### pkce (proof key for code exchange)
+### PKCE (Proof Key for Code Exchange)
 
 **implementation** (`src/oauth2_client/client.rs:27-59`):
 
@@ -383,7 +390,7 @@ All provider oauth flows use pkce (rfc 7636):
 
 Prevents authorization code interception attacks.
 
-### state parameter validation
+### State Parameter Validation
 
 **state format:** `{user_id}:{random_uuid}`
 
@@ -394,7 +401,7 @@ Prevents authorization code interception attacks.
 
 Invalid state results in authorization rejection.
 
-### token encryption
+### Token Encryption
 
 **encryption** (`src/crypto/`, `src/key_management.rs`):
 - algorithm: aes-256-gcm
@@ -413,7 +420,7 @@ Decryption requires:
 2. Correct tenant_id
 3. Valid encryption nonce
 
-### tenant isolation
+### Tenant Isolation
 
 Oauth artifacts never shared between tenants:
 - credentials stored per tenant_id
@@ -425,9 +432,9 @@ Cross-tenant access prevented at database layer.
 
 Implementation: `src/tenant/oauth_manager.rs`
 
-## provider-specific details
+## Provider-specific Details
 
-### strava
+### Strava
 
 **auth url:** `https://www.strava.com/oauth/authorize`
 **token url:** `https://www.strava.com/oauth/token`
@@ -451,7 +458,7 @@ Implementation: `src/tenant/oauth_manager.rs`
 
 Implementation: `src/providers/strava.rs`, `src/providers/strava_provider.rs`
 
-### fitbit
+### Fitbit
 
 **auth url:** `https://www.fitbit.com/oauth2/authorize`
 **token url:** `https://api.fitbit.com/oauth2/token`
@@ -479,7 +486,7 @@ Implementation: `src/providers/strava.rs`, `src/providers/strava_provider.rs`
 
 Implementation: `src/providers/fitbit.rs`
 
-### garmin
+### Garmin
 
 **auth url:** `https://connect.garmin.com/oauthConfirm`
 **token url:** `https://connectapi.garmin.com/oauth-service/oauth/access_token`
@@ -501,13 +508,38 @@ Implementation: `src/providers/fitbit.rs`
 - access token: 1 year
 - refresh token: not provided (long-lived access token)
 
-**status:** in development
-
 Implementation: `src/providers/garmin_provider.rs`
 
-## error handling
+### WHOOP
 
-### authorization errors
+**auth url:** `https://api.prod.whoop.com/oauth/oauth2/auth`
+**token url:** `https://api.prod.whoop.com/oauth/oauth2/token`
+**api base:** `https://api.prod.whoop.com/developer/v1`
+
+**default scopes:** `offline read:profile read:body_measurement read:workout read:sleep read:recovery read:cycles`
+
+**scope details:**
+- `offline` - offline access for token refresh
+- `read:profile` - user profile information
+- `read:body_measurement` - body measurements (weight, height)
+- `read:workout` - workout/activity data with strain scores
+- `read:sleep` - sleep sessions and metrics
+- `read:recovery` - daily recovery scores
+- `read:cycles` - physiological cycle data
+
+**rate limits:**
+- varies by endpoint
+- standard api rate limiting applies
+
+**token lifetime:**
+- access token: 1 hour
+- refresh token: long-lived (requires `offline` scope)
+
+Implementation: `src/providers/whoop_provider.rs`
+
+## Error Handling
+
+### Authorization Errors
 
 Displayed on html error page (`templates/oauth_error.html`):
 
@@ -519,7 +551,7 @@ Displayed on html error page (`templates/oauth_error.html`):
 
 Renderer: `src/oauth2_client/flow_manager.rs:329-347`
 
-### callback errors
+### Callback Errors
 
 Returned as query parameters:
 ```
@@ -528,7 +560,7 @@ http://localhost:8081/api/oauth/callback/strava?
   error_description=User+declined+authorization
 ```
 
-### token errors
+### Token Errors
 
 **expired token:**
 - automatically refreshed before api request
@@ -550,9 +582,9 @@ http://localhost:8081/api/oauth/callback/strava?
 
 Implementation: `src/providers/errors.rs`
 
-## troubleshooting
+## Troubleshooting
 
-### authorization fails
+### Authorization Fails
 
 **symptom:** redirect to provider fails or returns error
 
@@ -562,7 +594,7 @@ Implementation: `src/providers/errors.rs`
 - ensure redirect_uri uses https in production
 - confirm provider api credentials active and approved
 
-### callback error: state validation failed
+### Callback Error: State Validation Failed
 
 **symptom:** `invalid state parameter` error on callback
 
@@ -572,7 +604,7 @@ Implementation: `src/providers/errors.rs`
 - verify tenant association correct
 - confirm no url encoding issues in state parameter
 
-### token refresh fails
+### Token Refresh Fails
 
 **symptom:** api requests fail with authentication error
 
@@ -582,7 +614,7 @@ Implementation: `src/providers/errors.rs`
 - ensure network connectivity to provider api
 - re-authorize user to obtain new tokens
 
-### rate limit exceeded
+### Rate Limit Exceeded
 
 **symptom:** api requests rejected with rate limit error
 
@@ -592,7 +624,7 @@ Implementation: `src/providers/errors.rs`
 - request rate limit increase from provider
 - optimize api call patterns to reduce requests
 
-### encryption key mismatch
+### Encryption Key Mismatch
 
 **symptom:** cannot decrypt stored tokens
 
@@ -602,7 +634,7 @@ Implementation: `src/providers/errors.rs`
 - ensure key not rotated without token re-encryption
 - re-authorize users if key changed
 
-## implementation references
+## Implementation References
 
 - oauth2 client: `src/oauth2_client/client.rs`
 - oauth flow manager: `src/oauth2_client/flow_manager.rs`
@@ -613,7 +645,7 @@ Implementation: `src/providers/errors.rs`
 - route handlers: `src/routes/auth.rs`
 - templates: `templates/oauth_success.html`, `templates/oauth_error.html`
 
-## see also
+## See Also
 
 - [oauth2 server](oauth2-server.md) - mcp client authentication
 - [authentication](authentication.md) - authentication methods and jwt tokens

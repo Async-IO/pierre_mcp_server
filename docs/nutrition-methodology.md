@@ -1,6 +1,6 @@
-# pierre nutrition and usda integration methodology
+# Pierre Nutrition and USDA Integration Methodology
 
-## what this document covers
+## What This Document Covers
 
 This comprehensive guide explains the scientific methods, algorithms, and data integration behind pierre's nutrition system. It provides transparency into:
 
@@ -16,11 +16,11 @@ This comprehensive guide explains the scientific methods, algorithms, and data i
 
 ---
 
-## ⚠️ implementation status: production-ready
+## ⚠️ Implementation Status: Production-Ready
 
 **as of 2025-10-31**, pierre's nutrition system has been built from scratch using peer-reviewed sports nutrition science and usda fooddata central integration:
 
-### what was implemented ✅
+### What Was Implemented ✅
 - **mifflin-st jeor bmr**: most accurate resting energy expenditure formula (±10% error vs indirect calorimetry)
 - **tdee calculation**: activity-based multipliers from mcardle exercise physiology textbook
 - **protein recommendations**: sport-specific ranges from phillips & van loon sports nutrition research
@@ -31,7 +31,7 @@ This comprehensive guide explains the scientific methods, algorithms, and data i
 - **meal analysis**: multi-food calculations with accurate macro summations
 - **input validation**: age (10-120), weight (0-300kg), height (0-300cm) bounds checking
 
-### verification ✅
+### Verification ✅
 - **39 algorithm tests**: bmr (4), tdee (5), protein (5), carbs (4), fat (3), complete nutrition (3), timing (3), edge cases (13)
 - **formula accuracy**: mifflin-st jeor within 1 kcal of hand calculations
 - **macro summing**: percentages always sum to 100% ±0.1%
@@ -44,7 +44,7 @@ This comprehensive guide explains the scientific methods, algorithms, and data i
 
 ---
 
-## architecture overview
+## Architecture Overview
 
 Pierre's nutrition system uses a **foundation modules** approach integrated with usda fooddata central:
 
@@ -73,7 +73,7 @@ Pierre's nutrition system uses a **foundation modules** approach integrated with
          NUTRITION FOUNDATION MODULE
 ```
 
-### nutrition calculator module
+### Nutrition Calculator Module
 
 **`src/intelligence/nutrition_calculator.rs`** - core nutrition algorithms
 - **mifflin-st jeor bmr** calculation with gender-specific constants
@@ -85,7 +85,7 @@ Pierre's nutrition system uses a **foundation modules** approach integrated with
 - **protein distribution** across meals for muscle protein synthesis
 - **input validation** with physiological bounds checking
 
-### usda integration module
+### USDA Integration Module
 
 **`src/external/usda_client.rs`** - fooddata central api client
 - **async http client** with configurable timeout and rate limiting
@@ -103,13 +103,13 @@ Pierre's nutrition system uses a **foundation modules** approach integrated with
 
 ---
 
-## 1. basal metabolic rate (bmr) calculation
+## 1. Basal Metabolic Rate (BMR) Calculation
 
-### mifflin-st jeor formula (1990)
+### Mifflin-St Jeor Formula (1990)
 
 **most accurate formula** for resting energy expenditure (±10% error vs indirect calorimetry), superior to harris-benedict.
 
-#### formula
+#### Formula
 
 **for males:**
 ```
@@ -121,7 +121,7 @@ bmr = (10 × weight_kg) + (6.25 × height_cm) - (5 × age) + 5
 bmr = (10 × weight_kg) + (6.25 × height_cm) - (5 × age) - 161
 ```
 
-#### implementation
+#### Implementation
 
 `src/intelligence/nutrition_calculator.rs:169-207`
 
@@ -163,7 +163,7 @@ pub fn calculate_mifflin_st_jeor(
 }
 ```
 
-#### example calculations
+#### Example Calculations
 
 **example 1: 30-year-old male, 75kg, 180cm**
 ```
@@ -179,7 +179,7 @@ bmr = 600 + 1031.25 - 125 - 161
 bmr = 1345 kcal/day
 ```
 
-#### configuration
+#### Configuration
 
 `src/config/intelligence_config.rs:423-438`
 
@@ -195,7 +195,7 @@ pub struct BmrConfig {
 }
 ```
 
-#### scientific reference
+#### Scientific Reference
 
 **mifflin, m.d., et al. (1990)**
 *"a new predictive equation for resting energy expenditure in healthy individuals"*
@@ -210,13 +210,13 @@ Doi: 10.1093/ajcn/51.2.241
 
 ---
 
-## 2. total daily energy expenditure (tdee)
+## 2. Total Daily Energy Expenditure (TDEE)
 
-### activity factor multipliers
+### Activity Factor Multipliers
 
 **tdee** = bmr × activity factor
 
-#### activity levels
+#### Activity Levels
 
 Based on mcardle, katch & katch exercise physiology (2010):
 
@@ -228,7 +228,7 @@ Based on mcardle, katch & katch exercise physiology (2010):
 | very active | 6-7 days/week | 1.725 | daily training, athlete |
 | extra active | 2×/day hard training | 1.9 | professional athlete |
 
-#### implementation
+#### Implementation
 
 `src/intelligence/nutrition_calculator.rs:209-245`
 
@@ -254,12 +254,12 @@ pub fn calculate_tdee(
 }
 ```
 
-#### example calculations
+#### Example Calculations
 
 **sedentary: bmr 1500 × 1.2 = 1800 kcal/day**
 **very active: bmr 1500 × 1.725 = 2587 kcal/day**
 
-#### configuration
+#### Configuration
 
 `src/config/intelligence_config.rs:444-455`
 
@@ -275,11 +275,11 @@ pub struct ActivityFactorsConfig {
 
 ---
 
-## 3. macronutrient recommendations
+## 3. Macronutrient Recommendations
 
-### protein needs
+### Protein Needs
 
-#### recommendations by activity and goal
+#### Recommendations by Activity and Goal
 
 Based on phillips & van loon (2011) doi: 10.1080/02640414.2011.619204:
 
@@ -291,7 +291,7 @@ Based on phillips & van loon (2011) doi: 10.1080/02640414.2011.619204:
 | very/extra active | strength/muscle gain | 2.2 | muscle protein synthesis |
 | any | weight loss | 1.8 | muscle preservation |
 
-#### implementation
+#### Implementation
 
 `src/intelligence/nutrition_calculator.rs:274-313`
 
@@ -333,9 +333,9 @@ pub fn calculate_protein_needs(
 }
 ```
 
-### carbohydrate needs
+### Carbohydrate Needs
 
-#### recommendations by activity and goal
+#### Recommendations by Activity and Goal
 
 Based on burke et al. (2011) doi: 10.1080/02640414.2011.585473:
 
@@ -346,7 +346,7 @@ Based on burke et al. (2011) doi: 10.1080/02640414.2011.585473:
 | very/extra active | muscle gain | 7.2 (6.0 × 1.2) | anabolic support |
 | any | endurance | 10.0 | high glycogen demand |
 
-#### implementation
+#### Implementation
 
 `src/intelligence/nutrition_calculator.rs:336-365`
 
@@ -383,16 +383,16 @@ pub fn calculate_carb_needs(
 }
 ```
 
-### fat needs
+### Fat Needs
 
-#### dri guidelines
+#### DRI Guidelines
 
 Dietary reference intakes (institute of medicine):
 - **minimum**: 20% of tdee (hormone production, vitamin absorption)
 - **optimal**: 25-30% of tdee (satiety, performance)
 - **maximum**: 35% of tdee (avoid excess)
 
-#### implementation
+#### Implementation
 
 `src/intelligence/nutrition_calculator.rs:392-435`
 
@@ -434,7 +434,7 @@ pub fn calculate_fat_needs(
 }
 ```
 
-### configuration
+### Configuration
 
 `src/config/intelligence_config.rs:464-487`
 
@@ -461,9 +461,9 @@ pub struct MacronutrientConfig {
 
 ---
 
-## 4. nutrient timing
+## 4. Nutrient Timing
 
-### pre-workout nutrition
+### Pre-workout Nutrition
 
 Based on kerksick et al. (2017) doi: 10.1186/s12970-017-0189-4:
 
@@ -473,19 +473,19 @@ Based on kerksick et al. (2017) doi: 10.1186/s12970-017-0189-4:
 - moderate intensity: 0.75 g/kg
 - high intensity: 0.975 g/kg (1.3 × 0.75)
 
-### post-workout nutrition
+### Post-workout Nutrition
 
 **timing**: within 2 hours (flexible - total daily intake matters most)
 **protein**: 20-40g (muscle protein synthesis threshold)
 **carbohydrates**: 0.8-1.2 g/kg (glycogen restoration)
 
-### protein distribution
+### Protein Distribution
 
 **optimal**: 4 meals/day with even protein distribution
 **minimum**: 3 meals/day
 **rationale**: muscle protein synthesis maximized with 0.4-0.5 g/kg per meal
 
-#### implementation
+#### Implementation
 
 `src/intelligence/nutrition_calculator.rs:539-606`
 
@@ -543,7 +543,7 @@ pub fn calculate_nutrient_timing(
 }
 ```
 
-### configuration
+### Configuration
 
 `src/config/intelligence_config.rs:495-512`
 
@@ -562,9 +562,9 @@ pub struct NutrientTimingConfig {
 
 ---
 
-## 5. usda fooddata central integration
+## 5. USDA FoodData Central Integration
 
-### api overview
+### API Overview
 
 **usda fooddata central** provides access to:
 - **350,000+ foods** in the database
@@ -573,11 +573,11 @@ pub struct NutrientTimingConfig {
 - **foundation foods** with detailed nutrient profiles
 - **sr legacy foods** from usda nutrient database
 
-### client implementation
+### Client Implementation
 
 `src/external/usda_client.rs:1-233`
 
-#### real client (production)
+#### Real Client (Production)
 
 ```rust
 pub struct UsdaClient {
@@ -618,7 +618,7 @@ impl UsdaClient {
 }
 ```
 
-#### mock client (testing)
+#### Mock Client (Testing)
 
 ```rust
 pub struct MockUsdaClient;
@@ -680,7 +680,7 @@ impl MockUsdaClient {
 }
 ```
 
-### configuration
+### Configuration
 
 `src/config/intelligence_config.rs:514-522`
 
@@ -696,7 +696,7 @@ pub struct UsdaApiConfig {
 
 ---
 
-## 6. mcp tool integration
+## 6. MCP Tool Integration
 
 Pierre exposes 5 nutrition tools via mcp protocol:
 
@@ -757,7 +757,7 @@ Pierre exposes 5 nutrition tools via mcp protocol:
 }
 ```
 
-### search_foods (usda)
+### search_foods (USDA)
 
 **searches usda fooddata central database**
 
@@ -774,7 +774,7 @@ Pierre exposes 5 nutrition tools via mcp protocol:
 }
 ```
 
-### get_food_details (usda)
+### get_food_details (USDA)
 
 **retrieves complete nutrient breakdown for a food**
 
@@ -843,13 +843,13 @@ Pierre exposes 5 nutrition tools via mcp protocol:
 
 ---
 
-## 7. testing and verification
+## 7. Testing and Verification
 
-### comprehensive test suite
+### Comprehensive Test Suite
 
 **39 algorithm tests** covering all nutrition calculations:
 
-#### test categories
+#### Test Categories
 
 **bmr calculations (4 tests)**
 - male/female typical cases
@@ -895,7 +895,7 @@ Pierre exposes 5 nutrition tools via mcp protocol:
 - all intensity levels
 - invalid inputs handling
 
-### test execution
+### Test Execution
 
 `tests/nutrition_comprehensive_test.rs:1-902`
 
@@ -907,7 +907,7 @@ cargo test --test nutrition_comprehensive_test
 test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
 
-### formula verification
+### Formula Verification
 
 **mifflin-st jeor accuracy**:
 - 30yo male, 75kg, 180cm: calculated 1730 kcal (matches hand calculation)
@@ -922,7 +922,7 @@ test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
 ---
 
-## 8. configuration and customization
+## 8. Configuration and Customization
 
 All nutrition parameters are configurable via `src/config/intelligence_config.rs`:
 
@@ -936,7 +936,7 @@ pub struct NutritionConfig {
 }
 ```
 
-### environment variables
+### Environment Variables
 
 ```bash
 # USDA API (optional - mock client available for testing)
@@ -947,7 +947,7 @@ export HTTP_PORT=8081
 export DATABASE_URL=sqlite:./data/users.db
 ```
 
-### dependency injection
+### Dependency Injection
 
 All calculation functions accept configuration structs:
 - **testable**: inject mock configs for testing
@@ -956,9 +956,9 @@ All calculation functions accept configuration structs:
 
 ---
 
-## 9. scientific references
+## 9. Scientific References
 
-### bmr and energy expenditure
+### BMR and Energy Expenditure
 
 1. **mifflin, m.d., et al. (1990)**
    - "a new predictive equation for resting energy expenditure"
@@ -969,7 +969,7 @@ All calculation functions accept configuration structs:
    - exercise physiology: nutrition, energy, and human performance
    - lippincott williams & wilkins
 
-### protein recommendations
+### Protein Recommendations
 
 3. **phillips, s.m., & van loon, l.j. (2011)**
    - "dietary protein for athletes: from requirements to optimum adaptation"
@@ -981,14 +981,14 @@ All calculation functions accept configuration structs:
    - british journal of sports medicine, 52(6), 376-384
    - doi: 10.1136/bjsports-2017-097608
 
-### carbohydrate recommendations
+### Carbohydrate Recommendations
 
 5. **burke, l.m., et al. (2011)**
    - "carbohydrates for training and competition"
    - journal of sports sciences, 29(sup1), s17-s27
    - doi: 10.1080/02640414.2011.585473
 
-### nutrient timing
+### Nutrient Timing
 
 6. **kerksick, c.m., et al. (2017)**
    - "international society of sports nutrition position stand: nutrient timing"
@@ -1000,7 +1000,7 @@ All calculation functions accept configuration structs:
    - journal of the international society of sports nutrition, 10(1), 5
    - doi: 10.1186/1550-2783-10-5
 
-### fat recommendations
+### Fat Recommendations
 
 8. **institute of medicine (2005)**
    - dietary reference intakes for energy, carbohydrate, fiber, fat, fatty acids, cholesterol, protein, and amino acids
@@ -1008,9 +1008,9 @@ All calculation functions accept configuration structs:
 
 ---
 
-## 10. implementation roadmap
+## 10. Implementation Roadmap
 
-### phase 1: foundation (complete ✅)
+### Phase 1: Foundation (Complete ✅)
 - [x] bmr calculation (mifflin-st jeor)
 - [x] tdee calculation with activity factors
 - [x] protein recommendations by activity/goal
@@ -1020,7 +1020,7 @@ All calculation functions accept configuration structs:
 - [x] input validation and bounds checking
 - [x] 39 comprehensive algorithm tests
 
-### phase 2: usda integration (complete ✅)
+### Phase 2: USDA Integration (Complete ✅)
 - [x] usda client with async api calls
 - [x] food search functionality
 - [x] food details retrieval
@@ -1028,14 +1028,14 @@ All calculation functions accept configuration structs:
 - [x] meal analysis with multi-food support
 - [x] nutrient summation calculations
 
-### phase 3: mcp tools (complete ✅)
+### Phase 3: MCP Tools (Complete ✅)
 - [x] calculate_daily_nutrition tool
 - [x] calculate_nutrient_timing tool
 - [x] search_foods tool
 - [x] get_food_details tool
 - [x] analyze_meal_nutrition tool
 
-### phase 4: future enhancements
+### Phase 4: Future Enhancements
 - [ ] meal planning tool (weekly meal generation)
 - [ ] recipe nutrition analysis
 - [ ] micronutrient tracking (vitamins, minerals)
@@ -1045,38 +1045,38 @@ All calculation functions accept configuration structs:
 
 ---
 
-## 11. limitations and considerations
+## 11. Limitations and Considerations
 
-### age range
+### Age Range
 - **validated**: 10-120 years
 - **optimal accuracy**: adults 18-65 years
 - **pediatric**: mifflin-st jeor not validated for children under 10
 
-### activity level estimation
+### Activity Level Estimation
 - **subjective**: users may overestimate activity
 - **recommendation**: start conservative (lower activity level)
 - **adjustment**: monitor results and adjust over 2-4 weeks
 
-### individual variation
+### Individual Variation
 - **bmr variance**: ±10% between individuals
 - **metabolic adaptation**: tdee may decrease with prolonged deficit
 - **recommendation**: use calculations as starting point, adjust based on results
 
-### athletic populations
+### Athletic Populations
 - **elite athletes**: may need higher protein (2.2-2.4 g/kg)
 - **ultra-endurance**: may need higher carbs (12+ g/kg)
 - **strength athletes**: may benefit from higher fat (30-35%)
 
-### medical conditions
+### Medical Conditions
 - **contraindications**: diabetes, kidney disease, metabolic disorders
 - **recommendation**: consult healthcare provider before dietary changes
 - **monitoring**: regular health checkups recommended
 
 ---
 
-## 12. usage examples
+## 12. Usage Examples
 
-### example 1: calculate daily nutrition
+### Example 1: Calculate Daily Nutrition
 
 **input:**
 ```rust
@@ -1114,7 +1114,7 @@ DailyNutritionNeeds {
 }
 ```
 
-### example 2: nutrient timing
+### Example 2: Nutrient Timing
 
 **input:**
 ```rust
@@ -1146,7 +1146,7 @@ NutrientTimingPlan {
 }
 ```
 
-### example 3: meal analysis
+### Example 3: Meal Analysis
 
 **input:**
 ```json
@@ -1175,9 +1175,9 @@ NutrientTimingPlan {
 
 ---
 
-## appendix: formula derivations
+## Appendix: Formula Derivations
 
-### mifflin-st jeor regression coefficients
+### Mifflin-St Jeor Regression Coefficients
 
 **derived from 498-subject study:**
 
@@ -1197,7 +1197,7 @@ NutrientTimingPlan {
 - male (+5): accounts for higher lean mass percentage
 - female (-161): accounts for higher fat mass percentage
 
-### activity factor derivation
+### Activity Factor Derivation
 
 **based on doubly labeled water studies:**
 

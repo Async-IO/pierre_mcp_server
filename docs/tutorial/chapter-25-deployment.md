@@ -1,8 +1,8 @@
-# chapter 25: production deployment, clippy & performance
+# Chapter 25: Production Deployment, Clippy & Performance
 
 This chapter covers production deployment strategies, Clippy lint configuration for code quality, performance optimization techniques, and monitoring best practices for Pierre.
 
-## what you'll learn
+## What You'll Learn
 
 - Production deployment architecture
 - Clippy lint configuration
@@ -12,7 +12,7 @@ This chapter covers production deployment strategies, Clippy lint configuration 
 - Security hardening
 - Scaling strategies
 
-## clippy configuration
+## Clippy Configuration
 
 Pierre uses strict Clippy lints to maintain code quality.
 
@@ -46,7 +46,7 @@ module_name_repetitions = "allow"
 
 **Why deny unwrap**: Prevents runtime panics in production. Use `?` operator or `unwrap_or` instead.
 
-## production deployment
+## Production Deployment
 
 Pierre deployment architecture:
 
@@ -73,7 +73,7 @@ Pierre deployment architecture:
 5. **Logging**: Configure `RUST_LOG=info`
 6. **Monitoring**: Enable Prometheus metrics endpoint
 
-## performance optimization
+## Performance Optimization
 
 **Database connection pooling**:
 ```rust
@@ -101,7 +101,7 @@ tokio = { version = "1", features = ["full"] }
 - **Blocking threads**: Separate pool for blocking operations
 - **Stack size**: Increase if deep recursion needed
 
-## monitoring
+## Monitoring
 
 **Metrics to track**:
 1. **Request latency**: P50, P95, P99 response times
@@ -120,7 +120,7 @@ tracing::info!(
 );
 ```
 
-## security hardening
+## Security Hardening
 
 **Production security**:
 1. **TLS only**: Redirect HTTP to HTTPS
@@ -141,7 +141,7 @@ export HTTP_PORT="8081"
 export CORS_ALLOWED_ORIGINS="https://app.pierre.ai"
 ```
 
-## scaling strategies
+## Scaling Strategies
 
 **Horizontal scaling**:
 - **Load balancer**: Nginx/HAProxy distributes requests
@@ -159,7 +159,7 @@ export CORS_ALLOWED_ORIGINS="https://app.pierre.ai"
 - **OAuth flow**: Complete in < 5 seconds
 - **Throughput**: 1000 req/sec per instance
 
-## key takeaways
+## Key Takeaways
 
 1. **Clippy lints**: Strict lints (`deny` unwrap, panic, todo) prevent common errors.
 2. **Connection pooling**: Reuse database connections for performance.

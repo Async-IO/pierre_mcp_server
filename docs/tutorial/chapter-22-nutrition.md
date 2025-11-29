@@ -1,8 +1,8 @@
-# chapter 22: nutrition system & USDA integration
+# Chapter 22: Nutrition System & USDA Integration
 
 This chapter covers Pierre's nutrition system including daily calorie/macro calculations, USDA food database integration, meal analysis, and nutrient timing for athletes. You'll learn about energy expenditure estimation, protein requirements, and post-workout nutrition windows.
 
-## what you'll learn
+## What You'll Learn
 
 - Daily calorie and macro calculation
 - USDA FoodData Central API integration
@@ -13,7 +13,7 @@ This chapter covers Pierre's nutrition system including daily calorie/macro calc
 - Carbohydrate periodization
 - Hydration recommendations
 
-## daily nutrition calculation
+## Daily Nutrition Calculation
 
 Pierre calculates personalized daily nutrition needs based on training load.
 
@@ -49,7 +49,7 @@ Or use heart rate-based:
 Calories = duration_min × (0.6309 × HR + 0.1988 × weight_kg + 0.2017 × age - 55.0969) / 4.184
 ```
 
-## macronutrient targets
+## Macronutrient Targets
 
 Pierre recommends macros based on sport and training phase.
 
@@ -80,7 +80,7 @@ Fat: Remaining = (2800 - 392 - 1680) / 9 = 81g (728 kcal)
 Macros: 14% protein / 60% carbs / 26% fat
 ```
 
-## USDA FoodData Central integration
+## USDA FoodData Central Integration
 
 Pierre integrates with USDA's food database for nutrition data.
 
@@ -139,7 +139,7 @@ async fn search_food(query: &str) -> Result<Vec<FoodSearchResult>> {
 }
 ```
 
-## meal nutrition analysis
+## Meal Nutrition Analysis
 
 Pierre analyzes complete meals from multiple foods.
 
@@ -174,7 +174,7 @@ Pierre analyzes complete meals from multiple foods.
 }
 ```
 
-## nutrient timing
+## Nutrient Timing
 
 Pierre provides timing recommendations for optimal performance and recovery.
 
@@ -200,7 +200,7 @@ Pierre provides timing recommendations for optimal performance and recovery.
 - **Protein synthesis**: Elevated 24-48 hours (not just 30min window)
 - **Practical**: Eat within 2 hours, total daily intake matters most
 
-## carbohydrate periodization
+## Carbohydrate Periodization
 
 Pierre adjusts carb intake based on training intensity.
 
@@ -230,7 +230,7 @@ Saturday (long):    70kg × 9g = 630g carbs
 Sunday (race):      70kg × 10g = 700g carbs
 ```
 
-## hydration recommendations
+## Hydration Recommendations
 
 Pierre calculates sweat rate and hydration needs.
 
@@ -257,7 +257,7 @@ Sweat Rate = (70.0 - 69.2 + 0.5 - 0) / 1 = 1.3 L/hr
 - **Average**: 500-800 mg/L
 - **Heavy/salty sweaters**: 800-1200 mg/L
 
-## key takeaways
+## Key Takeaways
 
 1. **TDEE calculation**: BMR + activity + exercise + TEF determines daily calorie needs.
 

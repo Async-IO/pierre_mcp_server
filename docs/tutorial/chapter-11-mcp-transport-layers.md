@@ -1,8 +1,8 @@
-# chapter 11: MCP transport layers
+# Chapter 11: MCP Transport Layers
 
 This chapter explores how the Pierre Fitness Platform supports multiple transport mechanisms for MCP communication. You'll learn about stdio, HTTP, WebSocket, and SSE transports, and how the platform coordinates them for flexible client integration.
 
-## what you'll learn
+## What You'll Learn
 
 - Transport layer abstraction for MCP protocol
 - stdio transport for command-line clients
@@ -14,7 +14,7 @@ This chapter explores how the Pierre Fitness Platform supports multiple transpor
 - Transport-agnostic request processing
 - Error handling per transport type
 
-## transport abstraction overview
+## Transport Abstraction Overview
 
 MCP is transport-agnostic - the same JSON-RPC messages work over any transport:
 
@@ -55,7 +55,7 @@ impl TransportManager {
 
 **Design**: Single `TransportManager` coordinates all transports using `broadcast::channel` for notifications.
 
-## stdio transport
+## Stdio Transport
 
 The stdio transport reads JSON-RPC from stdin and writes to stdout:
 
@@ -144,7 +144,7 @@ impl StdioTransport {
 
 The `BufReader::new(stdin).lines()` pattern provides async line iteration. Each `next_line()` call waits for a complete line (terminated by `\n`), which matches JSON-RPC line-delimited protocol.
 
-## HTTP transport
+## HTTP Transport
 
 HTTP transport serves MCP over REST endpoints:
 
@@ -193,7 +193,7 @@ GET  /oauth/authorize   - OAuth flow start
 POST /oauth/callback    - OAuth callback
 ```
 
-## SSE transport (notifications)
+## Sse Transport (Notifications)
 
 Server-Sent Events provide server-to-client notifications:
 
@@ -227,7 +227,7 @@ data: {"jsonrpc":"2.0","method":"notifications/oauth_completed","params":{"provi
 
 ```
 
-## WebSocket transport (bidirectional)
+## Websocket Transport (Bidirectional)
 
 WebSocket provides full-duplex bidirectional communication for real-time updates:
 
@@ -452,7 +452,7 @@ pub fn start_periodic_updates(&self) {
 
 The `ws.split()` pattern separates the WebSocket into independent read and write halves. This allows concurrent sending/receiving without conflicts. The `mpsc::unbounded_channel` bridges the write half to the message handler, decoupling message generation from socket I/O.
 
-## transport coordination
+## Transport Coordination
 
 The `TransportManager` starts all transports concurrently:
 
@@ -506,7 +506,7 @@ async fn start_legacy_unified_server(&self, port: u16) -> Result<()> {
 
 **Concurrency**: All transports run in separate `tokio::spawn` tasks, allowing simultaneous HTTP and stdio clients.
 
-## notification broadcasting
+## Notification Broadcasting
 
 The `broadcast::channel` distributes notifications to all transports:
 
@@ -531,7 +531,7 @@ notification_sender.send(OAuthCompletedNotification {
 
 The `broadcast::channel` allows multiple subscribers. When a notification is sent, all active subscribers receive it. This is perfect for distributing OAuth completion events to stdio and SSE transports simultaneously.
 
-## key takeaways
+## Key Takeaways
 
 1. **Transport abstraction**: MCP protocol is transport-agnostic. Same JSON-RPC messages work over stdio, HTTP, SSE, and WebSocket.
 

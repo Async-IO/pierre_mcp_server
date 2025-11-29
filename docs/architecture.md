@@ -1,8 +1,8 @@
-# architecture
+# Architecture
 
-Pierre Fitness Platform is a multi-protocol fitness data platform that connects AI assistants to strava, garmin, and fitbit. Single binary, single port (8081), multiple protocols.
+Pierre Fitness Platform is a multi-protocol fitness data platform that connects AI assistants to strava, garmin, fitbit, whoop, and terra (150+ wearables). Single binary, single port (8081), multiple protocols.
 
-## system design
+## System Design
 
 ```
 ┌─────────────────┐
@@ -41,58 +41,61 @@ Pierre Fitness Platform is a multi-protocol fitness data platform that connects 
 └─────────────────────────────────────────┘
 ```
 
-## core components
+## Core Components
 
-### protocols layer (`src/protocols/`)
+### Protocols Layer (`src/protocols/`)
 - `universal/` - protocol-agnostic business logic
 - shared by mcp and a2a protocols
 - dozens of fitness tools (activities, analysis, goals, sleep, recovery, nutrition, configuration)
 
-### mcp implementation (`src/mcp/`)
+### MCP Implementation (`src/mcp/`)
 - json-rpc 2.0 over http
 - sse transport for streaming
 - tool registry and execution
 
-### oauth2 server (`src/oauth2_server/`)
+### OAuth2 Server (`src/oauth2_server/`)
 - rfc 7591 dynamic client registration
 - rfc 7636 pkce support
 - jwt access tokens for mcp clients
 
-### oauth2 client (`src/oauth2_client/`)
+### OAuth2 Client (`src/oauth2_client/`)
 - pierre connects to fitness providers as oauth client
 - pkce support for enhanced security
 - automatic token refresh
 - multi-tenant credential isolation
 
-### providers (`src/providers/`)
+### Providers (`src/providers/`)
 - **pluggable provider architecture**: factory pattern with runtime registration
-- **feature flags**: compile-time provider selection (`provider-strava`, `provider-garmin`, `provider-synthetic`)
+- **feature flags**: compile-time provider selection (`provider-strava`, `provider-garmin`, `provider-fitbit`, `provider-whoop`, `provider-terra`, `provider-synthetic`)
 - **service provider interface (spi)**: `ProviderDescriptor` trait for external provider registration
 - **bitflags capabilities**: efficient `ProviderCapabilities` with combinators (`full_health()`, `full_fitness()`)
 - **1 to x providers simultaneously**: supports strava + garmin + custom providers at once
 - **provider registry**: `ProviderRegistry` manages all providers with dynamic discovery
-- **environment-based config**: cloud-native configuration via `PIERRE_<PROVIDER>_*` env vars
+- **environment-based config**: cloud-native configuration via `PIERRE_<PROVIDER>_*` env vars:
+  - `PIERRE_STRAVA_CLIENT_ID`, `PIERRE_STRAVA_CLIENT_SECRET` (also: legacy `STRAVA_CLIENT_ID`)
+  - `PIERRE_<PROVIDER>_AUTH_URL`, `PIERRE_<PROVIDER>_TOKEN_URL`, `PIERRE_<PROVIDER>_SCOPES`
+  - Falls back to hardcoded defaults if env vars not set
 - **shared `FitnessProvider` trait**: uniform interface for all providers
-- **built-in providers**: strava, garmin, synthetic (oauth-free dev/testing)
+- **built-in providers**: strava, garmin, fitbit, whoop, terra (150+ wearables), synthetic (oauth-free dev/testing)
 - **oauth parameters**: `OAuthParams` captures provider-specific oauth differences (scope separator, pkce)
 - **dynamic discovery**: `supported_providers()` and `is_supported()` for runtime introspection
 - **zero code changes**: add new providers without modifying tools or connection handlers
 - **unified oauth token management**: per-provider credentials with automatic refresh
 
-### intelligence (`src/intelligence/`)
+### Intelligence (`src/intelligence/`)
 - activity analysis and insights
 - performance trend detection
 - training load calculation
 - goal feasibility analysis
 
-### database (`src/database/`)
+### Database (`src/database/`)
 - **repository pattern**: 13 focused repositories following SOLID principles
 - repository accessors: `db.users()`, `db.oauth_tokens()`, `db.api_keys()`, `db.profiles()`, etc.
 - pluggable backend (sqlite, postgresql) via `src/database_plugins/`
 - encrypted token storage
 - multi-tenant isolation
 
-#### repository architecture
+#### Repository Architecture
 
 The database layer implements the repository pattern to break down the monolithic `DatabaseProvider` god-trait into focused, cohesive repositories (commit 6f3efef):
 
@@ -127,16 +130,16 @@ let api_key = db.api_keys().get_by_key(key).await?;
 - **testability**: mock individual repositories independently
 - **maintainability**: changes isolated to specific repositories
 
-### authentication (`src/auth.rs`)
+### Authentication (`src/auth.rs`)
 - jwt token generation/validation
 - api key management
 - rate limiting per tenant
 
-## error handling
+## Error Handling
 
 Pierre Fitness Platform uses structured error types for precise error handling and propagation. The codebase **does not use anyhow** - all errors are structured types using `thiserror` (commits b592b5e, 3219f07).
 
-### error type hierarchy
+### Error Type Hierarchy
 
 ```
 AppError (src/errors.rs)
@@ -148,7 +151,7 @@ AppError (src/errors.rs)
 └── Internal
 ```
 
-### error types
+### Error Types
 
 **DatabaseError** (`src/database/errors.rs`):
 - `NotFound`: entity not found (user, token, oauth client)
@@ -169,7 +172,7 @@ AppError (src/errors.rs)
 - http status code mapping
 - structured error responses with context
 
-### error propagation
+### Error Propagation
 
 All fallible operations return `Result<T, E>` types with **structured error types only**:
 ```rust
@@ -194,7 +197,7 @@ let activities = provider.fetch_activities().await?;
 
 **no blanket anyhow conversions**: the codebase enforces zero-tolerance for `impl From<anyhow::Error>` via static analysis (`scripts/lint-and-test.sh`) to prevent loss of type information.
 
-### error responses
+### Error Responses
 
 Structured json error responses:
 ```json
@@ -219,7 +222,7 @@ Http status mapping:
 
 Implementation: `src/errors.rs`, `src/database/errors.rs`, `src/providers/errors.rs`
 
-## request flow
+## Request Flow
 
 ```
 client request
@@ -238,7 +241,7 @@ client request
     └─ rest → direct handlers
     ↓
 [tool execution]
-    ├─ providers (strava/garmin/fitbit)
+    ├─ providers (strava/garmin/fitbit/whoop)
     ├─ intelligence (analysis)
     └─ configuration
     ↓
@@ -247,7 +250,7 @@ client request
 response
 ```
 
-## multi-tenancy
+## Multi-Tenancy
 
 Every request operates within tenant context:
 - isolated data per tenant
@@ -255,23 +258,91 @@ Every request operates within tenant context:
 - custom rate limits
 - feature flags
 
-## key design decisions
+## Key Design Decisions
 
-### single port architecture
+### Single Port Architecture
 All protocols share port 8081. Simplified deployment, easier oauth2 callback handling, unified tls/security.
 
-### dependency injection via serverresources
-All components initialized once at startup, shared via `Arc<T>`. Eliminates resource creation anti-patterns.
+### Focused Context Dependency Injection
 
-### protocol abstraction
+Replaces service locator anti-pattern with focused contexts providing type-safe DI with minimal coupling.
+
+**context hierarchy** (`src/context/`):
+```
+ServerContext
+├── AuthContext       (auth_manager, auth_middleware, admin_jwt_secret, jwks_manager)
+├── DataContext       (database, provider_registry, activity_intelligence)
+├── ConfigContext     (config, tenant_oauth_client, a2a_client_manager)
+└── NotificationContext (websocket_manager, oauth_notification_sender)
+```
+
+**usage pattern**:
+```rust
+// Access specific contexts from ServerContext
+let user = ctx.data().database().users().get_by_id(id).await?;
+let token = ctx.auth().auth_manager().validate_token(jwt)?;
+```
+
+**benefits**:
+- **single responsibility**: each context handles one domain
+- **interface segregation**: handlers depend only on needed contexts
+- **testability**: mock individual contexts independently
+- **type safety**: compile-time verification of dependencies
+
+**migration**: `ServerContext::from(&ServerResources)` provides gradual migration path.
+
+### Protocol Abstraction
 Business logic in `protocols::universal` works for both mcp and a2a. Write once, use everywhere.
 
-### pluggable architecture
+### Pluggable Architecture
 - database: sqlite (dev) or postgresql (prod)
 - cache: in-memory lru or redis (distributed caching)
 - tools: compile-time plugin system via `linkme`
 
-## file structure
+### SDK Architecture
+
+**TypeScript SDK** (`sdk/`): stdio→http bridge for MCP clients (Claude Desktop, ChatGPT).
+
+```
+MCP Client (Claude Desktop)
+    ↓ stdio (json-rpc)
+pierre-mcp-client (npm package)
+    ↓ http (json-rpc)
+Pierre MCP Server (rust)
+```
+
+**key features**:
+- automatic oauth2 token management (browser-based auth flow)
+- token refresh handling
+- secure credential storage via system keychain
+- npx deployment: `npx -y pierre-mcp-client@next --server http://localhost:8081`
+
+Implementation: `sdk/src/bridge.ts`, `sdk/src/cli.ts`
+
+### Type Mapping System
+
+**rust→typescript type generation**: auto-generates TypeScript interfaces from server JSON schemas.
+
+```
+src/mcp/schema.rs (tool definitions)
+    ↓ npm run generate-types
+sdk/src/types.ts (47 parameter interfaces)
+```
+
+**type-safe json schemas** (`src/types/json_schemas.rs`):
+- replaces dynamic `serde_json::Value` with typed structs
+- compile-time validation via serde
+- fail-fast error handling with clear error messages
+- backwards compatibility via field aliases (`#[serde(alias = "type")]`)
+
+**generated types include**:
+- `ToolParamsMap` - maps tool names to parameter types
+- `ToolName` - union type of all 45 tool names
+- common data types: `Activity`, `Athlete`, `Stats`, `FitnessConfig`
+
+Usage: `npm run generate-types` (requires running server on port 8081)
+
+## File Structure
 
 ```
 src/
@@ -292,6 +363,7 @@ src/
 │   └── ...                    # user, oauth token, api key management modules
 ├── database_plugins/          # database backends (sqlite, postgresql)
 ├── admin/                     # admin authentication
+├── context/                   # focused di contexts (auth, data, config, notification)
 ├── auth.rs                    # authentication
 ├── tenant/                    # multi-tenancy
 ├── tools/                     # tool execution engine
@@ -299,10 +371,15 @@ src/
 ├── config/                    # configuration
 ├── constants/                 # constants and defaults
 ├── crypto/                    # encryption utilities
+├── types/                     # type-safe json schemas
 └── lib.rs                     # public api
+sdk/                           # typescript mcp client
+├── src/bridge.ts              # stdio→http bridge
+├── src/types.ts               # auto-generated types
+└── test/                      # integration tests
 ```
 
-## security layers
+## Security Layers
 
 1. **transport**: https/tls
 2. **authentication**: jwt tokens, api keys
@@ -316,24 +393,24 @@ src/
    - prevents race conditions in token exchange
    - database-level atomicity guarantees
 
-## scalability
+## Scalability
 
-### horizontal scaling
+### Horizontal Scaling
 Stateless server design. Scale by adding instances behind load balancer. Shared postgresql and optional redis for distributed cache.
 
-### database sharding
+### Database Sharding
 - tenant-based sharding
 - time-based partitioning for historical data
 - provider-specific tables
 
-### caching strategy
+### Caching Strategy
 - health checks: 30s ttl
 - mcp sessions: lru cache (10k entries)
 - weather data: configurable ttl
 - distributed cache: redis support for multi-instance deployments
 - in-memory fallback: lru cache with automatic eviction
 
-## plugin lifecycle
+## Plugin Lifecycle
 
 Compile-time plugin system using `linkme` crate for intelligence modules.
 
@@ -354,11 +431,11 @@ No runtime loading, zero overhead plugin discovery.
 
 Implementation: `src/intelligence/plugins/mod.rs`, `src/lifecycle/`
 
-## algorithm dependency injection
+## Algorithm Dependency Injection
 
 Zero-overhead algorithm dispatch using rust enums instead of hardcoded formulas.
 
-### design pattern
+### Design Pattern
 
 Fitness intelligence uses enum-based dependency injection for all calculation algorithms:
 
@@ -380,7 +457,7 @@ impl VdotAlgorithm {
 }
 ```
 
-### benefits
+### Benefits
 
 **compile-time dispatch**: zero runtime overhead, inlined by llvm
 **configuration flexibility**: runtime algorithm selection via environment variables
@@ -389,7 +466,7 @@ impl VdotAlgorithm {
 **maintainability**: all algorithm logic in single enum file
 **no magic strings**: type-safe algorithm selection
 
-### algorithm types
+### Algorithm Types
 
 Nine algorithm categories with multiple variants each:
 
@@ -429,7 +506,7 @@ Nine algorithm categories with multiple variants each:
    - from_vdot, cooper, rockport, astrand, bruce, hybrid
    - environment: `PIERRE_VO2MAX_ALGORITHM`
 
-### configuration integration
+### Configuration Integration
 
 Algorithms configured via `src/config/intelligence_config.rs`:
 
@@ -449,7 +526,7 @@ pub struct AlgorithmConfig {
 
 Defaults optimized for balanced accuracy vs data requirements.
 
-### enforcement
+### Enforcement
 
 Automated validation ensures no hardcoded algorithms bypass the enum system.
 
@@ -465,7 +542,7 @@ Exclusions documented in validation patterns (e.g., tests, algorithm enum files)
 
 Ci pipeline fails on algorithm di violations (zero tolerance).
 
-### hybrid algorithms
+### Hybrid Algorithms
 
 Special variant that provides defensive fallback logic:
 
@@ -486,7 +563,7 @@ impl TssAlgorithm {
 
 Hybrid algorithms maximize reliability while preferring accuracy when data available.
 
-### usage pattern
+### Usage Pattern
 
 All intelligence calculations use algorithm enums:
 
@@ -503,7 +580,7 @@ No hardcoded formulas anywhere in intelligence layer.
 
 Implementation: `src/intelligence/algorithms/`, `src/config/intelligence_config.rs`, `scripts/validate-algorithm-di.sh`
 
-## pii redaction
+## PII Redaction
 
 Middleware layer removes sensitive data from logs and responses.
 
@@ -522,7 +599,7 @@ Redaction patterns:
 Enabled via `LOG_FORMAT=json` for structured logging.
 Implementation: `src/middleware/redaction.rs`
 
-## cursor pagination
+## Cursor Pagination
 
 Keyset pagination using composite cursor (`created_at`, `id`) for consistent ordering.
 
@@ -545,7 +622,7 @@ Endpoints using cursor pagination:
 
 Implementation: `src/pagination/`, `src/database/users.rs:668-737`, `src/database_plugins/postgres.rs:378-420`
 
-## monitoring
+## Monitoring
 
 Health endpoint: `GET /health`
 - database connectivity

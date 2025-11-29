@@ -1,8 +1,8 @@
-# appendix G: TypeScript SDK & CLI usage
+# Appendix G: TypeScript SDK & CLI Usage
 
 This appendix explains how to use the Pierre TypeScript SDK and command-line interface to connect MCP hosts to the Pierre server. You'll learn about the main SDK entry points, CLI flags, and environment-driven configuration.
 
-## what you'll learn
+## What You'll Learn
 
 - SDK entrypoint and exports (`sdk/src/index.ts`)
 - Bridge client configuration (`sdk/src/bridge.ts`, see Chapter 13)
@@ -10,7 +10,7 @@ This appendix explains how to use the Pierre TypeScript SDK and command-line int
 - Environment variables for headless/CI usage
 - Graceful shutdown and process lifecycle
 
-## SDK entrypoint
+## SDK Entrypoint
 
 The SDK exposes the MCP bridge client and all generated tool types from a single module.
 
@@ -50,7 +50,7 @@ await client.start();
 
 Programmatic usage is mostly relevant if you are embedding Pierre into a larger Node-based MCP host; for most users, the CLI wrapper is the primary entrypoint.
 
-## CLI overview
+## CLI Overview
 
 The CLI wraps `PierreMcpClient` and exposes it as a standard MCP client binary.
 
@@ -88,7 +88,7 @@ const program = new Command();
 - `commander` handles argument parsing, default values, and `--help` output.
 - The CLI is intended to be invoked by an MCP host (e.g., Claude Desktop, VS Code, etc.).
 
-## CLI options & environment variables
+## CLI Options & Environment Variables
 
 The CLI exposes a set of options with sensible environment fallbacks.
 
@@ -138,7 +138,7 @@ pierre-mcp-client \
   --no-browser
 ```
 
-## bridge configuration wiring
+## Bridge Configuration Wiring
 
 The CLI simply maps parsed options into a `BridgeConfig` and starts the bridge.
 
@@ -174,7 +174,7 @@ The CLI simply maps parsed options into a `BridgeConfig` and starts the bridge.
 
 See **Chapter 13** for a deeper dive into `PierreMcpClient` and the `BridgeConfig` fields (OAuth flows, secure token storage, proactive connections, etc.). The CLI is a thin wrapper on that logic.
 
-## graceful shutdown
+## Graceful Shutdown
 
 The CLI handles termination signals and calls `bridge.stop()` to clean up resources.
 
@@ -218,7 +218,7 @@ program.parse();
 - MCP hosts often manage client processes; clean shutdown avoids leaving stuck TCP connections or zombie OAuth callback servers.
 - Double-pressing Ctrl+C forces immediate exit if shutdown is already in progress.
 
-## typical MCP host configuration
+## Typical MCP Host Configuration
 
 Most MCP hosts require a JSON manifest pointing to the CLI binary, for example:
 
@@ -236,7 +236,7 @@ Most MCP hosts require a JSON manifest pointing to the CLI binary, for example:
 
 The host spawns `pierre-mcp-client`, speaks JSON-RPC 2.0 over stdio, and the bridge translates MCP calls into HTTP/OAuth interactions with the Pierre server.
 
-## key takeaways
+## Key Takeaways
 
 1. **SDK entrypoint**: `sdk/src/index.ts` re-exports `PierreMcpClient`, `BridgeConfig`, and all tool types for programmatic use.
 2. **CLI wrapper**: `pierre-mcp-client` is a thin layer over `PierreMcpClient` that wires CLI options into `BridgeConfig`.

@@ -1,8 +1,8 @@
-# chapter 21: training load, recovery & sleep analysis
+# Chapter 21: Training Load, Recovery & Sleep Analysis
 
 This chapter covers how Pierre analyzes recovery metrics, sleep quality, training load management, and provides rest day suggestions. You'll learn about recovery score calculation, sleep stage analysis, HRV interpretation, and overtraining detection.
 
-## what you'll learn
+## What You'll Learn
 
 - Recovery score calculation
 - Sleep quality analysis
@@ -13,7 +13,7 @@ This chapter covers how Pierre analyzes recovery metrics, sleep quality, trainin
 - Training load vs recovery balance
 - Fatigue indicators
 
-## recovery score calculation
+## Recovery Score Calculation
 
 Pierre calculates a composite recovery score from multiple metrics.
 
@@ -42,7 +42,7 @@ Recovery Score = (
 - **50-69**: Partial recovery, easy-moderate training
 - **< 50**: Poor recovery, rest day recommended
 
-## sleep quality analysis
+## Sleep Quality Analysis
 
 Pierre analyzes sleep sessions from Fitbit, Garmin, and other providers.
 
@@ -65,7 +65,7 @@ Pierre analyzes sleep sessions from Fitbit, Garmin, and other providers.
 - **75-85%**: Fair
 - **< 75%**: Poor (consider sleep hygiene improvements)
 
-## HRV (heart rate variability)
+## HRV (heart Rate Variability)
 
 HRV measures nervous system recovery via beat-to-beat timing variation.
 
@@ -83,7 +83,7 @@ HRV measures nervous system recovery via beat-to-beat timing variation.
 
 **HRV trends matter more than absolute values**: Compare to personal baseline rather than population norms.
 
-## overtraining detection
+## Overtraining Detection
 
 Pierre monitors for overtraining syndrome indicators.
 
@@ -103,7 +103,7 @@ IF resting_hr > baseline + 8 AND hrv < baseline × 0.8 AND tsb < -30:
     ALERT: Overtraining risk detected
 ```
 
-## rest day suggestions
+## REST Day Suggestions
 
 Pierre suggests rest days based on accumulated fatigue.
 
@@ -139,7 +139,7 @@ fn suggest_rest_day(
 - **Active recovery**: Easy 20-30 min at < 60% max HR
 - **Light cross-training**: Different sport, low intensity
 
-## training load vs recovery balance
+## Training Load vs Recovery Balance
 
 Pierre tracks the balance between training stress and recovery.
 
@@ -157,7 +157,7 @@ Peak Phase:     TSB +15 to +25, weekly TSS -30%
 Race Day:       TSB +20 to +30 (fresh and rested)
 ```
 
-## sleep optimization recommendations
+## Sleep Optimization Recommendations
 
 Pierre provides personalized sleep recommendations.
 
@@ -173,7 +173,7 @@ Pierre provides personalized sleep recommendations.
 - **Before race/key workout**: 8-9 hours recommended
 - **Naps**: 20-30 min power naps OK, avoid long naps (>90 min)
 
-## key takeaways
+## Key Takeaways
 
 1. **Recovery score**: Composite metric from sleep, HRV, RHR, training load, and sleep debt.
 

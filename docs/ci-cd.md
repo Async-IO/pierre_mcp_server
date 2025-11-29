@@ -1,8 +1,8 @@
-# ci/cd pipeline
+# CI/CD Pipeline
 
 Comprehensive documentation for the GitHub Actions continuous integration and deployment workflows.
 
-## overview
+## Overview
 
 The project uses five specialized GitHub Actions workflows that validate different aspects of the codebase:
 
@@ -16,9 +16,9 @@ The project uses five specialized GitHub Actions workflows that validate differe
 
 All workflows run on pushes to `main`, `debug/*`, `feature/*`, `claude/*` branches and on pull requests to `main`.
 
-## workflow details
+## Workflow Details
 
-### rust workflow
+### Rust Workflow
 
 **File**: `.github/workflows/rust.yml`
 
@@ -53,7 +53,7 @@ STRAVA_CLIENT_SECRET="test_client_secret_ci"
 STRAVA_REDIRECT_URI="http://localhost:8080/auth/strava/callback"
 ```
 
-### backend ci workflow
+### Backend CI Workflow
 
 **File**: `.github/workflows/ci.yml`
 
@@ -103,7 +103,7 @@ POSTGRES_MIN_CONNECTIONS=1
 POSTGRES_ACQUIRE_TIMEOUT=20
 ```
 
-### cross-platform tests workflow
+### Cross-Platform Tests Workflow
 
 **File**: `.github/workflows/cross-platform.yml`
 
@@ -154,7 +154,7 @@ POSTGRES_ACQUIRE_TIMEOUT=20
 - Coverage generation (focused on compatibility)
 - Heavy validation steps (delegated to other workflows)
 
-### sdk tests workflow
+### SDK Tests Workflow
 
 **File**: `.github/workflows/sdk-tests.yml`
 
@@ -186,7 +186,7 @@ POSTGRES_ACQUIRE_TIMEOUT=20
 - **Integration**: SDK ↔ Rust server communication
 - **E2E**: Complete workflow testing
 
-### mcp compliance workflow
+### MCP Compliance Workflow
 
 **File**: `.github/workflows/mcp-compliance.yml`
 
@@ -226,9 +226,9 @@ PIERRE_ALLOW_INTERACTIVE_OAUTH="false"
 PIERRE_RSA_KEY_SIZE="2048"
 ```
 
-## workflow triggers
+## Workflow Triggers
 
-### push triggers
+### Push Triggers
 
 All workflows run on these branches:
 - `main`
@@ -236,12 +236,12 @@ All workflows run on these branches:
 - `feature/*`
 - `claude/*`
 
-### pull request triggers
+### Pull Request Triggers
 
 All workflows run on PRs to:
 - `main`
 
-### path filtering
+### Path Filtering
 
 Some workflows only run when specific files change:
 
@@ -257,60 +257,60 @@ Some workflows only run when specific files change:
 
 **Optimization rationale**: Path filtering reduces CI resource usage by skipping irrelevant workflow runs. For example, changing only SDK code doesn't require cross-platform Rust validation.
 
-## understanding ci/cd results
+## Understanding CI/CD Results
 
-### status indicators
+### Status Indicators
 
 - ✅ **Green check**: All validations passed
 - ⚠️ **Yellow circle**: Workflow in progress
 - ❌ **Red X**: One or more checks failed
 
-### common failure patterns
+### Common Failure Patterns
 
-#### formatting failure
+#### Formatting Failure
 ```
 error: left behind trailing whitespace
 ```
 **Fix**: Run `cargo fmt` locally before committing
 
-#### clippy failure
+#### Clippy Failure
 ```
 error: using `unwrap()` on a `Result` value
 ```
 **Fix**: Use proper error handling with `?` operator or `ok_or_else()`
 
-#### test failure
+#### Test Failure
 ```
 test result: FAILED. 1245 passed; 7 failed
 ```
 **Fix**: Run `cargo test` locally to reproduce, fix failing tests
 
-#### security audit failure
+#### Security Audit Failure
 ```
 error: 1 security advisory found
 ```
 **Fix**: Run `cargo deny check` locally, update dependencies or add justified ignore
 
-#### architectural validation failure
+#### Architectural Validation Failure
 ```
 ERROR: Found unwrap() usage in production code
 ```
 **Fix**: Run `./scripts/architectural-validation.sh` locally, fix violations
 
-#### PostgreSQL connection failure
+#### PostgreSQL Connection Failure
 ```
 ERROR: PostgreSQL connection timeout
 ```
 **Cause**: PostgreSQL service container not ready
 **Fix**: Usually transient, re-run workflow
 
-#### SDK type validation failure
+#### SDK Type Validation Failure
 ```
 ERROR: src/types.ts contains placeholder content
 ```
 **Fix**: Run `npm run generate-types` locally with running server, commit generated types
 
-### viewing detailed logs
+### Viewing Detailed Logs
 
 1. Navigate to Actions tab in GitHub
 2. Click on the workflow run
@@ -318,7 +318,7 @@ ERROR: src/types.ts contains placeholder content
 4. Expand the failing step
 5. Review error output
 
-## local validation before push
+## Local Validation Before Push
 
 Run the same checks locally to catch issues before CI:
 
@@ -362,9 +362,9 @@ cd ..
 ./scripts/lint-and-test.sh
 ```
 
-## debugging ci/cd failures
+## Debugging CI/CD Failures
 
-### reproducing locally
+### Reproducing Locally
 
 Match CI environment exactly:
 
@@ -381,7 +381,7 @@ export STRAVA_REDIRECT_URI="http://localhost:8080/auth/strava/callback"
 cargo test --test-threads=1
 ```
 
-### platform-specific issues
+### Platform-Specific Issues
 
 **macOS vs Linux differences**:
 - File system case sensitivity
@@ -393,7 +393,7 @@ cargo test --test-threads=1
 - Path length limitations
 - File locking behavior
 
-### PostgreSQL-specific debugging
+### PostgreSQL-Specific Debugging
 
 Start local PostgreSQL matching CI:
 
@@ -418,7 +418,7 @@ docker stop postgres-ci
 docker rm postgres-ci
 ```
 
-### sdk integration debugging
+### SDK Integration Debugging
 
 Run SDK tests with debug output:
 
@@ -435,9 +435,9 @@ npm run test:integration -- --verbose
 npm run test:e2e -- --verbose
 ```
 
-## coverage reporting
+## Coverage Reporting
 
-### codecov integration
+### Codecov Integration
 
 Coverage reports are uploaded to Codecov with specific flags:
 
@@ -445,23 +445,23 @@ Coverage reports are uploaded to Codecov with specific flags:
 - `backend-postgresql`: PostgreSQL test coverage
 - `frontend`: Frontend test coverage
 
-### viewing coverage
+### Viewing Coverage
 
 1. Navigate to Codecov dashboard
 2. Filter by flag to see database-specific coverage
 3. Review coverage trends over time
 4. Identify untested code paths
 
-### coverage thresholds
+### Coverage Thresholds
 
 No enforced thresholds (yet), but aim for:
 - Core business logic: >80%
 - Database plugins: >75%
 - Protocol handlers: >70%
 
-## workflow maintenance
+## Workflow Maintenance
 
-### updating rust version
+### Updating Rust Version
 
 When updating Rust toolchain:
 
@@ -470,7 +470,7 @@ When updating Rust toolchain:
 3. Test locally with new version
 4. Commit and verify all workflows pass
 
-### updating dependencies
+### Updating Dependencies
 
 When updating crate dependencies:
 
@@ -480,7 +480,7 @@ When updating crate dependencies:
 4. Update `deny.toml` if needed (with justification)
 5. Commit and verify CI passes
 
-### adding new workflow
+### Adding New Workflow
 
 When adding new validation:
 
@@ -490,9 +490,9 @@ When adding new validation:
 4. Update summary table
 5. Add to `contributing.md` review process
 
-## cost optimization
+## Cost Optimization
 
-### cache strategy
+### Cache Strategy
 
 Workflows use `actions/cache@v4` for:
 - Rust dependencies (`~/.cargo/`)
@@ -504,7 +504,7 @@ Workflows use `actions/cache@v4` for:
 - Rust version
 - `Cargo.lock` hash
 
-### disk space management
+### Disk Space Management
 
 Ubuntu runners have limited disk space (~14GB usable).
 
@@ -520,7 +520,7 @@ Ubuntu runners have limited disk space (~14GB usable).
 - Cross-Platform Tests workflow
 - MCP Compliance workflow
 
-### parallel execution
+### Parallel Execution
 
 Jobs run in parallel when independent:
 - Backend CI: 3 jobs in parallel (SQLite, PostgreSQL, frontend)
@@ -528,7 +528,7 @@ Jobs run in parallel when independent:
 
 **Total CI time**: ~30-35 minutes (longest job determines duration)
 
-## troubleshooting reference
+## Troubleshooting Reference
 
 ### "failed to get `X` as a dependency"
 
@@ -560,9 +560,9 @@ Jobs run in parallel when independent:
 **Cause**: Generated types not committed to repository
 **Fix**: Run `npm run generate-types` locally with server running, commit result
 
-## best practices
+## Best Practices
 
-### before creating pr
+### Before Creating PR
 
 1. Run `./scripts/lint-and-test.sh` locally
 2. Verify all tests pass
@@ -571,7 +571,7 @@ Jobs run in parallel when independent:
 5. If SDK changed, run SDK tests
 6. If frontend changed, run frontend tests
 
-### reviewing pr ci results
+### Reviewing PR CI Results
 
 1. Wait for all workflows to complete
 2. Review any failures immediately
@@ -579,7 +579,7 @@ Jobs run in parallel when independent:
 4. Check coverage hasn't decreased significantly
 5. Review security audit warnings
 
-### maintaining ci/cd health
+### Maintaining CI/CD Health
 
 1. Monitor workflow run times (alert if >50% increase)
 2. Review dependency updates monthly
@@ -587,7 +587,7 @@ Jobs run in parallel when independent:
 4. Keep workflows DRY (extract common steps to scripts)
 5. Document any workflow changes in this file
 
-## future improvements
+## Future Improvements
 
 Planned enhancements:
 
@@ -598,7 +598,7 @@ Planned enhancements:
 - Add deployment workflow for releases
 - Add E2E testing with real Strava API (secure credentials)
 
-## additional resources
+## Additional Resources
 
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
 - [Codecov Documentation](https://docs.codecov.com/)

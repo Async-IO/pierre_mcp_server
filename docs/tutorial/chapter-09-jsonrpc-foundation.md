@@ -1,8 +1,8 @@
-# chapter 09: JSON-RPC 2.0 foundation
+# Chapter 09: JSON-RPC 2.0 Foundation
 
 This chapter explores the JSON-RPC 2.0 protocol that forms the foundation of the Model Context Protocol (MCP) in the Pierre Fitness Platform. You'll learn about request/response structures, error codes, notifications, and how Pierre extends JSON-RPC for authentication and multi-tenancy.
 
-## what you'll learn
+## What You'll Learn
 
 - JSON-RPC 2.0 specification and structure
 - Request, response, and error objects
@@ -15,7 +15,7 @@ This chapter explores the JSON-RPC 2.0 protocol that forms the foundation of the
 - Unified JSON-RPC for MCP and A2A protocols
 - Error handling patterns and best practices
 
-## JSON-RPC 2.0 overview
+## JSON-RPC 2.0 Overview
 
 JSON-RPC is a lightweight remote procedure call (RPC) protocol encoded in JSON. It's stateless, transport-agnostic, and simple to implement.
 
@@ -25,7 +25,7 @@ JSON-RPC is a lightweight remote procedure call (RPC) protocol encoded in JSON. 
 - **Bidirectional**: Both client and server can initiate requests
 - **Simple**: Only 4 message types (request, response, error, notification)
 
-### protocol structure
+### Protocol Structure
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -82,7 +82,7 @@ pub const JSONRPC_VERSION: &str = "2.0";
 
 **Design decision**: Pierre uses a unified JSON-RPC implementation shared by MCP and A2A protocols. This "single source of truth" approach prevents duplication and ensures consistent behavior.
 
-## request structure
+## Request Structure
 
 A JSON-RPC request represents a method call from client to server or server to client:
 
@@ -163,7 +163,7 @@ impl fmt::Debug for JsonRpcRequest {
 
 This attribute omits `None` values from JSON serialization. A request with no parameters serializes as `{"jsonrpc": "2.0", "method": "ping"}` instead of `{"jsonrpc": "2.0", "method": "ping", "params": null}`. This reduces message size and improves readability.
 
-### custom debug implementation
+### Custom Debug Implementation
 
 The `JsonRpcRequest` provides a custom `Debug` impl that redacts auth tokens:
 
@@ -191,7 +191,7 @@ impl fmt::Debug for JsonRpcRequest {
 
 Deriving `Debug` would print the full auth token. By implementing `Debug` manually, we control exactly what gets logged. This is a common pattern for types containing secrets.
 
-### request constructors
+### Request Constructors
 
 The platform provides builder methods for creating requests:
 
@@ -276,7 +276,7 @@ let request = JsonRpcRequest::new("initialize", Some(params))
 
 The `with_metadata` method consumes `self` and returns the modified `Self`, enabling method chaining. The `#[must_use]` attribute warns if the returned value is ignored (preventing bugs where you call `request.with_metadata(...)` without assigning the result).
 
-## response structure
+## Response Structure
 
 A JSON-RPC response represents the result of a method call:
 
@@ -389,7 +389,7 @@ impl JsonRpcResponse {
 }
 ```
 
-## error structure
+## Error Structure
 
 JSON-RPC errors contain a numeric code, human-readable message, and optional data:
 
@@ -442,7 +442,7 @@ impl JsonRpcError {
 - `message`: Human-readable description
 - `data`: Optional structured error details (stack trace, validation errors, etc.)
 
-### standard error codes
+### Standard Error Codes
 
 JSON-RPC 2.0 defines standard error codes in the -32700 to -32600 range:
 
@@ -504,7 +504,7 @@ let response = JsonRpcResponse::error_with_data(
 );
 ```
 
-## request correlation with IDs
+## Request Correlation with Ids
 
 The `id` field correlates requests with responses in bidirectional communication:
 
@@ -550,7 +550,7 @@ Some(Value::Null)                     // Null ID (valid per spec)
 None                                   // Notification (no response)
 ```
 
-## notifications (fire-and-forget)
+## Notifications (Fire-and-forget)
 
 Notifications are requests without an `id` field. The server does not send a response:
 
@@ -602,11 +602,11 @@ match request.id {
 }
 ```
 
-## MCP extensions to JSON-RPC
+## MCP Extensions to JSON-RPC
 
 Pierre extends JSON-RPC with additional fields for authentication and multi-tenancy:
 
-### auth_token field
+### Auth_token Field
 
 The `auth_token` field carries JWT authentication:
 
@@ -628,7 +628,7 @@ pub auth_token: Option<String>,
 
 **Design decision**: The `auth_token` field (Rust name) serializes as `"auth"` (JSON name) using `#[serde(rename = "auth")]`. This keeps JSON messages concise while maintaining clear Rust naming.
 
-### headers field
+### Headers Field
 
 The `headers` field carries HTTP-like metadata:
 
@@ -656,7 +656,7 @@ pub headers: Option<HashMap<String, Value>>,
 - Request tracing (`x-request-id`)
 - Feature flags (`x-enable-experimental`)
 
-### metadata field
+### Metadata Field
 
 The `metadata` field provides protocol-specific extensions:
 
@@ -684,7 +684,7 @@ pub metadata: HashMap<String, String>,
 
 Empty hashmaps are omitted from JSON. A request with no metadata serializes without the `"metadata"` key, reducing message size.
 
-## MCP protocol implementation
+## MCP Protocol Implementation
 
 The Pierre platform uses these JSON-RPC foundations to implement MCP:
 
@@ -713,7 +713,7 @@ pub use super::multitenant::{McpError, McpRequest, McpResponse};
 
 The `McpRequest` and `McpResponse` types are aliases for `JsonRpcRequest` and `JsonRpcResponse`. This shows how Pierre's unified JSON-RPC implementation supports multiple protocols (MCP, A2A) without duplication.
 
-### initialize handler
+### Initialize Handler
 
 The initialize method validates protocol versions:
 
@@ -801,7 +801,7 @@ fn handle_initialize_internal(
 
 This forward-compatibility pattern allows adding new protocol versions without breaking old clients.
 
-### ping handler
+### Ping Handler
 
 The simplest MCP method returns an empty result:
 
@@ -822,7 +822,7 @@ Response: {"jsonrpc": "2.0", "result": {}, "id": 1}
 
 Clients use `ping` to test connectivity and measure latency.
 
-### tools/list handler
+### tools/list Handler
 
 The tools/list method returns available MCP tools:
 
@@ -855,11 +855,11 @@ pub fn handle_tools_list(request: McpRequest) -> McpResponse {
 }
 ```
 
-## error handling patterns
+## Error Handling Patterns
 
 The platform uses consistent error handling across JSON-RPC methods:
 
-### method not found
+### Method Not Found
 
 **Source**: src/mcp/protocol.rs:336-343
 ```rust
@@ -874,7 +874,7 @@ pub fn handle_unknown_method(request: McpRequest) -> McpResponse {
 }
 ```
 
-### invalid params
+### Invalid Params
 
 ```rust
 return McpResponse::error(
@@ -884,7 +884,7 @@ return McpResponse::error(
 );
 ```
 
-### authentication errors
+### Authentication Errors
 
 ```rust
 return McpResponse::error(
@@ -900,7 +900,156 @@ return McpResponse::error(
 3. Include actionable error message
 4. Optionally add `data` field with details
 
-## key takeaways
+## MCP Version Compatibility
+
+Pierre implements version negotiation during the `initialize` handshake to ensure compatibility with different MCP client versions.
+
+### Version Negotiation Flow
+
+```
+Client                                 Server
+  │                                      │
+  │  ──── initialize ──────────────►     │
+  │  {                                   │
+  │    "method": "initialize",           │
+  │    "params": {                       │
+  │      "protocolVersion": "2024-11-05",│
+  │      "clientInfo": {...}             │
+  │    }                                 │
+  │  }                                   │
+  │                                      │
+  │  ◄──── initialized ────────────      │
+  │  {                                   │
+  │    "result": {                       │
+  │      "protocolVersion": "2024-11-05",│  (echo or negotiate down)
+  │      "serverInfo": {...},            │
+  │      "capabilities": {...}           │
+  │    }                                 │
+  │  }                                   │
+  └──────────────────────────────────────┘
+```
+
+### Supported Protocol Versions
+
+| Version | Status | Notes |
+|---------|--------|-------|
+| `2024-11-05` | Current | Full feature support |
+| `2024-10-07` | Supported | Backward compatible |
+| `1.0` | Legacy | Basic tool support |
+
+### Version Handling Logic
+
+```rust
+/// Handle protocol version negotiation
+fn negotiate_version(client_version: &str) -> Result<String, ProtocolError> {
+    match client_version {
+        // Current version - full support
+        "2024-11-05" => Ok("2024-11-05".to_owned()),
+
+        // Previous version - backward compatible
+        "2024-10-07" => Ok("2024-10-07".to_owned()),
+
+        // Legacy version - limited features
+        "1.0" | "1" => {
+            tracing::warn!(
+                client_version = client_version,
+                "Client using legacy MCP version, some features unavailable"
+            );
+            Ok("1.0".to_owned())
+        }
+
+        // Unknown version - try to continue with current
+        unknown => {
+            tracing::warn!(
+                client_version = unknown,
+                server_version = "2024-11-05",
+                "Unknown client version, attempting compatibility"
+            );
+            Ok("2024-11-05".to_owned())
+        }
+    }
+}
+```
+
+### Capability Negotiation
+
+Different versions expose different capabilities:
+
+```rust
+/// Get capabilities for protocol version
+fn capabilities_for_version(version: &str) -> ServerCapabilities {
+    match version {
+        "2024-11-05" => ServerCapabilities {
+            tools: true,
+            resources: true,
+            prompts: true,
+            logging: true,
+            experimental: Some(ExperimentalCapabilities {
+                a2a: true,
+                streaming: true,
+            }),
+        },
+        "2024-10-07" => ServerCapabilities {
+            tools: true,
+            resources: true,
+            prompts: false,  // Not available in older version
+            logging: false,
+            experimental: None,
+        },
+        _ => ServerCapabilities::minimal(), // Basic tool support only
+    }
+}
+```
+
+### Breaking Changes Policy
+
+Pierre follows semantic versioning for API changes:
+
+**Breaking changes** (require major version bump):
+- Removing a tool from the registry
+- Changing tool parameter types
+- Changing response structure
+- Removing capabilities
+
+**Non-breaking changes** (minor version):
+- Adding new tools
+- Adding optional parameters
+- Adding new capabilities
+- Adding new response fields
+
+**Deprecation process**:
+1. Mark feature as deprecated in current version
+2. Log warnings when deprecated features are used
+3. Remove in next major version
+4. Document migration path in release notes
+
+### Client Version Detection
+
+Pierre logs client information for compatibility tracking:
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientInfo {
+    pub name: String,
+    pub version: String,
+}
+
+// Example client identification
+// Claude Desktop: {"name": "claude-desktop", "version": "0.7.0"}
+// VSCode Copilot: {"name": "vscode-copilot", "version": "1.2.3"}
+```
+
+### Forward Compatibility
+
+For unknown future versions, Pierre:
+1. Logs a warning about unknown version
+2. Responds with current server version
+3. Excludes experimental features
+4. Allows basic tool operations
+
+This ensures new clients can still use Pierre even if server hasn't been updated.
+
+## Key Takeaways
 
 1. **JSON-RPC 2.0 foundation**: Lightweight RPC protocol with 4 message types (request, response, error, notification). Transport-agnostic and bidirectional.
 

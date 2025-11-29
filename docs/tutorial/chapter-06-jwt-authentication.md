@@ -1,8 +1,8 @@
-# chapter 06: JWT authentication with RS256
+# Chapter 06: JWT Authentication with RS256
 
 This chapter explores JWT (JSON Web Token) authentication using RS256 asymmetric signing in the Pierre Fitness Platform. You'll learn how the platform implements secure token generation, validation, and session management using RSA key pairs from the JWKS system covered in Chapter 5.
 
-## what you'll learn
+## What You'll Learn
 
 - JWT structure and standard claims (iss, sub, aud, exp, iat, nbf, jti)
 - RS256 vs HS256: why asymmetric signing matters
@@ -17,11 +17,11 @@ This chapter explores JWT (JSON Web Token) authentication using RS256 asymmetric
 - CSRF protection using double-submit cookie pattern
 - Security layering for web applications vs API clients
 
-## JWT structure and claims
+## JWT Structure and Claims
 
 JWT tokens consist of three base64-encoded parts separated by dots: `header.payload.signature`. The Pierre platform uses RS256 (RSA Signature with SHA-256) for asymmetric signing, allowing token verification without sharing the private key.
 
-### standard JWT claims
+### Standard JWT Claims
 
 The platform follows RFC 7519 for standard JWT claims:
 
@@ -61,7 +61,7 @@ Each claim serves a specific purpose:
 - `iat` (Issued At): Unix timestamp when token was created
 - `jti` (JWT ID): Unique token identifier (prevents replay attacks)
 
-### custom claims for multi-tenancy
+### Custom Claims for Multi-Tenancy
 
 The platform extends standard claims with domain-specific fields:
 
@@ -73,11 +73,11 @@ The platform extends standard claims with domain-specific fields:
 
 This attribute prevents including `null` values in the JSON payload, reducing token size. The `Option<String>` type provides compile-time safety for optional fields while maintaining backward compatibility with tokens that don't include `tenant_id`.
 
-## RS256 vs HS256: asymmetric signing
+## RS256 vs HS256 Asymmetric Signing
 
 The platform uses RS256 (RSA Signature with SHA-256) instead of HS256 (HMAC with SHA-256) for several security advantages:
 
-### HS256: symmetric signing (not used)
+### HS256 Symmetric Signing (not Used)
 
 ```
 ┌─────────────┐                    ┌─────────────┐
@@ -91,7 +91,7 @@ The platform uses RS256 (RSA Signature with SHA-256) instead of HS256 (HMAC with
 
 **Problem**: The same secret key signs AND verifies tokens. If clients need to verify tokens, they must have the private key, which defeats the purpose of asymmetric cryptography.
 
-### RS256: asymmetric signing (used by Pierre)
+### RS256 Asymmetric Signing (used by Pierre)
 
 ```
 ┌─────────────────┐                ┌─────────────────┐
@@ -123,11 +123,11 @@ let token = encode(&header, &claims, &encoding_key)?;
 
 The `kid` (Key ID) in the header allows the platform to rotate RSA keys without invalidating existing tokens. When validating a token, the platform looks up the corresponding public key by `kid`.
 
-## token generation with JWKS integration
+## Token Generation with JWKS Integration
 
 Token generation involves creating claims, selecting the active RSA key, and signing with the private key.
 
-### user authentication tokens
+### User Authentication Tokens
 
 The `AuthManager` generates tokens for authenticated users after successful login:
 
@@ -179,7 +179,7 @@ pub fn generate_token(
 
 Using UUIDv4 for `jti` (JWT ID) ensures each token has a globally unique identifier. This prevents token replay attacks and allows the platform to revoke specific tokens by tracking their `jti` in a revocation list.
 
-### admin authentication tokens
+### Admin Authentication Tokens
 
 Admin tokens use a separate claims structure with fine-grained permissions:
 
@@ -262,7 +262,7 @@ This pattern handles two edge cases:
 
 The combination ensures the `exp` claim is always a valid positive integer.
 
-### OAuth access tokens
+### OAuth Access Tokens
 
 The platform generates OAuth 2.0 access tokens with limited scopes:
 
@@ -318,11 +318,11 @@ pub fn generate_oauth_access_token(
 
 OAuth tokens use the `providers` claim to store granted scopes (e.g., `["read:activities", "write:workouts"]`). This allows the platform to enforce fine-grained permissions without database lookups.
 
-## token validation and error handling
+## Token Validation and Error Handling
 
 Token validation verifies the RS256 signature and checks expiration, audience, and issuer claims.
 
-### RS256 signature verification
+### RS256 Signature Verification
 
 The platform uses the `kid` from the token header to look up the correct public key:
 
@@ -384,7 +384,7 @@ pub fn validate_token(
 
 This pattern converts `Option<T>` to `Result<T, E>` with lazy error construction. The closure only executes if the option is `None`, avoiding unnecessary allocations for successful cases.
 
-### detailed validation errors
+### Detailed Validation Errors
 
 The platform provides detailed error messages for debugging token issues:
 
@@ -456,7 +456,7 @@ impl std::fmt::Display for JwtValidationError {
 
 **User experience**: Human-readable error messages help developers debug authentication issues. For example, "JWT token expired 3 hours ago at 2025-01-15 14:30:00 UTC" is more actionable than "Token expired".
 
-### expiration checking
+### Expiration Checking
 
 The platform separates signature verification from expiration checking for better error messages:
 
@@ -527,11 +527,11 @@ fn validate_claims_expiry(claims: &Claims) -> Result<(), JwtValidationError> {
 }
 ```
 
-## session management and token refresh
+## Session Management and Token Refresh
 
 The platform creates sessions after successful authentication and supports token refresh for better user experience.
 
-### session creation
+### Session Creation
 
 **Source**: src/auth.rs:449-464
 ```rust
@@ -567,7 +567,7 @@ The `UserSession` struct contains everything a client needs to interact with the
 - `expires_at`: When the token becomes invalid
 - `available_providers`: Which fitness providers the user has connected
 
-### token refresh pattern
+### Token Refresh Pattern
 
 **Source**: src/auth.rs:515-529
 ```rust
@@ -602,11 +602,11 @@ pub fn refresh_token(
 
 **Rust Idiom**: Decode without expiration check (`decode_token_claims`) ensures legitimate expired tokens can be refreshed while forged tokens are rejected.
 
-## middleware-based authentication
+## Middleware-Based Authentication
 
 The platform uses middleware to authenticate MCP requests with both JWT tokens and API keys.
 
-### request authentication flow
+### Request Authentication Flow
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -738,7 +738,7 @@ This attribute automatically creates a tracing span for the function with struct
 
 **Security**: The middleware logs authentication attempts without exposing token contents, balancing observability with security.
 
-### JWT authentication in middleware
+### JWT Authentication in Middleware
 
 **Source**: src/middleware/auth.rs:194-228
 ```rust
@@ -786,7 +786,7 @@ The middleware:
 4. Calculates rate limit based on tier and current usage
 5. Returns `AuthResult` with user context and rate limit info
 
-### authentication result
+### Authentication Result
 
 **Source**: src/auth.rs:133-158
 ```rust
@@ -824,9 +824,9 @@ The `AuthResult` provides downstream handlers with:
 - `auth_method`: For logging and analytics
 - `rate_limit`: For enforcing API usage limits
 
-## real-world usage patterns
+## Real-World Usage Patterns
 
-### admin API authentication
+### Admin API Authentication
 
 **Source**: src/admin/jwt.rs:190-251
 ```rust
@@ -896,7 +896,7 @@ impl TokenGenerationConfig {
 
 **Builder pattern**: The `TokenGenerationConfig` provides constructor methods (`regular_admin`, `super_admin`) for common configurations while allowing custom settings.
 
-### OAuth token generation
+### OAuth Token Generation
 
 The platform generates OAuth access tokens for external client applications:
 
@@ -951,11 +951,11 @@ pub fn generate_client_credentials_token(
 
 **Design decision**: Client credentials tokens use `sub: format!("client:{client_id}")` to distinguish them from user tokens. The prefix allows middleware to apply different authorization rules.
 
-## web application security: cookies and csrf
+## Web Application Security: Cookies and CSRF
 
 For web applications (browser-based clients), Pierre implements secure cookie-based authentication with CSRF protection to prevent XSS and CSRF attacks.
 
-### the xss problem with localStorage
+### The XSS Problem with Localstorage
 
 Storing JWT tokens in localStorage creates XSS vulnerability:
 
@@ -973,7 +973,7 @@ localStorage.setItem('auth_token', jwt);
 
 **Problem**: Any JavaScript code (including malicious scripts from XSS) can read localStorage. If an attacker injects JavaScript (via XSS vulnerability), they can steal the authentication token.
 
-### httpOnly cookies solution
+### Httponly Cookies Solution
 
 httpOnly cookies are inaccessible to JavaScript:
 
@@ -999,7 +999,7 @@ Cookie security flags:
 - **SameSite=Strict**: Cookie not sent on cross-origin requests (CSRF mitigation)
 - **Max-Age=86400**: Cookie expires after 24 hours (matches JWT expiry)
 
-### csrf protection with double-submit cookies
+### CSRF Protection with Double-Submit Cookies
 
 httpOnly cookies solve XSS but create CSRF vulnerability. An attacker's site can trigger authenticated requests because browsers automatically include cookies:
 
@@ -1015,7 +1015,7 @@ httpOnly cookies solve XSS but create CSRF vulnerability. An attacker's site can
 
 **Solution**: CSRF tokens using double-submit cookie pattern.
 
-#### csrf token manager
+#### CSRF Token Manager
 
 **Source**: src/security/csrf.rs:18-58
 ```rust
@@ -1070,7 +1070,7 @@ impl CsrfTokenManager {
 3. **Short expiration**: 30-minute lifetime limits exposure window. JWT tokens last 24 hours, CSRF tokens expire much sooner.
 4. **In-memory storage**: HashMap provides fast lookups. For distributed systems, use Redis instead.
 
-#### csrf middleware validation
+#### CSRF Middleware Validation
 
 **Source**: src/middleware/csrf.rs:45-91
 ```rust
@@ -1109,7 +1109,7 @@ impl CsrfMiddleware {
 
 **Rust idiom**: `matches!` macro provides pattern matching for HTTP methods without verbose `==` comparisons.
 
-#### authentication flow with cookies and csrf
+#### Authentication Flow with Cookies and CSRF
 
 **login handler** (`POST /api/auth/login`):
 
@@ -1187,7 +1187,7 @@ Middleware tries multiple authentication methods:
 2. **Bearer token**: Extract from `Authorization: Bearer <token>` header (API clients)
 3. **API key**: Extract from `X-API-Key` header (service-to-service)
 
-### frontend integration example
+### Frontend Integration Example
 
 **axios configuration**:
 ```typescript
@@ -1227,7 +1227,7 @@ async function login(email: string, password: string) {
 - Attacker's site cannot read CSRF token (cross-origin restriction)
 - Attacker cannot forge valid CSRF token (cryptographic randomness)
 
-### security model summary
+### Security Model Summary
 
 | **Attack Type** | **Protection Mechanism** |
 |----------------|--------------------------|
@@ -1242,7 +1242,7 @@ async function login(email: string, password: string) {
 
 **Rust idiom**: Cookie and CSRF managers use `Arc<RwLock<HashMap>>` for concurrent access. `RwLock` allows multiple readers or single writer, optimizing for read-heavy token validation workload.
 
-## key takeaways
+## Key Takeaways
 
 1. **RS256 asymmetric signing**: Uses RSA key pairs from JWKS (Chapter 5) for secure token signing. Clients verify with public keys, server signs with private key.
 

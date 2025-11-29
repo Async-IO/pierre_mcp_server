@@ -1,17 +1,17 @@
-# protocols
+# Protocols
 
 Pierre implements three protocols on a single http port (8081).
 
-## mcp (model context protocol)
+## MCP (Model Context Protocol)
 
 Json-rpc 2.0 protocol for ai assistant integration.
 
-### endpoints
+### Endpoints
 
 - `POST /mcp` - main mcp endpoint
 - `GET /mcp/sse/{session_id}` - sse transport for streaming (session-scoped)
 
-### transport
+### Transport
 
 Pierre supports both http and sse transports:
 - http: traditional request-response
@@ -19,7 +19,7 @@ Pierre supports both http and sse transports:
 
 Sdk handles transport negotiation automatically.
 
-### authentication
+### Authentication
 
 Mcp requests require jwt bearer token in authorization header:
 ```
@@ -28,7 +28,7 @@ Authorization: Bearer <jwt_token>
 
 Obtained via oauth2 flow (sdk handles automatically).
 
-### request format
+### Request Format
 
 ```json
 {
@@ -44,7 +44,7 @@ Obtained via oauth2 flow (sdk handles automatically).
 }
 ```
 
-### response format
+### Response Format
 
 ```json
 {
@@ -61,7 +61,7 @@ Obtained via oauth2 flow (sdk handles automatically).
 }
 ```
 
-### mcp methods
+### MCP Methods
 
 - `initialize` - start session
 - `tools/list` - list available tools
@@ -71,11 +71,11 @@ Obtained via oauth2 flow (sdk handles automatically).
 
 Implementation: `src/mcp/protocol.rs`, `src/protocols/universal/`
 
-## oauth2 authorization server
+## OAuth2 Authorization Server
 
 Rfc 7591 (dynamic client registration) + rfc 7636 (pkce) compliant oauth2 server for mcp client authentication.
 
-### endpoints
+### Endpoints
 
 - `GET /.well-known/oauth-authorization-server` - server metadata (rfc 8414)
 - `POST /oauth2/register` - dynamic client registration
@@ -86,7 +86,7 @@ Rfc 7591 (dynamic client registration) + rfc 7636 (pkce) compliant oauth2 server
 - `POST /oauth2/validate-and-refresh` - validate and refresh jwt tokens
 - `POST /oauth2/token-validate` - validate jwt token
 
-### registration flow
+### Registration Flow
 
 1. **client registration** (rfc 7591):
 ```bash
@@ -159,7 +159,7 @@ Response:
 
 Jwt access token used for all mcp requests.
 
-### pkce requirement
+### PKCE Requirement
 
 Pierre enforces pkce (rfc 7636) for all authorization code flows. Clients must:
 - generate code verifier (43-128 characters)
@@ -167,7 +167,7 @@ Pierre enforces pkce (rfc 7636) for all authorization code flows. Clients must:
 - include challenge in authorization request
 - include verifier in token request
 
-### server discovery (rfc 8414)
+### Server Discovery (RFC 8414)
 
 Pierre provides oauth2 server metadata for automatic configuration:
 
@@ -191,7 +191,7 @@ Response includes:
 
 Issuer url configurable via `OAUTH2_ISSUER_URL` environment variable.
 
-### jwks endpoint
+### JWKS Endpoint
 
 Public keys for jwt token verification available at `/oauth2/jwks`:
 
@@ -216,7 +216,7 @@ Response (rfc 7517 compliant):
 
 **cache-control headers**: jwks endpoint returns `Cache-Control: public, max-age=3600` allowing browsers to cache public keys for 1 hour.
 
-### key rotation
+### Key Rotation
 
 Pierre supports rs256 key rotation with grace period:
 - new keys generated with timestamp-based kid (e.g., `key_2024_01_01_123456`)
@@ -230,7 +230,7 @@ Clients should:
 3. Refresh jwks if unknown kid encountered
 4. Verify token signature using matching kid
 
-### rate limiting
+### Rate Limiting
 
 Oauth2 endpoints protected by per-ip token bucket rate limiting:
 
@@ -265,18 +265,18 @@ X-RateLimit-Reset: 1704067200
 
 Implementation: `src/oauth2_server/`, `src/oauth2_server/rate_limiting.rs`
 
-## a2a (agent-to-agent protocol)
+## A2A (Agent-to-Agent Protocol)
 
 Protocol for autonomous ai systems to communicate.
 
-### endpoints
+### Endpoints
 
 - `GET /a2a/status` - protocol status
 - `GET /a2a/tools` - available tools
 - `POST /a2a/execute` - execute tool
 - `GET /a2a/monitoring` - monitoring info
 
-### authentication
+### Authentication
 
 A2a uses api keys:
 ```
@@ -291,7 +291,7 @@ curl -X POST http://localhost:8081/api/keys \
   -d '{"name": "My A2A System", "tier": "professional"}'
 ```
 
-### agent cards
+### Agent Cards
 
 Agents advertise capabilities via agent cards:
 ```json
@@ -314,7 +314,7 @@ Agents advertise capabilities via agent cards:
 }
 ```
 
-### request format
+### Request Format
 
 ```json
 {
@@ -326,7 +326,7 @@ Agents advertise capabilities via agent cards:
 }
 ```
 
-### response format
+### Response Format
 
 ```json
 {
@@ -340,30 +340,30 @@ Agents advertise capabilities via agent cards:
 
 Implementation: `src/a2a/`, `src/protocols/universal/`
 
-## rest api
+## REST API
 
 Traditional rest endpoints for web applications.
 
-### authentication endpoints
+### Authentication Endpoints
 
 - `POST /api/auth/register` - user registration (admin-provisioned)
 - `POST /api/auth/login` - user login
 - `POST /api/auth/logout` - logout
 - `POST /api/auth/refresh` - refresh jwt token
 
-### provider oauth endpoints
+### Provider OAuth Endpoints
 
-- `GET /api/oauth/auth/{provider}/{user_id}` - initiate oauth (strava, garmin, fitbit)
+- `GET /api/oauth/auth/{provider}/{user_id}` - initiate oauth (strava, garmin, fitbit, whoop)
 - `GET /api/oauth/callback/{provider}` - oauth callback
 - `GET /api/oauth/status` - connection status
 
-### admin endpoints
+### Admin Endpoints
 
 - `POST /admin/setup` - create admin user
 - `POST /admin/users` - manage users
 - `GET /admin/analytics` - usage analytics
 
-### configuration endpoints
+### Configuration Endpoints
 
 - `GET /api/configuration/catalog` - config catalog
 - `GET /api/configuration/profiles` - available profiles
@@ -372,23 +372,23 @@ Traditional rest endpoints for web applications.
 
 Implementation: `src/routes.rs`, `src/admin_routes.rs`, `src/configuration_routes.rs`
 
-## sse (server-sent events)
+## SSE (Server-Sent Events)
 
 Real-time notifications for oauth completions and system events.
 
-### endpoint
+### Endpoint
 
 ```
 GET /notifications/sse?user_id=<user_id>
 ```
 
-### event types
+### Event Types
 
 - `oauth_complete` - oauth flow completed
 - `oauth_error` - oauth flow failed
 - `system_status` - system status update
 
-### example
+### Example
 
 ```javascript
 const eventSource = new EventSource('/notifications/sse?user_id=user-123');
@@ -403,7 +403,7 @@ eventSource.onmessage = function(event) {
 
 Implementation: `src/notifications/sse.rs`, `src/sse.rs`
 
-## protocol comparison
+## Protocol Comparison
 
 | feature | mcp | oauth2 | a2a | rest |
 |---------|-----|--------|-----|------|
@@ -413,7 +413,7 @@ Implementation: `src/notifications/sse.rs`, `src/sse.rs`
 | format | json-rpc 2.0 | oauth2 | json | json |
 | implementation | `src/mcp/` | `src/oauth2_server/` | `src/a2a/` | `src/routes/` |
 
-## choosing a protocol
+## Choosing a Protocol
 
 - **ai assistant integration**: use mcp (claude, chatgpt)
 - **web application**: use rest api

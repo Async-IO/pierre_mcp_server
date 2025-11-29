@@ -1,8 +1,8 @@
-# chapter 23: testing framework - comprehensive testing patterns
+# Chapter 23: Testing Framework - Comprehensive Testing Patterns
 
 This chapter covers Pierre's testing infrastructure including database testing, integration patterns, synthetic data generation, async testing, error testing, and test organization best practices.
 
-## what you'll learn
+## What You'll Learn
 
 - Database testing patterns (in-memory databases, isolation, fixtures)
 - Integration test patterns for MCP protocol
@@ -14,11 +14,11 @@ This chapter covers Pierre's testing infrastructure including database testing, 
 - Test setup and teardown patterns
 - Test organization (unit, integration, E2E)
 
-## database testing patterns
+## Database Testing Patterns
 
 Pierre uses in-memory SQLite databases for fast, isolated tests without external dependencies.
 
-### in-memory database setup
+### In-Memory Database Setup
 
 **Source**: tests/database_memory_test.rs:18-71
 ```rust
@@ -67,7 +67,7 @@ async fn test_memory_database_no_physical_files() -> Result<()> {
 - **No cleanup**: Memory automatically freed after test
 - **Deterministic**: No race conditions from shared state
 
-### database isolation testing
+### Database Isolation Testing
 
 **Source**: tests/database_memory_test.rs:74-126
 ```rust
@@ -110,7 +110,7 @@ async fn test_multiple_memory_databases_isolated() -> Result<()> {
 
 **Why isolation matters**: Tests can run in parallel without interfering. Each test gets clean database state.
 
-### test fixture helpers
+### Test Fixture Helpers
 
 **Common test fixtures** (tests/common.rs - conceptual):
 ```rust
@@ -141,11 +141,11 @@ pub fn init_server_config() {
 
 **Pattern**: Centralized test helpers reduce duplication and ensure consistent test setup.
 
-## integration testing patterns
+## Integration Testing Patterns
 
 Pierre tests MCP protocol handlers using structured JSON-RPC requests.
 
-### MCP request helpers
+### MCP Request Helpers
 
 **Source**: tests/mcp_protocol_comprehensive_test.rs:27-47
 ```rust
@@ -172,7 +172,7 @@ fn create_auth_mcp_request(
 }
 ```
 
-### MCP protocol integration test
+### MCP Protocol Integration Test
 
 **Source**: tests/mcp_protocol_comprehensive_test.rs:49-77
 ```rust
@@ -207,7 +207,7 @@ async fn test_mcp_initialize_request() -> Result<()> {
 
 **Pattern**: Integration tests validate component interactions (server → database → auth) without mocking.
 
-### authentication testing
+### Authentication Testing
 
 **Source**: tests/mcp_protocol_comprehensive_test.rs:137-175
 ```rust
@@ -254,11 +254,11 @@ async fn test_mcp_authenticate_request() -> Result<()> {
 
 **Pattern**: Create test user → Construct auth request → Validate request structure.
 
-## async testing patterns
+## Async Testing Patterns
 
 Pierre uses `#[tokio::test]` for async test execution.
 
-### async test basics
+### Async Test Basics
 
 ```rust
 #[tokio::test]
@@ -283,7 +283,7 @@ async fn test_async_database_operation() -> Result<()> {
 - **Automatic cleanup**: Runtime shut down after test
 - **Error propagation**: `Result<()>` with `?` operator
 
-### concurrent async operations
+### Concurrent Async Operations
 
 ```rust
 #[tokio::test]
@@ -316,7 +316,7 @@ async fn test_concurrent_database_writes() -> Result<()> {
 
 **Pattern**: Test concurrent behavior with `tokio::spawn` to validate thread safety.
 
-## synthetic data generation
+## Synthetic Data Generation
 
 Pierre uses deterministic synthetic data for reproducible tests (covered in Chapter 14).
 
@@ -340,11 +340,11 @@ async fn test_beginner_progression_algorithm() {
 }
 ```
 
-## test helpers and scenario builders
+## Test Helpers and Scenario Builders
 
 Pierre provides reusable test helpers for common testing patterns.
 
-### scenario-based testing
+### Scenario-Based Testing
 
 **Source**: tests/helpers/test_utils.rs:9-33
 ```rust
@@ -375,7 +375,7 @@ impl TestScenario {
 }
 ```
 
-### scenario provider creation
+### Scenario Provider Creation
 
 **Source**: tests/helpers/test_utils.rs:35-42
 ```rust
@@ -407,11 +407,11 @@ async fn test_overtraining_detection() -> Result<()> {
 - **Reusable**: Same scenarios across multiple test files
 - **Maintainable**: Change scenario in one place, all tests update
 
-## error testing patterns
+## Error Testing Patterns
 
 Test error conditions explicitly to validate error handling.
 
-### testing error cases
+### Testing Error Cases
 
 ```rust
 #[tokio::test]
@@ -436,7 +436,7 @@ async fn test_duplicate_user_email_rejected() -> Result<()> {
 }
 ```
 
-### testing validation errors
+### Testing Validation Errors
 
 ```rust
 #[tokio::test]
@@ -466,7 +466,7 @@ async fn test_invalid_email_rejected() -> Result<()> {
 
 **Pattern**: Test both success path AND failure paths to ensure error handling works.
 
-## test organization
+## Test Organization
 
 Pierre organizes tests by scope and type with 1,635 lines of test helper code.
 
@@ -494,7 +494,7 @@ tests/
 - **E2E tests**: Full user workflows from authentication to data retrieval
 - **Unit tests**: Validation functions, enum conversions, mappers
 
-## key test patterns
+## Key Test Patterns
 
 **Pattern 1: Builder for test data**
 ```rust
@@ -516,7 +516,7 @@ let provider = SyntheticProvider::with_activities(vec![activity1, activity2]);
 let result = service.analyze(&provider).await?;
 ```
 
-## key takeaways
+## Key Takeaways
 
 1. **In-memory databases**: `sqlite::memory:` provides fast, isolated tests without physical files or cleanup overhead.
 

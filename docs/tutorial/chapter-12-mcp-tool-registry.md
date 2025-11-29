@@ -1,8 +1,8 @@
-# chapter 12: MCP tool registry & type-safe routing
+# Chapter 12: MCP Tool Registry & Type-Safe Routing
 
 This final chapter of Part III explores how Pierre registers MCP tools, validates parameters with JSON Schema, and routes tool calls to handlers. You'll learn about the tool registry pattern, schema generation, and type-safe parameter validation.
 
-## what you'll learn
+## What You'll Learn
 
 - Tool registry pattern for MCP servers
 - JSON Schema for parameter validation
@@ -13,7 +13,7 @@ This final chapter of Part III explores how Pierre registers MCP tools, validate
 - Input schema requirements
 - Error handling for invalid parameters
 
-## tool registry overview
+## Tool Registry Overview
 
 Pierre registers all MCP tools at startup using a centralized registry:
 
@@ -54,7 +54,7 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
 
 **Registry pattern**: Single `get_tools()` function returns all available tools. This ensures tools/list and tools/call use the same definitions.
 
-## tool schema structure
+## Tool Schema Structure
 
 Each tool has a name, description, and JSON Schema for parameters:
 
@@ -78,7 +78,7 @@ pub struct ToolSchema {
 - `description`: Human-readable explanation for AI assistants
 - `inputSchema`: JSON Schema defining required/optional parameters
 
-## JSON Schema for validation
+## JSON Schema for Validation
 
 JSON Schema describes parameter structure:
 
@@ -121,7 +121,7 @@ pub struct JsonSchema {
 }
 ```
 
-## parameter validation
+## Parameter Validation
 
 MCP servers validate tool parameters against inputSchema before execution. Invalid parameters return error code -32602 (Invalid params).
 
@@ -131,7 +131,7 @@ MCP servers validate tool parameters against inputSchema before execution. Inval
 - Unknown parameters may be ignored or rejected
 - Nested objects validated recursively
 
-## tool handler routing
+## Tool Handler Routing
 
 Tool calls route to handler functions based on tool name. The full flow from Chapter 10 through 12:
 
@@ -157,7 +157,7 @@ Execute with authentication (Chapter 6)
 Return ToolResponse
 ```
 
-## key takeaways
+## Key Takeaways
 
 1. **Centralized registry**: `get_tools()` returns all available tools for both tools/list and tools/call.
 

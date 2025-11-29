@@ -50,7 +50,7 @@ src/
 │       │   ├── configuration.rs    # configuration handlers
 │       │   ├── nutrition.rs        # nutrition calculation handlers
 │       │   └── sleep.rs            # sleep analysis handlers
-│       ├── tool_registry.rs        # 36 mcp tool definitions
+│       ├── tool_registry.rs        # 45 mcp tool definitions
 │       ├── types.rs                # universal request/response types
 │       └── mod.rs                  # universal protocol logic
 ├── mcp/                            # mcp protocol implementation
@@ -319,7 +319,7 @@ templates/
 
 ### 1. mcp protocol implementation
 - **json-rpc 2.0**: full mcp 1.0 specification support
-- **46 tools**: comprehensive fitness analysis toolkit
+- **45 tools**: comprehensive fitness analysis toolkit
 - **http + sse transports**: traditional and streaming communication
 - **protocol abstraction**: shared logic via `protocols::universal`
 - **streamable http**: native http transport for mcp clients
@@ -1045,7 +1045,7 @@ pierre mcp server is a high-performance rust implementation connecting ai assist
 - 6 html/svg templates
 - 109 integration test files
 - 13 documentation files
-- 36 mcp tools
+- 45 mcp tools
 - 31 intelligence modules (620KB)
 - 10 configurable algorithm types
 

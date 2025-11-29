@@ -22,7 +22,7 @@ This comprehensive guide explains the scientific methods, algorithms, and decisi
 - [architecture overview](#architecture-overview)
   - [foundation modules](#foundation-modules)
   - [core modules](#core-modules)
-  - [intelligence tools (46 tools)](#intelligence-tools-46-tools)
+  - [intelligence tools (45 tools)](#intelligence-tools-45-tools)
 - [data sources and permissions](#data-sources-and-permissions)
   - [primary data](#primary-data)
   - [user profile (optional)](#user-profile-optional)
@@ -120,7 +120,7 @@ Pierre's intelligence system uses a **foundation modules** approach for code reu
                    │
                    ▼
 ┌─────────────────────────────────────────────┐
-│   intelligence tools (30 tools)             │
+│   intelligence tools (45 tools)             │
 │   (src/protocols/universal/handlers/)       │
 └──────────────────┬──────────────────────────┘
                    │
@@ -190,9 +190,9 @@ Pierre's intelligence system uses a **foundation modules** approach for code reu
 **`src/intelligence/recommendation_engine.rs`** - training recommendations
 **`src/intelligence/goal_engine.rs`** - goal tracking and progress
 
-### Intelligence Tools (46 tools)
+### Intelligence Tools (45 tools)
 
-All 46 MCP tools now use real calculations from foundation modules:
+All 45 MCP tools now use real calculations from foundation modules:
 
 **group 1: analysis** (use StatisticalAnalyzer + PatternDetector)
 - analyze_performance_trends
@@ -228,7 +228,7 @@ All 46 MCP tools now use real calculations from foundation modules:
 ### Primary Data
 Fitness activities via oauth2 authorization from multiple providers:
 
-**supported providers**: strava, garmin, fitbit
+**supported providers**: strava, garmin, fitbit, whoop
 
 **activity data**:
 - **temporal**: `start_date`, `elapsed_time`, `moving_time`
@@ -267,6 +267,7 @@ pub struct Activity {
 - **strava**: full power metrics, segments, kudos
 - **garmin**: advanced running dynamics, training effect, recovery time
 - **fitbit**: all-day heart rate, sleep tracking, steps
+- **whoop**: strain scores, recovery metrics, sleep stages, HRV data
 
 ### Data Retention And Privacy
 - activities cached for 7 days (configurable)

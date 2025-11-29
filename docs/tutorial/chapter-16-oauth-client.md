@@ -1,8 +1,8 @@
-# chapter 16: OAuth 2.0 client for fitness providers
+# Chapter 16: OAuth 2.0 Client for Fitness Providers
 
 This chapter explores how Pierre acts as an OAuth 2.0 client to connect to fitness providers like Strava and Fitbit. You'll learn about the OAuth client implementation, PKCE generation, token management, and provider-specific integrations.
 
-## what you'll learn
+## What You'll Learn
 
 - OAuth 2.0 client implementation for fitness providers
 - PKCE generation with SHA-256
@@ -13,7 +13,7 @@ This chapter explores how Pierre acts as an OAuth 2.0 client to connect to fitne
 - Tenant-aware OAuth clients
 - Rate limiting and usage tracking
 
-## OAuth client architecture
+## OAuth Client Architecture
 
 Pierre implements a generic OAuth 2.0 client that works with multiple fitness providers:
 
@@ -52,7 +52,7 @@ Pierre implements a generic OAuth 2.0 client that works with multiple fitness pr
 
 **Client role**: Pierre initiates OAuth flows with fitness providers to access user data.
 
-## OAuth client configuration
+## OAuth Client Configuration
 
 Each OAuth client needs provider-specific configuration:
 
@@ -86,7 +86,7 @@ pub struct OAuth2Config {
 - `scopes`: Requested permissions (e.g., `["activity:read_all", "profile:read"]`)
 - `use_pkce`: Enable PKCE for security (recommended)
 
-## PKCE parameter generation
+## PKCE Parameter Generation
 
 Pierre generates PKCE parameters to protect authorization codes:
 
@@ -136,7 +136,7 @@ impl PkceParams {
 3. **Base64url encode**: URL-safe base64 encoding without padding
 4. **Return params**: Verifier (kept secret) and challenge (sent to provider)
 
-## rust idioms: base64url encoding
+## Rust Idioms: Base64url Encoding
 
 **Source**: src/oauth2_client/client.rs:9
 ```rust
@@ -153,7 +153,7 @@ let code_challenge = URL_SAFE_NO_PAD.encode(hash);
 - **No padding**: Omits trailing `=` characters (RFC 7636 requirement)
 - **Standard compliant**: Matches OAuth 2.0 PKCE specification
 
-## authorization URL construction
+## Authorization URL Construction
 
 The client builds authorization URLs for user consent:
 
@@ -208,7 +208,7 @@ https://www.strava.com/oauth/authorize?
 - `state`: CSRF protection token
 - `code_challenge`/`code_challenge_method`: PKCE security
 
-## OAuth token structure
+## OAuth Token Structure
 
 The client handles OAuth tokens with expiration tracking:
 
@@ -250,7 +250,7 @@ impl OAuth2Token {
 - `is_expired()`: Token expired (Utc::now() >= expires_at)
 - `will_expire_soon()`: Token expires within 5 minutes (proactive refresh)
 
-## rust idioms: Option::is_some_and
+## Rust Idioms: Option::is_some_and
 
 **Source**: src/oauth2_client/client.rs:90-93
 ```rust
@@ -276,7 +276,7 @@ self.expires_at.is_some_and(|expires_at| expires_at <= Utc::now())
 - **Concise**: Single method call instead of chaining
 - **Clear intent**: "check if some AND condition holds"
 
-## token exchange
+## Token Exchange
 
 The client exchanges authorization codes for access tokens:
 
@@ -324,7 +324,7 @@ pub async fn exchange_code_with_pkce(
 4. **Parse response**: Extract access token, refresh token, expiration
 5. **Return OAuth2Token**: Structured token with expiration tracking
 
-## token refresh
+## Token Refresh
 
 The client refreshes expired tokens automatically:
 
@@ -362,7 +362,7 @@ pub async fn refresh_token(&self, refresh_token: &str) -> Result<OAuth2Token> {
 3. **New access token**: Provider issues fresh access token
 4. **Update storage**: Replace old token in database
 
-## provider-specific clients
+## Provider-Specific Clients
 
 Pierre includes specialized clients for Strava and Fitbit:
 
@@ -444,7 +444,7 @@ pub async fn exchange_fitbit_code_with_pkce(
 - **No user data**: Fitbit doesn't return user profile with token response
 - **Hardcoded endpoint**: `https://api.fitbit.com/oauth2/token`
 
-## tenant-aware OAuth client
+## Tenant-Aware OAuth Client
 
 Pierre wraps the generic OAuth client with tenant-specific rate limiting:
 
@@ -517,7 +517,7 @@ pub async fn get_oauth_client(
 3. **OAuth client creation**: Generic client with tenant configuration
 4. **Usage tracking**: Increment counter after successful operations
 
-## OAuth flow integration
+## OAuth Flow Integration
 
 Providers use the tenant-aware OAuth client for authentication:
 
@@ -553,7 +553,7 @@ pub async fn exchange_code_with_pkce(
 3. **Store token**: Save access token and refresh token to database
 4. **Return result**: Access token and user ID for subsequent API calls
 
-## key takeaways
+## Key Takeaways
 
 1. **Generic OAuth client**: Single `OAuth2Client` implementation works with all providers.
 

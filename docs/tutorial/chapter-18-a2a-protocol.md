@@ -1,8 +1,8 @@
-# chapter 18: A2A protocol - agent-to-agent communication
+# Chapter 18: A2A Protocol - Agent-to-Agent Communication
 
 This chapter explores how Pierre implements the Agent-to-Agent (A2A) protocol for secure inter-agent communication. You'll learn about the A2A protocol architecture, Ed25519 signatures, agent capability discovery, and JSON-RPC-based messaging between AI agents.
 
-## what you'll learn
+## What You'll Learn
 
 - A2A protocol architecture
 - JSON-RPC 2.0 foundation for A2A
@@ -14,7 +14,7 @@ This chapter explores how Pierre implements the Agent-to-Agent (A2A) protocol fo
 - Message streaming and structured data
 - A2A authentication with API keys
 
-## A2A protocol overview
+## A2A Protocol Overview
 
 A2A (Agent-to-Agent) protocol enables AI agents to communicate and collaborate:
 
@@ -52,7 +52,7 @@ A2A (Agent-to-Agent) protocol enables AI agents to communicate and collaborate:
 - **Capability discovery**: Agents learn what other agents can do
 - **Secure messaging**: Ed25519 signatures prevent message tampering
 
-## JSON-RPC 2.0 foundation
+## JSON-RPC 2.0 Foundation
 
 A2A protocol uses JSON-RPC 2.0 for all communication:
 
@@ -68,7 +68,7 @@ pub type A2AResponse = crate::jsonrpc::JsonRpcResponse;
 
 **Design choice**: A2A reuses the same JSON-RPC infrastructure as MCP (Chapter 9), ensuring consistency and reducing code duplication.
 
-## A2A error types
+## A2A Error Types
 
 A2A defines protocol-specific errors mapped to JSON-RPC error codes:
 
@@ -139,7 +139,7 @@ impl From<A2AError> for A2AErrorResponse {
 - `-32000` to `-32099`: Server-defined errors
 - `-32001` to `-32010`: A2A-specific error codes
 
-## A2A client structure
+## A2A Client Structure
 
 A2A clients have identities, public keys, and capabilities:
 
@@ -184,7 +184,7 @@ pub struct A2AClient {
 - `rate_limit_requests`: Max requests per time window
 - `is_active`: Admin can deactivate misbehaving clients
 
-## A2A initialization flow
+## A2A Initialization Flow
 
 Agents initialize sessions with protocol negotiation:
 
@@ -266,7 +266,7 @@ impl A2AInitializeResponse {
 
 **Capability negotiation**: Server returns intersection of client-requested and server-supported capabilities.
 
-## A2A message structure
+## A2A Message Structure
 
 Messages support text, structured data, and file attachments:
 
@@ -338,7 +338,7 @@ pub enum MessagePart {
 }
 ```
 
-## A2A authentication
+## A2A Authentication
 
 A2A supports API key authentication with rate limiting:
 
@@ -424,7 +424,7 @@ async fn authenticate_a2a_key(&self, api_key: &str) -> Result<AuthResult, anyhow
 4. **Check rate limits**: Enforce A2A-specific rate limits
 5. **Return auth result**: Include rate limit status in response
 
-## agent capability discovery
+## Agent Capability Discovery
 
 Agents advertise capabilities through agent cards:
 
@@ -560,7 +560,7 @@ ToolDefinition {
 - **Examples**: Sample usage helps agents understand tool behavior
 - **Authentication**: Agents know how to authenticate (OAuth2, API keys)
 
-## Ed25519 signatures
+## Ed25519 Signatures
 
 A2A uses Ed25519 for message authentication:
 
@@ -601,7 +601,7 @@ fn verify_signature(
 }
 ```
 
-## A2A tasks
+## A2A Tasks
 
 A2A supports long-running tasks with progress tracking:
 
@@ -641,7 +641,7 @@ Created → Running → Completed
 
 **Task notifications**: Server pushes progress updates via Server-Sent Events (SSE).
 
-## key takeaways
+## Key Takeaways
 
 1. **JSON-RPC foundation**: A2A reuses the same JSON-RPC infrastructure as MCP.
 

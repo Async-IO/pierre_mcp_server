@@ -1,8 +1,8 @@
-# chapter 19: comprehensive tools guide - all 45 MCP tools
+# Chapter 19: Comprehensive Tools Guide - All 45 MCP Tools
 
 This chapter provides a complete reference to all 45 MCP tools Pierre offers for fitness data analysis. You'll learn tool categories, natural language prompt examples, and how AI assistants discover and use these tools.
 
-## what you'll learn
+## What You'll Learn
 
 - Complete tool inventory (45 tools)
 - Tool categorization (6 categories)
@@ -13,7 +13,7 @@ This chapter provides a complete reference to all 45 MCP tools Pierre offers for
 - Real-world usage examples
 - Tool chaining patterns
 
-## tool overview
+## Tool Overview
 
 Pierre provides 45 MCP tools organized in 6 functional categories:
 
@@ -115,11 +115,11 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
 }
 ```
 
-## 1. connection tools (4 tools)
+## 1. Connection Tools (4 Tools)
 
 These tools manage OAuth connections to Pierre and fitness providers.
 
-### connect_to_pierre
+### Connect_to_pierre
 
 **Description**: Authenticate with Pierre Fitness Server to access your fitness data.
 
@@ -132,7 +132,7 @@ These tools manage OAuth connections to Pierre and fitness providers.
 
 **Use case**: First-time setup or re-authentication after token expiration.
 
-### connect_provider
+### Connect_provider
 
 **Description**: Connect to a fitness provider (Strava, Fitbit) via unified OAuth flow.
 
@@ -150,7 +150,7 @@ These tools manage OAuth connections to Pierre and fitness providers.
 
 **Use case**: Initial provider connection or adding additional providers.
 
-### get_connection_status
+### Get_connection_status
 
 **Description**: Check which fitness providers are currently connected.
 
@@ -163,7 +163,7 @@ These tools manage OAuth connections to Pierre and fitness providers.
 
 **Use case**: Verify active connections before requesting data.
 
-### disconnect_provider
+### Disconnect_provider
 
 **Description**: Revoke access tokens for a specific fitness provider.
 
@@ -181,11 +181,11 @@ These tools manage OAuth connections to Pierre and fitness providers.
 
 **Use case**: Privacy management, switching accounts, troubleshooting.
 
-## 2. data access tools (8 tools)
+## 2. Data Access Tools (8 Tools)
 
 These tools fetch raw data from connected fitness providers.
 
-### get_activities
+### Get_activities
 
 **Description**: Retrieve fitness activities from a provider.
 
@@ -205,7 +205,7 @@ These tools fetch raw data from connected fitness providers.
 
 **Use case**: Activity listing, data exploration, trend analysis preparation.
 
-### get_athlete
+### Get_athlete
 
 **Description**: Get athlete profile from a provider.
 
@@ -223,7 +223,7 @@ These tools fetch raw data from connected fitness providers.
 
 **Use case**: Profile information, baseline metrics (FTP, max HR, weight).
 
-### get_stats
+### Get_stats
 
 **Description**: Get aggregate statistics from a provider.
 
@@ -241,7 +241,7 @@ These tools fetch raw data from connected fitness providers.
 
 **Use case**: Summary statistics, progress tracking, milestone identification.
 
-### get_activity_intelligence
+### Get_activity_intelligence
 
 **Description**: AI-powered insights and analysis for a specific activity.
 
@@ -262,7 +262,7 @@ These tools fetch raw data from connected fitness providers.
 
 **Use case**: Deep activity analysis, performance insights, environmental factors.
 
-### get_notifications
+### Get_notifications
 
 **Description**: Get OAuth notifications for the user.
 
@@ -281,7 +281,7 @@ These tools fetch raw data from connected fitness providers.
 
 **Use case**: OAuth completion tracking, connection diagnostics.
 
-### mark_notifications_read
+### Mark_notifications_read
 
 **Description**: Mark OAuth notifications as read.
 
@@ -299,7 +299,7 @@ These tools fetch raw data from connected fitness providers.
 
 **Use case**: Notification management, clearing completed OAuth flows.
 
-### announce_oauth_success
+### Announce_oauth_success
 
 **Description**: Display OAuth connection success message in chat.
 
@@ -307,7 +307,7 @@ These tools fetch raw data from connected fitness providers.
 
 **Use case**: User feedback for successful OAuth flows.
 
-### check_oauth_notifications
+### Check_oauth_notifications
 
 **Description**: Check for pending OAuth notifications.
 
@@ -317,11 +317,11 @@ These tools fetch raw data from connected fitness providers.
 
 **Use case**: Polling for OAuth completion in SDK.
 
-## 3. intelligence & analytics tools (13 tools)
+## 3. Intelligence & Analytics Tools (13 Tools)
 
 These tools provide AI-powered analysis and insights.
 
-### analyze_activity
+### Analyze_activity
 
 **Description**: Comprehensive analysis of a single activity.
 
@@ -332,7 +332,7 @@ These tools provide AI-powered analysis and insights.
 
 **Use case**: Post-workout analysis, identifying strengths/weaknesses.
 
-### calculate_metrics
+### Calculate_metrics
 
 **Description**: Calculate derived metrics from activity data.
 
@@ -343,7 +343,7 @@ These tools provide AI-powered analysis and insights.
 
 **Use case**: Advanced metrics not provided by fitness providers.
 
-### analyze_performance_trends
+### Analyze_performance_trends
 
 **Description**: Identify performance trends over time.
 
@@ -354,7 +354,7 @@ These tools provide AI-powered analysis and insights.
 
 **Use case**: Long-term progress tracking, plateau detection.
 
-### compare_activities
+### Compare_activities
 
 **Description**: Compare two or more activities.
 
@@ -365,7 +365,7 @@ These tools provide AI-powered analysis and insights.
 
 **Use case**: Performance comparison, identifying improvements/regressions.
 
-### detect_patterns
+### Detect_patterns
 
 **Description**: Detect patterns in training data.
 
@@ -376,7 +376,7 @@ These tools provide AI-powered analysis and insights.
 
 **Use case**: Optimization insights, habit identification.
 
-### set_goal
+### Set_goal
 
 **Description**: Set a fitness goal with target metrics.
 
@@ -387,7 +387,7 @@ These tools provide AI-powered analysis and insights.
 
 **Use case**: Goal management, motivation tracking.
 
-### track_progress
+### Track_progress
 
 **Description**: Track progress towards goals.
 
@@ -398,7 +398,7 @@ These tools provide AI-powered analysis and insights.
 
 **Use case**: Goal monitoring, progress visualization.
 
-### suggest_goals
+### Suggest_goals
 
 **Description**: AI-suggested goals based on current fitness level.
 
@@ -409,7 +409,7 @@ These tools provide AI-powered analysis and insights.
 
 **Use case**: Goal discovery, personalized recommendations.
 
-### analyze_goal_feasibility
+### Analyze_goal_feasibility
 
 **Description**: Analyze if a goal is realistic given current fitness.
 
@@ -420,7 +420,7 @@ These tools provide AI-powered analysis and insights.
 
 **Use case**: Goal validation, expectation management.
 
-### generate_recommendations
+### Generate_recommendations
 
 **Description**: Generate training recommendations.
 
@@ -431,7 +431,7 @@ These tools provide AI-powered analysis and insights.
 
 **Use case**: Training advice, weakness identification.
 
-### calculate_fitness_score
+### Calculate_fitness_score
 
 **Description**: Calculate current fitness score.
 
@@ -442,7 +442,7 @@ These tools provide AI-powered analysis and insights.
 
 **Use case**: Fitness tracking, periodization planning.
 
-### predict_performance
+### Predict_performance
 
 **Description**: Predict performance for upcoming events.
 
@@ -453,7 +453,7 @@ These tools provide AI-powered analysis and insights.
 
 **Use case**: Race planning, pacing strategy.
 
-### analyze_training_load
+### Analyze_training_load
 
 **Description**: Analyze training stress and recovery needs.
 
@@ -464,11 +464,11 @@ These tools provide AI-powered analysis and insights.
 
 **Use case**: Recovery planning, injury prevention.
 
-## 4. configuration management tools (10 tools)
+## 4. Configuration Management Tools (10 Tools)
 
 These tools manage user profiles and training zones.
 
-### get_configuration_catalog
+### Get_configuration_catalog
 
 **Description**: List all available configuration algorithms and profiles.
 
@@ -478,7 +478,7 @@ These tools manage user profiles and training zones.
 
 **Use case**: Discovering configuration options.
 
-### get_user_configuration
+### Get_user_configuration
 
 **Description**: Retrieve user's current configuration.
 
@@ -488,7 +488,7 @@ These tools manage user profiles and training zones.
 
 **Use case**: Viewing active settings.
 
-### update_user_configuration
+### Update_user_configuration
 
 **Description**: Update user profile (age, weight, FTP, max HR, etc.).
 
@@ -499,7 +499,7 @@ These tools manage user profiles and training zones.
 
 **Use case**: Profile updates after fitness tests.
 
-### calculate_personalized_zones
+### Calculate_personalized_zones
 
 **Description**: Calculate personalized training zones.
 
@@ -510,11 +510,11 @@ These tools manage user profiles and training zones.
 
 **Use case**: Training zone setup.
 
-## 5. nutrition tools (5 tools)
+## 5. Nutrition Tools (5 Tools)
 
 These tools provide nutrition analysis and planning.
 
-### calculate_daily_nutrition
+### Calculate_daily_nutrition
 
 **Description**: Calculate daily nutrition needs.
 
@@ -525,7 +525,7 @@ These tools provide nutrition analysis and planning.
 
 **Use case**: Nutrition planning based on training load.
 
-### search_food
+### Search_food
 
 **Description**: Search USDA food database.
 
@@ -535,7 +535,7 @@ These tools provide nutrition analysis and planning.
 
 **Use case**: Food logging, meal planning.
 
-### get_food_details
+### Get_food_details
 
 **Description**: Get detailed nutrition info for a food.
 
@@ -545,7 +545,7 @@ These tools provide nutrition analysis and planning.
 
 **Use case**: Detailed nutrition analysis.
 
-### analyze_meal_nutrition
+### Analyze_meal_nutrition
 
 **Description**: Analyze complete meal nutrition.
 
@@ -555,11 +555,11 @@ These tools provide nutrition analysis and planning.
 
 **Use case**: Meal logging, nutrition tracking.
 
-## 6. sleep & recovery tools (5 tools)
+## 6. Sleep & Recovery Tools (5 Tools)
 
 These tools analyze sleep and recovery metrics.
 
-### analyze_sleep_quality
+### Analyze_sleep_quality
 
 **Description**: Analyze sleep quality and duration.
 
@@ -569,7 +569,7 @@ These tools analyze sleep and recovery metrics.
 
 **Use case**: Recovery monitoring.
 
-### calculate_recovery_score
+### Calculate_recovery_score
 
 **Description**: Calculate recovery score based on multiple factors.
 
@@ -579,7 +579,7 @@ These tools analyze sleep and recovery metrics.
 
 **Use case**: Training intensity planning.
 
-### suggest_rest_day
+### Suggest_rest_day
 
 **Description**: Suggest if a rest day is needed.
 
@@ -589,7 +589,7 @@ These tools analyze sleep and recovery metrics.
 
 **Use case**: Injury prevention, overtraining avoidance.
 
-## tool chaining patterns
+## Tool Chaining Patterns
 
 AI assistants often chain multiple tools together:
 
@@ -625,7 +625,7 @@ AI chains:
 4. predict_performance()  // Estimate completion
 ```
 
-## key takeaways
+## Key Takeaways
 
 1. **45 total tools**: Organized in 6 functional categories for comprehensive fitness analysis.
 

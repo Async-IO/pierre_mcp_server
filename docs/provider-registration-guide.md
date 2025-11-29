@@ -18,8 +18,9 @@ This guide shows how pierre's pluggable provider architecture supports **1 to x 
 │  registry.register_factory("garmin", GarminFactory)  │
 │  registry.register_factory("fitbit", FitbitFactory)  │
 │  registry.register_factory("synthetic", SynthFactory)│
-│  registry.register_factory("whoop", WhoopFactory)    │ <- custom
-│  registry.register_factory("polar", PolarFactory)    │ <- custom
+│  registry.register_factory("whoop", WhoopFactory)    │ <- built-in
+│  registry.register_factory("terra", TerraFactory)    │ <- built-in
+│  registry.register_factory("polar", PolarFactory)    │ <- custom example
 │  ... unlimited providers ...                         │
 └────────────┬─────────────────────────────────────────┘
              │

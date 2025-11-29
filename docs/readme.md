@@ -1,52 +1,106 @@
-# documentation
+# Documentation
 
-Concise documentation for pierre mcp server.
+Developer documentation for Pierre Fitness Platform.
 
-## essential docs
+## Quick Links
 
-- **[getting-started.md](getting-started.md)** - installation and quick start
-- **[architecture.md](architecture.md)** - system design and components
-- **[protocols.md](protocols.md)** - mcp, oauth2, a2a, rest protocols
-- **[authentication.md](authentication.md)** - jwt, api keys, oauth2
-- **[configuration.md](configuration.md)** - environment variables and settings
-- **[build.md](build.md)** - rust toolchain, cargo configuration, linting enforcement
-- **[ci-cd.md](ci-cd.md)** - github actions workflows, ci/cd pipeline, troubleshooting
-- **[contributing.md](contributing.md)** - development guidelines
+### For Users
+- [Getting Started](getting-started.md) - Install, configure, connect your AI assistant
 
-## quick links
+### For Developers
+1. [Getting Started](getting-started.md) - Setup dev environment
+2. [Architecture](architecture.md) - System design
+3. [Development Guide](development.md) - Workflow, dashboard, testing
+4. [Contributing](contributing.md) - Code standards, PR workflow
 
-### for ai assistant users
-Start with [getting-started.md](getting-started.md) → connect claude/chatgpt to your fitness data
+### For Integrators
+- MCP clients: [Protocols](protocols.md#mcp-model-context-protocol)
+- Web apps: [Protocols](protocols.md#rest-api)
+- Autonomous agents: [Protocols](protocols.md#a2a-agent-to-agent-protocol)
 
-### for developers
-1. [getting-started.md](getting-started.md) - setup dev environment
-2. [architecture.md](architecture.md) - understand the system
-3. [build.md](build.md) - build configuration and linting
-4. [ci-cd.md](ci-cd.md) - ci/cd workflows and validation
-5. [contributing.md](contributing.md) - coding standards
-6. [protocols.md](protocols.md) - protocol details
+## Reference Documentation
 
-### for integrators
-- mcp clients: [protocols.md#mcp](protocols.md#mcp-model-context-protocol)
-- web apps: [protocols.md#rest-api](protocols.md#rest-api)
-- autonomous agents: [protocols.md#a2a](protocols.md#a2a-agent-to-agent-protocol)
+### Core
+- [Getting Started](getting-started.md) - Installation and quick start
+- [Architecture](architecture.md) - System design and components
+- [Protocols](protocols.md) - MCP, OAuth2, A2A, REST protocols
+- [Authentication](authentication.md) - JWT, API keys, OAuth2
 
-## installation guides
+### Configuration
+- [Configuration](configuration.md) - Settings and algorithms
+- [Environment](environment.md) - .envrc variables reference
 
-Located in `installation-guides/`:
-- `install-mcp-client.md` - sdk installation for claude desktop, chatgpt
+### OAuth
+- [OAuth Client](oauth-client.md) - Fitness provider connections (Strava, Fitbit, Garmin)
+- [OAuth2 Server](oauth2-server.md) - MCP client authentication
 
-## additional resources
+### Development
+- [Development Guide](development.md) - Workflow, dashboard, admin tools
+- [Build](build.md) - Rust toolchain, cargo configuration
+- [CI/CD](ci-cd.md) - GitHub Actions, pipelines
+- [Testing](testing.md) - Test framework, strategies
+- [Contributing](contributing.md) - Development guidelines
 
-- openapi spec: `openapi.yaml`
-- sdk documentation: `../sdk/README.md`
-- main readme: `../README.md`
+### Methodology
+- [Intelligence Methodology](intelligence-methodology.md) - Sports science formulas
+- [Nutrition Methodology](nutrition-methodology.md) - Dietary calculations
 
-## documentation philosophy
+## Scripts
 
-- **concise**: developers won't read walls of text
-- **accurate**: verified against actual code
-- **practical**: code examples that work
-- **lowercase**: consistent naming
+Development, testing, and deployment scripts.
 
-Based on https://github.com/github/github-mcp-server style.
+- [Scripts Reference](../scripts/README.md) - 30+ scripts documented
+
+Key scripts:
+```bash
+./bin/start-server.sh     # start backend
+./bin/stop-server.sh      # stop backend
+./bin/start-frontend.sh   # start dashboard
+./scripts/fresh-start.sh  # clean database reset
+./scripts/lint-and-test.sh # full CI suite
+```
+
+## Tutorial
+
+Comprehensive Rust learning path using Pierre as the codebase.
+
+- [Tutorial Table of Contents](tutorial-table-of-contents.md) - 25 chapters + appendices
+
+### Learning Paths
+
+**Quick Start** (core concepts):
+1. Chapter 1 - Architecture
+2. Chapter 2 - Error Handling
+3. Chapter 9 - JSON-RPC
+4. Chapter 10 - MCP Protocol
+5. Chapter 19 - Tools Guide
+
+**Security-Focused**:
+1. Chapter 5 - Cryptographic Keys
+2. Chapter 6 - JWT Authentication
+3. Chapter 7 - Multi-Tenant Isolation
+4. Chapter 15 - OAuth 2.0 Server
+
+## Component Documentation
+
+- [SDK Documentation](../sdk/README.md) - TypeScript SDK for MCP clients
+- [Frontend Documentation](../frontend/README.md) - React dashboard
+- [Examples](../examples/README.md) - Sample integrations
+
+## Installation Guides
+
+- [MCP Client Installation](installation-guides/install-mcp-client.md) - Claude Desktop, ChatGPT
+
+## Additional Resources
+
+- OpenAPI spec: `openapi.yaml`
+- Main README: [../README.md](../README.md)
+
+## Documentation Style
+
+- **Concise**: Developers don't read walls of text
+- **Accurate**: Verified against actual code
+- **Practical**: Code examples that work
+- **Capitalized**: Section headings start with capital letters
+
+Based on [github/github-mcp-server](https://github.com/github/github-mcp-server) style.
