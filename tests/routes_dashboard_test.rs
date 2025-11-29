@@ -222,6 +222,20 @@ impl DashboardTestSetup {
                     scopes: vec![],
                     enabled: false,
                 },
+                whoop: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                    client_id: None,
+                    client_secret: None,
+                    redirect_uri: None,
+                    scopes: vec![],
+                    enabled: false,
+                },
+                terra: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                    client_id: None,
+                    client_secret: None,
+                    redirect_uri: None,
+                    scopes: vec![],
+                    enabled: false,
+                },
             },
             security: pierre_mcp_server::config::environment::SecurityConfig {
                 cors_origins: vec!["*".to_owned()],
@@ -603,6 +617,20 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
                 enabled: false,
             },
             garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+            whoop: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+            terra: pierre_mcp_server::config::environment::OAuthProviderConfig {
                 client_id: None,
                 client_secret: None,
                 redirect_uri: None,

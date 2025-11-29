@@ -73,9 +73,14 @@ impl TenantOAuthClient {
             )));
         }
 
-        // Get tenant credentials
+        // Get credentials with user-specific priority
         let credentials = manager
-            .get_credentials(tenant_context.tenant_id, provider, database)
+            .get_credentials_for_user(
+                Some(tenant_context.user_id),
+                tenant_context.tenant_id,
+                provider,
+                database,
+            )
             .await?;
         drop(manager);
 
@@ -320,6 +325,21 @@ impl TenantOAuthClient {
                 "https://www.fitbit.com/oauth2/authorize".to_owned(),
                 "https://api.fitbit.com/oauth2/token".to_owned(),
                 true,
+            ),
+            "garmin" => (
+                "https://connect.garmin.com/oauthConfirm".to_owned(),
+                "https://connectapi.garmin.com/oauth-service/oauth/access_token".to_owned(),
+                false, // Garmin uses OAuth 1.0a, no PKCE
+            ),
+            "whoop" => (
+                "https://api.prod.whoop.com/oauth/oauth2/auth".to_owned(),
+                "https://api.prod.whoop.com/oauth/oauth2/token".to_owned(),
+                true,
+            ),
+            "terra" => (
+                "https://widget.tryterra.co/session".to_owned(),
+                "https://api.tryterra.co/v2/auth/token".to_owned(),
+                false, // Terra uses API key auth, not standard OAuth
             ),
             _ => {
                 warn!("Unknown provider {}, using generic OAuth URLs", provider);

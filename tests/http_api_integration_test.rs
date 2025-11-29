@@ -153,6 +153,20 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
                 scopes: vec![],
                 enabled: false,
             },
+            whoop: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+            terra: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
             cors_origins: vec!["http://localhost:3000".to_owned()],

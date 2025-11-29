@@ -173,6 +173,8 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
         fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
         garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        whoop: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        terra: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
     });
     let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new(
         oauth_config,
@@ -441,6 +443,8 @@ async fn test_tenant_context_switching() -> Result<()> {
         strava: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
         fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
         garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        whoop: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+        terra: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
     });
     let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new(
         oauth_config,

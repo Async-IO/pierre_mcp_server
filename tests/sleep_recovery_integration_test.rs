@@ -47,6 +47,20 @@ fn create_test_oauth_config() -> OAuthConfig {
             scopes: vec![],
             enabled: false,
         },
+        whoop: OAuthProviderConfig {
+            client_id: None,
+            client_secret: None,
+            redirect_uri: None,
+            scopes: vec![],
+            enabled: false,
+        },
+        terra: OAuthProviderConfig {
+            client_id: None,
+            client_secret: None,
+            redirect_uri: None,
+            scopes: vec![],
+            enabled: false,
+        },
     }
 }
 

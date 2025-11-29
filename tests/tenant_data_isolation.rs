@@ -67,13 +67,10 @@ fn create_test_server_config(
                 scopes: vec!["activity".to_owned(), "profile".to_owned()],
                 enabled: true,
             },
-            garmin: pierre_mcp_server::config::environment::OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
-                scopes: vec![],
-                enabled: false,
-            },
+            // Use defaults for providers not needed in this test
+            garmin: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+            whoop: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
+            terra: pierre_mcp_server::config::environment::OAuthProviderConfig::default(),
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
             cors_origins: vec!["*".to_owned()],

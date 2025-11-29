@@ -1623,6 +1623,20 @@ fn create_test_server_config() -> ServerConfig {
                 scopes: vec![],
                 enabled: false,
             },
+            whoop: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+            terra: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_owned()],

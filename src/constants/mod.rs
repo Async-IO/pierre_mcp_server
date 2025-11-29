@@ -438,6 +438,12 @@ pub mod rate_limits {
     pub const FITBIT_DEFAULT_DAILY_RATE_LIMIT: u32 = 1000;
     /// Strava default daily rate limit
     pub const STRAVA_DEFAULT_DAILY_RATE_LIMIT: u32 = 15000;
+    /// Garmin default daily rate limit
+    pub const GARMIN_DEFAULT_DAILY_RATE_LIMIT: u32 = 1000;
+    /// WHOOP default daily rate limit
+    pub const WHOOP_DEFAULT_DAILY_RATE_LIMIT: u32 = 1000;
+    /// Terra default daily rate limit
+    pub const TERRA_DEFAULT_DAILY_RATE_LIMIT: u32 = 1000;
     /// Default burst limit
     pub const DEFAULT_BURST_LIMIT: u32 = 10;
     /// Default rate limit window

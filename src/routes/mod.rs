@@ -32,6 +32,8 @@ pub mod mcp;
 pub mod oauth2;
 /// Tenant management routes
 pub mod tenants;
+/// User OAuth app management routes
+pub mod user_oauth_apps;
 /// Web-facing admin routes (cookie auth for admin users)
 pub mod web_admin;
 /// WebSocket routes for real-time communication
@@ -98,5 +100,7 @@ pub use dashboard::DashboardRoutes;
 pub use fitness::FitnessConfigurationRoutes;
 /// Tenant route handlers
 pub use tenants::TenantRoutes;
+/// User OAuth app route handlers
+pub use user_oauth_apps::UserOAuthAppRoutes;
 /// Web admin route handlers
 pub use web_admin::WebAdminRoutes;

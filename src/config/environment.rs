@@ -550,6 +550,10 @@ pub struct OAuthConfig {
     pub fitbit: OAuthProviderConfig,
     /// Garmin OAuth configuration
     pub garmin: OAuthProviderConfig,
+    /// WHOOP OAuth configuration
+    pub whoop: OAuthProviderConfig,
+    /// Terra OAuth configuration
+    pub terra: OAuthProviderConfig,
 }
 
 /// OAuth provider-specific configuration
@@ -1421,6 +1425,8 @@ impl ServerConfig {
             strava: Self::load_strava_oauth_config(),
             fitbit: Self::load_fitbit_oauth_config(),
             garmin: Self::load_garmin_oauth_config(),
+            whoop: Self::load_whoop_oauth_config(),
+            terra: Self::load_terra_oauth_config(),
         }
     }
 
@@ -1656,6 +1662,36 @@ impl ServerConfig {
             scopes: vec![],
             enabled: env::var("GARMIN_CLIENT_ID").is_ok()
                 && env::var("GARMIN_CLIENT_SECRET").is_ok(),
+        }
+    }
+
+    /// Load WHOOP OAuth configuration from environment
+    fn load_whoop_oauth_config() -> OAuthProviderConfig {
+        let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_owned());
+        OAuthProviderConfig {
+            client_id: env::var("WHOOP_CLIENT_ID").ok(),
+            client_secret: env::var("WHOOP_CLIENT_SECRET").ok(),
+            redirect_uri: Some(
+                env::var("WHOOP_REDIRECT_URI")
+                    .unwrap_or_else(|_| format!("{base_url}/auth/whoop/callback")),
+            ),
+            scopes: parse_scopes(oauth::WHOOP_DEFAULT_SCOPES),
+            enabled: env::var("WHOOP_CLIENT_ID").is_ok() && env::var("WHOOP_CLIENT_SECRET").is_ok(),
+        }
+    }
+
+    /// Load Terra OAuth configuration from environment
+    fn load_terra_oauth_config() -> OAuthProviderConfig {
+        let base_url = env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_owned());
+        OAuthProviderConfig {
+            client_id: env::var("TERRA_DEV_ID").ok(),
+            client_secret: env::var("TERRA_API_KEY").ok(),
+            redirect_uri: Some(
+                env::var("TERRA_REDIRECT_URI")
+                    .unwrap_or_else(|_| format!("{base_url}/auth/terra/callback")),
+            ),
+            scopes: parse_scopes(oauth::TERRA_DEFAULT_SCOPES),
+            enabled: env::var("TERRA_DEV_ID").is_ok() && env::var("TERRA_API_KEY").is_ok(),
         }
     }
 

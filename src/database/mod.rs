@@ -2023,6 +2023,139 @@ impl Database {
 
         Ok(())
     }
+
+    /// Store user OAuth app (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    async fn store_user_oauth_app_impl(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+        client_id: &str,
+        client_secret: &str,
+        redirect_uri: &str,
+    ) -> AppResult<()> {
+        // First ensure the user_oauth_apps table exists
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_oauth_apps (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                client_id TEXT NOT NULL,
+                client_secret TEXT NOT NULL,
+                redirect_uri TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, provider),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
+
+        let id = Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+
+        sqlx::query(
+            r"
+            INSERT INTO user_oauth_apps (id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            ON CONFLICT(user_id, provider) DO UPDATE SET
+                client_id = excluded.client_id,
+                client_secret = excluded.client_secret,
+                redirect_uri = excluded.redirect_uri,
+                updated_at = excluded.updated_at
+            ",
+        )
+        .bind(&id)
+        .bind(user_id.to_string())
+        .bind(provider)
+        .bind(client_id)
+        .bind(client_secret)
+        .bind(redirect_uri)
+        .bind(&now)
+        .bind(&now)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
+
+        Ok(())
+    }
+
+    /// Get user OAuth app (internal implementation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    async fn get_user_oauth_app_impl(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+    ) -> AppResult<Option<crate::models::UserOAuthApp>> {
+        // First ensure the user_oauth_apps table exists
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_oauth_apps (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                client_id TEXT NOT NULL,
+                client_secret TEXT NOT NULL,
+                redirect_uri TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, provider),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
+
+        let row = sqlx::query(
+            r"
+            SELECT id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at
+            FROM user_oauth_apps
+            WHERE user_id = ?1 AND provider = ?2
+            ",
+        )
+        .bind(user_id.to_string())
+        .bind(provider)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
+
+        row.map_or_else(
+            || Ok(None),
+            |row| {
+                use sqlx::Row;
+                let id_str: String = row.get("id");
+                let user_id_str: String = row.get("user_id");
+                let created_at_str: String = row.get("created_at");
+                let updated_at_str: String = row.get("updated_at");
+
+                Ok(Some(crate::models::UserOAuthApp {
+                    id: id_str,
+                    user_id: Uuid::parse_str(&user_id_str)
+                        .map_err(|e| AppError::database(format!("Invalid UUID: {e}")))?,
+                    provider: row.get("provider"),
+                    client_id: row.get("client_id"),
+                    client_secret: row.get("client_secret"),
+                    redirect_uri: row.get("redirect_uri"),
+                    created_at: chrono::DateTime::parse_from_rfc3339(&created_at_str)
+                        .map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
+                    updated_at: chrono::DateTime::parse_from_rfc3339(&updated_at_str)
+                        .map_or_else(|_| chrono::Utc::now(), |dt| dt.with_timezone(&chrono::Utc)),
+                }))
+            },
+        )
+    }
 }
 
 // Implement HasEncryption trait for SQLite (delegates to inherent impl methods)
@@ -2964,7 +3097,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         client_secret: &str,
         redirect_uri: &str,
     ) -> AppResult<()> {
-        Self::store_user_oauth_app(
+        Self::store_user_oauth_app_impl(
             self,
             user_id,
             provider,
@@ -2980,7 +3113,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         user_id: Uuid,
         provider: &str,
     ) -> AppResult<Option<UserOAuthApp>> {
-        Self::get_user_oauth_app(self, user_id, provider).await
+        Self::get_user_oauth_app_impl(self, user_id, provider).await
     }
 
     async fn list_user_oauth_apps(&self, user_id: Uuid) -> AppResult<Vec<UserOAuthApp>> {

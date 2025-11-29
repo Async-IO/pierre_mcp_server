@@ -73,13 +73,10 @@ fn create_test_config() -> Arc<ServerConfig> {
                 scopes: vec!["activity".to_owned(), "profile".to_owned()],
                 enabled: true,
             },
-            garmin: OAuthProviderConfig {
-                client_id: None,
-                client_secret: None,
-                redirect_uri: None,
-                scopes: vec![],
-                enabled: false,
-            },
+            // Use defaults for providers not needed in this test
+            garmin: OAuthProviderConfig::default(),
+            whoop: OAuthProviderConfig::default(),
+            terra: OAuthProviderConfig::default(),
         },
         security: SecurityConfig {
             cors_origins: vec!["*".to_owned()],
