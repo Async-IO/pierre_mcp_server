@@ -95,8 +95,8 @@ describe('Dashboard Component', () => {
 
     // Check for welcome header text
     expect(screen.getByText(/welcome back/i)).toBeInTheDocument();
-    // Check for sign out link
-    expect(screen.getByText('Sign out')).toBeInTheDocument();
+    // Check for sign out button (title attribute, not text - button only contains an SVG icon)
+    expect(screen.getByTitle('Sign out')).toBeInTheDocument();
   });
 
   it('should render navigation tabs', async () => {
@@ -119,7 +119,7 @@ describe('Dashboard Component', () => {
     });
 
     expect(screen.getByText('Admin User')).toBeInTheDocument();
-    expect(screen.getByText('Sign out')).toBeInTheDocument();
+    expect(screen.getByTitle('Sign out')).toBeInTheDocument();
   });
 
   it('should show pending users badge', async () => {

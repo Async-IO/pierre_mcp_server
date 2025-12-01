@@ -184,7 +184,7 @@ describe('API Service - Admin Functionality', () => {
 
       const result = await apiService.createAdminToken(tokenRequest);
 
-      expect(mockedAxios.post).toHaveBeenCalledWith('/admin/tokens', tokenRequest);
+      expect(mockedAxios.post).toHaveBeenCalledWith('/api/admin/tokens', tokenRequest);
       expect(result).toEqual(mockResponse);
     });
 
@@ -201,7 +201,7 @@ describe('API Service - Admin Functionality', () => {
 
       const result = await apiService.getAdminTokenDetails('token-1');
 
-      expect(mockedAxios.get).toHaveBeenCalledWith('/admin/tokens/token-1');
+      expect(mockedAxios.get).toHaveBeenCalledWith('/api/admin/tokens/token-1');
       expect(result).toEqual(mockTokenDetails);
     });
 
@@ -212,7 +212,7 @@ describe('API Service - Admin Functionality', () => {
 
       const result = await apiService.revokeAdminToken('token-1');
 
-      expect(mockedAxios.post).toHaveBeenCalledWith('/admin/tokens/token-1/revoke');
+      expect(mockedAxios.post).toHaveBeenCalledWith('/api/admin/tokens/token-1/revoke');
       expect(result).toEqual(mockResponse);
     });
 
@@ -227,7 +227,7 @@ describe('API Service - Admin Functionality', () => {
 
       const result = await apiService.rotateAdminToken('token-1', rotateRequest);
 
-      expect(mockedAxios.post).toHaveBeenCalledWith('/admin/tokens/token-1/rotate', rotateRequest);
+      expect(mockedAxios.post).toHaveBeenCalledWith('/api/admin/tokens/token-1/rotate', rotateRequest);
       expect(result).toEqual(mockResponse);
     });
   });
@@ -256,7 +256,7 @@ describe('API Service - Admin Functionality', () => {
 
       const result = await apiService.approveUser('user-1', 'Valid business use case');
 
-      expect(mockedAxios.post).toHaveBeenCalledWith('/admin/approve-user/user-1', {
+      expect(mockedAxios.post).toHaveBeenCalledWith('/api/admin/approve-user/user-1', {
         reason: 'Valid business use case'
       });
       expect(result).toEqual(mockResponse);
@@ -269,7 +269,7 @@ describe('API Service - Admin Functionality', () => {
 
       const result = await apiService.suspendUser('user-1', 'Policy violation');
 
-      expect(mockedAxios.post).toHaveBeenCalledWith('/admin/suspend-user/user-1', {
+      expect(mockedAxios.post).toHaveBeenCalledWith('/api/admin/suspend-user/user-1', {
         reason: 'Policy violation'
       });
       expect(result).toEqual(mockResponse);

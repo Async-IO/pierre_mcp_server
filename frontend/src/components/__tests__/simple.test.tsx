@@ -42,7 +42,7 @@ describe('Component Tests', () => {
     
     expect(screen.getByRole('heading', { name: /pierre fitness platform/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Password')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
 
     // Wait for setup status check to complete
