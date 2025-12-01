@@ -603,7 +603,8 @@ impl UnifiedRateLimitCalculator {
     }
 
     /// Calculate when the monthly rate limit resets (beginning of next month)
-    fn calculate_monthly_reset() -> DateTime<Utc> {
+    #[must_use]
+    pub fn calculate_monthly_reset() -> DateTime<Utc> {
         let now = Utc::now();
         let next_month = if now.month() == 12 {
             now.with_year(now.year() + 1)

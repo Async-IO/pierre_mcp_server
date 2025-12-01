@@ -589,4 +589,77 @@ impl Database {
     pub async fn get_system_stats(&self) -> AppResult<(u64, u64)> {
         self.get_system_stats_impl().await
     }
+
+    /// Get top tools analysis for a user within a time range (internal implementation)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_top_tools_analysis_impl(
+        &self,
+        user_id: Uuid,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+    ) -> AppResult<Vec<crate::dashboard_routes::ToolUsage>> {
+        let rows = sqlx::query(
+            r"
+            SELECT
+                aku.endpoint,
+                COUNT(*) as usage_count,
+                AVG(CAST(aku.response_time_ms AS REAL)) as avg_response_time,
+                COUNT(CASE WHEN aku.status_code < 400 THEN 1 END) as success_count,
+                COUNT(CASE WHEN aku.status_code >= 400 THEN 1 END) as error_count
+            FROM api_key_usage aku
+            JOIN api_keys ak ON aku.api_key_id = ak.id
+            WHERE ak.user_id = $1 AND aku.timestamp BETWEEN $2 AND $3
+            GROUP BY aku.endpoint
+            ORDER BY usage_count DESC
+            LIMIT 10
+            ",
+        )
+        .bind(user_id.to_string())
+        .bind(start_time)
+        .bind(end_time)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get top tools analysis: {e}")))?;
+
+        let mut tool_usage = Vec::with_capacity(rows.len());
+        for row in rows {
+            let endpoint: String = row.get("endpoint");
+            let usage_count: i64 = row.get("usage_count");
+            let success_count: i64 = row.get("success_count");
+            let avg_response_time: Option<f64> = row.get("avg_response_time");
+
+            #[allow(clippy::cast_precision_loss)]
+            let success_rate = if usage_count > 0 {
+                (success_count as f64 / usage_count as f64) * 100.0
+            } else {
+                0.0
+            };
+
+            tool_usage.push(crate::dashboard_routes::ToolUsage {
+                tool_name: endpoint,
+                #[allow(clippy::cast_sign_loss)]
+                request_count: usage_count as u64,
+                success_rate,
+                average_response_time: avg_response_time.unwrap_or(0.0),
+            });
+        }
+
+        Ok(tool_usage)
+    }
+
+    /// Get top tools analysis for a user (public API)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_top_tools_analysis(
+        &self,
+        user_id: Uuid,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+    ) -> AppResult<Vec<crate::dashboard_routes::ToolUsage>> {
+        self.get_top_tools_analysis_impl(user_id, start_time, end_time)
+            .await
+    }
 }

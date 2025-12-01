@@ -2557,7 +2557,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
     ) -> AppResult<Vec<crate::dashboard_routes::ToolUsage>> {
-        Self::get_top_tools_analysis(self, user_id, start_time, end_time).await
+        Self::get_top_tools_analysis_impl(self, user_id, start_time, end_time).await
     }
 
     async fn create_admin_token(

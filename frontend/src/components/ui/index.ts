@@ -28,8 +28,9 @@ export { Tabs, TabPanel } from './Tabs';
 export type { TabsProps, TabPanelProps, Tab } from './Tabs';
 
 // Feedback components
-export { ToastProvider, useToast, useSuccessToast, useErrorToast, useWarningToast, useInfoToast } from './Toast';
-export type { Toast, ToastType } from './Toast';
+export { ToastProvider } from './Toast';
+export { useToast, useSuccessToast, useErrorToast, useWarningToast, useInfoToast } from './useToast';
+export type { Toast, ToastType } from './ToastContext';
 
 // Progress components
 export { CircularProgress } from './CircularProgress';

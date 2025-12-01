@@ -71,7 +71,7 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
     },
   });
 
-  const allClients = clients || [];
+  const allClients = useMemo(() => clients || [], [clients]);
 
   // Compute counts for the filter
   const activeCount = useMemo(() => allClients.filter(c => c.is_active).length, [allClients]);

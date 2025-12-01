@@ -123,6 +123,14 @@
     @apply badge bg-pierre-purple-100 text-pierre-purple-800;
   }
 
+  .badge-destructive {
+    @apply badge bg-pierre-red-100 text-pierre-red-800;
+  }
+
+  .badge-secondary {
+    @apply badge bg-pierre-gray-100 text-pierre-gray-800;
+  }
+
   /* Pierre Status Indicators */
   .status-dot {
     @apply w-2 h-2 rounded-full inline-block mr-2;

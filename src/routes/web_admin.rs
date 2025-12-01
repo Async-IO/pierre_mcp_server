@@ -15,7 +15,7 @@ use crate::{
     mcp::resources::ServerResources, models::UserStatus,
 };
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -135,6 +135,13 @@ struct UserStatusChangeUser {
     user_status: String,
 }
 
+/// Query parameters for user activity endpoint
+#[derive(Debug, Deserialize)]
+pub struct UserActivityQuery {
+    /// Number of days to look back (default: 30)
+    pub days: Option<u32>,
+}
+
 /// Web admin routes - accessible via browser for admin users
 pub struct WebAdminRoutes;
 
@@ -163,6 +170,18 @@ impl WebAdminRoutes {
             .route(
                 "/api/admin/suspend-user/:user_id",
                 post(Self::handle_suspend_user),
+            )
+            .route(
+                "/api/admin/users/:user_id/reset-password",
+                post(Self::handle_reset_user_password),
+            )
+            .route(
+                "/api/admin/users/:user_id/rate-limit",
+                get(Self::handle_get_user_rate_limit),
+            )
+            .route(
+                "/api/admin/users/:user_id/activity",
+                get(Self::handle_get_user_activity),
             )
             .with_state(resources)
     }
@@ -672,6 +691,234 @@ impl WebAdminRoutes {
                 "success": true,
                 "message": "Admin token revoked successfully",
                 "token_id": token_id
+            })),
+        )
+            .into_response())
+    }
+
+    /// Handle password reset via web admin
+    async fn handle_reset_user_password(
+        State(resources): State<Arc<ServerResources>>,
+        headers: axum::http::HeaderMap,
+        Path(user_id): Path<String>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate_admin(&headers, &resources).await?;
+
+        tracing::info!(
+            admin_id = %auth.user_id,
+            target_user_id = %user_id,
+            "Web admin resetting user password"
+        );
+
+        let user_uuid = uuid::Uuid::parse_str(&user_id)
+            .map_err(|e| AppError::invalid_input(format!("Invalid user ID format: {e}")))?;
+
+        // Generate temporary password
+        let temp_password: String = (0..16)
+            .map(|_| {
+                let chars = b"ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
+                chars[rand::random::<usize>() % chars.len()] as char
+            })
+            .collect();
+
+        // Hash the password
+        let password_hash = bcrypt::hash(&temp_password, bcrypt::DEFAULT_COST)
+            .map_err(|e| AppError::internal(format!("Failed to hash password: {e}")))?;
+
+        // Update user's password
+        resources
+            .database
+            .update_user_password(user_uuid, &password_hash)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to update password: {e}")))?;
+
+        // Get user email for response
+        let user = resources
+            .database
+            .get_user(user_uuid)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
+            .ok_or_else(|| AppError::not_found("User not found"))?;
+
+        Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "message": "Password reset successfully",
+                "data": {
+                    "temporary_password": temp_password,
+                    "expires_at": (chrono::Utc::now() + chrono::Duration::hours(24)).to_rfc3339(),
+                    "user_email": user.email
+                }
+            })),
+        )
+            .into_response())
+    }
+
+    /// Handle getting rate limit info for a user via web admin
+    async fn handle_get_user_rate_limit(
+        State(resources): State<Arc<ServerResources>>,
+        headers: axum::http::HeaderMap,
+        Path(user_id): Path<String>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate_admin(&headers, &resources).await?;
+
+        tracing::debug!(
+            admin_id = %auth.user_id,
+            target_user_id = %user_id,
+            "Web admin fetching user rate limit"
+        );
+
+        let user_uuid = uuid::Uuid::parse_str(&user_id)
+            .map_err(|e| AppError::invalid_input(format!("Invalid user ID format: {e}")))?;
+
+        // Get user
+        let user = resources
+            .database
+            .get_user(user_uuid)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
+            .ok_or_else(|| AppError::not_found("User not found"))?;
+
+        // Get current monthly usage
+        let monthly_used = resources
+            .database
+            .get_jwt_current_usage(user_uuid)
+            .await
+            .unwrap_or(0);
+
+        // Get daily usage from activity logs (today's requests)
+        let now = chrono::Utc::now();
+        let today_start = now.date_naive().and_hms_opt(0, 0, 0).map_or(now, |t| {
+            chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(t, chrono::Utc)
+        });
+        let daily_used = resources
+            .database
+            .get_top_tools_analysis(user_uuid, today_start, now)
+            .await
+            .map(|tools| {
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                tools.iter().map(|t| t.request_count as u32).sum::<u32>()
+            })
+            .unwrap_or(0);
+
+        // Calculate limits based on tier
+        let monthly_limit = user.tier.monthly_limit();
+        let daily_limit = monthly_limit.map(|m| m / 30);
+
+        // Calculate remaining
+        let monthly_remaining = monthly_limit.map(|l| l.saturating_sub(monthly_used));
+        let daily_remaining = daily_limit.map(|l| l.saturating_sub(daily_used));
+
+        // Calculate reset times
+        let daily_reset = (now + chrono::Duration::days(1))
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .map_or(now, |t| {
+                chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(t, chrono::Utc)
+            });
+        let monthly_reset =
+            crate::rate_limiting::UnifiedRateLimitCalculator::calculate_monthly_reset();
+
+        Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "message": "Rate limit information retrieved",
+                "data": {
+                    "user_id": user_uuid.to_string(),
+                    "tier": user.tier.to_string(),
+                    "rate_limits": {
+                        "daily": {
+                            "limit": daily_limit,
+                            "used": daily_used,
+                            "remaining": daily_remaining,
+                        },
+                        "monthly": {
+                            "limit": monthly_limit,
+                            "used": monthly_used,
+                            "remaining": monthly_remaining,
+                        },
+                    },
+                    "reset_times": {
+                        "daily_reset": daily_reset.to_rfc3339(),
+                        "monthly_reset": monthly_reset.to_rfc3339(),
+                    },
+                }
+            })),
+        )
+            .into_response())
+    }
+
+    /// Handle getting user activity via web admin
+    async fn handle_get_user_activity(
+        State(resources): State<Arc<ServerResources>>,
+        headers: axum::http::HeaderMap,
+        Path(user_id): Path<String>,
+        Query(params): Query<UserActivityQuery>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate_admin(&headers, &resources).await?;
+
+        tracing::debug!(
+            admin_id = %auth.user_id,
+            target_user_id = %user_id,
+            "Web admin fetching user activity"
+        );
+
+        let user_uuid = uuid::Uuid::parse_str(&user_id)
+            .map_err(|e| AppError::invalid_input(format!("Invalid user ID format: {e}")))?;
+
+        // Verify user exists
+        resources
+            .database
+            .get_user(user_uuid)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
+            .ok_or_else(|| AppError::not_found("User not found"))?;
+
+        // Get time range for activity using days parameter (default 30)
+        let days = i64::from(params.days.unwrap_or(30).clamp(1, 365));
+        let now = chrono::Utc::now();
+        let start_time = now - chrono::Duration::days(days);
+
+        // Get top tools usage
+        let top_tools_raw = resources
+            .database
+            .get_top_tools_analysis(user_uuid, start_time, now)
+            .await
+            .unwrap_or_default();
+
+        // Calculate total requests and percentages
+        let total_requests: u64 = top_tools_raw.iter().map(|t| t.request_count).sum();
+        let top_tools: Vec<serde_json::Value> = top_tools_raw
+            .into_iter()
+            .map(|t| {
+                let percentage = if total_requests > 0 {
+                    #[allow(clippy::cast_precision_loss)]
+                    let pct = (t.request_count as f64 / total_requests as f64) * 100.0;
+                    pct
+                } else {
+                    0.0
+                };
+                serde_json::json!({
+                    "tool_name": t.tool_name,
+                    "call_count": t.request_count,
+                    "percentage": percentage,
+                })
+            })
+            .collect();
+
+        Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "message": "User activity retrieved",
+                "data": {
+                    "user_id": user_uuid.to_string(),
+                    "period_days": days,
+                    "total_requests": total_requests,
+                    "top_tools": top_tools,
+                }
             })),
         )
             .into_response())

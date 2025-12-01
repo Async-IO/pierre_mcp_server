@@ -109,6 +109,13 @@ pub struct ListApiKeysQuery {
     pub offset: Option<String>,
 }
 
+/// Query parameters for user activity endpoint
+#[derive(Debug, Deserialize)]
+pub struct UserActivityQuery {
+    /// Number of days to look back (default: 30)
+    pub days: Option<u32>,
+}
+
 /// Query parameters for listing users
 #[derive(Debug, Deserialize)]
 pub struct ListUsersQuery {
@@ -1525,16 +1532,46 @@ impl AdminRoutes {
             .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
             .ok_or_else(|| AppError::not_found("User not found"))?;
 
-        // Get current usage for this month
-        let current_usage = ctx
+        // Get current monthly usage
+        let monthly_used = ctx
             .database
             .get_jwt_current_usage(user_uuid)
             .await
             .unwrap_or(0);
 
-        // Calculate rate limit info using user tier
-        let rate_limit_calculator = crate::rate_limiting::UnifiedRateLimitCalculator::new();
-        let rate_limit_info = rate_limit_calculator.calculate_jwt_rate_limit(&user, current_usage);
+        // Get daily usage from activity logs (today's requests)
+        let now = chrono::Utc::now();
+        let today_start = now.date_naive().and_hms_opt(0, 0, 0).map_or(now, |t| {
+            chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(t, chrono::Utc)
+        });
+        let daily_used = ctx
+            .database
+            .get_top_tools_analysis(user_uuid, today_start, now)
+            .await
+            .map(|tools| {
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                // Safe: daily usage won't exceed u32::MAX
+                tools.iter().map(|t| t.request_count as u32).sum::<u32>()
+            })
+            .unwrap_or(0);
+
+        // Calculate limits based on tier
+        let monthly_limit = user.tier.monthly_limit();
+        let daily_limit = monthly_limit.map(|m| m / 30); // Approximate daily limit
+
+        // Calculate remaining
+        let monthly_remaining = monthly_limit.map(|l| l.saturating_sub(monthly_used));
+        let daily_remaining = daily_limit.map(|l| l.saturating_sub(daily_used));
+
+        // Calculate reset times
+        let daily_reset = (now + chrono::Duration::days(1))
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .map_or(now, |t| {
+                chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(t, chrono::Utc)
+            });
+        let monthly_reset =
+            crate::rate_limiting::UnifiedRateLimitCalculator::calculate_monthly_reset();
 
         Ok(json_response(
             AdminResponse {
@@ -1542,16 +1579,23 @@ impl AdminRoutes {
                 message: "Rate limit information retrieved".to_owned(),
                 data: serde_json::to_value(serde_json::json!({
                     "user_id": user_uuid.to_string(),
-                    "email": user.email,
                     "tier": user.tier.to_string(),
-                    "rate_limit": {
-                        "is_rate_limited": rate_limit_info.is_rate_limited,
-                        "limit": rate_limit_info.limit,
-                        "remaining": rate_limit_info.remaining,
-                        "reset_at": rate_limit_info.reset_at.map(|t| t.to_rfc3339()),
-                        "auth_method": rate_limit_info.auth_method,
+                    "rate_limits": {
+                        "daily": {
+                            "limit": daily_limit,
+                            "used": daily_used,
+                            "remaining": daily_remaining,
+                        },
+                        "monthly": {
+                            "limit": monthly_limit,
+                            "used": monthly_used,
+                            "remaining": monthly_remaining,
+                        },
                     },
-                    "current_usage": current_usage,
+                    "reset_times": {
+                        "daily_reset": daily_reset.to_rfc3339(),
+                        "monthly_reset": monthly_reset.to_rfc3339(),
+                    },
                 }))
                 .ok(),
             },
@@ -1564,7 +1608,7 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Extension(admin_token): Extension<ValidatedAdminToken>,
         axum::extract::Path(user_id): axum::extract::Path<String>,
-        Query(params): Query<ListApiKeysQuery>,
+        Query(params): Query<UserActivityQuery>,
     ) -> AppResult<impl axum::response::IntoResponse> {
         if !admin_token
             .permissions
@@ -1585,31 +1629,43 @@ impl AdminRoutes {
             .map_err(|e| AppError::invalid_input(format!("Invalid user ID format: {e}")))?;
 
         // Verify user exists
-        let user = ctx
-            .database
+        ctx.database
             .get_user(user_uuid)
             .await
             .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
             .ok_or_else(|| AppError::not_found("User not found"))?;
 
-        // Get time range for activity
+        // Get time range for activity using days parameter (default 30)
+        let days = i64::from(params.days.unwrap_or(30).clamp(1, 365));
         let now = chrono::Utc::now();
-        let start_time = now - chrono::Duration::days(30); // Last 30 days
+        let start_time = now - chrono::Duration::days(days);
 
         // Get top tools usage
-        let top_tools = ctx
+        let top_tools_raw = ctx
             .database
             .get_top_tools_analysis(user_uuid, start_time, now)
             .await
             .unwrap_or_default();
 
-        // Parse limit parameter
-        let limit = params
-            .limit
-            .as_ref()
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(50)
-            .clamp(1, 100);
+        // Calculate total requests and percentages
+        let total_requests: u64 = top_tools_raw.iter().map(|t| t.request_count).sum();
+        let top_tools: Vec<serde_json::Value> = top_tools_raw
+            .into_iter()
+            .map(|t| {
+                let percentage = if total_requests > 0 {
+                    #[allow(clippy::cast_precision_loss)]
+                    let pct = (t.request_count as f64 / total_requests as f64) * 100.0;
+                    pct
+                } else {
+                    0.0
+                };
+                serde_json::json!({
+                    "tool_name": t.tool_name,
+                    "call_count": t.request_count,
+                    "percentage": percentage,
+                })
+            })
+            .collect();
 
         Ok(json_response(
             AdminResponse {
@@ -1617,12 +1673,9 @@ impl AdminRoutes {
                 message: "User activity retrieved".to_owned(),
                 data: serde_json::to_value(serde_json::json!({
                     "user_id": user_uuid.to_string(),
-                    "email": user.email,
-                    "period_days": 30,
+                    "period_days": days,
+                    "total_requests": total_requests,
                     "top_tools": top_tools,
-                    "last_active": user.last_active.to_rfc3339(),
-                    "created_at": user.created_at.to_rfc3339(),
-                    "limit": limit,
                 }))
                 .ok(),
             },

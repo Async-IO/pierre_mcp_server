@@ -45,7 +45,7 @@ describe('Login Component', () => {
 
     expect(screen.getByRole('heading', { name: /pierre fitness platform/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument()
-    expect(screen.getByLabelText('Password')).toBeInTheDocument()
+    expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
 
     // Wait for setup status check to complete
@@ -59,7 +59,7 @@ describe('Login Component', () => {
     await renderLogin()
 
     const emailInput = screen.getByLabelText(/email address/i)
-    const passwordInput = screen.getByLabelText('Password')
+    const passwordInput = screen.getByLabelText(/^password$/i)
 
     await user.type(emailInput, 'test@example.com')
     await user.type(passwordInput, 'password123')
@@ -79,7 +79,7 @@ describe('Login Component', () => {
 
     // HTML5 validation should prevent submission
     expect(screen.getByLabelText(/email address/i)).toBeRequired()
-    expect(screen.getByLabelText('Password')).toBeRequired()
+    expect(screen.getByLabelText(/^password$/i)).toBeRequired()
   })
 
   it('should show loading state during login', async () => {
@@ -92,7 +92,7 @@ describe('Login Component', () => {
     await renderLogin()
 
     const emailInput = screen.getByLabelText(/email address/i)
-    const passwordInput = screen.getByLabelText('Password')
+    const passwordInput = screen.getByLabelText(/^password$/i)
     const submitButton = screen.getByRole('button', { name: /sign in/i })
 
     await user.type(emailInput, 'test@example.com')
@@ -120,7 +120,7 @@ describe('Login Component', () => {
     await renderLogin()
 
     const emailInput = screen.getByLabelText(/email address/i)
-    const passwordInput = screen.getByLabelText('Password')
+    const passwordInput = screen.getByLabelText(/^password$/i)
     const submitButton = screen.getByRole('button', { name: /sign in/i })
 
     await user.type(emailInput, 'test@example.com')
@@ -145,7 +145,7 @@ describe('Login Component', () => {
     await renderLogin()
 
     const emailInput = screen.getByLabelText(/email address/i)
-    const passwordInput = screen.getByLabelText('Password')
+    const passwordInput = screen.getByLabelText(/^password$/i)
     const submitButton = screen.getByRole('button', { name: /sign in/i })
 
     await user.type(emailInput, 'test@example.com')
@@ -161,7 +161,7 @@ describe('Login Component', () => {
     await renderLogin()
 
     const emailInput = screen.getByLabelText(/email address/i)
-    const passwordInput = screen.getByLabelText('Password')
+    const passwordInput = screen.getByLabelText(/^password$/i)
 
     expect(emailInput).toHaveAttribute('type', 'email')
     expect(emailInput).toHaveAttribute('required')

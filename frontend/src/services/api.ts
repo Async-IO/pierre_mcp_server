@@ -472,7 +472,7 @@ class ApiService {
     expires_at: string;
     user_email: string;
   }> {
-    const response = await axios.post(`/admin/users/${userId}/reset-password`);
+    const response = await axios.post(`/api/admin/users/${userId}/reset-password`);
     return response.data;
   }
 
@@ -488,8 +488,9 @@ class ApiService {
       monthly_reset: string;
     };
   }> {
-    const response = await axios.get(`/admin/users/${userId}/rate-limit`);
-    return response.data;
+    const response = await axios.get(`/api/admin/users/${userId}/rate-limit`);
+    // Backend wraps response in AdminResponse {success, message, data}
+    return response.data.data;
   }
 
   async getUserActivity(userId: string, days: number = 30): Promise<{
@@ -502,8 +503,9 @@ class ApiService {
       percentage: number;
     }>;
   }> {
-    const response = await axios.get(`/admin/users/${userId}/activity?days=${days}`);
-    return response.data;
+    const response = await axios.get(`/api/admin/users/${userId}/activity?days=${days}`);
+    // Backend wraps response in AdminResponse {success, message, data}
+    return response.data.data;
   }
 }
 

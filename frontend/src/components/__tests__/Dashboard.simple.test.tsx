@@ -95,7 +95,7 @@ describe('Dashboard Component', () => {
 
     // Check for welcome header text
     expect(screen.getByText(/welcome back/i)).toBeInTheDocument();
-    // Check for sign out button (title attribute, not text - button only contains an SVG icon)
+    // Check for sign out button (icon button with title attribute)
     expect(screen.getByTitle('Sign out')).toBeInTheDocument();
   });
 

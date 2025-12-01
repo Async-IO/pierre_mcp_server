@@ -5,12 +5,14 @@ interface CardProps {
   children: React.ReactNode;
   className?: string;
   variant?: 'default' | 'stat';
+  onClick?: () => void;
 }
 
-export const Card: React.FC<CardProps> = ({ 
-  children, 
-  className, 
-  variant = 'default' 
+export const Card: React.FC<CardProps> = ({
+  children,
+  className,
+  variant = 'default',
+  onClick
 }) => {
   const classes = clsx(
     {
@@ -20,7 +22,7 @@ export const Card: React.FC<CardProps> = ({
     className
   );
 
-  return <div className={classes}>{children}</div>;
+  return <div className={classes} onClick={onClick}>{children}</div>;
 };
 
 interface CardHeaderProps {

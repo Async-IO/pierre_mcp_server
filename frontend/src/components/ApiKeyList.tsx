@@ -27,7 +27,7 @@ export default function ApiKeyList() {
     },
   });
 
-  const allKeys = apiKeys?.api_keys || [];
+  const allKeys = useMemo(() => apiKeys?.api_keys || [], [apiKeys?.api_keys]);
 
   // Compute counts for the filter
   const activeCount = useMemo(() => allKeys.filter(k => k.is_active).length, [allKeys]);
@@ -64,7 +64,7 @@ export default function ApiKeyList() {
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
-        <div className="pierre-spinner"></div>
+        <div className="pierre-spinner w-8 h-8"></div>
       </div>
     );
   }
@@ -97,7 +97,7 @@ export default function ApiKeyList() {
         ) : (
           <div className="space-y-4 px-6 pb-6">
             {filteredKeys.map((key: ApiKey) => (
-              <div key={key.id} className="border border-pierre-gray-200 rounded-lg p-4">
+              <Card key={key.id} className="hover:shadow-md transition-shadow p-4">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
@@ -185,7 +185,7 @@ export default function ApiKeyList() {
                     )}
                   </div>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         )}

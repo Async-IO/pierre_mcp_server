@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
 import type { SetupStatusResponse } from '../types/api';
+import { Button, Input } from './ui';
 
 // Pierre holistic node logo SVG inline for the login page
 function PierreLogo() {
@@ -123,42 +124,32 @@ export default function Login() {
               )}
 
               <div className="space-y-4">
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-pierre-gray-700 mb-1">
-                    Email address
-                  </label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    className="w-full px-4 py-2.5 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-violet focus:border-transparent outline-none transition-all"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-pierre-gray-700 mb-1">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="password"
-                      name="password"
-                      type={showPassword ? 'text' : 'password'}
-                      autoComplete="current-password"
-                      required
-                      className="w-full px-4 py-2.5 pr-12 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-violet focus:border-transparent outline-none transition-all"
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  label="Email address"
+                  autoComplete="email"
+                  required
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  label="Password"
+                  autoComplete="current-password"
+                  required
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  rightIcon={
                     <button
                       type="button"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-pierre-gray-400 hover:text-pierre-gray-600"
+                      className="hover:text-pierre-gray-600"
                       onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? (
@@ -172,17 +163,18 @@ export default function Login() {
                         </svg>
                       )}
                     </button>
-                  </div>
-                </div>
+                  }
+                />
               </div>
 
-              <button
+              <Button
                 type="submit"
-                disabled={isLoading}
-                className="w-full py-3 px-4 text-white font-medium rounded-lg bg-gradient-pierre-horizontal hover:opacity-90 disabled:opacity-50 transition-all shadow-md hover:shadow-lg"
+                variant="gradient"
+                loading={isLoading}
+                className="w-full"
               >
                 {isLoading ? 'Signing in...' : 'Sign in'}
-              </button>
+              </Button>
 
               {/* Setup status indicator */}
               {isCheckingSetup && (
