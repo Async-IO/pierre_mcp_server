@@ -284,9 +284,6 @@ export default function Dashboard() {
               <h1 className="text-xl font-medium text-pierre-gray-800">
                 {tabs.find(t => t.id === activeTab)?.name}
               </h1>
-              <p className="text-sm text-pierre-gray-500">
-                Welcome back, {user?.display_name || user?.email?.split('@')[0]}
-              </p>
             </div>
           </div>
         </header>

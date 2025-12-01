@@ -93,8 +93,8 @@ describe('Dashboard Component', () => {
       renderDashboard();
     });
 
-    // Check for welcome header text
-    expect(screen.getByText(/welcome back/i)).toBeInTheDocument();
+    // Check for page title in header
+    expect(screen.getByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument();
     // Check for sign out button (icon button with title attribute)
     expect(screen.getByTitle('Sign out')).toBeInTheDocument();
   });

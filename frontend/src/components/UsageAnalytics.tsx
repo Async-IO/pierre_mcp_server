@@ -225,7 +225,7 @@ export default function UsageAnalytics() {
                   <div>
                     <span className="font-medium text-pierre-gray-900">{tool.tool_name}</span>
                     <span className="text-pierre-gray-500 ml-2">
-                      {((tool.success_rate || 0) * 100).toFixed(1)}% success rate
+                      {(tool.success_rate || 0).toFixed(1)}% success rate
                     </span>
                   </div>
                   <div className="text-right">

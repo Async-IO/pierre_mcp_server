@@ -163,7 +163,10 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
           const avgPerDay = Math.round(totalRequests / last7Days.length);
           const peakDay = last7Days.reduce((max: TimeSeriesPoint, point: TimeSeriesPoint) =>
             point.request_count > max.request_count ? point : max, last7Days[0]);
-          const peakDayName = new Date(peakDay.date).toLocaleDateString('en-US', { weekday: 'short' });
+          const peakDate = peakDay?.date ? new Date(peakDay.date) : null;
+          const peakDayName = peakDate && !isNaN(peakDate.getTime())
+            ? peakDate.toLocaleDateString('en-US', { weekday: 'short' })
+            : '';
 
           return (
             <Card className="!p-5">
@@ -171,7 +174,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
                 <div>
                   <h3 className="text-base font-semibold text-pierre-gray-900">7-Day Activity</h3>
                   <p className="text-xs text-pierre-gray-500 mt-0.5">
-                    Avg {avgPerDay.toLocaleString()}/day · Peak {peakDayName}
+                    Avg {avgPerDay.toLocaleString()}/day{peakDayName && ` · Peak ${peakDayName}`}
                   </p>
                 </div>
                 <span className="px-3 py-1 text-sm font-medium bg-pierre-violet/10 text-pierre-violet rounded-full">
