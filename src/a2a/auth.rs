@@ -294,7 +294,10 @@ impl A2AAuthenticator {
             contact_email: format!("a2a-client-{}@system.local", uuid::Uuid::new_v4()), // System-generated A2A client email
         };
 
-        let credentials = client_manager.register_client(request).await?;
+        // Use the user_id from the client struct for ownership tracking
+        let credentials = client_manager
+            .register_client(request, client.user_id)
+            .await?;
         Ok(credentials.client_id)
     }
 

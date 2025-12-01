@@ -19,7 +19,6 @@ export default function UserApprovalModal({
   action 
 }: UserApprovalModalProps) {
   const [reason, setReason] = useState('');
-  const [loading, setLoading] = useState(false);
   const queryClient = useQueryClient();
 
   const approvalMutation = useMutation({
@@ -50,7 +49,6 @@ export default function UserApprovalModal({
   });
 
   const handleSubmit = () => {
-    setLoading(true);
     approvalMutation.mutate();
   };
 
@@ -125,14 +123,14 @@ export default function UserApprovalModal({
             <Button
               variant="outline"
               onClick={handleClose}
-              disabled={loading || approvalMutation.isPending}
+              disabled={approvalMutation.isPending}
               className="flex-1"
             >
               Cancel
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={loading || approvalMutation.isPending}
+              disabled={approvalMutation.isPending}
               className={`flex-1 text-white ${actionColor}`}
             >
               {approvalMutation.isPending ? (

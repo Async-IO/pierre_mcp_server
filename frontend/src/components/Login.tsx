@@ -131,6 +131,7 @@ export default function Login() {
                     id="email"
                     name="email"
                     type="email"
+                    autoComplete="email"
                     required
                     className="w-full px-4 py-2.5 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-violet focus:border-transparent outline-none transition-all"
                     placeholder="Enter your email"
@@ -147,6 +148,7 @@ export default function Login() {
                       id="password"
                       name="password"
                       type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
                       required
                       className="w-full px-4 py-2.5 pr-12 border border-pierre-gray-300 rounded-lg focus:ring-2 focus:ring-pierre-violet focus:border-transparent outline-none transition-all"
                       placeholder="Enter your password"
@@ -155,6 +157,7 @@ export default function Login() {
                     />
                     <button
                       type="button"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
                       className="absolute inset-y-0 right-0 flex items-center pr-3 text-pierre-gray-400 hover:text-pierre-gray-600"
                       onClick={() => setShowPassword(!showPassword)}
                     >

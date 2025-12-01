@@ -118,6 +118,340 @@ const A2A_TOOLS: &[&str] = &[
     "export_report",
 ];
 
+/// Get demo user definitions (part 1) - extracted for function length
+fn get_demo_users_part1() -> Vec<DemoUser> {
+    vec![
+        DemoUser {
+            email: "alice@acme.com",
+            display_name: "Alice Johnson",
+            tier: "professional",
+            status: "active",
+        },
+        DemoUser {
+            email: "bob@startup.io",
+            display_name: "Bob Smith",
+            tier: "starter",
+            status: "active",
+        },
+        DemoUser {
+            email: "charlie@enterprise.co",
+            display_name: "Charlie Brown",
+            tier: "enterprise",
+            status: "active",
+        },
+        DemoUser {
+            email: "diana@freelance.dev",
+            display_name: "Diana Prince",
+            tier: "starter",
+            status: "active",
+        },
+        DemoUser {
+            email: "eve@pending.com",
+            display_name: "Eve Wilson",
+            tier: "starter",
+            status: "pending",
+        },
+        DemoUser {
+            email: "frank@pending.org",
+            display_name: "Frank Miller",
+            tier: "starter",
+            status: "pending",
+        },
+        DemoUser {
+            email: "grace@suspended.net",
+            display_name: "Grace Lee",
+            tier: "professional",
+            status: "suspended",
+        },
+        DemoUser {
+            email: "henry@techcorp.io",
+            display_name: "Henry Zhang",
+            tier: "enterprise",
+            status: "active",
+        },
+        DemoUser {
+            email: "isabella@fitness.app",
+            display_name: "Isabella Martinez",
+            tier: "professional",
+            status: "active",
+        },
+        DemoUser {
+            email: "james@healthtrack.com",
+            display_name: "James OBrien",
+            tier: "starter",
+            status: "active",
+        },
+    ]
+}
+
+/// Get demo user definitions (part 2) - extracted for function length
+fn get_demo_users_part2() -> Vec<DemoUser> {
+    vec![
+        DemoUser {
+            email: "kate@runclub.org",
+            display_name: "Kate Williams",
+            tier: "starter",
+            status: "active",
+        },
+        DemoUser {
+            email: "leo@gym.pro",
+            display_name: "Leo Thompson",
+            tier: "professional",
+            status: "active",
+        },
+        DemoUser {
+            email: "maria@cycling.team",
+            display_name: "Maria Garcia",
+            tier: "enterprise",
+            status: "active",
+        },
+        DemoUser {
+            email: "noah@swim.club",
+            display_name: "Noah Davis",
+            tier: "starter",
+            status: "active",
+        },
+        DemoUser {
+            email: "olivia@yoga.studio",
+            display_name: "Olivia Taylor",
+            tier: "professional",
+            status: "active",
+        },
+        DemoUser {
+            email: "peter@triathlon.org",
+            display_name: "Peter Anderson",
+            tier: "enterprise",
+            status: "active",
+        },
+        DemoUser {
+            email: "quinn@pending.io",
+            display_name: "Quinn Roberts",
+            tier: "starter",
+            status: "pending",
+        },
+        DemoUser {
+            email: "rachel@marathon.run",
+            display_name: "Rachel Clark",
+            tier: "professional",
+            status: "active",
+        },
+        DemoUser {
+            email: "sam@crossfit.box",
+            display_name: "Sam Wilson",
+            tier: "starter",
+            status: "active",
+        },
+        DemoUser {
+            email: "tina@pilates.center",
+            display_name: "Tina Brown",
+            tier: "professional",
+            status: "active",
+        },
+    ]
+}
+
+/// Get combined demo users
+fn get_demo_users() -> Vec<DemoUser> {
+    let mut users = get_demo_users_part1();
+    users.extend(get_demo_users_part2());
+    users
+}
+
+/// Get demo API key definitions - extracted for function length (part 1)
+fn get_demo_api_keys_part1() -> Vec<DemoApiKey> {
+    vec![
+        DemoApiKey {
+            name: "Production API",
+            description: "Main production workload",
+            tier: "professional",
+            rate_limit: Some(10000),
+        },
+        DemoApiKey {
+            name: "Staging Environment",
+            description: "Pre-production testing",
+            tier: "starter",
+            rate_limit: Some(1000),
+        },
+        DemoApiKey {
+            name: "Mobile App Backend",
+            description: "iOS and Android API",
+            tier: "professional",
+            rate_limit: Some(5000),
+        },
+        DemoApiKey {
+            name: "Analytics Pipeline",
+            description: "Data processing jobs",
+            tier: "enterprise",
+            rate_limit: None,
+        },
+        DemoApiKey {
+            name: "Trial Key - Evaluation",
+            description: "Testing the platform",
+            tier: "trial",
+            rate_limit: Some(100),
+        },
+        DemoApiKey {
+            name: "Partner Integration",
+            description: "Third-party integration",
+            tier: "starter",
+            rate_limit: Some(2000),
+        },
+        DemoApiKey {
+            name: "Development",
+            description: "Local dev testing",
+            tier: "trial",
+            rate_limit: Some(500),
+        },
+        DemoApiKey {
+            name: "High Volume Batch",
+            description: "Batch processing jobs",
+            tier: "enterprise",
+            rate_limit: None,
+        },
+        DemoApiKey {
+            name: "Strava Sync",
+            description: "Automated Strava activity sync",
+            tier: "professional",
+            rate_limit: Some(3000),
+        },
+        DemoApiKey {
+            name: "Garmin Connect",
+            description: "Garmin device integration",
+            tier: "professional",
+            rate_limit: Some(3000),
+        },
+    ]
+}
+
+/// Get demo API key definitions - extracted for function length (part 2)
+fn get_demo_api_keys_part2() -> Vec<DemoApiKey> {
+    vec![
+        DemoApiKey {
+            name: "Wahoo Bridge",
+            description: "Wahoo workout imports",
+            tier: "starter",
+            rate_limit: Some(1500),
+        },
+        DemoApiKey {
+            name: "Apple Health",
+            description: "HealthKit data sync",
+            tier: "professional",
+            rate_limit: Some(5000),
+        },
+        DemoApiKey {
+            name: "Workout Analyzer",
+            description: "AI-powered workout analysis",
+            tier: "enterprise",
+            rate_limit: None,
+        },
+        DemoApiKey {
+            name: "Recovery Tracker",
+            description: "Sleep and recovery metrics",
+            tier: "starter",
+            rate_limit: Some(1000),
+        },
+        DemoApiKey {
+            name: "Nutrition Logger",
+            description: "Meal and calorie tracking",
+            tier: "starter",
+            rate_limit: Some(800),
+        },
+        DemoApiKey {
+            name: "Training Plan Bot",
+            description: "Automated plan generation",
+            tier: "professional",
+            rate_limit: Some(4000),
+        },
+        DemoApiKey {
+            name: "Race Predictor",
+            description: "Performance prediction engine",
+            tier: "enterprise",
+            rate_limit: None,
+        },
+        DemoApiKey {
+            name: "Social Feed",
+            description: "Activity sharing and comments",
+            tier: "starter",
+            rate_limit: Some(2000),
+        },
+        DemoApiKey {
+            name: "Coaching Dashboard",
+            description: "Personal trainer tools",
+            tier: "professional",
+            rate_limit: Some(6000),
+        },
+        DemoApiKey {
+            name: "Challenge Manager",
+            description: "Competition and challenge API",
+            tier: "starter",
+            rate_limit: Some(1500),
+        },
+    ]
+}
+
+/// Get combined demo API keys
+fn get_demo_api_keys() -> Vec<DemoApiKey> {
+    let mut keys = get_demo_api_keys_part1();
+    keys.extend(get_demo_api_keys_part2());
+    keys
+}
+
+/// Get demo A2A client definitions - extracted for function length
+fn get_demo_a2a_clients() -> Vec<DemoA2AClient> {
+    vec![
+        DemoA2AClient {
+            name: "Claude Desktop",
+            description: "AI Assistant Integration",
+            capabilities: r#"["chat", "analyze"]"#,
+        },
+        DemoA2AClient {
+            name: "Fitness Bot",
+            description: "Automated workout analysis",
+            capabilities: r#"["sync", "analyze", "recommend"]"#,
+        },
+        DemoA2AClient {
+            name: "Data Pipeline",
+            description: "ETL processing agent",
+            capabilities: r#"["sync", "export"]"#,
+        },
+        DemoA2AClient {
+            name: "GPT-4 Fitness Coach",
+            description: "OpenAI-powered coaching",
+            capabilities: r#"["chat", "recommend", "plan"]"#,
+        },
+        DemoA2AClient {
+            name: "Gemini Analyzer",
+            description: "Google AI workout insights",
+            capabilities: r#"["analyze", "summarize"]"#,
+        },
+        DemoA2AClient {
+            name: "Slack Bot",
+            description: "Team fitness notifications",
+            capabilities: r#"["notify", "report"]"#,
+        },
+        DemoA2AClient {
+            name: "Discord Bot",
+            description: "Community challenges",
+            capabilities: r#"["notify", "leaderboard"]"#,
+        },
+        DemoA2AClient {
+            name: "Zapier Integration",
+            description: "Workflow automation",
+            capabilities: r#"["sync", "export", "webhook"]"#,
+        },
+        DemoA2AClient {
+            name: "Training Peaks Sync",
+            description: "TrainingPeaks data bridge",
+            capabilities: r#"["sync", "import", "export"]"#,
+        },
+        DemoA2AClient {
+            name: "Garmin Agent",
+            description: "Garmin Connect automation",
+            capabilities: r#"["sync", "analyze"]"#,
+        },
+    ]
+}
+
 /// Status codes with realistic distribution (mostly 200s)
 fn random_status_code(rng: &mut impl Rng) -> i32 {
     let roll: u8 = rng.gen_range(0..100);
@@ -258,117 +592,7 @@ async fn reset_usage_data(pool: &SqlitePool) -> Result<()> {
 
 /// Seed demo users
 async fn seed_demo_users(pool: &SqlitePool) -> Result<Vec<Uuid>> {
-    let demo_users = vec![
-        DemoUser {
-            email: "alice@acme.com",
-            display_name: "Alice Johnson",
-            tier: "professional",
-            status: "active",
-        },
-        DemoUser {
-            email: "bob@startup.io",
-            display_name: "Bob Smith",
-            tier: "starter",
-            status: "active",
-        },
-        DemoUser {
-            email: "charlie@enterprise.co",
-            display_name: "Charlie Brown",
-            tier: "enterprise",
-            status: "active",
-        },
-        DemoUser {
-            email: "diana@freelance.dev",
-            display_name: "Diana Prince",
-            tier: "starter",
-            status: "active",
-        },
-        DemoUser {
-            email: "eve@pending.com",
-            display_name: "Eve Wilson",
-            tier: "starter",
-            status: "pending",
-        },
-        DemoUser {
-            email: "frank@pending.org",
-            display_name: "Frank Miller",
-            tier: "starter",
-            status: "pending",
-        },
-        DemoUser {
-            email: "grace@suspended.net",
-            display_name: "Grace Lee",
-            tier: "professional",
-            status: "suspended",
-        },
-        DemoUser {
-            email: "henry@techcorp.io",
-            display_name: "Henry Zhang",
-            tier: "enterprise",
-            status: "active",
-        },
-        DemoUser {
-            email: "isabella@fitness.app",
-            display_name: "Isabella Martinez",
-            tier: "professional",
-            status: "active",
-        },
-        DemoUser {
-            email: "james@healthtrack.com",
-            display_name: "James OBrien",
-            tier: "starter",
-            status: "active",
-        },
-        DemoUser {
-            email: "kate@runclub.org",
-            display_name: "Kate Williams",
-            tier: "starter",
-            status: "active",
-        },
-        DemoUser {
-            email: "leo@gym.pro",
-            display_name: "Leo Thompson",
-            tier: "professional",
-            status: "active",
-        },
-        DemoUser {
-            email: "maya@cycling.io",
-            display_name: "Maya Patel",
-            tier: "enterprise",
-            status: "active",
-        },
-        DemoUser {
-            email: "nathan@swim.club",
-            display_name: "Nathan Kim",
-            tier: "starter",
-            status: "pending",
-        },
-        DemoUser {
-            email: "olivia@triathlon.net",
-            display_name: "Olivia Chen",
-            tier: "professional",
-            status: "active",
-        },
-        DemoUser {
-            email: "peter@crossfit.gym",
-            display_name: "Peter Anderson",
-            tier: "starter",
-            status: "active",
-        },
-        DemoUser {
-            email: "quinn@yoga.space",
-            display_name: "Quinn Murphy",
-            tier: "starter",
-            status: "pending",
-        },
-        DemoUser {
-            email: "rachel@pilates.studio",
-            display_name: "Rachel Green",
-            tier: "professional",
-            status: "suspended",
-        },
-    ];
-
+    let demo_users = get_demo_users();
     let mut user_ids = Vec::new();
     let mut rng = StdRng::from_entropy();
 
@@ -419,129 +643,7 @@ async fn seed_demo_users(pool: &SqlitePool) -> Result<Vec<Uuid>> {
 
 /// Seed API keys
 async fn seed_api_keys(pool: &SqlitePool, admin_id: &Uuid, user_ids: &[Uuid]) -> Result<Vec<Uuid>> {
-    let api_keys = vec![
-        DemoApiKey {
-            name: "Production API",
-            description: "Main production workload",
-            tier: "professional",
-            rate_limit: Some(10000),
-        },
-        DemoApiKey {
-            name: "Staging Environment",
-            description: "Pre-production testing",
-            tier: "starter",
-            rate_limit: Some(1000),
-        },
-        DemoApiKey {
-            name: "Mobile App Backend",
-            description: "iOS and Android API",
-            tier: "professional",
-            rate_limit: Some(5000),
-        },
-        DemoApiKey {
-            name: "Analytics Pipeline",
-            description: "Data processing jobs",
-            tier: "enterprise",
-            rate_limit: None,
-        },
-        DemoApiKey {
-            name: "Trial Key - Evaluation",
-            description: "Testing the platform",
-            tier: "trial",
-            rate_limit: Some(100),
-        },
-        DemoApiKey {
-            name: "Partner Integration",
-            description: "Third-party integration",
-            tier: "starter",
-            rate_limit: Some(2000),
-        },
-        DemoApiKey {
-            name: "Development",
-            description: "Local dev testing",
-            tier: "trial",
-            rate_limit: Some(500),
-        },
-        DemoApiKey {
-            name: "High Volume Batch",
-            description: "Batch processing jobs",
-            tier: "enterprise",
-            rate_limit: None,
-        },
-        DemoApiKey {
-            name: "Strava Sync",
-            description: "Automated Strava activity sync",
-            tier: "professional",
-            rate_limit: Some(3000),
-        },
-        DemoApiKey {
-            name: "Garmin Connect",
-            description: "Garmin device integration",
-            tier: "professional",
-            rate_limit: Some(3000),
-        },
-        DemoApiKey {
-            name: "Wahoo Bridge",
-            description: "Wahoo workout imports",
-            tier: "starter",
-            rate_limit: Some(1500),
-        },
-        DemoApiKey {
-            name: "Apple Health",
-            description: "HealthKit data sync",
-            tier: "professional",
-            rate_limit: Some(5000),
-        },
-        DemoApiKey {
-            name: "Workout Analyzer",
-            description: "AI-powered workout analysis",
-            tier: "enterprise",
-            rate_limit: None,
-        },
-        DemoApiKey {
-            name: "Recovery Tracker",
-            description: "Sleep and recovery metrics",
-            tier: "starter",
-            rate_limit: Some(1000),
-        },
-        DemoApiKey {
-            name: "Nutrition Logger",
-            description: "Meal and calorie tracking",
-            tier: "starter",
-            rate_limit: Some(800),
-        },
-        DemoApiKey {
-            name: "Training Plan Bot",
-            description: "Automated plan generation",
-            tier: "professional",
-            rate_limit: Some(4000),
-        },
-        DemoApiKey {
-            name: "Race Predictor",
-            description: "Performance prediction engine",
-            tier: "enterprise",
-            rate_limit: None,
-        },
-        DemoApiKey {
-            name: "Social Feed",
-            description: "Activity sharing and comments",
-            tier: "starter",
-            rate_limit: Some(2000),
-        },
-        DemoApiKey {
-            name: "Coaching Dashboard",
-            description: "Personal trainer tools",
-            tier: "professional",
-            rate_limit: Some(6000),
-        },
-        DemoApiKey {
-            name: "Challenge Manager",
-            description: "Competition and challenge API",
-            tier: "starter",
-            rate_limit: Some(1500),
-        },
-    ];
-
+    let api_keys = get_demo_api_keys();
     let mut key_ids = Vec::new();
     let mut rng = StdRng::from_entropy();
 
@@ -610,59 +712,7 @@ async fn seed_a2a_clients(
     admin_id: &Uuid,
     user_ids: &[Uuid],
 ) -> Result<Vec<Uuid>> {
-    let clients = vec![
-        DemoA2AClient {
-            name: "Claude Desktop",
-            description: "AI Assistant Integration",
-            capabilities: r#"["chat", "analyze"]"#,
-        },
-        DemoA2AClient {
-            name: "Fitness Bot",
-            description: "Automated workout analysis",
-            capabilities: r#"["sync", "analyze", "recommend"]"#,
-        },
-        DemoA2AClient {
-            name: "Data Pipeline",
-            description: "ETL processing agent",
-            capabilities: r#"["sync", "export"]"#,
-        },
-        DemoA2AClient {
-            name: "GPT-4 Fitness Coach",
-            description: "OpenAI-powered coaching",
-            capabilities: r#"["chat", "recommend", "plan"]"#,
-        },
-        DemoA2AClient {
-            name: "Gemini Analyzer",
-            description: "Google AI workout insights",
-            capabilities: r#"["analyze", "summarize"]"#,
-        },
-        DemoA2AClient {
-            name: "Slack Bot",
-            description: "Team fitness notifications",
-            capabilities: r#"["notify", "report"]"#,
-        },
-        DemoA2AClient {
-            name: "Discord Bot",
-            description: "Community challenges",
-            capabilities: r#"["notify", "leaderboard"]"#,
-        },
-        DemoA2AClient {
-            name: "Zapier Integration",
-            description: "Workflow automation",
-            capabilities: r#"["sync", "export", "webhook"]"#,
-        },
-        DemoA2AClient {
-            name: "Training Peaks Sync",
-            description: "TrainingPeaks data bridge",
-            capabilities: r#"["sync", "import", "export"]"#,
-        },
-        DemoA2AClient {
-            name: "Garmin Agent",
-            description: "Garmin Connect automation",
-            capabilities: r#"["sync", "analyze"]"#,
-        },
-    ];
-
+    let clients = get_demo_a2a_clients();
     let mut client_ids = Vec::new();
     let mut rng = StdRng::from_entropy();
 

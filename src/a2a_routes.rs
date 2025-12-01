@@ -214,13 +214,23 @@ impl A2ARoutes {
     /// # Errors
     ///
     /// Returns `A2AError` if:
+    /// - Authentication fails or no valid auth header
     /// - Client registration fails
     /// - Database operations fail
     pub async fn register_client(
         &self,
-        _auth_header: Option<&str>,
+        auth_header: Option<&str>,
         request: A2AClientRequest,
     ) -> Result<crate::a2a::client::ClientCredentials, A2AError> {
+        // Extract and validate JWT to get the authenticated user's ID
+        let token = Self::extract_jwt_token(auth_header)
+            .map_err(|e| A2AError::AuthenticationFailed(format!("JWT extraction failed: {e}")))?;
+        let user_id_str = self
+            .validate_jwt_and_get_user_id(&token)
+            .map_err(|e| A2AError::AuthenticationFailed(format!("JWT validation failed: {e}")))?;
+        let user_id = uuid::Uuid::parse_str(&user_id_str)
+            .map_err(|e| A2AError::InternalError(format!("Invalid user ID format: {e}")))?;
+
         let registration = ClientRegistrationRequest {
             name: request.name,
             description: request.description,
@@ -229,7 +239,9 @@ impl A2ARoutes {
             contact_email: request.contact_email,
         };
 
-        self.client_manager.register_client(registration).await
+        self.client_manager
+            .register_client(registration, user_id)
+            .await
     }
 
     /// List A2A clients

@@ -1,25 +1,28 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { Button, Card, Badge } from './ui';
+import { Button, Card, CardHeader, Badge, StatusFilter, ConfirmDialog } from './ui';
+import type { StatusFilterValue } from './ui';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
 import type { AdminToken } from '../types/api';
 
 interface AdminTokenListProps {
-  onCreateToken: () => void;
   onViewDetails: (tokenId: string) => void;
 }
 
-export default function AdminTokenList({ onCreateToken, onViewDetails }: AdminTokenListProps) {
+export default function AdminTokenList({ onViewDetails }: AdminTokenListProps) {
   const { isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedTokens, setSelectedTokens] = useState<Set<string>>(new Set());
-  const [showInactive, setShowInactive] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>('active');
+  const [tokenToRevoke, setTokenToRevoke] = useState<AdminToken | null>(null);
+  const [tokensToRevoke, setTokensToRevoke] = useState<Set<string> | null>(null);
 
+  // Always fetch all tokens and filter client-side for accurate counts
   const { data: tokensResponse, isLoading, error } = useQuery({
-    queryKey: ['admin-tokens', showInactive],
-    queryFn: () => apiService.getAdminTokens({ include_inactive: showInactive }),
+    queryKey: ['admin-tokens', true],
+    queryFn: () => apiService.getAdminTokens({ include_inactive: true }),
     enabled: isAuthenticated && user?.is_admin === true,
   });
 
@@ -28,10 +31,29 @@ export default function AdminTokenList({ onCreateToken, onViewDetails }: AdminTo
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-tokens'] });
       setSelectedTokens(new Set());
+      setTokenToRevoke(null);
+      setTokensToRevoke(null);
     },
   });
 
-  const tokens: AdminToken[] = tokensResponse?.data?.tokens || [];
+  const allTokens: AdminToken[] = tokensResponse?.data?.admin_tokens || [];
+
+  // Compute counts for the filter
+  const activeCount = useMemo(() => allTokens.filter(t => t.is_active).length, [allTokens]);
+  const inactiveCount = useMemo(() => allTokens.filter(t => !t.is_active).length, [allTokens]);
+
+  // Filter tokens based on status filter
+  const tokens = useMemo(() => {
+    switch (statusFilter) {
+      case 'active':
+        return allTokens.filter(t => t.is_active);
+      case 'inactive':
+        return allTokens.filter(t => !t.is_active);
+      case 'all':
+      default:
+        return allTokens;
+    }
+  }, [allTokens, statusFilter]);
 
   const handleSelectToken = (tokenId: string) => {
     const newSelected = new Set(selectedTokens);
@@ -51,18 +73,30 @@ export default function AdminTokenList({ onCreateToken, onViewDetails }: AdminTo
     }
   };
 
-  const handleBulkRevoke = async () => {
+  const handleBulkRevoke = () => {
     if (selectedTokens.size === 0) return;
-    
-    const confirmMessage = `Are you sure you want to revoke ${selectedTokens.size} token(s)? This action cannot be undone.`;
-    if (!window.confirm(confirmMessage)) return;
+    setTokensToRevoke(new Set(selectedTokens));
+  };
 
-    for (const tokenId of selectedTokens) {
+  const confirmBulkRevoke = async () => {
+    if (!tokensToRevoke) return;
+
+    for (const tokenId of tokensToRevoke) {
       try {
         await revokeTokenMutation.mutateAsync(tokenId);
       } catch (error) {
         console.error(`Failed to revoke token ${tokenId}:`, error);
       }
+    }
+  };
+
+  const handleSingleRevoke = (token: AdminToken) => {
+    setTokenToRevoke(token);
+  };
+
+  const confirmSingleRevoke = () => {
+    if (tokenToRevoke) {
+      revokeTokenMutation.mutate(tokenToRevoke.id);
     }
   };
 
@@ -94,83 +128,67 @@ export default function AdminTokenList({ onCreateToken, onViewDetails }: AdminTo
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start">
-        <Button onClick={onCreateToken} className="btn-primary">
-          Create Token
-        </Button>
-      </div>
+      {/* Main Card */}
+      <Card>
+        <CardHeader
+          title="Your Admin Tokens"
+          subtitle={`${allTokens.length} total tokens`}
+        />
 
-      {/* Controls */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={showInactive}
-              onChange={(e) => setShowInactive(e.target.checked)}
-              className="rounded border-pierre-gray-300 text-pierre-blue-600 focus:ring-pierre-blue-500"
+        {/* Status Filter */}
+        <div className="px-6 pb-4">
+          <div className="flex items-center justify-between">
+            <StatusFilter
+              value={statusFilter}
+              onChange={setStatusFilter}
+              activeCount={activeCount}
+              inactiveCount={inactiveCount}
+              totalCount={allTokens.length}
             />
-            <span className="text-sm text-pierre-gray-700">Show inactive tokens</span>
-          </label>
-          
-          {tokens.length > 0 && (
-            <span className="text-sm text-pierre-gray-500">
-              {tokens.length} token(s) total
-            </span>
-          )}
+
+            {selectedTokens.size > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-pierre-gray-600">
+                  {selectedTokens.size} selected
+                </span>
+                <Button
+                  onClick={handleBulkRevoke}
+                  disabled={revokeTokenMutation.isPending}
+                  variant="secondary"
+                  className="text-red-600 hover:bg-red-50"
+                  size="sm"
+                >
+                  Revoke Selected
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
 
-        {selectedTokens.size > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-pierre-gray-600">
-              {selectedTokens.size} selected
-            </span>
-            <Button
-              onClick={handleBulkRevoke}
-              disabled={revokeTokenMutation.isPending}
-              className="btn-secondary text-red-600 hover:bg-red-50"
-            >
-              Revoke Selected
-            </Button>
+        {/* Token List */}
+        {tokens.length === 0 ? (
+          <div className="text-center py-8 text-pierre-gray-500 px-6 pb-6">
+            <div className="text-4xl mb-4">🔐</div>
+            <p className="text-lg mb-2">No admin tokens yet</p>
+            <p>Create your first admin token to enable programmatic access</p>
           </div>
-        )}
-      </div>
+        ) : (
+          <div className="space-y-4 px-6 pb-6">
+            {/* Select All Header */}
+            <div className="flex items-center gap-3 p-4 bg-pierre-gray-50 rounded-lg">
+              <input
+                type="checkbox"
+                checked={selectedTokens.size === tokens.length && tokens.length > 0}
+                onChange={handleSelectAll}
+                className="rounded border-pierre-gray-300 text-pierre-blue-600 focus:ring-pierre-blue-500"
+              />
+              <span className="text-sm font-medium text-pierre-gray-700">
+                Select All ({tokens.length})
+              </span>
+            </div>
 
-      {/* Token List */}
-      {tokens.length === 0 ? (
-        <Card className="p-8">
-          <div className="flex flex-col items-center text-center">
-            <svg className="w-12 h-12 text-pierre-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-            <h3 className="text-lg font-medium text-pierre-gray-900 mb-2">No service tokens configured</h3>
-            <p className="text-pierre-gray-600 mb-4 max-w-md">
-              Admin tokens enable automated services (CI/CD, monitoring) to provision API keys programmatically.
-              Your admin account is active and can manage users directly from this dashboard.
-            </p>
-            <Button onClick={onCreateToken} variant="primary">
-              Create Service Token
-            </Button>
-          </div>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {/* Select All Header */}
-          <div className="flex items-center gap-3 p-4 bg-pierre-gray-50 rounded-lg">
-            <input
-              type="checkbox"
-              checked={selectedTokens.size === tokens.length && tokens.length > 0}
-              onChange={handleSelectAll}
-              className="rounded border-pierre-gray-300 text-pierre-blue-600 focus:ring-pierre-blue-500"
-            />
-            <span className="text-sm font-medium text-pierre-gray-700">
-              Select All ({tokens.length})
-            </span>
-          </div>
-
-          {/* Token Cards */}
-          {tokens.map((token: AdminToken) => (
+            {/* Token Cards */}
+            {tokens.map((token: AdminToken) => (
             <Card key={token.id} className="hover:shadow-md transition-shadow p-4">
               <div className="flex items-start gap-4">
                   <input
@@ -219,9 +237,10 @@ export default function AdminTokenList({ onCreateToken, onViewDetails }: AdminTo
                         </Button>
                         {token.is_active && (
                           <Button
-                            onClick={() => revokeTokenMutation.mutate(token.id)}
+                            onClick={() => handleSingleRevoke(token)}
                             disabled={revokeTokenMutation.isPending}
-                            className="btn-secondary text-red-600 hover:bg-red-50 text-sm"
+                            variant="secondary"
+                            className="text-red-600 hover:bg-red-50 text-sm"
                           >
                             Revoke
                           </Button>
@@ -270,6 +289,33 @@ export default function AdminTokenList({ onCreateToken, onViewDetails }: AdminTo
           ))}
         </div>
       )}
+      </Card>
+
+      {/* Single Token Revoke Confirmation */}
+      <ConfirmDialog
+        isOpen={tokenToRevoke !== null}
+        onClose={() => setTokenToRevoke(null)}
+        onConfirm={confirmSingleRevoke}
+        title="Revoke Token"
+        message={`Are you sure you want to revoke "${tokenToRevoke?.service_name}"? This action cannot be undone and any services using this token will lose access.`}
+        confirmLabel="Revoke Token"
+        cancelLabel="Cancel"
+        variant="danger"
+        isLoading={revokeTokenMutation.isPending}
+      />
+
+      {/* Bulk Revoke Confirmation */}
+      <ConfirmDialog
+        isOpen={tokensToRevoke !== null}
+        onClose={() => setTokensToRevoke(null)}
+        onConfirm={confirmBulkRevoke}
+        title="Revoke Multiple Tokens"
+        message={`Are you sure you want to revoke ${tokensToRevoke?.size || 0} token(s)? This action cannot be undone and any services using these tokens will lose access.`}
+        confirmLabel={`Revoke ${tokensToRevoke?.size || 0} Token(s)`}
+        cancelLabel="Cancel"
+        variant="danger"
+        isLoading={revokeTokenMutation.isPending}
+      />
     </div>
   );
 }

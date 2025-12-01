@@ -278,8 +278,9 @@ impl A2ATestSetup {
 
         // Reuse the existing ServerResources to avoid creating new RSA keys
         let client_manager = &*self.server_resources.a2a_client_manager;
+        let test_user_id = uuid::Uuid::new_v4(); // Generate test user ID for ownership
         let credentials = client_manager
-            .register_client(request)
+            .register_client(request, test_user_id)
             .await
             .expect("Failed to create test client");
 

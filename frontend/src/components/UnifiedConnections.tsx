@@ -237,22 +237,32 @@ export default function UnifiedConnections() {
     // Overview content
     if (activeConnectionType === 'admin-tokens') {
       return (
-        <AdminTokenList
-          onCreateToken={() => setActiveView('create')}
-          onViewDetails={async (tokenId: string) => {
-            try {
-              // Fetch token details from API
-              const tokenDetails = await apiService.getAdminTokenDetails(tokenId);
-              setSelectedToken(tokenDetails);
-              setActiveView('details');
-              setErrorMessage(null);
-            } catch (error) {
-              console.error('Failed to fetch token details:', error);
-              const message = error instanceof Error ? error.message : 'Failed to fetch token details';
-              setErrorMessage(message);
-            }
-          }}
-        />
+        <div>
+          <div className="flex items-start mb-6">
+            <Button
+              onClick={() => setActiveView('create')}
+              className="flex items-center space-x-2"
+            >
+              <span>+</span>
+              <span>Create Token</span>
+            </Button>
+          </div>
+          <AdminTokenList
+            onViewDetails={async (tokenId: string) => {
+              try {
+                // Fetch token details from API
+                const tokenDetails = await apiService.getAdminTokenDetails(tokenId);
+                setSelectedToken(tokenDetails);
+                setActiveView('details');
+                setErrorMessage(null);
+              } catch (error) {
+                console.error('Failed to fetch token details:', error);
+                const message = error instanceof Error ? error.message : 'Failed to fetch token details';
+                setErrorMessage(message);
+              }
+            }}
+          />
+        </div>
       );
     } else if (activeConnectionType === 'api-keys') {
       return (
@@ -283,7 +293,7 @@ export default function UnifiedConnections() {
             <span>Register App</span>
           </Button>
         </div>
-        <A2AClientList />
+        <A2AClientList onCreateClient={() => setActiveView('create')} />
       </div>
     );
   };

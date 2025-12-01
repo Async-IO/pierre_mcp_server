@@ -588,14 +588,36 @@ impl DashboardRoutes {
                     ))
                 })?;
 
-            // Extract tool usage from the JSON
+            // Extract tool usage from the JSON (structure: {"tool_name": {"count": N, "success_count": N, "avg_response_time_ms": F}})
             if let Some(tool_usage_obj) = stats.tool_usage.as_object() {
-                for (tool_name, count_val) in tool_usage_obj {
-                    if let Some(count) = count_val.as_u64() {
+                for (tool_name, tool_data) in tool_usage_obj {
+                    // Parse nested tool data object
+                    if let Some(tool_obj) = tool_data.as_object() {
+                        let count = tool_obj
+                            .get("count")
+                            .and_then(serde_json::Value::as_u64)
+                            .unwrap_or(0);
+                        let success_count = tool_obj
+                            .get("success_count")
+                            .and_then(serde_json::Value::as_u64)
+                            .unwrap_or(0);
+                        let avg_response_time = tool_obj
+                            .get("avg_response_time_ms")
+                            .and_then(serde_json::Value::as_f64)
+                            .unwrap_or(0.0);
+
                         let entry = tool_stats.entry(tool_name.clone()).or_insert((0, 0, 0));
                         entry.0 += count; // total requests
-                        entry.1 += u64::from(stats.successful_requests); // successful requests
-                        entry.2 += stats.total_response_time_ms; // total response time
+                        entry.1 += success_count; // successful requests from tool-specific data
+                        #[allow(
+                            clippy::cast_possible_truncation,
+                            clippy::cast_sign_loss,
+                            clippy::cast_precision_loss
+                        )]
+                        {
+                            entry.2 += (avg_response_time * count as f64) as u64;
+                            // weighted response time
+                        }
                     }
                 }
             }

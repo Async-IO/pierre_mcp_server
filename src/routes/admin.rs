@@ -89,6 +89,13 @@ pub struct ApproveUserRequest {
     pub tenant_slug: Option<String>,
 }
 
+/// User suspension request
+#[derive(Debug, Deserialize)]
+pub struct SuspendUserRequest {
+    /// Optional reason for suspension
+    pub reason: Option<String>,
+}
+
 /// Query parameters for listing API keys
 #[derive(Debug, Deserialize)]
 pub struct ListApiKeysQuery {
@@ -657,6 +664,10 @@ impl AdminRoutes {
             .route(
                 "/admin/approve-user/:user_id",
                 post(Self::handle_approve_user),
+            )
+            .route(
+                "/admin/suspend-user/:user_id",
+                post(Self::handle_suspend_user),
             )
             .route(
                 "/admin/users/:user_id/reset-password",
@@ -1289,6 +1300,97 @@ impl AdminRoutes {
                         "approved_at": updated_user.approved_at.map(|t| t.to_rfc3339()),
                     },
                     "tenant_created": tenant_created,
+                    "reason": reason
+                }))
+                .ok(),
+            },
+            axum::http::StatusCode::OK,
+        ))
+    }
+
+    /// Handle user suspension workflow
+    async fn handle_suspend_user(
+        State(context): State<Arc<AdminApiContext>>,
+        Extension(admin_token): Extension<ValidatedAdminToken>,
+        axum::extract::Path(user_id): axum::extract::Path<String>,
+        Json(request): Json<SuspendUserRequest>,
+    ) -> AppResult<impl axum::response::IntoResponse> {
+        if !admin_token
+            .permissions
+            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+        {
+            return Ok(json_response(
+                AdminResponse {
+                    success: false,
+                    message: "Permission denied: ManageUsers required".to_owned(),
+                    data: None,
+                },
+                axum::http::StatusCode::FORBIDDEN,
+            ));
+        }
+
+        tracing::info!(
+            "Suspending user {} by service: {}",
+            user_id,
+            admin_token.service_name
+        );
+
+        let ctx = context.as_ref();
+        let user_uuid = uuid::Uuid::parse_str(&user_id).map_err(|e| {
+            tracing::error!(error = %e, "Invalid user ID format");
+            AppError::invalid_input(format!("Invalid user ID format: {e}"))
+        })?;
+
+        let user = ctx
+            .database
+            .get_user(user_uuid)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to fetch user from database");
+                AppError::internal(format!("Failed to fetch user: {e}"))
+            })?
+            .ok_or_else(|| {
+                tracing::warn!("User not found: {}", user_id);
+                AppError::not_found("User not found")
+            })?;
+
+        if user.user_status == UserStatus::Suspended {
+            return Ok(json_response(
+                AdminResponse {
+                    success: false,
+                    message: "User is already suspended".to_owned(),
+                    data: None,
+                },
+                axum::http::StatusCode::BAD_REQUEST,
+            ));
+        }
+
+        let updated_user = ctx
+            .database
+            .update_user_status(user_uuid, UserStatus::Suspended, &admin_token.token_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to update user status in database");
+                AppError::internal(format!("Failed to suspend user: {e}"))
+            })?;
+
+        let reason = request.reason.as_deref().unwrap_or("No reason provided");
+        tracing::info!(
+            "User {} suspended successfully. Reason: {}",
+            user_id,
+            reason
+        );
+
+        Ok(json_response(
+            AdminResponse {
+                success: true,
+                message: "User suspended successfully".to_owned(),
+                data: serde_json::to_value(serde_json::json!({
+                    "user": {
+                        "id": updated_user.id.to_string(),
+                        "email": updated_user.email,
+                        "user_status": Self::user_status_str(updated_user.user_status),
+                    },
                     "reason": reason
                 }))
                 .ok(),
