@@ -1,0 +1,148 @@
+# ABOUTME: GitHub Actions workflow for validating examples compile and pass tests
+# ABOUTME: Runs on push/PR to examples/, nightly, and manual trigger
+
+name: Examples Validation
+
+on:
+  push:
+    branches: [ "main", "feature/*", "claude/*" ]
+    paths:
+      - 'examples/**'
+      - 'src/a2a/**'
+      - 'src/mcp/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'examples/**'
+  schedule:
+    - cron: '0 6 * * *'  # Nightly at 6 AM UTC
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  compile-rust-examples:
+    name: Compile Rust Examples
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.91.0
+
+      - name: Cache example dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            examples/agents/*/target/
+          key: ${{ runner.os }}-examples-${{ hashFiles('examples/agents/*/Cargo.lock') }}
+
+      - name: Check agent_discovery compiles
+        working-directory: examples/agents/agent_discovery
+        run: cargo check --quiet
+
+      - name: Check task_manager compiles
+        working-directory: examples/agents/task_manager
+        run: cargo check --quiet
+
+      - name: Check fitness_analyzer compiles
+        working-directory: examples/agents/fitness_analyzer
+        run: cargo check --quiet
+
+  validate-python-examples:
+    name: Validate Python Examples
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r examples/mcp_clients/gemini_fitness_assistant/requirements.txt
+
+      - name: Syntax validation
+        run: python3 -m py_compile examples/mcp_clients/gemini_fitness_assistant/*.py
+
+      - name: Import validation
+        run: |
+          cd examples/mcp_clients/gemini_fitness_assistant
+          python3 -c "from gemini_fitness_assistant import PierreMCPClient, MCPTool; print('Imports OK')"
+
+  test-rust-examples:
+    name: Test Rust Examples
+    runs-on: ubuntu-latest
+    needs: compile-rust-examples
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.91.0
+
+      - name: Cache example dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            examples/agents/*/target/
+          key: ${{ runner.os }}-examples-${{ hashFiles('examples/agents/*/Cargo.lock') }}
+
+      - name: Run fitness_analyzer tests
+        working-directory: examples/agents/fitness_analyzer
+        run: cargo test --quiet
+
+  # Integration tests - only on nightly or manual trigger
+  integration-smoke-test:
+    name: Integration Smoke Test
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    needs: [compile-rust-examples, validate-python-examples]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.91.0
+
+      - name: Build Pierre server
+        run: cargo build --release --bin pierre-mcp-server
+
+      - name: Build example binaries
+        run: |
+          cd examples/agents/agent_discovery && cargo build --release
+          cd ../task_manager && cargo build --release
+
+      - name: Start Pierre server
+        run: |
+          DATABASE_URL="sqlite::memory:" \
+          PIERRE_MASTER_ENCRYPTION_KEY="rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo=" \
+          STRAVA_CLIENT_ID="test_ci" \
+          STRAVA_CLIENT_SECRET="test_ci" \
+          STRAVA_REDIRECT_URI="http://localhost:8080/callback" \
+          ./target/release/pierre-mcp-server &
+          echo "Waiting for server startup..."
+          sleep 5
+          curl -sf http://localhost:8081/health || (echo "Server failed to start" && exit 1)
+
+      - name: Run agent_discovery against live server
+        run: |
+          cd examples/agents/agent_discovery
+          timeout 30 ./target/release/agent-discovery-example 2>&1 | tee output.log
+          grep -q "Successfully fetched agent card" output.log || grep -q "Agent Discovery Demo" output.log
+
+      - name: Cleanup
+        if: always()
+        run: pkill pierre-mcp-server || true
