@@ -2009,6 +2009,26 @@ impl Database {
     ///
     /// Returns an error if the database query fails
     async fn remove_user_oauth_app_impl(&self, user_id: Uuid, provider: &str) -> AppResult<()> {
+        // First ensure the user_oauth_apps table exists (idempotent operation)
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_oauth_apps (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                client_id TEXT NOT NULL,
+                client_secret TEXT NOT NULL,
+                redirect_uri TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(user_id, provider)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to ensure table exists: {e}")))?;
+
         sqlx::query(
             r"
             DELETE FROM user_oauth_apps

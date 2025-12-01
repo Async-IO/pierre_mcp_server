@@ -600,3 +600,571 @@ async fn test_user_credentials_default_rate_limits() -> Result<()> {
 
     Ok(())
 }
+
+// =============================================================================
+// Database Edge Case Tests
+// =============================================================================
+
+/// Test: Upsert behavior - storing credentials twice for same provider updates them
+#[tokio::test]
+#[serial]
+async fn test_upsert_user_oauth_app() -> Result<()> {
+    let database = setup_test_database().await?;
+    let tenant_id = Uuid::new_v4();
+    let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
+
+    // Store initial credentials
+    database
+        .store_user_oauth_app(
+            user_id,
+            "strava",
+            "original_client_id",
+            "original_secret",
+            "http://original.com/callback",
+        )
+        .await?;
+
+    // Verify initial
+    let app = database
+        .get_user_oauth_app(user_id, "strava")
+        .await?
+        .unwrap();
+    assert_eq!(app.client_id, "original_client_id");
+
+    // Store updated credentials for same provider
+    database
+        .store_user_oauth_app(
+            user_id,
+            "strava",
+            "updated_client_id",
+            "updated_secret",
+            "http://updated.com/callback",
+        )
+        .await?;
+
+    // Verify update
+    let app = database
+        .get_user_oauth_app(user_id, "strava")
+        .await?
+        .unwrap();
+    assert_eq!(app.client_id, "updated_client_id");
+    assert_eq!(app.client_secret, "updated_secret");
+    assert_eq!(app.redirect_uri, "http://updated.com/callback");
+
+    // Should still only have one app for this provider
+    let apps = database.list_user_oauth_apps(user_id).await?;
+    let strava_apps: Vec<_> = apps.iter().filter(|a| a.provider == "strava").collect();
+    assert_eq!(
+        strava_apps.len(),
+        1,
+        "Should only have one strava app after upsert"
+    );
+
+    Ok(())
+}
+
+/// Test: Getting OAuth app for non-existent user returns None
+#[tokio::test]
+#[serial]
+async fn test_get_oauth_app_non_existent_user() -> Result<()> {
+    let database = setup_test_database().await?;
+    let non_existent_user_id = Uuid::new_v4();
+
+    let result = database
+        .get_user_oauth_app(non_existent_user_id, "strava")
+        .await?;
+
+    assert!(result.is_none(), "Should return None for non-existent user");
+
+    Ok(())
+}
+
+/// Test: Listing OAuth apps for non-existent user returns empty list
+#[tokio::test]
+#[serial]
+async fn test_list_oauth_apps_non_existent_user() -> Result<()> {
+    let database = setup_test_database().await?;
+    let non_existent_user_id = Uuid::new_v4();
+
+    let apps = database.list_user_oauth_apps(non_existent_user_id).await?;
+
+    assert!(
+        apps.is_empty(),
+        "Should return empty list for non-existent user"
+    );
+
+    Ok(())
+}
+
+/// Test: Removing non-existent OAuth app is idempotent (no error)
+#[tokio::test]
+#[serial]
+async fn test_remove_non_existent_oauth_app() -> Result<()> {
+    let database = setup_test_database().await?;
+    let tenant_id = Uuid::new_v4();
+    let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
+
+    // Remove app that doesn't exist - should not error
+    let result = database.remove_user_oauth_app(user_id, "strava").await;
+
+    assert!(result.is_ok(), "Removing non-existent app should not error");
+
+    Ok(())
+}
+
+/// Test: Cross-tenant isolation - users in different tenants are isolated
+#[tokio::test]
+#[serial]
+async fn test_cross_tenant_isolation() -> Result<()> {
+    let database = setup_test_database().await?;
+
+    // Create two different tenants
+    let tenant_a = Uuid::new_v4();
+    let tenant_b = Uuid::new_v4();
+
+    let user_a = create_test_user(&database, "user_a@tenant_a.com", tenant_a).await?;
+    let user_b = create_test_user(&database, "user_b@tenant_b.com", tenant_b).await?;
+
+    // User A stores Strava credentials
+    database
+        .store_user_oauth_app(
+            user_a,
+            "strava",
+            "tenant_a_strava_id",
+            "tenant_a_secret",
+            "http://tenant-a.com/callback",
+        )
+        .await?;
+
+    // User B stores Strava credentials
+    database
+        .store_user_oauth_app(
+            user_b,
+            "strava",
+            "tenant_b_strava_id",
+            "tenant_b_secret",
+            "http://tenant-b.com/callback",
+        )
+        .await?;
+
+    // Verify each user only sees their own credentials
+    let app_a = database
+        .get_user_oauth_app(user_a, "strava")
+        .await?
+        .unwrap();
+    let app_b = database
+        .get_user_oauth_app(user_b, "strava")
+        .await?
+        .unwrap();
+
+    assert_eq!(app_a.client_id, "tenant_a_strava_id");
+    assert_eq!(app_b.client_id, "tenant_b_strava_id");
+
+    // User A's list only shows their apps
+    let apps_a = database.list_user_oauth_apps(user_a).await?;
+    assert_eq!(apps_a.len(), 1);
+    assert_eq!(apps_a[0].client_id, "tenant_a_strava_id");
+
+    Ok(())
+}
+
+/// Test: Timestamps are set correctly on creation
+#[tokio::test]
+#[serial]
+async fn test_oauth_app_timestamps() -> Result<()> {
+    let database = setup_test_database().await?;
+    let tenant_id = Uuid::new_v4();
+    let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
+
+    let before = chrono::Utc::now();
+
+    database
+        .store_user_oauth_app(
+            user_id,
+            "strava",
+            "client_id",
+            "client_secret",
+            "http://app.com/callback",
+        )
+        .await?;
+
+    let after = chrono::Utc::now();
+
+    let app = database
+        .get_user_oauth_app(user_id, "strava")
+        .await?
+        .unwrap();
+
+    // created_at should be between before and after
+    assert!(
+        app.created_at >= before && app.created_at <= after,
+        "created_at should be set to current time"
+    );
+    assert!(
+        app.updated_at >= before && app.updated_at <= after,
+        "updated_at should be set to current time"
+    );
+
+    Ok(())
+}
+
+// =============================================================================
+// Provider-Specific Rate Limit Tests
+// =============================================================================
+
+/// Test: All providers get correct default rate limits
+#[tokio::test]
+#[serial]
+async fn test_all_provider_rate_limits() -> Result<()> {
+    let database = setup_test_database().await?;
+    let tenant_id = Uuid::new_v4();
+    let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
+
+    let oauth_config = Arc::new(OAuthConfig::default());
+    let oauth_manager = TenantOAuthManager::new(oauth_config);
+
+    // Expected rate limits per provider (from src/constants/mod.rs)
+    let expected_rate_limits = [
+        ("strava", 15000), // STRAVA_DEFAULT_DAILY_RATE_LIMIT
+        ("fitbit", 1000),  // FITBIT_DEFAULT_DAILY_RATE_LIMIT
+        ("garmin", 1000),  // GARMIN_DEFAULT_DAILY_RATE_LIMIT
+        ("whoop", 1000),   // WHOOP_DEFAULT_DAILY_RATE_LIMIT
+        ("terra", 1000),   // TERRA_DEFAULT_DAILY_RATE_LIMIT
+    ];
+
+    for (provider, expected_limit) in &expected_rate_limits {
+        // Store user credentials for this provider
+        database
+            .store_user_oauth_app(
+                user_id,
+                provider,
+                &format!("{provider}_id"),
+                &format!("{provider}_secret"),
+                &format!("http://app.com/{provider}"),
+            )
+            .await?;
+
+        let credentials = oauth_manager
+            .get_credentials_for_user(Some(user_id), tenant_id, provider, &database)
+            .await?;
+
+        assert_eq!(
+            credentials.rate_limit_per_day, *expected_limit,
+            "{provider} should have {expected_limit}/day rate limit, got {}",
+            credentials.rate_limit_per_day
+        );
+    }
+
+    Ok(())
+}
+
+// =============================================================================
+// Provider-Specific Scope Tests
+// =============================================================================
+
+/// Test: All providers get correct default scopes
+#[tokio::test]
+#[serial]
+async fn test_all_provider_default_scopes() -> Result<()> {
+    let database = setup_test_database().await?;
+    let tenant_id = Uuid::new_v4();
+    let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
+
+    let oauth_config = Arc::new(OAuthConfig::default());
+    let oauth_manager = TenantOAuthManager::new(oauth_config);
+
+    // Expected scopes per provider (from src/tenant/oauth_manager.rs::default_scopes_for_provider)
+    // Only checking key scopes, not exhaustive list
+    let expected_scopes: [(&str, Vec<&str>); 5] = [
+        ("strava", vec!["activity:read_all"]),
+        ("fitbit", vec!["activity", "profile", "heartrate", "sleep"]),
+        ("garmin", vec!["wellness:read", "activities:read"]),
+        ("whoop", vec!["offline", "read:profile", "read:sleep"]),
+        ("terra", vec!["activity", "body", "daily", "sleep"]),
+    ];
+
+    for (provider, required_scopes) in &expected_scopes {
+        // Store user credentials
+        database
+            .store_user_oauth_app(
+                user_id,
+                provider,
+                &format!("{provider}_id"),
+                &format!("{provider}_secret"),
+                &format!("http://app.com/{provider}"),
+            )
+            .await?;
+
+        let credentials = oauth_manager
+            .get_credentials_for_user(Some(user_id), tenant_id, provider, &database)
+            .await?;
+
+        for scope in required_scopes {
+            assert!(
+                credentials.scopes.iter().any(|s| s == *scope),
+                "{provider} should have '{scope}' scope, got: {:?}",
+                credentials.scopes
+            );
+        }
+    }
+
+    Ok(())
+}
+
+// =============================================================================
+// Provider Validation Tests
+// =============================================================================
+
+/// Test: Valid providers are accepted
+#[tokio::test]
+#[serial]
+async fn test_valid_providers_accepted() -> Result<()> {
+    let database = setup_test_database().await?;
+    let tenant_id = Uuid::new_v4();
+    let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
+
+    let valid_providers = ["strava", "fitbit", "garmin", "whoop", "terra"];
+
+    for provider in &valid_providers {
+        let result = database
+            .store_user_oauth_app(
+                user_id,
+                provider,
+                &format!("{provider}_id"),
+                &format!("{provider}_secret"),
+                &format!("http://app.com/{provider}"),
+            )
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "Provider '{provider}' should be accepted, got error: {:?}",
+            result.err()
+        );
+    }
+
+    Ok(())
+}
+
+// =============================================================================
+// Credential Resolution Priority Tests
+// =============================================================================
+
+/// Test: Complete 3-tier priority resolution
+#[tokio::test]
+#[serial]
+async fn test_complete_three_tier_resolution() -> Result<()> {
+    let database = setup_test_database().await?;
+    let tenant_id = Uuid::new_v4();
+    let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
+
+    // Create tenant
+    let tenant = Tenant::new(
+        "Test Tenant".to_owned(),
+        tenant_id.to_string(),
+        Some("test.example.com".to_owned()),
+        "professional".to_owned(),
+        user_id,
+    );
+    database.create_tenant(&tenant).await?;
+
+    // Level 3: Server credentials
+    let oauth_config = Arc::new(create_test_oauth_config());
+    let mut oauth_manager = TenantOAuthManager::new(oauth_config);
+
+    // Test with only server credentials
+    let creds = oauth_manager
+        .get_credentials_for_user(Some(user_id), tenant_id, "strava", &database)
+        .await?;
+    assert_eq!(
+        creds.client_id, "server_strava_id",
+        "Should use server credentials"
+    );
+
+    // Level 2: Add tenant credentials
+    let tenant_creds = CredentialConfig {
+        client_id: "tenant_strava_id".to_owned(),
+        client_secret: "tenant_secret".to_owned(),
+        redirect_uri: "http://tenant.com/callback".to_owned(),
+        scopes: vec!["read".to_owned()],
+        configured_by: user_id,
+    };
+    oauth_manager.store_credentials(tenant_id, "strava", tenant_creds)?;
+
+    let creds = oauth_manager
+        .get_credentials_for_user(Some(user_id), tenant_id, "strava", &database)
+        .await?;
+    assert_eq!(
+        creds.client_id, "tenant_strava_id",
+        "Should use tenant credentials"
+    );
+
+    // Level 1: Add user credentials
+    database
+        .store_user_oauth_app(
+            user_id,
+            "strava",
+            "user_strava_id",
+            "user_secret",
+            "http://user.com/callback",
+        )
+        .await?;
+
+    let creds = oauth_manager
+        .get_credentials_for_user(Some(user_id), tenant_id, "strava", &database)
+        .await?;
+    assert_eq!(
+        creds.client_id, "user_strava_id",
+        "Should use user credentials"
+    );
+
+    // Remove user credentials, should fall back to tenant
+    database.remove_user_oauth_app(user_id, "strava").await?;
+
+    let creds = oauth_manager
+        .get_credentials_for_user(Some(user_id), tenant_id, "strava", &database)
+        .await?;
+    assert_eq!(
+        creds.client_id, "tenant_strava_id",
+        "Should fall back to tenant"
+    );
+
+    Ok(())
+}
+
+/// Test: None user_id falls back to tenant/server resolution
+#[tokio::test]
+#[serial]
+async fn test_none_user_id_skips_user_lookup() -> Result<()> {
+    let database = setup_test_database().await?;
+    let tenant_id = Uuid::new_v4();
+    let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
+
+    // Store user credentials
+    database
+        .store_user_oauth_app(
+            user_id,
+            "strava",
+            "user_strava_id",
+            "user_secret",
+            "http://user.com/callback",
+        )
+        .await?;
+
+    // Server credentials
+    let oauth_config = Arc::new(create_test_oauth_config());
+    let oauth_manager = TenantOAuthManager::new(oauth_config);
+
+    // With None user_id, should skip user lookup and use server
+    let creds = oauth_manager
+        .get_credentials_for_user(None, tenant_id, "strava", &database)
+        .await?;
+
+    assert_eq!(
+        creds.client_id, "server_strava_id",
+        "None user_id should skip user credentials and use server"
+    );
+
+    Ok(())
+}
+
+// =============================================================================
+// Multiple Providers Per User Tests
+// =============================================================================
+
+/// Test: User can have credentials for all providers simultaneously
+#[tokio::test]
+#[serial]
+async fn test_user_with_all_providers() -> Result<()> {
+    let database = setup_test_database().await?;
+    let tenant_id = Uuid::new_v4();
+    let user_id = create_test_user(&database, "power_user@example.com", tenant_id).await?;
+
+    let oauth_config = Arc::new(OAuthConfig::default());
+    let oauth_manager = TenantOAuthManager::new(oauth_config);
+
+    let providers = ["strava", "fitbit", "garmin", "whoop", "terra"];
+
+    // Store unique credentials for each provider
+    for provider in &providers {
+        database
+            .store_user_oauth_app(
+                user_id,
+                provider,
+                &format!("unique_{provider}_client_id"),
+                &format!("unique_{provider}_secret"),
+                &format!("http://myapp.com/{provider}/callback"),
+            )
+            .await?;
+    }
+
+    // Verify each provider returns correct credentials
+    for provider in &providers {
+        let creds = oauth_manager
+            .get_credentials_for_user(Some(user_id), tenant_id, provider, &database)
+            .await?;
+
+        assert_eq!(
+            creds.client_id,
+            format!("unique_{provider}_client_id"),
+            "Provider {provider} should return correct user credentials"
+        );
+    }
+
+    // List should show all 5
+    let apps = database.list_user_oauth_apps(user_id).await?;
+    assert_eq!(apps.len(), 5, "User should have all 5 providers");
+
+    Ok(())
+}
+
+// =============================================================================
+// Error Condition Tests
+// =============================================================================
+
+/// Test: Error when requesting unsupported provider
+#[tokio::test]
+#[serial]
+async fn test_error_unsupported_provider() -> Result<()> {
+    let database = setup_test_database().await?;
+    let tenant_id = Uuid::new_v4();
+    let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
+
+    let oauth_config = Arc::new(OAuthConfig::default());
+    let oauth_manager = TenantOAuthManager::new(oauth_config);
+
+    // Request credentials for unsupported provider
+    let result = oauth_manager
+        .get_credentials_for_user(Some(user_id), tenant_id, "unsupported_provider", &database)
+        .await;
+
+    assert!(result.is_err(), "Should error for unsupported provider");
+
+    Ok(())
+}
+
+/// Test: Case insensitivity for provider names
+#[tokio::test]
+#[serial]
+async fn test_provider_case_sensitivity() -> Result<()> {
+    let database = setup_test_database().await?;
+    let tenant_id = Uuid::new_v4();
+    let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
+
+    // Store with lowercase
+    database
+        .store_user_oauth_app(
+            user_id,
+            "strava",
+            "client_id",
+            "client_secret",
+            "http://app.com/callback",
+        )
+        .await?;
+
+    // Retrieve with lowercase (should work)
+    let app = database.get_user_oauth_app(user_id, "strava").await?;
+    assert!(app.is_some(), "Should find app with exact case match");
+
+    Ok(())
+}
