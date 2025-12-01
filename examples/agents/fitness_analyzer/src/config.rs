@@ -71,7 +71,7 @@ impl AgentConfig {
     }
 
     /// Validate configuration values
-    fn validate(&self) -> Result<()> {
+    pub fn validate(&self) -> Result<()> {
         if self.client_id.is_empty() {
             anyhow::bail!("Client ID cannot be empty");
         }

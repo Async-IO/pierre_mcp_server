@@ -128,7 +128,7 @@ impl FitnessAnalyzer {
     }
 
     /// Detect patterns in fitness activities
-    fn detect_patterns(&self, activities: &[Activity]) -> Result<Vec<Pattern>> {
+    pub fn detect_patterns(&self, activities: &[Activity]) -> Result<Vec<Pattern>> {
         let mut patterns = Vec::new();
 
         // Pattern 1: Training frequency patterns
@@ -359,7 +359,7 @@ impl FitnessAnalyzer {
     }
 
     /// Generate recommendations based on analysis
-    async fn generate_recommendations(
+    pub async fn generate_recommendations(
         &mut self,
         _activities: &[Activity],
         patterns: &[Pattern],
@@ -446,7 +446,7 @@ impl FitnessAnalyzer {
     }
 
     /// Assess injury and overtraining risks
-    fn assess_risks(&self, activities: &[Activity]) -> Result<Vec<RiskIndicator>> {
+    pub fn assess_risks(&self, activities: &[Activity]) -> Result<Vec<RiskIndicator>> {
         let mut risks = Vec::new();
 
         // Risk 1: Sudden volume increase
@@ -621,7 +621,7 @@ impl FitnessAnalyzer {
     }
 
     /// Analyze performance trends
-    fn analyze_performance_trends(&self, activities: &[Activity]) -> Result<PerformanceTrends> {
+    pub fn analyze_performance_trends(&self, activities: &[Activity]) -> Result<PerformanceTrends> {
         if activities.is_empty() {
             return Ok(PerformanceTrends {
                 overall_trend: "insufficient_data".to_string(),

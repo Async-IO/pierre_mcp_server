@@ -14,7 +14,7 @@ async function setupAnalyticsMocks(
     timeRange?: number;
   } = {}
 ) {
-  const { hasData = true, timeRange = 30 } = options;
+  const { hasData = true } = options;
 
   // Mock usage analytics endpoint
   await page.route('**/api/dashboard/analytics*', async (route) => {

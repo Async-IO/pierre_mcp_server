@@ -190,14 +190,7 @@ test.describe('Monitor Tab - Filters', () => {
   });
 
   test('Time Range filter changes data request', async ({ page }) => {
-    let lastTimeRange = '1h';
-
     await page.route('**/api/dashboard/request-logs*', async (route) => {
-      const url = route.request().url();
-      if (url.includes('timeRange=24h')) lastTimeRange = '24h';
-      else if (url.includes('timeRange=7d')) lastTimeRange = '7d';
-      else if (url.includes('timeRange=30d')) lastTimeRange = '30d';
-      else lastTimeRange = '1h';
 
       await route.fulfill({
         status: 200,
@@ -384,7 +377,6 @@ test.describe('Monitor Tab - Request Log', () => {
     await page.getByRole('button', { name: /Monitor/i }).click();
 
     // Response times should be displayed (in ms format)
-    const responseTimePattern = /\d+ms/;
     await expect(page.locator('text=/\\d+ms/').first()).toBeVisible();
   });
 
