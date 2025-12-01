@@ -1,8 +1,8 @@
 // ABOUTME: Plugin lifecycle management system for deterministic initialization and health monitoring
 // ABOUTME: Provides traits and managers for consistent plugin startup, health checks, and graceful shutdown
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright (c) 2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! Plugin Lifecycle Management
 //!

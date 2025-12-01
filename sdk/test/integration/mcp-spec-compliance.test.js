@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: MCP specification compliance tests - tools/list, authentication, tool calls
 // ABOUTME: Validates that bridge follows MCP protocol: ALL tools visible, auth checked at call time
 //

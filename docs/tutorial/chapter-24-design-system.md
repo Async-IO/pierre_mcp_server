@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Chapter 24: Design System - Frontend Dashboard, Templates & UX
 
 This chapter covers Pierre's design system including the React admin dashboard, OAuth templates, brand identity, and user experience patterns for fitness data visualization.

@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Complete user registration and approval workflow test script
 # ABOUTME: Implements all 5 steps from HOW_TO_REGISTER_A_USER.md with proper error handling
 #

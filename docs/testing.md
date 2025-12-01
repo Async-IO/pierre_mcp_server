@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Testing Guide
 
 Pierre Fitness Platform includes comprehensive test coverage using synthetic data for intelligence tools.

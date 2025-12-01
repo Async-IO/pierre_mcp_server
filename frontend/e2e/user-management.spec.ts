@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Playwright E2E tests for user management features.
 // ABOUTME: Tests user listing, approval, suspension, password reset, and user details.
 

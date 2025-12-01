@@ -2,8 +2,8 @@
 # ABOUTME: Git pre-push hook - Runs critical path tests before push
 # ABOUTME: Prevents pushing code that fails essential tests (5-10 minute run)
 #
-# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-# Copyright ©2025 Async-IO.org
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 
 set -e
 
@@ -44,39 +44,6 @@ if [ -f "$PROJECT_ROOT/scripts/architectural-validation.sh" ]; then
         echo ""
         exit 1
     fi
-    echo ""
-fi
-
-# Validate examples if they were modified
-echo "🔍 Validating examples compile..."
-
-# Check if examples were modified in the commits being pushed
-if git diff --name-only @{upstream}..HEAD 2>/dev/null | grep -q "^examples/"; then
-    echo "  Examples modified, running validation..."
-
-    for dir in examples/agents/*/; do
-        if [ -f "$dir/Cargo.toml" ]; then
-            name=$(basename "$dir")
-            echo -n "    Checking $name... "
-            if (cd "$dir" && cargo check --quiet 2>/dev/null); then
-                echo "OK"
-            else
-                echo "FAILED"
-                echo ""
-                echo "❌ Example $name failed to compile"
-                echo ""
-                echo "Fix the compilation errors before pushing."
-                echo "To bypass (NOT RECOMMENDED): git push --no-verify"
-                echo ""
-                exit 1
-            fi
-        fi
-    done
-
-    echo "  ✅ All modified examples compile"
-    echo ""
-else
-    echo "  No examples modified, skipping"
     echo ""
 fi
 

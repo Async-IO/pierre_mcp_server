@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Redesigned Overview tab for the Pierre dashboard
 // ABOUTME: Features modern stat cards, tier visualization, and admin configuration panel
 

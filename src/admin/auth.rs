@@ -1,8 +1,8 @@
 // ABOUTME: Admin authentication and authorization system for privileged operations
 // ABOUTME: Validates admin JWT tokens, enforces permissions, and tracks admin token usage
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 //! Admin Authentication and Authorization
 //!
 // NOTE: All `.clone()` calls in this file are Safe - they are necessary for:

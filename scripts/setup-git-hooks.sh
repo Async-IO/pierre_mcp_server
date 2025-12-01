@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Script to install git hooks for code quality enforcement
 # ABOUTME: Sets up unified pre-commit hook with all validations (AI messages, suspicious files, etc.)
 #

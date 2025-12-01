@@ -1,8 +1,8 @@
 // ABOUTME: Garmin Connect API provider implementation using unified provider architecture
 // ABOUTME: Handles OAuth2 PKCE authentication and fitness data fetching with proper error handling
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
 use super::utils::{self, RetryConfig};

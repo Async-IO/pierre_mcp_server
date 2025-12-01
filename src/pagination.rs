@@ -1,8 +1,8 @@
 // ABOUTME: Cursor-based pagination module for efficient data traversal
 // ABOUTME: Provides opaque cursor encoding for secure and consistent pagination
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

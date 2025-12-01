@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Test helper to clean up OS keychain between tests
 // ABOUTME: Prevents test pollution by clearing shared keychain storage
 

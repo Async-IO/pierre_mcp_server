@@ -1,8 +1,8 @@
 // ABOUTME: Sleep and recovery analysis tool handlers for MCP protocol
 // ABOUTME: Implements 5 tools: analyze_sleep_quality, calculate_recovery_score, suggest_rest_day, track_sleep_trends, optimize_sleep_schedule
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::intelligence::algorithms::RecoveryAggregationAlgorithm;
 use crate::intelligence::{RecoveryCalculator, SleepAnalyzer, SleepData, TrainingLoadCalculator};

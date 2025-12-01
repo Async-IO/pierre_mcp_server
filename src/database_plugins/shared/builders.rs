@@ -1,8 +1,8 @@
 // ABOUTME: Query parameter binding helpers
 // ABOUTME: Reduces repetitive .bind() chains across PostgreSQL and SQLite
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 // This module is currently minimal as the query parameter binding helpers
 // were deferred to a later phase. The existing database implementations

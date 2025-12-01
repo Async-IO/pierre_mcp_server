@@ -1,5 +1,8 @@
 // ABOUTME: Maximum heart rate estimation algorithms using age-predicted formulas
 // ABOUTME: Implements Fox, Tanaka, Nes, and Gulati formulas with scientific validation
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};

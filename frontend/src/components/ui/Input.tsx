@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Reusable Input component with Pierre design system styling
 // ABOUTME: Supports error states, help text, icons, and consistent focus rings
 

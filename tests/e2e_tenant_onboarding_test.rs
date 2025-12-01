@@ -1,8 +1,8 @@
 // ABOUTME: End-to-end integration test for complete multi-tenant onboarding workflow
 // ABOUTME: Tests tenant creation, OAuth app registration, credential management, and tool execution
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! # End-to-End Tenant Onboarding Test
 //!

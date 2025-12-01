@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: MCP protocol compliance validation script
 # ABOUTME: Tests pierre-claude-bridge against Model Context Protocol specification
 #

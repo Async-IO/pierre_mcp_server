@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Production deployment script with Docker Compose management
 # ABOUTME: Handles starting, stopping, and managing development/production environments
 #

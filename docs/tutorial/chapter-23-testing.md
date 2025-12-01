@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Chapter 23: Testing Framework - Comprehensive Testing Patterns
 
 This chapter covers Pierre's testing infrastructure including database testing, integration patterns, synthetic data generation, async testing, error testing, and test organization best practices.

@@ -1,8 +1,8 @@
 // ABOUTME: Comprehensive tests for authentication and OAuth route flows
 // ABOUTME: Tests authentication, registration, and OAuth functionality
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 //! Comprehensive tests for routes.rs - Authentication and OAuth flows
 //!
 //! This test suite aims to improve coverage from 55.09% to 80%+ by testing

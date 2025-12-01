@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Fresh start script for Pierre MCP Server database cleanup
 # ABOUTME: Removes all database files and Docker volumes for a clean state
 #

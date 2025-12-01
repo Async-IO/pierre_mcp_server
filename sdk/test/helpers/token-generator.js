@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: JWT token generator for automated testing without browser OAuth
 // ABOUTME: Creates valid test tokens with configurable claims and expiration
 //

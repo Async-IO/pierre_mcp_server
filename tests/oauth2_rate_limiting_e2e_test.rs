@@ -1,5 +1,8 @@
 // ABOUTME: End-to-end tests for OAuth2 endpoint rate limiting with RFC-compliant headers
 // ABOUTME: Validates per-IP rate limiting, 429 responses, and rate limit header correctness
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]

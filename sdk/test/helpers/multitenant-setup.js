@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Multi-tenant test setup utilities for SDK integration tests
 // ABOUTME: Creates and manages multiple tenant clients for concurrent testing
 //

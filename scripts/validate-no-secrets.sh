@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: CI validation script to detect secret patterns that should never appear in logs or code
 # ABOUTME: Prevents PII leakage, credential exposure, and GDPR/CCPA violations
 #

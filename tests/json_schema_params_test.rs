@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // Test parameter deserialization for Phase 3A typed parameters
 #![allow(missing_docs, clippy::unwrap_used, clippy::float_cmp)]
 

@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Test script for business API key provisioning system
 # ABOUTME: Validates trial key generation, registration, and authentication workflow
 #

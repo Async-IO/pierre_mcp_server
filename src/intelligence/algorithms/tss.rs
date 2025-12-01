@@ -1,5 +1,8 @@
 // ABOUTME: Training Stress Score (TSS) calculation algorithms with multiple implementation strategies
 // ABOUTME: Supports average power, normalized power, and hybrid approaches for TSS computation
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::errors::{AppError, AppResult};
 use crate::intelligence::physiological_constants::metrics_constants::TSS_BASE_MULTIPLIER;

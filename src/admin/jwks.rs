@@ -1,8 +1,8 @@
 // ABOUTME: JWKS (JSON Web Key Set) endpoint implementation for asymmetric JWT validation
 // ABOUTME: Provides RS256/ES256 key generation, rotation, and public key distribution via JWKS endpoint
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright (c) 2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! JWKS (JSON Web Key Set) Management
 //!

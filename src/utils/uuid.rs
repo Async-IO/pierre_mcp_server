@@ -1,8 +1,8 @@
 // ABOUTME: UUID parsing and validation utilities to eliminate duplication across the codebase
 // ABOUTME: Provides safe UUID parsing with consistent error handling and format validation
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::errors::{AppError, AppResult};
 use uuid::Uuid;

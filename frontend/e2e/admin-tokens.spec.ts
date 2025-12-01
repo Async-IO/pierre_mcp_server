@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Playwright E2E tests for admin token management features.
 // ABOUTME: Tests token listing, creation, revocation, rotation, and bulk operations.
 

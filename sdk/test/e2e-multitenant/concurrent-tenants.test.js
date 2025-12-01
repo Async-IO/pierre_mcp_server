@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Tests concurrent access by multiple tenants via SDK bridge
 // ABOUTME: Validates no cross-tenant data leakage during simultaneous tool calls
 //

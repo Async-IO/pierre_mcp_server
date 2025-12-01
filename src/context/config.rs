@@ -1,8 +1,8 @@
 // ABOUTME: Configuration context for dependency injection of config and OAuth services
 // ABOUTME: Contains server config, OAuth managers, and tenant services for configuration operations
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::a2a::client::A2AClientManager;
 use crate::a2a::system_user::A2ASystemUserService;

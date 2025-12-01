@@ -1,8 +1,8 @@
 // ABOUTME: Pattern detection for training analysis including weekly schedules and overtraining signals
 // ABOUTME: Detects training patterns, hard/easy day alternation, and early warning signs of overtraining
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::intelligence::training_load::RiskLevel;
 use crate::models::Activity;

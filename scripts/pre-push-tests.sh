@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Pre-push validation - Critical path tests (5-10 minutes)
 # ABOUTME: Runs essential tests to catch 80% of issues before pushing to remote
 

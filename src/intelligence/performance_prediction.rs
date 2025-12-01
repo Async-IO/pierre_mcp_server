@@ -1,8 +1,8 @@
 // ABOUTME: Performance prediction using VDOT and Riegel formulas for race time estimation
 // ABOUTME: Implements Jack Daniels' VDOT methodology and Riegel's race time prediction formula
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::errors::AppError;
 use crate::intelligence::algorithms::VdotAlgorithm;

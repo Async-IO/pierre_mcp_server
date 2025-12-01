@@ -1,8 +1,8 @@
 // ABOUTME: Phase 0 OAuth isolation tests for per-tenant credential management
 // ABOUTME: Critical security tests verifying tenant-specific OAuth credentials and rate limiting
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! # Phase 0: Per-Tenant OAuth Validation
 //!

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Mock MCP client for testing bridge stdio communication
 // ABOUTME: Simulates Claude Desktop's MCP Client behavior over stdin/stdout
 //

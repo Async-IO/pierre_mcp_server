@@ -1,5 +1,8 @@
 // ABOUTME: Algorithm abstraction layer enabling pluggable calculation methods for fitness intelligence
 // ABOUTME: Provides enum-based dispatch for TSS, TRIMP, MaxHR, and statistical analysis algorithms
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! Algorithm Selection Module
 //!

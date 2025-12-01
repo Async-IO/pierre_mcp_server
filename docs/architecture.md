@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Architecture
 
 Pierre Fitness Platform is a multi-protocol fitness data platform that connects AI assistants to strava, garmin, fitbit, whoop, and terra (150+ wearables). Single binary, single port (8081), multiple protocols.

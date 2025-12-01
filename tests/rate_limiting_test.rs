@@ -1,8 +1,8 @@
 // ABOUTME: Rate limiting integration tests for API throttling
 // ABOUTME: Tests rate limiting functionality and quota enforcement
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! Rate limiting integration tests
 

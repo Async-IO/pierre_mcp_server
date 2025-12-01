@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # MCP Tools Reference
 
 Comprehensive reference for all 45 Model Context Protocol (MCP) tools provided by Pierre Fitness Platform. These tools enable AI assistants to access fitness data, analyze performance, manage configurations, and provide personalized recommendations.

@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Fast test runner - Unit and quick component tests only (< 5 minutes)
 # ABOUTME: Excludes slow E2E, comprehensive, and integration tests
 

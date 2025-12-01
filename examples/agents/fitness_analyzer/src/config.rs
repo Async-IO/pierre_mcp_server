@@ -1,8 +1,8 @@
 // ABOUTME: Configuration management for the FitnessAnalysisAgent
 // ABOUTME: Handles environment variables and configuration file parsing
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};

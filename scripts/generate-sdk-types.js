@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Auto-generates TypeScript type definitions from Pierre server tool schemas
 // ABOUTME: Fetches MCP tool schemas and converts them to TypeScript interfaces for SDK usage
 

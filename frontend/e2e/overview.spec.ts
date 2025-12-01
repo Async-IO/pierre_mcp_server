@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Playwright E2E tests for the Overview tab.
 // ABOUTME: Tests stat cards, 7-day activity, rate limits, tier usage, quick actions, and alerts.
 

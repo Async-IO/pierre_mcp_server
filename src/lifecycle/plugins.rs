@@ -1,8 +1,8 @@
 // ABOUTME: Core system plugin adapters for lifecycle management
 // ABOUTME: Wraps database, cache, and auth systems with Plugin trait for deterministic initialization
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright (c) 2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! Core system plugin adapters
 //!

@@ -1,8 +1,8 @@
 // ABOUTME: OAuth notification streaming implementation for user-specific real-time updates
 // ABOUTME: Handles SSE streaming of OAuth connection status and completion events
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::database::oauth_notifications::OAuthNotification;
 use crate::errors::AppError;

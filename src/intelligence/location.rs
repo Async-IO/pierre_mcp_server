@@ -1,8 +1,8 @@
 // ABOUTME: Location and geographic intelligence for activity analysis and environmental context
 // ABOUTME: Provides geocoding, elevation data, route analysis, and location-based insights
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 //
 // NOTE: All remaining `.clone()` calls in this file are Safe - they are necessary for:
 // - HTTP client Arc sharing for geocoding requests

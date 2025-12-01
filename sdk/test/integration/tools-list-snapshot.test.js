@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Snapshot tests for tools/list to catch silent tool disappearance
 // ABOUTME: Validates tool list consistency across HTTP and stdio transports
 //

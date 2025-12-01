@@ -1,8 +1,8 @@
 // ABOUTME: Refactored performance analyzer with proper statistical analysis and type safety
 // ABOUTME: Addresses critical issues: unsafe conversions, flawed statistics, magic numbers, and strategy misuse
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 #![allow(clippy::cast_precision_loss)] // Safe: fitness data conversions
 #![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges
 #![allow(clippy::cast_sign_loss)] // Safe: positive values only

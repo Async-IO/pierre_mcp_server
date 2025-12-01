@@ -1,8 +1,8 @@
 // ABOUTME: Connection management handlers for OAuth providers
 // ABOUTME: Handle connection status, disconnection, and connection initiation
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::database_plugins::DatabaseProvider;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};

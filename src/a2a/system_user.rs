@@ -1,8 +1,8 @@
 // ABOUTME: System user creation and management for A2A client authentication
 // ABOUTME: Creates internal user accounts for A2A clients to enable secure API access
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! System user management for A2A clients
 // NOTE: All `.clone()` calls in this file are Safe - Arc/String ownership for A2A operations

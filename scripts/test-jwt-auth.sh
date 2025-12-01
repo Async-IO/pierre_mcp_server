@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Test script to verify JWT authentication after Claude Code restart
 # ABOUTME: Checks config file JWT matches server's expected key ID
 

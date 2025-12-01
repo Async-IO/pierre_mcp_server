@@ -1,5 +1,8 @@
 // ABOUTME: Training load calculation algorithms (CTL/ATL/TSB) with multiple moving average methods
 // ABOUTME: Implements EMA (standard), SMA, WMA, and Kalman Filter for fitness tracking
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Duration, Utc};

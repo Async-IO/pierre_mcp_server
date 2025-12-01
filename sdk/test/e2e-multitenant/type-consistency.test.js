@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Tests type schema consistency across multiple tenants
 // ABOUTME: Validates tools/list returns identical schemas for all tenants
 //

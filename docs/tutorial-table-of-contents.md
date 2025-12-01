@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Pierre Fitness Platform - Comprehensive Rust Tutorial
 
 > **Target Audience**: Junior Rust developers with 6-12 months experience

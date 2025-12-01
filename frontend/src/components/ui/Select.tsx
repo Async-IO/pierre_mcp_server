@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Reusable Select dropdown component with Pierre design system styling
 // ABOUTME: Supports error states, custom arrow icon, and consistent styling
 

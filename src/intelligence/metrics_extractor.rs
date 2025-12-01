@@ -1,8 +1,8 @@
 // ABOUTME: Type-safe metric extraction system for fitness data analysis
 // ABOUTME: Provides unified interface for extracting specific metrics from activities with proper error handling
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 #![allow(clippy::cast_precision_loss)] // Safe: fitness data conversions
 
 use crate::errors::{AppError, AppResult};

@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 
 // ABOUTME: Command-line interface for Pierre MCP Client
 // ABOUTME: Parses arguments, configures MCP client, and manages process lifecycle

@@ -1,8 +1,8 @@
 // ABOUTME: Integration tests for RS256 JWT infrastructure and JWKS management
 // ABOUTME: Tests asymmetric token generation, validation, key rotation, and JWKS endpoints
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]

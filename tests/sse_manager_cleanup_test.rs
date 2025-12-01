@@ -1,5 +1,8 @@
 // ABOUTME: Tests for SSE manager cleanup logic to prevent memory leaks
 // ABOUTME: Validates session tracking and cleanup when protocol streams disconnect
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 #![allow(missing_docs)]

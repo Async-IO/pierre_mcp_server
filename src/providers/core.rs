@@ -1,8 +1,8 @@
 // ABOUTME: Core provider traits and interfaces for unified fitness data access
 // ABOUTME: Defines the foundational abstractions for all fitness data providers
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! # Pluggable Provider Architecture - Shared Request/Response Traits (Phase 1)
 //!

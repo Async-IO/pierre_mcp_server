@@ -1,10 +1,10 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 //! Model ↔ SQL row conversion helpers
 //!
 //! This module provides generic database row parsing functions that work with both
 //! PostgreSQL and SQLite, eliminating duplicate row parsing logic.
-//!
-//! Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-//! Copyright ©2025 Async-IO.org
 
 use crate::a2a::protocol::A2ATask;
 use crate::errors::{AppError, AppResult};

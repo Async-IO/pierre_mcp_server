@@ -1,5 +1,8 @@
 // ABOUTME: Unit tests for intelligence module algorithms (linear regression, TSS, VDOT, etc.)
 // ABOUTME: Tests pure computational functions without database or network dependencies
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]

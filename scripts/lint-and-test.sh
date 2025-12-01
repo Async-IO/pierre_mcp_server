@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Simplified validation orchestrator using native Cargo commands
 # ABOUTME: Delegates to cargo fmt, cargo clippy, cargo deny, and custom architectural validation
 

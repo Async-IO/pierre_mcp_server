@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # OAuth2 Server
 
 Pierre includes a standards-compliant oauth2 authorization server for secure mcp client authentication.

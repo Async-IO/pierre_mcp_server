@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Unit tests for message handling and validation
 // ABOUTME: Tests MCP message parsing, validation, and error handling
 //

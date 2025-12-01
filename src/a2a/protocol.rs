@@ -1,8 +1,8 @@
 // ABOUTME: Core A2A protocol message handling and JSON-RPC implementation
 // ABOUTME: Processes A2A protocol requests, tool execution, and task management for agent communication
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! A2A Protocol Implementation
 //!

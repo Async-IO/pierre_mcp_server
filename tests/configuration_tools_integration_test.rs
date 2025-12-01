@@ -1,8 +1,8 @@
 // ABOUTME: Integration tests for configuration tools in multitenant MCP server
 // ABOUTME: Tests configuration tool handlers and validates proper functionality
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 //! Integration tests for configuration tools in multitenant MCP server
 //!
 //! This test suite validates that configuration tools are properly integrated

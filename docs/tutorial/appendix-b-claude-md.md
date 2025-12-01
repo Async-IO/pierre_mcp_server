@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Appendix B: CLAUDE.md Compliance Checklist
 
 Quick checklist for CLAUDE.md code standards compliance.

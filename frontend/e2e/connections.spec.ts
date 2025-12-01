@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Playwright E2E tests for the Connections tab (API Keys, Connected Apps).
 // ABOUTME: Tests tab switching, key/client management, status filtering, and CRUD operations.
 

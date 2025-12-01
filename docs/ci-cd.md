@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # CI/CD Pipeline
 
 Comprehensive documentation for the GitHub Actions continuous integration and deployment workflows.

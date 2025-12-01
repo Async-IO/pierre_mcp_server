@@ -1,5 +1,8 @@
 // ABOUTME: LTHR (Lactate Threshold Heart Rate) estimation algorithms for endurance training
 // ABOUTME: Implements MaxHR-based, 30-min test, ramp test, and Friel method for LTHR calculation
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};

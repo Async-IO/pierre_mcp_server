@@ -1,11 +1,11 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 //! Transaction retry patterns for database operations
 //!
 //! Handles deadlocks, timeouts, and exponential backoff for both PostgreSQL
 //! and SQLite database operations. This module eliminates duplicate retry
 //! logic across database implementations.
-//!
-//! Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-//! Copyright ©2025 Async-IO.org
 
 use crate::errors::AppResult;
 use std::time::Duration;

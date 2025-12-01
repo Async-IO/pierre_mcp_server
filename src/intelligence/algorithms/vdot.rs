@@ -1,5 +1,8 @@
 // ABOUTME: VDOT (VO2max running) calculation algorithms with Daniels, Riegel, and hybrid methods
 // ABOUTME: Implements Jack Daniels' VDOT methodology and Riegel's power-law race prediction formula
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};

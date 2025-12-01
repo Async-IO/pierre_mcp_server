@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Server lifecycle management helper for integration tests
 // ABOUTME: Starts, monitors health, and cleanly shuts down Pierre MCP server instances
 //

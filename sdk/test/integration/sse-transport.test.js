@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Integration tests for SSE/Streamable HTTP transport (Claude Desktop mode)
 // ABOUTME: Tests authentication flow, session management, tools listing, and OAuth handling
 //

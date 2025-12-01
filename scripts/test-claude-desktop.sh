@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Automated Claude Desktop testing setup script
 # ABOUTME: Prepares server, tokens, and config for testing feature/automatic-oauth-reauth branch
 #

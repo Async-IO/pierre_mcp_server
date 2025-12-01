@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Category-based test runner for targeted test execution
 # ABOUTME: Runs tests by category (mcp, admin, oauth, security, etc.) to prevent OOM
 

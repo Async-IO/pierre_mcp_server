@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Chapter 21: Training Load, Recovery & Sleep Analysis
 
 This chapter covers how Pierre analyzes recovery metrics, sleep quality, training load management, and provides rest day suggestions. You'll learn about recovery score calculation, sleep stage analysis, HRV interpretation, and overtraining detection.

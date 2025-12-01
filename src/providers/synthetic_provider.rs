@@ -1,8 +1,8 @@
 // ABOUTME: Production synthetic fitness provider for development and testing
 // ABOUTME: Provides configurable activity data without requiring OAuth authentication
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 // RwLock poisoning errors are converted to ProviderError::ConfigurationError
 // for proper error propagation through the application

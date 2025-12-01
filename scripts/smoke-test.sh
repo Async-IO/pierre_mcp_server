@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Quick validation script for rapid development feedback (2-3 minutes)
 # ABOUTME: Runs format check, clippy on main code, unit tests, and one integration test
 

@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Development server startup script for Pierre MCP Server
 # ABOUTME: Sets up database, creates users, and starts both backend and frontend servers
 

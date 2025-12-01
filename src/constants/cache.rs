@@ -1,8 +1,8 @@
 // ABOUTME: Cache-related constants for TTL, capacity, and cleanup intervals
 // ABOUTME: Supports both in-memory and Redis cache backends with optimal defaults
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 /// Default maximum cache entries for in-memory cache
 pub const DEFAULT_CACHE_MAX_ENTRIES: usize = 10_000;

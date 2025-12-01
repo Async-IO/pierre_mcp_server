@@ -1,8 +1,8 @@
 // ABOUTME: Integration tests for intelligence engines and universal tool handlers
 // ABOUTME: Tests interaction between fitness intelligence and universal tool execution
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 //! Integration tests for intelligence engines and universal tool handlers
 //!
 //! Tests the interaction between fitness intelligence engines and the universal

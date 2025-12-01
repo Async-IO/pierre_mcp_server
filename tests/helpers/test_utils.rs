@@ -1,5 +1,8 @@
 // ABOUTME: Test utilities for synthetic provider and intelligence validation
 // ABOUTME: Provides scenario builders and validation assertion helpers for automated testing
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

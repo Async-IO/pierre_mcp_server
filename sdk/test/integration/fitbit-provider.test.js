@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Fitbit provider integration tests validating API v1 data transformation
 // ABOUTME: Tests realistic Fitbit API responses and Pierre's data transformation logic
 //

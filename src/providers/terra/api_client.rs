@@ -1,8 +1,8 @@
 // ABOUTME: Terra REST API client for authentication, user management, and historical data
 // ABOUTME: Handles API key auth, widget sessions, and on-demand data requests
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! Terra REST API client
 //!

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Token management integration tests - validation, refresh, expiry, storage
 // ABOUTME: Tests token lifecycle including expiry during tool execution (critical regression)
 //

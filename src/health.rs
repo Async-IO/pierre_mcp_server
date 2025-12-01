@@ -1,8 +1,8 @@
 // ABOUTME: Server health monitoring and system status checks for operational visibility
 // ABOUTME: Provides health endpoints, system metrics, and service availability monitoring
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! Health check endpoints and monitoring utilities
 

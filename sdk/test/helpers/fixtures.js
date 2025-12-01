@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Test fixtures with sample MCP protocol messages and responses
 // ABOUTME: Reusable test data for validating bridge MCP protocol compliance
 //

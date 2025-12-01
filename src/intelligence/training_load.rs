@@ -1,8 +1,8 @@
 // ABOUTME: Training load calculations including TSS, CTL, ATL, and TSB for fitness tracking
 // ABOUTME: Implements exponential moving averages to track chronic and acute training loads
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::errors::AppError;
 use crate::intelligence::metrics::MetricsCalculator;

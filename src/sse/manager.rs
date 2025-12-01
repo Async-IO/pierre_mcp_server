@@ -1,8 +1,8 @@
 // ABOUTME: Central SSE manager that coordinates both OAuth notifications and MCP protocol streams
 // ABOUTME: Provides unified connection management with clean separation of stream types
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use super::{
     a2a_task_stream::A2ATaskStream, notifications::NotificationStream, protocol::McpProtocolStream,

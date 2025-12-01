@@ -1,8 +1,8 @@
 // ABOUTME: Two-tier key management system for secure database encryption and secret storage
 // ABOUTME: Implements MEK (Master Encryption Key) from environment and DEK (Database Encryption Key) stored encrypted
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};

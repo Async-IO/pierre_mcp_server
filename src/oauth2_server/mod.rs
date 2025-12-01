@@ -1,8 +1,8 @@
 // ABOUTME: OAuth 2.0 server implementation with JWT tokens underneath
 // ABOUTME: Provides RFC 7591 client registration and OAuth 2.0 endpoints for MCP client compatibility
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 /// RFC 7591 dynamic client registration implementation
 pub mod client_registration;

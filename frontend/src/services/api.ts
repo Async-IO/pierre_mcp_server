@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 import axios, { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 
 // In development, use empty string to leverage Vite proxy (avoids CORS issues)

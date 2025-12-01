@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Central export file for all Pierre UI components
 // ABOUTME: Provides consistent design system components across the application
 

@@ -59,13 +59,87 @@ check_root_markdown() {
 # Check for files with suspicious patterns (backups, old files, etc.)
 check_suspicious_files() {
     local suspicious_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(bak|orig|tmp|swp)$|_old\.|old_|\.old\.|rs:' || true)
-    
+
     if [ -n "$suspicious_files" ]; then
         echo "❌ ERROR: Commit blocked - Found suspicious files:"
         echo "$suspicious_files" | sed 's/^/  - /'
         echo ""
         echo "These files appear to be backups, old versions, or contain invalid patterns."
         echo "Please remove them or rename them before committing."
+        return 1
+    fi
+    return 0
+}
+
+# Check for SPDX license headers in source files
+check_license_headers() {
+    local missing_headers=""
+
+    # Get staged source files (added or modified)
+    # Rust files in src/ and tests/
+    local rs_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^(src|tests)/.*\.rs$' | grep -v '/target/' || true)
+    # JS/TS files in sdk/, frontend/, and scripts/ (excluding node_modules)
+    local js_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^(sdk|frontend|scripts)/.*\.(ts|tsx|js|jsx)$' | grep -v node_modules || true)
+    # HTML files in templates/
+    local html_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^templates/.*\.html$' || true)
+    # Shell scripts in scripts/
+    local sh_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^scripts/.*\.sh$' || true)
+    # Python files in scripts/
+    local py_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^scripts/.*\.py$' || true)
+    # Markdown files in docs/
+    local md_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/.*\.md$' || true)
+
+    # Check Rust files
+    for file in $rs_files; do
+        if [ -f "$file" ] && ! grep -q "SPDX-License-Identifier:" "$file" 2>/dev/null; then
+            missing_headers="$missing_headers\n  - $file"
+        fi
+    done
+
+    # Check JS/TS files
+    for file in $js_files; do
+        if [ -f "$file" ] && ! grep -q "SPDX-License-Identifier:" "$file" 2>/dev/null; then
+            missing_headers="$missing_headers\n  - $file"
+        fi
+    done
+
+    # Check HTML files
+    for file in $html_files; do
+        if [ -f "$file" ] && ! grep -q "SPDX-License-Identifier:" "$file" 2>/dev/null; then
+            missing_headers="$missing_headers\n  - $file"
+        fi
+    done
+
+    # Check Shell scripts
+    for file in $sh_files; do
+        if [ -f "$file" ] && ! grep -q "SPDX-License-Identifier:" "$file" 2>/dev/null; then
+            missing_headers="$missing_headers\n  - $file"
+        fi
+    done
+
+    # Check Python files
+    for file in $py_files; do
+        if [ -f "$file" ] && ! grep -q "SPDX-License-Identifier:" "$file" 2>/dev/null; then
+            missing_headers="$missing_headers\n  - $file"
+        fi
+    done
+
+    # Check Markdown files
+    for file in $md_files; do
+        if [ -f "$file" ] && ! grep -q "SPDX-License-Identifier:" "$file" 2>/dev/null; then
+            missing_headers="$missing_headers\n  - $file"
+        fi
+    done
+
+    if [ -n "$missing_headers" ]; then
+        echo "❌ ERROR: Commit blocked - Missing SPDX license headers:"
+        echo -e "$missing_headers"
+        echo ""
+        echo "All source files must have SPDX headers. Format:"
+        echo "  // SPDX-License-Identifier: MIT OR Apache-2.0"
+        echo "  // Copyright (c) 2025 Pierre Fitness Intelligence"
+        echo ""
+        echo "Run: ./scripts/add-license-headers.sh to fix automatically"
         return 1
     fi
     return 0
@@ -91,7 +165,11 @@ main() {
     if ! check_suspicious_files; then
         checks_passed=false
     fi
-    
+
+    if ! check_license_headers; then
+        checks_passed=false
+    fi
+
     if [ "$checks_passed" = false ]; then
         exit 1
     fi

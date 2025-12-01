@@ -1,5 +1,8 @@
 // ABOUTME: VO2max estimation algorithms for aerobic fitness assessment
 // ABOUTME: Implements VDOT, Cooper, Rockport, Astrand-Ryhming, and pace-based models for VO2max calculation
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};

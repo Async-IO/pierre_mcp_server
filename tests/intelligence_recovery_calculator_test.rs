@@ -1,8 +1,8 @@
 // ABOUTME: Unit tests for recovery calculator module, moved from src/intelligence/recovery_calculator.rs
 // ABOUTME: Tests holistic recovery scoring combining TSB, sleep quality, and HRV analysis
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]

@@ -1,8 +1,8 @@
 // ABOUTME: Unit tests for activity intelligence and performance analysis features
 // ABOUTME: Tests intelligence module components including metrics, trends, and contextual factors
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]

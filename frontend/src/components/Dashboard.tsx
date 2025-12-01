@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 import { useState, lazy, Suspense, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';

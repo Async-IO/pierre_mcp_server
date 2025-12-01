@@ -1,8 +1,8 @@
 // ABOUTME: Physiological constants and scientific thresholds for fitness calculations
 // ABOUTME: Contains sport science-based constants for heart rate zones, power calculations, and performance metrics
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 //! Physiological constants based on sports science research
 //!
 //! This module contains scientifically-established constants used throughout

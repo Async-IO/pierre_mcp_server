@@ -1,8 +1,8 @@
 // ABOUTME: Simple tests for SSE transport module and MCP protocol streaming
 // ABOUTME: Basic functionality tests that compile and run successfully
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]

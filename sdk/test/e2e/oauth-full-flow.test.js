@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: End-to-end OAuth flow tests - complete path from connect_provider to tool calls
 // ABOUTME: Tests the exact regression path: OAuth completion → token storage → tools/list refresh
 //

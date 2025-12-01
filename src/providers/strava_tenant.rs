@@ -1,8 +1,8 @@
 // ABOUTME: Tenant-aware Strava provider implementation with isolated OAuth credentials
 // ABOUTME: Provides Strava API integration respecting tenant boundaries and rate limits
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 // NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
 // - HTTP client Arc sharing across async operations (shared_client().clone())
 // - String ownership for name formatting (firstname.clone(), lastname.clone())

@@ -1,5 +1,8 @@
 // ABOUTME: Integration tests for basic intelligence tools using synthetic data
 // ABOUTME: Tests get_athlete, get_activities, get_activity, get_stats, and compare_activities tools
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]

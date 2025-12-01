@@ -1,5 +1,8 @@
 // ABOUTME: Synthetic fitness data generator for automated intelligence testing
 // ABOUTME: Creates realistic running, cycling, and swimming activities with configurable patterns
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

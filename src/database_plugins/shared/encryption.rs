@@ -1,10 +1,10 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 //! Encryption/decryption utilities for OAuth tokens and sensitive data
 //!
 //! This module harmonizes encryption across PostgreSQL and SQLite, ensuring
 //! consistent security for sensitive data at rest using AES-256-GCM with AAD binding.
-//!
-//! Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-//! Copyright ©2025 Async-IO.org
 
 use crate::errors::AppResult;
 use uuid::Uuid;

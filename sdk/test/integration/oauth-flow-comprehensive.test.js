@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Comprehensive OAuth 2.0 flow integration tests for bridge.ts
 // ABOUTME: Tests dynamic client registration, authorization, token exchange, validation, and refresh
 //

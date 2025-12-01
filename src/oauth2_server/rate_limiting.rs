@@ -1,5 +1,8 @@
 // ABOUTME: OAuth2 endpoint rate limiting with RFC-compliant headers and rejection handling
 // ABOUTME: Implements per-IP token bucket rate limiting for authorization, token, and registration endpoints
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use dashmap::DashMap;
 use std::net::IpAddr;

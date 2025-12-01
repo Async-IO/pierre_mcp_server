@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Toast hooks for showing notifications with Pierre design system styling
 // ABOUTME: Separates hooks from components to enable React Fast Refresh
 

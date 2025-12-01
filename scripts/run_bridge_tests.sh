@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Complete bridge test suite runner for unit, integration, and E2E tests
 # ABOUTME: Validates bridge functionality from CLI parsing to full MCP Client simulation
 #

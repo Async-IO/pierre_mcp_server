@@ -1,8 +1,8 @@
 // ABOUTME: Proper statistical analysis engine for fitness trend calculations
 // ABOUTME: Implements correct linear regression, R-squared calculations, and trend strength analysis
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 #![allow(clippy::cast_precision_loss)] // Safe: statistical calculations with controlled ranges
 
 use super::{TrendDataPoint, TrendDirection};

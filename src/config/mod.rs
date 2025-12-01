@@ -1,8 +1,8 @@
 // ABOUTME: Configuration management module for centralized server settings and parameters
 // ABOUTME: Handles environment configs, fitness parameters, intelligence settings, and runtime options
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 //! Configuration module for Pierre MCP Server
 //!
 //! This module provides centralized configuration management for all components

@@ -1,8 +1,8 @@
 // ABOUTME: Comprehensive integration tests for admin system functionality
 // ABOUTME: Tests admin tokens, JWT auth, API endpoints, and security features
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 //! Comprehensive tests for admin functionality
 //!
 //! This module tests the complete admin system including:

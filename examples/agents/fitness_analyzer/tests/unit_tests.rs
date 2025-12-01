@@ -1,8 +1,8 @@
 // ABOUTME: Unit tests for individual components of FitnessAnalysisAgent
 // ABOUTME: Tests isolated functionality without external dependencies
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use fitness_analyzer::config::AgentConfig;
 use fitness_analyzer::a2a_client::Activity;

@@ -1,8 +1,8 @@
 // ABOUTME: Comprehensive algorithm tests for all nutrition calculation functions
 // ABOUTME: Tests BMR, TDEE, macros, nutrient timing with 46 test cases covering all scenarios
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 //! Comprehensive algorithm tests for nutrition module
 //!
 //! This test suite thoroughly covers all nutrition calculation algorithms:

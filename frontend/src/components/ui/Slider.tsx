@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Reusable Slider/Range component with Pierre design system styling
 // ABOUTME: Features visual markers, gradient track, and value display
 

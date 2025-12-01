@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Circular progress indicator component for visual stat displays
 // ABOUTME: Supports different color variants matching Pierre's design system
 

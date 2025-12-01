@@ -1,8 +1,8 @@
 // ABOUTME: Shared database logic for PostgreSQL and SQLite implementations
 // ABOUTME: Eliminates duplication by extracting common business logic
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 /// Enum conversion utilities (`UserTier`, `UserStatus`, `TaskStatus`, etc.)
 pub mod enums;

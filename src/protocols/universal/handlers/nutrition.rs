@@ -1,8 +1,8 @@
 // ABOUTME: Nutrition analysis tool handlers for MCP protocol
 // ABOUTME: Implements 5 tools: calculate_daily_nutrition, get_nutrient_timing, search_food, get_food_details, analyze_meal_nutrition
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::external::{UsdaClient, UsdaClientConfig};
 use crate::intelligence::{

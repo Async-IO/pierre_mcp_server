@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Reusable Modal component with Pierre design system styling
 // ABOUTME: Features smooth animations, gradient accent bar, and accessible focus management
 

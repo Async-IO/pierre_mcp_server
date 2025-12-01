@@ -1,8 +1,8 @@
 // ABOUTME: Data context for dependency injection of database and provider services
 // ABOUTME: Contains database, provider registry, and intelligence services for data operations
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::database_plugins::factory::Database;
 use crate::intelligence::ActivityIntelligence;

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../services/api';
 import { Doughnut, Bar } from 'react-chartjs-2';

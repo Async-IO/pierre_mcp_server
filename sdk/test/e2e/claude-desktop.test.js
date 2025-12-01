@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: End-to-end Claude Desktop integration tests with full MCP workflow
 // ABOUTME: Tests initialization, tool listing, batch requests, and client-bridge communication
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';

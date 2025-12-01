@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Database Architecture & Repository Pattern
 
 This chapter explores Pierre's modern database architecture using the repository pattern, which replaced a monolithic 135-method god-trait with 13 focused repository traits following SOLID principles.

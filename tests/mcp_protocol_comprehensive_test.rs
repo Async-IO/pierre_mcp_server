@@ -1,8 +1,8 @@
 // ABOUTME: Comprehensive tests for MCP protocol handling coverage improvement
 // ABOUTME: Tests error scenarios, edge cases, and protocol handling in multitenant
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 //! Comprehensive tests for MCP protocol handling to improve coverage
 //!
 //! This test suite focuses on the low-coverage areas in mcp/multitenant.rs

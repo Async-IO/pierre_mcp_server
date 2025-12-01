@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: Safe incremental test runner for Claude Code Web to prevent OOM crashes
 # ABOUTME: Runs tests in small batches with memory cleanup pauses
 

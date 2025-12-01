@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: OAuth callback simulator for automated testing of complete OAuth flow
 // ABOUTME: Simulates browser OAuth approval and callback to bridge without user interaction
 //

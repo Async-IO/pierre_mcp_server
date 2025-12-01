@@ -1,8 +1,8 @@
 // ABOUTME: Fitness-specific configuration for training zones, thresholds, and sport parameters
 // ABOUTME: Manages physiological settings, training zones, and sport-specific configurations
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! Fitness-specific configuration for sport types and intelligence parameters
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Bidirectional MCP bridge connecting MCP host (stdio) to Pierre Server (HTTP)
 // ABOUTME: Manages OAuth 2.0 flows, token persistence, and transparent MCP message translation
 //

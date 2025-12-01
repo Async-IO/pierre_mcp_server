@@ -1,5 +1,8 @@
 // ABOUTME: Verification test for synthetic data helpers and test utilities
 // ABOUTME: Ensures the helpers module structure works correctly before writing full integration tests
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]

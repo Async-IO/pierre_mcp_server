@@ -1,8 +1,8 @@
 // ABOUTME: Cache abstraction layer for API response caching with tenant isolation
 // ABOUTME: Pluggable backend support (in-memory, Redis) following DatabaseProvider pattern
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 /// Cache factory for creating cache providers
 pub mod factory;

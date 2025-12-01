@@ -1,5 +1,8 @@
 // ABOUTME: Schema completeness validation - ensures all tools in schema are properly registered
 // ABOUTME: Prevents regressions like "Unknown tool" errors by validating schema/registry consistency
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 #![doc = "Schema completeness validation - ensures all tools are properly registered"]
 #![allow(clippy::unwrap_used)]

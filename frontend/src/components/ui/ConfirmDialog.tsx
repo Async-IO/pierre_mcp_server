@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Reusable confirmation dialog for destructive actions
 // ABOUTME: Replaces native confirm() with consistent Pierre-styled modal
 

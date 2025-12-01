@@ -1,5 +1,8 @@
 // ABOUTME: Axum HTTP testing utilities for integration tests
 // ABOUTME: Provides helpers to test Axum routes without running a full server
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use axum::{
     body::Body,

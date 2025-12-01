@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Unified status filter component for list views
 // ABOUTME: Provides consistent Active/All/Inactive filtering across Admin Tokens, API Keys, and A2A Clients
 

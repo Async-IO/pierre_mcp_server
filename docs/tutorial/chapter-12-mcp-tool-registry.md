@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
+
 # Chapter 12: MCP Tool Registry & Type-Safe Routing
 
 This final chapter of Part III explores how Pierre registers MCP tools, validates parameters with JSON Schema, and routes tool calls to handlers. You'll learn about the tool registry pattern, schema generation, and type-safe parameter validation.

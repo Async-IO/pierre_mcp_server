@@ -1,8 +1,8 @@
 // ABOUTME: Composed server context that provides all focused contexts for gradual migration
 // ABOUTME: Replaces ServerResources with focused dependency injection while maintaining compatibility
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use super::{AuthContext, ConfigContext, DataContext, NotificationContext};
 use crate::mcp::resources::ServerResources;

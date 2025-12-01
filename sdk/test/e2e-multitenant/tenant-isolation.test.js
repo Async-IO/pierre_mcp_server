@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
 // ABOUTME: Tests tenant isolation via SDK bridge
 // ABOUTME: Validates cross-tenant access is properly forbidden
 //

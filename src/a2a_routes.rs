@@ -1,8 +1,8 @@
 // ABOUTME: HTTP route handlers for A2A protocol endpoints and client management
 // ABOUTME: Implements REST API endpoints for A2A authentication, tool execution, and client administration
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! A2A HTTP Routes
 //!

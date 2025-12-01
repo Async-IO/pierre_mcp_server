@@ -3,8 +3,8 @@
 // ABOUTME: Tests for MCP completion (auto-complete) feature
 // ABOUTME: Validates completion suggestions for tool arguments and resources
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 use pierre_mcp_server::mcp::protocol::{McpRequest, ProtocolHandler};
 use serde_json::json;

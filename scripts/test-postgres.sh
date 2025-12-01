@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
 # ABOUTME: PostgreSQL database plugin integration test runner
 # ABOUTME: Starts PostgreSQL via Docker and runs database operation tests
 #

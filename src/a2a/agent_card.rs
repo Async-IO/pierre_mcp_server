@@ -1,8 +1,8 @@
 // ABOUTME: A2A agent capability discovery and advertisement system
 // ABOUTME: Provides agent card with capabilities, endpoints, and protocol information for A2A discovery
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! Agent Card Implementation
 //!

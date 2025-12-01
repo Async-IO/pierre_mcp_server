@@ -1,8 +1,8 @@
 // ABOUTME: A2A client registration, management, and lifecycle operations
 // ABOUTME: Manages client credentials, usage statistics, and rate limiting for A2A agents
 //
-// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
-// Copyright ©2025 Async-IO.org
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
 
 //! A2A Client Management
 //!
