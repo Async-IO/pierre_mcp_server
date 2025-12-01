@@ -400,13 +400,13 @@ fn test_distance_unit_conversions() {
     let miles = meters * 0.000621371;
     
     assert_eq!(kilometers, 5.0);
-    assert!((miles - 3.107).abs() < 0.01);
+    assert!((miles - 3.107_f64).abs() < 0.01);
     
     // Test elevation conversions
     let elevation_meters = 150.0;
     let elevation_feet = elevation_meters * 3.28084;
     
-    assert!((elevation_feet - 492.0).abs() < 1.0);
+    assert!((elevation_feet - 492.0_f64).abs() < 1.0);
 }
 
 #[test]
