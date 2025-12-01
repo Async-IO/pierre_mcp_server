@@ -398,6 +398,18 @@ impl DatabaseProvider for Database {
         }
     }
 
+    async fn update_user_password(
+        &self,
+        user_id: uuid::Uuid,
+        password_hash: &str,
+    ) -> AppResult<()> {
+        match self {
+            Self::SQLite(db) => db.update_user_password(user_id, password_hash).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.update_user_password(user_id, password_hash).await,
+        }
+    }
+
     /// Create or update a user profile with the provided data
     ///
     /// # Errors

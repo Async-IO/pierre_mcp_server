@@ -92,6 +92,9 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Update user's `tenant_id` to link them to a tenant (`tenant_id` should be UUID string)
     async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()>;
 
+    /// Update user's password hash
+    async fn update_user_password(&self, user_id: Uuid, password_hash: &str) -> AppResult<()>;
+
     // ================================
     // User OAuth Tokens (Multi-Tenant)
     // ================================

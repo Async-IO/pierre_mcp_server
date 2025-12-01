@@ -852,4 +852,31 @@ impl Database {
     pub async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> AppResult<()> {
         self.update_user_tenant_id_impl(user_id, tenant_id).await
     }
+
+    /// Update user's password hash
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the user is not found or database update fails
+    pub async fn update_user_password(&self, user_id: Uuid, password_hash: &str) -> AppResult<()> {
+        let result = sqlx::query(
+            r"
+            UPDATE users SET
+                password_hash = ?1,
+                last_active = CURRENT_TIMESTAMP
+            WHERE id = ?2
+            ",
+        )
+        .bind(password_hash)
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update user password: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::not_found(format!("User with ID: {user_id}")));
+        }
+
+        Ok(())
+    }
 }

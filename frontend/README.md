@@ -52,6 +52,27 @@ npm run lint
 npm run type-check
 ```
 
+### Demo Data
+
+To populate the dashboard with realistic demo data for visualization and testing:
+
+```bash
+# From repository root - clear database first
+./scripts/fresh-start.sh
+
+# Start server to create tables
+# Then in another terminal:
+./scripts/seed-demo-data.sh
+```
+
+The seed script creates:
+- **18 demo users** - Mix of tiers (starter/professional/enterprise) and statuses (active/pending/suspended)
+- **20 API keys** - Fitness-focused (Strava Sync, Garmin Connect, Apple Health, Training Plan Bot, etc.)
+- **10 A2A clients** - AI assistants and integration bots (Claude Desktop, GPT-4 Fitness Coach, Slack Bot, etc.)
+- **10 admin tokens** - Service tokens (CI/CD Pipeline, API Gateway, Monitoring Service, etc.)
+- **50,000+ API usage records** - 30 days of usage data with realistic patterns
+- **4,500+ request logs** - 14 days of endpoint access logs
+
 ## Architecture
 
 - **React 19** with functional components and hooks

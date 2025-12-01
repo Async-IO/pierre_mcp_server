@@ -2255,6 +2255,10 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::update_user_tenant_id_impl(self, user_id, tenant_id).await
     }
 
+    async fn update_user_password(&self, user_id: Uuid, password_hash: &str) -> AppResult<()> {
+        Self::update_user_password(self, user_id, password_hash).await
+    }
+
     async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> AppResult<()> {
         Self::upsert_user_profile_impl(self, user_id, profile_data).await
     }

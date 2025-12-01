@@ -333,24 +333,24 @@ class ApiService {
     is_super_admin?: boolean;
     expires_in_days?: number;
   }) {
-    const response = await axios.post('/admin/tokens', data);
+    const response = await axios.post('/api/admin/tokens', data);
     return response.data;
   }
 
   async getAdminTokenDetails(tokenId: string) {
-    const response = await axios.get(`/admin/tokens/${tokenId}`);
+    const response = await axios.get(`/api/admin/tokens/${tokenId}`);
     return response.data;
   }
 
   async revokeAdminToken(tokenId: string) {
-    const response = await axios.post(`/admin/tokens/${tokenId}/revoke`);
+    const response = await axios.post(`/api/admin/tokens/${tokenId}/revoke`);
     return response.data;
   }
 
   async rotateAdminToken(tokenId: string, data?: {
     expires_in_days?: number;
   }) {
-    const response = await axios.post(`/admin/tokens/${tokenId}/rotate`, data || {});
+    const response = await axios.post(`/api/admin/tokens/${tokenId}/rotate`, data || {});
     return response.data;
   }
 
@@ -436,14 +436,14 @@ class ApiService {
   }
 
   async approveUser(userId: string, reason?: string) {
-    const response = await axios.post(`/admin/approve-user/${userId}`, {
+    const response = await axios.post(`/api/admin/approve-user/${userId}`, {
       reason
     });
     return response.data;
   }
 
   async suspendUser(userId: string, reason?: string) {
-    const response = await axios.post(`/admin/suspend-user/${userId}`, {
+    const response = await axios.post(`/api/admin/suspend-user/${userId}`, {
       reason
     });
     return response.data;
@@ -464,6 +464,46 @@ class ApiService {
     const response = await axios.get(url);
     // Backend returns { users: [...], total_count: n } - extract users array for component compatibility
     return response.data.users || [];
+  }
+
+  async resetUserPassword(userId: string): Promise<{
+    success: boolean;
+    temporary_password: string;
+    expires_at: string;
+    user_email: string;
+  }> {
+    const response = await axios.post(`/admin/users/${userId}/reset-password`);
+    return response.data;
+  }
+
+  async getUserRateLimit(userId: string): Promise<{
+    user_id: string;
+    tier: string;
+    rate_limits: {
+      daily: { limit: number | null; used: number; remaining: number | null };
+      monthly: { limit: number | null; used: number; remaining: number | null };
+    };
+    reset_times: {
+      daily_reset: string;
+      monthly_reset: string;
+    };
+  }> {
+    const response = await axios.get(`/admin/users/${userId}/rate-limit`);
+    return response.data;
+  }
+
+  async getUserActivity(userId: string, days: number = 30): Promise<{
+    user_id: string;
+    period_days: number;
+    total_requests: number;
+    top_tools: Array<{
+      tool_name: string;
+      call_count: number;
+      percentage: number;
+    }>;
+  }> {
+    const response = await axios.get(`/admin/users/${userId}/activity?days=${days}`);
+    return response.data;
   }
 }
 

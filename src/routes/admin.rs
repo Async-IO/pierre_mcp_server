@@ -26,6 +26,7 @@ use axum::{
     extract::{Query, State},
     Extension, Json,
 };
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -86,6 +87,13 @@ pub struct ApproveUserRequest {
     pub tenant_name: Option<String>,
     /// Custom tenant slug (if `create_default_tenant` is true)
     pub tenant_slug: Option<String>,
+}
+
+/// User suspension request
+#[derive(Debug, Deserialize)]
+pub struct SuspendUserRequest {
+    /// Optional reason for suspension
+    pub reason: Option<String>,
 }
 
 /// Query parameters for listing API keys
@@ -656,6 +664,22 @@ impl AdminRoutes {
             .route(
                 "/admin/approve-user/:user_id",
                 post(Self::handle_approve_user),
+            )
+            .route(
+                "/admin/suspend-user/:user_id",
+                post(Self::handle_suspend_user),
+            )
+            .route(
+                "/admin/users/:user_id/reset-password",
+                post(Self::handle_reset_user_password),
+            )
+            .route(
+                "/admin/users/:user_id/rate-limit",
+                get(Self::handle_get_user_rate_limit),
+            )
+            .route(
+                "/admin/users/:user_id/activity",
+                get(Self::handle_get_user_activity),
             )
             .with_state(context)
     }
@@ -1277,6 +1301,328 @@ impl AdminRoutes {
                     },
                     "tenant_created": tenant_created,
                     "reason": reason
+                }))
+                .ok(),
+            },
+            axum::http::StatusCode::OK,
+        ))
+    }
+
+    /// Handle user suspension workflow
+    async fn handle_suspend_user(
+        State(context): State<Arc<AdminApiContext>>,
+        Extension(admin_token): Extension<ValidatedAdminToken>,
+        axum::extract::Path(user_id): axum::extract::Path<String>,
+        Json(request): Json<SuspendUserRequest>,
+    ) -> AppResult<impl axum::response::IntoResponse> {
+        if !admin_token
+            .permissions
+            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+        {
+            return Ok(json_response(
+                AdminResponse {
+                    success: false,
+                    message: "Permission denied: ManageUsers required".to_owned(),
+                    data: None,
+                },
+                axum::http::StatusCode::FORBIDDEN,
+            ));
+        }
+
+        tracing::info!(
+            "Suspending user {} by service: {}",
+            user_id,
+            admin_token.service_name
+        );
+
+        let ctx = context.as_ref();
+        let user_uuid = uuid::Uuid::parse_str(&user_id).map_err(|e| {
+            tracing::error!(error = %e, "Invalid user ID format");
+            AppError::invalid_input(format!("Invalid user ID format: {e}"))
+        })?;
+
+        let user = ctx
+            .database
+            .get_user(user_uuid)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to fetch user from database");
+                AppError::internal(format!("Failed to fetch user: {e}"))
+            })?
+            .ok_or_else(|| {
+                tracing::warn!("User not found: {}", user_id);
+                AppError::not_found("User not found")
+            })?;
+
+        if user.user_status == UserStatus::Suspended {
+            return Ok(json_response(
+                AdminResponse {
+                    success: false,
+                    message: "User is already suspended".to_owned(),
+                    data: None,
+                },
+                axum::http::StatusCode::BAD_REQUEST,
+            ));
+        }
+
+        let updated_user = ctx
+            .database
+            .update_user_status(user_uuid, UserStatus::Suspended, &admin_token.token_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to update user status in database");
+                AppError::internal(format!("Failed to suspend user: {e}"))
+            })?;
+
+        let reason = request.reason.as_deref().unwrap_or("No reason provided");
+        tracing::info!(
+            "User {} suspended successfully. Reason: {}",
+            user_id,
+            reason
+        );
+
+        Ok(json_response(
+            AdminResponse {
+                success: true,
+                message: "User suspended successfully".to_owned(),
+                data: serde_json::to_value(serde_json::json!({
+                    "user": {
+                        "id": updated_user.id.to_string(),
+                        "email": updated_user.email,
+                        "user_status": Self::user_status_str(updated_user.user_status),
+                    },
+                    "reason": reason
+                }))
+                .ok(),
+            },
+            axum::http::StatusCode::OK,
+        ))
+    }
+
+    /// Handle password reset for a user (admin only)
+    ///
+    /// Generates a temporary password and updates the user's password hash.
+    /// The temporary password is returned to the admin for secure delivery to the user.
+    async fn handle_reset_user_password(
+        State(context): State<Arc<AdminApiContext>>,
+        Extension(admin_token): Extension<ValidatedAdminToken>,
+        axum::extract::Path(user_id): axum::extract::Path<String>,
+    ) -> AppResult<impl axum::response::IntoResponse> {
+        if !admin_token
+            .permissions
+            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+        {
+            return Ok(json_response(
+                AdminResponse {
+                    success: false,
+                    message: "Permission denied: ManageUsers required".to_owned(),
+                    data: None,
+                },
+                axum::http::StatusCode::FORBIDDEN,
+            ));
+        }
+
+        tracing::info!(
+            "Resetting password for user {} by service: {}",
+            user_id,
+            admin_token.service_name
+        );
+
+        let ctx = context.as_ref();
+        let user_uuid = uuid::Uuid::parse_str(&user_id).map_err(|e| {
+            tracing::error!(error = %e, "Invalid user ID format");
+            AppError::invalid_input(format!("Invalid user ID format: {e}"))
+        })?;
+
+        // Verify user exists
+        let user = ctx
+            .database
+            .get_user(user_uuid)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to fetch user from database");
+                AppError::internal(format!("Failed to fetch user: {e}"))
+            })?
+            .ok_or_else(|| {
+                tracing::warn!("User not found: {}", user_id);
+                AppError::not_found("User not found")
+            })?;
+
+        // Generate temporary password (16 chars alphanumeric)
+        let temp_password: String = rand::thread_rng()
+            .sample_iter(&rand::distributions::Alphanumeric)
+            .take(16)
+            .map(char::from)
+            .collect();
+
+        // Hash the password
+        let password_hash = bcrypt::hash(&temp_password, bcrypt::DEFAULT_COST).map_err(|e| {
+            tracing::error!("Failed to hash password: {}", e);
+            AppError::internal("Failed to process password")
+        })?;
+
+        // Update user's password
+        ctx.database
+            .update_user_password(user_uuid, &password_hash)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to update user password");
+                AppError::internal(format!("Failed to reset password: {e}"))
+            })?;
+
+        tracing::info!(
+            "Password reset successfully for user {} by service {}",
+            user.email,
+            admin_token.service_name
+        );
+
+        Ok(json_response(
+            AdminResponse {
+                success: true,
+                message: "Password reset successfully".to_owned(),
+                data: serde_json::to_value(serde_json::json!({
+                    "user_id": user_uuid.to_string(),
+                    "email": user.email,
+                    "temporary_password": temp_password,
+                    "reset_by": admin_token.service_name,
+                    "note": "Please securely deliver this password to the user"
+                }))
+                .ok(),
+            },
+            axum::http::StatusCode::OK,
+        ))
+    }
+
+    /// Handle getting rate limit info for a user
+    async fn handle_get_user_rate_limit(
+        State(context): State<Arc<AdminApiContext>>,
+        Extension(admin_token): Extension<ValidatedAdminToken>,
+        axum::extract::Path(user_id): axum::extract::Path<String>,
+    ) -> AppResult<impl axum::response::IntoResponse> {
+        if !admin_token
+            .permissions
+            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+        {
+            return Ok(json_response(
+                AdminResponse {
+                    success: false,
+                    message: "Permission denied: ManageUsers required".to_owned(),
+                    data: None,
+                },
+                axum::http::StatusCode::FORBIDDEN,
+            ));
+        }
+
+        let ctx = context.as_ref();
+        let user_uuid = uuid::Uuid::parse_str(&user_id)
+            .map_err(|e| AppError::invalid_input(format!("Invalid user ID format: {e}")))?;
+
+        // Get user
+        let user = ctx
+            .database
+            .get_user(user_uuid)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
+            .ok_or_else(|| AppError::not_found("User not found"))?;
+
+        // Get current usage for this month
+        let current_usage = ctx
+            .database
+            .get_jwt_current_usage(user_uuid)
+            .await
+            .unwrap_or(0);
+
+        // Calculate rate limit info using user tier
+        let rate_limit_calculator = crate::rate_limiting::UnifiedRateLimitCalculator::new();
+        let rate_limit_info = rate_limit_calculator.calculate_jwt_rate_limit(&user, current_usage);
+
+        Ok(json_response(
+            AdminResponse {
+                success: true,
+                message: "Rate limit information retrieved".to_owned(),
+                data: serde_json::to_value(serde_json::json!({
+                    "user_id": user_uuid.to_string(),
+                    "email": user.email,
+                    "tier": user.tier.to_string(),
+                    "rate_limit": {
+                        "is_rate_limited": rate_limit_info.is_rate_limited,
+                        "limit": rate_limit_info.limit,
+                        "remaining": rate_limit_info.remaining,
+                        "reset_at": rate_limit_info.reset_at.map(|t| t.to_rfc3339()),
+                        "auth_method": rate_limit_info.auth_method,
+                    },
+                    "current_usage": current_usage,
+                }))
+                .ok(),
+            },
+            axum::http::StatusCode::OK,
+        ))
+    }
+
+    /// Handle getting user activity logs
+    async fn handle_get_user_activity(
+        State(context): State<Arc<AdminApiContext>>,
+        Extension(admin_token): Extension<ValidatedAdminToken>,
+        axum::extract::Path(user_id): axum::extract::Path<String>,
+        Query(params): Query<ListApiKeysQuery>,
+    ) -> AppResult<impl axum::response::IntoResponse> {
+        if !admin_token
+            .permissions
+            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+        {
+            return Ok(json_response(
+                AdminResponse {
+                    success: false,
+                    message: "Permission denied: ManageUsers required".to_owned(),
+                    data: None,
+                },
+                axum::http::StatusCode::FORBIDDEN,
+            ));
+        }
+
+        let ctx = context.as_ref();
+        let user_uuid = uuid::Uuid::parse_str(&user_id)
+            .map_err(|e| AppError::invalid_input(format!("Invalid user ID format: {e}")))?;
+
+        // Verify user exists
+        let user = ctx
+            .database
+            .get_user(user_uuid)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
+            .ok_or_else(|| AppError::not_found("User not found"))?;
+
+        // Get time range for activity
+        let now = chrono::Utc::now();
+        let start_time = now - chrono::Duration::days(30); // Last 30 days
+
+        // Get top tools usage
+        let top_tools = ctx
+            .database
+            .get_top_tools_analysis(user_uuid, start_time, now)
+            .await
+            .unwrap_or_default();
+
+        // Parse limit parameter
+        let limit = params
+            .limit
+            .as_ref()
+            .and_then(|s| s.parse::<i32>().ok())
+            .unwrap_or(50)
+            .clamp(1, 100);
+
+        Ok(json_response(
+            AdminResponse {
+                success: true,
+                message: "User activity retrieved".to_owned(),
+                data: serde_json::to_value(serde_json::json!({
+                    "user_id": user_uuid.to_string(),
+                    "email": user.email,
+                    "period_days": 30,
+                    "top_tools": top_tools,
+                    "last_active": user.last_active.to_rfc3339(),
+                    "created_at": user.created_at.to_rfc3339(),
+                    "limit": limit,
                 }))
                 .ok(),
             },

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
 import type { A2AClient, A2AUsageStats, A2ARateLimitStatus } from '../types/api';
-import { Button, Card, Badge, StatusIndicator } from './ui';
+import { Button, Card, CardHeader, Badge, StatusIndicator, StatusFilter, ConfirmDialog } from './ui';
+import type { StatusFilterValue } from './ui';
 // Helper functions for date formatting
 const formatDistanceToNow = (date: Date) => {
   const now = new Date();
@@ -40,6 +41,8 @@ interface A2AClientListProps {
 export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [showCredentials, setShowCredentials] = useState<{ [key: string]: boolean }>({});
+  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>('active');
+  const [clientToDeactivate, setClientToDeactivate] = useState<A2AClient | null>(null);
   const queryClient = useQueryClient();
 
   const { data: clients, isLoading, error } = useQuery<A2AClient[]>({
@@ -64,8 +67,28 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['a2a-clients'] });
       setSelectedClient(null);
+      setClientToDeactivate(null);
     },
   });
+
+  const allClients = clients || [];
+
+  // Compute counts for the filter
+  const activeCount = useMemo(() => allClients.filter(c => c.is_active).length, [allClients]);
+  const inactiveCount = useMemo(() => allClients.filter(c => !c.is_active).length, [allClients]);
+
+  // Filter clients based on status filter
+  const filteredClients = useMemo(() => {
+    switch (statusFilter) {
+      case 'active':
+        return allClients.filter(c => c.is_active);
+      case 'inactive':
+        return allClients.filter(c => !c.is_active);
+      case 'all':
+      default:
+        return allClients;
+    }
+  }, [allClients, statusFilter]);
 
   const getTierBadgeColor = (tier: string) => {
     switch (tier.toLowerCase()) {
@@ -94,9 +117,13 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
     return colorMap[capability] || 'bg-gray-100 text-gray-800';
   };
 
-  const handleDeactivate = (clientId: string) => {
-    if (confirm('Are you sure you want to deactivate this A2A client? This action cannot be undone.')) {
-      deactivateMutation.mutate(clientId);
+  const handleDeactivate = (client: A2AClient) => {
+    setClientToDeactivate(client);
+  };
+
+  const confirmDeactivate = () => {
+    if (clientToDeactivate) {
+      deactivateMutation.mutate(clientToDeactivate.id);
     }
   };
 
@@ -137,7 +164,7 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
     );
   }
 
-  if (!clients || clients.length === 0) {
+  if (allClients.length === 0) {
     return (
       <div className="text-center py-16 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
         <div className="text-6xl mb-4 text-gray-400">🤖</div>
@@ -145,7 +172,7 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
         <p className="text-gray-600 mb-6 max-w-md mx-auto">
           Register your first app to enable secure agent-to-agent communication with AI assistants and third-party integrations.
         </p>
-        <Button 
+        <Button
           onClick={onCreateClient}
           className="inline-flex items-center space-x-2"
         >
@@ -160,18 +187,24 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
     <div className="space-y-6">
       {/* A2A Client List */}
       <Card>
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h2 className="text-xl font-semibold text-pierre-gray-900">A2A Clients</h2>
-            <p className="text-pierre-gray-600">Manage your Agent-to-Agent protocol clients</p>
-          </div>
-          <Button onClick={onCreateClient}>
-            Register New Client
-          </Button>
+        <CardHeader
+          title="Your Connected Apps"
+          subtitle={`${allClients.length} total apps`}
+        />
+
+        {/* Status Filter */}
+        <div className="px-6 pb-4">
+          <StatusFilter
+            value={statusFilter}
+            onChange={setStatusFilter}
+            activeCount={activeCount}
+            inactiveCount={inactiveCount}
+            totalCount={allClients.length}
+          />
         </div>
 
-        <div className="space-y-4">
-          {clients.map((client) => (
+        <div className="space-y-4 px-6 pb-6">
+          {filteredClients.map((client) => (
             <div
               key={client.id}
               className={`border rounded-lg p-4 cursor-pointer transition-colors ${
@@ -227,17 +260,19 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
                   >
                     {showCredentials[client.id] ? 'Hide' : 'Show'} Credentials
                   </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeactivate(client.id);
-                    }}
-                    disabled={deactivateMutation.isPending}
-                  >
-                    Deactivate
-                  </Button>
+                  {client.is_active && (
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeactivate(client);
+                      }}
+                      disabled={deactivateMutation.isPending}
+                    >
+                      Deactivate
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -269,7 +304,7 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
           <h3 className="text-lg font-semibold text-pierre-gray-900 mb-4">
             Client Usage & Rate Limits
           </h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Usage Stats */}
             <div>
@@ -318,7 +353,7 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
                       <span className="text-pierre-gray-600">Remaining:</span>
                       <span className={`font-medium ${
                         clientRateLimit.remaining && clientRateLimit.remaining < clientRateLimit.limit * 0.1
-                          ? 'text-red-600' 
+                          ? 'text-red-600'
                           : 'text-green-600'
                       }`}>
                         {clientRateLimit.remaining?.toLocaleString() || 0}
@@ -355,6 +390,19 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
           </div>
         </Card>
       )}
+
+      {/* Deactivate Confirmation */}
+      <ConfirmDialog
+        isOpen={clientToDeactivate !== null}
+        onClose={() => setClientToDeactivate(null)}
+        onConfirm={confirmDeactivate}
+        title="Deactivate A2A Client"
+        message={`Are you sure you want to deactivate "${clientToDeactivate?.name}"? This action cannot be undone and any applications using this client will lose access.`}
+        confirmLabel="Deactivate"
+        cancelLabel="Cancel"
+        variant="danger"
+        isLoading={deactivateMutation.isPending}
+      />
     </div>
   );
 }

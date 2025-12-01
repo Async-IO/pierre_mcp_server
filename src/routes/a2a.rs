@@ -20,7 +20,7 @@ use axum::{
     routing::{delete, get},
     Json, Router,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Response for A2A client list
@@ -50,6 +50,39 @@ pub struct A2AClientResponse {
     pub rate_limit_window_seconds: u32,
 }
 
+/// Request to create a new A2A client
+#[derive(Debug, Deserialize)]
+struct CreateA2AClientRequest {
+    /// Name of the client application
+    name: String,
+    /// Description of the client's purpose
+    description: String,
+    /// List of agent capabilities this client provides
+    capabilities: Vec<String>,
+    /// `OAuth2` redirect URIs for authorization flows (optional)
+    #[serde(default)]
+    redirect_uris: Vec<String>,
+    /// Contact email for the client administrator
+    contact_email: String,
+}
+
+/// Response for created A2A client with credentials
+#[derive(Debug, Serialize)]
+struct CreateA2AClientResponse {
+    /// Unique client identifier
+    client_id: String,
+    /// Client secret for authentication
+    client_secret: String,
+    /// API key for direct API access
+    api_key: String,
+    /// Ed25519 public key for signature verification
+    public_key: String,
+    /// Ed25519 private key for signing
+    private_key: String,
+    /// Key type identifier
+    key_type: String,
+}
+
 /// A2A routes implementation
 pub struct A2ARoutes;
 
@@ -72,7 +105,10 @@ impl A2ARoutes {
                 get(Self::handle_agent_card_discovery),
             )
             // Client management routes (auth required)
-            .route("/a2a/clients", get(Self::handle_list_clients))
+            .route(
+                "/a2a/clients",
+                get(Self::handle_list_clients).post(Self::handle_create_client),
+            )
             .route("/a2a/clients/:client_id", get(Self::handle_get_client))
             .route(
                 "/a2a/clients/:client_id",
@@ -167,6 +203,56 @@ impl A2ARoutes {
             .collect();
 
         Ok((StatusCode::OK, Json(response)).into_response())
+    }
+
+    /// Create a new A2A client
+    async fn handle_create_client(
+        State(resources): State<Arc<ServerResources>>,
+        headers: axum::http::HeaderMap,
+        Json(request): Json<CreateA2AClientRequest>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+
+        tracing::info!(
+            user_id = %auth.user_id,
+            client_name = %request.name,
+            "Creating new A2A client"
+        );
+
+        // Convert to the A2A client registration request format
+        let registration_request = crate::a2a::client::ClientRegistrationRequest {
+            name: request.name,
+            description: request.description,
+            capabilities: request.capabilities,
+            redirect_uris: request.redirect_uris,
+            contact_email: request.contact_email,
+        };
+
+        // Register the client using the A2A client manager with the authenticated user's ID
+        let credentials = resources
+            .a2a_client_manager
+            .register_client(registration_request, auth.user_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to register A2A client");
+                AppError::internal(format!("Failed to register A2A client: {e}"))
+            })?;
+
+        let response = CreateA2AClientResponse {
+            client_id: credentials.client_id,
+            client_secret: credentials.client_secret,
+            api_key: credentials.api_key,
+            public_key: credentials.public_key,
+            private_key: credentials.private_key,
+            key_type: credentials.key_type,
+        };
+
+        tracing::info!(
+            client_id = %response.client_id,
+            "A2A client created successfully"
+        );
+
+        Ok((StatusCode::CREATED, Json(response)).into_response())
     }
 
     /// Get a specific A2A client

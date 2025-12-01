@@ -204,17 +204,23 @@ impl A2AClientManager {
 
     /// Register a new A2A client
     ///
+    /// # Arguments
+    ///
+    /// * `request` - The client registration request details
+    /// * `user_id` - The ID of the user registering the client (for ownership tracking)
+    ///
     /// # Errors
     ///
     /// Returns an error if:
     /// - Registration request validation fails
-    /// - Keypair generation fails  
+    /// - Keypair generation fails
     /// - System user creation fails
     /// - Database storage fails
     #[allow(clippy::cast_possible_truncation)] // Safe: HOUR_SECONDS is 3600, well within u32 range
     pub async fn register_client(
         &self,
         request: ClientRegistrationRequest,
+        user_id: Uuid,
     ) -> Result<ClientCredentials, crate::a2a::A2AError> {
         // Validate registration request
         Self::validate_registration_request(&request)?;
@@ -241,7 +247,7 @@ impl A2AClientManager {
         // Create client record with real public key
         let client = A2AClient {
             id: client_id.clone(),
-            user_id: uuid::Uuid::new_v4(), // Generate consistent user ID for this A2A client
+            user_id, // Use the authenticated user's ID for ownership tracking
             name: request.name.clone(),
             description: request.description.clone(), // Safe: Option<String> ownership for client struct
             public_key: keypair.public_key.clone(),   // Safe: String ownership for client struct

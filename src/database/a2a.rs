@@ -357,15 +357,13 @@ impl Database {
                 .await
                 .map_err(|e| AppError::database(format!("Failed to list A2A clients: {e}")))?
         } else {
-            // User-specific query - filter by user_id through their associated API keys
+            // User-specific query - filter directly by c.user_id (the A2A client owner)
             let query = r"
-                SELECT DISTINCT c.id, c.user_id, c.name, c.description, c.public_key, c.permissions, c.capabilities, c.redirect_uris,
+                SELECT c.id, c.user_id, c.name, c.description, c.public_key, c.permissions, c.capabilities, c.redirect_uris,
                        c.rate_limit_requests, c.rate_limit_window_seconds, c.is_active,
                        c.created_at, c.updated_at
-                FROM a2a_clients c 
-                INNER JOIN a2a_client_api_keys cak ON c.id = cak.client_id
-                INNER JOIN api_keys k ON cak.api_key_id = k.id 
-                WHERE c.is_active = 1 AND k.user_id = ? AND k.is_active = 1
+                FROM a2a_clients c
+                WHERE c.is_active = 1 AND c.user_id = ?
                 ORDER BY c.created_at DESC
             ";
 

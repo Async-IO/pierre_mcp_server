@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
 import type { ApiKeysResponse, ApiKey } from '../types/api';
 import RequestMonitor from './RequestMonitor';
-import { Button, Card, CardHeader, Badge } from './ui';
+import { Button, Card, CardHeader, Badge, StatusFilter, ConfirmDialog } from './ui';
+import type { StatusFilterValue } from './ui';
 
 export default function ApiKeyList() {
   const queryClient = useQueryClient();
   const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null);
   const [showRequestMonitor, setShowRequestMonitor] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>('active');
+  const [keyToDeactivate, setKeyToDeactivate] = useState<ApiKey | null>(null);
 
   const { data: apiKeys, isLoading } = useQuery<ApiKeysResponse>({
     queryKey: ['api-keys'],
@@ -20,12 +23,36 @@ export default function ApiKeyList() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
+      setKeyToDeactivate(null);
     },
   });
 
-  const handleDeactivate = (keyId: string, keyName: string) => {
-    if (window.confirm(`Are you sure you want to deactivate "${keyName}"? This action cannot be undone.`)) {
-      deactivateMutation.mutate(keyId);
+  const allKeys = apiKeys?.api_keys || [];
+
+  // Compute counts for the filter
+  const activeCount = useMemo(() => allKeys.filter(k => k.is_active).length, [allKeys]);
+  const inactiveCount = useMemo(() => allKeys.filter(k => !k.is_active).length, [allKeys]);
+
+  // Filter keys based on status filter
+  const filteredKeys = useMemo(() => {
+    switch (statusFilter) {
+      case 'active':
+        return allKeys.filter(k => k.is_active);
+      case 'inactive':
+        return allKeys.filter(k => !k.is_active);
+      case 'all':
+      default:
+        return allKeys;
+    }
+  }, [allKeys, statusFilter]);
+
+  const handleDeactivate = (key: ApiKey) => {
+    setKeyToDeactivate(key);
+  };
+
+  const confirmDeactivate = () => {
+    if (keyToDeactivate) {
+      deactivateMutation.mutate(keyToDeactivate.id);
     }
   };
 
@@ -45,20 +72,31 @@ export default function ApiKeyList() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader 
-          title="Your API Keys" 
-          subtitle={`${apiKeys?.api_keys?.length || 0} total keys`}
+        <CardHeader
+          title="Your API Keys"
+          subtitle={`${allKeys.length} total keys`}
         />
 
-        {!apiKeys?.api_keys?.length ? (
+        {/* Status Filter */}
+        <div className="px-6 pb-4">
+          <StatusFilter
+            value={statusFilter}
+            onChange={setStatusFilter}
+            activeCount={activeCount}
+            inactiveCount={inactiveCount}
+            totalCount={allKeys.length}
+          />
+        </div>
+
+        {!filteredKeys.length ? (
           <div className="text-center py-8 text-pierre-gray-500">
             <div className="text-4xl mb-4">🔑</div>
             <p className="text-lg mb-2">No API keys yet</p>
             <p>Create your first API key to get started</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {apiKeys.api_keys.map((key: ApiKey) => (
+          <div className="space-y-4 px-6 pb-6">
+            {filteredKeys.map((key: ApiKey) => (
               <div key={key.id} className="border border-pierre-gray-200 rounded-lg p-4">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
@@ -140,10 +178,9 @@ export default function ApiKeyList() {
                         variant="danger"
                         size="sm"
                         disabled={deactivateMutation.isPending}
-                        loading={deactivateMutation.isPending}
-                        onClick={() => handleDeactivate(key.id, key.name)}
+                        onClick={() => handleDeactivate(key)}
                       >
-                        {deactivateMutation.isPending ? 'Deactivating...' : 'Deactivate'}
+                        Deactivate
                       </Button>
                     )}
                   </div>
@@ -156,22 +193,40 @@ export default function ApiKeyList() {
 
       {/* Request Monitor Modal/Overlay */}
       {showRequestMonitor && (
-        <div className="mt-8">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium">
-              Request Monitor {selectedKeyId && `- ${apiKeys?.api_keys.find(k => k.id === selectedKeyId)?.name}`}
-            </h3>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setShowRequestMonitor(false)}
-            >
-              Close Monitor
-            </Button>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full m-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b border-pierre-gray-200">
+              <h3 className="text-lg font-semibold text-pierre-gray-900">
+                API Key Usage {selectedKeyId && `- ${allKeys.find(k => k.id === selectedKeyId)?.name}`}
+              </h3>
+              <button
+                onClick={() => setShowRequestMonitor(false)}
+                className="text-pierre-gray-400 hover:text-pierre-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1">
+              <RequestMonitor apiKeyId={selectedKeyId || undefined} />
+            </div>
           </div>
-          <RequestMonitor apiKeyId={selectedKeyId || undefined} />
         </div>
       )}
+
+      {/* Deactivate Confirmation */}
+      <ConfirmDialog
+        isOpen={keyToDeactivate !== null}
+        onClose={() => setKeyToDeactivate(null)}
+        onConfirm={confirmDeactivate}
+        title="Deactivate API Key"
+        message={`Are you sure you want to deactivate "${keyToDeactivate?.name}"? This action cannot be undone and any applications using this key will lose access.`}
+        confirmLabel="Deactivate"
+        cancelLabel="Cancel"
+        variant="danger"
+        isLoading={deactivateMutation.isPending}
+      />
     </div>
   );
 }

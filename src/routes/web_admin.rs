@@ -12,16 +12,16 @@
 
 use crate::{
     database_plugins::DatabaseProvider, errors::AppError, errors::ErrorCode,
-    mcp::resources::ServerResources,
+    mcp::resources::ServerResources, models::UserStatus,
 };
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Response for pending users list
@@ -85,6 +85,56 @@ struct UserSummary {
     last_active: String,
 }
 
+/// Request to approve a user
+#[derive(Deserialize)]
+struct ApproveUserRequest {
+    reason: Option<String>,
+}
+
+/// Request to suspend a user
+#[derive(Deserialize)]
+struct SuspendUserRequest {
+    reason: Option<String>,
+}
+
+/// Request to create an admin token via web admin
+#[derive(Deserialize)]
+struct CreateAdminTokenWebRequest {
+    service_name: String,
+    service_description: Option<String>,
+    permissions: Option<Vec<String>>,
+    is_super_admin: Option<bool>,
+    expires_in_days: Option<u64>,
+}
+
+/// Response for created admin token
+#[derive(Serialize)]
+struct CreateAdminTokenWebResponse {
+    success: bool,
+    token_id: String,
+    service_name: String,
+    jwt_token: String,
+    token_prefix: String,
+    is_super_admin: bool,
+    expires_at: Option<String>,
+}
+
+/// Response for user status change operations
+#[derive(Serialize)]
+struct UserStatusChangeResponse {
+    success: bool,
+    message: String,
+    user: UserStatusChangeUser,
+}
+
+/// User data in status change response
+#[derive(Serialize)]
+struct UserStatusChangeUser {
+    id: String,
+    email: String,
+    user_status: String,
+}
+
 /// Web admin routes - accessible via browser for admin users
 pub struct WebAdminRoutes;
 
@@ -94,7 +144,26 @@ impl WebAdminRoutes {
         Router::new()
             .route("/api/admin/pending-users", get(Self::handle_pending_users))
             .route("/api/admin/users", get(Self::handle_all_users))
-            .route("/api/admin/tokens", get(Self::handle_admin_tokens))
+            .route(
+                "/api/admin/tokens",
+                get(Self::handle_admin_tokens).post(Self::handle_create_admin_token),
+            )
+            .route(
+                "/api/admin/tokens/:token_id",
+                get(Self::handle_get_admin_token),
+            )
+            .route(
+                "/api/admin/tokens/:token_id/revoke",
+                post(Self::handle_revoke_admin_token),
+            )
+            .route(
+                "/api/admin/approve-user/:user_id",
+                post(Self::handle_approve_user),
+            )
+            .route(
+                "/api/admin/suspend-user/:user_id",
+                post(Self::handle_suspend_user),
+            )
             .with_state(resources)
     }
 
@@ -301,6 +370,309 @@ impl WebAdminRoutes {
                 admin_tokens: token_summaries,
                 total_count,
             }),
+        )
+            .into_response())
+    }
+
+    /// Handle approving a user via web admin (cookie auth)
+    async fn handle_approve_user(
+        State(resources): State<Arc<ServerResources>>,
+        headers: axum::http::HeaderMap,
+        Path(user_id): Path<String>,
+        Json(request): Json<ApproveUserRequest>,
+    ) -> Result<Response, AppError> {
+        // Authenticate and verify admin status
+        let auth = Self::authenticate_admin(&headers, &resources).await?;
+
+        tracing::info!(
+            admin_user_id = %auth.user_id,
+            target_user_id = %user_id,
+            "Web admin approving user"
+        );
+
+        // Parse user ID
+        let user_uuid = uuid::Uuid::parse_str(&user_id).map_err(|e| {
+            tracing::error!(error = %e, "Invalid user ID format");
+            AppError::invalid_input(format!("Invalid user ID format: {e}"))
+        })?;
+
+        // Get the user to approve
+        let user = resources
+            .database
+            .get_user(user_uuid)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to fetch user from database");
+                AppError::internal(format!("Failed to fetch user: {e}"))
+            })?
+            .ok_or_else(|| {
+                tracing::warn!("User not found: {}", user_id);
+                AppError::not_found("User not found")
+            })?;
+
+        if user.user_status == UserStatus::Active {
+            return Ok((
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "success": false,
+                    "message": "User is already approved"
+                })),
+            )
+                .into_response());
+        }
+
+        // Use the admin user's ID as the approver (stored as token_id format for consistency)
+        let approver_id = auth.user_id.to_string();
+
+        let updated_user = resources
+            .database
+            .update_user_status(user_uuid, UserStatus::Active, &approver_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to update user status in database");
+                AppError::internal(format!("Failed to approve user: {e}"))
+            })?;
+
+        let reason = request.reason.as_deref().unwrap_or("No reason provided");
+        tracing::info!("User {} approved successfully. Reason: {}", user_id, reason);
+
+        Ok((
+            StatusCode::OK,
+            Json(UserStatusChangeResponse {
+                success: true,
+                message: "User approved successfully".to_owned(),
+                user: UserStatusChangeUser {
+                    id: updated_user.id.to_string(),
+                    email: updated_user.email,
+                    user_status: updated_user.user_status.to_string(),
+                },
+            }),
+        )
+            .into_response())
+    }
+
+    /// Handle suspending a user via web admin (cookie auth)
+    async fn handle_suspend_user(
+        State(resources): State<Arc<ServerResources>>,
+        headers: axum::http::HeaderMap,
+        Path(user_id): Path<String>,
+        Json(request): Json<SuspendUserRequest>,
+    ) -> Result<Response, AppError> {
+        // Authenticate and verify admin status
+        let auth = Self::authenticate_admin(&headers, &resources).await?;
+
+        tracing::info!(
+            admin_user_id = %auth.user_id,
+            target_user_id = %user_id,
+            "Web admin suspending user"
+        );
+
+        // Parse user ID
+        let user_uuid = uuid::Uuid::parse_str(&user_id).map_err(|e| {
+            tracing::error!(error = %e, "Invalid user ID format");
+            AppError::invalid_input(format!("Invalid user ID format: {e}"))
+        })?;
+
+        // Get the user to suspend
+        let user = resources
+            .database
+            .get_user(user_uuid)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to fetch user from database");
+                AppError::internal(format!("Failed to fetch user: {e}"))
+            })?
+            .ok_or_else(|| {
+                tracing::warn!("User not found: {}", user_id);
+                AppError::not_found("User not found")
+            })?;
+
+        if user.user_status == UserStatus::Suspended {
+            return Ok((
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "success": false,
+                    "message": "User is already suspended"
+                })),
+            )
+                .into_response());
+        }
+
+        // Use the admin user's ID as the suspender
+        let suspender_id = auth.user_id.to_string();
+
+        let updated_user = resources
+            .database
+            .update_user_status(user_uuid, UserStatus::Suspended, &suspender_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to update user status in database");
+                AppError::internal(format!("Failed to suspend user: {e}"))
+            })?;
+
+        let reason = request.reason.as_deref().unwrap_or("No reason provided");
+        tracing::info!(
+            "User {} suspended successfully. Reason: {}",
+            user_id,
+            reason
+        );
+
+        Ok((
+            StatusCode::OK,
+            Json(UserStatusChangeResponse {
+                success: true,
+                message: "User suspended successfully".to_owned(),
+                user: UserStatusChangeUser {
+                    id: updated_user.id.to_string(),
+                    email: updated_user.email,
+                    user_status: updated_user.user_status.to_string(),
+                },
+            }),
+        )
+            .into_response())
+    }
+
+    /// Handle creating an admin token via web admin (cookie auth)
+    async fn handle_create_admin_token(
+        State(resources): State<Arc<ServerResources>>,
+        headers: axum::http::HeaderMap,
+        Json(request): Json<CreateAdminTokenWebRequest>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate_admin(&headers, &resources).await?;
+
+        tracing::info!(
+            user_id = %auth.user_id,
+            service_name = %request.service_name,
+            "Web admin creating admin token"
+        );
+
+        // Parse permissions if provided
+        let permissions = request.permissions.map(|perms| {
+            perms
+                .iter()
+                .filter_map(|p| p.parse::<crate::admin::AdminPermission>().ok())
+                .collect::<Vec<_>>()
+        });
+
+        // Create the token request
+        let token_request = crate::admin::models::CreateAdminTokenRequest {
+            service_name: request.service_name,
+            service_description: request.service_description,
+            permissions,
+            expires_in_days: request.expires_in_days,
+            is_super_admin: request.is_super_admin.unwrap_or(false),
+        };
+
+        // Generate token using database method
+        let generated_token = resources
+            .database
+            .create_admin_token(
+                &token_request,
+                &resources.admin_jwt_secret,
+                &resources.jwks_manager,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to create admin token");
+                AppError::internal(format!("Failed to create admin token: {e}"))
+            })?;
+
+        tracing::info!(
+            token_id = %generated_token.token_id,
+            "Admin token created successfully via web admin"
+        );
+
+        Ok((
+            StatusCode::CREATED,
+            Json(CreateAdminTokenWebResponse {
+                success: true,
+                token_id: generated_token.token_id,
+                service_name: generated_token.service_name,
+                jwt_token: generated_token.jwt_token,
+                token_prefix: generated_token.token_prefix,
+                is_super_admin: generated_token.is_super_admin,
+                expires_at: generated_token.expires_at.map(|t| t.to_rfc3339()),
+            }),
+        )
+            .into_response())
+    }
+
+    /// Handle getting a specific admin token via web admin (cookie auth)
+    async fn handle_get_admin_token(
+        State(resources): State<Arc<ServerResources>>,
+        headers: axum::http::HeaderMap,
+        Path(token_id): Path<String>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate_admin(&headers, &resources).await?;
+
+        tracing::info!(
+            user_id = %auth.user_id,
+            token_id = %token_id,
+            "Web admin getting admin token details"
+        );
+
+        let token = resources
+            .database
+            .get_admin_token_by_id(&token_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to fetch admin token from database");
+                AppError::internal(format!("Failed to fetch admin token: {e}"))
+            })?
+            .ok_or_else(|| AppError::not_found(format!("Admin token {token_id}")))?;
+
+        Ok((
+            StatusCode::OK,
+            Json(AdminTokenSummary {
+                id: token.id,
+                service_name: token.service_name,
+                service_description: token.service_description,
+                is_active: token.is_active,
+                is_super_admin: token.is_super_admin,
+                created_at: token.created_at.to_rfc3339(),
+                expires_at: token.expires_at.map(|d| d.to_rfc3339()),
+                last_used_at: token.last_used_at.map(|d| d.to_rfc3339()),
+                token_prefix: Some(token.token_prefix),
+            }),
+        )
+            .into_response())
+    }
+
+    /// Handle revoking an admin token via web admin (cookie auth)
+    async fn handle_revoke_admin_token(
+        State(resources): State<Arc<ServerResources>>,
+        headers: axum::http::HeaderMap,
+        Path(token_id): Path<String>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate_admin(&headers, &resources).await?;
+
+        tracing::info!(
+            user_id = %auth.user_id,
+            token_id = %token_id,
+            "Web admin revoking admin token"
+        );
+
+        resources
+            .database
+            .deactivate_admin_token(&token_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to revoke admin token");
+                AppError::internal(format!("Failed to revoke admin token: {e}"))
+            })?;
+
+        tracing::info!(
+            "Admin token {} revoked successfully via web admin",
+            token_id
+        );
+
+        Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "message": "Admin token revoked successfully",
+                "token_id": token_id
+            })),
         )
             .into_response())
     }

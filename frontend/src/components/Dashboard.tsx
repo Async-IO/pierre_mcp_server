@@ -6,7 +6,6 @@ import type { DashboardOverview, RateLimitOverview, User } from '../types/api';
 import type { AnalyticsData } from '../types/chart';
 import { useWebSocketContext } from '../hooks/useWebSocketContext';
 import { Card } from './ui';
-import RealTimeIndicator from './RealTimeIndicator';
 import { clsx } from 'clsx';
 
 // Lazy load heavy components to reduce initial bundle size
@@ -124,7 +123,7 @@ export default function Dashboard() {
       {/* Vertical Sidebar */}
       <aside
         className={clsx(
-          'fixed left-0 top-0 h-screen bg-white border-r border-pierre-gray-200 flex flex-col z-40 transition-all duration-300 ease-in-out',
+          'fixed left-0 top-0 h-screen bg-white border-r border-pierre-gray-200 flex flex-col z-40 transition-all duration-300 ease-in-out overflow-hidden',
           sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'
         )}
       >
@@ -150,7 +149,7 @@ export default function Dashboard() {
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 py-4 overflow-y-auto">
+        <nav className="flex-1 py-4 overflow-y-auto overflow-x-hidden">
           <ul className="space-y-1 px-3">
             {tabs.map((tab) => (
               <li key={tab.id}>
@@ -196,46 +195,59 @@ export default function Dashboard() {
 
         {/* User Profile Section - Bottom of sidebar */}
         <div className={clsx(
-          'transition-all duration-300',
-          sidebarCollapsed ? 'p-3 flex flex-col items-center' : 'p-4 border-t border-pierre-gray-100'
+          'border-t border-pierre-gray-100',
+          sidebarCollapsed ? 'p-1.5' : 'px-2 py-1.5'
         )}>
           <div className={clsx(
-            'flex items-center transition-all duration-300',
-            sidebarCollapsed ? 'flex-col gap-2' : 'gap-3'
+            'flex items-center',
+            sidebarCollapsed ? 'flex-col gap-1' : 'gap-2'
           )}>
-            <div className="w-10 h-10 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center shadow-sm flex-shrink-0">
-              <span className="text-sm font-bold text-white">
-                {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
-              </span>
+            {/* User Avatar with online indicator */}
+            <div className="relative flex-shrink-0">
+              <div className="w-5 h-5 bg-gradient-to-br from-pierre-violet to-pierre-cyan rounded-full flex items-center justify-center">
+                <span className="text-[9px] font-bold text-white">
+                  {(user?.display_name || user?.email)?.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              {/* Online status dot */}
+              <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white" />
             </div>
+
             {!sidebarCollapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-pierre-gray-900 truncate">
-                  {user?.display_name || user?.email?.split('@')[0]}
+                <p className="text-[10px] font-medium text-pierre-gray-900 truncate leading-none">
+                  {user?.display_name || user?.email}
                 </p>
-                <div className="flex flex-col items-start gap-0.5">
-                  <RealTimeIndicator className="text-[10px]" />
-                  <button
-                    onClick={logout}
-                    className="text-xs text-pierre-gray-500 hover:text-pierre-violet transition-colors"
-                  >
-                    Sign out
-                  </button>
-                </div>
+                <span className="text-[8px] text-pierre-gray-500 uppercase">
+                  {user?.is_admin ? 'Admin' : 'User'}
+                </span>
               </div>
             )}
+
+            {!sidebarCollapsed && (
+              <button
+                onClick={logout}
+                className="text-pierre-gray-400 hover:text-pierre-violet transition-colors flex-shrink-0"
+                title="Sign out"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+            )}
+
+            {sidebarCollapsed && (
+              <button
+                onClick={logout}
+                className="text-pierre-gray-500 hover:text-pierre-violet transition-colors"
+                title="Sign out"
+              >
+                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+            )}
           </div>
-          {sidebarCollapsed && (
-            <button
-              onClick={logout}
-              className="mt-2 text-xs text-pierre-gray-500 hover:text-pierre-violet transition-colors"
-              title="Sign out"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
-          )}
         </div>
 
         {/* Collapse Toggle Button */}
