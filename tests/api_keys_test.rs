@@ -414,11 +414,12 @@ fn test_generate_multiple_unique_keys() {
         keys.push((full_key, prefix, hash));
     }
 
-    // Check all keys are unique
+    // Check all full keys and hashes are unique
+    // Note: Prefixes are only 3 random chars (262K possibilities), so collisions
+    // can occur with birthday paradox - we don't require prefix uniqueness
     for i in 0..keys.len() {
         for j in (i + 1)..keys.len() {
             assert_ne!(keys[i].0, keys[j].0, "Full keys should be unique");
-            assert_ne!(keys[i].1, keys[j].1, "Prefixes should be unique");
             assert_ne!(keys[i].2, keys[j].2, "Hashes should be unique");
         }
     }
