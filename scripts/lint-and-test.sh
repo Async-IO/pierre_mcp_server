@@ -33,7 +33,7 @@ TOTAL_TASKS=0
 
 # Count tasks (all mandatory now)
 count_tasks() {
-    echo 12  # Mandatory tasks: cleanup, static analysis, fmt, clippy, deny, sdk-build, tests, frontend, mcp, sdk-validation, bridge, release+docs
+    echo 13  # Mandatory tasks: cleanup, static analysis, fmt, clippy, deny, sdk-build, tests, frontend (lint+types+unit+e2e+build), mcp, sdk-validation, bridge, release+docs
 }
 
 # Print task header
@@ -646,12 +646,29 @@ if [ -d "frontend" ]; then
             ALL_PASSED=false
         fi
 
-        # Tests
+        # Unit Tests
         if npm test -- --run; then
-            echo -e "${GREEN}[OK] Frontend tests passed${NC}"
+            echo -e "${GREEN}[OK] Frontend unit tests passed${NC}"
         else
-            echo -e "${RED}[FAIL] Frontend tests failed${NC}"
+            echo -e "${RED}[FAIL] Frontend unit tests failed${NC}"
             ALL_PASSED=false
+        fi
+
+        # E2E Tests (Playwright)
+        if [ -f "playwright.config.ts" ]; then
+            echo -e "${BLUE}Running Playwright E2E tests...${NC}"
+            # Install Playwright browsers if needed
+            if ! npx playwright install --with-deps chromium 2>/dev/null; then
+                echo -e "${YELLOW}[WARN] Playwright browser installation failed, attempting tests anyway${NC}"
+            fi
+            if npm run test:e2e; then
+                echo -e "${GREEN}[OK] Frontend E2E tests passed${NC}"
+            else
+                echo -e "${RED}[FAIL] Frontend E2E tests failed${NC}"
+                ALL_PASSED=false
+            fi
+        else
+            echo -e "${YELLOW}[SKIP] No playwright.config.ts found, skipping E2E tests${NC}"
         fi
 
         # Build
@@ -841,7 +858,8 @@ if [ "$ALL_PASSED" = true ]; then
     if [ -d "frontend" ]; then
         echo "[OK] Frontend linting"
         echo "[OK] TypeScript type checking"
-        echo "[OK] Frontend tests"
+        echo "[OK] Frontend unit tests"
+        echo "[OK] Frontend E2E tests (Playwright)"
         echo "[OK] Frontend build"
     fi
     echo "[OK] Release build (cargo build --release)"
