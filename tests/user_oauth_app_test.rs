@@ -369,7 +369,7 @@ async fn test_fallback_to_server_credentials() -> Result<()> {
     Ok(())
 }
 
-/// Test: Backward compatibility - get_credentials without user_id uses server-level
+/// Test: Backward compatibility - `get_credentials` without `user_id` uses server-level
 #[tokio::test]
 #[serial]
 async fn test_backward_compatible_get_credentials() -> Result<()> {

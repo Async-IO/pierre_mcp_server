@@ -515,7 +515,7 @@ async fn create_test_executor_without_oauth() -> (Arc<UniversalToolExecutor>, Ar
     (executor, database)
 }
 
-/// Test that get_activities uses token refresh
+/// Test that `get_activities` uses token refresh
 #[tokio::test]
 #[serial]
 async fn test_get_activities_with_expired_token() {
