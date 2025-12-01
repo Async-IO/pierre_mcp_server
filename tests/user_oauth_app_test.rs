@@ -653,10 +653,9 @@ async fn test_upsert_user_oauth_app() -> Result<()> {
 
     // Should still only have one app for this provider
     let apps = database.list_user_oauth_apps(user_id).await?;
-    let strava_apps: Vec<_> = apps.iter().filter(|a| a.provider == "strava").collect();
+    let strava_app_count = apps.iter().filter(|a| a.provider == "strava").count();
     assert_eq!(
-        strava_apps.len(),
-        1,
+        strava_app_count, 1,
         "Should only have one strava app after upsert"
     );
 
@@ -1032,7 +1031,7 @@ async fn test_complete_three_tier_resolution() -> Result<()> {
     Ok(())
 }
 
-/// Test: None user_id falls back to tenant/server resolution
+/// Test: None `user_id` falls back to tenant/server resolution
 #[tokio::test]
 #[serial]
 async fn test_none_user_id_skips_user_lookup() -> Result<()> {
