@@ -24,31 +24,14 @@ env:
 
 jobs:
   cross-platform-tests:
-    name: Platform Tests (${{ matrix.os }})
+    # Ubuntu excluded - already covered by ci.yml with SQLite/PostgreSQL/Redis
+    name: Platform Tests (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
-
-    services:
-      postgres:
-        image: ${{ matrix.os == 'ubuntu-latest' && 'postgres:16-alpine' || '' }}
-        env:
-          POSTGRES_USER: pierre
-          POSTGRES_PASSWORD: ci_test_password
-          POSTGRES_DB: pierre_mcp_server
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
 
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
         include:
-          - os: ubuntu-latest
-            platform: Linux
           - os: macos-latest
             platform: macOS
           - os: windows-latest
@@ -57,18 +40,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Free Disk Space (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.91.0
@@ -86,21 +57,8 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-cross-platform-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install rustfmt
-        run: rustup component add rustfmt
-
-      - name: Install clippy
-        run: rustup component add clippy
-
       - name: Check formatting
         run: cargo fmt --all -- --check
-
-      - name: Wait for PostgreSQL (Linux only)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          echo "Waiting for PostgreSQL to be ready..."
-          timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U pierre; do sleep 2; done'
-          echo "PostgreSQL is ready!"
 
       - name: Setup Node.js (for SDK build)
         uses: actions/setup-node@v4
@@ -115,53 +73,40 @@ jobs:
           npm ci
           npm run build
 
-      - name: Platform-specific clippy check
+      - name: Clippy check (with cognitive complexity)
         shell: bash
-        run: |
-          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            cargo clippy --all-targets --all-features --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
-          else
-            cargo clippy --all-targets --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
-          fi
+        run: cargo clippy --all-targets --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -W clippy::cognitive_complexity
         env:
-          DATABASE_URL: ${{ matrix.os == 'ubuntu-latest' && 'postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server' || 'sqlite::memory:' }}
+          DATABASE_URL: "sqlite::memory:"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
 
-      - name: Run platform-specific tests
-        # Using --test-threads=4 - concurrent tests use #[serial] for isolation (issue #36)
+      - name: Run tests
         shell: bash
         run: |
-          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            cargo test --all-targets --all-features --quiet -- --test-threads=4
-          elif [ "${{ matrix.os }}" == "windows-latest" ]; then
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
             cargo test --all-targets --release --quiet -- --test-threads=4
           else
             cargo test --all-targets --quiet -- --test-threads=4
           fi
         env:
-          DATABASE_URL: ${{ matrix.os == 'ubuntu-latest' && 'postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server' || 'sqlite::memory:' }}
+          DATABASE_URL: "sqlite::memory:"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
           STRAVA_CLIENT_ID: "test_client_id_ci"
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
-          PG_MAX_CONNECTIONS: "20"
-          PG_MIN_CONNECTIONS: "1"
-          PG_ACQUIRE_TIMEOUT_SECS: "120"
 
       - name: Test health monitoring functions
         shell: bash
         run: |
-          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            cargo test health --all-features --quiet
-          elif [ "${{ matrix.os }}" == "windows-latest" ]; then
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
             cargo test health --release --quiet
           else
             cargo test health --quiet
           fi
         env:
-          DATABASE_URL: ${{ matrix.os == 'ubuntu-latest' && 'postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server' || 'sqlite::memory:' }}
+          DATABASE_URL: "sqlite::memory:"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
 
