@@ -230,3 +230,12 @@ str_to_string = "deny"
 
 # Module naming - allow repetition for clarity (e.g., error::ErrorKind)
 module_name_repetitions = "allow"
+
+# ============================================================================
+# Rust Idiom Enforcement (Prevent AI-generated regressions)
+# ============================================================================
+# Enforce modern format string syntax: format!("{foo}") not format!("{}", foo)
+uninlined_format_args = "warn"
+
+# Warn on .map().unwrap_or() - should use map_or() or is_some_and() instead
+option_map_unwrap_or = "warn"

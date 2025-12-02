@@ -568,11 +568,11 @@ async fn find_admin_user(pool: &SqlitePool, email: Option<&str>) -> Result<(Uuid
             .await?
     };
 
-    let row = row.ok_or_else(|| {
-        anyhow::anyhow!(
+    let Some(row) = row else {
+        anyhow::bail!(
             "No admin user found. Run 'cargo run --bin admin-setup -- create-admin-user' first."
-        )
-    })?;
+        );
+    };
 
     let id_str: String = row.get("id");
     let email: String = row.get("email");

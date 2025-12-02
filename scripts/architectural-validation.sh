@@ -372,6 +372,23 @@ echo -e "${BLUE}==== Binary Size Validation ====${NC}"
 pass_validation "Binary size check deferred to release build step"
 
 # ============================================================================
+# RUST IDIOM ENFORCEMENT (Prevent AI-generated regressions)
+# ============================================================================
+
+echo ""
+echo -e "${BLUE}==== Rust Idiom Enforcement ====${NC}"
+
+# Check for .map().unwrap_or(false) anti-pattern - should use is_some_and()
+OPTION_MAP_UNWRAP=$(rg '\.map\([^)]+\)\.unwrap_or\(false\)' src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+if [ "$OPTION_MAP_UNWRAP" -gt 0 ]; then
+    echo -e "${YELLOW}⚠️  Found $OPTION_MAP_UNWRAP uses of .map().unwrap_or(false) - prefer is_some_and()${NC}"
+    rg '\.map\([^)]+\)\.unwrap_or\(false\)' src/ -n | head -3
+else
+    pass_validation "Modern Option patterns used (is_some_and preferred)"
+fi
+
+# ============================================================================
 # LEGACY FUNCTION DETECTION (UX Anti-Patterns)
 # ============================================================================
 
