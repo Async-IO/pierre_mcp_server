@@ -11,6 +11,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
+// Test-specific clippy allows for synthetic test data generation
+#![allow(
+    clippy::cast_possible_wrap,
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::suboptimal_flops,
+    clippy::items_after_statements
+)]
 
 use chrono::Utc;
 use pierre_mcp_server::{
@@ -230,11 +238,10 @@ async fn test_synthetic_sleep_session_generation() {
 
     for (i, session) in sessions.iter().enumerate() {
         // Verify each session has valid data
-        assert!(!session.id.is_empty(), "Session {} should have ID", i);
+        assert!(!session.id.is_empty(), "Session {i} should have ID");
         assert!(
             session.total_sleep_time > 0,
-            "Session {} should have sleep time",
-            i
+            "Session {i} should have sleep time"
         );
         assert!(
             session.time_in_bed >= session.total_sleep_time,
@@ -288,8 +295,7 @@ async fn test_sleep_providers_list_includes_synthetic_sleep() {
     // Verify synthetic_sleep is in the list
     assert!(
         sleep_providers.contains(&oauth_providers::SYNTHETIC_SLEEP),
-        "Sleep providers list should include synthetic_sleep: {:?}",
-        sleep_providers
+        "Sleep providers list should include synthetic_sleep: {sleep_providers:?}"
     );
 }
 
@@ -569,7 +575,7 @@ fn test_infer_intensity_zero_days() {
 // INTELLIGENCE CROSS-PROVIDER TESTS - Sleep/Recovery Adjustment for Fitness Score
 // ============================================================================
 
-/// Test that fitness score schema includes sleep_provider parameter
+/// Test that fitness score schema includes `sleep_provider` parameter
 #[tokio::test]
 async fn test_calculate_fitness_score_schema_has_sleep_provider() {
     use pierre_mcp_server::mcp::schema::get_tools;
@@ -584,8 +590,7 @@ async fn test_calculate_fitness_score_schema_has_sleep_provider() {
         .input_schema
         .properties
         .as_ref()
-        .map(|props| props.contains_key("sleep_provider"))
-        .unwrap_or(false);
+        .is_some_and(|props| props.contains_key("sleep_provider"));
 
     assert!(
         has_sleep_provider,
@@ -593,7 +598,7 @@ async fn test_calculate_fitness_score_schema_has_sleep_provider() {
     );
 }
 
-/// Test that analyze_training_load schema includes sleep_provider parameter
+/// Test that `analyze_training_load` schema includes `sleep_provider` parameter
 #[tokio::test]
 async fn test_analyze_training_load_schema_has_sleep_provider() {
     use pierre_mcp_server::mcp::schema::get_tools;
@@ -608,8 +613,7 @@ async fn test_analyze_training_load_schema_has_sleep_provider() {
         .input_schema
         .properties
         .as_ref()
-        .map(|props| props.contains_key("sleep_provider"))
-        .unwrap_or(false);
+        .is_some_and(|props| props.contains_key("sleep_provider"));
 
     assert!(
         has_sleep_provider,
@@ -702,8 +706,7 @@ fn test_fitness_score_with_recovery_bounds() {
 
     for base in base_scores {
         for adj in adjustments {
-            #[allow(clippy::cast_precision_loss)]
-            let adjusted = ((base as f64) * adj).round() as i64;
+            let adjusted = (f64::from(base) * adj).round() as i64;
             // Adjusted score should be non-negative
             assert!(
                 adjusted >= 0,
