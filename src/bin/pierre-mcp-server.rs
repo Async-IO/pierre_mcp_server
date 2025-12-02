@@ -30,6 +30,7 @@ use tracing::{error, info};
 /// Command-line arguments for the Pierre MCP server
 #[derive(Parser)]
 #[command(name = "pierre-mcp-server")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Pierre Fitness API - Multi-protocol fitness data API for LLMs")]
 pub struct Args {
     /// Configuration file path for providers
@@ -53,6 +54,13 @@ fn parse_args_or_default() -> Args {
     match Args::try_parse() {
         Ok(args) => args,
         Err(e) => {
+            // Handle --version and --help specially - they should print and exit
+            if e.kind() == clap::error::ErrorKind::DisplayVersion
+                || e.kind() == clap::error::ErrorKind::DisplayHelp
+            {
+                e.exit();
+            }
+            // For actual errors, use defaults
             eprintln!("Argument parsing failed: {e}");
             eprintln!("Using default configuration for production mode");
             Args {

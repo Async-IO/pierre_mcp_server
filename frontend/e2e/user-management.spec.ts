@@ -25,7 +25,7 @@ async function loginAndNavigateToUsers(page: Page) {
       body: JSON.stringify({
         csrf_token: 'test-csrf-token',
         jwt_token: 'test-jwt-token',
-        user: { id: 'admin-1', email: 'admin@test.com', display_name: 'Admin User' },
+        user: { id: 'admin-1', email: 'admin@test.com', display_name: 'Admin User', is_admin: true },
       }),
     });
   });

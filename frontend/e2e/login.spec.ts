@@ -97,7 +97,7 @@ test.describe('Login Page', () => {
         body: JSON.stringify({
           csrf_token: 'test-csrf-token',
           jwt_token: 'test-jwt-token',
-          user: { id: '1', email: 'admin@test.com' },
+          user: { id: '1', email: 'admin@test.com', is_admin: true },
         }),
       });
     });
@@ -127,7 +127,7 @@ test.describe('Login Page', () => {
         body: JSON.stringify({
           csrf_token: 'test-csrf-token',
           jwt_token: 'test-jwt-token',
-          user: { id: '1', email: 'admin@test.com', display_name: 'Admin' },
+          user: { id: '1', email: 'admin@test.com', display_name: 'Admin', is_admin: true },
         }),
       });
     });
@@ -327,7 +327,7 @@ test.describe('Login Page - Accessibility', () => {
         body: JSON.stringify({
           csrf_token: 'test-csrf-token',
           jwt_token: 'test-jwt-token',
-          user: { id: '1', email: 'admin@test.com' },
+          user: { id: '1', email: 'admin@test.com', is_admin: true },
         }),
       });
     });
