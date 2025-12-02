@@ -217,10 +217,6 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.91.0
 
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-
-
       - name: Cache Rust dependencies
         uses: actions/cache@v4
         with:
@@ -272,15 +268,19 @@ jobs:
           POSTGRES_ACQUIRE_TIMEOUT: "20"
           RUST_LOG: "info"
 
-      - name: Clean build artifacts before coverage
+      - name: Clean build artifacts to save disk space
         run: |
+          echo "Cleaning build artifacts..."
           rm -rf target/debug/deps target/debug/incremental target/llvm-cov-target
+          cargo clean --release 2>/dev/null || true
           df -h
 
-      - name: Run all tests with coverage (PostgreSQL)
+      - name: Run all tests (PostgreSQL)
+        # PostgreSQL tests run WITHOUT coverage to save disk space
+        # SQLite tests already provide comprehensive code coverage
         # Using --test-threads=4 - concurrent tests use #[serial] for isolation (issue #36)
-        run: timeout 3600 cargo llvm-cov --lib --bins --tests --features postgresql --lcov --output-path lcov-postgres.info -- --test-threads=4
-        timeout-minutes: 60
+        run: cargo test --features postgresql -- --test-threads=4
+        timeout-minutes: 45
         env:
           DATABASE_URL: "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
@@ -294,15 +294,6 @@ jobs:
           POSTGRES_ACQUIRE_TIMEOUT: "20"
           RUST_LOG: "warn"
           CARGO_INCREMENTAL: 0
-
-      - name: Upload PostgreSQL coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: lcov-postgres.info
-          flags: backend-postgresql
-          name: backend-postgresql-coverage
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
 
   redis-tests:
     name: Cache Tests (Redis)
@@ -337,9 +328,6 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.91.0
 
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-
       - name: Cache Rust dependencies
         uses: actions/cache@v4
         with:
@@ -366,6 +354,7 @@ jobs:
           redis-cli -h localhost -p 6379 INFO server | head -10
 
       - name: Run Redis cache tests
+        # Coverage provided by SQLite backend tests - Redis tests validate integration only
         run: cargo test --test cache_redis_test -- --test-threads=1
         env:
           REDIS_URL: "redis://localhost:6379"
@@ -377,29 +366,6 @@ jobs:
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
           RUST_LOG: "info"
-
-      - name: Run Redis cache tests with coverage
-        run: cargo llvm-cov --test cache_redis_test --lcov --output-path lcov-redis.info -- --test-threads=1
-        env:
-          REDIS_URL: "redis://localhost:6379"
-          DATABASE_URL: "sqlite::memory:"
-          ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
-          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
-          PIERRE_RSA_KEY_SIZE: "2048"
-          STRAVA_CLIENT_ID: "test_client_id_ci"
-          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
-          STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
-          RUST_LOG: "warn"
-          CARGO_INCREMENTAL: 0
-
-      - name: Upload Redis coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: lcov-redis.info
-          flags: cache-redis
-          name: cache-redis-coverage
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
 
   # Release binary validation (runs on push/PR and weekly schedule)
   release-binary:
