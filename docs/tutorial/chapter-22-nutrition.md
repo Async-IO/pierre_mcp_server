@@ -203,6 +203,36 @@ Pierre provides timing recommendations for optimal performance and recovery.
 - **Protein synthesis**: Elevated 24-48 hours (not just 30min window)
 - **Practical**: Eat within 2 hours, total daily intake matters most
 
+### Cross-Provider Intensity Inference
+
+The `get_nutrient_timing` tool supports cross-provider activity data to auto-infer workout intensity:
+
+```json
+{
+  "tool": "get_nutrient_timing",
+  "parameters": {
+    "weight_kg": 70,
+    "daily_protein_g": 140,
+    "activity_provider": "strava",
+    "days_back": 7
+  }
+}
+```
+
+**How intensity is inferred**:
+- Fetches recent activities from the specified provider
+- Analyzes training volume (hours/day) and heart rate patterns
+- Returns `intensity_source: "inferred"` in the response
+
+**Inference thresholds**:
+| Intensity | Training Volume | Avg Heart Rate |
+|-----------|-----------------|----------------|
+| High | >2 hours/day | >150 bpm |
+| Moderate | 1-2 hours/day | 130-150 bpm |
+| Low | <1 hour/day | <130 bpm |
+
+**Fallback behavior**: If activity fetch fails and `workout_intensity` is also provided, falls back to the explicit value. If neither succeeds, returns an error.
+
 ## Carbohydrate Periodization
 
 Pierre adjusts carb intake based on training intensity.

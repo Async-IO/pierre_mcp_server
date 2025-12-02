@@ -9,8 +9,13 @@ use crate::intelligence::{
     calculate_daily_nutrition_needs, calculate_nutrient_timing, ActivityLevel,
     DailyNutritionParams, Gender, TrainingGoal, WorkoutIntensity,
 };
+use crate::protocols::universal::handlers::provider_helpers::{
+    fetch_provider_activities, infer_workout_intensity,
+};
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
+use crate::utils::uuid::parse_user_id_for_protocol;
+use chrono::{Duration, Utc};
 use serde_json::{json, Value};
 use std::future::Future;
 use std::pin::Pin;
@@ -297,24 +302,27 @@ pub fn handle_calculate_daily_nutrition(
 /// Provides optimal nutrient timing for workouts based on:
 /// - Athlete weight
 /// - Daily protein target
-/// - Workout intensity
+/// - Workout intensity (explicit or auto-inferred from activity data)
 ///
 /// # Parameters
 /// - `weight_kg`: Body weight in kilograms (required)
 /// - `daily_protein_g`: Daily protein target in grams (required)
-/// - `workout_intensity`: "low", "moderate", or "high" (required)
+/// - `workout_intensity`: "low", "moderate", or "high" (optional if `activity_provider` specified)
+/// - `activity_provider`: Fitness provider for activity data (optional, enables auto-inference)
+/// - `days_back`: Number of days of activity history to analyze (default: 7)
 ///
 /// # Returns
 /// JSON object with:
 /// - `pre_workout`: Object with `timing_minutes`, `carbs_g`, `protein_g`
 /// - `post_workout`: Object with `timing_minutes`, `protein_g`, `carbs_g`
 /// - `protein_distribution`: Object with `meals_per_day`, `protein_per_meal_g`, `breakfast_g`, `lunch_g`, `dinner_g`, `snacks_g`
+/// - `intensity_source`: "explicit" or "inferred" (indicates how intensity was determined)
 ///
 /// # Errors
 /// Returns `ProtocolError` if required parameters are missing or invalid
 #[must_use]
 pub fn handle_get_nutrient_timing(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
@@ -326,8 +334,6 @@ pub fn handle_get_nutrient_timing(
                 ));
             }
         }
-
-        // Executor parameter required by trait signature but unused (config accessed via global singleton)
 
         let weight_kg = request
             .parameters
@@ -349,30 +355,38 @@ pub fn handle_get_nutrient_timing(
                 )
             })?;
 
-        let workout_intensity_str = request
+        // Extract optional cross-provider parameters
+        let activity_provider = request
             .parameters
-            .get("workout_intensity")
-            .and_then(Value::as_str)
-            .ok_or_else(|| {
-                ProtocolError::InvalidRequest(
-                    "Missing or invalid required parameter: workout_intensity".to_owned(),
-                )
-            })?;
+            .get("activity_provider")
+            .and_then(Value::as_str);
 
-        let workout_intensity = match workout_intensity_str.to_lowercase().as_str() {
-            "low" => WorkoutIntensity::Low,
-            "moderate" => WorkoutIntensity::Moderate,
-            "high" => WorkoutIntensity::High,
-            _ => {
-                return Ok(UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(
-                        "Invalid workout_intensity. Must be one of: low, moderate, high".to_owned(),
-                    ),
-                    metadata: None,
-                })
+        let days_back = request
+            .parameters
+            .get("days_back")
+            .and_then(Value::as_u64)
+            .map_or(7, |v| v.min(30) as u32);
+
+        // Determine workout intensity: either explicit or inferred from activity data
+        let (workout_intensity, intensity_source) = if let Some(provider_name) = activity_provider {
+            match determine_intensity_from_provider(executor, &request, provider_name, days_back)
+                .await
+            {
+                Ok(result) => result,
+                Err(response) => return response,
             }
+        } else {
+            // No activity provider - require explicit workout_intensity
+            let intensity_str = request
+                .parameters
+                .get("workout_intensity")
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    ProtocolError::InvalidRequest(
+                        "Missing workout_intensity. Provide either workout_intensity or activity_provider.".to_owned(),
+                    )
+                })?;
+            (parse_workout_intensity(intensity_str)?, "explicit")
         };
 
         let config = &crate::config::intelligence_config::IntelligenceConfig::global().nutrition;
@@ -404,6 +418,7 @@ pub fn handle_get_nutrient_timing(
                         "protein_per_meal_g": timing.daily_protein_distribution.protein_per_meal_g,
                         "strategy": timing.daily_protein_distribution.strategy,
                     },
+                    "intensity_source": intensity_source,
                 })),
                 error: None,
                 metadata: None,
@@ -416,6 +431,77 @@ pub fn handle_get_nutrient_timing(
             }),
         }
     })
+}
+
+/// Parse workout intensity from string
+fn parse_workout_intensity(intensity_str: &str) -> Result<WorkoutIntensity, ProtocolError> {
+    match intensity_str.to_lowercase().as_str() {
+        "low" => Ok(WorkoutIntensity::Low),
+        "moderate" => Ok(WorkoutIntensity::Moderate),
+        "high" => Ok(WorkoutIntensity::High),
+        _ => Err(ProtocolError::InvalidRequest(
+            "Invalid workout_intensity. Must be one of: low, moderate, high".to_owned(),
+        )),
+    }
+}
+
+/// Determine workout intensity from activity provider data
+///
+/// Fetches recent activities and infers intensity from training load.
+/// Falls back to explicit intensity parameter if fetch fails.
+async fn determine_intensity_from_provider(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: &UniversalRequest,
+    provider_name: &str,
+    days_back: u32,
+) -> Result<(WorkoutIntensity, &'static str), Result<UniversalResponse, ProtocolError>> {
+    let user_uuid = parse_user_id_for_protocol(&request.user_id).map_err(Err)?;
+    let tenant_id = request.tenant_id.as_deref();
+
+    match fetch_provider_activities(executor, user_uuid, tenant_id, provider_name, Some(50)).await {
+        Ok(activities) => {
+            let cutoff_date = Utc::now() - Duration::days(i64::from(days_back));
+            let recent: Vec<_> = activities
+                .into_iter()
+                .filter(|a| a.start_date >= cutoff_date)
+                .collect();
+
+            let inferred = infer_workout_intensity(&recent, days_back);
+            let intensity = match inferred.as_str() {
+                "high" => WorkoutIntensity::High,
+                "moderate" => WorkoutIntensity::Moderate,
+                _ => WorkoutIntensity::Low,
+            };
+
+            tracing::debug!(
+                provider = provider_name,
+                days_back = days_back,
+                activity_count = recent.len(),
+                inferred_intensity = inferred,
+                "Inferred workout intensity from activity data"
+            );
+
+            Ok((intensity, "inferred"))
+        }
+        Err(response) => {
+            // Fallback to explicit intensity if available
+            if let Some(intensity_str) = request
+                .parameters
+                .get("workout_intensity")
+                .and_then(Value::as_str)
+            {
+                let intensity = parse_workout_intensity(intensity_str).map_err(Err)?;
+                tracing::warn!(
+                    provider = provider_name,
+                    error = ?response.error,
+                    "Activity fetch failed, falling back to explicit intensity"
+                );
+                Ok((intensity, "explicit"))
+            } else {
+                Err(Ok(response))
+            }
+        }
+    }
 }
 
 /// Handle `search_food` tool - search USDA `FoodData` Central database

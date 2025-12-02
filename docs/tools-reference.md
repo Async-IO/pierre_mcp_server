@@ -107,9 +107,9 @@ Advanced analytics tools for activity analysis, trend detection, and performance
 | `compare_activities` | Compare two activities for performance analysis | `provider` (string), `activity_id` (string), `comparison_type` (string) | - |
 | `detect_patterns` | Detect patterns and insights in activity data | `provider` (string), `pattern_type` (string) | `timeframe` (string) |
 | `generate_recommendations` | Generate personalized training recommendations | `provider` (string) | `recommendation_type` (string), `activity_id` (string) |
-| `calculate_fitness_score` | Calculate overall fitness score based on recent activities | `provider` (string) | `timeframe` (string) |
+| `calculate_fitness_score` | Calculate overall fitness score based on recent activities | `provider` (string) | `timeframe` (string), `sleep_provider` (string) |
 | `predict_performance` | Predict future performance based on training patterns | `provider` (string), `target_sport` (string), `target_distance` (number) | `target_date` (string) |
-| `analyze_training_load` | Analyze training load and recovery metrics | `provider` (string) | `timeframe` (string) |
+| `analyze_training_load` | Analyze training load and recovery metrics | `provider` (string) | `timeframe` (string), `sleep_provider` (string) |
 
 ### Parameter Details
 
@@ -132,6 +132,18 @@ Advanced analytics tools for activity analysis, trend detection, and performance
 
 **`generate_recommendations` Parameters**:
 - `recommendation_type`: Type of recommendations - `training`, `recovery`, `nutrition`, `equipment`, or `all`
+
+**`calculate_fitness_score` Parameters** (Cross-Provider Support):
+- `timeframe`: Analysis period - `month`, `last_90_days`, or `all_time`
+- `sleep_provider`: Optional sleep/recovery provider for cross-provider analysis (e.g., `whoop`, `garmin`). When specified, recovery quality factors into the fitness score:
+  - Excellent recovery (90-100): +5% fitness score bonus
+  - Good recovery (70-89): No adjustment
+  - Moderate recovery (50-69): -5% penalty
+  - Poor recovery (<50): -10% penalty
+
+**`analyze_training_load` Parameters** (Cross-Provider Support):
+- `timeframe`: Analysis period - `week`, `month`, etc.
+- `sleep_provider`: Optional sleep/recovery provider for cross-provider analysis. Adds recovery context to training load analysis including sleep quality score, HRV data, and recovery status.
 
 ---
 
@@ -203,19 +215,53 @@ User-specific fitness configuration for heart rate zones, power zones, and train
 
 ## Sleep & Recovery
 
-Sleep quality analysis and recovery monitoring tools using NSF/AASM guidelines.
+Sleep quality analysis and recovery monitoring tools using NSF/AASM guidelines. These tools support **cross-provider data fetching**, allowing you to use activities from one provider and sleep/recovery data from another.
 
 | Tool Name | Description | Required Parameters | Optional Parameters |
 |-----------|-------------|---------------------|---------------------|
-| `analyze_sleep_quality` | Analyze sleep quality from Fitbit/Garmin data | `sleep_data` (object) | `recent_hrv_values` (array), `baseline_hrv` (number) |
-| `calculate_recovery_score` | Calculate holistic recovery score combining TSB, sleep, and HRV | `provider` (string) | `user_config` (object) |
-| `suggest_rest_day` | AI-powered rest day recommendation | `provider` (string) | - |
-| `track_sleep_trends` | Track sleep patterns over time | `sleep_history` (array) | - |
-| `optimize_sleep_schedule` | Optimize sleep duration based on training load | `provider` (string) | `user_config` (object), `upcoming_workout_intensity` (string) |
+| `analyze_sleep_quality` | Analyze sleep quality from provider data or manual input | Either `sleep_provider` OR `sleep_data` | `activity_provider`, `days_back`, `recent_hrv_values`, `baseline_hrv` |
+| `calculate_recovery_score` | Calculate holistic recovery score combining TSB, sleep, and HRV | Either `activity_provider` OR `sleep_provider` | `sleep_provider`, `activity_provider`, `user_config` |
+| `suggest_rest_day` | AI-powered rest day recommendation | Either `activity_provider` OR `sleep_data` | `activity_provider`, `sleep_provider`, `training_load`, `recovery_score` |
+| `track_sleep_trends` | Track sleep patterns over time | Either `sleep_provider` OR `sleep_history` | `days_back` |
+| `optimize_sleep_schedule` | Optimize sleep duration based on training load | Either `activity_provider` OR `sleep_history` | `activity_provider`, `sleep_provider`, `target_sleep_hours`, `training_schedule` |
+
+### Cross-Provider Support
+
+Sleep and recovery tools support fetching data from different providers for activities and sleep. This enables scenarios like:
+
+- **Strava + WHOOP**: Activities from Strava, recovery/sleep data from WHOOP
+- **Garmin + Fitbit**: Running data from Garmin, sleep tracking from Fitbit
+- **Any activity provider + Any sleep provider**: Mix and match based on your device ecosystem
+
+**Provider Priority (when auto-selecting)**:
+- **Activity providers**: strava > garmin > fitbit > whoop > terra > synthetic
+- **Sleep providers**: whoop > garmin > fitbit > terra > synthetic
+
+**Example: Cross-Provider Recovery Score**:
+```json
+{
+  "tool": "calculate_recovery_score",
+  "parameters": {
+    "activity_provider": "strava",
+    "sleep_provider": "whoop"
+  }
+}
+```
+
+**Response includes providers used**:
+```json
+{
+  "recovery_score": { ... },
+  "providers_used": {
+    "activity_provider": "strava",
+    "sleep_provider": "whoop"
+  }
+}
+```
 
 ### Parameter Details
 
-**`analyze_sleep_quality` Sleep Data Object**:
+**`analyze_sleep_quality` Sleep Data Object** (for manual input mode):
 ```json
 {
   "date": "2025-11-28",
@@ -242,9 +288,14 @@ Sleep quality analysis and recovery monitoring tools using NSF/AASM guidelines.
 
 **`track_sleep_trends` Parameters**:
 - `sleep_history`: Array of sleep data objects (minimum 7 days required)
+- `sleep_provider`: Provider name to fetch sleep history from (alternative to `sleep_history`)
+- `days_back`: Number of days to analyze (default: 14)
 
 **`optimize_sleep_schedule` Parameters**:
-- `upcoming_workout_intensity`: Intensity level - `low`, `moderate`, or `high` (default: 'moderate')
+- `activity_provider`: Provider for activity data
+- `sleep_provider`: Provider for sleep data (optional, can be same as activity_provider)
+- `target_sleep_hours`: Target sleep duration in hours (default: 8.0)
+- `training_schedule`: Weekly training schedule object
 
 ---
 
@@ -255,7 +306,7 @@ Nutrition calculation tools with USDA FoodData Central database integration.
 | Tool Name | Description | Required Parameters | Optional Parameters |
 |-----------|-------------|---------------------|---------------------|
 | `calculate_daily_nutrition` | Calculate daily calorie and macronutrient needs (Mifflin-St Jeor) | `weight_kg` (number), `height_cm` (number), `age` (number), `gender` (string), `activity_level` (string), `training_goal` (string) | - |
-| `get_nutrient_timing` | Get optimal pre/post-workout nutrition (ISSN guidelines) | `weight_kg` (number), `daily_protein_g` (number), `workout_intensity` (string) | - |
+| `get_nutrient_timing` | Get optimal pre/post-workout nutrition (ISSN guidelines) | `weight_kg` (number), `daily_protein_g` (number) | `workout_intensity` (string), `activity_provider` (string), `days_back` (number) |
 | `search_food` | Search USDA FoodData Central database | `query` (string) | `page_size` (number) |
 | `get_food_details` | Get detailed nutritional information for a food | `fdc_id` (number) | - |
 | `analyze_meal_nutrition` | Analyze total calories and macros for a meal | `foods` (array) | - |
@@ -269,7 +320,14 @@ Nutrition calculation tools with USDA FoodData Central database integration.
 - `age`: Age in years (max 150)
 
 **`get_nutrient_timing` Parameters**:
-- `workout_intensity`: Workout intensity level - `low`, `moderate`, or `high`
+- `workout_intensity`: Workout intensity level - `low`, `moderate`, or `high` (required if `activity_provider` not specified)
+- `activity_provider`: Fitness provider for activity data (e.g., `strava`, `garmin`). When specified, workout intensity is auto-inferred from recent training load
+- `days_back`: Number of days of activity history to analyze for intensity inference (default: 7, max: 30)
+
+**Cross-Provider Support**: When using `activity_provider`, the tool analyzes your recent training data to automatically determine workout intensity based on training volume and heart rate patterns:
+- **High intensity**: >2 hours/day or average HR >150 bpm
+- **Moderate intensity**: 1-2 hours/day or average HR 130-150 bpm
+- **Low intensity**: <1 hour/day and average HR <130 bpm
 
 **`search_food` Parameters**:
 - `query`: Food name or description to search for
@@ -357,6 +415,30 @@ Nutrition calculation tools with USDA FoodData Central database integration.
 ```
 
 ### Analyzing Sleep Quality
+
+**Using a sleep provider** (recommended):
+```json
+{
+  "tool": "analyze_sleep_quality",
+  "parameters": {
+    "sleep_provider": "whoop",
+    "days_back": 7
+  }
+}
+```
+
+**Cross-provider analysis** (activities from Strava, sleep from WHOOP):
+```json
+{
+  "tool": "analyze_sleep_quality",
+  "parameters": {
+    "activity_provider": "strava",
+    "sleep_provider": "whoop"
+  }
+}
+```
+
+**Manual sleep data input** (for providers without direct integration):
 ```json
 {
   "tool": "analyze_sleep_quality",

@@ -25,12 +25,14 @@ use super::spi::GarminDescriptor;
 use super::spi::StravaDescriptor;
 #[cfg(feature = "provider-synthetic")]
 use super::spi::SyntheticDescriptor;
+#[cfg(feature = "provider-synthetic")]
+use super::spi::SyntheticSleepDescriptor;
 #[cfg(feature = "provider-whoop")]
 use super::spi::WhoopDescriptor;
 #[cfg(feature = "provider-strava")]
 use super::strava_provider::StravaProviderFactory;
 #[cfg(feature = "provider-synthetic")]
-use super::synthetic_provider::SyntheticProviderFactory;
+use super::synthetic_provider::{SyntheticProviderFactory, SyntheticSleepProviderFactory};
 #[cfg(feature = "provider-terra")]
 use super::terra::{TerraDataCache, TerraDescriptor, TerraProviderFactory};
 #[cfg(feature = "provider-whoop")]
@@ -250,6 +252,7 @@ impl ProviderRegistry {
     /// Register Synthetic provider for development and testing
     #[cfg(feature = "provider-synthetic")]
     fn register_synthetic(registry: &mut Self) {
+        // Register the primary synthetic provider (for activities)
         registry.register_factory(
             oauth_providers::SYNTHETIC,
             Box::new(SyntheticProviderFactory),
@@ -264,6 +267,27 @@ impl ProviderRegistry {
                 api_base_url: "http://localhost/synthetic/api".to_owned(),
                 revoke_url: None,
                 default_scopes: vec!["activity:read_all".to_owned()],
+            },
+        );
+
+        // Register the synthetic_sleep provider for cross-provider testing
+        registry.register_factory(
+            oauth_providers::SYNTHETIC_SLEEP,
+            Box::new(SyntheticSleepProviderFactory),
+        );
+        registry.register_descriptor(
+            oauth_providers::SYNTHETIC_SLEEP,
+            Box::new(SyntheticSleepDescriptor),
+        );
+        registry.set_default_config(
+            oauth_providers::SYNTHETIC_SLEEP,
+            ProviderConfig {
+                name: oauth_providers::SYNTHETIC_SLEEP.to_owned(),
+                auth_url: "http://localhost/synthetic_sleep/auth".to_owned(),
+                token_url: "http://localhost/synthetic_sleep/token".to_owned(),
+                api_base_url: "http://localhost/synthetic_sleep/api".to_owned(),
+                revoke_url: None,
+                default_scopes: vec!["sleep:read".to_owned()],
             },
         );
     }

@@ -71,8 +71,9 @@ pub use intelligence::handle_predict_performance;
 
 // Sleep and recovery analysis handlers
 pub use sleep_recovery::{
-    handle_analyze_sleep_quality, handle_calculate_recovery_score, handle_optimize_sleep_schedule,
-    handle_suggest_rest_day, handle_track_sleep_trends,
+    fetch_provider_sleep_data, handle_analyze_sleep_quality, handle_calculate_recovery_score,
+    handle_optimize_sleep_schedule, handle_suggest_rest_day, handle_track_sleep_trends,
+    select_sleep_provider,
 };
 
 /// Re-export nutrition analysis and USDA food database handlers

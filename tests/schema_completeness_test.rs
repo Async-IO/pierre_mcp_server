@@ -228,13 +228,12 @@ fn test_every_tool_in_toolid_is_routable() {
 #[test]
 fn test_provider_parameter_consistency() {
     // Tools that require 'provider' parameter (from original bug #1)
+    // Note: Some sleep/recovery tools now use activity_provider/sleep_provider with auto-selection
     let provider_tools = vec![
         "get_activities",
         "get_athlete",
         "get_stats",
         "get_activity_intelligence", // This was the bug - must have 'provider'
-        "calculate_recovery_score",  // And this one
-        "suggest_rest_day",
         "analyze_activity",
         "compare_activities",
     ];
@@ -272,5 +271,35 @@ fn test_provider_parameter_consistency() {
         );
 
         println!("✅ Tool '{tool_name}' correctly requires 'provider' parameter");
+    }
+
+    // Cross-provider tools use activity_provider/sleep_provider with auto-selection
+    let cross_provider_tools = vec![
+        ("calculate_recovery_score", "activity_provider"),
+        ("suggest_rest_day", "activity_provider"),
+        ("optimize_sleep_schedule", "activity_provider"),
+    ];
+
+    for (tool_name, provider_param) in cross_provider_tools {
+        let tool = tools
+            .iter()
+            .find(|t| t.name == tool_name)
+            .unwrap_or_else(|| panic!("Tool '{tool_name}' not found in schema"));
+
+        // Cross-provider tools have optional activity_provider/sleep_provider parameters
+        let has_provider_property = tool
+            .input_schema
+            .properties
+            .as_ref()
+            .is_some_and(|p| p.contains_key(provider_param));
+
+        assert!(
+            has_provider_property,
+            "Tool '{tool_name}' must have '{provider_param}' in properties"
+        );
+
+        println!(
+            "✅ Tool '{tool_name}' has '{provider_param}' parameter (auto-selects if not provided)"
+        );
     }
 }

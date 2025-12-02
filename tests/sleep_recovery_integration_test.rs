@@ -352,10 +352,11 @@ async fn test_calculate_recovery_score_tool() -> Result<()> {
     );
     executor.resources.database.create_user(&user).await?;
 
+    // Test with explicit activity_provider parameter (new cross-provider API)
     let request = UniversalRequest {
         tool_name: "calculate_recovery_score".to_owned(),
         parameters: json!({
-            "provider": "strava"
+            "activity_provider": "strava"
         }),
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
@@ -367,12 +368,13 @@ async fn test_calculate_recovery_score_tool() -> Result<()> {
 
     let response = executor.execute_tool(request).await?;
 
-    // This tool requires Strava authentication, so it should fail in tests without auth
+    // This tool requires provider authentication, so it should fail in tests without auth
     assert!(!response.success);
     assert!(response.error.is_some());
     let error_msg = response.error.unwrap();
     assert!(
-        error_msg.contains("No valid Strava token found")
+        error_msg.contains("No valid strava token found")
+            || error_msg.contains("token found")
             || error_msg.contains("Connect")
             || error_msg.contains("Authentication error")
     );
@@ -385,10 +387,11 @@ async fn test_calculate_recovery_score_fatigued() -> Result<()> {
     let executor = create_test_executor().await?;
     let user_id = Uuid::new_v4();
 
+    // Test with explicit activity_provider parameter (new cross-provider API)
     let request = UniversalRequest {
         tool_name: "calculate_recovery_score".to_owned(),
         parameters: json!({
-            "provider": "strava"
+            "activity_provider": "strava"
         }),
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
@@ -400,12 +403,13 @@ async fn test_calculate_recovery_score_fatigued() -> Result<()> {
 
     let response = executor.execute_tool(request).await?;
 
-    // This tool requires Strava authentication, so it should fail in tests without auth
+    // This tool requires provider authentication, so it should fail in tests without auth
     assert!(!response.success);
     assert!(response.error.is_some());
     let error_msg = response.error.unwrap();
     assert!(
-        error_msg.contains("No valid Strava token found")
+        error_msg.contains("No valid strava token found")
+            || error_msg.contains("token found")
             || error_msg.contains("Connect")
             || error_msg.contains("Authentication error")
     );
@@ -455,9 +459,11 @@ async fn test_suggest_rest_day_tool() -> Result<()> {
         "recommendations": []
     });
 
+    // Test with explicit activity_provider parameter (new cross-provider API)
     let request = UniversalRequest {
         tool_name: "suggest_rest_day".to_owned(),
         parameters: json!({
+            "activity_provider": "strava",
             "sleep_data": sleep_data,
             "training_load": training_load,
             "recovery_score": recovery_score
@@ -472,12 +478,13 @@ async fn test_suggest_rest_day_tool() -> Result<()> {
 
     let response = executor.execute_tool(request).await?;
 
-    // This tool requires Strava authentication, so it should fail in tests without auth
+    // This tool requires provider authentication, so it should fail in tests without auth
     assert!(!response.success);
     assert!(response.error.is_some());
     let error_msg = response.error.unwrap();
     assert!(
-        error_msg.contains("No valid Strava token found")
+        error_msg.contains("No valid strava token found")
+            || error_msg.contains("token found")
             || error_msg.contains("Connect")
             || error_msg.contains("Authentication error")
     );
@@ -655,9 +662,11 @@ async fn test_optimize_sleep_schedule_tool() -> Result<()> {
         "friday": {"time": "06:00", "type": "run", "duration_minutes": 60}
     });
 
+    // Test with explicit activity_provider parameter (new cross-provider API)
     let request = UniversalRequest {
         tool_name: "optimize_sleep_schedule".to_owned(),
         parameters: json!({
+            "activity_provider": "strava",
             "sleep_history": sleep_history,
             "training_schedule": training_schedule,
             "target_sleep_hours": 8.0
@@ -672,12 +681,13 @@ async fn test_optimize_sleep_schedule_tool() -> Result<()> {
 
     let response = executor.execute_tool(request).await?;
 
-    // This tool requires Strava authentication, so it should fail in tests without auth
+    // This tool requires provider authentication, so it should fail in tests without auth
     assert!(!response.success);
     assert!(response.error.is_some());
     let error_msg = response.error.unwrap();
     assert!(
-        error_msg.contains("No valid Strava token found")
+        error_msg.contains("No valid strava token found")
+            || error_msg.contains("token found")
             || error_msg.contains("Connect")
             || error_msg.contains("Authentication error")
     );
@@ -690,10 +700,10 @@ async fn test_missing_required_parameters() -> Result<()> {
     let executor = create_test_executor().await?;
     let user_id = Uuid::new_v4();
 
-    // Test analyze_sleep_quality without required sleep_data parameter
+    // Test analyze_sleep_quality without required sleep_data or sleep_provider parameter
     let request = UniversalRequest {
         tool_name: "analyze_sleep_quality".to_owned(),
-        parameters: json!({}), // Missing sleep_data
+        parameters: json!({}), // Missing both sleep_data and sleep_provider
         user_id: user_id.to_string(),
         protocol: "test".to_owned(),
         tenant_id: None,
@@ -704,10 +714,14 @@ async fn test_missing_required_parameters() -> Result<()> {
 
     let result = executor.execute_tool(request).await;
 
-    // Should return an error (ProtocolError::InvalidRequest)
+    // Should return an error (ProtocolError::InvalidRequest) about missing params
     assert!(result.is_err(), "Should fail with missing parameters");
     let error = result.unwrap_err();
-    assert!(format!("{error:?}").contains("sleep_data"));
+    // New cross-provider API requires either sleep_provider or sleep_data
+    assert!(
+        format!("{error:?}").contains("sleep_provider")
+            || format!("{error:?}").contains("sleep_data")
+    );
 
     Ok(())
 }

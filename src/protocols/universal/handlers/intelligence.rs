@@ -21,6 +21,144 @@ struct ActivityParameters {
     user_age: Option<u32>,
 }
 
+/// Information about recovery adjustment applied to fitness score
+struct RecoveryAdjustmentInfo {
+    /// Recovery quality score (0-100)
+    recovery_score: f64,
+    /// Adjustment factor applied to fitness score (0.9-1.1)
+    adjustment_factor: f64,
+    /// Provider name used for sleep data
+    provider_name: String,
+}
+
+/// Fetch sleep data and calculate recovery adjustment for fitness score
+///
+/// Fetches recent sleep data from the specified provider and calculates a recovery
+/// score that adjusts the fitness score based on current recovery status.
+///
+/// Recovery adjustment factors:
+/// - 90-100 (Excellent): +5% bonus (1.05)
+/// - 70-89 (Good): No adjustment (1.0)
+/// - 50-69 (Moderate): -5% penalty (0.95)
+/// - <50 (Poor): -10% penalty (0.90)
+async fn fetch_and_calculate_recovery_adjustment(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    user_uuid: uuid::Uuid,
+    tenant_id: Option<&str>,
+    sleep_provider_name: &str,
+    analysis: &mut serde_json::Value,
+) -> Result<RecoveryAdjustmentInfo, String> {
+    use super::sleep_recovery::fetch_provider_sleep_data;
+    use crate::intelligence::SleepAnalyzer;
+
+    // Fetch sleep data from provider
+    let sleep_data =
+        fetch_provider_sleep_data(executor, user_uuid, tenant_id, sleep_provider_name, 1)
+            .await
+            .map_err(|e| e.error.unwrap_or_else(|| "Unknown error".to_owned()))?;
+
+    // Calculate sleep quality score using SleepAnalyzer
+    let config = &crate::config::intelligence_config::IntelligenceConfig::global().sleep_recovery;
+    let sleep_quality = SleepAnalyzer::calculate_sleep_quality(&sleep_data, config)
+        .map_err(|e| format!("Sleep quality calculation failed: {e}"))?;
+
+    let recovery_score = sleep_quality.overall_score;
+
+    // Calculate adjustment factor based on recovery score
+    let adjustment_factor = if recovery_score >= 90.0 {
+        1.05 // Excellent recovery: +5%
+    } else if recovery_score >= 70.0 {
+        1.0 // Good recovery: no adjustment
+    } else if recovery_score >= 50.0 {
+        0.95 // Moderate recovery: -5%
+    } else {
+        0.90 // Poor recovery: -10%
+    };
+
+    // Apply adjustment to fitness score in the analysis
+    if let Some(obj) = analysis.as_object_mut() {
+        if let Some(serde_json::Value::Number(score)) = obj.get("fitness_score") {
+            if let Some(current_score) = score.as_i64() {
+                // Safe: fitness score is 0-100, adjustment factor is 0.9-1.1, result fits in i64
+                #[allow(clippy::cast_precision_loss)]
+                #[allow(clippy::cast_possible_truncation)]
+                let adjusted_score = ((current_score as f64) * adjustment_factor).round() as i64;
+                obj.insert(
+                    "fitness_score".to_owned(),
+                    serde_json::Value::Number(adjusted_score.into()),
+                );
+                obj.insert(
+                    "fitness_score_unadjusted".to_owned(),
+                    serde_json::Value::Number(current_score.into()),
+                );
+            }
+        }
+    }
+
+    Ok(RecoveryAdjustmentInfo {
+        recovery_score,
+        adjustment_factor,
+        provider_name: sleep_provider_name.to_owned(),
+    })
+}
+
+/// Recovery context information for training load analysis
+struct RecoveryContextInfo {
+    /// Sleep quality score (0-100)
+    sleep_quality_score: f64,
+    /// Recovery status interpretation
+    recovery_status: String,
+    /// HRV RMSSD if available
+    hrv_rmssd: Option<f64>,
+    /// Sleep duration in hours
+    sleep_hours: f64,
+}
+
+/// Fetch recovery context for training load analysis
+///
+/// Fetches recent sleep data and provides recovery context to interpret
+/// training load data (CTL/ATL/TSB) more accurately.
+async fn fetch_recovery_context_for_training_load(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    user_uuid: uuid::Uuid,
+    tenant_id: Option<&str>,
+    sleep_provider_name: &str,
+) -> Result<RecoveryContextInfo, String> {
+    use super::sleep_recovery::fetch_provider_sleep_data;
+    use crate::intelligence::SleepAnalyzer;
+
+    // Fetch sleep data from provider
+    let sleep_data =
+        fetch_provider_sleep_data(executor, user_uuid, tenant_id, sleep_provider_name, 1)
+            .await
+            .map_err(|e| e.error.unwrap_or_else(|| "Unknown error".to_owned()))?;
+
+    // Calculate sleep quality score
+    let config = &crate::config::intelligence_config::IntelligenceConfig::global().sleep_recovery;
+    let sleep_quality = SleepAnalyzer::calculate_sleep_quality(&sleep_data, config)
+        .map_err(|e| format!("Sleep quality calculation failed: {e}"))?;
+
+    // Determine recovery status based on sleep quality
+    let recovery_status = if sleep_quality.overall_score >= 90.0 {
+        "excellent".to_owned()
+    } else if sleep_quality.overall_score >= 75.0 {
+        "good".to_owned()
+    } else if sleep_quality.overall_score >= 60.0 {
+        "moderate".to_owned()
+    } else if sleep_quality.overall_score >= 40.0 {
+        "fair".to_owned()
+    } else {
+        "poor".to_owned()
+    };
+
+    Ok(RecoveryContextInfo {
+        sleep_quality_score: sleep_quality.overall_score,
+        recovery_status,
+        hrv_rmssd: sleep_data.hrv_rmssd_ms,
+        sleep_hours: sleep_data.duration_hours,
+    })
+}
+
 /// Parse activity parameters from request
 ///
 /// Extracts activity metrics (distance, duration, elevation, heart rate) and
@@ -1367,6 +1505,20 @@ pub fn handle_generate_recommendations(
 }
 
 /// Handle `calculate_fitness_score` tool - calculate overall fitness score
+///
+/// Supports cross-provider integration:
+/// - Use `provider` to specify where to fetch activity data (default: configured default provider)
+/// - Use `sleep_provider` to optionally fetch recovery data from a different provider
+///
+/// When `sleep_provider` is specified, recovery quality factors into the fitness score:
+/// - Excellent recovery (90-100): +5% fitness score bonus
+/// - Good recovery (70-89): No adjustment
+/// - Poor recovery (<70): -5% to -10% penalty
+///
+/// # Parameters
+/// - `provider` (optional): Activity provider (default: configured default)
+/// - `sleep_provider` (optional): Sleep/recovery provider for cross-provider analysis
+/// - `timeframe` (optional): `month`, `last_90_days`, or `all_time`
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_calculate_fitness_score(
@@ -1397,6 +1549,12 @@ pub fn handle_calculate_fitness_score(
             .get("timeframe")
             .and_then(|v| v.as_str())
             .unwrap_or("month");
+
+        // Extract optional sleep_provider for cross-provider recovery analysis
+        let sleep_provider = request
+            .parameters
+            .get("sleep_provider")
+            .and_then(|v| v.as_str());
 
         // Report progress - starting authentication
         if let Some(reporter) = &request.progress_reporter {
@@ -1454,7 +1612,32 @@ pub fn handle_calculate_fitness_score(
                             );
                         }
 
-                        let analysis = calculate_fitness_metrics(&activities, timeframe);
+                        let mut analysis = calculate_fitness_metrics(&activities, timeframe);
+
+                        // If sleep_provider is specified, fetch recovery data and adjust score
+                        let recovery_info = if let Some(sleep_provider_name) = sleep_provider {
+                            match fetch_and_calculate_recovery_adjustment(
+                                executor,
+                                user_uuid,
+                                request.tenant_id.as_deref(),
+                                sleep_provider_name,
+                                &mut analysis,
+                            )
+                            .await
+                            {
+                                Ok(info) => Some(info),
+                                Err(err_msg) => {
+                                    tracing::warn!(
+                                        sleep_provider = sleep_provider_name,
+                                        error = %err_msg,
+                                        "Failed to fetch recovery data, proceeding without adjustment"
+                                    );
+                                    None
+                                }
+                            }
+                        } else {
+                            None
+                        };
 
                         // Report completion
                         if let Some(reporter) = &request.progress_reporter {
@@ -1462,6 +1645,27 @@ pub fn handle_calculate_fitness_score(
                                 100.0,
                                 Some(100.0),
                                 Some("Fitness score calculated".to_owned()),
+                            );
+                        }
+
+                        // Add recovery and provider info to response
+                        if let Some(obj) = analysis.as_object_mut() {
+                            if let Some(ref info) = recovery_info {
+                                obj.insert(
+                                    "recovery_adjustment".to_owned(),
+                                    serde_json::json!({
+                                        "recovery_score": info.recovery_score,
+                                        "adjustment_factor": info.adjustment_factor,
+                                        "sleep_provider": info.provider_name,
+                                    }),
+                                );
+                            }
+                            obj.insert(
+                                "providers_used".to_owned(),
+                                serde_json::json!({
+                                    "activity_provider": provider_name,
+                                    "sleep_provider": sleep_provider,
+                                }),
                             );
                         }
 
@@ -1475,6 +1679,22 @@ pub fn handle_calculate_fitness_score(
                                     "user_id".to_owned(),
                                     serde_json::Value::String(user_uuid.to_string()),
                                 );
+                                map.insert(
+                                    "activity_provider".to_owned(),
+                                    serde_json::Value::String(provider_name),
+                                );
+                                if let Some(sp) = sleep_provider {
+                                    map.insert(
+                                        "sleep_provider".to_owned(),
+                                        serde_json::Value::String(sp.to_owned()),
+                                    );
+                                }
+                                if recovery_info.is_some() {
+                                    map.insert(
+                                        "recovery_factored".to_owned(),
+                                        serde_json::Value::Bool(true),
+                                    );
+                                }
                                 map
                             }),
                         })
@@ -1618,7 +1838,21 @@ pub fn handle_predict_performance(
     })
 }
 
-/// Handle `analyze_training_load` tool - analyze training load and recovery
+/// Handle `analyze_training_load` tool - analyze training load and fatigue
+///
+/// Supports cross-provider integration:
+/// - Use `provider` to specify where to fetch activity data (default: configured default provider)
+/// - Use `sleep_provider` to optionally fetch recovery data from a different provider
+///
+/// When `sleep_provider` is specified, adds recovery context to training load analysis:
+/// - Sleep quality score and HRV data
+/// - Recovery status interpretation
+/// - Recommendations adjusted for recovery state
+///
+/// # Parameters
+/// - `provider` (optional): Activity provider (default: configured default)
+/// - `sleep_provider` (optional): Sleep/recovery provider for cross-provider analysis
+/// - `timeframe` (optional): "week", "month", etc.
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn handle_analyze_training_load(
@@ -1649,6 +1883,12 @@ pub fn handle_analyze_training_load(
             .get("timeframe")
             .and_then(|v| v.as_str())
             .unwrap_or("week");
+
+        // Extract optional sleep_provider for cross-provider recovery analysis
+        let sleep_provider = request
+            .parameters
+            .get("sleep_provider")
+            .and_then(|v| v.as_str());
 
         // Report progress - starting authentication
         if let Some(reporter) = &request.progress_reporter {
@@ -1709,7 +1949,58 @@ pub fn handle_analyze_training_load(
                             );
                         }
 
-                        let analysis = analyze_detailed_training_load(&activities, timeframe);
+                        let mut analysis = analyze_detailed_training_load(&activities, timeframe);
+
+                        // If sleep_provider is specified, fetch recovery context
+                        let recovery_context = if let Some(sleep_provider_name) = sleep_provider {
+                            match fetch_recovery_context_for_training_load(
+                                executor,
+                                user_uuid,
+                                request.tenant_id.as_deref(),
+                                sleep_provider_name,
+                            )
+                            .await
+                            {
+                                Ok(context) => {
+                                    // Add recovery context to analysis
+                                    if let Some(obj) = analysis.as_object_mut() {
+                                        obj.insert(
+                                            "recovery_context".to_owned(),
+                                            serde_json::json!({
+                                                "sleep_quality_score": context.sleep_quality_score,
+                                                "recovery_status": context.recovery_status,
+                                                "hrv_available": context.hrv_rmssd.is_some(),
+                                                "hrv_rmssd": context.hrv_rmssd,
+                                                "sleep_hours": context.sleep_hours,
+                                                "sleep_provider": sleep_provider_name,
+                                            }),
+                                        );
+                                    }
+                                    Some(context)
+                                }
+                                Err(err_msg) => {
+                                    tracing::warn!(
+                                        sleep_provider = sleep_provider_name,
+                                        error = %err_msg,
+                                        "Failed to fetch recovery context, proceeding without"
+                                    );
+                                    None
+                                }
+                            }
+                        } else {
+                            None
+                        };
+
+                        // Add provider info
+                        if let Some(obj) = analysis.as_object_mut() {
+                            obj.insert(
+                                "providers_used".to_owned(),
+                                serde_json::json!({
+                                    "activity_provider": provider_name,
+                                    "sleep_provider": sleep_provider,
+                                }),
+                            );
+                        }
 
                         // Report completion
                         if let Some(reporter) = &request.progress_reporter {
@@ -1730,6 +2021,22 @@ pub fn handle_analyze_training_load(
                                     "user_id".to_owned(),
                                     serde_json::Value::String(user_uuid.to_string()),
                                 );
+                                map.insert(
+                                    "activity_provider".to_owned(),
+                                    serde_json::Value::String(provider_name),
+                                );
+                                if let Some(sp) = sleep_provider {
+                                    map.insert(
+                                        "sleep_provider".to_owned(),
+                                        serde_json::Value::String(sp.to_owned()),
+                                    );
+                                }
+                                if recovery_context.is_some() {
+                                    map.insert(
+                                        "recovery_context_included".to_owned(),
+                                        serde_json::Value::Bool(true),
+                                    );
+                                }
                                 map
                             }),
                         })

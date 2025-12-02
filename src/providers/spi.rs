@@ -489,6 +489,48 @@ impl ProviderDescriptor for SyntheticDescriptor {
     }
 }
 
+/// Synthetic Sleep provider descriptor (for cross-provider testing)
+///
+/// This descriptor registers a second synthetic provider focused on sleep data,
+/// enabling cross-provider testing scenarios where activities come from one
+/// provider and sleep/recovery data from another.
+#[cfg(feature = "provider-synthetic")]
+pub struct SyntheticSleepDescriptor;
+
+#[cfg(feature = "provider-synthetic")]
+impl ProviderDescriptor for SyntheticSleepDescriptor {
+    fn name(&self) -> &'static str {
+        "synthetic_sleep"
+    }
+
+    fn display_name(&self) -> &'static str {
+        "Synthetic Sleep (Test)"
+    }
+
+    fn capabilities(&self) -> ProviderCapabilities {
+        // This provider focuses on sleep and recovery data
+        ProviderCapabilities::SLEEP_TRACKING
+            .union(ProviderCapabilities::RECOVERY_METRICS)
+            .union(ProviderCapabilities::HEALTH_METRICS)
+    }
+
+    fn oauth_endpoints(&self) -> Option<OAuthEndpoints> {
+        None // Synthetic provider doesn't need OAuth
+    }
+
+    fn oauth_params(&self) -> Option<OAuthParams> {
+        None // Synthetic provider doesn't need OAuth
+    }
+
+    fn api_base_url(&self) -> &'static str {
+        "http://localhost/synthetic_sleep/api"
+    }
+
+    fn default_scopes(&self) -> &'static [&'static str] {
+        &["sleep:read"]
+    }
+}
+
 /// WHOOP provider descriptor
 ///
 /// WHOOP is a full health provider supporting sleep, recovery, workouts,

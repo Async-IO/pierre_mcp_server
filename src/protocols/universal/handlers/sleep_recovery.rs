@@ -6,74 +6,477 @@
 
 use crate::intelligence::algorithms::RecoveryAggregationAlgorithm;
 use crate::intelligence::{RecoveryCalculator, SleepAnalyzer, SleepData, TrainingLoadCalculator};
-use crate::models::Activity;
+use crate::models::{Activity, SleepSession, SleepStageType};
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use uuid::Uuid;
 
-/// Helper function to fetch activities from Strava provider
+/// Get OAuth credentials for a specific provider from configuration
+///
+/// Returns (`client_id`, `client_secret`) for the requested provider, or None if not configured.
+fn get_provider_oauth_config(
+    config: &crate::config::environment::ServerConfig,
+    provider_name: &str,
+) -> Option<(String, String)> {
+    let oauth_config = match provider_name {
+        "strava" => &config.oauth.strava,
+        "fitbit" => &config.oauth.fitbit,
+        "garmin" => &config.oauth.garmin,
+        "whoop" => &config.oauth.whoop,
+        "terra" => &config.oauth.terra,
+        _ => return None,
+    };
+
+    let client_id = oauth_config.client_id.clone()?;
+    let client_secret = oauth_config.client_secret.clone()?;
+
+    if client_id.is_empty() || client_secret.is_empty() {
+        return None;
+    }
+
+    Some((client_id, client_secret))
+}
+
+/// Get default OAuth scopes for a provider
+fn get_provider_default_scopes(provider_name: &str) -> Vec<String> {
+    match provider_name {
+        "strava" => crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+            .split(',')
+            .map(str::to_owned)
+            .collect(),
+        "fitbit" => vec![
+            "activity".to_owned(),
+            "profile".to_owned(),
+            "sleep".to_owned(),
+            "heartrate".to_owned(),
+        ],
+        "garmin" => vec![
+            "activity:read".to_owned(),
+            "sleep:read".to_owned(),
+            "health:read".to_owned(),
+        ],
+        "whoop" => vec![
+            "offline".to_owned(),
+            "read:profile".to_owned(),
+            "read:workout".to_owned(),
+            "read:sleep".to_owned(),
+            "read:recovery".to_owned(),
+        ],
+        "terra" => vec!["activity".to_owned(), "sleep".to_owned(), "body".to_owned()],
+        _ => vec![],
+    }
+}
+
+/// Provider-agnostic activity fetcher
+///
+/// Fetches activities from any supported fitness provider based on the provider name.
+/// Uses dynamic credential lookup and provider instantiation.
+///
+/// # Arguments
+/// * `executor` - The tool executor with access to auth service and provider registry
+/// * `user_uuid` - The user's UUID for token lookup
+/// * `tenant_id` - Optional tenant ID for multi-tenant deployments
+/// * `provider_name` - Name of the provider to fetch from (e.g., "strava", "garmin", "fitbit")
 ///
 /// # Errors
 /// Returns `UniversalResponse` with error if authentication fails or activities cannot be fetched
-async fn fetch_strava_activities(
+async fn fetch_provider_activities(
     executor: &crate::protocols::universal::UniversalToolExecutor,
     user_uuid: Uuid,
     tenant_id: Option<&str>,
+    provider_name: &str,
 ) -> Result<Vec<Activity>, UniversalResponse> {
-    use crate::constants::oauth_providers;
+    // Validate provider is supported
+    if !executor
+        .resources
+        .provider_registry
+        .is_supported(provider_name)
+    {
+        let supported = executor
+            .resources
+            .provider_registry
+            .supported_providers()
+            .join(", ");
+        return Err(UniversalResponse {
+            success: false,
+            result: None,
+            error: Some(format!(
+                "Provider '{provider_name}' is not supported. Available providers: {supported}"
+            )),
+            metadata: None,
+        });
+    }
 
+    // Get valid OAuth token for the provider
     match executor
         .auth_service
-        .get_valid_token(user_uuid, oauth_providers::STRAVA, tenant_id)
+        .get_valid_token(user_uuid, provider_name, tenant_id)
         .await
     {
         Ok(Some(token_data)) => {
             let provider = executor
                 .resources
                 .provider_registry
-                .create_provider(oauth_providers::STRAVA)
+                .create_provider(provider_name)
                 .map_err(|e| UniversalResponse {
                     success: false,
                     result: None,
-                    error: Some(format!("Failed to create provider: {e}")),
+                    error: Some(format!("Failed to create provider '{provider_name}': {e}")),
                     metadata: None,
                 })?;
 
+            // Get OAuth config for this provider
+            let (client_id, client_secret) =
+                get_provider_oauth_config(&executor.resources.config, provider_name).ok_or_else(
+                    || UniversalResponse {
+                        success: false,
+                        result: None,
+                        error: Some(format!(
+                            "OAuth configuration missing for provider '{provider_name}'"
+                        )),
+                        metadata: None,
+                    },
+                )?;
+
             let credentials = crate::providers::OAuth2Credentials {
-                client_id: executor.resources.config.oauth.strava.client_id.clone().unwrap_or_default(),
-                client_secret: executor.resources.config.oauth.strava.client_secret.clone().unwrap_or_default(),
+                client_id,
+                client_secret,
                 access_token: Some(token_data.access_token),
                 refresh_token: Some(token_data.refresh_token),
                 expires_at: Some(token_data.expires_at),
-                scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
-                    .split(',')
-                    .map(str::to_owned)
-                    .collect(),
+                scopes: get_provider_default_scopes(provider_name),
             };
 
-            provider.set_credentials(credentials).await.map_err(|e| UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Failed to set credentials: {e}")),
-                metadata: None,
-            })?;
-
-            provider.get_activities(Some(executor.resources.config.sleep_recovery.activity_limit as usize), None).await
+            provider
+                .set_credentials(credentials)
+                .await
                 .map_err(|e| UniversalResponse {
                     success: false,
                     result: None,
-                    error: Some(format!("Failed to fetch activities: {e}")),
+                    error: Some(format!("Failed to set credentials for '{provider_name}': {e}")),
+                    metadata: None,
+                })?;
+
+            #[allow(clippy::cast_possible_truncation)]
+            provider
+                .get_activities(
+                    Some(executor.resources.config.sleep_recovery.activity_limit as usize),
+                    None,
+                )
+                .await
+                .map_err(|e| UniversalResponse {
+                    success: false,
+                    result: None,
+                    error: Some(format!(
+                        "Failed to fetch activities from '{provider_name}': {e}"
+                    )),
                     metadata: None,
                 })
         }
         Ok(None) => Err(UniversalResponse {
             success: false,
             result: None,
-            error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_owned()),
+            error: Some(format!(
+                "No valid {provider_name} token found. Please connect your {provider_name} account using the connect_provider tool with provider='{provider_name}'."
+            )),
+            metadata: None,
+        }),
+        Err(e) => Err(UniversalResponse {
+            success: false,
+            result: None,
+            error: Some(format!("Authentication error for '{provider_name}': {e}")),
+            metadata: None,
+        }),
+    }
+}
+
+/// Provider-agnostic sleep data fetcher
+///
+/// Fetches sleep data from any provider that supports sleep tracking (Fitbit, Garmin, WHOOP, Terra).
+/// Automatically converts provider-specific `SleepSession` to the unified `SleepData` format.
+///
+/// # Arguments
+/// * `executor` - The tool executor with access to auth service and provider registry
+/// * `user_uuid` - The user's UUID for token lookup
+/// * `tenant_id` - Optional tenant ID for multi-tenant deployments
+/// * `provider_name` - Name of the sleep-capable provider
+/// * `days_back` - Number of days of sleep data to fetch (default: 1 for most recent night)
+///
+/// # Errors
+/// Returns `UniversalResponse` with error if provider doesn't support sleep or fetch fails
+// Long function: Provider fetcher requires validation, auth, credential setup, API call, and conversion
+#[allow(clippy::too_many_lines)]
+pub async fn fetch_provider_sleep_data(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    user_uuid: Uuid,
+    tenant_id: Option<&str>,
+    provider_name: &str,
+    days_back: u32,
+) -> Result<SleepData, UniversalResponse> {
+    // Check if provider supports sleep tracking
+    let capabilities = executor
+        .resources
+        .provider_registry
+        .get_capabilities(provider_name)
+        .ok_or_else(|| UniversalResponse {
+            success: false,
+            result: None,
+            error: Some(format!("Provider '{provider_name}' not found in registry")),
+            metadata: None,
+        })?;
+
+    if !capabilities.supports_sleep() {
+        return Err(UniversalResponse {
+            success: false,
+            result: None,
+            error: Some(format!(
+                "Provider '{provider_name}' does not support sleep tracking. \
+                 Use a sleep-capable provider: fitbit, garmin, whoop, or terra."
+            )),
+            metadata: None,
+        });
+    }
+
+    // Get valid OAuth token for the provider
+    match executor
+        .auth_service
+        .get_valid_token(user_uuid, provider_name, tenant_id)
+        .await
+    {
+        Ok(Some(token_data)) => {
+            let provider = executor
+                .resources
+                .provider_registry
+                .create_provider(provider_name)
+                .map_err(|e| UniversalResponse {
+                    success: false,
+                    result: None,
+                    error: Some(format!("Failed to create provider '{provider_name}': {e}")),
+                    metadata: None,
+                })?;
+
+            // Get OAuth config for this provider
+            let (client_id, client_secret) =
+                get_provider_oauth_config(&executor.resources.config, provider_name).ok_or_else(
+                    || UniversalResponse {
+                        success: false,
+                        result: None,
+                        error: Some(format!(
+                            "OAuth configuration missing for provider '{provider_name}'"
+                        )),
+                        metadata: None,
+                    },
+                )?;
+
+            let credentials = crate::providers::OAuth2Credentials {
+                client_id,
+                client_secret,
+                access_token: Some(token_data.access_token),
+                refresh_token: Some(token_data.refresh_token),
+                expires_at: Some(token_data.expires_at),
+                scopes: get_provider_default_scopes(provider_name),
+            };
+
+            provider
+                .set_credentials(credentials)
+                .await
+                .map_err(|e| UniversalResponse {
+                    success: false,
+                    result: None,
+                    error: Some(format!("Failed to set credentials for '{provider_name}': {e}")),
+                    metadata: None,
+                })?;
+
+            // Fetch sleep sessions for the requested date range
+            let end_date = Utc::now();
+            let start_date = end_date - Duration::days(i64::from(days_back));
+
+            let sessions = provider
+                .get_sleep_sessions(start_date, end_date)
+                .await
+                .map_err(|e| UniversalResponse {
+                    success: false,
+                    result: None,
+                    error: Some(format!(
+                        "Failed to fetch sleep data from '{provider_name}': {e}"
+                    )),
+                    metadata: None,
+                })?;
+
+            // Get most recent session and convert to SleepData
+            let session = sessions.into_iter().next().ok_or_else(|| UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!(
+                    "No sleep data available from '{provider_name}' for the last {days_back} day(s)"
+                )),
+                metadata: None,
+            })?;
+
+            Ok(convert_sleep_session_to_data(&session))
+        }
+        Ok(None) => Err(UniversalResponse {
+            success: false,
+            result: None,
+            error: Some(format!(
+                "No valid {provider_name} token found. Please connect your {provider_name} account using the connect_provider tool with provider='{provider_name}'."
+            )),
+            metadata: None,
+        }),
+        Err(e) => Err(UniversalResponse {
+            success: false,
+            result: None,
+            error: Some(format!("Authentication error for '{provider_name}': {e}")),
+            metadata: None,
+        }),
+    }
+}
+
+/// Convert a provider `SleepSession` to the intelligence layer `SleepData` format
+fn convert_sleep_session_to_data(session: &SleepSession) -> SleepData {
+    // Calculate stage durations from sleep stages
+    let mut deep_minutes: u32 = 0;
+    let mut rem_minutes: u32 = 0;
+    let mut light_minutes: u32 = 0;
+    let mut awake_minutes: u32 = 0;
+
+    for stage in &session.stages {
+        match stage.stage_type {
+            SleepStageType::Deep => deep_minutes += stage.duration_minutes,
+            SleepStageType::Rem => rem_minutes += stage.duration_minutes,
+            SleepStageType::Light => light_minutes += stage.duration_minutes,
+            SleepStageType::Awake => awake_minutes += stage.duration_minutes,
+        }
+    }
+
+    // Convert minutes to hours
+    let minutes_to_hours = |m: u32| -> Option<f64> {
+        if m > 0 {
+            Some(f64::from(m) / 60.0)
+        } else {
+            None
+        }
+    };
+
+    SleepData {
+        date: session.start_time,
+        duration_hours: f64::from(session.total_sleep_time) / 60.0,
+        deep_sleep_hours: minutes_to_hours(deep_minutes),
+        rem_sleep_hours: minutes_to_hours(rem_minutes),
+        light_sleep_hours: minutes_to_hours(light_minutes),
+        awake_hours: minutes_to_hours(awake_minutes),
+        efficiency_percent: Some(f64::from(session.sleep_efficiency)),
+        hrv_rmssd_ms: session.hrv_during_sleep,
+        resting_hr_bpm: None, // SleepSession doesn't include this directly
+        provider_score: session.sleep_score.map(f64::from),
+    }
+}
+
+/// Fetch sleep history from a provider for trend analysis
+///
+/// Returns multiple sleep sessions converted to `SleepData` for trend tracking.
+async fn fetch_provider_sleep_history(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    user_uuid: Uuid,
+    tenant_id: Option<&str>,
+    provider_name: &str,
+    days: u32,
+) -> Result<Vec<SleepData>, UniversalResponse> {
+    // Check if provider supports sleep tracking
+    let capabilities = executor
+        .resources
+        .provider_registry
+        .get_capabilities(provider_name)
+        .ok_or_else(|| UniversalResponse {
+            success: false,
+            result: None,
+            error: Some(format!("Provider '{provider_name}' not found in registry")),
+            metadata: None,
+        })?;
+
+    if !capabilities.supports_sleep() {
+        return Err(UniversalResponse {
+            success: false,
+            result: None,
+            error: Some(format!(
+                "Provider '{provider_name}' does not support sleep tracking."
+            )),
+            metadata: None,
+        });
+    }
+
+    // Get valid OAuth token for the provider
+    match executor
+        .auth_service
+        .get_valid_token(user_uuid, provider_name, tenant_id)
+        .await
+    {
+        Ok(Some(token_data)) => {
+            let provider = executor
+                .resources
+                .provider_registry
+                .create_provider(provider_name)
+                .map_err(|e| UniversalResponse {
+                    success: false,
+                    result: None,
+                    error: Some(format!("Failed to create provider '{provider_name}': {e}")),
+                    metadata: None,
+                })?;
+
+            let (client_id, client_secret) =
+                get_provider_oauth_config(&executor.resources.config, provider_name).ok_or_else(
+                    || UniversalResponse {
+                        success: false,
+                        result: None,
+                        error: Some(format!(
+                            "OAuth configuration missing for provider '{provider_name}'"
+                        )),
+                        metadata: None,
+                    },
+                )?;
+
+            let credentials = crate::providers::OAuth2Credentials {
+                client_id,
+                client_secret,
+                access_token: Some(token_data.access_token),
+                refresh_token: Some(token_data.refresh_token),
+                expires_at: Some(token_data.expires_at),
+                scopes: get_provider_default_scopes(provider_name),
+            };
+
+            provider
+                .set_credentials(credentials)
+                .await
+                .map_err(|e| UniversalResponse {
+                    success: false,
+                    result: None,
+                    error: Some(format!("Failed to set credentials: {e}")),
+                    metadata: None,
+                })?;
+
+            let end_date = Utc::now();
+            let start_date = end_date - Duration::days(i64::from(days));
+
+            let sessions = provider
+                .get_sleep_sessions(start_date, end_date)
+                .await
+                .map_err(|e| UniversalResponse {
+                    success: false,
+                    result: None,
+                    error: Some(format!("Failed to fetch sleep history: {e}")),
+                    metadata: None,
+                })?;
+
+            Ok(sessions.iter().map(convert_sleep_session_to_data).collect())
+        }
+        Ok(None) => Err(UniversalResponse {
+            success: false,
+            result: None,
+            error: Some(format!("No valid {provider_name} token found.")),
             metadata: None,
         }),
         Err(e) => Err(UniversalResponse {
@@ -85,18 +488,102 @@ async fn fetch_strava_activities(
     }
 }
 
+/// Select the best available activity provider for a user
+///
+/// Checks connected providers and returns the first one that supports activities.
+/// Priority order: strava > garmin > fitbit > whoop > terra
+async fn select_activity_provider(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    user_uuid: Uuid,
+    tenant_id: Option<&str>,
+) -> Option<String> {
+    // Activity provider priority (Strava is best for activities)
+    let priority = ["strava", "garmin", "fitbit", "whoop", "terra"];
+
+    for provider in priority {
+        if let Some(caps) = executor
+            .resources
+            .provider_registry
+            .get_capabilities(provider)
+        {
+            if caps.supports_activities() {
+                // Check if user has a valid token
+                if matches!(
+                    executor
+                        .auth_service
+                        .get_valid_token(user_uuid, provider, tenant_id)
+                        .await,
+                    Ok(Some(_))
+                ) {
+                    return Some(provider.to_owned());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Select the best available sleep provider for a user
+///
+/// Checks connected providers and returns the first one that supports sleep tracking.
+/// Priority order: whoop > garmin > fitbit > terra (Strava excluded - no sleep support)
+pub async fn select_sleep_provider(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    user_uuid: Uuid,
+    tenant_id: Option<&str>,
+) -> Option<String> {
+    // Sleep provider priority (WHOOP is best for recovery/sleep metrics)
+    let priority = ["whoop", "garmin", "fitbit", "terra"];
+
+    for provider in priority {
+        if let Some(caps) = executor
+            .resources
+            .provider_registry
+            .get_capabilities(provider)
+        {
+            if caps.supports_sleep() {
+                // Check if user has a valid token
+                if matches!(
+                    executor
+                        .auth_service
+                        .get_valid_token(user_uuid, provider, tenant_id)
+                        .await,
+                    Ok(Some(_))
+                ) {
+                    return Some(provider.to_owned());
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Handle `analyze_sleep_quality` tool - analyze sleep data from fitness providers
 ///
 /// Analyzes sleep duration, stages (deep/REM/light), efficiency, and generates quality score.
 ///
+/// Supports two modes:
+/// 1. **Provider mode**: Specify `sleep_provider` to auto-fetch data from connected provider
+/// 2. **Manual mode**: Provide `sleep_data` JSON directly (legacy/fallback)
+///
+/// # Parameters
+/// - `sleep_provider` (optional): Provider to fetch sleep data from (e.g., "whoop", "fitbit", "garmin")
+/// - `sleep_data` (optional): Manual sleep data JSON (used if `sleep_provider` not specified)
+/// - `recent_hrv_values` (optional): Array of recent HRV values for trend analysis
+/// - `baseline_hrv` (optional): User's baseline HRV for comparison
+///
 /// # Errors
 /// Returns `ProtocolError` if sleep data is missing or invalid
 #[must_use]
+// Long function: Protocol handler with async data fetching, HRV analysis, response formatting
+#[allow(clippy::too_many_lines)]
 pub fn handle_analyze_sleep_quality(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        use crate::utils::uuid::parse_user_id_for_protocol;
+
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
             if token.is_cancelled().await {
@@ -106,16 +593,40 @@ pub fn handle_analyze_sleep_quality(
             }
         }
 
-        // Extract sleep data from parameters
-        let sleep_data_json = request.parameters.get("sleep_data").ok_or_else(|| {
-            ProtocolError::InvalidRequest("sleep_data parameter is required".to_owned())
-        })?;
-
-        // Parse sleep data
-        let sleep_data: SleepData =
+        // Get sleep data from provider or manual input
+        let sleep_data: SleepData = if let Some(provider_name) = request
+            .parameters
+            .get("sleep_provider")
+            .and_then(serde_json::Value::as_str)
+        {
+            // Provider mode: fetch from connected provider
+            let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+            match fetch_provider_sleep_data(
+                executor,
+                user_uuid,
+                request.tenant_id.as_deref(),
+                provider_name,
+                1, // Most recent night
+            )
+            .await
+            {
+                Ok(data) => data,
+                Err(response) => return Ok(response),
+            }
+        } else if let Some(sleep_data_json) = request.parameters.get("sleep_data") {
+            // Manual mode: parse provided JSON
             serde_json::from_value(sleep_data_json.clone()).map_err(|e| {
                 ProtocolError::InvalidRequest(format!("Invalid sleep_data format: {e}"))
-            })?;
+            })?
+        } else {
+            // No data source specified
+            return Err(ProtocolError::InvalidRequest(
+                "Either 'sleep_provider' or 'sleep_data' parameter is required. \
+                 Use sleep_provider to auto-fetch from a connected provider (whoop, fitbit, garmin, terra), \
+                 or provide sleep_data JSON directly."
+                    .to_owned(),
+            ));
+        };
 
         // Get sleep/recovery config
         let config =
@@ -200,6 +711,21 @@ pub fn handle_analyze_sleep_quality(
 ///
 /// Combines Training Stress Balance (TSB), sleep quality, and HRV into overall recovery score.
 ///
+/// Supports cross-provider integration:
+/// - Use `activity_provider` to specify where to fetch training data (e.g., "strava", "garmin")
+/// - Use `sleep_provider` to specify where to fetch sleep/HRV data (e.g., "whoop", "fitbit")
+/// - Falls back to manual `sleep_data` JSON if no `sleep_provider` specified
+/// - Auto-selects best available provider if not specified
+///
+/// # Parameters
+/// - `activity_provider` (optional): Provider for activities (default: auto-select or strava)
+/// - `sleep_provider` (optional): Provider for sleep data (e.g., "whoop", "fitbit", "garmin")
+/// - `sleep_data` (optional): Manual sleep data JSON (fallback if no `sleep_provider`)
+/// - `user_config` (optional): User physiological parameters (FTP, LTHR, max HR, etc.)
+/// - `recent_hrv_values` (optional): Array of recent HRV values
+/// - `baseline_hrv` (optional): User's baseline HRV
+/// - `algorithm` (optional): Recovery aggregation algorithm to use
+///
 /// # Errors
 /// Returns `ProtocolError` if required data is missing or calculation fails
 #[must_use]
@@ -223,11 +749,26 @@ pub fn handle_calculate_recovery_score(
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Get valid token and fetch activities from provider
-        let activities = match fetch_strava_activities(
+        // Determine activity provider: explicit param > auto-select > strava fallback
+        let activity_provider = if let Some(provider) = request
+            .parameters
+            .get("activity_provider")
+            .and_then(serde_json::Value::as_str)
+        {
+            provider.to_owned()
+        } else {
+            // Auto-select best available activity provider
+            select_activity_provider(executor, user_uuid, request.tenant_id.as_deref())
+                .await
+                .unwrap_or_else(|| "strava".to_owned())
+        };
+
+        // Fetch activities from the selected provider
+        let activities = match fetch_provider_activities(
             executor,
             user_uuid,
             request.tenant_id.as_deref(),
+            &activity_provider,
         )
         .await
         {
@@ -266,15 +807,58 @@ pub fn handle_calculate_recovery_score(
                 ))
             })?;
 
-        // Get sleep quality data
-        let sleep_data_json = request.parameters.get("sleep_data").ok_or_else(|| {
-            ProtocolError::InvalidRequest("sleep_data parameter is required".to_owned())
-        })?;
-
-        let sleep_data: SleepData =
-            serde_json::from_value(sleep_data_json.clone()).map_err(|e| {
+        // Get sleep data: from provider or manual input
+        let (sleep_data, sleep_provider_used): (SleepData, Option<String>) = if let Some(
+            provider_name,
+        ) = request
+            .parameters
+            .get("sleep_provider")
+            .and_then(serde_json::Value::as_str)
+        {
+            // Fetch from specified sleep provider
+            match fetch_provider_sleep_data(
+                executor,
+                user_uuid,
+                request.tenant_id.as_deref(),
+                provider_name,
+                1,
+            )
+            .await
+            {
+                Ok(data) => (data, Some(provider_name.to_owned())),
+                Err(response) => return Ok(response),
+            }
+        } else if let Some(sleep_data_json) = request.parameters.get("sleep_data") {
+            // Manual sleep data provided
+            let data = serde_json::from_value(sleep_data_json.clone()).map_err(|e| {
                 ProtocolError::InvalidRequest(format!("Invalid sleep_data format: {e}"))
             })?;
+            (data, None)
+        } else {
+            // Try auto-selecting a sleep provider
+            if let Some(provider_name) =
+                select_sleep_provider(executor, user_uuid, request.tenant_id.as_deref()).await
+            {
+                match fetch_provider_sleep_data(
+                    executor,
+                    user_uuid,
+                    request.tenant_id.as_deref(),
+                    &provider_name,
+                    1,
+                )
+                .await
+                {
+                    Ok(data) => (data, Some(provider_name)),
+                    Err(response) => return Ok(response),
+                }
+            } else {
+                return Err(ProtocolError::InvalidRequest(
+                        "No sleep data available. Either specify 'sleep_provider' (whoop, fitbit, garmin, terra), \
+                         provide 'sleep_data' JSON, or connect a sleep-capable provider."
+                            .to_owned(),
+                    ));
+            }
+        };
 
         // Get sleep/recovery config
         let config =
@@ -359,6 +943,10 @@ pub fn handle_calculate_recovery_score(
                 },
                 "sleep_quality_score": sleep_quality.overall_score,
                 "hrv_status": hrv_analysis.as_ref().map(|h| &h.recovery_status),
+                "providers_used": {
+                    "activity_provider": activity_provider,
+                    "sleep_provider": sleep_provider_used,
+                },
             })),
             error: None,
             metadata: Some({
@@ -373,6 +961,16 @@ pub fn handle_calculate_recovery_score(
                         recovery_score.components.components_available,
                     )),
                 );
+                map.insert(
+                    "activity_provider".into(),
+                    serde_json::Value::String(activity_provider),
+                );
+                if let Some(ref provider) = sleep_provider_used {
+                    map.insert(
+                        "sleep_provider".into(),
+                        serde_json::Value::String(provider.clone()),
+                    );
+                }
                 map
             }),
         })
@@ -382,6 +980,17 @@ pub fn handle_calculate_recovery_score(
 /// Handle `suggest_rest_day` tool - AI-powered rest day recommendation
 ///
 /// Analyzes recovery score, training load, and sleep to recommend rest or training.
+///
+/// Supports cross-provider integration:
+/// - Use `activity_provider` to specify where to fetch training data
+/// - Use `sleep_provider` to specify where to fetch sleep/HRV data
+/// - Auto-selects best available providers if not specified
+///
+/// # Parameters
+/// - `activity_provider` (optional): Provider for activities (default: auto-select)
+/// - `sleep_provider` (optional): Provider for sleep data
+/// - `sleep_data` (optional): Manual sleep data JSON (fallback)
+/// - `user_config` (optional): User physiological parameters
 ///
 /// # Errors
 /// Returns `ProtocolError` if required data is missing or analysis fails
@@ -406,11 +1015,25 @@ pub fn handle_suggest_rest_day(
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Get recent activities from provider
-        let activities = match fetch_strava_activities(
+        // Determine activity provider
+        let activity_provider = if let Some(provider) = request
+            .parameters
+            .get("activity_provider")
+            .and_then(serde_json::Value::as_str)
+        {
+            provider.to_owned()
+        } else {
+            select_activity_provider(executor, user_uuid, request.tenant_id.as_deref())
+                .await
+                .unwrap_or_else(|| "strava".to_owned())
+        };
+
+        // Get recent activities from selected provider
+        let activities = match fetch_provider_activities(
             executor,
             user_uuid,
             request.tenant_id.as_deref(),
+            &activity_provider,
         )
         .await
         {
@@ -449,15 +1072,48 @@ pub fn handle_suggest_rest_day(
                 ))
             })?;
 
-        // Get sleep data
-        let sleep_data_json = request.parameters.get("sleep_data").ok_or_else(|| {
-            ProtocolError::InvalidRequest("sleep_data parameter is required".to_owned())
-        })?;
-
-        let sleep_data: SleepData =
+        // Get sleep data from provider or manual input
+        let sleep_data: SleepData = if let Some(provider_name) = request
+            .parameters
+            .get("sleep_provider")
+            .and_then(serde_json::Value::as_str)
+        {
+            match fetch_provider_sleep_data(
+                executor,
+                user_uuid,
+                request.tenant_id.as_deref(),
+                provider_name,
+                1,
+            )
+            .await
+            {
+                Ok(data) => data,
+                Err(response) => return Ok(response),
+            }
+        } else if let Some(sleep_data_json) = request.parameters.get("sleep_data") {
             serde_json::from_value(sleep_data_json.clone()).map_err(|e| {
                 ProtocolError::InvalidRequest(format!("Invalid sleep_data format: {e}"))
-            })?;
+            })?
+        } else if let Some(provider_name) =
+            select_sleep_provider(executor, user_uuid, request.tenant_id.as_deref()).await
+        {
+            match fetch_provider_sleep_data(
+                executor,
+                user_uuid,
+                request.tenant_id.as_deref(),
+                &provider_name,
+                1,
+            )
+            .await
+            {
+                Ok(data) => data,
+                Err(response) => return Ok(response),
+            }
+        } else {
+            return Err(ProtocolError::InvalidRequest(
+                "No sleep data available. Specify 'sleep_provider', provide 'sleep_data', or connect a sleep-capable provider.".to_owned(),
+            ));
+        };
 
         // Get sleep/recovery config
         let config =
@@ -591,6 +1247,15 @@ pub fn handle_suggest_rest_day(
 ///
 /// Correlates sleep quality with performance and training load.
 ///
+/// Supports two modes:
+/// 1. **Provider mode**: Specify `sleep_provider` and `days` to auto-fetch history
+/// 2. **Manual mode**: Provide `sleep_history` JSON array directly
+///
+/// # Parameters
+/// - `sleep_provider` (optional): Provider to fetch sleep history from
+/// - `days` (optional): Number of days of history to fetch (default: 14)
+/// - `sleep_history` (optional): Manual sleep history JSON array
+///
 /// # Errors
 /// Returns `ProtocolError` if data is insufficient or analysis fails
 #[must_use]
@@ -601,6 +1266,8 @@ pub fn handle_track_sleep_trends(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        use crate::utils::uuid::parse_user_id_for_protocol;
+
         // Check cancellation at start
         if let Some(token) = &request.cancellation_token {
             if token.is_cancelled().await {
@@ -610,15 +1277,74 @@ pub fn handle_track_sleep_trends(
             }
         }
 
-        // Get sleep history
-        let sleep_history_json = request.parameters.get("sleep_history").ok_or_else(|| {
-            ProtocolError::InvalidRequest("sleep_history parameter is required".to_owned())
-        })?;
+        // Get sleep history from provider or manual input
+        let sleep_history: Vec<SleepData> = if let Some(provider_name) = request
+            .parameters
+            .get("sleep_provider")
+            .and_then(serde_json::Value::as_str)
+        {
+            // Provider mode: fetch from connected provider
+            let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+            // Safe: days parameter is user input, clamped to u32::MAX (reasonable for date ranges)
+            #[allow(clippy::cast_possible_truncation)]
+            let days = request
+                .parameters
+                .get("days")
+                .and_then(serde_json::Value::as_u64)
+                .map_or(14, |d| d.min(u64::from(u32::MAX)) as u32);
 
-        let sleep_history: Vec<SleepData> = serde_json::from_value(sleep_history_json.clone())
-            .map_err(|e| {
+            match fetch_provider_sleep_history(
+                executor,
+                user_uuid,
+                request.tenant_id.as_deref(),
+                provider_name,
+                days,
+            )
+            .await
+            {
+                Ok(history) => history,
+                Err(response) => return Ok(response),
+            }
+        } else if let Some(sleep_history_json) = request.parameters.get("sleep_history") {
+            // Manual mode: parse provided JSON
+            serde_json::from_value(sleep_history_json.clone()).map_err(|e| {
                 ProtocolError::InvalidRequest(format!("Invalid sleep_history format: {e}"))
-            })?;
+            })?
+        } else {
+            // Try auto-selecting a sleep provider
+            let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+            if let Some(provider_name) =
+                select_sleep_provider(executor, user_uuid, request.tenant_id.as_deref()).await
+            {
+                // Safe: days parameter is user input, clamped to u32::MAX (reasonable for date ranges)
+                #[allow(clippy::cast_possible_truncation)]
+                let days = request
+                    .parameters
+                    .get("days")
+                    .and_then(serde_json::Value::as_u64)
+                    .map_or(14, |d| d.min(u64::from(u32::MAX)) as u32);
+
+                match fetch_provider_sleep_history(
+                    executor,
+                    user_uuid,
+                    request.tenant_id.as_deref(),
+                    &provider_name,
+                    days,
+                )
+                .await
+                {
+                    Ok(history) => history,
+                    Err(response) => return Ok(response),
+                }
+            } else {
+                return Err(ProtocolError::InvalidRequest(
+                    "Either 'sleep_provider' or 'sleep_history' parameter is required. \
+                     Use sleep_provider to auto-fetch from a connected provider, \
+                     or provide sleep_history JSON directly."
+                        .to_owned(),
+                ));
+            }
+        };
 
         let trend_min_days = executor.resources.config.sleep_recovery.trend_min_days;
         if sleep_history.len() < trend_min_days {
@@ -758,6 +1484,16 @@ pub fn handle_track_sleep_trends(
 ///
 /// Suggests sleep duration and timing based on upcoming workouts and recovery needs.
 ///
+/// Supports cross-provider integration:
+/// - Use `activity_provider` to specify where to fetch training load data
+/// - Auto-selects best available provider if not specified
+///
+/// # Parameters
+/// - `activity_provider` (optional): Provider for activities (default: auto-select)
+/// - `user_config` (optional): User physiological parameters
+/// - `upcoming_workout_intensity` (optional): "low", "moderate", or "high"
+/// - `typical_wake_time` (optional): Wake time in "HH:MM" format (default: "06:00")
+///
 /// # Errors
 /// Returns `ProtocolError` if required parameters are missing
 #[must_use]
@@ -772,11 +1508,25 @@ pub fn handle_optimize_sleep_schedule(
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Get recent activities for training load from provider
-        let activities = match fetch_strava_activities(
+        // Determine activity provider
+        let activity_provider = if let Some(provider) = request
+            .parameters
+            .get("activity_provider")
+            .and_then(serde_json::Value::as_str)
+        {
+            provider.to_owned()
+        } else {
+            select_activity_provider(executor, user_uuid, request.tenant_id.as_deref())
+                .await
+                .unwrap_or_else(|| "strava".to_owned())
+        };
+
+        // Get recent activities for training load from selected provider
+        let activities = match fetch_provider_activities(
             executor,
             user_uuid,
             request.tenant_id.as_deref(),
+            &activity_provider,
         )
         .await
         {

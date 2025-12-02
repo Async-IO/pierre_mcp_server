@@ -34,6 +34,12 @@ pub const WHOOP: &str = "whoop";
 #[cfg(feature = "provider-synthetic")]
 pub const SYNTHETIC: &str = "synthetic";
 
+/// Synthetic sleep provider identifier (for cross-provider testing)
+/// Used to simulate a second provider that provides sleep data while
+/// the primary synthetic provider provides activity data.
+#[cfg(feature = "provider-synthetic")]
+pub const SYNTHETIC_SLEEP: &str = "synthetic_sleep";
+
 /// Get statically-known OAuth providers
 ///
 /// **Deprecated**: Use `crate::providers::get_supported_providers()` instead,

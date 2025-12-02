@@ -15,6 +15,95 @@ This chapter covers how Pierre analyzes recovery metrics, sleep quality, trainin
 - Sleep stage tracking
 - Training load vs recovery balance
 - Fatigue indicators
+- Cross-provider data integration
+
+## Cross-Provider Support
+
+Pierre supports fetching activity data and sleep/recovery data from different providers. This enables scenarios where you use specialized devices for different purposes:
+
+**Example Configurations**:
+- **Strava + WHOOP**: Track runs with Strava's GPS accuracy, get recovery metrics from WHOOP's HRV monitoring
+- **Garmin + Fitbit**: Running metrics from Garmin, lifestyle/sleep tracking from Fitbit
+- **Any combination**: Mix and match based on your device ecosystem
+
+**How It Works**:
+
+When calling sleep/recovery tools, you can specify separate providers:
+```json
+{
+  "activity_provider": "strava",
+  "sleep_provider": "whoop"
+}
+```
+
+**Auto-Selection Priority**:
+- Activity providers: strava > garmin > fitbit > whoop > terra
+- Sleep providers: whoop > garmin > fitbit > terra
+
+The system automatically selects the best connected provider if not specified, prioritizing providers known for their specialty (e.g., WHOOP for recovery, Strava for activities).
+
+**Response Metadata**:
+
+All cross-provider responses include information about which providers were used:
+```json
+{
+  "recovery_score": { ... },
+  "providers_used": {
+    "activity_provider": "strava",
+    "sleep_provider": "whoop"
+  }
+}
+```
+
+### Intelligence Tools with Cross-Provider Support
+
+The following intelligence tools also support cross-provider analysis via the `sleep_provider` parameter:
+
+**`calculate_fitness_score`**: When `sleep_provider` is specified, recovery quality factors into the fitness score:
+```json
+{
+  "tool": "calculate_fitness_score",
+  "parameters": {
+    "provider": "strava",
+    "sleep_provider": "whoop",
+    "timeframe": "month"
+  }
+}
+```
+
+Recovery adjustment factors:
+| Recovery Score | Adjustment |
+|----------------|------------|
+| 90-100 (Excellent) | +5% bonus |
+| 70-89 (Good) | No change |
+| 50-69 (Moderate) | -5% penalty |
+| <50 (Poor) | -10% penalty |
+
+**`analyze_training_load`**: When `sleep_provider` is specified, adds recovery context to training load analysis:
+```json
+{
+  "tool": "analyze_training_load",
+  "parameters": {
+    "provider": "strava",
+    "sleep_provider": "whoop",
+    "timeframe": "week"
+  }
+}
+```
+
+Response includes recovery context:
+```json
+{
+  "training_load": { "ctl": 65, "atl": 80, "tsb": -15 },
+  "recovery_context": {
+    "sleep_quality_score": 78,
+    "recovery_status": "good",
+    "hrv_rmssd": 55.3,
+    "sleep_hours": 7.2,
+    "sleep_provider": "whoop"
+  }
+}
+```
 
 ## Recovery Score Calculation
 
