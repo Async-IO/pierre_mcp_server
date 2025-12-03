@@ -326,25 +326,27 @@ async fn test_sdk_user_registration_flow() -> Result<()> {
         pierre_mcp_server::models::UserStatus::Pending
     );
 
-    // Test 3: Login should fail for pending user
-    let login_request = pierre_mcp_server::routes::LoginRequest {
-        email: "sdk_test@example.com".to_owned(),
-        password: "TestPassword123".to_owned(),
-    };
-
-    let login_result = auth_routes
+    // Test 3: Login succeeds for pending user but returns pending status
+    // (Backend authenticates; frontend handles access control based on user_status)
+    let pending_login_response = auth_routes
         .login(pierre_mcp_server::routes::LoginRequest {
             email: "sdk_test@example.com".to_owned(),
             password: "TestPassword123".to_owned(),
         })
-        .await;
-    assert!(login_result.is_err());
-    assert!(login_result
-        .unwrap_err()
-        .to_string()
-        .contains("pending admin approval"));
+        .await?;
+    assert!(
+        pending_login_response
+            .jwt_token
+            .as_ref()
+            .is_some_and(|t| !t.is_empty()),
+        "JWT token should be present even for pending user"
+    );
+    assert_eq!(
+        pending_login_response.user.user_status, "pending",
+        "User status should be 'pending' so frontend can restrict access"
+    );
 
-    // Test 4: Approve user and retry login
+    // Test 4: Approve user and verify status changes to active
     database
         .update_user_status(
             user_id,
@@ -353,15 +355,24 @@ async fn test_sdk_user_registration_flow() -> Result<()> {
         )
         .await?;
 
-    let login_response = auth_routes.login(login_request).await?;
+    let active_login_response = auth_routes
+        .login(pierre_mcp_server::routes::LoginRequest {
+            email: "sdk_test@example.com".to_owned(),
+            password: "TestPassword123".to_owned(),
+        })
+        .await?;
     assert!(
-        login_response
+        active_login_response
             .jwt_token
             .as_ref()
             .is_some_and(|t| !t.is_empty()),
         "JWT token should be present and non-empty"
     );
-    assert_eq!(login_response.user.email, "sdk_test@example.com");
+    assert_eq!(active_login_response.user.email, "sdk_test@example.com");
+    assert_eq!(
+        active_login_response.user.user_status, "active",
+        "User status should be 'active' after approval"
+    );
 
     Ok(())
 }
