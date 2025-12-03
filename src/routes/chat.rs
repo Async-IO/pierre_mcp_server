@@ -65,7 +65,7 @@ struct ToolLoopResult {
 pub struct CreateConversationRequest {
     /// Conversation title
     pub title: String,
-    /// LLM model to use (optional, defaults to gemini-2.0-flash-exp)
+    /// LLM model to use (optional, defaults to gemini-2.5-flash)
     #[serde(default)]
     pub model: Option<String>,
     /// System prompt for the conversation (optional)
@@ -639,7 +639,7 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        let model = request.model.as_deref().unwrap_or("gemini-2.0-flash-exp");
+        let model = request.model.as_deref().unwrap_or("gemini-2.5-flash");
         let chat_manager = ChatManager::new(resources.database.pool().clone());
 
         let conv = chat_manager

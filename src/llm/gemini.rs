@@ -15,7 +15,8 @@
 //!
 //! ## Supported Models
 //!
-//! - `gemini-2.0-flash-exp` (default): Fast, efficient model
+//! - `gemini-2.5-flash` (default): Latest fast model with improved capabilities
+//! - `gemini-2.0-flash-exp`: Experimental fast model
 //! - `gemini-1.5-pro`: Advanced reasoning capabilities
 //! - `gemini-1.5-flash`: Balanced performance and cost
 //!
@@ -51,10 +52,11 @@ use crate::errors::AppError;
 const GEMINI_API_KEY_ENV: &str = "GEMINI_API_KEY";
 
 /// Default model to use
-const DEFAULT_MODEL: &str = "gemini-2.0-flash-exp";
+const DEFAULT_MODEL: &str = "gemini-2.5-flash";
 
 /// Available Gemini models
 const AVAILABLE_MODELS: &[&str] = &[
+    "gemini-2.5-flash",
     "gemini-2.0-flash-exp",
     "gemini-1.5-pro",
     "gemini-1.5-flash",
