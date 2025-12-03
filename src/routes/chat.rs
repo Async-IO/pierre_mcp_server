@@ -13,8 +13,12 @@ use crate::{
     database::ChatManager,
     database_plugins::DatabaseProvider,
     errors::AppError,
-    llm::{ChatMessage, ChatRequest, GeminiProvider, LlmProvider},
+    llm::{
+        get_pierre_system_prompt, ChatMessage, ChatRequest, FunctionCall, FunctionDeclaration,
+        FunctionResponse, GeminiProvider, LlmProvider, Tool,
+    },
     mcp::resources::ServerResources,
+    protocols::universal::{UniversalExecutor, UniversalRequest, UniversalResponse},
 };
 use axum::{
     extract::{Path, Query, State},
@@ -28,8 +32,29 @@ use axum::{
 };
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
-use std::{convert::Infallible, sync::Arc};
+use std::{borrow::Cow, convert::Infallible, sync::Arc};
 use tokio_stream::StreamExt;
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+/// Maximum number of tool call iterations before forcing a text response
+const MAX_TOOL_ITERATIONS: usize = 10;
+
+// ============================================================================
+// Internal Types
+// ============================================================================
+
+/// Result of running the multi-turn tool execution loop
+struct ToolLoopResult {
+    /// Final text content from LLM
+    content: String,
+    /// Token usage statistics if available
+    usage: Option<crate::llm::TokenUsage>,
+    /// Finish reason if available
+    finish_reason: Option<String>,
+}
 
 // ============================================================================
 // Request/Response Types
@@ -136,6 +161,13 @@ pub struct ChatCompletionResponse {
     pub assistant_message: MessageResponse,
     /// Conversation updated timestamp
     pub conversation_updated_at: String,
+}
+
+/// Response for messages list
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MessagesListResponse {
+    /// List of messages
+    pub messages: Vec<MessageResponse>,
 }
 
 /// Query parameters for listing conversations
@@ -259,6 +291,339 @@ impl ChatRoutes {
         }
 
         messages
+    }
+
+    /// Build connection-related tool definitions
+    fn build_connection_tools() -> Vec<FunctionDeclaration> {
+        vec![
+            FunctionDeclaration {
+                name: "get_connection_status".to_owned(),
+                description: "Check which fitness providers are connected".to_owned(),
+                parameters: Some(serde_json::json!({"type": "object", "properties": {}})),
+            },
+            FunctionDeclaration {
+                name: "connect_provider".to_owned(),
+                description: "Connect to a fitness provider via OAuth".to_owned(),
+                parameters: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": {"provider": {"type": "string"}},
+                    "required": ["provider"]
+                })),
+            },
+            FunctionDeclaration {
+                name: "disconnect_provider".to_owned(),
+                description: "Disconnect a fitness provider".to_owned(),
+                parameters: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": {"provider": {"type": "string"}},
+                    "required": ["provider"]
+                })),
+            },
+        ]
+    }
+
+    /// Build activity data tool definitions
+    fn build_activity_tools() -> Vec<FunctionDeclaration> {
+        vec![
+            FunctionDeclaration {
+                name: "get_activities".to_owned(),
+                description: "Get user's recent fitness activities".to_owned(),
+                parameters: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "provider": {"type": "string"},
+                        "limit": {"type": "integer"},
+                        "offset": {"type": "integer"}
+                    },
+                    "required": ["provider"]
+                })),
+            },
+            FunctionDeclaration {
+                name: "get_athlete".to_owned(),
+                description: "Get user's athlete profile information".to_owned(),
+                parameters: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": {"provider": {"type": "string"}},
+                    "required": ["provider"]
+                })),
+            },
+            FunctionDeclaration {
+                name: "get_stats".to_owned(),
+                description: "Get user's overall fitness statistics".to_owned(),
+                parameters: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": {"provider": {"type": "string"}},
+                    "required": ["provider"]
+                })),
+            },
+        ]
+    }
+
+    /// Build analysis tool definitions
+    fn build_analysis_tools() -> Vec<FunctionDeclaration> {
+        vec![
+            FunctionDeclaration {
+                name: "analyze_activity".to_owned(),
+                description: "Deep analysis of a specific activity".to_owned(),
+                parameters: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "provider": {"type": "string"},
+                        "activity_id": {"type": "string"}
+                    },
+                    "required": ["provider", "activity_id"]
+                })),
+            },
+            FunctionDeclaration {
+                name: "get_activity_intelligence".to_owned(),
+                description: "AI-powered insights including location and weather".to_owned(),
+                parameters: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "provider": {"type": "string"},
+                        "activity_id": {"type": "string"},
+                        "include_location": {"type": "boolean"},
+                        "include_weather": {"type": "boolean"}
+                    },
+                    "required": ["provider", "activity_id"]
+                })),
+            },
+            FunctionDeclaration {
+                name: "analyze_performance_trends".to_owned(),
+                description: "Analyze performance trends over time".to_owned(),
+                parameters: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "provider": {"type": "string"},
+                        "timeframe": {"type": "string"},
+                        "metric": {"type": "string"},
+                        "sport_type": {"type": "string"}
+                    },
+                    "required": ["provider", "timeframe", "metric"]
+                })),
+            },
+            FunctionDeclaration {
+                name: "compare_activities".to_owned(),
+                description: "Compare activity against similar or personal bests".to_owned(),
+                parameters: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "provider": {"type": "string"},
+                        "activity_id": {"type": "string"},
+                        "comparison_type": {"type": "string"}
+                    },
+                    "required": ["provider", "activity_id", "comparison_type"]
+                })),
+            },
+            FunctionDeclaration {
+                name: "calculate_fitness_score".to_owned(),
+                description: "Calculate comprehensive fitness score".to_owned(),
+                parameters: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "provider": {"type": "string"},
+                        "timeframe": {"type": "string"},
+                        "sleep_provider": {"type": "string"}
+                    },
+                    "required": ["provider"]
+                })),
+            },
+            FunctionDeclaration {
+                name: "analyze_training_load".to_owned(),
+                description: "Analyze training load and recovery needs".to_owned(),
+                parameters: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "provider": {"type": "string"},
+                        "timeframe": {"type": "string"},
+                        "sleep_provider": {"type": "string"}
+                    },
+                    "required": ["provider"]
+                })),
+            },
+        ]
+    }
+
+    /// Build recovery and recommendation tool definitions
+    fn build_recovery_tools() -> Vec<FunctionDeclaration> {
+        vec![
+            FunctionDeclaration {
+                name: "suggest_rest_day".to_owned(),
+                description: "AI recommendation for rest day".to_owned(),
+                parameters: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "activity_provider": {"type": "string"},
+                        "sleep_provider": {"type": "string"}
+                    }
+                })),
+            },
+            FunctionDeclaration {
+                name: "generate_recommendations".to_owned(),
+                description: "Get personalized training recommendations".to_owned(),
+                parameters: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "provider": {"type": "string"},
+                        "recommendation_type": {"type": "string"},
+                        "activity_id": {"type": "string"}
+                    },
+                    "required": ["provider"]
+                })),
+            },
+        ]
+    }
+
+    /// Build Gemini tool definitions from MCP tool registry
+    fn build_mcp_tools() -> Tool {
+        let mut declarations = Vec::with_capacity(14);
+        declarations.extend(Self::build_connection_tools());
+        declarations.extend(Self::build_activity_tools());
+        declarations.extend(Self::build_analysis_tools());
+        declarations.extend(Self::build_recovery_tools());
+        Tool {
+            function_declarations: declarations,
+        }
+    }
+
+    /// Run the multi-turn tool execution loop with Gemini
+    ///
+    /// # Errors
+    ///
+    /// Returns error if LLM call fails or tool execution fails.
+    async fn run_tool_loop(
+        provider: &GeminiProvider,
+        executor: &UniversalExecutor,
+        llm_messages: &mut Vec<ChatMessage>,
+        tools: &Tool,
+        model: &str,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> Result<ToolLoopResult, AppError> {
+        for iteration in 0..MAX_TOOL_ITERATIONS {
+            let llm_request = ChatRequest::new(llm_messages.clone()).with_model(model);
+            let response = provider
+                .complete_with_tools(&llm_request, Some(vec![tools.clone()]))
+                .await?;
+
+            // Check for function calls
+            if let Some(ref function_calls) = response.function_calls {
+                if !function_calls.is_empty() {
+                    tracing::info!(
+                        "Iteration {}: Executing {} tool calls",
+                        iteration,
+                        function_calls.len()
+                    );
+
+                    let function_responses =
+                        Self::execute_function_calls(executor, function_calls, user_id, tenant_id)
+                            .await?;
+
+                    // Add assistant's text to messages if present
+                    if let Some(ref text) = response.content {
+                        if !text.is_empty() {
+                            llm_messages.push(ChatMessage::assistant(text));
+                        }
+                    }
+
+                    // Add function responses as user messages
+                    Self::add_function_responses_to_messages(llm_messages, &function_responses);
+                    continue;
+                }
+            }
+
+            // No function calls - we have a text response
+            return Ok(ToolLoopResult {
+                content: response.content.unwrap_or_default(),
+                usage: response.usage,
+                finish_reason: response.finish_reason,
+            });
+        }
+
+        // Max iterations reached - return empty response
+        Ok(ToolLoopResult {
+            content: String::new(),
+            usage: None,
+            finish_reason: Some("max_iterations".to_owned()),
+        })
+    }
+
+    /// Execute a batch of function calls and return responses
+    async fn execute_function_calls(
+        executor: &UniversalExecutor,
+        function_calls: &[FunctionCall],
+        user_id: &str,
+        tenant_id: &str,
+    ) -> Result<Vec<FunctionResponse>, AppError> {
+        let mut responses = Vec::with_capacity(function_calls.len());
+        for function_call in function_calls {
+            tracing::info!("Executing tool: {}", function_call.name);
+            let tool_response =
+                Self::execute_mcp_tool(executor, function_call, user_id, tenant_id).await?;
+            responses.push(Self::build_function_response(function_call, &tool_response));
+        }
+        Ok(responses)
+    }
+
+    /// Add function responses as user messages for next LLM iteration
+    fn add_function_responses_to_messages(
+        llm_messages: &mut Vec<ChatMessage>,
+        function_responses: &[FunctionResponse],
+    ) {
+        for func_response in function_responses {
+            let response_text =
+                serde_json::to_string(&func_response.response).unwrap_or_else(|_| "{}".to_owned());
+            llm_messages.push(ChatMessage::user(format!(
+                "[Tool Result for {}]: {}",
+                func_response.name, response_text
+            )));
+        }
+    }
+
+    /// Execute an MCP tool call and return the result
+    async fn execute_mcp_tool(
+        executor: &UniversalExecutor,
+        function_call: &FunctionCall,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> Result<UniversalResponse, AppError> {
+        let request = UniversalRequest {
+            tool_name: function_call.name.clone(), // Ownership transfer for tool execution
+            parameters: function_call.args.clone(), // Ownership transfer for parameters
+            user_id: user_id.to_owned(),
+            protocol: "chat".to_owned(),
+            tenant_id: Some(tenant_id.to_owned()),
+            progress_token: None,
+            cancellation_token: None,
+            progress_reporter: None,
+        };
+
+        executor
+            .execute_tool(request)
+            .await
+            .map_err(|e| AppError::internal(format!("Tool execution failed: {e}")))
+    }
+
+    /// Build function response for Gemini from MCP tool response
+    fn build_function_response(
+        function_call: &FunctionCall,
+        response: &UniversalResponse,
+    ) -> FunctionResponse {
+        let result_value = if response.success {
+            response
+                .result
+                .clone() // Clone needed: returning owned data from reference
+                .unwrap_or_else(|| serde_json::json!({"status": "success"}))
+        } else {
+            serde_json::json!({
+                "error": response.error.as_deref().unwrap_or("Unknown error")
+            })
+        };
+
+        FunctionResponse {
+            name: function_call.name.clone(), // Clone needed: creating new struct from reference
+            response: result_value,
+        }
     }
 
     // ========================================================================
@@ -442,7 +807,7 @@ impl ChatRoutes {
 
         let messages = chat_manager.get_messages(&conversation_id).await?;
 
-        let response: Vec<MessageResponse> = messages
+        let messages_list: Vec<MessageResponse> = messages
             .into_iter()
             .map(|m| MessageResponse {
                 id: m.id,
@@ -453,10 +818,14 @@ impl ChatRoutes {
             })
             .collect();
 
+        let response = MessagesListResponse {
+            messages: messages_list,
+        };
+
         Ok((StatusCode::OK, Json(response)).into_response())
     }
 
-    /// Send a message and get a response (non-streaming)
+    /// Send a message and get a response (non-streaming) with MCP tool execution
     async fn send_message(
         State(resources): State<Arc<ServerResources>>,
         headers: axum::http::HeaderMap,
@@ -485,26 +854,46 @@ impl ChatRoutes {
             )
             .await?;
 
-        // Get conversation history and build LLM messages
+        // Get conversation history and build LLM messages with Pierre system prompt
         let history = chat_manager.get_messages(&conversation_id).await?;
-        let llm_messages = Self::build_llm_messages(conv.system_prompt.as_deref(), &history);
+        let system_prompt: Cow<'_, str> = conv.system_prompt.as_ref().map_or_else(
+            || Cow::Borrowed(get_pierre_system_prompt()),
+            |s| Cow::Borrowed(s.as_str()),
+        );
+        let mut llm_messages = Self::build_llm_messages(Some(&system_prompt), &history);
 
-        // Get LLM response
+        // Build MCP tools for function calling
+        let tools = Self::build_mcp_tools();
+
+        // Get LLM provider
         let provider = Self::get_llm_provider()?;
-        let llm_request = ChatRequest::new(llm_messages).with_model(&conv.model);
-        let llm_response = provider.complete(&llm_request).await?;
+
+        // Create MCP executor for tool calls
+        let executor = UniversalExecutor::new(resources.clone()); // Arc clone for executor creation
+
+        // Run multi-turn tool execution loop
+        let result = Self::run_tool_loop(
+            &provider,
+            &executor,
+            &mut llm_messages,
+            &tools,
+            &conv.model,
+            &auth.user_id.to_string(),
+            &tenant_id,
+        )
+        .await?;
 
         // Calculate token count from usage
-        let token_count = llm_response.usage.map(|u| u.completion_tokens);
+        let token_count = result.usage.map(|u| u.completion_tokens);
 
         // Save assistant response
         let assistant_msg = chat_manager
             .add_message(
                 &conversation_id,
                 crate::llm::MessageRole::Assistant,
-                &llm_response.content,
+                &result.content,
                 token_count,
-                llm_response.finish_reason.as_deref(),
+                result.finish_reason.as_deref(),
             )
             .await?;
 

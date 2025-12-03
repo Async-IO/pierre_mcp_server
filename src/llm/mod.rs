@@ -36,8 +36,13 @@
 //! ```
 
 mod gemini;
+pub mod prompts;
 
-pub use gemini::GeminiProvider;
+pub use gemini::{
+    ChatResponseWithTools, FunctionCall, FunctionDeclaration, FunctionResponse, GeminiProvider,
+    Tool,
+};
+pub use prompts::get_pierre_system_prompt;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};

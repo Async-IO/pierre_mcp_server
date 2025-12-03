@@ -98,6 +98,8 @@ pub type OAuthRoutes = OAuthService;
 // Re-export new route handlers
 /// API key route handlers
 pub use api_keys::ApiKeyRoutes;
+/// Chat conversation route handlers
+pub use chat::ChatRoutes;
 /// Configuration route handlers
 pub use configuration::ConfigurationRoutes;
 /// Dashboard route handlers

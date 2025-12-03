@@ -76,6 +76,8 @@ struct GeminiRequest {
     system_instruction: Option<GeminiContent>,
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_config: Option<GenerationConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<Tool>>,
 }
 
 /// Content structure for Gemini API
@@ -86,10 +88,90 @@ struct GeminiContent {
     parts: Vec<ContentPart>,
 }
 
-/// Part of content (text, image, etc.)
-#[derive(Debug, Serialize, Deserialize)]
-struct ContentPart {
-    text: String,
+/// Part of content (text, function call, or function response)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ContentPart {
+    /// Text content
+    Text { text: String },
+    /// Function call from the model
+    FunctionCall {
+        #[serde(rename = "functionCall")]
+        function_call: FunctionCall,
+    },
+    /// Function response from the user
+    FunctionResponse {
+        #[serde(rename = "functionResponse")]
+        function_response: FunctionResponse,
+    },
+}
+
+/// Function call made by the model
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionCall {
+    /// Name of the function to call
+    pub name: String,
+    /// Arguments for the function as JSON object
+    pub args: serde_json::Value,
+}
+
+/// Response to a function call
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionResponse {
+    /// Name of the function that was called
+    pub name: String,
+    /// Response content from the function
+    pub response: serde_json::Value,
+}
+
+/// Function declaration for tool definitions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionDeclaration {
+    /// Name of the function
+    pub name: String,
+    /// Description of what the function does
+    pub description: String,
+    /// Parameters schema (JSON Schema format)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameters: Option<serde_json::Value>,
+}
+
+/// Tool definition for Gemini API
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Tool {
+    /// Function declarations for this tool
+    pub function_declarations: Vec<FunctionDeclaration>,
+}
+
+/// Response from a chat completion that may contain function calls
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatResponseWithTools {
+    /// Generated message content (None if function calls present)
+    pub content: Option<String>,
+    /// Function calls requested by the model
+    pub function_calls: Option<Vec<FunctionCall>>,
+    /// Model used for generation
+    pub model: String,
+    /// Token usage statistics
+    pub usage: Option<super::TokenUsage>,
+    /// Finish reason (stop, length, etc.)
+    pub finish_reason: Option<String>,
+}
+
+impl ChatResponseWithTools {
+    /// Check if this response contains function calls
+    #[must_use]
+    pub fn has_function_calls(&self) -> bool {
+        self.function_calls
+            .as_ref()
+            .is_some_and(|calls| !calls.is_empty())
+    }
+
+    /// Get the text content if present
+    #[must_use]
+    pub fn text(&self) -> Option<&str> {
+        self.content.as_deref()
+    }
 }
 
 /// Generation configuration
@@ -184,6 +266,117 @@ impl GeminiProvider {
         self
     }
 
+    /// Complete a chat request with function calling support
+    ///
+    /// This method allows passing tool definitions to Gemini, enabling the model
+    /// to respond with function calls that should be executed.
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - The chat request with messages
+    /// * `tools` - Optional tool definitions for function calling
+    ///
+    /// # Returns
+    ///
+    /// Returns a `ChatResponseWithTools` which may contain either text content
+    /// or function calls to execute.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AppError` if the HTTP request fails or if the API returns an error response.
+    #[instrument(skip(self, request, tools), fields(model = %request.model.as_deref().unwrap_or(DEFAULT_MODEL)))]
+    pub async fn complete_with_tools(
+        &self,
+        request: &ChatRequest,
+        tools: Option<Vec<Tool>>,
+    ) -> Result<ChatResponseWithTools, AppError> {
+        let model = request.model.as_deref().unwrap_or(&self.default_model);
+        let url = self.build_url(model, "generateContent");
+
+        let gemini_request = Self::build_gemini_request(request, tools);
+
+        debug!("Sending request with tools to Gemini API");
+
+        let response = self
+            .client
+            .post(&url)
+            .json(&gemini_request)
+            .send()
+            .await
+            .map_err(|e| AppError::internal(format!("HTTP request failed: {e}")))?;
+
+        let status = response.status();
+        let response_text = response
+            .text()
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to read response: {e}")))?;
+
+        if !status.is_success() {
+            error!(status = %status, "Gemini API error");
+            return Err(AppError::internal(format!(
+                "Gemini API error ({status}): {response_text}"
+            )));
+        }
+
+        let gemini_response: GeminiResponse =
+            serde_json::from_str(&response_text).map_err(|e| {
+                error!(error = %e, response = %response_text, "Failed to parse response");
+                AppError::internal(format!("Failed to parse Gemini response: {e}"))
+            })?;
+
+        if let Some(error) = gemini_response.error {
+            return Err(AppError::internal(format!(
+                "Gemini API error: {}",
+                error.message
+            )));
+        }
+
+        // Check for function calls first
+        let function_calls = Self::extract_function_calls(&gemini_response);
+        if !function_calls.is_empty() {
+            debug!(
+                count = function_calls.len(),
+                "Extracted function calls from response"
+            );
+            return Ok(ChatResponseWithTools {
+                content: None,
+                function_calls: Some(function_calls),
+                model: model.to_owned(),
+                usage: gemini_response
+                    .usage_metadata
+                    .as_ref()
+                    .map(Self::convert_usage),
+                finish_reason: gemini_response
+                    .candidates
+                    .as_ref()
+                    .and_then(|c| c.first())
+                    .and_then(|c| c.finish_reason.clone()),
+            });
+        }
+
+        // Otherwise extract text content
+        let content = Self::extract_content(&gemini_response)?;
+        let usage = gemini_response
+            .usage_metadata
+            .as_ref()
+            .map(Self::convert_usage);
+        let finish_reason = gemini_response
+            .candidates
+            .as_ref()
+            .and_then(|c| c.first())
+            .and_then(|c| c.finish_reason.clone());
+
+        debug!("Successfully received text response from Gemini");
+
+        Ok(ChatResponseWithTools {
+            content: Some(content),
+            function_calls: None,
+            model: model.to_owned(),
+            usage,
+            finish_reason,
+        })
+    }
+
     /// Convert our message role to Gemini's role format
     ///
     /// Note: System messages are handled separately via `system_instruction` field,
@@ -213,14 +406,14 @@ impl GeminiProvider {
                 // Gemini uses separate system_instruction field
                 system_instruction = Some(GeminiContent {
                     role: None,
-                    parts: vec![ContentPart {
+                    parts: vec![ContentPart::Text {
                         text: message.content.clone(),
                     }],
                 });
             } else {
                 contents.push(GeminiContent {
                     role: Some(Self::convert_role(message.role).to_owned()),
-                    parts: vec![ContentPart {
+                    parts: vec![ContentPart::Text {
                         text: message.content.clone(),
                     }],
                 });
@@ -231,7 +424,7 @@ impl GeminiProvider {
     }
 
     /// Build a Gemini API request from a `ChatRequest`
-    fn build_gemini_request(request: &ChatRequest) -> GeminiRequest {
+    fn build_gemini_request(request: &ChatRequest, tools: Option<Vec<Tool>>) -> GeminiRequest {
         let (contents, system_instruction) = Self::convert_messages(&request.messages);
 
         let generation_config = if request.temperature.is_some() || request.max_tokens.is_some() {
@@ -248,19 +441,56 @@ impl GeminiProvider {
             contents,
             system_instruction,
             generation_config,
+            tools,
         }
     }
 
     /// Extract text content from Gemini response
     fn extract_content(response: &GeminiResponse) -> Result<String, AppError> {
-        response
+        let part = response
             .candidates
             .as_ref()
             .and_then(|c| c.first())
             .and_then(|c| c.content.as_ref())
             .and_then(|c| c.parts.first())
-            .map(|p| p.text.clone())
-            .ok_or_else(|| AppError::internal("No content in Gemini response"))
+            .ok_or_else(|| AppError::internal("No content in Gemini response"))?;
+
+        match part {
+            ContentPart::Text { text } => Ok(text.clone()),
+            ContentPart::FunctionCall { function_call } => {
+                // If the model wants to call a function, return a JSON representation
+                // The caller should check for function calls using extract_function_calls
+                Ok(format!(
+                    "{{\"function_call\": {{\"name\": \"{}\", \"args\": {}}}}}",
+                    function_call.name, function_call.args
+                ))
+            }
+            ContentPart::FunctionResponse { .. } => Err(AppError::internal(
+                "Unexpected function response in model output",
+            )),
+        }
+    }
+
+    /// Extract function calls from Gemini response if present
+    fn extract_function_calls(response: &GeminiResponse) -> Vec<FunctionCall> {
+        response
+            .candidates
+            .as_ref()
+            .and_then(|c| c.first())
+            .and_then(|c| c.content.as_ref())
+            .map(|c| {
+                c.parts
+                    .iter()
+                    .filter_map(|p| {
+                        if let ContentPart::FunctionCall { function_call } = p {
+                            Some(function_call.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// Convert usage metadata to our token usage format
@@ -300,7 +530,7 @@ impl LlmProvider for GeminiProvider {
         let model = request.model.as_deref().unwrap_or(&self.default_model);
         let url = self.build_url(model, "generateContent");
 
-        let gemini_request = Self::build_gemini_request(request);
+        let gemini_request = Self::build_gemini_request(request, None);
 
         debug!("Sending request to Gemini API");
 
@@ -364,7 +594,7 @@ impl LlmProvider for GeminiProvider {
         let model = request.model.as_deref().unwrap_or(&self.default_model);
         let url = self.build_url(model, "streamGenerateContent");
 
-        let gemini_request = Self::build_gemini_request(request);
+        let gemini_request = Self::build_gemini_request(request, None);
 
         debug!("Starting streaming request to Gemini API");
 
@@ -414,8 +644,24 @@ impl LlmProvider for GeminiProvider {
                                                         .as_ref()
                                                         .is_some_and(|r| r == "STOP");
 
+                                                    // Extract text from ContentPart enum
+                                                    let delta = match part {
+                                                        ContentPart::Text { text } => text.clone(),
+                                                        ContentPart::FunctionCall { function_call } => {
+                                                            // Serialize function call for streaming
+                                                            format!(
+                                                                "{{\"function_call\": {{\"name\": \"{}\", \"args\": {}}}}}",
+                                                                function_call.name,
+                                                                function_call.args
+                                                            )
+                                                        }
+                                                        ContentPart::FunctionResponse { .. } => {
+                                                            continue;
+                                                        }
+                                                    };
+
                                                     return Some(Ok(StreamChunk {
-                                                        delta: part.text.clone(),
+                                                        delta,
                                                         is_final,
                                                         finish_reason: candidate
                                                             .finish_reason
