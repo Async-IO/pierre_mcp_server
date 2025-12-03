@@ -537,7 +537,7 @@ if [ -d "sdk" ]; then
     if [ ! -d "node_modules" ]; then
         echo -e "${BLUE}Installing SDK dependencies...${NC}"
         if command_exists npm; then
-            npm install
+            bun install --frozen-lockfile
         else
             echo -e "${RED}[FAIL] npm not found. Install Node.js to build SDK${NC}"
             ALL_PASSED=false
@@ -547,7 +547,7 @@ if [ -d "sdk" ]; then
 
     # Build TypeScript to JavaScript
     echo -e "${BLUE}Compiling TypeScript...${NC}"
-    npm run build
+    bun run build
 
     # Verify build output
     if [ -f "dist/cli.js" ]; then
@@ -624,7 +624,7 @@ if [ -d "frontend" ]; then
     # Check dependencies
     if [ ! -d "node_modules" ] || [ ! -f "node_modules/.package-lock.json" ]; then
         echo -e "${YELLOW}Installing frontend dependencies...${NC}"
-        npm install || {
+        bun install --frozen-lockfile || {
             echo -e "${RED}[FAIL] Frontend dependency installation failed${NC}"
             ALL_PASSED=false
             cd ..
@@ -633,7 +633,7 @@ if [ -d "frontend" ]; then
 
     if [ -d "node_modules" ]; then
         # Lint
-        if npm run lint; then
+        if bun run lint; then
             echo -e "${GREEN}[OK] Frontend linting passed${NC}"
         else
             echo -e "${RED}[FAIL] Frontend linting failed${NC}"
@@ -641,7 +641,7 @@ if [ -d "frontend" ]; then
         fi
 
         # Type check
-        if npm run type-check; then
+        if bun run type-check; then
             echo -e "${GREEN}[OK] TypeScript type checking passed${NC}"
         else
             echo -e "${RED}[FAIL] TypeScript type checking failed${NC}"
@@ -663,7 +663,7 @@ if [ -d "frontend" ]; then
             if ! npx playwright install --with-deps chromium 2>/dev/null; then
                 echo -e "${YELLOW}[WARN] Playwright browser installation failed, attempting tests anyway${NC}"
             fi
-            if npm run test:e2e; then
+            if bun run test:e2e; then
                 echo -e "${GREEN}[OK] Frontend E2E tests passed${NC}"
             else
                 echo -e "${RED}[FAIL] Frontend E2E tests failed${NC}"
@@ -674,7 +674,7 @@ if [ -d "frontend" ]; then
         fi
 
         # Build
-        if npm run build; then
+        if bun run build; then
             echo -e "${GREEN}[OK] Frontend build successful${NC}"
         else
             echo -e "${RED}[FAIL] Frontend build failed${NC}"
@@ -731,13 +731,13 @@ if [ -f "package.json" ] && grep -q "generate-types" package.json; then
 
     # Always validate types can be generated (but don't fail if server isn't running)
     if [ "$NEED_GENERATION" = true ]; then
-        echo -e "${YELLOW}[WARN] SDK types are placeholder - run 'cd sdk && npm run generate-types' with server running${NC}"
+        echo -e "${YELLOW}[WARN] SDK types are placeholder - run 'cd sdk && bun run generate-types' with server running${NC}"
         echo -e "${YELLOW}[WARN] Skipping type generation in CI - types should be committed${NC}"
     fi
 
     # Validate TypeScript compilation regardless
     if [ -d "node_modules" ]; then
-        if npm run build --if-present >/dev/null 2>&1; then
+        if bun run build --if-present >/dev/null 2>&1; then
             echo -e "${GREEN}[OK] SDK TypeScript compilation successful${NC}"
         else
             echo -e "${RED}[FAIL] SDK TypeScript compilation failed${NC}"
@@ -746,15 +746,15 @@ if [ -f "package.json" ] && grep -q "generate-types" package.json; then
 
         # Run SDK integration tests for all 45 tools
         echo -e "${BLUE}Running SDK integration tests...${NC}"
-        if npm run test:integration -- --testPathPattern=all-tools --silent; then
+        if bun run test:integration -- --testPathPattern=all-tools --silent; then
             echo -e "${GREEN}[OK] SDK integration tests passed (45 tools validated)${NC}"
         else
             echo -e "${RED}[FAIL] SDK integration tests failed${NC}"
-            echo -e "${YELLOW}[INFO] Run 'cd sdk && npm run test:integration -- --testPathPattern=all-tools' for details${NC}"
+            echo -e "${YELLOW}[INFO] Run 'cd sdk && bun run test:integration -- --testPathPattern=all-tools' for details${NC}"
             ALL_PASSED=false
         fi
     else
-        echo -e "${RED}[CRITICAL] SDK dependencies not installed - run 'cd sdk && npm install'${NC}"
+        echo -e "${RED}[CRITICAL] SDK dependencies not installed - run 'cd sdk && bun install --frozen-lockfile'${NC}"
         ALL_PASSED=false
         # Continue to final validation
     fi

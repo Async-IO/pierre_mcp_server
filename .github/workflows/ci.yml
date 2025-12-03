@@ -132,18 +132,16 @@ jobs:
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
 
-      - name: Setup Node.js (for SDK build)
-        uses: actions/setup-node@v4
+      - name: Setup Bun (for SDK build)
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: sdk/package-lock.json
+          bun-version: latest
 
       - name: Build MCP SDK (required for E2E tests)
         working-directory: sdk
         run: |
-          npm ci
-          npm run build
+          bun install --frozen-lockfile
+          bun run build
 
       - name: Run all backend tests (SQLite)
         # Tests marked with #[serial] (concurrent/stress tests) run in isolation
@@ -227,18 +225,16 @@ jobs:
           echo "🔧 Testing PostgreSQL connection..."
           PGPASSWORD=ci_test_password psql -h localhost -U pierre -d pierre_mcp_server -c "SELECT version();"
 
-      - name: Setup Node.js (for SDK build)
-        uses: actions/setup-node@v4
+      - name: Setup Bun (for SDK build)
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: sdk/package-lock.json
+          bun-version: latest
 
       - name: Build MCP SDK (required for E2E tests)
         working-directory: sdk
         run: |
-          npm ci
-          npm run build
+          bun install --frozen-lockfile
+          bun run build
 
       - name: Clean Rust build cache to prevent disk exhaustion
         run: |
@@ -404,18 +400,16 @@ jobs:
             ${{ runner.os }}-cargo-release-1.91.0-
             ${{ runner.os }}-cargo-
 
-      - name: Setup Node.js (for SDK build)
-        uses: actions/setup-node@v4
+      - name: Setup Bun (for SDK build)
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: sdk/package-lock.json
+          bun-version: latest
 
       - name: Build MCP SDK (required for E2E tests)
         working-directory: sdk
         run: |
-          npm ci
-          npm run build
+          bun install --frozen-lockfile
+          bun run build
 
       - name: Build release binary
         run: cargo build --release --verbose

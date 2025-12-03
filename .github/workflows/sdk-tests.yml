@@ -15,12 +15,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: sdk/package-lock.json
+          bun-version: latest
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.91.0
@@ -40,15 +38,15 @@ jobs:
 
       - name: Install SDK dependencies
         working-directory: sdk
-        run: npm ci --prefer-offline
+        run: bun install --frozen-lockfile
 
       - name: Build SDK bridge
         working-directory: sdk
-        run: npm run build
+        run: bun run build
 
       - name: Run SDK unit tests
         working-directory: sdk
-        run: npm run test:unit
+        run: bun run test:unit
 
       - name: Build Pierre server (debug, for integration tests)
         run: cargo build
@@ -63,7 +61,7 @@ jobs:
             curl -s http://localhost:8081/health > /dev/null 2>&1 && break
             sleep 1
           done
-          cd sdk && npm run generate-types || true
+          cd sdk && bun run generate-types || true
           kill $SERVER_PID 2>/dev/null || true
         env:
           DATABASE_URL: "sqlite::memory:"
@@ -76,7 +74,7 @@ jobs:
 
       - name: Run SDK integration tests
         working-directory: sdk
-        run: npm run test:integration -- --forceExit
+        run: bun run test:integration
         env:
           DATABASE_URL: "sqlite::memory:"
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
@@ -87,7 +85,7 @@ jobs:
 
       - name: Run SDK E2E tests
         working-directory: sdk
-        run: npm run test:e2e -- --forceExit
+        run: bun run test:e2e
         env:
           DATABASE_URL: "sqlite::memory:"
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="

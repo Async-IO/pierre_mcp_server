@@ -33,13 +33,13 @@ ALL_TESTS_PASSED=true
 cd "$PROJECT_ROOT/sdk"
 
 echo ""
-# Only run npm install if node_modules doesn't exist
+# Only run bun install if node_modules doesn't exist
 if [ ! -d "node_modules" ]; then
     echo -e "${BLUE}==== Installing Dependencies ====${NC}"
-    if npm install; then
+    if bun install --frozen-lockfile; then
         echo -e "${GREEN}[OK] Dependencies installed${NC}"
     else
-        echo -e "${RED}[FAIL] npm install failed${NC}"
+        echo -e "${RED}[FAIL] bun install failed${NC}"
         exit 1
     fi
 else
@@ -48,7 +48,7 @@ fi
 
 echo ""
 echo -e "${BLUE}==== Building Bridge ====${NC}"
-if npm run build; then
+if bun run build; then
     echo -e "${GREEN}[OK] Bridge built successfully${NC}"
 else
     echo -e "${RED}[FAIL] Bridge build failed${NC}"
@@ -57,7 +57,7 @@ fi
 
 echo ""
 echo -e "${BLUE}==== Running Unit Tests (Fast, No Server Required) ====${NC}"
-if npm run test:unit; then
+if bun run test:unit; then
     echo -e "${GREEN}[OK] Unit tests passed${NC}"
 else
     echo -e "${RED}[FAIL] Unit tests failed${NC}"
@@ -66,7 +66,7 @@ fi
 
 echo ""
 echo -e "${BLUE}==== Running Integration Tests (Requires Pierre Server) ====${NC}"
-if npm run test:integration -- --forceExit; then
+if bun run test:integration; then
     echo -e "${GREEN}[OK] Integration tests passed${NC}"
 else
     echo -e "${RED}[FAIL] Integration tests failed${NC}"
@@ -75,7 +75,7 @@ fi
 
 echo ""
 echo -e "${BLUE}==== Running E2E Tests (Full MCP Client Simulation) ====${NC}"
-if npm run test:e2e -- --forceExit; then
+if bun run test:e2e; then
     echo -e "${GREEN}[OK] E2E tests passed${NC}"
 else
     echo -e "${RED}[FAIL] E2E tests failed${NC}"

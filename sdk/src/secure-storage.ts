@@ -4,8 +4,8 @@
 // ABOUTME: Secure token storage using OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service)
 // ABOUTME: Provides encrypted storage for OAuth tokens with automatic migration from plaintext files
 
-// NOTE: keytar is lazy-loaded to prevent D-Bus hangs in Linux CI environments
-// import * as keytar from 'keytar';  // Moved to lazy loading in createSecureStorage()
+// NOTE: @napi-rs/keyring is lazy-loaded to prevent D-Bus hangs in Linux CI environments
+// Uses Rust-based keyring-rs bindings (replaces deprecated node-keytar)
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { homedir, networkInterfaces } from 'os';
@@ -41,25 +41,21 @@ export interface SecureTokenStorage {
 
 /**
  * OS Keychain-based secure storage implementation
- * NOTE: keytar must be passed as a parameter to avoid top-level import issues
+ * Uses @napi-rs/keyring Entry API (Rust-based keyring-rs bindings)
  */
 export class KeychainTokenStorage implements SecureTokenStorage {
   private log: (message: string, ...args: any[]) => void;
-  private keytar: any;
+  private entry: any;
 
-  constructor(keytar: any, logFunction?: (message: string, ...args: any[]) => void) {
-    this.keytar = keytar;
+  constructor(entry: any, logFunction?: (message: string, ...args: any[]) => void) {
+    this.entry = entry;
     this.log = logFunction || ((msg) => console.error(`[SecureStorage] ${msg}`));
   }
 
   async saveTokens(tokens: Record<string, any>): Promise<void> {
     try {
       const serialized = JSON.stringify(tokens);
-      await this.keytar.setPassword(
-        KEYCHAIN_SERVICE,
-        KEYCHAIN_ACCOUNT_PREFIX,
-        serialized
-      );
+      this.entry.setPassword(serialized);
       this.log('Saved tokens to OS keychain');
     } catch (error) {
       this.log(`Failed to save tokens to keychain: ${error}`);
@@ -69,10 +65,7 @@ export class KeychainTokenStorage implements SecureTokenStorage {
 
   async getTokens(): Promise<Record<string, any> | null> {
     try {
-      const serialized = await this.keytar.getPassword(
-        KEYCHAIN_SERVICE,
-        KEYCHAIN_ACCOUNT_PREFIX
-      );
+      const serialized = this.entry.getPassword();
 
       if (!serialized) {
         this.log('No tokens found in keychain');
@@ -90,15 +83,8 @@ export class KeychainTokenStorage implements SecureTokenStorage {
 
   async clearTokens(): Promise<void> {
     try {
-      const deleted = await this.keytar.deletePassword(
-        KEYCHAIN_SERVICE,
-        KEYCHAIN_ACCOUNT_PREFIX
-      );
-      if (deleted) {
-        this.log('Cleared tokens from keychain');
-      } else {
-        this.log('No tokens found to clear in keychain');
-      }
+      this.entry.deletePassword();
+      this.log('Cleared tokens from keychain');
     } catch (error) {
       this.log(`Failed to clear tokens from keychain: ${error}`);
       throw new Error(`Keychain clear failed: ${error}`);
@@ -316,11 +302,11 @@ export async function createSecureStorage(
   log(`[DEBUG]   process.env.GITHUB_ACTIONS = "${process.env.GITHUB_ACTIONS}"`);
   log(`[DEBUG]   CI check: ${process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true'}`);
 
-  // KNOWN ISSUE: keytar hangs on Linux CI due to D-Bus access requirements.
+  // KNOWN ISSUE: Keyring hangs on Linux CI due to D-Bus access requirements.
   // Workaround: Use encrypted file storage in CI environments to prevent MCP validator timeout.
-  // Background: keytar requires D-Bus for credential storage on Linux, which is not available in CI containers.
+  // Background: OS keychains require D-Bus for credential storage on Linux, which is not available in CI containers.
   if (process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true') {
-    log('CI environment detected - using encrypted file storage (keytar disabled for now)');
+    log('CI environment detected - using encrypted file storage (keyring disabled)');
     const encryptedStorage = new EncryptedFileStorage(logFunction);
 
     // Attempt migration from plaintext file
@@ -330,14 +316,16 @@ export async function createSecureStorage(
     return encryptedStorage;
   }
 
-  // Try OS keychain first (lazy-load keytar to avoid D-Bus hangs on Linux CI)
+  // Try OS keychain first (lazy-load @napi-rs/keyring to avoid D-Bus hangs on Linux CI)
   try {
-    log('[DEBUG] Attempting to lazy-load keytar...');
-    // Use dynamic import to avoid loading keytar at module-import time
-    const keytar = await import('keytar');
-    log('[DEBUG] keytar loaded successfully');
+    log('[DEBUG] Attempting to lazy-load @napi-rs/keyring...');
+    // Use dynamic import to avoid loading keyring at module-import time
+    const { Entry } = await import('@napi-rs/keyring');
+    log('[DEBUG] @napi-rs/keyring loaded successfully');
 
-    const keychainStorage = new KeychainTokenStorage(keytar, logFunction);
+    // Create entry for pierre-mcp tokens
+    const entry = new Entry(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT_PREFIX);
+    const keychainStorage = new KeychainTokenStorage(entry, logFunction);
 
     // Test keychain availability by trying to get tokens
     await keychainStorage.getTokens();

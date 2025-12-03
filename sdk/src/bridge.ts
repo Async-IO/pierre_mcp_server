@@ -1673,6 +1673,7 @@ export class PierreMcpClient {
           resources: {},
           prompts: {},
           logging: {},
+          completions: {},
         },
       },
     );

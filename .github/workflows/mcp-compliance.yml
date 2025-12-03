@@ -29,10 +29,10 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.91.0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: '20'
+          bun-version: latest
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -63,11 +63,11 @@ jobs:
 
       - name: Install SDK dependencies
         working-directory: sdk
-        run: npm ci --prefer-offline
+        run: bun install --frozen-lockfile
 
       - name: Build bridge
         working-directory: sdk
-        run: npm run build
+        run: bun run build
 
       - name: Validate SDK types exist
         working-directory: sdk
@@ -75,12 +75,12 @@ jobs:
           echo "🔍 Validating SDK TypeScript types..."
           if [ ! -f "src/types.ts" ]; then
             echo "❌ ERROR: src/types.ts not found"
-            echo "📝 Run 'npm run generate-types' locally and commit the generated types"
+            echo "📝 Run 'bun run generate-types' locally and commit the generated types"
             exit 1
           fi
           if grep -q "PLACEHOLDER" "src/types.ts"; then
             echo "⚠️  WARNING: types.ts contains placeholder content"
-            echo "📝 Run 'npm run generate-types' with a running server and commit the real types"
+            echo "📝 Run 'bun run generate-types' with a running server and commit the real types"
             echo "   For CI: Types should be pre-generated and committed to the repository"
             exit 1
           fi

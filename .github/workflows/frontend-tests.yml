@@ -11,43 +11,36 @@ jobs:
   frontend-tests:
     name: Frontend Test Suite
     runs-on: ubuntu-latest
-    
+
     defaults:
       run:
         working-directory: frontend
-
-    strategy:
-      matrix:
-        node-version: [18, 20, 22]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Lint code
-        run: npm run lint
+        run: bun run lint
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: bunx tsc --noEmit
 
       - name: Run tests
-        run: npm test
+        run: bun run test
 
       - name: Build frontend
-        run: npm run build
+        run: bun run build
 
       - name: Archive build artifacts
-        if: matrix.node-version == 20
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
@@ -66,21 +59,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 20
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: bunx playwright install --with-deps chromium
 
       - name: Run Playwright E2E tests
-        run: npm run test:e2e
+        run: bun run test:e2e
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4

@@ -20,13 +20,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js (for npm publish)
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
-          cache: 'npm'
-          cache-dependency-path: sdk/package-lock.json
 
       - name: Validate SDK version matches release
         run: |
@@ -45,15 +48,15 @@ jobs:
 
       - name: Install dependencies
         working-directory: sdk
-        run: npm ci --prefer-offline
+        run: bun install --frozen-lockfile
 
       - name: Build SDK
         working-directory: sdk
-        run: npm run build
+        run: bun run build
 
       - name: Run SDK tests
         working-directory: sdk
-        run: npm run test:unit
+        run: bun run test:unit
 
       - name: Publish to npm with provenance
         working-directory: sdk

@@ -22,6 +22,19 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Find bun executable early (use full path for subprocess compatibility)
+# Python subprocess doesn't always inherit shell PATH, so we need absolute path
+BUN_PATH=$(which bun 2>/dev/null || echo "$HOME/.bun/bin/bun")
+if [ ! -x "$BUN_PATH" ]; then
+    # Try common installation locations
+    for candidate in "$HOME/.bun/bin/bun" "/usr/local/bin/bun" "/opt/homebrew/bin/bun"; do
+        if [ -x "$candidate" ]; then
+            BUN_PATH="$candidate"
+            break
+        fi
+    done
+fi
+
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
@@ -147,7 +160,8 @@ fi
 
 # Build the bridge before testing
 echo -e "${BLUE}==== Building pierre-claude-bridge for compliance testing... ====${NC}"
-if npm run build; then
+echo -e "${BLUE}     Using bun at: $BUN_PATH${NC}"
+if $BUN_PATH run build; then
     echo -e "${GREEN}[OK] Bridge built successfully${NC}"
 else
     echo -e "${RED}[FAIL] Bridge build failed${NC}"
@@ -237,6 +251,8 @@ fi
 # Run MCP compliance tests (REQUIRED - NO EXCEPTIONS POLICY)
 echo -e "${BLUE}==== Running MCP protocol compliance tests (REQUIRED)... ====${NC}"
 BRIDGE_PATH="$(pwd)/dist/cli.js"
+echo -e "${BLUE}     Using bun at: $BUN_PATH${NC}"
+
 cd "$MCP_VALIDATOR_DIR"
 
 # Use venv Python if available, otherwise system Python
@@ -249,7 +265,7 @@ fi
 export PYTHONPATH="$MCP_VALIDATOR_DIR"
 
 # Run validator with 10-minute timeout and verbose output
-echo -e "${BLUE}     Testing bridge: node $BRIDGE_PATH${NC}"
+echo -e "${BLUE}     Testing bridge: $BUN_PATH $BRIDGE_PATH${NC}"
 echo -e "${BLUE}     Protocol version: 2025-06-18${NC}"
 
 # Detect available timeout command (Linux: timeout, macOS: gtimeout)
@@ -268,7 +284,7 @@ echo -e "${BLUE}     Timeout: ${TIMEOUT_CMD:-none}${NC}"
 # Run validator in background to capture PID for signal handling
 # Set CI=true so SDK bridge uses encrypted file storage instead of keytar (prevents hang)
 CI=true $TIMEOUT_CMD $PYTHON_CMD -m mcp_testing.scripts.compliance_report \
-    --server-command "node $BRIDGE_PATH --no-browser" \
+    --server-command "$BUN_PATH $BRIDGE_PATH --no-browser" \
     --protocol-version 2025-06-18 \
     --test-timeout 30 \
     --verbose &

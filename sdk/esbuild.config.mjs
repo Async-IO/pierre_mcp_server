@@ -16,7 +16,7 @@ const commonOptions = {
   sourcemap: true,
   external: [
     // Keep native Node modules external - they can't be bundled
-    'keytar', // Native binary module for OS keychain
+    '@napi-rs/keyring', // Native Rust module for OS keychain (replaces deprecated keytar)
   ],
   logLevel: 'info',
 };

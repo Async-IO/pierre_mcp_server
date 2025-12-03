@@ -16,20 +16,21 @@
  */
 async function clearKeychainTokens() {
   try {
-    // Dynamically import keytar (only available when keytar is installed)
+    // Dynamically import @napi-rs/keyring (Rust-based keyring, replaces deprecated keytar)
     // This matches the lazy-loading pattern in secure-storage.ts
-    const keytar = await import('keytar');
+    const { Entry } = await import('@napi-rs/keyring');
 
     const KEYCHAIN_SERVICE = 'pierre-mcp-client';
     const KEYCHAIN_ACCOUNT_PREFIX = 'pierre-mcp-tokens';
 
-    await keytar.deletePassword(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT_PREFIX);
+    const entry = new Entry(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT_PREFIX);
+    entry.deletePassword();
 
-    // Note: deletePassword returns boolean (true if deleted, false if not found)
-    // We don't check the return value because we just want to ensure it's cleared
+    // Note: deletePassword throws if entry doesn't exist in @napi-rs/keyring
+    // We catch and ignore since we just want to ensure it's cleared
 
   } catch (error) {
-    // If keytar is not available or fails, silently continue
+    // If keyring is not available or entry doesn't exist, silently continue
     // Tests will fall back to encrypted file storage
     if (process.env.DEBUG) {
       console.error('[Keychain Cleanup] Failed to clear keychain:', error.message);

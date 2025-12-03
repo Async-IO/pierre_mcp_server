@@ -43,12 +43,12 @@ echo ""
 echo "Step 2: Building SDK..."
 cd "$PROJECT_ROOT/sdk"
 
-# Only run npm install if node_modules doesn't exist
+# Only run bun install --frozen-lockfile if node_modules doesn't exist
 if [ ! -d "node_modules" ]; then
     echo "Installing dependencies..."
-    npm install
+    bun install --frozen-lockfile
     if [ $? -ne 0 ]; then
-        echo "❌ npm install failed"
+        echo "❌ bun install --frozen-lockfile failed"
         exit 1
     fi
     echo "✅ Dependencies installed"
@@ -56,7 +56,7 @@ else
     echo "✅ Dependencies already installed (node_modules exists)"
 fi
 
-npm run build
+bun run build
 if [ $? -ne 0 ]; then
     echo "❌ SDK build failed"
     exit 1

@@ -85,7 +85,7 @@ curl -s -X POST "http://localhost:$HTTP_PORT/api/auth/register" \
 # Start frontend server
 log_info "Starting frontend server..."
 cd frontend
-npm run dev &
+bun run dev &
 FRONTEND_PID=$!
 cd "$PROJECT_ROOT"
 

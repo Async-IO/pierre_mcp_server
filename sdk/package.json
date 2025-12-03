@@ -53,7 +53,7 @@
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@types/node-fetch": "^2.6.13",
     "commander": "^11.0.0",
-    "keytar": "^7.9.0",
+    "@napi-rs/keyring": "^1.1.9",
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
