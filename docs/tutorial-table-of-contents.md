@@ -59,6 +59,10 @@
 26. [Chapter 24: Design System - Templates, Frontend & User Experience](tutorial/chapter-24-design-system.md)
 27. [Chapter 25: Production Deployment, Clippy & Performance](tutorial/chapter-25-deployment.md)
 
+## Part VIII: AI & Chat Integration
+
+28. [Chapter 26: LLM Provider Architecture & Gemini Integration](tutorial/chapter-26-llm-providers.md)
+
 ---
 
 ## Appendices
@@ -105,6 +109,6 @@ Complete tutorial from start to finish - recommended for thorough understanding.
 
 ## Summary
 
-**Total**: 25 Chapters + 1 Database Architecture Chapter + 9 Appendices
+**Total**: 26 Chapters + 1 Database Architecture Chapter + 9 Appendices
 **Focus**: Rust idioms, real code examples, progressive complexity
 **Code Citations**: All examples reference actual Pierre codebase with file:line numbers
