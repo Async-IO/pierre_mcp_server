@@ -249,7 +249,7 @@ Skills are focused, single-purpose tasks with clear commands. They're faster tha
 
 | Skill | Purpose | Quick Command |
 |-------|---------|---------------|
-| `generate-sdk-types.md` | TypeScript type generation | `cd sdk && npm run generate-types` |
+| `generate-sdk-types.md` | TypeScript type generation | `cd sdk && bun run generate-types` |
 
 ## 🎯 Usage Patterns
 
@@ -367,7 +367,7 @@ cargo test --test mcp_multitenant_complete_test
 cargo test intelligence -- --nocapture
 
 # Generate SDK types (after tool changes)
-cd sdk && npm run generate-types && cd ..
+cd sdk && bun run generate-types && cd ..
 ```
 
 ### CI/CD Workflow Mapping

@@ -21,9 +21,9 @@ Run this skill:
 - After protocol changes
 
 ## Prerequisites
-- Node.js and npm installed
+- Bun runtime installed
 - Pierre server must be runnable
-- `sdk/` directory with npm dependencies
+- `sdk/` directory with dependencies installed
 
 ## Commands
 
@@ -36,7 +36,7 @@ sleep 3
 
 # 2. Generate TypeScript types
 cd sdk
-npm run generate-types
+bun run generate-types
 
 # 3. Verify types changed
 git diff src/types.ts
@@ -70,7 +70,7 @@ cd sdk
 node scripts/generate-types.js /tmp/tools.json
 
 # 4. Format generated code
-npm run format
+bun run format
 
 # 5. Cleanup
 kill $SERVER_PID
@@ -129,13 +129,13 @@ rg "^pub const TOOL_" src/protocols/universal/tool_registry.rs --type rust | wc 
 ```bash
 # Verify types compile
 cd sdk
-npm run build
+bun run build
 
 # Run type tests
-npm test -- test/unit/types.test.ts
+bun test -- test/unit/types.test.ts
 
 # Check type coverage
-npm run type-check
+bun run type-check
 cd ..
 ```
 
@@ -182,7 +182,7 @@ impl UniversalToolExecutor {
 ### 3. Generate TypeScript Types
 ```bash
 cd sdk
-npm run generate-types
+bun run generate-types
 ```
 
 ### 4. Verify Generated Types
@@ -228,7 +228,7 @@ cargo build --bin pierre-mcp-server
 rm -rf /tmp/tools.json
 
 # Regenerate
-cd sdk && npm run generate-types && cd ..
+cd sdk && bun run generate-types && cd ..
 ```
 
 ### Issue: TypeScript compilation errors
@@ -252,7 +252,7 @@ TS_TOOLS=$(rg "^export const TOOL_" sdk/src/types.ts | wc -l)
 if [ "$RUST_TOOLS" != "$TS_TOOLS" ]; then
     echo "Rust tools: $RUST_TOOLS"
     echo "TypeScript tools: $TS_TOOLS"
-    echo "Run: npm run generate-types"
+    echo "Run: bun run generate-types"
 fi
 ```
 
@@ -264,9 +264,9 @@ fi
 - name: Check TypeScript types are up to date
   run: |
     cd sdk
-    npm run generate-types
+    bun run generate-types
     git diff --exit-code src/types.ts || \
-      (echo "Types out of sync! Run: npm run generate-types" && exit 1)
+      (echo "Types out of sync! Run: bun run generate-types" && exit 1)
 ```
 
 ### Pre-Commit Hook
@@ -275,7 +275,7 @@ fi
 # Regenerate types if tool registry changed
 if git diff --cached --name-only | grep -q "tool_registry.rs"; then
     echo "Tool registry changed, regenerating TypeScript types..."
-    cd sdk && npm run generate-types && git add src/types.ts && cd ..
+    cd sdk && bun run generate-types && git add src/types.ts && cd ..
 fi
 ```
 

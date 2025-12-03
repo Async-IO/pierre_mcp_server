@@ -44,7 +44,7 @@ sleep 3
 
 # 3. Run compliance tests
 cd ../mcp-compliance
-npm test -- --server="http://localhost:8081/mcp"
+bun test -- --server="http://localhost:8081/mcp"
 TEST_RESULT=$?
 cd -
 
@@ -80,7 +80,7 @@ rg "struct ToolDefinition|inputSchema" src/protocols/universal/tool_registry.rs 
 # Clone the compliance suite
 git clone https://github.com/modelcontextprotocol/mcp-compliance ../mcp-compliance
 cd ../mcp-compliance
-npm install
+bun install
 cd -
 ```
 

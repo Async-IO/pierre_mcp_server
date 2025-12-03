@@ -227,7 +227,7 @@ echo "Registered tools: $TOOL_COUNT (should be 35+)"
 
 # Check TypeScript type generation
 echo "5. SDK Type Generation..."
-test -f sdk/src/types.ts && echo "✓ TypeScript types exist" || echo "⚠️  Generate SDK types: npm run generate-types"
+test -f sdk/src/types.ts && echo "✓ TypeScript types exist" || echo "⚠️  Generate SDK types: bun run generate-types"
 ```
 
 **Validation:**
@@ -239,7 +239,7 @@ cargo test test_tool_execution -- --nocapture
 cargo test test_tool_parameters -- --nocapture
 
 # Verify SDK types match
-cd sdk && npm test -- test/types.test.ts && cd ..
+cd sdk && bun test -- test/types.test.ts && cd ..
 ```
 
 ### 6. Transport Layer Compliance
@@ -273,7 +273,7 @@ rg "async fn.*sse|text/event-stream|SseManager" src/sse/ --type rust -A 10 | hea
 cargo test --test test_mcp_http_transport -- --nocapture
 
 # Test stdio transport (requires SDK bridge)
-cd sdk && npm test -- test/integration/stdio.test.ts && cd ..
+cd sdk && bun test -- test/integration/stdio.test.ts && cd ..
 
 # Test WebSocket
 cargo test test_websocket -- --nocapture
@@ -333,7 +333,7 @@ cd ../mcp-compliance 2>/dev/null || echo "⚠️  mcp-compliance repo not found"
 if [ -d "../mcp-compliance" ]; then
     echo "Running official MCP compliance tests..."
     # Run compliance tests against local server
-    npm test -- --server="http://localhost:8081/mcp"
+    bun test -- --server="http://localhost:8081/mcp"
     cd -
 else
     echo "⚠️  Install mcp-compliance: git clone https://github.com/modelcontextprotocol/mcp-compliance ../mcp-compliance"
@@ -464,7 +464,7 @@ Required tools:
 - `ripgrep` (rg) - Code search
 - `curl` - HTTP testing
 - `jq` - JSON parsing
-- `npm` - SDK testing
+- `bun` - SDK testing
 - `mcp-compliance` - Official test suite
 
 ## Notes

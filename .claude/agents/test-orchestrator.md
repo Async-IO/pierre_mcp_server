@@ -101,9 +101,9 @@ User: "Run comprehensive test suite"
 Agent Response:
 1. Launch 4 parallel subagents via Task tool:
    - rust-tests: cargo test --all-features (background)
-   - sdk-tests: npm test (background)
+   - sdk-tests: bun test (background)
    - db-tests: cargo test --test database_plugins_comprehensive_test (background)
-   - frontend-tests: npm test -- --watchAll=false (background)
+   - frontend-tests: bun test -- --watchAll=false (background)
 
 2. Monitor all 4 via BashOutput every 30 seconds
 3. Report: "✅ Rust: 342 passed | ⏳ SDK: running... | ✅ DB: 89 passed | ⏳ Frontend: running..."
@@ -226,15 +226,15 @@ echo "📦 TypeScript SDK Testing..."
 
 # Install SDK dependencies
 cd sdk
-npm install
+bun install
 
 # Unit tests
 echo "1. SDK Unit Tests..."
-npm test -- test/unit/
+bun test -- test/unit/
 
 # Integration tests
 echo "2. SDK Integration Tests..."
-npm test -- test/integration/
+bun test -- test/integration/
 
 # E2E tests (requires running server)
 echo "3. SDK E2E Tests..."
@@ -245,7 +245,7 @@ SERVER_PID=$!
 sleep 3
 
 cd sdk
-npm test -- test/e2e/
+bun test -- test/e2e/
 cd ..
 
 # Cleanup
@@ -254,7 +254,7 @@ kill $SERVER_PID
 # Type generation tests
 echo "4. Type Generation..."
 cd sdk
-npm run generate-types
+bun run generate-types
 git diff --exit-code src/types.ts || echo "⚠️  Generated types differ from committed"
 cd ..
 ```
@@ -262,16 +262,16 @@ cd ..
 **SDK Test Coverage:**
 ```bash
 # OAuth flow
-npm test -- test/integration/oauth.test.ts
+bun test -- test/integration/oauth.test.ts
 
 # stdio transport
-npm test -- test/integration/stdio.test.ts
+bun test -- test/integration/stdio.test.ts
 
 # Multi-tenant
-npm test -- test/e2e-multitenant/
+bun test -- test/e2e-multitenant/
 
 # Bridge functionality
-npm test -- test/e2e/bridge.test.ts
+bun test -- test/e2e/bridge.test.ts
 ```
 
 ### 4. Frontend Testing
@@ -284,19 +284,19 @@ echo "⚛️ Frontend Testing..."
 cd frontend
 
 # Install dependencies
-npm install
+bun install
 
 # Unit tests
 echo "1. Component Tests..."
-npm test -- --coverage
+bun test -- --coverage
 
 # Integration tests
 echo "2. Frontend Integration..."
-npm test -- test/integration/
+bun test -- test/integration/
 
 # Build test
 echo "3. Production Build..."
-npm run build
+bun run build
 
 cd ..
 ```
@@ -304,16 +304,16 @@ cd ..
 **Frontend Test Coverage:**
 ```bash
 # Components
-npm test -- src/components/
+bun test -- src/components/
 
 # Hooks
-npm test -- src/hooks/
+bun test -- src/hooks/
 
 # Services
-npm test -- src/services/
+bun test -- src/services/
 
 # API integration
-npm test -- src/api/
+bun test -- src/api/
 ```
 
 ### 5. Cross-Platform Compatibility Testing
@@ -566,17 +566,17 @@ cargo test --test database_plugins_comprehensive_test --features sqlite
 # SDK CI workflow
 echo "=== SDK CI ==="
 cd sdk
-npm install
-npm test
-npm run build
+bun install
+bun test
+bun run build
 cd ..
 
 # Frontend CI workflow
 echo "=== Frontend CI ==="
 cd frontend
-npm install
-npm test -- --coverage --watchAll=false
-npm run build
+bun install
+bun test -- --coverage --watchAll=false
+bun run build
 cd ..
 
 # MCP Compliance
@@ -611,11 +611,11 @@ mkdir -p test-reports
     echo ""
 
     echo "## SDK Tests"
-    cd sdk && npm test 2>&1 | grep -E "PASS|FAIL|Tests:" | tail -10 && cd ..
+    cd sdk && bun test 2>&1 | grep -E "PASS|FAIL|Tests:" | tail -10 && cd ..
     echo ""
 
     echo "## Frontend Tests"
-    cd frontend && npm test -- --watchAll=false 2>&1 | grep -E "PASS|FAIL|Tests:" | tail -10 && cd ..
+    cd frontend && bun test -- --watchAll=false 2>&1 | grep -E "PASS|FAIL|Tests:" | tail -10 && cd ..
     echo ""
 
     echo "## Code Quality"
@@ -742,7 +742,7 @@ Invoke this agent when:
 
 Required tools:
 - `cargo` - Rust build system
-- `npm` - Node package manager
+- `bun` - JavaScript runtime and package manager
 - `docker` - PostgreSQL testing (optional)
 - `ripgrep` - Code search
 - `jq` - JSON parsing
