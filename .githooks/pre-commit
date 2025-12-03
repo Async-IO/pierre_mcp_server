@@ -1,6 +1,6 @@
 #!/bin/bash
 # ABOUTME: Unified pre-commit hook for code quality enforcement
-# ABOUTME: Blocks AI-generated commit messages, suspicious files, and prevents accidental commits
+# ABOUTME: Runs lint/type-check for frontend/SDK, blocks AI messages, suspicious files
 
 set -e
 
@@ -67,6 +67,86 @@ check_suspicious_files() {
         echo "These files appear to be backups, old versions, or contain invalid patterns."
         echo "Please remove them or rename them before committing."
         return 1
+    fi
+    return 0
+}
+
+# Check frontend lint and type-check (only if frontend files are staged)
+check_frontend_lint() {
+    local frontend_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^frontend/.*\.(ts|tsx|js|jsx)$' | grep -v node_modules || true)
+
+    if [ -n "$frontend_files" ]; then
+        echo "🔍 Running frontend lint checks..."
+
+        # Check if frontend node_modules exists
+        if [ ! -d "frontend/node_modules" ]; then
+            echo "⚠️  Warning: frontend/node_modules not found. Skipping frontend lint."
+            echo "   Run 'cd frontend && npm install' to enable lint checks."
+            return 0
+        fi
+
+        # Run lint
+        if ! (cd frontend && npm run lint --silent 2>/dev/null); then
+            echo "❌ ERROR: Frontend lint check failed!"
+            echo ""
+            echo "Please fix lint errors before committing."
+            echo "Run: cd frontend && npm run lint"
+            return 1
+        fi
+
+        # Run type-check
+        if ! (cd frontend && npm run type-check --silent 2>/dev/null); then
+            echo "❌ ERROR: Frontend type-check failed!"
+            echo ""
+            echo "Please fix TypeScript errors before committing."
+            echo "Run: cd frontend && npm run type-check"
+            return 1
+        fi
+
+        echo "✅ Frontend lint checks passed"
+    fi
+    return 0
+}
+
+# Check SDK lint and type-check (only if SDK files are staged)
+check_sdk_lint() {
+    local sdk_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^sdk/src/.*\.ts$' || true)
+
+    if [ -n "$sdk_files" ]; then
+        echo "🔍 Running SDK lint checks..."
+
+        # Check if SDK node_modules exists
+        if [ ! -d "sdk/node_modules" ]; then
+            echo "⚠️  Warning: sdk/node_modules not found. Skipping SDK lint."
+            echo "   Run 'cd sdk && bun install' to enable lint checks."
+            return 0
+        fi
+
+        # Try bun first, fall back to npm
+        local run_cmd="npm run"
+        if command -v bun &>/dev/null; then
+            run_cmd="bun run"
+        fi
+
+        # Run lint
+        if ! (cd sdk && $run_cmd lint --silent 2>/dev/null); then
+            echo "❌ ERROR: SDK lint check failed!"
+            echo ""
+            echo "Please fix lint errors before committing."
+            echo "Run: cd sdk && $run_cmd lint"
+            return 1
+        fi
+
+        # Run type-check
+        if ! (cd sdk && $run_cmd type-check --silent 2>/dev/null); then
+            echo "❌ ERROR: SDK type-check failed!"
+            echo ""
+            echo "Please fix TypeScript errors before committing."
+            echo "Run: cd sdk && $run_cmd type-check"
+            return 1
+        fi
+
+        echo "✅ SDK lint checks passed"
     fi
     return 0
 }
@@ -148,20 +228,20 @@ check_license_headers() {
 # Main execution
 main() {
     local checks_passed=true
-    
+
     # Run all checks
     if ! check_commit_message; then
         checks_passed=false
     fi
-    
+
     if ! check_claude_docs; then
         checks_passed=false
     fi
-    
+
     if ! check_root_markdown; then
         checks_passed=false
     fi
-    
+
     if ! check_suspicious_files; then
         checks_passed=false
     fi
@@ -170,10 +250,18 @@ main() {
         checks_passed=false
     fi
 
+    if ! check_frontend_lint; then
+        checks_passed=false
+    fi
+
+    if ! check_sdk_lint; then
+        checks_passed=false
+    fi
+
     if [ "$checks_passed" = false ]; then
         exit 1
     fi
-    
+
     echo "✅ All pre-commit checks passed"
     exit 0
 }

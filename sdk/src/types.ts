@@ -7,8 +7,6 @@
 // Generated: 2025-11-11T00:18:33.582Z
 // Tool count: 45
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 /**
  * Pierre MCP Tool Type Definitions
  *
@@ -614,7 +612,7 @@ export interface OptimizeSleepScheduleParams {
 /**
  * Generic MCP tool response wrapper
  */
-export interface McpToolResponse<T = any> {
+export interface McpToolResponse {
   content?: Array<{
     type: string;
     text?: string;

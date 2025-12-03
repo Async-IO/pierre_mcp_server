@@ -40,6 +40,14 @@ jobs:
         working-directory: sdk
         run: bun install --frozen-lockfile
 
+      - name: Lint SDK code
+        working-directory: sdk
+        run: bun run lint
+
+      - name: Type check SDK
+        working-directory: sdk
+        run: bun run type-check
+
       - name: Build SDK bridge
         working-directory: sdk
         run: bun run build

@@ -64,6 +64,9 @@ const OAuthCompletedNotificationSchema = z.object({
     .optional(),
 });
 
+// Define the notification type explicitly to avoid deep type instantiation issues
+type OAuthCompletedNotification = z.infer<typeof OAuthCompletedNotificationSchema>;
+
 interface StoredTokens {
   pierre?: OAuthTokens & { saved_at?: number };
   providers?: Record<
@@ -100,15 +103,6 @@ interface OAuth2TokenResponse {
   expires_in?: number;
   refresh_token?: string;
   scope?: string;
-}
-
-interface OAuth2ClientRegistration {
-  client_id: string;
-  client_secret: string;
-  redirect_uris: string[];
-  grant_types: string[];
-  response_types: string[];
-  scope: string;
 }
 
 interface ValidateRefreshResponse {
@@ -651,7 +645,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
   private async exchangeCodeForTokens(
     authorizationCode: string,
-    state: string,
+    _state: string,
   ): Promise<void> {
     if (!this.clientInfo) {
       throw new Error("Client information not available for token exchange");
@@ -1400,12 +1394,7 @@ export class PierreMcpClient {
             version: "1.0.0",
           },
           {
-            capabilities: {
-              tools: {},
-              resources: {},
-              prompts: {},
-              logging: {},
-            },
+            capabilities: {},
           },
         );
 
@@ -1441,7 +1430,7 @@ export class PierreMcpClient {
         try {
           this.log("Validating MCP protocol handshake with ping...");
           const pingTimeout = 5000; // 5 second timeout for validation
-          const pingResult = await Promise.race([
+          await Promise.race([
             this.pierreClient.ping(),
             new Promise((_, reject) =>
               setTimeout(
@@ -1695,7 +1684,7 @@ export class PierreMcpClient {
     // Bridge tools/list requests
     this.mcpServer.setRequestHandler(
       ListToolsRequestSchema,
-      async (request) => {
+      async (_request) => {
         this.log("Bridging tools/list request");
 
         try {
@@ -1980,7 +1969,7 @@ export class PierreMcpClient {
     // Bridge resources/list requests
     this.mcpServer.setRequestHandler(
       ListResourcesRequestSchema,
-      async (request) => {
+      async (_request) => {
         this.log("Bridging resources/list request");
 
         // Pierre server doesn't provide resources, so always return empty list
@@ -2015,7 +2004,7 @@ export class PierreMcpClient {
     // Bridge prompts/list requests
     this.mcpServer.setRequestHandler(
       ListPromptsRequestSchema,
-      async (request) => {
+      async (_request) => {
         this.log("Bridging prompts/list request");
 
         // Pierre server doesn't provide prompts, so always return empty list
@@ -2080,7 +2069,7 @@ export class PierreMcpClient {
     this.log("Request handlers configured");
   }
 
-  private async handleConnectToPierre(request: any): Promise<any> {
+  private async handleConnectToPierre(_request: any): Promise<any> {
     try {
       this.log("Handling connect_to_pierre tool call - initiating OAuth flow");
 
@@ -2464,7 +2453,7 @@ export class PierreMcpClient {
           readBuffer._buffer,
         ]);
         originalProcessReadBuffer();
-      } catch (error) {
+      } catch (_error) {
         // JSON parse error - let original handler deal with it
         readBuffer._buffer = Buffer.concat([
           Buffer.from(line + "\n"),
@@ -2610,35 +2599,39 @@ export class PierreMcpClient {
     // Listen for OAuth completion notifications from Pierre server
     // and forward them to MCP host so users see the success message
     try {
-      this.pierreClient.setNotificationHandler(
-        OAuthCompletedNotificationSchema,
-        async (notification) => {
-          this.log(
-            "Received OAuth completion notification from Pierre:",
-            JSON.stringify(notification),
-          );
+      // Use explicit handler function to avoid deep type instantiation
+      const oauthNotificationHandler = async (
+        notification: OAuthCompletedNotification,
+      ) => {
+        this.log(
+          "Received OAuth completion notification from Pierre:",
+          JSON.stringify(notification),
+        );
 
-          if (this.mcpServer) {
-            try {
-              // Forward the notification to MCP host
-              await this.mcpServer.notification({
-                method: "notifications/message",
-                params: {
-                  level: "info",
-                  message:
-                    notification.params?.message ||
-                    "OAuth authentication completed successfully!",
-                },
-              });
-              this.log("Forwarded OAuth notification to MCP host");
-            } catch (error: any) {
-              this.log(
-                "Failed to forward OAuth notification to MCP host:",
-                error.message,
-              );
-            }
+        if (this.mcpServer) {
+          try {
+            // Forward the notification to MCP host
+            await this.mcpServer.notification({
+              method: "notifications/message",
+              params: {
+                level: "info",
+                message:
+                  notification.params?.message ||
+                  "OAuth authentication completed successfully!",
+              },
+            });
+            this.log("Forwarded OAuth notification to MCP host");
+          } catch (error: any) {
+            this.log(
+              "Failed to forward OAuth notification to MCP host:",
+              error.message,
+            );
           }
-        },
+        }
+      };
+      this.pierreClient.setNotificationHandler(
+        OAuthCompletedNotificationSchema as any,
+        oauthNotificationHandler as any,
       );
       this.log("OAuth notification handler registered");
     } catch (error: any) {
