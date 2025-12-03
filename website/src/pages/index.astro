@@ -1,6 +1,7 @@
 ---
 // ABOUTME: Custom landing page for Pierre Fitness Intelligence
 // ABOUTME: Marketing homepage with Three Pillars, Protocols, SDK, and Dashboard sections
+import '../styles/global.css';
 ---
 <!DOCTYPE html>
 <html lang="en">
@@ -18,80 +19,17 @@
     <meta property="og:url" content="https://pierre.async-io.org">
     <meta property="og:image" content="https://pierre.async-io.org/pierre-logo.svg">
 
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/pierre-favicon.svg">
-
-    <!-- Tailwind CSS via CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        pierre: {
-                            violet: '#7C3AED',
-                            cyan: '#06B6D4',
-                            activity: '#10B981',
-                            nutrition: '#F59E0B',
-                            recovery: '#6366F1',
-                            dark: '#0F0F1A',
-                            slate: '#1E1E2E',
-                            'violet-light': '#A78BFA',
-                            'violet-dark': '#5B21B6',
-                            'cyan-light': '#22D3EE',
-                            'activity-dark': '#059669',
-                            'nutrition-dark': '#D97706',
-                            'recovery-dark': '#4F46E5',
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
-                        mono: ['JetBrains Mono', 'Monaco', 'Menlo', 'monospace'],
-                    },
-                }
-            }
-        }
-    </script>
-
-    <!-- Inter Font -->
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
-    <style>
-        .gradient-pierre {
-            background: linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%);
-        }
-        .gradient-pierre-text {
-            background: linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .gradient-activity {
-            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-        }
-        .gradient-nutrition {
-            background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
-        }
-        .gradient-recovery {
-            background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
-        }
-        .card-hover {
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .card-hover:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 20px 40px rgba(124, 58, 237, 0.15);
-        }
-        .protocol-badge {
-            backdrop-filter: blur(8px);
-        }
-    </style>
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/pierre-favicon.svg">
 </head>
-<body class="bg-pierre-dark text-white font-sans antialiased">
+<body class="bg-[#0F0F1A] text-white font-sans antialiased">
     <!-- Navigation -->
-    <nav class="fixed top-0 left-0 right-0 z-50 bg-pierre-dark/90 backdrop-blur-md border-b border-white/10">
+    <nav class="fixed top-0 left-0 right-0 z-50 bg-[#0F0F1A]/90 backdrop-blur-md border-b border-white/10">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <div class="flex items-center gap-3">
@@ -115,8 +53,8 @@
     <!-- Hero Section -->
     <section class="pt-32 pb-20 px-4">
         <div class="max-w-7xl mx-auto text-center">
-            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-pierre-slate border border-white/10 mb-8">
-                <span class="w-2 h-2 rounded-full bg-pierre-activity animate-pulse"></span>
+            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#1E1E2E] border border-white/10 mb-8">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 <span class="text-sm text-gray-300">Open Source &bull; MIT Licensed</span>
             </div>
 
@@ -145,13 +83,13 @@
 
             <!-- Protocol Badges -->
             <div class="flex flex-wrap justify-center gap-3">
-                <span class="protocol-badge px-4 py-2 rounded-full bg-pierre-violet/20 border border-pierre-violet/30 text-pierre-violet-light text-sm font-medium">
+                <span class="protocol-badge px-4 py-2 rounded-full bg-violet-600/20 border border-violet-600/30 text-violet-400 text-sm font-medium">
                     MCP Protocol
                 </span>
-                <span class="protocol-badge px-4 py-2 rounded-full bg-pierre-cyan/20 border border-pierre-cyan/30 text-pierre-cyan-light text-sm font-medium">
+                <span class="protocol-badge px-4 py-2 rounded-full bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 text-sm font-medium">
                     A2A Protocol
                 </span>
-                <span class="protocol-badge px-4 py-2 rounded-full bg-pierre-nutrition/20 border border-pierre-nutrition/30 text-pierre-nutrition text-sm font-medium">
+                <span class="protocol-badge px-4 py-2 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-500 text-sm font-medium">
                     REST APIs
                 </span>
             </div>
@@ -159,7 +97,7 @@
     </section>
 
     <!-- Three Pillars Section -->
-    <section id="features" class="py-20 px-4 bg-pierre-slate/50">
+    <section id="features" class="py-20 px-4 bg-[#1E1E2E]/50">
         <div class="max-w-7xl mx-auto">
             <div class="text-center mb-16">
                 <h2 class="text-3xl sm:text-4xl font-bold mb-4">Holistic Fitness Intelligence</h2>
@@ -170,87 +108,87 @@
 
             <div class="grid md:grid-cols-3 gap-8">
                 <!-- Activity Pillar -->
-                <div class="card-hover bg-pierre-dark rounded-xl p-8 border border-pierre-activity/20">
+                <div class="card-hover bg-[#0F0F1A] rounded-xl p-8 border border-emerald-500/20">
                     <div class="w-14 h-14 gradient-activity rounded-xl flex items-center justify-center mb-6">
                         <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3 text-pierre-activity">Activity</h3>
+                    <h3 class="text-xl font-semibold mb-3 text-emerald-500">Activity</h3>
                     <p class="text-gray-400 mb-4">Movement, fitness, and energy tracking with real training science.</p>
                     <ul class="space-y-2 text-sm text-gray-500">
                         <li class="flex items-center gap-2">
-                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-activity"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                             Training Stress Score (TSS)
                         </li>
                         <li class="flex items-center gap-2">
-                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-activity"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                             CTL/ATL/TSB (Fitness/Fatigue/Form)
                         </li>
                         <li class="flex items-center gap-2">
-                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-activity"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                             VDOT Race Predictions
                         </li>
                         <li class="flex items-center gap-2">
-                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-activity"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                             Pattern Detection
                         </li>
                     </ul>
                 </div>
 
                 <!-- Nutrition Pillar -->
-                <div class="card-hover bg-pierre-dark rounded-xl p-8 border border-pierre-nutrition/20">
+                <div class="card-hover bg-[#0F0F1A] rounded-xl p-8 border border-amber-500/20">
                     <div class="w-14 h-14 gradient-nutrition rounded-xl flex items-center justify-center mb-6">
                         <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3 text-pierre-nutrition">Nutrition</h3>
+                    <h3 class="text-xl font-semibold mb-3 text-amber-500">Nutrition</h3>
                     <p class="text-gray-400 mb-4">Food, fuel, and nourishment analysis with USDA integration.</p>
                     <ul class="space-y-2 text-sm text-gray-500">
                         <li class="flex items-center gap-2">
-                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-nutrition"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                             Mifflin-St Jeor BMR
                         </li>
                         <li class="flex items-center gap-2">
-                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-nutrition"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                             TDEE Calculations
                         </li>
                         <li class="flex items-center gap-2">
-                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-nutrition"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                             USDA FoodData (350k+ foods)
                         </li>
                         <li class="flex items-center gap-2">
-                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-nutrition"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                             Macro/Micronutrient Tracking
                         </li>
                     </ul>
                 </div>
 
                 <!-- Recovery Pillar -->
-                <div class="card-hover bg-pierre-dark rounded-xl p-8 border border-pierre-recovery/20">
+                <div class="card-hover bg-[#0F0F1A] rounded-xl p-8 border border-indigo-500/20">
                     <div class="w-14 h-14 gradient-recovery rounded-xl flex items-center justify-center mb-6">
                         <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3 text-pierre-recovery">Recovery</h3>
+                    <h3 class="text-xl font-semibold mb-3 text-indigo-500">Recovery</h3>
                     <p class="text-gray-400 mb-4">Rest, sleep, and restoration with clinical validation.</p>
                     <ul class="space-y-2 text-sm text-gray-500">
                         <li class="flex items-center gap-2">
-                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-recovery"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                             NSF/AASM Sleep Scoring
                         </li>
                         <li class="flex items-center gap-2">
-                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-recovery"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                             HRV-Based Recovery
                         </li>
                         <li class="flex items-center gap-2">
-                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-recovery"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                             Recovery Readiness Index
                         </li>
                         <li class="flex items-center gap-2">
-                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-recovery"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                             Sleep Stage Analysis
                         </li>
                     </ul>
@@ -271,10 +209,10 @@
 
             <div class="grid md:grid-cols-3 gap-6">
                 <!-- MCP Protocol -->
-                <div class="card-hover bg-pierre-slate rounded-xl p-8 border border-white/10">
+                <div class="card-hover bg-[#1E1E2E] rounded-xl p-8 border border-white/10">
                     <div class="flex flex-col">
-                        <div class="w-12 h-12 rounded-lg bg-pierre-violet/20 flex items-center justify-center mb-4">
-                            <span class="text-pierre-violet font-bold">MCP</span>
+                        <div class="w-12 h-12 rounded-lg bg-violet-600/20 flex items-center justify-center mb-4">
+                            <span class="text-violet-500 font-bold">MCP</span>
                         </div>
                         <h3 class="text-lg font-semibold mb-2">Model Context Protocol</h3>
                         <p class="text-gray-400 text-sm mb-4">
@@ -282,18 +220,18 @@
                             JSON-RPC 2.0 with 45 fitness tools.
                         </p>
                         <div class="flex flex-wrap gap-2 mt-auto">
-                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Claude Desktop</span>
-                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">ChatGPT</span>
-                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Custom LLMs</span>
+                            <span class="px-2 py-1 rounded bg-[#0F0F1A] text-xs text-gray-400">Claude Desktop</span>
+                            <span class="px-2 py-1 rounded bg-[#0F0F1A] text-xs text-gray-400">ChatGPT</span>
+                            <span class="px-2 py-1 rounded bg-[#0F0F1A] text-xs text-gray-400">Custom LLMs</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- A2A Protocol -->
-                <div class="card-hover bg-pierre-slate rounded-xl p-8 border border-white/10">
+                <div class="card-hover bg-[#1E1E2E] rounded-xl p-8 border border-white/10">
                     <div class="flex flex-col">
-                        <div class="w-12 h-12 rounded-lg bg-pierre-cyan/20 flex items-center justify-center mb-4">
-                            <span class="text-pierre-cyan font-bold">A2A</span>
+                        <div class="w-12 h-12 rounded-lg bg-cyan-500/20 flex items-center justify-center mb-4">
+                            <span class="text-cyan-500 font-bold">A2A</span>
                         </div>
                         <h3 class="text-lg font-semibold mb-2">Agent-to-Agent Protocol</h3>
                         <p class="text-gray-400 text-sm mb-4">
@@ -301,17 +239,17 @@
                             Capability discovery, task management, and agent cards.
                         </p>
                         <div class="flex flex-wrap gap-2 mt-auto">
-                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Autonomous Agents</span>
-                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Multi-Agent Systems</span>
+                            <span class="px-2 py-1 rounded bg-[#0F0F1A] text-xs text-gray-400">Autonomous Agents</span>
+                            <span class="px-2 py-1 rounded bg-[#0F0F1A] text-xs text-gray-400">Multi-Agent Systems</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- REST APIs -->
-                <div class="card-hover bg-pierre-slate rounded-xl p-8 border border-white/10">
+                <div class="card-hover bg-[#1E1E2E] rounded-xl p-8 border border-white/10">
                     <div class="flex flex-col">
-                        <div class="w-12 h-12 rounded-lg bg-pierre-nutrition/20 flex items-center justify-center mb-4">
-                            <span class="text-pierre-nutrition font-bold">REST</span>
+                        <div class="w-12 h-12 rounded-lg bg-amber-500/20 flex items-center justify-center mb-4">
+                            <span class="text-amber-500 font-bold">REST</span>
                         </div>
                         <h3 class="text-lg font-semibold mb-2">REST APIs</h3>
                         <p class="text-gray-400 text-sm mb-4">
@@ -319,9 +257,9 @@
                             OpenAPI spec, admin dashboard, and health checks.
                         </p>
                         <div class="flex flex-wrap gap-2 mt-auto">
-                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">OpenAPI 3.0</span>
-                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Admin Dashboard</span>
-                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">SSE Streaming</span>
+                            <span class="px-2 py-1 rounded bg-[#0F0F1A] text-xs text-gray-400">OpenAPI 3.0</span>
+                            <span class="px-2 py-1 rounded bg-[#0F0F1A] text-xs text-gray-400">Admin Dashboard</span>
+                            <span class="px-2 py-1 rounded bg-[#0F0F1A] text-xs text-gray-400">SSE Streaming</span>
                         </div>
                     </div>
                 </div>
@@ -330,7 +268,7 @@
     </section>
 
     <!-- Providers Section -->
-    <section id="providers" class="py-20 px-4 bg-pierre-slate/50">
+    <section id="providers" class="py-20 px-4 bg-[#1E1E2E]/50">
         <div class="max-w-7xl mx-auto">
             <div class="text-center mb-16">
                 <h2 class="text-3xl sm:text-4xl font-bold mb-4">Provider Agnostic</h2>
@@ -340,27 +278,27 @@
             </div>
 
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-12">
-                <div class="bg-pierre-dark rounded-lg p-6 text-center border border-white/5">
+                <div class="bg-[#0F0F1A] rounded-lg p-6 text-center border border-white/5">
                     <div class="text-2xl mb-2">🏃</div>
                     <span class="text-sm text-gray-400">Strava</span>
                 </div>
-                <div class="bg-pierre-dark rounded-lg p-6 text-center border border-white/5">
+                <div class="bg-[#0F0F1A] rounded-lg p-6 text-center border border-white/5">
                     <div class="text-2xl mb-2">⌚</div>
                     <span class="text-sm text-gray-400">Garmin</span>
                 </div>
-                <div class="bg-pierre-dark rounded-lg p-6 text-center border border-white/5">
+                <div class="bg-[#0F0F1A] rounded-lg p-6 text-center border border-white/5">
                     <div class="text-2xl mb-2">💚</div>
                     <span class="text-sm text-gray-400">Fitbit</span>
                 </div>
-                <div class="bg-pierre-dark rounded-lg p-6 text-center border border-white/5">
+                <div class="bg-[#0F0F1A] rounded-lg p-6 text-center border border-white/5">
                     <div class="text-2xl mb-2">🔴</div>
                     <span class="text-sm text-gray-400">WHOOP</span>
                 </div>
-                <div class="bg-pierre-dark rounded-lg p-6 text-center border border-white/5">
+                <div class="bg-[#0F0F1A] rounded-lg p-6 text-center border border-white/5">
                     <div class="text-2xl mb-2">🌍</div>
                     <span class="text-sm text-gray-400">Terra</span>
                 </div>
-                <div class="bg-pierre-dark rounded-lg p-6 text-center border border-white/5">
+                <div class="bg-[#0F0F1A] rounded-lg p-6 text-center border border-white/5">
                     <div class="text-2xl mb-2">+150</div>
                     <span class="text-sm text-gray-400">More via Terra</span>
                 </div>
@@ -386,34 +324,34 @@
 
             <div class="grid lg:grid-cols-2 gap-8">
                 <!-- Code Example -->
-                <div class="bg-pierre-slate rounded-xl border border-white/10 overflow-hidden">
-                    <div class="flex items-center gap-2 px-4 py-3 bg-pierre-dark border-b border-white/10">
+                <div class="bg-[#1E1E2E] rounded-xl border border-white/10 overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 py-3 bg-[#0F0F1A] border-b border-white/10">
                         <span class="w-3 h-3 rounded-full bg-red-500"></span>
                         <span class="w-3 h-3 rounded-full bg-yellow-500"></span>
                         <span class="w-3 h-3 rounded-full bg-green-500"></span>
                         <span class="ml-4 text-sm text-gray-500 font-mono">claude_desktop_config.json</span>
                     </div>
-                    <pre class="p-6 overflow-x-auto text-sm"><code class="text-gray-300 font-mono"><span class="text-pierre-activity">&#123;</span>
-  <span class="text-pierre-nutrition">"mcpServers"</span>: <span class="text-pierre-activity">&#123;</span>
-    <span class="text-pierre-nutrition">"pierre-fitness"</span>: <span class="text-pierre-activity">&#123;</span>
-      <span class="text-pierre-nutrition">"command"</span>: <span class="text-pierre-violet">"npx"</span>,
-      <span class="text-pierre-nutrition">"args"</span>: [
-        <span class="text-pierre-violet">"-y"</span>,
-        <span class="text-pierre-violet">"pierre-mcp-client@next"</span>,
-        <span class="text-pierre-violet">"--server"</span>,
-        <span class="text-pierre-violet">"http://localhost:8081"</span>
+                    <pre class="p-6 overflow-x-auto text-sm"><code class="text-gray-300 font-mono"><span class="text-emerald-500">&#123;</span>
+  <span class="text-amber-500">"mcpServers"</span>: <span class="text-emerald-500">&#123;</span>
+    <span class="text-amber-500">"pierre-fitness"</span>: <span class="text-emerald-500">&#123;</span>
+      <span class="text-amber-500">"command"</span>: <span class="text-violet-500">"npx"</span>,
+      <span class="text-amber-500">"args"</span>: [
+        <span class="text-violet-500">"-y"</span>,
+        <span class="text-violet-500">"pierre-mcp-client@next"</span>,
+        <span class="text-violet-500">"--server"</span>,
+        <span class="text-violet-500">"http://localhost:8081"</span>
       ]
-    <span class="text-pierre-activity">&#125;</span>
-  <span class="text-pierre-activity">&#125;</span>
-<span class="text-pierre-activity">&#125;</span></code></pre>
+    <span class="text-emerald-500">&#125;</span>
+  <span class="text-emerald-500">&#125;</span>
+<span class="text-emerald-500">&#125;</span></code></pre>
                 </div>
 
                 <!-- Features List -->
                 <div class="space-y-6">
-                    <div class="bg-pierre-slate rounded-xl p-6 border border-white/10">
+                    <div class="bg-[#1E1E2E] rounded-xl p-6 border border-white/10">
                         <h3 class="font-semibold mb-3 flex items-center gap-2">
-                            <span class="w-8 h-8 rounded-lg bg-pierre-violet/20 flex items-center justify-center">
-                                <svg class="w-4 h-4 text-pierre-violet" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <span class="w-8 h-8 rounded-lg bg-violet-600/20 flex items-center justify-center">
+                                <svg class="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                                 </svg>
                             </span>
@@ -422,10 +360,10 @@
                         <p class="text-gray-400 text-sm">OAuth 2.0 authentication handled automatically. Opens browser for login, manages tokens and refresh.</p>
                     </div>
 
-                    <div class="bg-pierre-slate rounded-xl p-6 border border-white/10">
+                    <div class="bg-[#1E1E2E] rounded-xl p-6 border border-white/10">
                         <h3 class="font-semibold mb-3 flex items-center gap-2">
-                            <span class="w-8 h-8 rounded-lg bg-pierre-cyan/20 flex items-center justify-center">
-                                <svg class="w-4 h-4 text-pierre-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <span class="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                                <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                 </svg>
                             </span>
@@ -434,10 +372,10 @@
                         <p class="text-gray-400 text-sm">Claude Desktop, ChatGPT, Cursor, and any MCP-compatible application. Cross-platform: macOS, Windows, Linux.</p>
                     </div>
 
-                    <div class="bg-pierre-slate rounded-xl p-6 border border-white/10">
+                    <div class="bg-[#1E1E2E] rounded-xl p-6 border border-white/10">
                         <h3 class="font-semibold mb-3 flex items-center gap-2">
-                            <span class="w-8 h-8 rounded-lg bg-pierre-activity/20 flex items-center justify-center">
-                                <svg class="w-4 h-4 text-pierre-activity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <span class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                                <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
                                 </svg>
                             </span>
@@ -449,7 +387,7 @@
             </div>
 
             <div class="mt-8 text-center">
-                <a href="/docs/tools-reference/" class="text-pierre-cyan hover:text-pierre-cyan-light transition-colors">
+                <a href="/docs/tools-reference/" class="text-cyan-500 hover:text-cyan-400 transition-colors">
                     View SDK Documentation →
                 </a>
             </div>
@@ -457,7 +395,7 @@
     </section>
 
     <!-- Admin Dashboard Section -->
-    <section id="dashboard" class="py-20 px-4 bg-pierre-slate/50">
+    <section id="dashboard" class="py-20 px-4 bg-[#1E1E2E]/50">
         <div class="max-w-7xl mx-auto">
             <div class="text-center mb-16">
                 <h2 class="text-3xl sm:text-4xl font-bold mb-4">Admin Dashboard</h2>
@@ -467,9 +405,9 @@
             </div>
 
             <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div class="bg-pierre-dark rounded-xl p-6 border border-white/10">
-                    <div class="w-10 h-10 rounded-lg bg-pierre-violet/20 flex items-center justify-center mb-4">
-                        <svg class="w-5 h-5 text-pierre-violet" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-[#0F0F1A] rounded-xl p-6 border border-white/10">
+                    <div class="w-10 h-10 rounded-lg bg-violet-600/20 flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                         </svg>
                     </div>
@@ -477,9 +415,9 @@
                     <p class="text-gray-400 text-sm">Real-time charts showing API usage, tool invocations, and request patterns with Chart.js visualizations.</p>
                 </div>
 
-                <div class="bg-pierre-dark rounded-xl p-6 border border-white/10">
-                    <div class="w-10 h-10 rounded-lg bg-pierre-cyan/20 flex items-center justify-center mb-4">
-                        <svg class="w-5 h-5 text-pierre-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-[#0F0F1A] rounded-xl p-6 border border-white/10">
+                    <div class="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
                         </svg>
                     </div>
@@ -487,9 +425,9 @@
                     <p class="text-gray-400 text-sm">Approve pending users, manage tenant assignments, view user activity and provider connections.</p>
                 </div>
 
-                <div class="bg-pierre-dark rounded-xl p-6 border border-white/10">
-                    <div class="w-10 h-10 rounded-lg bg-pierre-activity/20 flex items-center justify-center mb-4">
-                        <svg class="w-5 h-5 text-pierre-activity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-[#0F0F1A] rounded-xl p-6 border border-white/10">
+                    <div class="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
                         </svg>
                     </div>
@@ -497,9 +435,9 @@
                     <p class="text-gray-400 text-sm">Create, revoke, and monitor API keys. Set expiration dates and view usage statistics per key.</p>
                 </div>
 
-                <div class="bg-pierre-dark rounded-xl p-6 border border-white/10">
-                    <div class="w-10 h-10 rounded-lg bg-pierre-nutrition/20 flex items-center justify-center mb-4">
-                        <svg class="w-5 h-5 text-pierre-nutrition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-[#0F0F1A] rounded-xl p-6 border border-white/10">
+                    <div class="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                         </svg>
                     </div>
@@ -507,9 +445,9 @@
                     <p class="text-gray-400 text-sm">WebSocket-powered live updates for metrics, connection status, and system events.</p>
                 </div>
 
-                <div class="bg-pierre-dark rounded-xl p-6 border border-white/10">
-                    <div class="w-10 h-10 rounded-lg bg-pierre-recovery/20 flex items-center justify-center mb-4">
-                        <svg class="w-5 h-5 text-pierre-recovery" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-[#0F0F1A] rounded-xl p-6 border border-white/10">
+                    <div class="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                         </svg>
                     </div>
@@ -517,9 +455,9 @@
                     <p class="text-gray-400 text-sm">Register autonomous agent clients, monitor agent communications, and view capability discovery logs.</p>
                 </div>
 
-                <div class="bg-pierre-dark rounded-xl p-6 border border-white/10">
-                    <div class="w-10 h-10 rounded-lg bg-pierre-violet/20 flex items-center justify-center mb-4">
-                        <svg class="w-5 h-5 text-pierre-violet" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-[#0F0F1A] rounded-xl p-6 border border-white/10">
+                    <div class="w-10 h-10 rounded-lg bg-violet-600/20 flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                         </svg>
                     </div>
@@ -537,7 +475,7 @@
     </section>
 
     <!-- Stats Section -->
-    <section class="py-20 px-4 bg-pierre-slate/50">
+    <section class="py-20 px-4 bg-[#1E1E2E]/50">
         <div class="max-w-7xl mx-auto">
             <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
                 <div>
@@ -571,17 +509,17 @@
             </div>
 
             <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div class="bg-pierre-slate rounded-xl p-6 border border-white/10">
-                    <div class="w-10 h-10 rounded-lg bg-pierre-activity/20 flex items-center justify-center mb-4">
-                        <span class="text-pierre-activity font-bold text-xs">OAuth</span>
+                <div class="bg-[#1E1E2E] rounded-xl p-6 border border-white/10">
+                    <div class="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center mb-4">
+                        <span class="text-emerald-500 font-bold text-xs">OAuth</span>
                     </div>
                     <h3 class="font-semibold mb-2">OAuth2 Server</h3>
                     <p class="text-gray-400 text-sm">RFC 7591 compliant with PKCE, JWKS rotation, RS256 JWT, and per-IP rate limiting.</p>
                 </div>
 
-                <div class="bg-pierre-slate rounded-xl p-6 border border-white/10">
-                    <div class="w-10 h-10 rounded-lg bg-pierre-violet/20 flex items-center justify-center mb-4">
-                        <svg class="w-5 h-5 text-pierre-violet" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-[#1E1E2E] rounded-xl p-6 border border-white/10">
+                    <div class="w-10 h-10 rounded-lg bg-violet-600/20 flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                         </svg>
                     </div>
@@ -589,9 +527,9 @@
                     <p class="text-gray-400 text-sm">All tokens encrypted at rest with per-user keys. Ed25519 signing for integrity.</p>
                 </div>
 
-                <div class="bg-pierre-slate rounded-xl p-6 border border-white/10">
-                    <div class="w-10 h-10 rounded-lg bg-pierre-cyan/20 flex items-center justify-center mb-4">
-                        <svg class="w-5 h-5 text-pierre-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-[#1E1E2E] rounded-xl p-6 border border-white/10">
+                    <div class="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
                         </svg>
                     </div>
@@ -599,9 +537,9 @@
                     <p class="text-gray-400 text-sm">Complete data isolation between tenants. Per-user credential encryption.</p>
                 </div>
 
-                <div class="bg-pierre-slate rounded-xl p-6 border border-white/10">
-                    <div class="w-10 h-10 rounded-lg bg-pierre-recovery/20 flex items-center justify-center mb-4">
-                        <svg class="w-5 h-5 text-pierre-recovery" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-[#1E1E2E] rounded-xl p-6 border border-white/10">
+                    <div class="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                         </svg>
                     </div>
@@ -668,7 +606,7 @@
                         <a href="https://async-io.org" class="text-gray-400 hover:text-white transition-colors text-sm">
                             Atmosphere Framework
                         </a>
-                        <span class="px-2 py-0.5 rounded bg-pierre-slate text-xs text-gray-500">Java Async</span>
+                        <span class="px-2 py-0.5 rounded bg-[#1E1E2E] text-xs text-gray-500">Java Async</span>
                     </div>
                     <div class="text-gray-500 text-sm">
                         &copy; 2025 Pierre Fitness Intelligence. Open Source under MIT License.

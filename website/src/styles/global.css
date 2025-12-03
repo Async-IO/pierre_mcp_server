@@ -1,0 +1,45 @@
+/* ABOUTME: Global Tailwind CSS for the landing page */
+/* ABOUTME: Imports Tailwind directives and Pierre custom styles */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Pierre gradient utilities */
+.gradient-pierre {
+  background: linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%);
+}
+
+.gradient-pierre-text {
+  background: linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-activity {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+}
+
+.gradient-nutrition {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+}
+
+.gradient-recovery {
+  background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+}
+
+/* Card hover effect */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(124, 58, 237, 0.15);
+}
+
+/* Protocol badge backdrop */
+.protocol-badge {
+  backdrop-filter: blur(8px);
+}
