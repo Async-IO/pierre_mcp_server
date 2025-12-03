@@ -9,7 +9,7 @@
 
 use chrono::Utc;
 use pierre_mcp_server::database::Database;
-use pierre_mcp_server::models::{EncryptedToken, User, UserStatus, UserTier};
+use pierre_mcp_server::models::{User, UserStatus, UserTier};
 use uuid::Uuid;
 
 #[tokio::test]
@@ -404,12 +404,28 @@ async fn test_user_fitness_profile() {
 
 #[tokio::test]
 async fn test_provider_last_sync() {
+    use pierre_mcp_server::database::user_oauth_tokens::OAuthTokenData;
+
     let db = create_test_database().await;
     let user = create_test_user("sync_test@example.com", Some("Sync Test".to_owned()));
     db.create_user(&user).await.unwrap();
 
     let provider = "strava";
     let sync_time = Utc::now();
+
+    // First, create an OAuth token record (last_sync lives in user_oauth_tokens)
+    let token_data = OAuthTokenData {
+        id: &Uuid::new_v4().to_string(),
+        user_id: user.id,
+        tenant_id: "test_tenant",
+        provider,
+        access_token: "test_access_token",
+        refresh_token: Some("test_refresh_token"),
+        token_type: "bearer",
+        expires_at: Some(Utc::now() + chrono::Duration::hours(6)),
+        scope: "read_all",
+    };
+    db.upsert_user_oauth_token(&token_data).await.unwrap();
 
     // Update last sync
     let update_result = db
@@ -485,27 +501,41 @@ async fn test_user_serialization_in_database() {
 
 #[tokio::test]
 async fn test_user_with_encrypted_tokens() {
+    use pierre_mcp_server::database::user_oauth_tokens::OAuthTokenData;
+
     let db = create_test_database().await;
 
     let now = Utc::now();
-    let mut user = create_test_user("tokens_test@example.com", Some("Tokens Test".to_owned()));
-    user.strava_token = Some(EncryptedToken {
-        access_token: "encrypted_strava_access".to_owned(),
-        refresh_token: "encrypted_strava_refresh".to_owned(),
-        expires_at: now + chrono::Duration::hours(6),
-        scope: "read_all,activity:read".to_owned(),
-    });
-
+    let user = create_test_user("tokens_test@example.com", Some("Tokens Test".to_owned()));
     db.create_user(&user).await.unwrap();
 
-    let retrieved = db.get_user_by_id(user.id).await.unwrap().unwrap();
+    // Tokens are stored in user_oauth_tokens table, not in users table
+    let token_data = OAuthTokenData {
+        id: &Uuid::new_v4().to_string(),
+        user_id: user.id,
+        tenant_id: "test_tenant",
+        provider: "strava",
+        access_token: "encrypted_strava_access",
+        refresh_token: Some("encrypted_strava_refresh"),
+        token_type: "bearer",
+        expires_at: Some(now + chrono::Duration::hours(6)),
+        scope: "read_all,activity:read",
+    };
+    db.upsert_user_oauth_token(&token_data).await.unwrap();
 
-    // Verify the encrypted token is stored and retrieved correctly
-    assert!(retrieved.strava_token.is_some());
-    if let Some(token) = retrieved.strava_token {
-        assert_eq!(token.scope, "read_all,activity:read");
-        assert!(token.expires_at > now);
-    }
+    // User retrieval should not include tokens (they're loaded separately)
+    let retrieved = db.get_user_by_id(user.id).await.unwrap().unwrap();
+    assert!(retrieved.strava_token.is_none()); // Tokens are loaded separately
+
+    // Verify token via dedicated OAuth token API
+    let oauth_token = db
+        .get_user_oauth_token(user.id, "test_tenant", "strava")
+        .await
+        .unwrap();
+    assert!(oauth_token.is_some());
+    let token = oauth_token.unwrap();
+    assert_eq!(token.scope, Some("read_all,activity:read".to_owned()));
+    assert!(token.expires_at.is_some());
 }
 
 #[tokio::test]

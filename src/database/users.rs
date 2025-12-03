@@ -7,7 +7,7 @@
 use super::Database;
 use crate::database_plugins::shared;
 use crate::errors::{AppError, AppResult};
-use crate::models::{EncryptedToken, User, UserStatus};
+use crate::models::{User, UserStatus};
 use crate::pagination::{Cursor, CursorPage, PaginationParams};
 use sqlx::Row;
 use uuid::Uuid;
@@ -20,8 +20,6 @@ impl Database {
     /// Returns an error if:
     /// - The email is already in use by another user
     /// - Database operation fails
-    // Long function: Comprehensive user creation with validation, duplicate checking, and database-specific implementations
-    #[allow(clippy::too_many_lines)]
     pub async fn create_user_impl(&self, user: &User) -> AppResult<Uuid> {
         // Check if user exists by email
         let existing = self.get_user_by_email_impl(&user.email).await?;
@@ -31,31 +29,7 @@ impl Database {
                     "Email already in use by another user",
                 ));
             }
-            // Update existing user (including tokens)
-            let (strava_access, strava_refresh, strava_expires, strava_scope) = user
-                .strava_token
-                .as_ref()
-                .map_or((None, None, None, None), |token| {
-                    (
-                        Some(&token.access_token),
-                        Some(&token.refresh_token),
-                        Some(token.expires_at.timestamp()),
-                        Some(&token.scope),
-                    )
-                });
-
-            let (fitbit_access, fitbit_refresh, fitbit_expires, fitbit_scope) = user
-                .fitbit_token
-                .as_ref()
-                .map_or((None, None, None, None), |token| {
-                    (
-                        Some(&token.access_token),
-                        Some(&token.refresh_token),
-                        Some(token.expires_at.timestamp()),
-                        Some(&token.scope),
-                    )
-                });
-
+            // Update existing user (tokens are stored in user_oauth_tokens table)
             sqlx::query(
                 r"
                 UPDATE users SET
@@ -63,19 +37,10 @@ impl Database {
                     password_hash = $3,
                     tier = $4,
                     tenant_id = $5,
-                    strava_access_token = $6,
-                    strava_refresh_token = $7,
-                    strava_expires_at = $8,
-                    strava_scope = $9,
-                    fitbit_access_token = $10,
-                    fitbit_refresh_token = $11,
-                    fitbit_expires_at = $12,
-                    fitbit_scope = $13,
-                    is_active = $14,
-                    user_status = $15,
-                    role = $16,
-                    approved_by = $17,
-                    approved_at = $18,
+                    is_active = $6,
+                    user_status = $7,
+                    approved_by = $8,
+                    approved_at = $9,
                     last_active = CURRENT_TIMESTAMP
                 WHERE id = $1
                 ",
@@ -85,56 +50,22 @@ impl Database {
             .bind(&user.password_hash)
             .bind(user.tier.as_str())
             .bind(&user.tenant_id)
-            .bind(strava_access)
-            .bind(strava_refresh)
-            .bind(strava_expires)
-            .bind(strava_scope)
-            .bind(fitbit_access)
-            .bind(fitbit_refresh)
-            .bind(fitbit_expires)
-            .bind(fitbit_scope)
             .bind(user.is_active)
             .bind(shared::enums::user_status_to_str(&user.user_status))
-            .bind(shared::enums::user_role_to_str(&user.role))
             .bind(user.approved_by.map(|id| id.to_string()))
             .bind(user.approved_at)
             .execute(&self.pool)
             .await
             .map_err(|e| AppError::database(format!("Failed to update user: {e}")))?;
         } else {
-            // Insert new user (including tokens)
-            let (strava_access, strava_refresh, strava_expires, strava_scope) = user
-                .strava_token
-                .as_ref()
-                .map_or((None, None, None, None), |token| {
-                    (
-                        Some(&token.access_token),
-                        Some(&token.refresh_token),
-                        Some(token.expires_at.timestamp()),
-                        Some(&token.scope),
-                    )
-                });
-
-            let (fitbit_access, fitbit_refresh, fitbit_expires, fitbit_scope) = user
-                .fitbit_token
-                .as_ref()
-                .map_or((None, None, None, None), |token| {
-                    (
-                        Some(&token.access_token),
-                        Some(&token.refresh_token),
-                        Some(token.expires_at.timestamp()),
-                        Some(&token.scope),
-                    )
-                });
-
+            // Insert new user (tokens are stored in user_oauth_tokens table)
             sqlx::query(
                 r"
                 INSERT INTO users (
                     id, email, display_name, password_hash, tier, tenant_id,
-                    strava_access_token, strava_refresh_token, strava_expires_at, strava_scope,
-                    fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope,
-                    is_active, user_status, is_admin, role, approved_by, approved_at, created_at, last_active
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+                    is_active, user_status, is_admin, approved_by, approved_at,
+                    created_at, last_active
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                 ",
             )
             .bind(user.id.to_string())
@@ -143,18 +74,9 @@ impl Database {
             .bind(&user.password_hash)
             .bind(user.tier.as_str())
             .bind(&user.tenant_id)
-            .bind(strava_access)
-            .bind(strava_refresh)
-            .bind(strava_expires)
-            .bind(strava_scope)
-            .bind(fitbit_access)
-            .bind(fitbit_refresh)
-            .bind(fitbit_expires)
-            .bind(fitbit_scope)
             .bind(user.is_active)
             .bind(shared::enums::user_status_to_str(&user.user_status))
             .bind(user.is_admin)
-            .bind(shared::enums::user_role_to_str(&user.role))
             .bind(user.approved_by.map(|id| id.to_string()))
             .bind(user.approved_at)
             .bind(user.created_at)
@@ -213,9 +135,8 @@ impl Database {
         let query = format!(
             r"
             SELECT id, email, display_name, password_hash, tier, tenant_id,
-                   strava_access_token, strava_refresh_token, strava_expires_at, strava_scope,
-                   fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope,
-                   is_active, user_status, is_admin, role, approved_by, approved_at, created_at, last_active
+                   is_active, user_status, is_admin, approved_by, approved_at,
+                   created_at, last_active
             FROM users WHERE {field} = $1
             "
         );
@@ -235,6 +156,7 @@ impl Database {
     }
 
     /// Convert a database row to a User struct
+    /// OAuth tokens are loaded separately via `user_oauth_tokens` table
     fn row_to_user(row: &sqlx::sqlite::SqliteRow) -> AppResult<User> {
         let id: String = row.get("id");
         let email: String = row.get("email");
@@ -246,67 +168,10 @@ impl Database {
         let user_status_str: String = row.get("user_status");
         let user_status = shared::enums::str_to_user_status(&user_status_str);
         let is_admin: bool = row.get("is_admin");
-        // Parse role - default to 'user' if not present (backward compatibility)
-        let role = row
-            .try_get::<String, _>("role")
-            .map(|role_str| shared::enums::str_to_user_role(&role_str))
-            .unwrap_or(crate::permissions::UserRole::User);
         let approved_by: Option<String> = row.get("approved_by");
         let approved_at: Option<chrono::DateTime<chrono::Utc>> = row.get("approved_at");
         let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
         let last_active: chrono::DateTime<chrono::Utc> = row.get("last_active");
-
-        // Handle Strava token
-        let strava_token = if let (Some(access), Some(refresh), Some(expires_at)) = (
-            row.get::<Option<String>, _>("strava_access_token"),
-            row.get::<Option<String>, _>("strava_refresh_token"),
-            row.get::<Option<i64>, _>("strava_expires_at"),
-        ) {
-            let scope: Option<String> = row.get("strava_scope");
-
-            Some(EncryptedToken {
-                access_token: access,
-                refresh_token: refresh,
-                expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_else(|| {
-                    tracing::warn!(
-                        user_id = %id,
-                        provider = "strava",
-                        expires_at = %expires_at,
-                        "Invalid OAuth token expiry timestamp - using epoch default"
-                    );
-                    chrono::DateTime::default()
-                }),
-                scope: scope.unwrap_or_default(),
-            })
-        } else {
-            None
-        };
-
-        // Handle Fitbit token
-        let fitbit_token = if let (Some(access), Some(refresh), Some(expires_at)) = (
-            row.get::<Option<String>, _>("fitbit_access_token"),
-            row.get::<Option<String>, _>("fitbit_refresh_token"),
-            row.get::<Option<i64>, _>("fitbit_expires_at"),
-        ) {
-            let scope: Option<String> = row.get("fitbit_scope");
-
-            Some(EncryptedToken {
-                access_token: access,
-                refresh_token: refresh,
-                expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_else(|| {
-                    tracing::warn!(
-                        user_id = %id,
-                        provider = "fitbit",
-                        expires_at = %expires_at,
-                        "Invalid OAuth token expiry timestamp - using epoch default"
-                    );
-                    chrono::DateTime::default()
-                }),
-                scope: scope.unwrap_or_default(),
-            })
-        } else {
-            None
-        };
 
         Ok(User {
             id: Uuid::parse_str(&id)
@@ -318,12 +183,11 @@ impl Database {
                 .parse()
                 .map_err(|e| AppError::internal(format!("Failed to parse tier: {e}")))?,
             tenant_id,
-            strava_token,
-            fitbit_token,
+            strava_token: None, // Loaded separately via user_oauth_tokens
+            fitbit_token: None, // Loaded separately via user_oauth_tokens
             is_active,
             user_status,
             is_admin,
-            role,
             approved_by: approved_by.and_then(|id_str| {
                 Uuid::parse_str(&id_str)
                     .inspect_err(|e| {
@@ -493,68 +357,48 @@ impl Database {
         self.upsert_user_profile_impl(user_id, profile_data).await
     }
 
-    /// Get last sync timestamp for a provider
+    /// Get last sync timestamp for a provider from `user_oauth_tokens`
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The provider is not supported
-    /// - The database query fails
+    /// Returns an error if the database query fails
     pub async fn get_provider_last_sync(
         &self,
         user_id: Uuid,
         provider: &str,
     ) -> AppResult<Option<chrono::DateTime<chrono::Utc>>> {
-        let column = match provider {
-            "strava" => "strava_last_sync",
-            "fitbit" => "fitbit_last_sync",
-            _ => {
-                return Err(AppError::invalid_input(format!(
-                    "Unsupported provider: {provider}"
-                )))
-            }
-        };
-
-        let query = format!("SELECT {column} FROM users WHERE id = $1");
-        let last_sync: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(&query)
-            .bind(user_id.to_string())
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|e| AppError::database(format!("Failed to get provider last sync: {e}")))?;
+        let last_sync: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
+            "SELECT last_sync FROM user_oauth_tokens WHERE user_id = $1 AND provider = $2",
+        )
+        .bind(user_id.to_string())
+        .bind(provider)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get provider last sync: {e}")))?;
 
         Ok(last_sync)
     }
 
-    /// Update last sync timestamp for a provider
+    /// Update last sync timestamp for a provider in `user_oauth_tokens`
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The provider is not supported
-    /// - The database query fails
+    /// Returns an error if the database query fails
     pub async fn update_provider_last_sync(
         &self,
         user_id: Uuid,
         provider: &str,
         sync_time: chrono::DateTime<chrono::Utc>,
     ) -> AppResult<()> {
-        let column = match provider {
-            "strava" => "strava_last_sync",
-            "fitbit" => "fitbit_last_sync",
-            _ => {
-                return Err(AppError::invalid_input(format!(
-                    "Unsupported provider: {provider}"
-                )))
-            }
-        };
-
-        let query = format!("UPDATE users SET {column} = $1 WHERE id = $2");
-        sqlx::query(&query)
-            .bind(sync_time)
-            .bind(user_id.to_string())
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AppError::database(format!("Failed to update provider last sync: {e}")))?;
+        sqlx::query(
+            "UPDATE user_oauth_tokens SET last_sync = $1 WHERE user_id = $2 AND provider = $3",
+        )
+        .bind(sync_time)
+        .bind(user_id.to_string())
+        .bind(provider)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update provider last sync: {e}")))?;
 
         Ok(())
     }
@@ -615,9 +459,8 @@ impl Database {
             // This ensures consistent pagination even when new items are added
             let query = r"
                 SELECT id, email, display_name, password_hash, tier, tenant_id,
-                       strava_access_token, strava_refresh_token, strava_expires_at, strava_scope,
-                       fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope,
-                       is_active, user_status, is_admin, role, approved_by, approved_at, created_at, last_active
+                       is_active, user_status, is_admin, approved_by, approved_at,
+                       created_at, last_active
                 FROM users
                 WHERE user_status = ?1
                   AND (created_at < ?2 OR (created_at = ?2 AND id < ?3))
@@ -629,9 +472,8 @@ impl Database {
             // First page - no cursor
             let query = r"
                 SELECT id, email, display_name, password_hash, tier, tenant_id,
-                       strava_access_token, strava_refresh_token, strava_expires_at, strava_scope,
-                       fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope,
-                       is_active, user_status, is_admin, role, approved_by, approved_at, created_at, last_active
+                       is_active, user_status, is_admin, approved_by, approved_at,
+                       created_at, last_active
                 FROM users
                 WHERE user_status = ?1
                 ORDER BY created_at DESC, id DESC

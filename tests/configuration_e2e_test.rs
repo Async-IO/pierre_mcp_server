@@ -14,16 +14,25 @@
 mod common;
 
 use pierre_mcp_server::database_plugins::factory::Database;
+use pierre_mcp_server::database_plugins::DatabaseProvider;
 use pierre_mcp_server::intelligence::{
     ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
     TrendIndicators,
 };
+use pierre_mcp_server::models::User;
 use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
 async fn create_test_tool_executor() -> Arc<UniversalToolExecutor> {
+    let (executor, _) = create_test_tool_executor_with_user().await;
+    executor
+}
+
+/// Creates a test executor with a valid user in the database.
+/// Returns (executor, `user_id`) where `user_id` can be used for tests that write to the database.
+async fn create_test_tool_executor_with_user() -> (Arc<UniversalToolExecutor>, String) {
     // Initialize server config for tests
     common::init_server_config();
 
@@ -91,6 +100,17 @@ async fn create_test_tool_executor() -> Arc<UniversalToolExecutor> {
         .await
         .expect("Failed to create test cache");
 
+    // Create a test user in the database for FK constraint compliance
+    let test_user = User::new(
+        "config_test@example.com".to_owned(),
+        "hashed_password".to_owned(),
+        Some("Config Test User".to_owned()),
+    );
+    let user_id = database
+        .create_user(&test_user)
+        .await
+        .expect("Failed to create test user");
+
     let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         (*database).clone(),
         auth_manager,
@@ -100,7 +120,10 @@ async fn create_test_tool_executor() -> Arc<UniversalToolExecutor> {
         2048, // Use 2048-bit RSA keys for faster test execution
         Some(common::get_shared_test_jwks()),
     ));
-    Arc::new(UniversalToolExecutor::new(server_resources))
+    (
+        Arc::new(UniversalToolExecutor::new(server_resources)),
+        user_id.to_string(),
+    )
 }
 
 fn create_test_config() -> pierre_mcp_server::config::environment::ServerConfig {
@@ -322,11 +345,11 @@ async fn test_validate_configuration_e2e() {
 
 #[tokio::test]
 async fn test_update_user_configuration_e2e() {
-    let executor = create_test_tool_executor().await;
+    // Use executor with a valid user to satisfy FK constraint on user_configurations.user_id
+    let (executor, test_user_id) = create_test_tool_executor_with_user().await;
 
-    let test_user_id = Uuid::new_v4().to_string();
     let request = UniversalRequest {
-        user_id: test_user_id,
+        user_id: test_user_id.clone(),
         tool_name: "update_user_configuration".to_owned(),
         parameters: json!({
             "profile": "default",

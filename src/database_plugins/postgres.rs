@@ -13,7 +13,6 @@ use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
-use crate::constants::oauth_providers;
 use crate::constants::tiers;
 use crate::database::A2AUsage;
 use crate::database_plugins::shared::encryption::HasEncryption;
@@ -2285,22 +2284,14 @@ impl DatabaseProvider for PostgresDatabase {
         user_id: Uuid,
         provider: &str,
     ) -> AppResult<Option<DateTime<Utc>>> {
-        let column = match provider {
-            oauth_providers::STRAVA => "strava_last_sync",
-            oauth_providers::FITBIT => "fitbit_last_sync",
-            _ => {
-                return Err(AppError::invalid_input(format!(
-                    "Unsupported provider: {provider}"
-                )))
-            }
-        };
-
-        let query = format!("SELECT {column} FROM users WHERE id = $1");
-        let last_sync: Option<DateTime<Utc>> = sqlx::query_scalar(&query)
-            .bind(user_id)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|e| AppError::database(format!("Failed to get provider last sync: {e}")))?;
+        let last_sync: Option<DateTime<Utc>> = sqlx::query_scalar(
+            "SELECT last_sync FROM user_oauth_tokens WHERE user_id = $1 AND provider = $2",
+        )
+        .bind(user_id)
+        .bind(provider)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get provider last sync: {e}")))?;
 
         Ok(last_sync)
     }
@@ -2311,23 +2302,15 @@ impl DatabaseProvider for PostgresDatabase {
         provider: &str,
         sync_time: DateTime<Utc>,
     ) -> AppResult<()> {
-        let column = match provider {
-            oauth_providers::STRAVA => "strava_last_sync",
-            oauth_providers::FITBIT => "fitbit_last_sync",
-            _ => {
-                return Err(AppError::invalid_input(format!(
-                    "Unsupported provider: {provider}"
-                )))
-            }
-        };
-
-        let query = format!("UPDATE users SET {column} = $1 WHERE id = $2");
-        sqlx::query(&query)
-            .bind(sync_time)
-            .bind(user_id)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| AppError::database(format!("Failed to update provider last sync: {e}")))?;
+        sqlx::query(
+            "UPDATE user_oauth_tokens SET last_sync = $1 WHERE user_id = $2 AND provider = $3",
+        )
+        .bind(sync_time)
+        .bind(user_id)
+        .bind(provider)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update provider last sync: {e}")))?;
 
         Ok(())
     }
@@ -5886,6 +5869,7 @@ impl PostgresDatabase {
     }
 
     async fn create_users_table(&self) -> AppResult<()> {
+        // OAuth tokens are stored in user_oauth_tokens table, not here
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS users (
@@ -5895,16 +5879,6 @@ impl PostgresDatabase {
                 password_hash TEXT NOT NULL,
                 tier TEXT NOT NULL DEFAULT 'starter' CHECK (tier IN ('starter', 'professional', 'enterprise')),
                 tenant_id TEXT,
-                strava_access_token TEXT,
-                strava_refresh_token TEXT,
-                strava_expires_at TIMESTAMPTZ,
-                strava_scope TEXT,
-                strava_nonce TEXT,
-                fitbit_access_token TEXT,
-                fitbit_refresh_token TEXT,
-                fitbit_expires_at TIMESTAMPTZ,
-                fitbit_scope TEXT,
-                fitbit_nonce TEXT,
                 is_active BOOLEAN NOT NULL DEFAULT true,
                 user_status TEXT NOT NULL DEFAULT 'pending' CHECK (user_status IN ('pending', 'active', 'suspended')),
                 is_admin BOOLEAN NOT NULL DEFAULT false,
@@ -6459,6 +6433,7 @@ impl PostgresDatabase {
                 token_type VARCHAR(50) DEFAULT 'bearer',
                 expires_at TIMESTAMPTZ,
                 scope TEXT,
+                last_sync TIMESTAMPTZ,
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(user_id, tenant_id, provider)
