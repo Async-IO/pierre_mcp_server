@@ -178,6 +178,9 @@ pub mod lifecycle;
 /// OAuth 2.0 authorization server (Pierre as provider for MCP clients)
 pub mod oauth2_server;
 
+/// LLM provider abstraction for AI chat integration
+pub mod llm;
+
 // Utility modules
 /// Role-based permission system with `super_admin`, `admin`, `user` hierarchy
 pub mod permissions;
