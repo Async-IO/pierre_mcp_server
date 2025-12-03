@@ -13,6 +13,7 @@ ALTER TABLE user_oauth_tokens ADD COLUMN last_sync TEXT;
 -- ============================================================================
 
 -- Create new users table without legacy OAuth token columns
+-- Note: Preserves role column added by migration 20250120000012_user_roles_permissions.sql
 CREATE TABLE IF NOT EXISTS users_new (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS users_new (
     is_active INTEGER NOT NULL DEFAULT 1,
     user_status TEXT NOT NULL DEFAULT 'pending' CHECK (user_status IN ('pending', 'active', 'suspended')),
     is_admin INTEGER NOT NULL DEFAULT 0,
+    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('super_admin', 'admin', 'user')),
     approved_by TEXT,
     approved_at TEXT,
     created_at TEXT NOT NULL,
@@ -32,12 +34,12 @@ CREATE TABLE IF NOT EXISTS users_new (
 -- Copy data from old table (excluding legacy token columns)
 INSERT INTO users_new (
     id, email, display_name, password_hash, tier, tenant_id,
-    is_active, user_status, is_admin, approved_by, approved_at,
+    is_active, user_status, is_admin, role, approved_by, approved_at,
     created_at, last_active
 )
 SELECT
     id, email, display_name, password_hash, tier, tenant_id,
-    is_active, user_status, is_admin, approved_by, approved_at,
+    is_active, user_status, is_admin, role, approved_by, approved_at,
     created_at, last_active
 FROM users;
 
