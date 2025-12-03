@@ -243,6 +243,7 @@ async fn test_database_operation_instrumentation() -> Result<(), Box<dyn std::er
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
         created_at: chrono::Utc::now(),

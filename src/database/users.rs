@@ -73,8 +73,9 @@ impl Database {
                     fitbit_scope = $13,
                     is_active = $14,
                     user_status = $15,
-                    approved_by = $16,
-                    approved_at = $17,
+                    role = $16,
+                    approved_by = $17,
+                    approved_at = $18,
                     last_active = CURRENT_TIMESTAMP
                 WHERE id = $1
                 ",
@@ -94,7 +95,7 @@ impl Database {
             .bind(fitbit_scope)
             .bind(user.is_active)
             .bind(shared::enums::user_status_to_str(&user.user_status))
-            .bind(user.is_admin)
+            .bind(shared::enums::user_role_to_str(&user.role))
             .bind(user.approved_by.map(|id| id.to_string()))
             .bind(user.approved_at)
             .execute(&self.pool)
@@ -132,8 +133,8 @@ impl Database {
                     id, email, display_name, password_hash, tier, tenant_id,
                     strava_access_token, strava_refresh_token, strava_expires_at, strava_scope,
                     fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope,
-                    is_active, user_status, is_admin, approved_by, approved_at, created_at, last_active
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+                    is_active, user_status, is_admin, role, approved_by, approved_at, created_at, last_active
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
                 ",
             )
             .bind(user.id.to_string())
@@ -153,6 +154,7 @@ impl Database {
             .bind(user.is_active)
             .bind(shared::enums::user_status_to_str(&user.user_status))
             .bind(user.is_admin)
+            .bind(shared::enums::user_role_to_str(&user.role))
             .bind(user.approved_by.map(|id| id.to_string()))
             .bind(user.approved_at)
             .bind(user.created_at)
@@ -213,7 +215,7 @@ impl Database {
             SELECT id, email, display_name, password_hash, tier, tenant_id,
                    strava_access_token, strava_refresh_token, strava_expires_at, strava_scope,
                    fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope,
-                   is_active, user_status, is_admin, approved_by, approved_at, created_at, last_active
+                   is_active, user_status, is_admin, role, approved_by, approved_at, created_at, last_active
             FROM users WHERE {field} = $1
             "
         );
@@ -244,6 +246,11 @@ impl Database {
         let user_status_str: String = row.get("user_status");
         let user_status = shared::enums::str_to_user_status(&user_status_str);
         let is_admin: bool = row.get("is_admin");
+        // Parse role - default to 'user' if not present (backward compatibility)
+        let role = row
+            .try_get::<String, _>("role")
+            .map(|role_str| shared::enums::str_to_user_role(&role_str))
+            .unwrap_or(crate::permissions::UserRole::User);
         let approved_by: Option<String> = row.get("approved_by");
         let approved_at: Option<chrono::DateTime<chrono::Utc>> = row.get("approved_at");
         let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
@@ -316,6 +323,7 @@ impl Database {
             is_active,
             user_status,
             is_admin,
+            role,
             approved_by: approved_by.and_then(|id_str| {
                 Uuid::parse_str(&id_str)
                     .inspect_err(|e| {
@@ -609,7 +617,7 @@ impl Database {
                 SELECT id, email, display_name, password_hash, tier, tenant_id,
                        strava_access_token, strava_refresh_token, strava_expires_at, strava_scope,
                        fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope,
-                       is_active, user_status, is_admin, approved_by, approved_at, created_at, last_active
+                       is_active, user_status, is_admin, role, approved_by, approved_at, created_at, last_active
                 FROM users
                 WHERE user_status = ?1
                   AND (created_at < ?2 OR (created_at = ?2 AND id < ?3))
@@ -623,7 +631,7 @@ impl Database {
                 SELECT id, email, display_name, password_hash, tier, tenant_id,
                        strava_access_token, strava_refresh_token, strava_expires_at, strava_scope,
                        fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope,
-                       is_active, user_status, is_admin, approved_by, approved_at, created_at, last_active
+                       is_active, user_status, is_admin, role, approved_by, approved_at, created_at, last_active
                 FROM users
                 WHERE user_status = ?1
                 ORDER BY created_at DESC, id DESC

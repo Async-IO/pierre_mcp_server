@@ -151,6 +151,7 @@ fn create_test_config(port: u16) -> Arc<pierre_mcp_server::config::environment::
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -211,6 +212,7 @@ impl MultiTenantMcpClient {
             is_active: true,
             user_status: pierre_mcp_server::models::UserStatus::Active, // Already active
             is_admin: false,
+            role: pierre_mcp_server::permissions::UserRole::User,
             approved_by: Some(user_id), // Self-approved for test
             approved_at: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),

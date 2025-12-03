@@ -45,6 +45,7 @@ fn create_minimal_test_config(
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
             ci_mode: true,
+            auto_approve_users: false,
             ..Default::default()
         },
         security: pierre_mcp_server::config::environment::SecurityConfig {
@@ -77,6 +78,7 @@ async fn create_test_auth_routes() -> Result<AuthService> {
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     Ok(AuthService::new(
         server_context.auth().clone(),
+        server_context.config().clone(),
         server_context.data().clone(),
     ))
 }
@@ -100,6 +102,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthService, Uuid, Arc<Database>
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
     };
@@ -251,6 +254,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthService, Uuid, Arc<Database>
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -532,6 +536,7 @@ async fn test_user_login_success() -> Result<()> {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -579,6 +584,7 @@ async fn test_user_login_success() -> Result<()> {
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     let auth_routes = pierre_mcp_server::routes::AuthService::new(
         server_context.auth().clone(),
+        server_context.config().clone(),
         server_context.data().clone(),
     );
 
@@ -809,6 +815,7 @@ async fn test_token_refresh_success() -> Result<()> {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -856,6 +863,7 @@ async fn test_token_refresh_success() -> Result<()> {
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     let auth_routes = pierre_mcp_server::routes::AuthService::new(
         server_context.auth().clone(),
+        server_context.config().clone(),
         server_context.data().clone(),
     );
 
@@ -1034,6 +1042,7 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -1081,6 +1090,7 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     let auth_routes = pierre_mcp_server::routes::AuthService::new(
         server_context.auth().clone(),
+        server_context.config().clone(),
         server_context.data().clone(),
     );
 
@@ -1206,6 +1216,7 @@ async fn test_oauth_connection_status_no_connections() -> Result<()> {
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
     };
@@ -1244,6 +1255,7 @@ async fn test_oauth_disconnect_provider_success() -> Result<()> {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -1278,6 +1290,7 @@ async fn test_oauth_disconnect_invalid_provider() -> Result<()> {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -1507,6 +1520,7 @@ async fn test_complete_auth_flow() -> Result<()> {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -1554,6 +1568,7 @@ async fn test_complete_auth_flow() -> Result<()> {
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     let auth_routes = pierre_mcp_server::routes::AuthService::new(
         server_context.auth().clone(),
+        server_context.config().clone(),
         server_context.data().clone(),
     );
     let oauth_routes = pierre_mcp_server::routes::OAuthService::new(
@@ -1618,6 +1633,7 @@ async fn test_complete_auth_flow() -> Result<()> {
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: true,
+        role: pierre_mcp_server::permissions::UserRole::Admin,
         approved_by: None,
         approved_at: None,
     };
@@ -1808,6 +1824,7 @@ async fn test_concurrent_logins() -> Result<()> {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -1855,6 +1872,7 @@ async fn test_concurrent_logins() -> Result<()> {
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     let auth_routes = pierre_mcp_server::routes::AuthService::new(
         server_context.auth().clone(),
+        server_context.config().clone(),
         server_context.data().clone(),
     );
 

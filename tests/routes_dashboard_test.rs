@@ -282,6 +282,7 @@ impl DashboardTestSetup {
                 max_activities_fetch: 100,
                 default_activities_limit: 20,
                 ci_mode: true,
+                auto_approve_users: false,
                 protocol: pierre_mcp_server::config::environment::ProtocolConfig {
                     mcp_version: "2025-06-18".to_owned(),
                     server_name: "pierre-mcp-server-test".to_owned(),
@@ -683,6 +684,7 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),

@@ -3,7 +3,6 @@
 
 import { useState } from 'react';
 import { Button } from './ui';
-import { apiService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import ApiKeyList from './ApiKeyList';
 import CreateApiKey from './CreateApiKey';
@@ -251,18 +250,10 @@ export default function UnifiedConnections() {
             </Button>
           </div>
           <AdminTokenList
-            onViewDetails={async (tokenId: string) => {
-              try {
-                // Fetch token details from API
-                const tokenDetails = await apiService.getAdminTokenDetails(tokenId);
-                setSelectedToken(tokenDetails);
-                setActiveView('details');
-                setErrorMessage(null);
-              } catch (error) {
-                console.error('Failed to fetch token details:', error);
-                const message = error instanceof Error ? error.message : 'Failed to fetch token details';
-                setErrorMessage(message);
-              }
+            onViewDetails={(token) => {
+              setSelectedToken(token);
+              setActiveView('details');
+              setErrorMessage(null);
             }}
           />
         </div>

@@ -223,7 +223,7 @@ impl DatabaseProvider for PostgresDatabase {
         let row = sqlx::query(
             r"
             SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
-                   user_status, approved_by, approved_at, created_at, last_active
+                   role, user_status, approved_by, approved_at, created_at, last_active
             FROM users
             WHERE id = $1
             ",
@@ -258,6 +258,12 @@ impl DatabaseProvider for PostgresDatabase {
                         shared::enums::str_to_user_status(&status_str)
                     },
                     is_admin: row.get("is_admin"),
+                    role: {
+                        let role_str: Option<String> = row.try_get("role").ok().flatten();
+                        role_str.map_or(crate::permissions::UserRole::User, |s| {
+                            shared::enums::str_to_user_role(&s)
+                        })
+                    },
                     approved_by: row.get("approved_by"),
                     approved_at: row.get("approved_at"),
                     created_at: row.get("created_at"),
@@ -271,7 +277,7 @@ impl DatabaseProvider for PostgresDatabase {
         let row = sqlx::query(
             r"
             SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
-                   user_status, approved_by, approved_at, created_at, last_active
+                   role, user_status, approved_by, approved_at, created_at, last_active
             FROM users
             WHERE email = $1
             ",
@@ -306,6 +312,12 @@ impl DatabaseProvider for PostgresDatabase {
                         shared::enums::str_to_user_status(&status_str)
                     },
                     is_admin: row.get("is_admin"),
+                    role: {
+                        let role_str: Option<String> = row.try_get("role").ok().flatten();
+                        role_str.map_or(crate::permissions::UserRole::User, |s| {
+                            shared::enums::str_to_user_role(&s)
+                        })
+                    },
                     approved_by: row.get("approved_by"),
                     approved_at: row.get("approved_at"),
                     created_at: row.get("created_at"),
@@ -362,7 +374,7 @@ impl DatabaseProvider for PostgresDatabase {
         let rows = sqlx::query(
             r"
             SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
-                   COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
+                   role, COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
             FROM users
             WHERE COALESCE(user_status, 'active') = $1
             ORDER BY created_at DESC
@@ -401,6 +413,12 @@ impl DatabaseProvider for PostgresDatabase {
                 is_active: row.get("is_active"),
                 user_status,
                 is_admin: row.try_get("is_admin").unwrap_or(false), // Default to false for existing users
+                role: {
+                    let role_str: Option<String> = row.try_get("role").ok().flatten();
+                    role_str.map_or(crate::permissions::UserRole::User, |s| {
+                        shared::enums::str_to_user_role(&s)
+                    })
+                },
                 approved_by: row.get("approved_by"),
                 approved_at: row.get("approved_at"),
                 created_at: row.get("created_at"),
@@ -5226,9 +5244,461 @@ impl DatabaseProvider for PostgresDatabase {
             Ok(None)
         }
     }
+
+    // ================================
+    // Impersonation Session Management
+    // ================================
+
+    async fn create_impersonation_session(
+        &self,
+        session: &crate::permissions::impersonation::ImpersonationSession,
+    ) -> AppResult<()> {
+        let query = r"
+            INSERT INTO impersonation_sessions (
+                id, impersonator_id, target_user_id, reason,
+                started_at, ended_at, is_active, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ";
+
+        sqlx::query(query)
+            .bind(&session.id)
+            .bind(session.impersonator_id.to_string())
+            .bind(session.target_user_id.to_string())
+            .bind(&session.reason)
+            .bind(session.started_at)
+            .bind(session.ended_at)
+            .bind(session.is_active)
+            .bind(session.created_at)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to create impersonation session: {e}"))
+            })?;
+
+        Ok(())
+    }
+
+    async fn get_impersonation_session(
+        &self,
+        session_id: &str,
+    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>> {
+        let query = r"
+            SELECT id, impersonator_id, target_user_id, reason,
+                   started_at, ended_at, is_active, created_at
+            FROM impersonation_sessions WHERE id = $1
+        ";
+
+        let row = sqlx::query(query)
+            .bind(session_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get impersonation session: {e}")))?;
+
+        row.map(|r| Self::row_to_impersonation_session(&r))
+            .transpose()
+    }
+
+    async fn get_active_impersonation_session(
+        &self,
+        impersonator_id: Uuid,
+    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>> {
+        let query = r"
+            SELECT id, impersonator_id, target_user_id, reason,
+                   started_at, ended_at, is_active, created_at
+            FROM impersonation_sessions
+            WHERE impersonator_id = $1 AND is_active = true
+            ORDER BY started_at DESC LIMIT 1
+        ";
+
+        let row = sqlx::query(query)
+            .bind(impersonator_id.to_string())
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to get active impersonation session: {e}"))
+            })?;
+
+        row.map(|r| Self::row_to_impersonation_session(&r))
+            .transpose()
+    }
+
+    async fn end_impersonation_session(&self, session_id: &str) -> AppResult<()> {
+        let query = r"
+            UPDATE impersonation_sessions
+            SET is_active = false, ended_at = $1
+            WHERE id = $2
+        ";
+
+        let ended_at = chrono::Utc::now();
+        sqlx::query(query)
+            .bind(ended_at)
+            .bind(session_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to end impersonation session: {e}")))?;
+
+        Ok(())
+    }
+
+    async fn end_all_impersonation_sessions(&self, impersonator_id: Uuid) -> AppResult<u64> {
+        let query = r"
+            UPDATE impersonation_sessions
+            SET is_active = false, ended_at = $1
+            WHERE impersonator_id = $2 AND is_active = true
+        ";
+
+        let ended_at = chrono::Utc::now();
+        let result = sqlx::query(query)
+            .bind(ended_at)
+            .bind(impersonator_id.to_string())
+            .execute(&self.pool)
+            .await
+            .map_err(|e| {
+                AppError::database(format!("Failed to end impersonation sessions: {e}"))
+            })?;
+
+        Ok(result.rows_affected())
+    }
+
+    async fn list_impersonation_sessions(
+        &self,
+        impersonator_id: Option<Uuid>,
+        target_user_id: Option<Uuid>,
+        active_only: bool,
+        limit: u32,
+    ) -> AppResult<Vec<crate::permissions::impersonation::ImpersonationSession>> {
+        // Build dynamic query based on filters
+        let mut query = String::from(
+            r"
+            SELECT id, impersonator_id, target_user_id, reason,
+                   started_at, ended_at, is_active, created_at
+            FROM impersonation_sessions WHERE 1=1
+            ",
+        );
+
+        let mut param_idx = 1u32;
+
+        if impersonator_id.is_some() {
+            query.push_str(&format!(" AND impersonator_id = ${param_idx}"));
+            param_idx += 1;
+        }
+        if target_user_id.is_some() {
+            query.push_str(&format!(" AND target_user_id = ${param_idx}"));
+            param_idx += 1;
+        }
+        if active_only {
+            query.push_str(" AND is_active = true");
+        }
+        query.push_str(&format!(" ORDER BY started_at DESC LIMIT ${param_idx}"));
+
+        let mut sql_query = sqlx::query(&query);
+
+        if let Some(id) = impersonator_id {
+            sql_query = sql_query.bind(id.to_string());
+        }
+        if let Some(id) = target_user_id {
+            sql_query = sql_query.bind(id.to_string());
+        }
+        #[allow(clippy::cast_possible_truncation)]
+        let limit_i32 = limit as i32;
+        sql_query = sql_query.bind(limit_i32);
+
+        let rows = sql_query.fetch_all(&self.pool).await.map_err(|e| {
+            AppError::database(format!("Failed to list impersonation sessions: {e}"))
+        })?;
+
+        rows.iter()
+            .map(Self::row_to_impersonation_session)
+            .collect()
+    }
+
+    // ================================
+    // User MCP Token Management
+    // ================================
+
+    async fn create_user_mcp_token(
+        &self,
+        user_id: Uuid,
+        request: &crate::database::CreateUserMcpTokenRequest,
+    ) -> AppResult<crate::database::UserMcpTokenCreated> {
+        let token_value = Self::generate_mcp_token();
+        let token_hash = Self::hash_mcp_token(&token_value);
+        let token_prefix = token_value.chars().take(12).collect::<String>();
+        let id = Uuid::new_v4().to_string();
+        let now = chrono::Utc::now();
+
+        let expires_at = request
+            .expires_in_days
+            .map(|days| now + chrono::Duration::days(i64::from(days)));
+
+        sqlx::query(
+            r"
+            INSERT INTO user_mcp_tokens (
+                id, user_id, name, token_hash, token_prefix,
+                expires_at, last_used_at, usage_count, is_revoked, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, NULL, 0, false, $7)
+            ",
+        )
+        .bind(&id)
+        .bind(user_id.to_string())
+        .bind(&request.name)
+        .bind(&token_hash)
+        .bind(&token_prefix)
+        .bind(expires_at)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create user MCP token: {e}")))?;
+
+        let token = crate::database::UserMcpToken {
+            id,
+            user_id,
+            name: request.name.clone(),
+            token_hash,
+            token_prefix,
+            expires_at,
+            last_used_at: None,
+            usage_count: 0,
+            is_revoked: false,
+            created_at: now,
+        };
+
+        Ok(crate::database::UserMcpTokenCreated { token, token_value })
+    }
+
+    async fn validate_user_mcp_token(&self, token_value: &str) -> AppResult<Uuid> {
+        let token_hash = Self::hash_mcp_token(token_value);
+        let token_prefix = token_value.chars().take(12).collect::<String>();
+
+        let row = sqlx::query(
+            r"
+            SELECT id, user_id, expires_at, is_revoked
+            FROM user_mcp_tokens
+            WHERE token_prefix = $1 AND token_hash = $2
+            ",
+        )
+        .bind(&token_prefix)
+        .bind(&token_hash)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to validate user MCP token: {e}")))?;
+
+        let row = row.ok_or_else(|| AppError::auth_invalid("Invalid MCP token"))?;
+
+        use sqlx::Row;
+        let is_revoked: bool = row.get("is_revoked");
+        if is_revoked {
+            return Err(AppError::auth_invalid("MCP token has been revoked"));
+        }
+
+        let expires_at: Option<chrono::DateTime<chrono::Utc>> = row.get("expires_at");
+        if let Some(exp) = expires_at {
+            if exp < chrono::Utc::now() {
+                return Err(AppError::auth_invalid("MCP token has expired"));
+            }
+        }
+
+        let token_id: String = row.get("id");
+        self.update_user_mcp_token_usage(&token_id).await?;
+
+        let user_id_str: String = row.get("user_id");
+        Uuid::parse_str(&user_id_str)
+            .map_err(|e| AppError::internal(format!("Failed to parse user_id UUID: {e}")))
+    }
+
+    async fn list_user_mcp_tokens(
+        &self,
+        user_id: Uuid,
+    ) -> AppResult<Vec<crate::database::UserMcpTokenInfo>> {
+        let rows = sqlx::query(
+            r"
+            SELECT id, name, token_prefix, expires_at, last_used_at,
+                   usage_count, is_revoked, created_at
+            FROM user_mcp_tokens
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            ",
+        )
+        .bind(user_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to list user MCP tokens: {e}")))?;
+
+        use sqlx::Row;
+        rows.iter()
+            .map(|row| {
+                Ok(crate::database::UserMcpTokenInfo {
+                    id: row.get("id"),
+                    name: row.get("name"),
+                    token_prefix: row.get("token_prefix"),
+                    expires_at: row.get("expires_at"),
+                    last_used_at: row.get("last_used_at"),
+                    usage_count: u32::try_from(row.get::<i32, _>("usage_count")).map_err(|e| {
+                        AppError::internal(format!(
+                            "Integer conversion failed for usage_count: {e}"
+                        ))
+                    })?,
+                    is_revoked: row.get("is_revoked"),
+                    created_at: row.get("created_at"),
+                })
+            })
+            .collect()
+    }
+
+    async fn revoke_user_mcp_token(&self, token_id: &str, user_id: Uuid) -> AppResult<()> {
+        let result = sqlx::query(
+            r"
+            UPDATE user_mcp_tokens
+            SET is_revoked = true
+            WHERE id = $1 AND user_id = $2
+            ",
+        )
+        .bind(token_id)
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to revoke user MCP token: {e}")))?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::not_found("MCP token not found or unauthorized"));
+        }
+
+        Ok(())
+    }
+
+    async fn get_user_mcp_token(
+        &self,
+        token_id: &str,
+        user_id: Uuid,
+    ) -> AppResult<Option<crate::database::UserMcpToken>> {
+        let row = sqlx::query(
+            r"
+            SELECT id, user_id, name, token_hash, token_prefix,
+                   expires_at, last_used_at, usage_count, is_revoked, created_at
+            FROM user_mcp_tokens
+            WHERE id = $1 AND user_id = $2
+            ",
+        )
+        .bind(token_id)
+        .bind(user_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get user MCP token: {e}")))?;
+
+        row.map(|r| Self::row_to_user_mcp_token(&r)).transpose()
+    }
+
+    async fn cleanup_expired_user_mcp_tokens(&self) -> AppResult<u64> {
+        let result = sqlx::query(
+            r"
+            UPDATE user_mcp_tokens
+            SET is_revoked = true
+            WHERE expires_at IS NOT NULL
+            AND expires_at < $1
+            AND is_revoked = false
+            ",
+        )
+        .bind(chrono::Utc::now())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            AppError::database(format!("Failed to cleanup expired user MCP tokens: {e}"))
+        })?;
+
+        Ok(result.rows_affected())
+    }
 }
 
 impl PostgresDatabase {
+    /// Generate a new MCP token with secure random bytes
+    fn generate_mcp_token() -> String {
+        use rand::RngCore;
+        let mut rng = rand::thread_rng();
+        let mut bytes = [0u8; 32];
+        rng.fill_bytes(&mut bytes);
+        format!(
+            "pmcp_{}",
+            base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, bytes)
+        )
+    }
+
+    /// Hash a token for storage
+    fn hash_mcp_token(token: &str) -> String {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(token.as_bytes());
+        hex::encode(hasher.finalize())
+    }
+
+    /// Update token usage statistics
+    async fn update_user_mcp_token_usage(&self, token_id: &str) -> AppResult<()> {
+        sqlx::query(
+            r"
+            UPDATE user_mcp_tokens
+            SET last_used_at = $1, usage_count = usage_count + 1
+            WHERE id = $2
+            ",
+        )
+        .bind(chrono::Utc::now())
+        .bind(token_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to update user MCP token usage: {e}")))?;
+
+        Ok(())
+    }
+
+    /// Convert database row to `UserMcpToken`
+    fn row_to_user_mcp_token(
+        row: &sqlx::postgres::PgRow,
+    ) -> AppResult<crate::database::UserMcpToken> {
+        use sqlx::Row;
+        Ok(crate::database::UserMcpToken {
+            id: row.get("id"),
+            user_id: Uuid::parse_str(row.get::<String, _>("user_id").as_str())
+                .map_err(|e| AppError::internal(format!("Failed to parse user_id UUID: {e}")))?,
+            name: row.get("name"),
+            token_hash: row.get("token_hash"),
+            token_prefix: row.get("token_prefix"),
+            expires_at: row.get("expires_at"),
+            last_used_at: row.get("last_used_at"),
+            usage_count: u32::try_from(row.get::<i32, _>("usage_count")).map_err(|e| {
+                AppError::internal(format!("Integer conversion failed for usage_count: {e}"))
+            })?,
+            is_revoked: row.get("is_revoked"),
+            created_at: row.get("created_at"),
+        })
+    }
+
+    /// Convert database row to `ImpersonationSession`
+    fn row_to_impersonation_session(
+        row: &sqlx::postgres::PgRow,
+    ) -> AppResult<crate::permissions::impersonation::ImpersonationSession> {
+        use sqlx::Row;
+
+        let id: String = row.get("id");
+        let impersonator_id: String = row.get("impersonator_id");
+        let target_user_id: String = row.get("target_user_id");
+        let reason: Option<String> = row.get("reason");
+        let started_at: chrono::DateTime<chrono::Utc> = row.get("started_at");
+        let ended_at: Option<chrono::DateTime<chrono::Utc>> = row.get("ended_at");
+        let is_active: bool = row.get("is_active");
+        let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
+
+        Ok(crate::permissions::impersonation::ImpersonationSession {
+            id,
+            impersonator_id: Uuid::parse_str(&impersonator_id)
+                .map_err(|e| AppError::database(format!("Invalid impersonator_id UUID: {e}")))?,
+            target_user_id: Uuid::parse_str(&target_user_id)
+                .map_err(|e| AppError::database(format!("Invalid target_user_id UUID: {e}")))?,
+            reason,
+            started_at,
+            ended_at,
+            is_active,
+            created_at,
+        })
+    }
+
     /// Convert database row to `UserOAuthToken` with decryption
     ///
     /// SECURITY: Decrypts OAuth tokens from database storage (AES-256-GCM with AAD)

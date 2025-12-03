@@ -11,8 +11,8 @@ export default function RealTimeIndicator({ className = '' }: RealTimeIndicatorP
   const { isConnected } = useWebSocketContext();
 
   const getStatusColor = () => {
-    if (!isConnected) return 'bg-red-500';
-    return 'bg-green-500';
+    if (!isConnected) return 'bg-pierre-red-500';
+    return 'bg-pierre-green-500';
   };
 
   const getStatusText = () => {
@@ -23,7 +23,7 @@ export default function RealTimeIndicator({ className = '' }: RealTimeIndicatorP
   return (
     <div className={`flex items-center space-x-1 ${className}`}>
       <div className={`w-1.5 h-1.5 rounded-full ${getStatusColor()} ${isConnected ? 'animate-pulse' : ''}`}></div>
-      <span className="text-gray-500">{getStatusText()}</span>
+      <span className="text-pierre-gray-500">{getStatusText()}</span>
     </div>
   );
 }

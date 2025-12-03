@@ -1,13 +1,33 @@
+// ABOUTME: Authentication context types and creation
+// ABOUTME: Defines User type with role/status and AuthContext for app-wide auth state
+//
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import { createContext } from 'react';
+
+type UserRole = 'super_admin' | 'admin' | 'user';
+type UserStatus = 'pending' | 'active' | 'suspended';
 
 interface User {
   user_id: string;
   email: string;
   display_name?: string;
   is_admin: boolean;
+  role: UserRole;
+  user_status: UserStatus;
+}
+
+interface ImpersonationState {
+  isImpersonating: boolean;
+  targetUser: {
+    id: string;
+    email: string;
+    display_name?: string;
+    role: string;
+  } | null;
+  sessionId: string | null;
+  originalUser: User | null;
 }
 
 interface AuthContextType {
@@ -18,7 +38,10 @@ interface AuthContextType {
   loading: boolean; // For test compatibility
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  impersonation: ImpersonationState;
+  startImpersonation: (targetUserId: string, reason?: string) => Promise<void>;
+  endImpersonation: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
-export type { User, AuthContextType };
+export type { User, AuthContextType, UserRole, UserStatus, ImpersonationState };

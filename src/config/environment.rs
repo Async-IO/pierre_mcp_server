@@ -962,6 +962,8 @@ pub struct AppBehaviorConfig {
     pub default_activities_limit: usize,
     /// Enable CI mode for testing
     pub ci_mode: bool,
+    /// Auto-approve new user registrations (skip admin approval workflow)
+    pub auto_approve_users: bool,
     /// Protocol configuration
     pub protocol: ProtocolConfig,
 }
@@ -1956,6 +1958,11 @@ impl ServerConfig {
             ci_mode: env_var_or("CI", "false")
                 .parse()
                 .map_err(|e| AppError::invalid_input(format!("Invalid CI value: {e}")))?,
+            auto_approve_users: env_var_or("AUTO_APPROVE_USERS", "false")
+                .parse()
+                .map_err(|e| {
+                    AppError::invalid_input(format!("Invalid AUTO_APPROVE_USERS value: {e}"))
+                })?,
             protocol: Self::load_protocol_config(),
         })
     }

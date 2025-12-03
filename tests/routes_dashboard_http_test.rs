@@ -52,6 +52,7 @@ impl DashboardTestSetup {
             },
             app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
                 ci_mode: true,
+                auto_approve_users: false,
                 ..Default::default()
             },
             security: pierre_mcp_server::config::environment::SecurityConfig {

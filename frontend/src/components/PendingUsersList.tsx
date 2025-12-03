@@ -62,13 +62,13 @@ export default function PendingUsersList() {
           <Card key={i} className="p-4 animate-pulse">
             <div className="flex justify-between items-start">
               <div className="space-y-2">
-                <div className="h-4 bg-gray-200 rounded w-48"></div>
-                <div className="h-3 bg-gray-200 rounded w-32"></div>
-                <div className="h-3 bg-gray-200 rounded w-24"></div>
+                <div className="h-4 bg-pierre-gray-200 rounded w-48"></div>
+                <div className="h-3 bg-pierre-gray-200 rounded w-32"></div>
+                <div className="h-3 bg-pierre-gray-200 rounded w-24"></div>
               </div>
               <div className="space-y-2">
-                <div className="h-6 bg-gray-200 rounded w-16"></div>
-                <div className="h-8 bg-gray-200 rounded w-20"></div>
+                <div className="h-6 bg-pierre-gray-200 rounded w-16"></div>
+                <div className="h-8 bg-pierre-gray-200 rounded w-20"></div>
               </div>
             </div>
           </Card>
@@ -80,7 +80,7 @@ export default function PendingUsersList() {
   if (error) {
     return (
       <Card className="p-6 text-center">
-        <div className="text-red-600 mb-4">
+        <div className="text-pierre-red-600 mb-4">
           <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 18.5c-.77.833.192 2.5 1.732 2.5z" />
           </svg>
@@ -99,12 +99,12 @@ export default function PendingUsersList() {
   if (pendingUsers.length === 0) {
     return (
       <Card className="p-6 text-center">
-        <div className="text-gray-500 mb-4">
+        <div className="text-pierre-gray-500 mb-4">
           <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
-          <p className="text-lg font-medium text-gray-900">No pending users</p>
-          <p className="text-gray-600">All users have been processed</p>
+          <p className="text-lg font-medium text-pierre-gray-900">No pending users</p>
+          <p className="text-pierre-gray-600">All users have been processed</p>
         </div>
       </Card>
     );
@@ -114,7 +114,7 @@ export default function PendingUsersList() {
     <>
       <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium text-gray-900">
+          <h3 className="text-lg font-medium text-pierre-gray-900">
             Pending Users ({pendingUsers.length})
           </h3>
           <Button
@@ -135,15 +135,15 @@ export default function PendingUsersList() {
             <div className="flex justify-between items-start">
               <div className="flex-1">
                 <div className="flex items-center space-x-2 mb-1">
-                  <h4 className="font-medium text-gray-900">
+                  <h4 className="font-medium text-pierre-gray-900">
                     {user.display_name || 'Unnamed User'}
                   </h4>
                   <Badge variant="warning" className="text-xs">
                     {user.user_status}
                   </Badge>
                 </div>
-                <p className="text-sm text-gray-600 mb-1">{user.email}</p>
-                <div className="flex items-center space-x-4 text-xs text-gray-500">
+                <p className="text-sm text-pierre-gray-600 mb-1">{user.email}</p>
+                <div className="flex items-center space-x-4 text-xs text-pierre-gray-500">
                   <span>Registered: {formatDate(user.created_at)}</span>
                   <span className="capitalize">Tier: {user.tier}</span>
                 </div>
@@ -153,7 +153,7 @@ export default function PendingUsersList() {
                 <Button
                   onClick={() => handleApprove(user)}
                   size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white"
+                  className="bg-pierre-green-600 hover:bg-pierre-green-700 text-white"
                 >
                   <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -164,7 +164,7 @@ export default function PendingUsersList() {
                   onClick={() => handleSuspend(user)}
                   size="sm"
                   variant="outline"
-                  className="border-red-300 text-red-700 hover:bg-red-50"
+                  className="border-pierre-red-300 text-pierre-red-700 hover:bg-pierre-red-50"
                 >
                   <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728" />

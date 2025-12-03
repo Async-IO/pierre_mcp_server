@@ -16,9 +16,10 @@ use crate::{
     database_plugins::DatabaseProvider,
     errors::{AppError, AppResult},
     mcp::resources::ServerResources,
-    models::User,
+    models::{User, UserStatus},
     utils::errors::{auth_error, user_state_error, validation_error},
 };
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing;
@@ -62,8 +63,12 @@ pub struct UserInfo {
     pub email: String,
     /// User's display name if set
     pub display_name: Option<String>,
-    /// Whether the user has admin privileges
+    /// Whether the user has admin privileges (legacy - use role instead)
     pub is_admin: bool,
+    /// User role for permission system (`super_admin`, `admin`, `user`)
+    pub role: String,
+    /// User account status (`pending`, `active`, `suspended`)
+    pub user_status: String,
 }
 
 /// User login response
@@ -140,18 +145,16 @@ pub struct ConnectionStatus {
 /// Authentication service for business logic
 #[derive(Clone)]
 pub struct AuthService {
-    auth_context: AuthContext,
-    data_context: DataContext,
+    auth: AuthContext,
+    config: ConfigContext,
+    data: DataContext,
 }
 
 impl AuthService {
     /// Creates a new authentication service
     #[must_use]
-    pub const fn new(auth_context: AuthContext, data_context: DataContext) -> Self {
-        Self {
-            auth_context,
-            data_context,
-        }
+    pub const fn new(auth: AuthContext, config: ConfigContext, data: DataContext) -> Self {
+        Self { auth, config, data }
     }
 
     /// Handle user registration - implementation from existing routes.rs
@@ -173,12 +176,7 @@ impl AuthService {
         }
 
         // Check if user already exists
-        if let Ok(Some(_)) = self
-            .data_context
-            .database()
-            .get_user_by_email(&request.email)
-            .await
-        {
+        if let Ok(Some(_)) = self.data.database().get_user_by_email(&request.email).await {
             return Err(user_state_error(error_messages::USER_ALREADY_EXISTS));
         }
 
@@ -186,26 +184,51 @@ impl AuthService {
         let password_hash = bcrypt::hash(&request.password, bcrypt::DEFAULT_COST)
             .map_err(|e| AppError::internal(format!("Password hashing failed: {e}")))?;
 
-        // Create user
-        let user = User::new(request.email.clone(), password_hash, request.display_name); // Safe: String ownership needed for user model
+        // Create user with default Pending status
+        let mut user = User::new(request.email.clone(), password_hash, request.display_name); // Safe: String ownership needed for user model
+
+        // Check if auto-approval is enabled (database setting takes precedence over config)
+        let auto_approve = self
+            .data
+            .database()
+            .is_auto_approval_enabled()
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!(
+                    "Failed to check auto-approval setting, falling back to config: {e}"
+                );
+                self.config.config().app_behavior.auto_approve_users
+            });
+        if auto_approve {
+            user.user_status = UserStatus::Active;
+            user.approved_at = Some(Utc::now());
+            tracing::info!("Auto-approving user registration (auto_approval_enabled=true)");
+        }
 
         // Save user to database
         let user_id = self
-            .data_context
+            .data
             .database()
             .create_user(&user)
             .await
             .map_err(|e| AppError::database(format!("Failed to create user: {e}")))?;
 
         tracing::info!(
-            "User registered successfully: {} ({})",
+            "User registered successfully: {} ({}) - status: {:?}",
             request.email,
-            user_id
+            user_id,
+            user.user_status
         );
+
+        let message = if auto_approve {
+            "User registered successfully. Your account is ready to use.".to_owned()
+        } else {
+            "User registered successfully. Your account is pending admin approval.".to_owned()
+        };
 
         Ok(RegisterResponse {
             user_id: user_id.to_string(),
-            message: "User registered successfully. Your account is pending admin approval.".into(),
+            message,
         })
     }
 
@@ -219,7 +242,7 @@ impl AuthService {
 
         // Get user from database
         let user = self
-            .data_context
+            .data
             .database()
             .get_user_by_email_required(&request.email)
             .await
@@ -242,18 +265,18 @@ impl AuthService {
             return Err(auth_error(error_messages::INVALID_CREDENTIALS));
         }
 
-        // Check if user is approved to login
+        // Log user status for auditing (pending/suspended users can authenticate
+        // but frontend restricts access based on user_status)
         if !user.user_status.can_login() {
-            tracing::warn!(
-                "Login blocked for user: {} - status: {:?}",
+            tracing::info!(
+                "User login with restricted status: {} - status: {:?}",
                 request.email,
                 user.user_status
             );
-            return Err(user_state_error(user.user_status.to_message()));
         }
 
         // Update last active timestamp
-        self.data_context
+        self.data
             .database()
             .update_last_active(user.id)
             .await
@@ -261,9 +284,9 @@ impl AuthService {
 
         // Generate JWT token using RS256
         let jwt_token = self
-            .auth_context
+            .auth
             .auth_manager()
-            .generate_token(&user, self.auth_context.jwks_manager())
+            .generate_token(&user, self.auth.jwks_manager())
             .map_err(|e| AppError::auth_invalid(format!("Failed to generate token: {e}")))?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS); // Default 24h expiry
@@ -283,6 +306,8 @@ impl AuthService {
                 email: user.email.clone(),
                 display_name: user.display_name,
                 is_admin: user.is_admin,
+                role: user.role.as_str().to_owned(),
+                user_status: user.user_status.to_string(),
             },
         })
     }
@@ -296,9 +321,9 @@ impl AuthService {
 
         // Extract user from refresh token using RS256 validation
         let token_claims = self
-            .auth_context
+            .auth
             .auth_manager()
-            .validate_token(&request.token, self.auth_context.jwks_manager())
+            .validate_token(&request.token, self.auth.jwks_manager())
             .map_err(|_| AppError::auth_invalid("Invalid or expired token"))?;
         let user_id = uuid::Uuid::parse_str(&token_claims.sub)
             .map_err(|e| AppError::auth_invalid(format!("Invalid token format: {e}")))?;
@@ -311,7 +336,7 @@ impl AuthService {
 
         // Get user from database
         let user = self
-            .data_context
+            .data
             .database()
             .get_user(user_id)
             .await
@@ -320,15 +345,15 @@ impl AuthService {
 
         // Generate new JWT token using RS256
         let new_jwt_token = self
-            .auth_context
+            .auth
             .auth_manager()
-            .generate_token(&user, self.auth_context.jwks_manager())
+            .generate_token(&user, self.auth.jwks_manager())
             .map_err(|e| AppError::auth_invalid(format!("Failed to generate token: {e}")))?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS);
 
         // Update last active timestamp
-        self.data_context
+        self.data
             .database()
             .update_last_active(user.id)
             .await
@@ -345,6 +370,8 @@ impl AuthService {
                 email: user.email.clone(),
                 display_name: user.display_name,
                 is_admin: user.is_admin,
+                role: user.role.as_str().to_owned(),
+                user_status: user.user_status.to_string(),
             },
         })
     }
@@ -978,7 +1005,8 @@ impl AuthRoutes {
         };
 
         Router::new()
-            .route("/api/auth/register", post(Self::handle_register))
+            .route("/api/auth/register", post(Self::handle_public_register))
+            .route("/api/auth/admin/register", post(Self::handle_register))
             .route("/api/auth/login", post(Self::handle_login))
             .route("/api/auth/logout", post(Self::handle_logout))
             .route("/api/auth/refresh", post(Self::handle_refresh))
@@ -1042,8 +1070,11 @@ impl AuthRoutes {
         );
 
         let server_context = crate::context::ServerContext::from(resources.as_ref());
-        let auth_routes =
-            AuthService::new(server_context.auth().clone(), server_context.data().clone());
+        let auth_routes = AuthService::new(
+            server_context.auth().clone(),
+            server_context.config().clone(),
+            server_context.data().clone(),
+        );
 
         match auth_routes.register(request).await {
             Ok(response) => {
@@ -1051,6 +1082,40 @@ impl AuthRoutes {
             }
             Err(e) => {
                 tracing::error!("Registration failed: {}", e);
+                Err(e)
+            }
+        }
+    }
+
+    /// Handle public user self-registration (Axum)
+    ///
+    /// This endpoint allows users to register themselves without admin authentication.
+    /// New users are created in "Pending" status by default and require admin approval,
+    /// unless `AUTO_APPROVE_USERS` environment variable is set to true.
+    async fn handle_public_register(
+        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
+        axum::Json(request): axum::Json<RegisterRequest>,
+    ) -> Result<axum::response::Response, AppError> {
+        use axum::response::IntoResponse;
+
+        tracing::info!(
+            "Public self-registration attempt for email: {}",
+            request.email
+        );
+
+        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let auth_routes = AuthService::new(
+            server_context.auth().clone(),
+            server_context.config().clone(),
+            server_context.data().clone(),
+        );
+
+        match auth_routes.register(request).await {
+            Ok(response) => {
+                Ok((axum::http::StatusCode::CREATED, axum::Json(response)).into_response())
+            }
+            Err(e) => {
+                tracing::error!("Public registration failed: {}", e);
                 Err(e)
             }
         }
@@ -1064,8 +1129,11 @@ impl AuthRoutes {
         use axum::response::IntoResponse;
 
         let server_context = crate::context::ServerContext::from(resources.as_ref());
-        let auth_service =
-            AuthService::new(server_context.auth().clone(), server_context.data().clone());
+        let auth_service = AuthService::new(
+            server_context.auth().clone(),
+            server_context.config().clone(),
+            server_context.data().clone(),
+        );
 
         match auth_service.login(request).await {
             Ok(mut response) => {
@@ -1117,8 +1185,11 @@ impl AuthRoutes {
         use axum::response::IntoResponse;
 
         let server_context = crate::context::ServerContext::from(resources.as_ref());
-        let auth_service =
-            AuthService::new(server_context.auth().clone(), server_context.data().clone());
+        let auth_service = AuthService::new(
+            server_context.auth().clone(),
+            server_context.config().clone(),
+            server_context.data().clone(),
+        );
 
         match auth_service.refresh_token(request).await {
             Ok(mut response) => {

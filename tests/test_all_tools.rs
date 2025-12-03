@@ -231,6 +231,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: ProtocolConfig {
                 mcp_version: "2024-11-05".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -310,6 +311,7 @@ async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Ten
         approved_at: Some(chrono::Utc::now()),
         is_active: true,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
     };
 
     executor.resources.database.create_user(&user).await?;

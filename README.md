@@ -117,6 +117,37 @@ Full tool reference: `src/protocols/universal/tool_registry.rs`
 ./bin/start-frontend.sh   # start dashboard (http://localhost:5173)
 ```
 
+## User Portal Dashboard
+
+Web-based dashboard for users and administrators at `http://localhost:5173`.
+
+### Features
+- **Role-Based Access**: super_admin, admin, user roles with permission hierarchy
+- **User Registration**: Self-registration with admin approval workflow
+- **API Key Management**: Create, view, deactivate API keys
+- **MCP Tokens**: Generate tokens for Claude Desktop and AI assistants
+- **Usage Analytics**: Request patterns, tool usage charts
+- **Super Admin Impersonation**: View dashboard as any user for support
+
+### User Roles
+
+| Role | Capabilities |
+|------|--------------|
+| **User** | Own API keys, MCP tokens, analytics |
+| **Admin** | + User approval, all users analytics |
+| **Super Admin** | + Impersonation, admin tokens, system config |
+
+### First Admin Setup
+
+```bash
+cargo run --bin admin-setup -- create-admin-user \
+  --email admin@example.com \
+  --password SecurePassword123 \
+  --super-admin
+```
+
+See [Frontend Documentation](frontend/README.md) for detailed dashboard documentation.
+
 ## Documentation
 
 ### Reference

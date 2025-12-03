@@ -583,6 +583,8 @@ fn test_claims_serialization() {
         providers: vec!["strava".to_owned(), "fitbit".to_owned()],
         aud: "mcp".to_owned(),
         tenant_id: None,
+        impersonator_id: None,
+        impersonation_session_id: None,
     };
 
     let json = serde_json::to_string(&claims).unwrap();

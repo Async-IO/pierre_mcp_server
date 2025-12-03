@@ -127,6 +127,12 @@ pub struct Claims {
     /// Tenant `ID` (optional for backward compatibility with existing tokens)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tenant_id: Option<String>,
+    /// Original user ID when impersonating (the super admin)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub impersonator_id: Option<String>,
+    /// Impersonation session ID for audit trail
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub impersonation_session_id: Option<String>,
 }
 
 /// Authentication result with user context and rate limiting info
@@ -228,6 +234,8 @@ impl AuthManager {
             providers: user.available_providers(),
             aud: crate::constants::service_names::MCP.to_owned(),
             tenant_id: user.tenant_id.clone(),
+            impersonator_id: None,
+            impersonation_session_id: None,
         };
 
         // Get active RSA key from JWKS manager
@@ -240,6 +248,54 @@ impl AuthManager {
 
         let token = encode(&header, &claims, &encoding_key)
             .map_err(|e| AppError::internal(format!("Failed to encode JWT token: {e}")))?;
+
+        Ok(token)
+    }
+
+    /// Generate an impersonation `JWT` token for a super admin impersonating another user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JWT encoding fails due to invalid claims
+    /// - System time is unavailable for timestamp generation
+    /// - JWKS manager has no active key
+    pub fn generate_impersonation_token(
+        &self,
+        target_user: &User,
+        impersonator_id: Uuid,
+        session_id: &str,
+        jwks_manager: &crate::admin::jwks::JwksManager,
+    ) -> AppResult<String> {
+        let now = Utc::now();
+        // Impersonation tokens have shorter expiry (1 hour)
+        let expiry = now + Duration::hours(1);
+
+        let claims = Claims {
+            sub: target_user.id.to_string(),
+            email: target_user.email.clone(),
+            iat: now.timestamp(),
+            exp: expiry.timestamp(),
+            iss: crate::constants::service_names::PIERRE_MCP_SERVER.to_owned(),
+            jti: Uuid::new_v4().to_string(),
+            providers: target_user.available_providers(),
+            aud: crate::constants::service_names::MCP.to_owned(),
+            tenant_id: target_user.tenant_id.clone(),
+            impersonator_id: Some(impersonator_id.to_string()),
+            impersonation_session_id: Some(session_id.to_owned()),
+        };
+
+        // Get active RSA key from JWKS manager
+        let active_key = jwks_manager.get_active_key()?;
+        let encoding_key = active_key.encoding_key()?;
+
+        // Create RS256 header with kid
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some(active_key.kid.clone());
+
+        let token = encode(&header, &claims, &encoding_key).map_err(|e| {
+            AppError::internal(format!("Failed to encode impersonation JWT token: {e}"))
+        })?;
 
         Ok(token)
     }
@@ -610,6 +666,8 @@ impl AuthManager {
             providers: scopes.to_vec(),
             aud: crate::constants::service_names::MCP.to_owned(),
             tenant_id,
+            impersonator_id: None,
+            impersonation_session_id: None,
         };
 
         // Get active RSA key from JWKS manager
@@ -657,6 +715,8 @@ impl AuthManager {
             providers: scopes.to_vec(),
             aud: crate::constants::service_names::MCP.to_owned(),
             tenant_id,
+            impersonator_id: None,
+            impersonation_session_id: None,
         };
 
         // Get active RSA key from JWKS manager

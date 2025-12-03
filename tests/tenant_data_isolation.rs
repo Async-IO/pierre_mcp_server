@@ -111,6 +111,7 @@ fn create_test_server_config(
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
                 mcp_version: "2024-11-05".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -160,6 +161,7 @@ async fn create_test_tenant_user(
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: Utc::now(),

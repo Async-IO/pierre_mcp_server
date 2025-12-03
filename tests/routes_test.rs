@@ -173,6 +173,7 @@ async fn test_register_user() {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -216,7 +217,11 @@ async fn test_register_user() {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let routes = AuthService::new(server_context.auth().clone(), server_context.data().clone());
+    let routes = AuthService::new(
+        server_context.auth().clone(),
+        server_context.config().clone(),
+        server_context.data().clone(),
+    );
 
     let request = RegisterRequest {
         email: "test@example.com".into(),
@@ -335,6 +340,7 @@ async fn test_register_duplicate_user() {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -378,7 +384,11 @@ async fn test_register_duplicate_user() {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let routes = AuthService::new(server_context.auth().clone(), server_context.data().clone());
+    let routes = AuthService::new(
+        server_context.auth().clone(),
+        server_context.config().clone(),
+        server_context.data().clone(),
+    );
 
     let request = RegisterRequest {
         email: "test@example.com".into(),

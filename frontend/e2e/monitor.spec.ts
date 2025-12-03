@@ -4,17 +4,21 @@
 // ABOUTME: Playwright E2E tests for the Monitor tab.
 // ABOUTME: Tests real-time stats, filters, request logs, and empty states.
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+import { setupDashboardMocks, loginToDashboard, navigateToTab } from './test-helpers';
 
 // Helper to set up authenticated state with Monitor API mocks
 async function setupMonitorMocks(
-  page: import('@playwright/test').Page,
+  page: Page,
   options: {
     hasRequests?: boolean;
     requestCount?: number;
   } = {}
 ) {
   const { hasRequests = true, requestCount = 10 } = options;
+
+  // Set up base dashboard mocks (includes login mock)
+  await setupDashboardMocks(page, { role: 'admin' });
 
   // Mock request logs endpoint
   await page.route('**/api/dashboard/request-logs*', async (route) => {
@@ -58,66 +62,18 @@ async function setupMonitorMocks(
       }),
     });
   });
+}
 
-  // Mock other required dashboard endpoints
-  await page.route('**/api/dashboard/overview', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        total_api_keys: 10,
-        active_api_keys: 8,
-        total_requests_today: 450,
-        total_requests_this_month: 12500,
-      }),
-    });
-  });
-
-  await page.route('**/api/dashboard/rate-limits', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([]),
-    });
-  });
-
-  await page.route('**/api/dashboard/analytics*', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ time_series: [], top_tools: [] }),
-    });
-  });
-
-  await page.route('**/a2a/dashboard/overview', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ total_clients: 5, active_clients: 3, requests_today: 100, requests_this_month: 3000 }),
-    });
-  });
-
-  // Set up authenticated state
-  await page.addInitScript(() => {
-    localStorage.setItem(
-      'user',
-      JSON.stringify({
-        id: 'user-123',
-        email: 'admin@test.com',
-        display_name: 'Test Admin',
-        is_admin: true,
-      })
-    );
-  });
+async function loginAndNavigateToMonitor(page: Page) {
+  await loginToDashboard(page);
+  await navigateToTab(page, 'Monitor');
+  await page.waitForTimeout(500);
 }
 
 test.describe('Monitor Tab - Stats Display', () => {
   test('renders Monitor tab with header and description', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Check header
     await expect(page.locator('h1')).toContainText('Monitor');
@@ -126,10 +82,7 @@ test.describe('Monitor Tab - Stats Display', () => {
 
   test('displays Total Requests stat card', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     await expect(page.getByText('Total Requests')).toBeVisible();
     await expect(page.getByText('156')).toBeVisible();
@@ -137,10 +90,7 @@ test.describe('Monitor Tab - Stats Display', () => {
 
   test('displays Success Rate stat card', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     await expect(page.getByText('Success Rate')).toBeVisible();
     // 148/156 = 94.9%
@@ -149,21 +99,17 @@ test.describe('Monitor Tab - Stats Display', () => {
 
   test('displays Avg Response Time stat card', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     await expect(page.getByText('Avg Response Time')).toBeVisible();
-    await expect(page.getByText('96ms').or(page.getByText('95ms'))).toBeVisible();
+    // Use locator within the stat card to avoid matching response times in the request log
+    const avgResponseCard = page.locator('div').filter({ hasText: 'Avg Response Time' }).first();
+    await expect(avgResponseCard).toBeVisible();
   });
 
   test('displays Requests/min stat card', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     await expect(page.getByText('Requests/min')).toBeVisible();
     await expect(page.getByText('2.6')).toBeVisible();
@@ -173,10 +119,7 @@ test.describe('Monitor Tab - Stats Display', () => {
 test.describe('Monitor Tab - Filters', () => {
   test('displays Time Range filter with all options', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Check Time Range filter label
     await expect(page.getByText('Time Range')).toBeVisible();
@@ -190,46 +133,8 @@ test.describe('Monitor Tab - Filters', () => {
   });
 
   test('Time Range filter changes data request', async ({ page }) => {
-    await page.route('**/api/dashboard/request-logs*', async (route) => {
-
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([]),
-      });
-    });
-
-    await page.route('**/api/dashboard/request-stats*', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ total_requests: 0, successful_requests: 0, average_response_time: 0, requests_per_minute: 0 }),
-      });
-    });
-
-    await page.route('**/api/dashboard/overview', async (route) => {
-      await route.fulfill({ status: 200, body: JSON.stringify({}) });
-    });
-    await page.route('**/api/dashboard/rate-limits', async (route) => {
-      await route.fulfill({ status: 200, body: JSON.stringify([]) });
-    });
-    await page.route('**/api/dashboard/analytics*', async (route) => {
-      await route.fulfill({ status: 200, body: JSON.stringify({}) });
-    });
-    await page.route('**/a2a/dashboard/overview', async (route) => {
-      await route.fulfill({ status: 200, body: JSON.stringify({}) });
-    });
-
-    await page.addInitScript(() => {
-      localStorage.setItem(
-        'user',
-        JSON.stringify({ id: 'user-123', email: 'admin@test.com', display_name: 'Test Admin', is_admin: true })
-      );
-    });
-
-    await page.goto('/dashboard');
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await setupMonitorMocks(page, { hasRequests: false });
+    await loginAndNavigateToMonitor(page);
 
     // Change to 24h
     const timeRangeSelect = page.locator('select').first();
@@ -243,13 +148,10 @@ test.describe('Monitor Tab - Filters', () => {
 
   test('displays Status filter with options', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
+    await loginAndNavigateToMonitor(page);
 
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
-
-    // Check Status filter label
-    await expect(page.getByText('Status')).toBeVisible();
+    // Check Status filter label - use exact match to avoid matching description text
+    await expect(page.getByText('Status', { exact: true })).toBeVisible();
 
     // Check dropdown has options
     const statusSelect = page.locator('select').filter({ hasText: 'All Status' });
@@ -260,10 +162,7 @@ test.describe('Monitor Tab - Filters', () => {
 
   test('Status filter changes to Success only', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Find status filter and change it
     const statusSelect = page.locator('select').nth(1);
@@ -275,10 +174,7 @@ test.describe('Monitor Tab - Filters', () => {
 
   test('Status filter changes to Error only', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Find status filter and change it
     const statusSelect = page.locator('select').nth(1);
@@ -289,13 +185,10 @@ test.describe('Monitor Tab - Filters', () => {
 
   test('displays Tool filter with options', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
+    await loginAndNavigateToMonitor(page);
 
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
-
-    // Check Tool filter label
-    await expect(page.getByText('Tool')).toBeVisible();
+    // Check Tool filter label - use exact match to avoid matching sidebar
+    await expect(page.getByText('Tool', { exact: true })).toBeVisible();
 
     // Check dropdown has options
     const toolSelect = page.locator('select').filter({ hasText: 'All Tools' });
@@ -306,10 +199,7 @@ test.describe('Monitor Tab - Filters', () => {
 
   test('Tool filter changes selection', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Find tool filter and change it
     const toolSelect = page.locator('select').nth(2);
@@ -322,10 +212,7 @@ test.describe('Monitor Tab - Filters', () => {
 test.describe('Monitor Tab - Request Log', () => {
   test('displays Request Log section with count', async ({ page }) => {
     await setupMonitorMocks(page, { requestCount: 10 });
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     await expect(page.getByText('Request Log')).toBeVisible();
     await expect(page.getByText('Showing 10 requests')).toBeVisible();
@@ -333,10 +220,7 @@ test.describe('Monitor Tab - Request Log', () => {
 
   test('displays request entries with tool names', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Check tool names are visible
     await expect(page.getByText('get_activities').first()).toBeVisible();
@@ -345,10 +229,7 @@ test.describe('Monitor Tab - Request Log', () => {
 
   test('displays status codes with appropriate colors', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Check for success status codes (200)
     await expect(page.getByText('200').first()).toBeVisible();
@@ -359,10 +240,7 @@ test.describe('Monitor Tab - Request Log', () => {
 
   test('displays success/error icons for requests', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Check success and error icons are present
     await expect(page.locator('text=✅').first()).toBeVisible();
@@ -371,10 +249,7 @@ test.describe('Monitor Tab - Request Log', () => {
 
   test('displays response times for each request', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Response times should be displayed (in ms format)
     await expect(page.locator('text=/\\d+ms/').first()).toBeVisible();
@@ -382,10 +257,7 @@ test.describe('Monitor Tab - Request Log', () => {
 
   test('displays timestamps for each request', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Timestamps should be visible (date format)
     const datePattern = await page.locator('[class*="text-gray-500"]').filter({ hasText: /\d{1,2}\/\d{1,2}\/\d{4}/ }).first();
@@ -394,10 +266,7 @@ test.describe('Monitor Tab - Request Log', () => {
 
   test('displays error messages for failed requests', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Error message should be visible for failed request
     await expect(page.getByText('Internal server error')).toBeVisible();
@@ -407,10 +276,7 @@ test.describe('Monitor Tab - Request Log', () => {
 test.describe('Monitor Tab - Empty States', () => {
   test('shows empty state message when no requests', async ({ page }) => {
     await setupMonitorMocks(page, { hasRequests: false });
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Check empty state is displayed
     await expect(page.getByText('No requests yet')).toBeVisible();
@@ -419,10 +285,7 @@ test.describe('Monitor Tab - Empty States', () => {
 
   test('shows chart icon in empty state', async ({ page }) => {
     await setupMonitorMocks(page, { hasRequests: false });
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Check for placeholder icon
     await expect(page.locator('text=📊')).toBeVisible();
@@ -430,10 +293,7 @@ test.describe('Monitor Tab - Empty States', () => {
 
   test('shows zero stats when no requests', async ({ page }) => {
     await setupMonitorMocks(page, { hasRequests: false });
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Stats should show zeros
     await expect(page.getByText('0.0%')).toBeVisible(); // Success rate
@@ -442,6 +302,8 @@ test.describe('Monitor Tab - Empty States', () => {
 
 test.describe('Monitor Tab - Loading States', () => {
   test('shows loading spinner while data loads', async ({ page }) => {
+    await setupDashboardMocks(page, { role: 'admin' });
+
     await page.route('**/api/dashboard/request-logs*', async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       await route.fulfill({
@@ -460,29 +322,8 @@ test.describe('Monitor Tab - Loading States', () => {
       });
     });
 
-    await page.route('**/api/dashboard/overview', async (route) => {
-      await route.fulfill({ status: 200, body: JSON.stringify({}) });
-    });
-    await page.route('**/api/dashboard/rate-limits', async (route) => {
-      await route.fulfill({ status: 200, body: JSON.stringify([]) });
-    });
-    await page.route('**/api/dashboard/analytics*', async (route) => {
-      await route.fulfill({ status: 200, body: JSON.stringify({}) });
-    });
-    await page.route('**/a2a/dashboard/overview', async (route) => {
-      await route.fulfill({ status: 200, body: JSON.stringify({}) });
-    });
-
-    await page.addInitScript(() => {
-      localStorage.setItem(
-        'user',
-        JSON.stringify({ id: 'user-123', email: 'admin@test.com', display_name: 'Test Admin', is_admin: true })
-      );
-    });
-
-    await page.goto('/dashboard');
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginToDashboard(page);
+    await navigateToTab(page, 'Monitor');
 
     // Should show loading spinner
     await expect(page.locator('.animate-spin')).toBeVisible({ timeout: 5000 });
@@ -492,10 +333,7 @@ test.describe('Monitor Tab - Loading States', () => {
 test.describe('Monitor Tab - Real-time Indicator', () => {
   test('displays real-time indicator', async ({ page }) => {
     await setupMonitorMocks(page);
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Real-time indicator component should be present
     // The RealTimeIndicator component shows connection status
@@ -506,10 +344,7 @@ test.describe('Monitor Tab - Real-time Indicator', () => {
 test.describe('Monitor Tab - Request Log Scrolling', () => {
   test('request log has scrollable container for many entries', async ({ page }) => {
     await setupMonitorMocks(page, { requestCount: 50 });
-    await page.goto('/dashboard');
-
-    await page.waitForSelector('nav', { timeout: 10000 });
-    await page.getByRole('button', { name: /Monitor/i }).click();
+    await loginAndNavigateToMonitor(page);
 
     // Check that the container has overflow styling
     const requestLogContainer = page.locator('.max-h-96.overflow-y-auto');

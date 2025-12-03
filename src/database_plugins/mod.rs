@@ -523,6 +523,39 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn update_rsa_keypair_active_status(&self, kid: &str, is_active: bool) -> AppResult<()>;
 
     // ================================
+    // User MCP Tokens (AI Client Authentication)
+    // ================================
+
+    /// Create a new user MCP token for AI client authentication
+    async fn create_user_mcp_token(
+        &self,
+        user_id: Uuid,
+        request: &crate::database::CreateUserMcpTokenRequest,
+    ) -> AppResult<crate::database::UserMcpTokenCreated>;
+
+    /// Validate a user MCP token and return the associated user ID
+    async fn validate_user_mcp_token(&self, token_value: &str) -> AppResult<Uuid>;
+
+    /// List all MCP tokens for a user
+    async fn list_user_mcp_tokens(
+        &self,
+        user_id: Uuid,
+    ) -> AppResult<Vec<crate::database::UserMcpTokenInfo>>;
+
+    /// Revoke a user MCP token
+    async fn revoke_user_mcp_token(&self, token_id: &str, user_id: Uuid) -> AppResult<()>;
+
+    /// Get a user MCP token by ID
+    async fn get_user_mcp_token(
+        &self,
+        token_id: &str,
+        user_id: Uuid,
+    ) -> AppResult<Option<crate::database::UserMcpToken>>;
+
+    /// Cleanup expired user MCP tokens (mark as revoked)
+    async fn cleanup_expired_user_mcp_tokens(&self) -> AppResult<u64>;
+
+    // ================================
     // Multi-Tenant Management
     // ================================
 
@@ -883,4 +916,41 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         user_id: Option<&str>,
         configuration_name: &str,
     ) -> AppResult<bool>;
+
+    // ================================
+    // Impersonation Session Management
+    // ================================
+
+    /// Create a new impersonation session for audit trail
+    async fn create_impersonation_session(
+        &self,
+        session: &crate::permissions::impersonation::ImpersonationSession,
+    ) -> AppResult<()>;
+
+    /// Get impersonation session by ID
+    async fn get_impersonation_session(
+        &self,
+        session_id: &str,
+    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>>;
+
+    /// Get active impersonation session for an impersonator
+    async fn get_active_impersonation_session(
+        &self,
+        impersonator_id: Uuid,
+    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>>;
+
+    /// End an impersonation session
+    async fn end_impersonation_session(&self, session_id: &str) -> AppResult<()>;
+
+    /// End all active impersonation sessions for an impersonator
+    async fn end_all_impersonation_sessions(&self, impersonator_id: Uuid) -> AppResult<u64>;
+
+    /// List impersonation sessions with optional filters
+    async fn list_impersonation_sessions(
+        &self,
+        impersonator_id: Option<Uuid>,
+        target_user_id: Option<Uuid>,
+        active_only: bool,
+        limit: u32,
+    ) -> AppResult<Vec<crate::permissions::impersonation::ImpersonationSession>>;
 }

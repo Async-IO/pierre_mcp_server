@@ -183,6 +183,10 @@ impl WebAdminRoutes {
                 "/api/admin/users/:user_id/activity",
                 get(Self::handle_get_user_activity),
             )
+            .route(
+                "/api/admin/settings/auto-approval",
+                get(Self::handle_get_auto_approval).put(Self::handle_set_auto_approval),
+            )
             .with_state(resources)
     }
 
@@ -211,7 +215,7 @@ impl WebAdminRoutes {
             .await
             .map_err(|e| AppError::auth_invalid(format!("Authentication failed: {e}")))?;
 
-        // Check if user is admin
+        // Check if user has admin role or higher (admin or super_admin)
         let user = resources
             .database
             .get_user(auth.user_id)
@@ -219,7 +223,7 @@ impl WebAdminRoutes {
             .map_err(|e| AppError::internal(format!("Failed to get user: {e}")))?
             .ok_or_else(|| AppError::not_found("User not found"))?;
 
-        if !user.is_admin {
+        if !user.role.is_admin_or_higher() {
             return Err(AppError::new(
                 ErrorCode::PermissionDenied,
                 "Admin privileges required",
@@ -918,6 +922,84 @@ impl WebAdminRoutes {
                     "period_days": days,
                     "total_requests": total_requests,
                     "top_tools": top_tools,
+                }
+            })),
+        )
+            .into_response())
+    }
+
+    /// Handle getting auto-approval setting
+    async fn handle_get_auto_approval(
+        headers: axum::http::HeaderMap,
+        State(resources): State<Arc<ServerResources>>,
+    ) -> Result<impl IntoResponse, AppError> {
+        Self::authenticate_admin(&headers, &resources).await?;
+
+        let enabled = resources
+            .database
+            .is_auto_approval_enabled()
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to get auto-approval setting");
+                AppError::internal(format!("Failed to get auto-approval setting: {e}"))
+            })?;
+
+        Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "message": "Auto-approval setting retrieved",
+                "data": {
+                    "enabled": enabled,
+                    "description": "When enabled, new user registrations are automatically approved without admin intervention"
+                }
+            })),
+        )
+            .into_response())
+    }
+
+    /// Handle setting auto-approval
+    async fn handle_set_auto_approval(
+        headers: axum::http::HeaderMap,
+        State(resources): State<Arc<ServerResources>>,
+        Json(request): Json<serde_json::Value>,
+    ) -> Result<impl IntoResponse, AppError> {
+        let auth = Self::authenticate_admin(&headers, &resources).await?;
+
+        let enabled = request
+            .get("enabled")
+            .and_then(serde_json::Value::as_bool)
+            .ok_or_else(|| AppError::invalid_input("Missing or invalid 'enabled' field"))?;
+
+        tracing::info!(
+            user_id = %auth.user_id,
+            enabled = enabled,
+            "Setting auto-approval"
+        );
+
+        resources
+            .database
+            .set_auto_approval_enabled(enabled)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to set auto-approval setting");
+                AppError::internal(format!("Failed to set auto-approval setting: {e}"))
+            })?;
+
+        tracing::info!(
+            user_id = %auth.user_id,
+            enabled = enabled,
+            "Auto-approval setting updated"
+        );
+
+        Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "message": format!("Auto-approval has been {}", if enabled { "enabled" } else { "disabled" }),
+                "data": {
+                    "enabled": enabled,
+                    "description": "When enabled, new user registrations are automatically approved without admin intervention"
                 }
             })),
         )

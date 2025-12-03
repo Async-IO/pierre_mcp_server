@@ -37,6 +37,7 @@ async fn create_test_client(db: &Database) -> (A2AClient, Uuid) {
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: Some(Utc::now()),
         created_at: Utc::now(),

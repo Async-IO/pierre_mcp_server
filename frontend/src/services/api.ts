@@ -510,6 +510,111 @@ class ApiService {
     // Backend wraps response in AdminResponse {success, message, data}
     return response.data.data;
   }
+
+  // Admin Settings Endpoints
+  async getAutoApprovalSetting(): Promise<{
+    enabled: boolean;
+    description: string;
+  }> {
+    const response = await axios.get('/api/admin/settings/auto-approval');
+    // Backend wraps response in AdminResponse {success, message, data}
+    return response.data.data;
+  }
+
+  async updateAutoApprovalSetting(enabled: boolean): Promise<{
+    enabled: boolean;
+    description: string;
+  }> {
+    const response = await axios.put('/api/admin/settings/auto-approval', { enabled });
+    // Backend wraps response in AdminResponse {success, message, data}
+    return response.data.data;
+  }
+
+  // Impersonation endpoints (super admin only)
+  async startImpersonation(targetUserId: string, reason?: string): Promise<{
+    success: boolean;
+    session_id: string;
+    token: string;
+    target_user: {
+      id: string;
+      email: string;
+      display_name?: string;
+      role: string;
+    };
+    message: string;
+  }> {
+    const response = await axios.post('/api/admin/impersonate', {
+      target_user_id: targetUserId,
+      reason,
+    });
+    return response.data;
+  }
+
+  async endImpersonation(): Promise<{
+    success: boolean;
+    message: string;
+    session_id: string;
+    duration_seconds: number;
+  }> {
+    const response = await axios.post('/api/admin/impersonate/end');
+    return response.data;
+  }
+
+  async getImpersonationSessions(): Promise<{
+    sessions: Array<{
+      id: string;
+      impersonator_id: string;
+      impersonator_email?: string;
+      target_user_id: string;
+      target_user_email?: string;
+      reason?: string;
+      started_at: string;
+      ended_at?: string;
+      is_active: boolean;
+      duration_seconds: number;
+    }>;
+    total_count: number;
+  }> {
+    const response = await axios.get('/api/admin/impersonate/sessions');
+    return response.data;
+  }
+
+  // User MCP Token Management endpoints
+  async createMcpToken(data: {
+    name: string;
+    expires_in_days?: number;
+  }): Promise<{
+    id: string;
+    name: string;
+    token_prefix: string;
+    token_value: string;
+    expires_at: string | null;
+    created_at: string;
+  }> {
+    const response = await axios.post('/api/user/mcp-tokens', data);
+    return response.data;
+  }
+
+  async getMcpTokens(): Promise<{
+    tokens: Array<{
+      id: string;
+      name: string;
+      token_prefix: string;
+      expires_at: string | null;
+      last_used_at: string | null;
+      usage_count: number;
+      is_revoked: boolean;
+      created_at: string;
+    }>;
+  }> {
+    const response = await axios.get('/api/user/mcp-tokens');
+    return response.data;
+  }
+
+  async revokeMcpToken(tokenId: string): Promise<{ success: boolean }> {
+    const response = await axios.delete(`/api/user/mcp-tokens/${tokenId}`);
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();

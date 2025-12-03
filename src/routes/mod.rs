@@ -26,12 +26,16 @@ pub mod dashboard;
 pub mod fitness;
 /// Health check and system status routes
 pub mod health;
+/// Impersonation routes for super admin user impersonation
+pub mod impersonation;
 /// Model Context Protocol (MCP) server routes
 pub mod mcp;
 /// OAuth 2.0 server implementation routes
 pub mod oauth2;
 /// Tenant management routes
 pub mod tenants;
+/// User MCP token management routes for AI client authentication
+pub mod user_mcp_tokens;
 /// User OAuth app management routes
 pub mod user_oauth_apps;
 /// Web-facing admin routes (cookie auth for admin users)
@@ -98,8 +102,12 @@ pub use configuration::ConfigurationRoutes;
 pub use dashboard::DashboardRoutes;
 /// Fitness configuration route handlers
 pub use fitness::FitnessConfigurationRoutes;
+/// Impersonation route handlers
+pub use impersonation::ImpersonationRoutes;
 /// Tenant route handlers
 pub use tenants::TenantRoutes;
+/// User MCP token route handlers
+pub use user_mcp_tokens::UserMcpTokenRoutes;
 /// User OAuth app route handlers
 pub use user_oauth_apps::UserOAuthAppRoutes;
 /// Web admin route handlers

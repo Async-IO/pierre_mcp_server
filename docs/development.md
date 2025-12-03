@@ -68,11 +68,15 @@ Access at `http://localhost:5173`
 
 ### Features
 
+- **Role-Based Access**: super_admin, admin, user roles with permission hierarchy
+- **User Registration**: Self-registration with admin approval workflow
 - **User Management**: Registration approval, tenant management
-- **API Key Monitoring**: Usage statistics, rate limits
-- **Usage Analytics**: Request patterns, tool usage breakdown
+- **API Key Management**: Create, view, deactivate API keys
+- **MCP Tokens**: Generate tokens for Claude Desktop and AI assistants
+- **Usage Analytics**: Request patterns, tool usage charts (282 E2E tests)
 - **Real-time Updates**: WebSocket-based live data
 - **OAuth Status**: Provider connection monitoring
+- **Super Admin Impersonation**: View dashboard as any user for support
 
 ### Manual Setup
 

@@ -290,6 +290,7 @@ async fn test_oauth_flow_through_mcp() {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
                 mcp_version: "2024-11-05".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -434,6 +435,7 @@ async fn test_oauth_callback_error_handling() {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
     };
@@ -467,6 +469,7 @@ async fn test_oauth_callback_error_handling() {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
     };
@@ -578,6 +581,7 @@ async fn test_oauth_callback_error_handling() {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -693,6 +697,7 @@ async fn test_oauth_state_csrf_protection() {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
     };
@@ -833,6 +838,7 @@ async fn test_oauth_state_csrf_protection() {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -1009,6 +1015,7 @@ async fn test_connection_status_tracking() {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -1053,8 +1060,11 @@ async fn test_connection_status_tracking() {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let auth_routes =
-        AuthService::new(server_context.auth().clone(), server_context.data().clone());
+    let auth_routes = AuthService::new(
+        server_context.auth().clone(),
+        server_context.config().clone(),
+        server_context.data().clone(),
+    );
     let register_request = pierre_mcp_server::routes::RegisterRequest {
         email: "status_test@example.com".to_owned(),
         password: "password123".to_owned(),

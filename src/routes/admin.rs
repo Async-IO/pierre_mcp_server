@@ -116,6 +116,22 @@ pub struct UserActivityQuery {
     pub days: Option<u32>,
 }
 
+/// Request to update auto-approval setting
+#[derive(Debug, Deserialize)]
+pub struct UpdateAutoApprovalRequest {
+    /// Whether auto-approval should be enabled
+    pub enabled: bool,
+}
+
+/// Response for auto-approval setting
+#[derive(Debug, Serialize)]
+pub struct AutoApprovalResponse {
+    /// Whether auto-approval is currently enabled
+    pub enabled: bool,
+    /// Description of the setting
+    pub description: String,
+}
+
 /// Query parameters for listing users
 #[derive(Debug, Deserialize)]
 pub struct ListUsersQuery {
@@ -633,6 +649,12 @@ impl AdminRoutes {
             crate::admin::middleware::admin_auth_middleware,
         ));
 
+        let settings_routes =
+            Self::settings_routes(context.clone()).layer(middleware::from_fn_with_state(
+                auth_service.clone(),
+                crate::admin::middleware::admin_auth_middleware,
+            ));
+
         let admin_token_routes =
             Self::admin_token_routes(context.clone()).layer(middleware::from_fn_with_state(
                 auth_service,
@@ -645,6 +667,7 @@ impl AdminRoutes {
         Router::new()
             .merge(api_key_routes)
             .merge(user_routes)
+            .merge(settings_routes)
             .merge(admin_token_routes)
             .merge(setup_routes)
     }
@@ -687,6 +710,22 @@ impl AdminRoutes {
             .route(
                 "/admin/users/:user_id/activity",
                 get(Self::handle_get_user_activity),
+            )
+            .with_state(context)
+    }
+
+    /// System settings routes (Axum)
+    fn settings_routes(context: Arc<AdminApiContext>) -> axum::Router {
+        use axum::{routing::get, routing::put, Router};
+
+        Router::new()
+            .route(
+                "/admin/settings/auto-approval",
+                get(Self::handle_get_auto_approval),
+            )
+            .route(
+                "/admin/settings/auto-approval",
+                put(Self::handle_set_auto_approval),
             )
             .with_state(context)
     }
@@ -1677,6 +1716,112 @@ impl AdminRoutes {
                     "total_requests": total_requests,
                     "top_tools": top_tools,
                 }))
+                .ok(),
+            },
+            axum::http::StatusCode::OK,
+        ))
+    }
+
+    /// Handle getting auto-approval setting
+    async fn handle_get_auto_approval(
+        State(context): State<Arc<AdminApiContext>>,
+        Extension(admin_token): Extension<ValidatedAdminToken>,
+    ) -> AppResult<impl axum::response::IntoResponse> {
+        // Check required permission
+        if !admin_token
+            .permissions
+            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+        {
+            return Ok(json_response(
+                AdminResponse {
+                    success: false,
+                    message: "Permission denied: ManageUsers required".to_owned(),
+                    data: None,
+                },
+                axum::http::StatusCode::FORBIDDEN,
+            ));
+        }
+
+        tracing::info!(
+            "Getting auto-approval setting by service: {}",
+            admin_token.service_name
+        );
+
+        let ctx = context.as_ref();
+
+        let enabled = ctx.database.is_auto_approval_enabled().await.map_err(|e| {
+            tracing::error!(error = %e, "Failed to get auto-approval setting");
+            AppError::internal(format!("Failed to get auto-approval setting: {e}"))
+        })?;
+
+        Ok(json_response(
+            AdminResponse {
+                success: true,
+                message: "Auto-approval setting retrieved".to_owned(),
+                data: serde_json::to_value(AutoApprovalResponse {
+                    enabled,
+                    description: "When enabled, new user registrations are automatically approved without admin intervention".to_owned(),
+                })
+                .ok(),
+            },
+            axum::http::StatusCode::OK,
+        ))
+    }
+
+    /// Handle setting auto-approval
+    async fn handle_set_auto_approval(
+        State(context): State<Arc<AdminApiContext>>,
+        Extension(admin_token): Extension<ValidatedAdminToken>,
+        Json(request): Json<UpdateAutoApprovalRequest>,
+    ) -> AppResult<impl axum::response::IntoResponse> {
+        // Check required permission
+        if !admin_token
+            .permissions
+            .has_permission(&crate::admin::AdminPermission::ManageUsers)
+        {
+            return Ok(json_response(
+                AdminResponse {
+                    success: false,
+                    message: "Permission denied: ManageUsers required".to_owned(),
+                    data: None,
+                },
+                axum::http::StatusCode::FORBIDDEN,
+            ));
+        }
+
+        tracing::info!(
+            "Setting auto-approval to {} by service: {}",
+            request.enabled,
+            admin_token.service_name
+        );
+
+        let ctx = context.as_ref();
+
+        ctx.database
+            .set_auto_approval_enabled(request.enabled)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to set auto-approval setting");
+                AppError::internal(format!("Failed to set auto-approval setting: {e}"))
+            })?;
+
+        tracing::info!(
+            "Auto-approval setting updated to {} by {}",
+            request.enabled,
+            admin_token.service_name
+        );
+
+        Ok(json_response(
+            AdminResponse {
+                success: true,
+                message: format!(
+                    "Auto-approval has been {}",
+                    if request.enabled { "enabled" } else { "disabled" }
+                ),
+                data: serde_json::to_value(AutoApprovalResponse {
+                    enabled: request.enabled,
+                    description: "When enabled, new user registrations are automatically approved without admin intervention".to_owned(),
+                })
                 .ok(),
             },
             axum::http::StatusCode::OK,

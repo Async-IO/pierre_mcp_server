@@ -106,6 +106,10 @@ enum AdminCommand {
         /// Force update if user already exists
         #[arg(long)]
         force: bool,
+
+        /// Create super admin user (can impersonate other users)
+        #[arg(long)]
+        super_admin: bool,
     },
 
     /// List all admin tokens
@@ -216,8 +220,9 @@ async fn main() -> Result<()> {
             password,
             name,
             force,
+            super_admin,
         } => {
-            create_admin_user_command(&database, email, password, name, force).await?;
+            create_admin_user_command(&database, email, password, name, force, super_admin).await?;
         }
         AdminCommand::ListTokens {
             include_inactive,
@@ -669,18 +674,28 @@ async fn create_admin_user_command(
     password: String,
     name: String,
     force: bool,
+    super_admin: bool,
 ) -> Result<()> {
-    info!("User Creating admin user: {}", email);
+    let role_str = if super_admin { "super admin" } else { "admin" };
+    info!("User Creating {} user: {}", role_str, email);
 
     // Check if user already exists and handle accordingly
     if let Ok(Some(existing_user)) = database.get_user_by_email(&email).await {
-        update_existing_admin_user(database, existing_user, &email, &password, &name, force)
-            .await?;
+        update_existing_admin_user(
+            database,
+            existing_user,
+            &email,
+            &password,
+            &name,
+            force,
+            super_admin,
+        )
+        .await?;
     } else {
-        create_new_admin_user(database, &email, &password, &name).await?;
+        create_new_admin_user(database, &email, &password, &name, super_admin).await?;
     }
 
-    display_admin_user_success(&email, &name, &password);
+    display_admin_user_success(&email, &name, &password, super_admin);
     initialize_admin_jwt_secret(database).await?;
 
     println!("\nSuccess Admin user is ready to use!");
@@ -695,13 +710,21 @@ async fn update_existing_admin_user(
     password: &str,
     name: &str,
     force: bool,
+    super_admin: bool,
 ) -> Result<()> {
     if !force {
         display_existing_user_error(&existing_user);
         return Err(AppError::invalid_input("User already exists (use --force to update)").into());
     }
 
-    info!("Updating existing admin user...");
+    let role_str = if super_admin { "super admin" } else { "admin" };
+    info!("Updating existing {} user...", role_str);
+
+    let role = if super_admin {
+        pierre_mcp_server::permissions::UserRole::SuperAdmin
+    } else {
+        pierre_mcp_server::permissions::UserRole::Admin
+    };
 
     let updated_user = pierre_mcp_server::models::User {
         id: existing_user.id,
@@ -715,6 +738,7 @@ async fn update_existing_admin_user(
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: true,
+        role,
         approved_by: existing_user.approved_by,
         approved_at: existing_user.approved_at,
         created_at: existing_user.created_at,
@@ -746,8 +770,16 @@ async fn create_new_admin_user(
     email: &str,
     password: &str,
     name: &str,
+    super_admin: bool,
 ) -> Result<()> {
-    info!("➕ Creating new admin user...");
+    let role_str = if super_admin { "super admin" } else { "admin" };
+    info!("Creating new {} user...", role_str);
+
+    let role = if super_admin {
+        pierre_mcp_server::permissions::UserRole::SuperAdmin
+    } else {
+        pierre_mcp_server::permissions::UserRole::Admin
+    };
 
     let new_user = pierre_mcp_server::models::User {
         id: Uuid::new_v4(),
@@ -761,6 +793,7 @@ async fn create_new_admin_user(
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: true,
+        role,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -771,14 +804,20 @@ async fn create_new_admin_user(
     Ok(())
 }
 
-fn display_admin_user_success(email: &str, name: &str, password: &str) {
-    println!("\nSuccess Admin User Created Successfully!");
+fn display_admin_user_success(email: &str, name: &str, password: &str, super_admin: bool) {
+    let role_str = if super_admin { "Super Admin" } else { "Admin" };
+    println!("\nSuccess {role_str} User Created Successfully!");
     println!("{}", "=".repeat(50));
     println!("User USER DETAILS:");
     println!("   Email: {email}");
     println!("   Name: {name}");
+    println!("   Role: {role_str}");
     println!("   Tier: Enterprise (Full access)");
     println!("   Status: Active");
+
+    if super_admin {
+        println!("   Capabilities: Can impersonate other users");
+    }
 
     println!("\nKey LOGIN CREDENTIALS:");
     println!("{}", "=".repeat(50));
@@ -788,6 +827,9 @@ fn display_admin_user_success(email: &str, name: &str, password: &str) {
     println!("\nWARNING IMPORTANT SECURITY NOTES:");
     println!("• Change the default password in production!");
     println!("• This user has full access to the admin interface");
+    if super_admin {
+        println!("• Super admin can impersonate any non-super-admin user");
+    }
     println!("• Use strong passwords and enable 2FA if available");
     println!("• Consider creating additional admin users with limited permissions");
 

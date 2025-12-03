@@ -141,3 +141,38 @@ pub fn str_to_task_status(s: &str) -> TaskStatus {
         _ => TaskStatus::Pending,
     }
 }
+
+/// Convert `UserRole` enum to database string representation
+///
+/// # Examples
+/// ```
+/// use pierre_mcp_server::permissions::UserRole;
+/// use pierre_mcp_server::database_plugins::shared::enums::user_role_to_str;
+///
+/// assert_eq!(user_role_to_str(&UserRole::SuperAdmin), "super_admin");
+/// assert_eq!(user_role_to_str(&UserRole::Admin), "admin");
+/// assert_eq!(user_role_to_str(&UserRole::User), "user");
+/// ```
+#[must_use]
+#[inline]
+pub const fn user_role_to_str(role: &crate::permissions::UserRole) -> &'static str {
+    role.as_str()
+}
+
+/// Convert database string to `UserRole` enum
+///
+/// Unknown values default to `User` role for safety.
+///
+/// # Examples
+/// ```
+/// use pierre_mcp_server::permissions::UserRole;
+/// use pierre_mcp_server::database_plugins::shared::enums::str_to_user_role;
+///
+/// assert_eq!(str_to_user_role("super_admin"), UserRole::SuperAdmin);
+/// assert_eq!(str_to_user_role("admin"), UserRole::Admin);
+/// assert_eq!(str_to_user_role("unknown"), UserRole::User); // Default
+/// ```
+#[must_use]
+pub fn str_to_user_role(s: &str) -> crate::permissions::UserRole {
+    crate::permissions::UserRole::from_str_lossy(s)
+}

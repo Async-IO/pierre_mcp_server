@@ -107,6 +107,7 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Pending, // Start as pending
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
         created_at: chrono::Utc::now(),
@@ -486,6 +487,7 @@ async fn create_test_pending_user(database: &Database) -> Result<uuid::Uuid> {
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Pending,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
     };

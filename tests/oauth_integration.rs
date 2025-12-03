@@ -157,6 +157,7 @@ async fn test_oauth_authorization_url_generation() {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -201,8 +202,11 @@ async fn test_oauth_authorization_url_generation() {
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let auth_routes =
-        AuthService::new(server_context.auth().clone(), server_context.data().clone());
+    let auth_routes = AuthService::new(
+        server_context.auth().clone(),
+        server_context.config().clone(),
+        server_context.data().clone(),
+    );
     let oauth_routes = OAuthService::new(
         server_context.data().clone(),
         server_context.config().clone(),
@@ -224,6 +228,7 @@ async fn test_oauth_authorization_url_generation() {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
     };
@@ -434,6 +439,7 @@ async fn test_oauth_state_validation() {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -619,6 +625,7 @@ async fn test_connection_status_no_providers() {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -666,6 +673,7 @@ async fn test_connection_status_no_providers() {
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -834,6 +842,7 @@ async fn test_invalid_provider_error() {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -1015,6 +1024,7 @@ async fn test_disconnect_provider() {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -1078,6 +1088,7 @@ async fn test_disconnect_provider() {
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -1140,6 +1151,7 @@ async fn test_oauth_urls_contain_required_parameters() {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
     };
@@ -1288,6 +1300,7 @@ async fn test_oauth_urls_contain_required_parameters() {
             max_activities_fetch: 100,
             default_activities_limit: 20,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),

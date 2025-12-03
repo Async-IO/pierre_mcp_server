@@ -1,3 +1,6 @@
+// ABOUTME: Sliding drawer component that shows detailed user information
+// ABOUTME: Displays user profile, rate limits, activity, and admin actions (approve, suspend, impersonate)
+//
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
@@ -8,6 +11,7 @@ import type { User } from '../types/api';
 import { Button, Card } from './ui';
 import { Badge } from './ui/Badge';
 import PasswordResetModal from './PasswordResetModal';
+import { useAuth } from '../hooks/useAuth';
 
 interface UserDetailDrawerProps {
   user: User | null;
@@ -23,6 +27,26 @@ export default function UserDetailDrawer({
   onAction
 }: UserDetailDrawerProps) {
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isImpersonating, setIsImpersonating] = useState(false);
+  const { user: currentUser, startImpersonation } = useAuth();
+
+  const canImpersonate = currentUser?.role === 'super_admin' &&
+    user?.role !== 'super_admin' &&
+    user?.user_status === 'active';
+
+  const handleImpersonate = async () => {
+    if (!user || !canImpersonate) return;
+
+    setIsImpersonating(true);
+    try {
+      await startImpersonation(user.id, `Viewing user account from admin panel`);
+      onClose();
+    } catch (error) {
+      console.error('Failed to start impersonation:', error);
+    } finally {
+      setIsImpersonating(false);
+    }
+  };
 
   const { data: rateLimit, isLoading: rateLimitLoading } = useQuery({
     queryKey: ['user-rate-limit', user?.id],
@@ -294,6 +318,20 @@ export default function UserDetailDrawer({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   Reactivate User
+                </Button>
+              )}
+
+              {canImpersonate && (
+                <Button
+                  onClick={handleImpersonate}
+                  disabled={isImpersonating}
+                  variant="outline"
+                  className="w-full justify-start border-amber-300 text-amber-700 hover:bg-amber-50"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  {isImpersonating ? 'Starting...' : 'Impersonate User'}
                 </Button>
               )}
             </div>

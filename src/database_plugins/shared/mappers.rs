@@ -58,6 +58,12 @@ where
         .map_err(|e| AppError::database(format!("Failed to get column 'tier': {e}")))?;
     let tier = super::enums::str_to_user_tier(&tier_str);
 
+    // Parse role - default to 'user' if not present (backward compatibility)
+    let role = row
+        .try_get::<String, _>("role")
+        .map(|role_str| super::enums::str_to_user_role(&role_str))
+        .unwrap_or(crate::permissions::UserRole::User);
+
     Ok(User {
         id: row
             .try_get("id")
@@ -82,6 +88,7 @@ where
             .map_err(|e| AppError::database(format!("Failed to get column 'is_active': {e}")))?,
         user_status,
         is_admin: row.try_get("is_admin").unwrap_or(false),
+        role,
         approved_by: row
             .try_get("approved_by")
             .map_err(|e| AppError::database(format!("Failed to get column 'approved_by': {e}")))?,

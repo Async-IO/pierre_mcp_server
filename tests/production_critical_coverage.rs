@@ -43,6 +43,7 @@ async fn test_mcp_request_processing_flow() -> Result<()> {
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
@@ -86,6 +87,7 @@ async fn test_model_serialization_coverage() -> Result<()> {
         password_hash: "hash".to_owned(),
         tier: UserTier::Enterprise, // Test different tier
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: false, // Test inactive user
@@ -137,6 +139,7 @@ async fn test_admin_auth_flow() -> Result<()> {
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: true,
+        role: pierre_mcp_server::permissions::UserRole::Admin,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
@@ -179,6 +182,7 @@ async fn test_mcp_multitenant_request_routing() -> Result<()> {
                 UserTier::Professional
             },
             is_admin: false,
+            role: pierre_mcp_server::permissions::UserRole::User,
             created_at: chrono::Utc::now(),
             last_active: chrono::Utc::now(),
             is_active: true,
@@ -226,6 +230,7 @@ async fn test_production_database_scenarios() -> Result<()> {
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
@@ -248,6 +253,7 @@ async fn test_production_database_scenarios() -> Result<()> {
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
@@ -275,6 +281,7 @@ async fn test_production_rate_limiting() -> Result<()> {
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter, // Starter tier has limits
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,

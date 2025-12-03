@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-import { useState, lazy, Suspense, useEffect } from 'react';
+import { useState, lazy, Suspense, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
-import type { DashboardOverview, RateLimitOverview, User } from '../types/api';
+import type { DashboardOverview, RateLimitOverview, User, AdminToken } from '../types/api';
 import type { AnalyticsData } from '../types/chart';
 import { useWebSocketContext } from '../hooks/useWebSocketContext';
 import { Card } from './ui';
@@ -18,6 +18,20 @@ const RequestMonitor = lazy(() => import('./RequestMonitor'));
 const ToolUsageBreakdown = lazy(() => import('./ToolUsageBreakdown'));
 const UnifiedConnections = lazy(() => import('./UnifiedConnections'));
 const UserManagement = lazy(() => import('./UserManagement'));
+const UserHome = lazy(() => import('./UserHome'));
+const UserSettings = lazy(() => import('./UserSettings'));
+const AdminSettings = lazy(() => import('./AdminSettings'));
+const AdminTokenList = lazy(() => import('./AdminTokenList'));
+const AdminTokenDetails = lazy(() => import('./AdminTokenDetails'));
+const MCPTokensTab = lazy(() => import('./MCPTokensTab'));
+
+// Tab definition type with optional badge for notification counts
+interface TabDefinition {
+  id: string;
+  name: string;
+  icon: React.ReactNode;
+  badge?: number;
+}
 
 const PierreLogo = () => (
   <svg width="48" height="48" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
@@ -41,8 +55,12 @@ const PierreLogo = () => (
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState('overview');
+  // Default tab depends on user role: admin sees 'overview', regular users see 'home'
+  const isAdminUser = user?.role === 'admin' || user?.role === 'super_admin';
+  const isSuperAdmin = user?.role === 'super_admin';
+  const [activeTab, setActiveTab] = useState(isAdminUser ? 'overview' : 'home');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [selectedAdminToken, setSelectedAdminToken] = useState<AdminToken | null>(null);
   const { lastMessage } = useWebSocketContext();
 
   const { data: overview, isLoading: overviewLoading, refetch: refetchOverview } = useQuery<DashboardOverview>({
@@ -71,7 +89,7 @@ export default function Dashboard() {
     queryFn: () => apiService.getPendingUsers(),
     staleTime: 30_000,
     retry: false,
-    enabled: user?.is_admin === true,
+    enabled: isAdminUser,
   });
 
   // Refresh data when WebSocket updates are received
@@ -83,7 +101,8 @@ export default function Dashboard() {
     }
   }, [lastMessage, refetchOverview]);
 
-  const tabs = [
+  // Tab definitions
+  const adminTabs: TabDefinition[] = useMemo(() => [
     { id: 'overview', name: 'Overview', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -111,15 +130,55 @@ export default function Dashboard() {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ) },
-    // Users tab - only visible to admin users
-    ...(user?.is_admin ? [{
-      id: 'users', name: 'Users', icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      ), badge: pendingUsers.length > 0 ? pendingUsers.length : undefined,
-    }] : []),
-  ];
+    { id: 'users', name: 'Users', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+    ), badge: pendingUsers.length > 0 ? pendingUsers.length : undefined },
+    { id: 'admin-settings', name: 'Settings', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    ) },
+  ], [pendingUsers.length]);
+
+  // Super admin tabs extend admin tabs with admin token management
+  const superAdminTabs: TabDefinition[] = useMemo(() => [
+    ...adminTabs,
+    { id: 'admin-tokens', name: 'Admin Tokens', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+      </svg>
+    ) },
+  ], [adminTabs]);
+
+  const userTabs: TabDefinition[] = useMemo(() => [
+    { id: 'home', name: 'Home', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      </svg>
+    ) },
+    { id: 'connections', name: 'Connections', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+      </svg>
+    ) },
+    { id: 'mcp-tokens', name: 'MCP Tokens', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+      </svg>
+    ) },
+    { id: 'settings', name: 'Settings', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    ) },
+  ], []);
+
+  // Select tabs based on user role: super_admin gets extra tabs, admin gets admin tabs, users get user tabs
+  const tabs = isSuperAdmin ? superAdminTabs : isAdminUser ? adminTabs : userTabs;
 
   return (
     <div className="min-h-screen bg-pierre-gray-50 flex">
@@ -222,7 +281,7 @@ export default function Dashboard() {
                   {user?.display_name || user?.email}
                 </p>
                 <span className="text-[8px] text-pierre-gray-500 uppercase">
-                  {user?.is_admin ? 'Admin' : 'User'}
+                  {user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : 'User'}
                 </span>
               </div>
             )}
@@ -356,6 +415,59 @@ export default function Dashboard() {
             <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
               <UserManagement />
             </Suspense>
+          </div>
+        )}
+        {activeTab === 'home' && (
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+            <UserHome onNavigate={setActiveTab} />
+          </Suspense>
+        )}
+        {activeTab === 'settings' && (
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+            <UserSettings />
+          </Suspense>
+        )}
+        {activeTab === 'mcp-tokens' && (
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+            <MCPTokensTab />
+          </Suspense>
+        )}
+        {activeTab === 'admin-settings' && (
+          <div className="space-y-6">
+            <Card>
+              <h2 className="text-xl font-semibold mb-4">System Settings</h2>
+              <p className="text-pierre-gray-600 mb-4">
+                Configure system-wide settings for user registration, security, and platform behavior.
+              </p>
+            </Card>
+            <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+              <AdminSettings />
+            </Suspense>
+          </div>
+        )}
+        {activeTab === 'admin-tokens' && (
+          <div className="space-y-6">
+            {selectedAdminToken ? (
+              <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+                <AdminTokenDetails
+                  token={selectedAdminToken}
+                  onBack={() => setSelectedAdminToken(null)}
+                  onTokenUpdated={() => setSelectedAdminToken(null)}
+                />
+              </Suspense>
+            ) : (
+              <>
+                <Card>
+                  <h2 className="text-xl font-semibold mb-4">Admin Token Management</h2>
+                  <p className="text-pierre-gray-600 mb-4">
+                    Manage service tokens for API automation and administrative access. Only super admins can create, rotate, and revoke admin tokens.
+                  </p>
+                </Card>
+                <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+                  <AdminTokenList onViewDetails={setSelectedAdminToken} />
+                </Suspense>
+              </>
+            )}
           </div>
         )}
         </div>

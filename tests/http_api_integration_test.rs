@@ -62,6 +62,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
     };
@@ -212,6 +213,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
             max_activities_fetch: 200,
             default_activities_limit: 50,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
                 mcp_version: "2025-06-18".to_owned(),
                 server_name: "pierre-mcp-server-test".to_owned(),
@@ -265,8 +267,11 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
-    let auth_routes =
-        AuthService::new(server_context.auth().clone(), server_context.data().clone());
+    let auth_routes = AuthService::new(
+        server_context.auth().clone(),
+        server_context.config().clone(),
+        server_context.data().clone(),
+    );
     let oauth_routes = OAuthService::new(
         server_context.data().clone(),
         server_context.config().clone(),

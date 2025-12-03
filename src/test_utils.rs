@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::models::{User, UserStatus, UserTier};
+use crate::permissions::UserRole;
 use chrono::Utc;
 use uuid::Uuid;
 
@@ -23,6 +24,7 @@ pub fn create_test_admin_user(email: &str, display_name: Option<String>) -> User
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: true, // Admin user
+        role: UserRole::Admin,
         approved_by: None,
         approved_at: Some(Utc::now()),
         created_at: Utc::now(),
@@ -45,6 +47,7 @@ pub fn create_test_user(email: &str, display_name: Option<String>) -> User {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false, // Regular user
+        role: UserRole::User,
         approved_by: None,
         approved_at: Some(Utc::now()),
         created_at: Utc::now(),
@@ -67,6 +70,7 @@ pub fn create_test_pending_user(email: &str, display_name: Option<String>) -> Us
         is_active: true,
         user_status: UserStatus::Pending,
         is_admin: false, // Regular user
+        role: UserRole::User,
         approved_by: None,
         approved_at: None, // Not approved yet
         created_at: Utc::now(),
@@ -82,6 +86,7 @@ pub fn create_test_user_with_fields(
     tier: UserTier,
     user_status: &UserStatus,
     is_admin: bool,
+    role: UserRole,
 ) -> User {
     User {
         id: Uuid::new_v4(),
@@ -95,6 +100,7 @@ pub fn create_test_user_with_fields(
         is_active: true,
         user_status: *user_status,
         is_admin,
+        role,
         approved_by: if matches!(user_status, UserStatus::Active) {
             Some(Uuid::new_v4())
         } else {

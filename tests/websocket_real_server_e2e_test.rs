@@ -108,6 +108,7 @@ impl TestServer {
             is_active: true,
             user_status: pierre_mcp_server::models::UserStatus::Active,
             is_admin: false,
+            role: pierre_mcp_server::permissions::UserRole::User,
             approved_by: Some(user_id),
             approved_at: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),

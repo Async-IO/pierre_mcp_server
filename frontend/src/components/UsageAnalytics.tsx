@@ -51,12 +51,29 @@ export default function UsageAnalytics() {
     red: '#EF4444',
   };
 
+  // Helper to safely parse dates from various formats
+  const formatDateLabel = (dateString: string): string => {
+    if (!dateString) return 'N/A';
+
+    // Try parsing as ISO date first
+    let date = new Date(dateString);
+
+    // If invalid, try adding time component for date-only strings (YYYY-MM-DD)
+    if (isNaN(date.getTime()) && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      date = new Date(`${dateString}T00:00:00`);
+    }
+
+    // If still invalid, return the original string or a fallback
+    if (isNaN(date.getTime())) {
+      return dateString.length > 10 ? dateString.substring(0, 10) : dateString;
+    }
+
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   // Prepare chart data
   const timeSeriesData: ChartData = {
-    labels: analytics?.time_series?.map((point: TimeSeriesPoint) => {
-      const date = new Date(point.date);
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }) || [],
+    labels: analytics?.time_series?.map((point: TimeSeriesPoint) => formatDateLabel(point.date)) || [],
     datasets: [
       {
         label: 'API Requests',

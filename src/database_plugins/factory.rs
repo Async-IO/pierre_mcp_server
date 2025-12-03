@@ -179,6 +179,32 @@ impl Database {
             Self::new_impl(database_url, encryption_key).await
         }
     }
+
+    /// Check if auto-approval is enabled for new user registrations
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn is_auto_approval_enabled(&self) -> AppResult<bool> {
+        match self {
+            Self::SQLite(db) => db.is_auto_approval_enabled().await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => Ok(false), // PostgreSQL implementation pending
+        }
+    }
+
+    /// Set auto-approval enabled state
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails
+    pub async fn set_auto_approval_enabled(&self, enabled: bool) -> AppResult<()> {
+        match self {
+            Self::SQLite(db) => db.set_auto_approval_enabled(enabled).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_db) => Ok(()), // PostgreSQL implementation pending
+        }
+    }
 }
 
 /// Automatically detect database type from connection string
@@ -2170,6 +2196,154 @@ impl DatabaseProvider for Database {
             Self::SQLite(db) => db.update_rsa_keypair_active_status(kid, is_active).await,
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.update_rsa_keypair_active_status(kid, is_active).await,
+        }
+    }
+
+    // ================================
+    // User MCP Tokens (AI Client Authentication)
+    // ================================
+
+    /// Create a new user MCP token for AI client authentication
+    async fn create_user_mcp_token(
+        &self,
+        user_id: Uuid,
+        request: &crate::database::CreateUserMcpTokenRequest,
+    ) -> AppResult<crate::database::UserMcpTokenCreated> {
+        match self {
+            Self::SQLite(db) => db.create_user_mcp_token(user_id, request).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.create_user_mcp_token(user_id, request).await,
+        }
+    }
+
+    /// Validate a user MCP token and return the associated user ID
+    async fn validate_user_mcp_token(&self, token_value: &str) -> AppResult<Uuid> {
+        match self {
+            Self::SQLite(db) => db.validate_user_mcp_token(token_value).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.validate_user_mcp_token(token_value).await,
+        }
+    }
+
+    /// List all MCP tokens for a user
+    async fn list_user_mcp_tokens(
+        &self,
+        user_id: Uuid,
+    ) -> AppResult<Vec<crate::database::UserMcpTokenInfo>> {
+        match self {
+            Self::SQLite(db) => db.list_user_mcp_tokens(user_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.list_user_mcp_tokens(user_id).await,
+        }
+    }
+
+    /// Revoke a user MCP token
+    async fn revoke_user_mcp_token(&self, token_id: &str, user_id: Uuid) -> AppResult<()> {
+        match self {
+            Self::SQLite(db) => db.revoke_user_mcp_token(token_id, user_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.revoke_user_mcp_token(token_id, user_id).await,
+        }
+    }
+
+    /// Get a user MCP token by ID
+    async fn get_user_mcp_token(
+        &self,
+        token_id: &str,
+        user_id: Uuid,
+    ) -> AppResult<Option<crate::database::UserMcpToken>> {
+        match self {
+            Self::SQLite(db) => db.get_user_mcp_token(token_id, user_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_user_mcp_token(token_id, user_id).await,
+        }
+    }
+
+    /// Cleanup expired user MCP tokens (mark as revoked)
+    async fn cleanup_expired_user_mcp_tokens(&self) -> AppResult<u64> {
+        match self {
+            Self::SQLite(db) => db.cleanup_expired_user_mcp_tokens().await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.cleanup_expired_user_mcp_tokens().await,
+        }
+    }
+
+    // ================================
+    // Impersonation Session Management
+    // ================================
+
+    /// Create a new impersonation session for audit trail
+    async fn create_impersonation_session(
+        &self,
+        session: &crate::permissions::impersonation::ImpersonationSession,
+    ) -> AppResult<()> {
+        match self {
+            Self::SQLite(db) => db.create_impersonation_session(session).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.create_impersonation_session(session).await,
+        }
+    }
+
+    /// Get impersonation session by ID
+    async fn get_impersonation_session(
+        &self,
+        session_id: &str,
+    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>> {
+        match self {
+            Self::SQLite(db) => db.get_impersonation_session(session_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_impersonation_session(session_id).await,
+        }
+    }
+
+    /// Get active impersonation session for an impersonator
+    async fn get_active_impersonation_session(
+        &self,
+        impersonator_id: Uuid,
+    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>> {
+        match self {
+            Self::SQLite(db) => db.get_active_impersonation_session(impersonator_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_active_impersonation_session(impersonator_id).await,
+        }
+    }
+
+    /// End an impersonation session
+    async fn end_impersonation_session(&self, session_id: &str) -> AppResult<()> {
+        match self {
+            Self::SQLite(db) => db.end_impersonation_session(session_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.end_impersonation_session(session_id).await,
+        }
+    }
+
+    /// End all active impersonation sessions for an impersonator
+    async fn end_all_impersonation_sessions(&self, impersonator_id: Uuid) -> AppResult<u64> {
+        match self {
+            Self::SQLite(db) => db.end_all_impersonation_sessions(impersonator_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.end_all_impersonation_sessions(impersonator_id).await,
+        }
+    }
+
+    /// List impersonation sessions with optional filters
+    async fn list_impersonation_sessions(
+        &self,
+        impersonator_id: Option<Uuid>,
+        target_user_id: Option<Uuid>,
+        active_only: bool,
+        limit: u32,
+    ) -> AppResult<Vec<crate::permissions::impersonation::ImpersonationSession>> {
+        match self {
+            Self::SQLite(db) => {
+                db.list_impersonation_sessions(impersonator_id, target_user_id, active_only, limit)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.list_impersonation_sessions(impersonator_id, target_user_id, active_only, limit)
+                    .await
+            }
         }
     }
 }

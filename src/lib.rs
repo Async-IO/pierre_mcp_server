@@ -179,6 +179,8 @@ pub mod lifecycle;
 pub mod oauth2_server;
 
 // Utility modules
+/// Role-based permission system with `super_admin`, `admin`, `user` hierarchy
+pub mod permissions;
 pub mod tenant;
 /// Common type definitions and shared types
 pub mod types;

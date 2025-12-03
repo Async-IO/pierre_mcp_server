@@ -1684,6 +1684,7 @@ fn create_test_server_config() -> ServerConfig {
             max_activities_fetch: 200,
             default_activities_limit: 50,
             ci_mode: true,
+            auto_approve_users: false,
             protocol: ProtocolConfig {
                 mcp_version: "2024-11-05".to_owned(),
                 server_name: "Pierre Fitness AI".to_owned(),

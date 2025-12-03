@@ -1164,8 +1164,10 @@ pub struct User {
     pub is_active: bool,
     /// User account status for admin approval workflow
     pub user_status: UserStatus,
-    /// Whether this user has admin privileges
+    /// Whether this user has admin privileges (legacy - use role instead)
     pub is_admin: bool,
+    /// User role for permission system (`super_admin`, `admin`, `user`)
+    pub role: crate::permissions::UserRole,
     /// Admin who approved this user (if approved)
     pub approved_by: Option<Uuid>,
     /// When the user was approved by admin
@@ -1487,6 +1489,7 @@ impl User {
             is_active: true,
             user_status: UserStatus::Pending, // New users need admin approval
             is_admin: false,                  // Regular users are not admins by default
+            role: crate::permissions::UserRole::User, // Default to regular user
             approved_by: None,
             approved_at: None,
         }

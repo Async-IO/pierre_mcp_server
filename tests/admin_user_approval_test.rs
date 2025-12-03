@@ -14,6 +14,7 @@ use pierre_mcp_server::{
     admin::models::CreateAdminTokenRequest,
     database_plugins::{factory::Database, DatabaseProvider},
     models::{User, UserStatus, UserTier},
+    permissions::UserRole,
 };
 use serial_test::serial;
 use uuid::Uuid;
@@ -70,6 +71,7 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: true,
+        role: UserRole::Admin,
         approved_by: None, // Admin doesn't need approval
         approved_at: None,
         created_at: chrono::Utc::now(),
@@ -115,6 +117,7 @@ async fn test_get_pending_users() -> Result<()> {
         is_active: true,
         user_status: UserStatus::Pending,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
         created_at: chrono::Utc::now(),
@@ -134,6 +137,7 @@ async fn test_get_pending_users() -> Result<()> {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: Some(admin_user_id),
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -170,6 +174,7 @@ async fn test_approve_user() -> Result<()> {
         is_active: true,
         user_status: UserStatus::Pending,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
         created_at: chrono::Utc::now(),
@@ -199,6 +204,7 @@ async fn test_approve_user() -> Result<()> {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: Some(admin_user_id), // Approved by admin user
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -238,6 +244,7 @@ async fn test_suspend_user() -> Result<()> {
         is_active: true,
         user_status: UserStatus::Active,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: Some(admin_user_id),
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -279,6 +286,7 @@ async fn test_user_status_transitions() -> Result<()> {
         is_active: true,
         user_status: UserStatus::Pending,
         is_admin: false,
+        role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
         created_at: chrono::Utc::now(),

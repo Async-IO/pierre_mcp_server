@@ -11,7 +11,7 @@ import { apiService } from '../services/api';
 import type { AdminToken } from '../types/api';
 
 interface AdminTokenListProps {
-  onViewDetails: (tokenId: string) => void;
+  onViewDetails: (token: AdminToken) => void;
 }
 
 export default function AdminTokenList({ onViewDetails }: AdminTokenListProps) {
@@ -236,7 +236,7 @@ export default function AdminTokenList({ onViewDetails }: AdminTokenListProps) {
                       
                       <div className="flex items-center gap-2">
                         <Button
-                          onClick={() => onViewDetails(token.id)}
+                          onClick={() => onViewDetails(token)}
                           className="btn-secondary text-sm"
                         >
                           View Details

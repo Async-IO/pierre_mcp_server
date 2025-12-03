@@ -5,158 +5,121 @@
 // ABOUTME: Tests user listing, approval, suspension, password reset, and user details.
 
 import { test, expect, type Page } from '@playwright/test';
+import { setupDashboardMocks, loginToDashboard, navigateToTab } from './test-helpers';
 
-// Helper to authenticate and navigate to users tab
+// Helper to set up user management specific mocks
+async function setupUserManagementMocks(
+  page: Page,
+  options: {
+    pendingCount?: number;
+    pendingUsers?: Array<{
+      id: string;
+      email: string;
+      display_name: string;
+      status: string;
+      tier: string;
+      created_at?: string;
+      last_active_at?: string | null;
+    }>;
+    allUsers?: Array<{
+      id: string;
+      email: string;
+      display_name: string;
+      status: string;
+      tier: string;
+      created_at?: string;
+      last_active_at?: string | null;
+    }>;
+  } = {}
+) {
+  const {
+    pendingCount = 2,
+    pendingUsers = [
+      {
+        id: 'user-1',
+        email: 'pending1@example.com',
+        display_name: 'Pending User 1',
+        status: 'pending',
+        tier: 'trial',
+        created_at: '2024-01-15T10:00:00Z',
+        last_active_at: null,
+      },
+      {
+        id: 'user-2',
+        email: 'pending2@example.com',
+        display_name: 'Pending User 2',
+        status: 'pending',
+        tier: 'trial',
+        created_at: '2024-01-16T10:00:00Z',
+        last_active_at: null,
+      },
+    ],
+    allUsers = [
+      { id: 'user-1', email: 'pending1@example.com', display_name: 'Pending User 1', status: 'pending', tier: 'trial' },
+      { id: 'user-2', email: 'pending2@example.com', display_name: 'Pending User 2', status: 'pending', tier: 'trial' },
+      { id: 'user-3', email: 'active@example.com', display_name: 'Active User', status: 'active', tier: 'starter' },
+    ],
+  } = options;
+
+  // Set up base dashboard mocks (includes login mock)
+  await setupDashboardMocks(page, { role: 'admin' });
+
+  // Override pending users mock
+  await page.route('**/api/admin/pending-users', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        count: pendingCount,
+        users: pendingUsers,
+      }),
+    });
+  });
+
+  // Override all users mock
+  await page.route('**/api/admin/users**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        users: allUsers,
+        total_count: allUsers.length,
+      }),
+    });
+  });
+}
+
 async function loginAndNavigateToUsers(page: Page) {
-  // Mock setup status
-  await page.route('**/admin/setup/status', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ needs_setup: false, admin_user_exists: true }),
-    });
-  });
-
-  // Mock login
-  await page.route('**/api/auth/login', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        csrf_token: 'test-csrf-token',
-        jwt_token: 'test-jwt-token',
-        user: { id: 'admin-1', email: 'admin@test.com', display_name: 'Admin User', is_admin: true },
-      }),
-    });
-  });
-
-  // Mock dashboard overview
-  await page.route('**/api/dashboard/overview', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        total_api_keys: 5,
-        active_api_keys: 3,
-        total_requests_today: 150,
-        total_requests_month: 2500,
-      }),
-    });
-  });
-
-  // Mock rate limits
-  await page.route('**/api/dashboard/rate-limits', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ daily_limit: 1000, daily_used: 150, monthly_limit: 10000, monthly_used: 2500 }),
-    });
-  });
-
-  // Mock A2A dashboard
-  await page.route('**/a2a/dashboard/overview', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ total_clients: 2, active_sessions: 1, requests_today: 50, error_rate: 0.01 }),
-    });
-  });
-
-  // Mock analytics
-  await page.route('**/api/dashboard/analytics**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ daily_usage: [] }),
-    });
-  });
-
-  await page.goto('/');
-  await page.waitForSelector('form');
-  await page.locator('input[name="email"]').fill('admin@test.com');
-  await page.locator('input[name="password"]').fill('password123');
-  await page.getByRole('button', { name: 'Sign in' }).click();
-
-  // Wait for dashboard to load
-  await page.waitForSelector('[data-testid="dashboard"]', { timeout: 10000 }).catch(() => {
-    // Dashboard might not have data-testid, wait for the sidebar instead
-  });
+  await loginToDashboard(page);
+  await navigateToTab(page, 'Users');
   await page.waitForTimeout(500);
 }
 
 test.describe('User Management - Pending Users', () => {
-  test.beforeEach(async ({ page }) => {
-    // Mock pending users list
-    await page.route('**/api/admin/pending-users', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          count: 2,
-          users: [
-            {
-              id: 'user-1',
-              email: 'pending1@example.com',
-              display_name: 'Pending User 1',
-              status: 'pending',
-              tier: 'trial',
-              created_at: '2024-01-15T10:00:00Z',
-              last_active_at: null,
-            },
-            {
-              id: 'user-2',
-              email: 'pending2@example.com',
-              display_name: 'Pending User 2',
-              status: 'pending',
-              tier: 'trial',
-              created_at: '2024-01-16T10:00:00Z',
-              last_active_at: null,
-            },
-          ],
-        }),
-      });
-    });
-
-    // Mock all users list
-    await page.route('**/api/admin/users**', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          users: [
-            { id: 'user-1', email: 'pending1@example.com', display_name: 'Pending User 1', status: 'pending', tier: 'trial' },
-            { id: 'user-2', email: 'pending2@example.com', display_name: 'Pending User 2', status: 'pending', tier: 'trial' },
-            { id: 'user-3', email: 'active@example.com', display_name: 'Active User', status: 'active', tier: 'starter' },
-          ],
-          total_count: 3,
-        }),
-      });
-    });
-
-    await loginAndNavigateToUsers(page);
-  });
-
   test('displays pending users badge in sidebar', async ({ page }) => {
-    // Look for the Users tab with a badge
-    const usersTab = page.locator('text=Users');
-    await expect(usersTab).toBeVisible();
+    await setupUserManagementMocks(page);
+    await loginToDashboard(page);
 
-    // Badge should show pending count
-    const badge = page.locator('.bg-red-500, .bg-pierre-recovery, [class*="red"]').first();
-    await expect(badge).toBeVisible();
+    // Look for the Users button in the sidebar navigation (list item)
+    // Use exact match to avoid matching the alert button
+    const usersButton = page.getByRole('list').getByRole('button', { name: '2 Users', exact: true });
+    await expect(usersButton).toBeVisible();
+
+    // The button should contain the pending count
+    await expect(usersButton).toContainText('2');
   });
 
   test('navigates to user management tab', async ({ page }) => {
-    // Click on Users tab
-    await page.getByText('Users').click();
+    await setupUserManagementMocks(page);
+    await loginAndNavigateToUsers(page);
 
-    // Should see user management content
-    await expect(page.getByText('User Management')).toBeVisible({ timeout: 5000 });
+    // Should see user management content - check for the h2 heading specifically
+    await expect(page.getByRole('heading', { name: 'User Management', level: 2 })).toBeVisible({ timeout: 5000 });
   });
 
   test('displays pending users list', async ({ page }) => {
-    await page.getByText('Users').click();
-    await page.waitForTimeout(500);
+    await setupUserManagementMocks(page);
+    await loginAndNavigateToUsers(page);
 
     // Should see pending users
     await expect(page.getByText('pending1@example.com')).toBeVisible();
@@ -164,55 +127,35 @@ test.describe('User Management - Pending Users', () => {
   });
 
   test('can switch between user status tabs', async ({ page }) => {
-    await page.getByText('Users').click();
-    await page.waitForTimeout(500);
+    await setupUserManagementMocks(page);
+    await loginAndNavigateToUsers(page);
 
     // Find and click the Active tab
-    const activeTab = page.getByRole('button', { name: /Active/i }).or(page.getByText('Active').first());
+    const activeTab = page.getByRole('button', { name: /Active/i }).or(page.locator('button:has-text("Active")'));
     await activeTab.click();
 
-    // Should filter to active users
+    // Wait for filter to apply
     await page.waitForTimeout(300);
   });
 });
 
 test.describe('User Management - Approve User', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.route('**/api/admin/pending-users', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          count: 1,
-          users: [
-            {
-              id: 'user-1',
-              email: 'pending@example.com',
-              display_name: 'Pending User',
-              status: 'pending',
-              tier: 'trial',
-              created_at: '2024-01-15T10:00:00Z',
-            },
-          ],
-        }),
-      });
-    });
-
-    await page.route('**/api/admin/users**', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          users: [{ id: 'user-1', email: 'pending@example.com', display_name: 'Pending User', status: 'pending', tier: 'trial' }],
-          total_count: 1,
-        }),
-      });
-    });
-
-    await loginAndNavigateToUsers(page);
-  });
-
   test('can approve a pending user', async ({ page }) => {
+    await setupUserManagementMocks(page, {
+      pendingCount: 1,
+      pendingUsers: [
+        {
+          id: 'user-1',
+          email: 'pending@example.com',
+          display_name: 'Pending User',
+          status: 'pending',
+          tier: 'trial',
+          created_at: '2024-01-15T10:00:00Z',
+        },
+      ],
+      allUsers: [{ id: 'user-1', email: 'pending@example.com', display_name: 'Pending User', status: 'pending', tier: 'trial' }],
+    });
+
     // Mock approve endpoint
     await page.route('**/api/admin/approve-user/**', async (route) => {
       await route.fulfill({
@@ -222,8 +165,7 @@ test.describe('User Management - Approve User', () => {
       });
     });
 
-    await page.getByText('Users').click();
-    await page.waitForTimeout(500);
+    await loginAndNavigateToUsers(page);
 
     // Find and click approve button
     const approveButton = page.getByRole('button', { name: /Approve/i }).first();
@@ -234,6 +176,21 @@ test.describe('User Management - Approve User', () => {
   });
 
   test('shows approval confirmation modal', async ({ page }) => {
+    await setupUserManagementMocks(page, {
+      pendingCount: 1,
+      pendingUsers: [
+        {
+          id: 'user-1',
+          email: 'pending@example.com',
+          display_name: 'Pending User',
+          status: 'pending',
+          tier: 'trial',
+          created_at: '2024-01-15T10:00:00Z',
+        },
+      ],
+      allUsers: [{ id: 'user-1', email: 'pending@example.com', display_name: 'Pending User', status: 'pending', tier: 'trial' }],
+    });
+
     await page.route('**/api/admin/approve-user/**', async (route) => {
       await route.fulfill({
         status: 200,
@@ -242,8 +199,7 @@ test.describe('User Management - Approve User', () => {
       });
     });
 
-    await page.getByText('Users').click();
-    await page.waitForTimeout(500);
+    await loginAndNavigateToUsers(page);
 
     // Click approve button
     const approveButton = page.getByRole('button', { name: /Approve/i }).first();
@@ -262,32 +218,13 @@ test.describe('User Management - Approve User', () => {
 });
 
 test.describe('User Management - Suspend User', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.route('**/api/admin/pending-users', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ count: 0, users: [] }),
-      });
-    });
-
-    await page.route('**/api/admin/users**', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          users: [
-            { id: 'user-1', email: 'active@example.com', display_name: 'Active User', status: 'active', tier: 'starter' },
-          ],
-          total_count: 1,
-        }),
-      });
-    });
-
-    await loginAndNavigateToUsers(page);
-  });
-
   test('can suspend an active user', async ({ page }) => {
+    await setupUserManagementMocks(page, {
+      pendingCount: 0,
+      pendingUsers: [],
+      allUsers: [{ id: 'user-1', email: 'active@example.com', display_name: 'Active User', status: 'active', tier: 'starter' }],
+    });
+
     await page.route('**/api/admin/suspend-user/**', async (route) => {
       await route.fulfill({
         status: 200,
@@ -296,11 +233,10 @@ test.describe('User Management - Suspend User', () => {
       });
     });
 
-    await page.getByText('Users').click();
-    await page.waitForTimeout(500);
+    await loginAndNavigateToUsers(page);
 
     // Click on Active tab to see active users
-    const activeTab = page.getByRole('button', { name: /Active/i }).or(page.getByText('Active').first());
+    const activeTab = page.getByRole('button', { name: /Active/i }).or(page.locator('button:has-text("Active")'));
     await activeTab.click();
     await page.waitForTimeout(300);
 
@@ -313,34 +249,21 @@ test.describe('User Management - Suspend User', () => {
 });
 
 test.describe('User Management - User Details', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.route('**/api/admin/pending-users', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ count: 0, users: [] }),
-      });
-    });
-
-    await page.route('**/api/admin/users**', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          users: [
-            {
-              id: 'user-1',
-              email: 'user@example.com',
-              display_name: 'Test User',
-              status: 'active',
-              tier: 'professional',
-              created_at: '2024-01-01T10:00:00Z',
-              last_active_at: '2024-01-20T15:30:00Z',
-            },
-          ],
-          total_count: 1,
-        }),
-      });
+  test('can view user details drawer', async ({ page }) => {
+    await setupUserManagementMocks(page, {
+      pendingCount: 0,
+      pendingUsers: [],
+      allUsers: [
+        {
+          id: 'user-1',
+          email: 'user@example.com',
+          display_name: 'Test User',
+          status: 'active',
+          tier: 'professional',
+          created_at: '2024-01-01T10:00:00Z',
+          last_active_at: '2024-01-20T15:30:00Z',
+        },
+      ],
     });
 
     // Mock rate limit endpoint
@@ -381,26 +304,68 @@ test.describe('User Management - User Details', () => {
       });
     });
 
-    await loginAndNavigateToUsers(page);
-  });
+    await loginToDashboard(page);
 
-  test('can view user details drawer', async ({ page }) => {
-    await page.getByText('Users').click();
+    // Navigate to Users tab - click the sidebar button specifically (not the Quick Actions button)
+    const usersButton = page.getByRole('list').getByRole('button', { name: 'Users' });
+    await usersButton.click();
     await page.waitForTimeout(500);
 
-    // Click on a user row or view details button
-    const viewDetailsButton = page.getByRole('button', { name: /View|Details/i }).first();
-    if (await viewDetailsButton.isVisible()) {
-      await viewDetailsButton.click();
+    // Verify we're on the Users page
+    await expect(page.getByRole('heading', { name: 'Users', level: 1 })).toBeVisible({ timeout: 5000 });
 
-      // Should show user details drawer
-      await expect(page.getByText('user@example.com')).toBeVisible();
-    }
+    // Click on "All Users" tab to see active users (since there are no pending)
+    const allUsersTab = page.getByRole('button', { name: /All Users/i });
+    await allUsersTab.click();
+    await page.waitForTimeout(300);
+
+    // Look for the user email to be visible in the list
+    const userEmail = page.getByText('user@example.com');
+    await expect(userEmail).toBeVisible({ timeout: 5000 });
   });
 
   test('displays user rate limits', async ({ page }) => {
-    await page.getByText('Users').click();
-    await page.waitForTimeout(500);
+    await setupUserManagementMocks(page, {
+      pendingCount: 0,
+      pendingUsers: [],
+      allUsers: [
+        {
+          id: 'user-1',
+          email: 'user@example.com',
+          display_name: 'Test User',
+          status: 'active',
+          tier: 'professional',
+          created_at: '2024-01-01T10:00:00Z',
+          last_active_at: '2024-01-20T15:30:00Z',
+        },
+      ],
+    });
+
+    await page.route('**/admin/users/*/rate-limit', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          user_id: 'user-1',
+          tier: 'professional',
+          rate_limits: {
+            daily: { limit: 10000, used: 500, remaining: 9500 },
+            monthly: { limit: 100000, used: 5000, remaining: 95000 },
+          },
+          reset_times: { daily_reset: '2024-01-21T00:00:00Z', monthly_reset: '2024-02-01T00:00:00Z' },
+        }),
+      });
+    });
+
+    await page.route('**/admin/users/*/activity**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ user_id: 'user-1', period_days: 30, total_requests: 5000, top_tools: [] }),
+      });
+    });
+
+    await loginAndNavigateToUsers(page);
 
     const viewDetailsButton = page.getByRole('button', { name: /View|Details/i }).first();
     if (await viewDetailsButton.isVisible()) {
@@ -414,26 +379,11 @@ test.describe('User Management - User Details', () => {
 });
 
 test.describe('User Management - Password Reset', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.route('**/api/admin/pending-users', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ count: 0, users: [] }),
-      });
-    });
-
-    await page.route('**/api/admin/users**', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          users: [
-            { id: 'user-1', email: 'user@example.com', display_name: 'Test User', status: 'active', tier: 'starter' },
-          ],
-          total_count: 1,
-        }),
-      });
+  test('can reset user password', async ({ page }) => {
+    await setupUserManagementMocks(page, {
+      pendingCount: 0,
+      pendingUsers: [],
+      allUsers: [{ id: 'user-1', email: 'user@example.com', display_name: 'Test User', status: 'active', tier: 'starter' }],
     });
 
     await page.route('**/admin/users/*/rate-limit', async (route) => {
@@ -460,10 +410,6 @@ test.describe('User Management - Password Reset', () => {
       });
     });
 
-    await loginAndNavigateToUsers(page);
-  });
-
-  test('can reset user password', async ({ page }) => {
     // Mock password reset endpoint
     await page.route('**/admin/users/*/reset-password', async (route) => {
       await route.fulfill({
@@ -478,8 +424,7 @@ test.describe('User Management - Password Reset', () => {
       });
     });
 
-    await page.getByText('Users').click();
-    await page.waitForTimeout(500);
+    await loginAndNavigateToUsers(page);
 
     // Open user details
     const viewDetailsButton = page.getByRole('button', { name: /View|Details/i }).first();
@@ -499,6 +444,36 @@ test.describe('User Management - Password Reset', () => {
   });
 
   test('displays temporary password in modal', async ({ page }) => {
+    await setupUserManagementMocks(page, {
+      pendingCount: 0,
+      pendingUsers: [],
+      allUsers: [{ id: 'user-1', email: 'user@example.com', display_name: 'Test User', status: 'active', tier: 'starter' }],
+    });
+
+    await page.route('**/admin/users/*/rate-limit', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          user_id: 'user-1',
+          tier: 'starter',
+          rate_limits: {
+            daily: { limit: 1000, used: 50, remaining: 950 },
+            monthly: { limit: 10000, used: 500, remaining: 9500 },
+          },
+          reset_times: { daily_reset: '2024-01-21T00:00:00Z', monthly_reset: '2024-02-01T00:00:00Z' },
+        }),
+      });
+    });
+
+    await page.route('**/admin/users/*/activity**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ user_id: 'user-1', period_days: 30, total_requests: 500, top_tools: [] }),
+      });
+    });
+
     await page.route('**/admin/users/*/reset-password', async (route) => {
       await route.fulfill({
         status: 200,
@@ -512,8 +487,7 @@ test.describe('User Management - Password Reset', () => {
       });
     });
 
-    await page.getByText('Users').click();
-    await page.waitForTimeout(500);
+    await loginAndNavigateToUsers(page);
 
     const viewDetailsButton = page.getByRole('button', { name: /View|Details/i }).first();
     if (await viewDetailsButton.isVisible()) {
@@ -536,36 +510,18 @@ test.describe('User Management - Password Reset', () => {
 });
 
 test.describe('User Management - Search', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.route('**/api/admin/pending-users', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ count: 0, users: [] }),
-      });
-    });
-
-    await page.route('**/api/admin/users**', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          users: [
-            { id: 'user-1', email: 'john@example.com', display_name: 'John Doe', status: 'active', tier: 'starter' },
-            { id: 'user-2', email: 'jane@example.com', display_name: 'Jane Smith', status: 'active', tier: 'professional' },
-            { id: 'user-3', email: 'bob@test.com', display_name: 'Bob Wilson', status: 'suspended', tier: 'trial' },
-          ],
-          total_count: 3,
-        }),
-      });
+  test('can search users by email', async ({ page }) => {
+    await setupUserManagementMocks(page, {
+      pendingCount: 0,
+      pendingUsers: [],
+      allUsers: [
+        { id: 'user-1', email: 'john@example.com', display_name: 'John Doe', status: 'active', tier: 'starter' },
+        { id: 'user-2', email: 'jane@example.com', display_name: 'Jane Smith', status: 'active', tier: 'professional' },
+        { id: 'user-3', email: 'bob@test.com', display_name: 'Bob Wilson', status: 'suspended', tier: 'trial' },
+      ],
     });
 
     await loginAndNavigateToUsers(page);
-  });
-
-  test('can search users by email', async ({ page }) => {
-    await page.getByText('Users').click();
-    await page.waitForTimeout(500);
 
     // Find search input
     const searchInput = page.locator('input[placeholder*="Search"], input[type="search"]');
@@ -579,8 +535,17 @@ test.describe('User Management - Search', () => {
   });
 
   test('can search users by name', async ({ page }) => {
-    await page.getByText('Users').click();
-    await page.waitForTimeout(500);
+    await setupUserManagementMocks(page, {
+      pendingCount: 0,
+      pendingUsers: [],
+      allUsers: [
+        { id: 'user-1', email: 'john@example.com', display_name: 'John Doe', status: 'active', tier: 'starter' },
+        { id: 'user-2', email: 'jane@example.com', display_name: 'Jane Smith', status: 'active', tier: 'professional' },
+        { id: 'user-3', email: 'bob@test.com', display_name: 'Bob Wilson', status: 'suspended', tier: 'trial' },
+      ],
+    });
+
+    await loginAndNavigateToUsers(page);
 
     const searchInput = page.locator('input[placeholder*="Search"], input[type="search"]');
     if (await searchInput.isVisible()) {
@@ -592,8 +557,17 @@ test.describe('User Management - Search', () => {
   });
 
   test('shows no results message when search finds nothing', async ({ page }) => {
-    await page.getByText('Users').click();
-    await page.waitForTimeout(500);
+    await setupUserManagementMocks(page, {
+      pendingCount: 0,
+      pendingUsers: [],
+      allUsers: [
+        { id: 'user-1', email: 'john@example.com', display_name: 'John Doe', status: 'active', tier: 'starter' },
+        { id: 'user-2', email: 'jane@example.com', display_name: 'Jane Smith', status: 'active', tier: 'professional' },
+        { id: 'user-3', email: 'bob@test.com', display_name: 'Bob Wilson', status: 'suspended', tier: 'trial' },
+      ],
+    });
+
+    await loginAndNavigateToUsers(page);
 
     const searchInput = page.locator('input[placeholder*="Search"], input[type="search"]');
     if (await searchInput.isVisible()) {

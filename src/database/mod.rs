@@ -16,8 +16,14 @@ pub mod api_keys;
 pub mod errors;
 /// User fitness configuration storage and retrieval
 pub mod fitness_configurations;
+/// Impersonation session management for super admin user impersonation
+pub mod impersonation;
 /// OAuth callback notification handling
 pub mod oauth_notifications;
+/// System settings for admin-configurable options
+pub mod system_settings;
+/// User MCP token management for AI client authentication
+pub mod user_mcp_tokens;
 /// User OAuth token storage and management
 pub mod user_oauth_tokens;
 /// User account management and authentication
@@ -28,6 +34,9 @@ pub mod test_utils;
 
 pub use a2a::{A2AUsage, A2AUsageStats};
 pub use errors::{DatabaseError, DatabaseResult};
+pub use user_mcp_tokens::{
+    CreateUserMcpTokenRequest, UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,
+};
 
 use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
@@ -2679,6 +2688,45 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::update_rsa_keypair_active_status_impl(self, kid, is_active).await
     }
 
+    // ================================
+    // User MCP Tokens (AI Client Authentication)
+    // ================================
+
+    async fn create_user_mcp_token(
+        &self,
+        user_id: Uuid,
+        request: &crate::database::CreateUserMcpTokenRequest,
+    ) -> AppResult<crate::database::UserMcpTokenCreated> {
+        Self::create_user_mcp_token(self, user_id, request).await
+    }
+
+    async fn validate_user_mcp_token(&self, token_value: &str) -> AppResult<Uuid> {
+        Self::validate_user_mcp_token(self, token_value).await
+    }
+
+    async fn list_user_mcp_tokens(
+        &self,
+        user_id: Uuid,
+    ) -> AppResult<Vec<crate::database::UserMcpTokenInfo>> {
+        Self::list_user_mcp_tokens(self, user_id).await
+    }
+
+    async fn revoke_user_mcp_token(&self, token_id: &str, user_id: Uuid) -> AppResult<()> {
+        Self::revoke_user_mcp_token(self, token_id, user_id).await
+    }
+
+    async fn get_user_mcp_token(
+        &self,
+        token_id: &str,
+        user_id: Uuid,
+    ) -> AppResult<Option<crate::database::UserMcpToken>> {
+        Self::get_user_mcp_token(self, token_id, user_id).await
+    }
+
+    async fn cleanup_expired_user_mcp_tokens(&self) -> AppResult<u64> {
+        Self::cleanup_expired_user_mcp_tokens(self).await
+    }
+
     async fn create_tenant(&self, tenant: &crate::models::Tenant) -> AppResult<()> {
         Self::create_tenant_impl(self, tenant).await
     }
@@ -3146,6 +3194,50 @@ impl crate::database_plugins::DatabaseProvider for Database {
 
     async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> AppResult<()> {
         Self::remove_user_oauth_app_impl(self, user_id, provider).await
+    }
+
+    // ================================
+    // Impersonation Session Management
+    // ================================
+
+    async fn create_impersonation_session(
+        &self,
+        session: &crate::permissions::impersonation::ImpersonationSession,
+    ) -> AppResult<()> {
+        Self::create_impersonation_session(self, session).await
+    }
+
+    async fn get_impersonation_session(
+        &self,
+        session_id: &str,
+    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>> {
+        Self::get_impersonation_session(self, session_id).await
+    }
+
+    async fn get_active_impersonation_session(
+        &self,
+        impersonator_id: Uuid,
+    ) -> AppResult<Option<crate::permissions::impersonation::ImpersonationSession>> {
+        Self::get_active_impersonation_session(self, impersonator_id).await
+    }
+
+    async fn end_impersonation_session(&self, session_id: &str) -> AppResult<()> {
+        Self::end_impersonation_session(self, session_id).await
+    }
+
+    async fn end_all_impersonation_sessions(&self, impersonator_id: Uuid) -> AppResult<u64> {
+        Self::end_all_impersonation_sessions(self, impersonator_id).await
+    }
+
+    async fn list_impersonation_sessions(
+        &self,
+        impersonator_id: Option<Uuid>,
+        target_user_id: Option<Uuid>,
+        active_only: bool,
+        limit: u32,
+    ) -> AppResult<Vec<crate::permissions::impersonation::ImpersonationSession>> {
+        Self::list_impersonation_sessions(self, impersonator_id, target_user_id, active_only, limit)
+            .await
     }
 }
 

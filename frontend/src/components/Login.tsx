@@ -52,7 +52,11 @@ function PierreLogo() {
   );
 }
 
-export default function Login() {
+interface LoginProps {
+  onNavigateToRegister?: () => void;
+}
+
+export default function Login({ onNavigateToRegister }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -114,14 +118,14 @@ export default function Login() {
                 Pierre Fitness Platform
               </h1>
               <p className="mt-1 text-sm text-pierre-gray-500">
-                Sign in to manage admin tokens and API keys
+                Sign in to your account
               </p>
             </div>
 
             {/* Login form */}
             <form className="space-y-5" onSubmit={handleSubmit}>
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
+                <div className="bg-pierre-red-50 border border-pierre-red-200 text-pierre-red-600 px-4 py-3 rounded-lg text-sm">
                   {error}
                 </div>
               )}
@@ -199,6 +203,19 @@ export default function Login() {
                 <div className="bg-pierre-activity-light/20 border border-pierre-activity rounded-lg p-3 text-center">
                   <p className="text-sm text-pierre-gray-700 font-medium">Ready to Login</p>
                   <p className="text-xs text-pierre-gray-500 mt-1">Admin user configured</p>
+                </div>
+              )}
+
+              {/* Link to register */}
+              {onNavigateToRegister && (
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={onNavigateToRegister}
+                    className="text-sm text-pierre-violet hover:text-pierre-violet/80 font-medium"
+                  >
+                    Don&apos;t have an account? Create one
+                  </button>
                 </div>
               )}
             </form>

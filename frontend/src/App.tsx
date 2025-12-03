@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Login from './components/Login';
+import Register from './components/Register';
+import PendingApproval from './components/PendingApproval';
 import Dashboard from './components/Dashboard';
+import ImpersonationBanner from './components/ImpersonationBanner';
 import { AuthProvider } from './contexts/AuthContext';
 import { WebSocketProvider } from './contexts/WebSocketProvider';
 import { useAuth } from './hooks/useAuth';
@@ -11,8 +15,12 @@ import './App.css';
 
 const queryClient = new QueryClient();
 
+type AuthView = 'login' | 'register';
+
 function AppContent() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const [authView, setAuthView] = useState<AuthView>('login');
+  const [registrationMessage, setRegistrationMessage] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -25,9 +33,77 @@ function AppContent() {
     );
   }
 
+  // Not authenticated - show login or register
+  if (!isAuthenticated) {
+    if (authView === 'register') {
+      return (
+        <Register
+          onNavigateToLogin={() => {
+            setAuthView('login');
+            setRegistrationMessage(null);
+          }}
+          onRegistrationSuccess={(message) => {
+            setRegistrationMessage(message);
+            setAuthView('login');
+          }}
+        />
+      );
+    }
+
+    return (
+      <div className="min-h-screen bg-pierre-gray-50">
+        {registrationMessage && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-full px-4">
+            <div className="bg-pierre-activity-light border border-pierre-activity text-pierre-gray-900 px-4 py-3 rounded-lg shadow-lg">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">{registrationMessage}</p>
+                <button
+                  onClick={() => setRegistrationMessage(null)}
+                  className="ml-4 text-pierre-gray-600 hover:text-pierre-gray-900"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <Login onNavigateToRegister={() => setAuthView('register')} />
+      </div>
+    );
+  }
+
+  // Authenticated but pending approval
+  if (user?.user_status === 'pending') {
+    return <PendingApproval />;
+  }
+
+  // Authenticated but suspended
+  if (user?.user_status === 'suspended') {
+    return (
+      <div className="min-h-screen bg-pierre-gray-50 flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="h-1 w-full bg-gradient-to-r from-red-500 to-red-600" />
+          <div className="px-8 py-10 text-center">
+            <svg className="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+            </svg>
+            <h1 className="text-xl font-bold text-pierre-gray-900 mb-2">Account Suspended</h1>
+            <p className="text-sm text-pierre-gray-600 mb-6">
+              Your account has been suspended. Please contact an administrator for assistance.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Authenticated and active - show dashboard
   return (
     <div className="min-h-screen bg-pierre-gray-50">
-      {isAuthenticated ? <Dashboard /> : <Login />}
+      <ImpersonationBanner />
+      <Dashboard />
     </div>
   );
 }

@@ -4,11 +4,12 @@
 // ABOUTME: Playwright E2E tests for the Overview tab.
 // ABOUTME: Tests stat cards, 7-day activity, rate limits, tier usage, quick actions, and alerts.
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+import { setupDashboardMocks, loginToDashboard } from './test-helpers';
 
 // Helper to set up authenticated state with Overview API mocks
 async function setupOverviewMocks(
-  page: import('@playwright/test').Page,
+  page: Page,
   options: {
     isAdmin?: boolean;
     pendingUsersCount?: number;
@@ -25,7 +26,10 @@ async function setupOverviewMocks(
     hasTierData = true
   } = options;
 
-  // Mock dashboard overview endpoint
+  // Set up base dashboard mocks (includes login mock)
+  await setupDashboardMocks(page, { role: isAdmin ? 'admin' : 'user' });
+
+  // Override dashboard overview endpoint with more data
   await page.route('**/api/dashboard/overview', async (route) => {
     await route.fulfill({
       status: 200,
@@ -45,7 +49,7 @@ async function setupOverviewMocks(
     });
   });
 
-  // Mock rate limits endpoint
+  // Override rate limits endpoint
   await page.route('**/api/dashboard/rate-limits', async (route) => {
     await route.fulfill({
       status: 200,
@@ -79,7 +83,7 @@ async function setupOverviewMocks(
     });
   });
 
-  // Mock usage analytics endpoint for weekly data
+  // Override usage analytics endpoint for weekly data
   await page.route('**/api/dashboard/analytics*', async (route) => {
     if (!hasWeeklyData) {
       await route.fulfill({
@@ -110,21 +114,7 @@ async function setupOverviewMocks(
     });
   });
 
-  // Mock A2A dashboard overview
-  await page.route('**/a2a/dashboard/overview', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        total_clients: 5,
-        active_clients: 3,
-        requests_today: 100,
-        requests_this_month: 3000,
-      }),
-    });
-  });
-
-  // Mock pending users endpoint
+  // Override pending users endpoint
   await page.route('**/api/admin/pending-users', async (route) => {
     if (isAdmin) {
       await route.fulfill({
@@ -147,52 +137,42 @@ async function setupOverviewMocks(
       });
     }
   });
+}
 
-  // Set up authenticated state
-  await page.addInitScript(
-    ({ isAdmin }) => {
-      localStorage.setItem(
-        'user',
-        JSON.stringify({
-          id: 'user-123',
-          email: 'admin@test.com',
-          display_name: 'Test Admin',
-          is_admin: isAdmin,
-        })
-      );
-    },
-    { isAdmin }
-  );
+async function loginAndGoToOverview(page: Page) {
+  await loginToDashboard(page);
+  // Overview is the default tab, no need to navigate
+  await page.waitForTimeout(500);
 }
 
 test.describe('Overview Tab - Stat Cards', () => {
   test('displays Total Connections stat card', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
-    // Check Total Connections (10 keys + 5 apps = 15)
-    await expect(page.getByText('Total Connections')).toBeVisible();
-    await expect(page.getByText('15')).toBeVisible();
-    await expect(page.getByText('10 Keys + 5 Apps')).toBeVisible();
+    // Check Total Connections (10 keys + 5 apps = 15) - use main area to avoid sidebar
+    await expect(page.getByRole('main').getByText('Total Connections')).toBeVisible();
+    await expect(page.getByRole('main').getByText('15').first()).toBeVisible();
+    await expect(page.getByRole('main').getByText('10 Keys + 5 Apps')).toBeVisible();
   });
 
   test('displays Active stat card', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
-    // Check Active (8 keys + 3 apps = 11)
-    await expect(page.getByText('Active')).toBeVisible();
-    await expect(page.getByText('11')).toBeVisible();
-    await expect(page.getByText('8 Keys + 3 Apps')).toBeVisible();
+    // Check Active (8 keys + 3 apps = 11) - scope to main area
+    await expect(page.getByRole('main').getByText('Active').first()).toBeVisible();
+    await expect(page.getByRole('main').getByText('11').first()).toBeVisible();
+    await expect(page.getByRole('main').getByText('8 Keys + 3 Apps')).toBeVisible();
   });
 
   test('displays Today requests stat card', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -204,7 +184,7 @@ test.describe('Overview Tab - Stat Cards', () => {
 
   test('displays This Month stat card', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -215,7 +195,7 @@ test.describe('Overview Tab - Stat Cards', () => {
 
   test('stat cards have hover effect', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -228,7 +208,7 @@ test.describe('Overview Tab - Stat Cards', () => {
 test.describe('Overview Tab - 7-Day Activity', () => {
   test('displays 7-Day Activity card', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -237,7 +217,7 @@ test.describe('Overview Tab - 7-Day Activity', () => {
 
   test('displays average per day', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -247,7 +227,7 @@ test.describe('Overview Tab - 7-Day Activity', () => {
 
   test('displays peak day indicator', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -257,17 +237,17 @@ test.describe('Overview Tab - 7-Day Activity', () => {
 
   test('displays total requests badge', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
-    // Should show total with badge styling
-    await expect(page.locator('.bg-pierre-violet\\/10.text-pierre-violet')).toBeVisible();
+    // Should show total with badge styling - use first() to handle multiple matches
+    await expect(page.locator('.bg-pierre-violet\\/10.text-pierre-violet').first()).toBeVisible();
   });
 
   test('displays mini chart', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -277,7 +257,7 @@ test.describe('Overview Tab - 7-Day Activity', () => {
 
   test('hides 7-Day Activity when no data', async ({ page }) => {
     await setupOverviewMocks(page, { hasWeeklyData: false });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -289,7 +269,7 @@ test.describe('Overview Tab - 7-Day Activity', () => {
 test.describe('Overview Tab - Rate Limits', () => {
   test('displays Rate Limits card', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -298,7 +278,7 @@ test.describe('Overview Tab - Rate Limits', () => {
 
   test('displays capacity usage percentage', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -308,7 +288,7 @@ test.describe('Overview Tab - Rate Limits', () => {
 
   test('displays rate limit items with tier icons', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -320,7 +300,7 @@ test.describe('Overview Tab - Rate Limits', () => {
 
   test('displays API key names in rate limits', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -330,7 +310,7 @@ test.describe('Overview Tab - Rate Limits', () => {
 
   test('displays progress bars for rate limits', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -341,7 +321,7 @@ test.describe('Overview Tab - Rate Limits', () => {
 
   test('shows warning color for high usage', async ({ page }) => {
     await setupOverviewMocks(page, { hasRateLimitWarning: true });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -351,7 +331,7 @@ test.describe('Overview Tab - Rate Limits', () => {
 
   test('displays circular progress indicator', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -364,7 +344,7 @@ test.describe('Overview Tab - Rate Limits', () => {
 test.describe('Overview Tab - Usage by Tier', () => {
   test('displays Usage by Tier section', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -373,7 +353,7 @@ test.describe('Overview Tab - Usage by Tier', () => {
 
   test('displays all tier cards', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -386,7 +366,7 @@ test.describe('Overview Tab - Usage by Tier', () => {
 
   test('displays key count for each tier', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -397,7 +377,7 @@ test.describe('Overview Tab - Usage by Tier', () => {
 
   test('displays requests count for each tier', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -407,7 +387,7 @@ test.describe('Overview Tab - Usage by Tier', () => {
 
   test('displays average per key for each tier', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -417,20 +397,21 @@ test.describe('Overview Tab - Usage by Tier', () => {
 
   test('tier cards have distinct colors', async ({ page }) => {
     await setupOverviewMocks(page);
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
     // Trial (gray), Starter (activity/green), Professional (violet), Enterprise (cyan)
-    await expect(page.locator('.bg-pierre-gray-100')).toBeVisible();
-    await expect(page.locator('.bg-pierre-activity\\/10')).toBeVisible();
-    await expect(page.locator('.bg-pierre-violet\\/10')).toBeVisible();
-    await expect(page.locator('.bg-pierre-cyan\\/10')).toBeVisible();
+    // Use first() to handle multiple matching elements
+    await expect(page.locator('.bg-pierre-gray-100').first()).toBeVisible();
+    await expect(page.locator('.bg-pierre-activity\\/10').first()).toBeVisible();
+    await expect(page.locator('.bg-pierre-violet\\/10').first()).toBeVisible();
+    await expect(page.locator('.bg-pierre-cyan\\/10').first()).toBeVisible();
   });
 
   test('hides Usage by Tier when no tier data', async ({ page }) => {
     await setupOverviewMocks(page, { hasTierData: false });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -442,7 +423,7 @@ test.describe('Overview Tab - Usage by Tier', () => {
 test.describe('Overview Tab - Quick Actions (Admin Only)', () => {
   test('displays Quick Actions section for admin', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: true });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -451,7 +432,7 @@ test.describe('Overview Tab - Quick Actions (Admin Only)', () => {
 
   test('displays API Keys quick action button', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: true });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -461,37 +442,41 @@ test.describe('Overview Tab - Quick Actions (Admin Only)', () => {
 
   test('displays Analytics quick action button', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: true });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
-    const analyticsButton = page.locator('button').filter({ hasText: 'Analytics' });
+    // Get Quick Actions section in main content, then find the Analytics button
+    const analyticsButton = page.getByRole('main').locator('button').filter({ hasText: 'Analytics' });
     await expect(analyticsButton).toBeVisible();
   });
 
   test('displays Monitor quick action button', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: true });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
-    const monitorButton = page.locator('button').filter({ hasText: 'Monitor' });
+    // Get Quick Actions section in main content, then find the Monitor button
+    const monitorButton = page.getByRole('main').locator('button').filter({ hasText: 'Monitor' });
     await expect(monitorButton).toBeVisible();
   });
 
   test('displays Users quick action button', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: true });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
-    const usersButton = page.locator('button').filter({ hasText: 'Users' });
+    // Get Quick Actions Users button specifically (in main content area, not sidebar)
+    // The button text is exactly "Users" in the Quick Actions section
+    const usersButton = page.getByRole('main').getByRole('button', { name: 'Users', exact: true });
     await expect(usersButton).toBeVisible();
   });
 
   test('Quick Actions buttons have hover effect', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: true });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -501,7 +486,7 @@ test.describe('Overview Tab - Quick Actions (Admin Only)', () => {
 
   test('hides Quick Actions for non-admin users', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: false });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -512,7 +497,7 @@ test.describe('Overview Tab - Quick Actions (Admin Only)', () => {
 test.describe('Overview Tab - Alerts (Admin Only)', () => {
   test('displays Alerts section for admin', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: true });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -521,7 +506,7 @@ test.describe('Overview Tab - Alerts (Admin Only)', () => {
 
   test('displays pending users alert when users are pending', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: true, pendingUsersCount: 3 });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -530,7 +515,7 @@ test.describe('Overview Tab - Alerts (Admin Only)', () => {
 
   test('displays singular form for 1 pending user', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: true, pendingUsersCount: 1 });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -539,7 +524,7 @@ test.describe('Overview Tab - Alerts (Admin Only)', () => {
 
   test('pending users alert has pulsing indicator', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: true, pendingUsersCount: 3 });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -549,7 +534,7 @@ test.describe('Overview Tab - Alerts (Admin Only)', () => {
 
   test('displays rate limit warning alert', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: true, hasRateLimitWarning: true });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -558,7 +543,7 @@ test.describe('Overview Tab - Alerts (Admin Only)', () => {
 
   test('rate limit alert has red pulsing indicator', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: true, hasRateLimitWarning: true });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -568,7 +553,7 @@ test.describe('Overview Tab - Alerts (Admin Only)', () => {
 
   test('displays all systems normal when no alerts', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: true, pendingUsersCount: 0, hasRateLimitWarning: false });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -577,17 +562,18 @@ test.describe('Overview Tab - Alerts (Admin Only)', () => {
 
   test('all systems normal has green checkmark', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: true, pendingUsersCount: 0, hasRateLimitWarning: false });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
-    // Green background on all clear state
-    await expect(page.locator('.bg-pierre-activity\\/10.border-pierre-activity\\/30')).toBeVisible();
+    // Green background on all clear state - look for the "All systems normal" text container
+    const alertContainer = page.locator('div').filter({ hasText: /^All systems normal$/ });
+    await expect(alertContainer.first()).toBeVisible();
   });
 
   test('hides Alerts section for non-admin users', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: false });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -596,7 +582,7 @@ test.describe('Overview Tab - Alerts (Admin Only)', () => {
 
   test('pending users alert is clickable', async ({ page }) => {
     await setupOverviewMocks(page, { isAdmin: true, pendingUsersCount: 3 });
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
@@ -610,6 +596,8 @@ test.describe('Overview Tab - Alerts (Admin Only)', () => {
 
 test.describe('Overview Tab - Loading State', () => {
   test('shows loading spinner while data loads', async ({ page }) => {
+    await setupDashboardMocks(page, { role: 'admin' });
+
     await page.route('**/api/dashboard/overview', async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       await route.fulfill({
@@ -619,24 +607,7 @@ test.describe('Overview Tab - Loading State', () => {
       });
     });
 
-    await page.route('**/api/dashboard/rate-limits', async (route) => {
-      await route.fulfill({ status: 200, body: JSON.stringify([]) });
-    });
-    await page.route('**/api/dashboard/analytics*', async (route) => {
-      await route.fulfill({ status: 200, body: JSON.stringify({}) });
-    });
-    await page.route('**/a2a/dashboard/overview', async (route) => {
-      await route.fulfill({ status: 200, body: JSON.stringify({}) });
-    });
-
-    await page.addInitScript(() => {
-      localStorage.setItem(
-        'user',
-        JSON.stringify({ id: 'user-123', email: 'admin@test.com', display_name: 'Test Admin', is_admin: true })
-      );
-    });
-
-    await page.goto('/dashboard');
+    await loginToDashboard(page);
     await page.waitForSelector('nav', { timeout: 10000 });
 
     // Should show loading spinner
@@ -651,7 +622,7 @@ test.describe('Overview Tab - Responsive Layout', () => {
     // Set mobile viewport
     await page.setViewportSize({ width: 375, height: 667 });
 
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
     await page.waitForSelector('nav', { timeout: 10000 });
 
     // Grid should become single column
@@ -665,7 +636,7 @@ test.describe('Overview Tab - Responsive Layout', () => {
     // Set mobile viewport
     await page.setViewportSize({ width: 375, height: 667 });
 
-    await page.goto('/dashboard');
+    await loginAndGoToOverview(page);
     await page.waitForSelector('nav', { timeout: 10000 });
 
     // Tier grid should become single column

@@ -28,6 +28,18 @@ vi.mock('../UserManagement', () => ({
   default: () => <div data-testid="user-management">User Management Component</div>
 }));
 
+vi.mock('../AdminTokenList', () => ({
+  default: () => <div data-testid="admin-token-list">Admin Token List Component</div>
+}));
+
+vi.mock('../AdminTokenDetails', () => ({
+  default: () => <div data-testid="admin-token-details">Admin Token Details Component</div>
+}));
+
+vi.mock('../AdminSettings', () => ({
+  default: () => <div data-testid="admin-settings">Admin Settings Component</div>
+}));
+
 vi.mock('react-chartjs-2', () => ({
   Line: () => <div data-testid="chart">Chart Component</div>
 }));
@@ -35,7 +47,7 @@ vi.mock('react-chartjs-2', () => ({
 // Mock contexts
 vi.mock('../../hooks/useAuth', () => ({
   useAuth: () => ({
-    user: { email: 'admin@test.com', display_name: 'Admin User', is_admin: true },
+    user: { email: 'admin@test.com', display_name: 'Admin User', is_admin: true, role: 'admin' },
     logout: vi.fn(),
     isAuthenticated: true,
     isLoading: false

@@ -28,9 +28,9 @@ describe('RealTimeIndicator Component', () => {
 
     expect(screen.getByText('Disconnected')).toBeInTheDocument()
 
-    // Should have red indicator
+    // Should have red indicator (Pierre Design System color)
     const indicator = screen.getByText('Disconnected').previousElementSibling
-    expect(indicator).toHaveClass('bg-red-500')
+    expect(indicator).toHaveClass('bg-pierre-red-500')
   })
 
   it('should show connected state when connected', () => {
@@ -45,9 +45,9 @@ describe('RealTimeIndicator Component', () => {
 
     expect(screen.getByText('Live Updates')).toBeInTheDocument()
 
-    // Should have green indicator with pulse animation
+    // Should have green indicator with pulse animation (Pierre Design System color)
     const indicator = screen.getByText('Live Updates').previousElementSibling
-    expect(indicator).toHaveClass('bg-green-500', 'animate-pulse')
+    expect(indicator).toHaveClass('bg-pierre-green-500', 'animate-pulse')
   })
 
   it('should apply custom className', () => {

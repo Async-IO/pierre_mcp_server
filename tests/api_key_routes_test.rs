@@ -196,6 +196,7 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                     max_activities_fetch: 100,
                     default_activities_limit: 20,
                     ci_mode: true,
+                    auto_approve_users: false,
                     protocol: pierre_mcp_server::config::environment::ProtocolConfig {
                         mcp_version: "2025-06-18".to_owned(),
                         server_name: "pierre-mcp-server-test".to_owned(),

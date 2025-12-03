@@ -115,6 +115,7 @@ fn create_test_config() -> pierre_mcp_server::config::environment::ServerConfig 
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
             ci_mode: true,
+            auto_approve_users: false,
             ..Default::default()
         },
         ..Default::default()
