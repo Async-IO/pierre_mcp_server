@@ -91,8 +91,8 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <div class="flex items-center gap-3">
-                    <img src="assets/pierre-logo.svg" alt="Pierre" class="h-10 w-10">
-                    <span class="text-xl font-semibold">Pierre</span>
+                    <img src="assets/pierre-logo.svg" alt="Pierre Fitness Intelligence" class="h-10 w-10">
+                    <span class="text-xl font-semibold">Pierre Fitness Intelligence</span>
                 </div>
                 <div class="hidden md:flex items-center gap-8">
                     <a href="#features" class="text-gray-300 hover:text-white transition-colors">Features</a>
@@ -123,7 +123,7 @@
             <p class="text-xl text-gray-400 max-w-3xl mx-auto mb-10">
                 Connect any AI assistant to any fitness provider. A single Rust binary implementing
                 <strong class="text-white">MCP</strong>, <strong class="text-white">A2A</strong>,
-                <strong class="text-white">OAuth2</strong>, and <strong class="text-white">REST</strong> protocols
+                and <strong class="text-white">REST</strong> protocols
                 with sports science-based intelligence.
             </p>
 
@@ -145,9 +145,6 @@
                 </span>
                 <span class="protocol-badge px-4 py-2 rounded-full bg-pierre-cyan/20 border border-pierre-cyan/30 text-pierre-cyan-light text-sm font-medium">
                     A2A Protocol
-                </span>
-                <span class="protocol-badge px-4 py-2 rounded-full bg-pierre-activity/20 border border-pierre-activity/30 text-pierre-activity text-sm font-medium">
-                    OAuth2 Server
                 </span>
                 <span class="protocol-badge px-4 py-2 rounded-full bg-pierre-nutrition/20 border border-pierre-nutrition/30 text-pierre-nutrition text-sm font-medium">
                     REST APIs
@@ -261,92 +258,65 @@
     <section id="protocols" class="py-20 px-4">
         <div class="max-w-7xl mx-auto">
             <div class="text-center mb-16">
-                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Four Protocols, One Binary</h2>
+                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Three Protocols, One Binary</h2>
                 <p class="text-gray-400 max-w-2xl mx-auto">
                     A single Rust binary serving multiple integration patterns for maximum flexibility.
                 </p>
             </div>
 
-            <div class="grid md:grid-cols-2 gap-6">
+            <div class="grid md:grid-cols-3 gap-6">
                 <!-- MCP Protocol -->
                 <div class="card-hover bg-pierre-slate rounded-xl p-8 border border-white/10">
-                    <div class="flex items-start gap-4">
-                        <div class="w-12 h-12 rounded-lg bg-pierre-violet/20 flex items-center justify-center flex-shrink-0">
+                    <div class="flex flex-col">
+                        <div class="w-12 h-12 rounded-lg bg-pierre-violet/20 flex items-center justify-center mb-4">
                             <span class="text-pierre-violet font-bold">MCP</span>
                         </div>
-                        <div>
-                            <h3 class="text-lg font-semibold mb-2">Model Context Protocol</h3>
-                            <p class="text-gray-400 text-sm mb-4">
-                                For interactive AI assistants like Claude, ChatGPT, and custom LLMs.
-                                JSON-RPC 2.0 with 45 fitness tools.
-                            </p>
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Claude Desktop</span>
-                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">ChatGPT</span>
-                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Custom LLMs</span>
-                            </div>
+                        <h3 class="text-lg font-semibold mb-2">Model Context Protocol</h3>
+                        <p class="text-gray-400 text-sm mb-4">
+                            For interactive AI assistants like Claude, ChatGPT, and custom LLMs.
+                            JSON-RPC 2.0 with 45 fitness tools.
+                        </p>
+                        <div class="flex flex-wrap gap-2 mt-auto">
+                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Claude Desktop</span>
+                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">ChatGPT</span>
+                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Custom LLMs</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- A2A Protocol -->
                 <div class="card-hover bg-pierre-slate rounded-xl p-8 border border-white/10">
-                    <div class="flex items-start gap-4">
-                        <div class="w-12 h-12 rounded-lg bg-pierre-cyan/20 flex items-center justify-center flex-shrink-0">
+                    <div class="flex flex-col">
+                        <div class="w-12 h-12 rounded-lg bg-pierre-cyan/20 flex items-center justify-center mb-4">
                             <span class="text-pierre-cyan font-bold">A2A</span>
                         </div>
-                        <div>
-                            <h3 class="text-lg font-semibold mb-2">Agent-to-Agent Protocol</h3>
-                            <p class="text-gray-400 text-sm mb-4">
-                                For autonomous agents collaborating without human intervention.
-                                Capability discovery, task management, and agent cards.
-                            </p>
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Autonomous Agents</span>
-                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Multi-Agent Systems</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- OAuth2 Server -->
-                <div class="card-hover bg-pierre-slate rounded-xl p-8 border border-white/10">
-                    <div class="flex items-start gap-4">
-                        <div class="w-12 h-12 rounded-lg bg-pierre-activity/20 flex items-center justify-center flex-shrink-0">
-                            <span class="text-pierre-activity font-bold text-sm">OAuth</span>
-                        </div>
-                        <div>
-                            <h3 class="text-lg font-semibold mb-2">OAuth2 Authorization Server</h3>
-                            <p class="text-gray-400 text-sm mb-4">
-                                RFC 7591 compliant with PKCE support, JWKS rotation, and
-                                per-IP rate limiting. Secure client registration.
-                            </p>
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">PKCE</span>
-                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">RS256 JWT</span>
-                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">JWKS</span>
-                            </div>
+                        <h3 class="text-lg font-semibold mb-2">Agent-to-Agent Protocol</h3>
+                        <p class="text-gray-400 text-sm mb-4">
+                            For autonomous agents collaborating without human intervention.
+                            Capability discovery, task management, and agent cards.
+                        </p>
+                        <div class="flex flex-wrap gap-2 mt-auto">
+                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Autonomous Agents</span>
+                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Multi-Agent Systems</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- REST APIs -->
                 <div class="card-hover bg-pierre-slate rounded-xl p-8 border border-white/10">
-                    <div class="flex items-start gap-4">
-                        <div class="w-12 h-12 rounded-lg bg-pierre-nutrition/20 flex items-center justify-center flex-shrink-0">
+                    <div class="flex flex-col">
+                        <div class="w-12 h-12 rounded-lg bg-pierre-nutrition/20 flex items-center justify-center mb-4">
                             <span class="text-pierre-nutrition font-bold">REST</span>
                         </div>
-                        <div>
-                            <h3 class="text-lg font-semibold mb-2">REST APIs</h3>
-                            <p class="text-gray-400 text-sm mb-4">
-                                Traditional HTTP endpoints for direct integration.
-                                OpenAPI spec, admin dashboard, and health checks.
-                            </p>
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">OpenAPI 3.0</span>
-                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Admin Dashboard</span>
-                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">SSE Streaming</span>
-                            </div>
+                        <h3 class="text-lg font-semibold mb-2">REST APIs</h3>
+                        <p class="text-gray-400 text-sm mb-4">
+                            Traditional HTTP endpoints for direct integration.
+                            OpenAPI spec, admin dashboard, and health checks.
+                        </p>
+                        <div class="flex flex-wrap gap-2 mt-auto">
+                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">OpenAPI 3.0</span>
+                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Admin Dashboard</span>
+                            <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">SSE Streaming</span>
                         </div>
                     </div>
                 </div>
@@ -443,7 +413,7 @@
                     <div class="text-gray-400">MCP Tools</div>
                 </div>
                 <div>
-                    <div class="text-4xl font-bold gradient-pierre-text mb-2">4</div>
+                    <div class="text-4xl font-bold gradient-pierre-text mb-2">3</div>
                     <div class="text-gray-400">Protocols</div>
                 </div>
                 <div>
@@ -468,7 +438,15 @@
                 </p>
             </div>
 
-            <div class="grid md:grid-cols-3 gap-6">
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-pierre-slate rounded-xl p-6 border border-white/10">
+                    <div class="w-10 h-10 rounded-lg bg-pierre-activity/20 flex items-center justify-center mb-4">
+                        <span class="text-pierre-activity font-bold text-xs">OAuth</span>
+                    </div>
+                    <h3 class="font-semibold mb-2">OAuth2 Server</h3>
+                    <p class="text-gray-400 text-sm">RFC 7591 compliant with PKCE, JWKS rotation, RS256 JWT, and per-IP rate limiting.</p>
+                </div>
+
                 <div class="bg-pierre-slate rounded-xl p-6 border border-white/10">
                     <div class="w-10 h-10 rounded-lg bg-pierre-violet/20 flex items-center justify-center mb-4">
                         <svg class="w-5 h-5 text-pierre-violet" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -490,8 +468,8 @@
                 </div>
 
                 <div class="bg-pierre-slate rounded-xl p-6 border border-white/10">
-                    <div class="w-10 h-10 rounded-lg bg-pierre-activity/20 flex items-center justify-center mb-4">
-                        <svg class="w-5 h-5 text-pierre-activity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="w-10 h-10 rounded-lg bg-pierre-recovery/20 flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-pierre-recovery" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                         </svg>
                     </div>
@@ -508,8 +486,8 @@
             <div class="grid md:grid-cols-4 gap-12 mb-12">
                 <div class="md:col-span-2">
                     <div class="flex items-center gap-3 mb-4">
-                        <img src="assets/pierre-logo.svg" alt="Pierre" class="h-10 w-10">
-                        <span class="text-xl font-semibold">Pierre</span>
+                        <img src="assets/pierre-logo.svg" alt="Pierre Fitness Intelligence" class="h-10 w-10">
+                        <span class="text-xl font-semibold">Pierre Fitness Intelligence</span>
                     </div>
                     <p class="text-gray-400 mb-6 max-w-md">
                         Open-source multi-protocol fitness intelligence platform.
@@ -551,7 +529,7 @@
                     <div class="flex items-center gap-4">
                         <span class="text-gray-500 text-sm">Part of the Async-IO family</span>
                         <span class="text-gray-600">|</span>
-                        <a href="https://github.com/Atmosphere/atmosphere" class="text-gray-400 hover:text-white transition-colors text-sm">
+                        <a href="https://async-io.org" class="text-gray-400 hover:text-white transition-colors text-sm">
                             Atmosphere Framework
                         </a>
                         <span class="px-2 py-0.5 rounded bg-pierre-slate text-xs text-gray-500">Java Async</span>
