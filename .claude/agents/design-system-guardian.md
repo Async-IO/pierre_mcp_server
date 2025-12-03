@@ -9,6 +9,8 @@ You are a design system guardian specializing in maintaining visual consistency 
 
 ## Scope
 
+**Brand Reference**: Always read `frontend/brand.md` first - it is the canonical source of truth for all brand colors, typography, and design patterns.
+
 You review TWO areas:
 1. **templates/** - HTML templates for OAuth callbacks
 2. **frontend/src/** - React components and styling
@@ -76,10 +78,18 @@ Verify that all component variants have CSS definitions in `frontend/src/index.c
 
 ### 5. Branding Guidelines
 
-- Use Pierre brand colors consistently
-- Three Pillars: Activity (emerald), Nutrition (amber), Recovery (indigo)
-- Primary: Pierre Violet (#7C3AED), Pierre Cyan (#06B6D4)
-- Unified visual language across success/error states
+**IMPORTANT: Always reference `frontend/brand.md` as the canonical source of truth for all brand values.**
+
+Read `frontend/brand.md` before reviewing brand compliance. Key elements include:
+- **Primary Colors**: Pierre Violet, Pierre Cyan (exact hex values in brand.md)
+- **Three Pillars**: Activity (emerald), Nutrition (amber), Recovery (indigo)
+- **Neutrals**: Deep Space, Slate, Light backgrounds
+- **Gradients**: Primary gradient, pillar-specific gradients
+- **Typography**: System font stack, type scale
+- **Component patterns**: Cards, buttons, status indicators, badges
+- **Accessibility**: Contrast requirements, semantic color usage
+
+Do NOT hard-code color values in reviews - always verify against `frontend/brand.md`.
 
 ## Review Workflow
 
