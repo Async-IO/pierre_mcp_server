@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Input } from './ui';
 import { clsx } from 'clsx';
 import { apiService } from '../services/api';
+import Markdown from 'react-markdown';
 
 interface Conversation {
   id: string;
@@ -355,8 +356,18 @@ export default function ChatTab() {
                           <div className="font-medium text-pierre-gray-900 text-sm mb-1">
                             {msg.role === 'user' ? 'You' : 'Pierre'}
                           </div>
-                          <div className="text-pierre-gray-700 text-sm leading-relaxed whitespace-pre-wrap">
-                            {msg.content}
+                          <div className="text-pierre-gray-700 text-sm leading-relaxed prose prose-sm max-w-none prose-a:text-pierre-violet prose-a:underline hover:prose-a:text-pierre-violet/80">
+                            <Markdown
+                              components={{
+                                a: ({ href, children }) => (
+                                  <a href={href} target="_blank" rel="noopener noreferrer">
+                                    {children}
+                                  </a>
+                                ),
+                              }}
+                            >
+                              {msg.content}
+                            </Markdown>
                           </div>
                         </div>
                       </div>
@@ -375,8 +386,18 @@ export default function ChatTab() {
                             Pierre
                             <span className="w-1.5 h-1.5 bg-pierre-violet rounded-full animate-pulse" />
                           </div>
-                          <div className="text-pierre-gray-700 text-sm leading-relaxed whitespace-pre-wrap">
-                            {streamingContent}
+                          <div className="text-pierre-gray-700 text-sm leading-relaxed prose prose-sm max-w-none prose-a:text-pierre-violet prose-a:underline hover:prose-a:text-pierre-violet/80">
+                            <Markdown
+                              components={{
+                                a: ({ href, children }) => (
+                                  <a href={href} target="_blank" rel="noopener noreferrer">
+                                    {children}
+                                  </a>
+                                ),
+                              }}
+                            >
+                              {streamingContent}
+                            </Markdown>
                           </div>
                         </div>
                       </div>
