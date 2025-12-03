@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pierre - Multi-Protocol Fitness Intelligence Platform</title>
+    <meta name="description" content="Connect any AI assistant to any fitness provider. Pierre is a multi-protocol platform supporting MCP, A2A, OAuth2, and REST APIs for holistic fitness intelligence.">
+    <meta name="keywords" content="fitness API, MCP server, AI fitness, Strava API, Garmin API, fitness intelligence, training load, nutrition tracking">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Pierre - Multi-Protocol Fitness Intelligence Platform">
+    <meta property="og:description" content="Connect any AI assistant to any fitness provider with sports science-based intelligence.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://pierre.async-io.org">
+    <meta property="og:image" content="https://pierre.async-io.org/assets/pierre-logo.svg">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="assets/pierre-favicon.svg">
+
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        pierre: {
+                            violet: '#7C3AED',
+                            cyan: '#06B6D4',
+                            activity: '#10B981',
+                            nutrition: '#F59E0B',
+                            recovery: '#6366F1',
+                            dark: '#0F0F1A',
+                            slate: '#1E1E2E',
+                            'violet-light': '#A78BFA',
+                            'violet-dark': '#5B21B6',
+                            'cyan-light': '#22D3EE',
+                            'activity-dark': '#059669',
+                            'nutrition-dark': '#D97706',
+                            'recovery-dark': '#4F46E5',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'Monaco', 'Menlo', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        .gradient-pierre {
+            background: linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%);
+        }
+        .gradient-pierre-text {
+            background: linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .gradient-activity {
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+        }
+        .gradient-nutrition {
+            background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+        }
+        .gradient-recovery {
+            background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+        }
+        .card-hover {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(124, 58, 237, 0.15);
+        }
+        .protocol-badge {
+            backdrop-filter: blur(8px);
+        }
+    </style>
+</head>
+<body class="bg-pierre-dark text-white font-sans antialiased">
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 bg-pierre-dark/90 backdrop-blur-md border-b border-white/10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <img src="assets/pierre-logo.svg" alt="Pierre" class="h-10 w-10">
+                    <span class="text-xl font-semibold">Pierre</span>
+                </div>
+                <div class="hidden md:flex items-center gap-8">
+                    <a href="#features" class="text-gray-300 hover:text-white transition-colors">Features</a>
+                    <a href="#protocols" class="text-gray-300 hover:text-white transition-colors">Protocols</a>
+                    <a href="#providers" class="text-gray-300 hover:text-white transition-colors">Providers</a>
+                    <a href="https://github.com/Async-IO/pierre_mcp_server/tree/main/docs" class="text-gray-300 hover:text-white transition-colors">Docs</a>
+                    <a href="https://github.com/Async-IO/pierre_mcp_server" class="gradient-pierre px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                        GitHub
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="pt-32 pb-20 px-4">
+        <div class="max-w-7xl mx-auto text-center">
+            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-pierre-slate border border-white/10 mb-8">
+                <span class="w-2 h-2 rounded-full bg-pierre-activity animate-pulse"></span>
+                <span class="text-sm text-gray-300">Open Source &bull; MIT Licensed</span>
+            </div>
+
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
+                Multi-Protocol<br>
+                <span class="gradient-pierre-text">Fitness Intelligence</span>
+            </h1>
+
+            <p class="text-xl text-gray-400 max-w-3xl mx-auto mb-10">
+                Connect any AI assistant to any fitness provider. A single Rust binary implementing
+                <strong class="text-white">MCP</strong>, <strong class="text-white">A2A</strong>,
+                <strong class="text-white">OAuth2</strong>, and <strong class="text-white">REST</strong> protocols
+                with sports science-based intelligence.
+            </p>
+
+            <div class="flex flex-col sm:flex-row gap-4 justify-center mb-16">
+                <a href="https://github.com/Async-IO/pierre_mcp_server/blob/main/docs/getting-started.md"
+                   class="gradient-pierre px-8 py-3 rounded-lg font-semibold text-lg hover:opacity-90 transition-opacity">
+                    Get Started
+                </a>
+                <a href="https://github.com/Async-IO/pierre_mcp_server"
+                   class="px-8 py-3 rounded-lg font-semibold text-lg border border-white/20 hover:bg-white/5 transition-colors">
+                    View on GitHub
+                </a>
+            </div>
+
+            <!-- Protocol Badges -->
+            <div class="flex flex-wrap justify-center gap-3">
+                <span class="protocol-badge px-4 py-2 rounded-full bg-pierre-violet/20 border border-pierre-violet/30 text-pierre-violet-light text-sm font-medium">
+                    MCP Protocol
+                </span>
+                <span class="protocol-badge px-4 py-2 rounded-full bg-pierre-cyan/20 border border-pierre-cyan/30 text-pierre-cyan-light text-sm font-medium">
+                    A2A Protocol
+                </span>
+                <span class="protocol-badge px-4 py-2 rounded-full bg-pierre-activity/20 border border-pierre-activity/30 text-pierre-activity text-sm font-medium">
+                    OAuth2 Server
+                </span>
+                <span class="protocol-badge px-4 py-2 rounded-full bg-pierre-nutrition/20 border border-pierre-nutrition/30 text-pierre-nutrition text-sm font-medium">
+                    REST APIs
+                </span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Three Pillars Section -->
+    <section id="features" class="py-20 px-4 bg-pierre-slate/50">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Holistic Fitness Intelligence</h2>
+                <p class="text-gray-400 max-w-2xl mx-auto">
+                    Sports science-based algorithms across three wellness pillars, not just data aggregation.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Activity Pillar -->
+                <div class="card-hover bg-pierre-dark rounded-xl p-8 border border-pierre-activity/20">
+                    <div class="w-14 h-14 gradient-activity rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-pierre-activity">Activity</h3>
+                    <p class="text-gray-400 mb-4">Movement, fitness, and energy tracking with real training science.</p>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-activity"></span>
+                            Training Stress Score (TSS)
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-activity"></span>
+                            CTL/ATL/TSB (Fitness/Fatigue/Form)
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-activity"></span>
+                            VDOT Race Predictions
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-activity"></span>
+                            Pattern Detection
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Nutrition Pillar -->
+                <div class="card-hover bg-pierre-dark rounded-xl p-8 border border-pierre-nutrition/20">
+                    <div class="w-14 h-14 gradient-nutrition rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-pierre-nutrition">Nutrition</h3>
+                    <p class="text-gray-400 mb-4">Food, fuel, and nourishment analysis with USDA integration.</p>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-nutrition"></span>
+                            Mifflin-St Jeor BMR
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-nutrition"></span>
+                            TDEE Calculations
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-nutrition"></span>
+                            USDA FoodData (350k+ foods)
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-nutrition"></span>
+                            Macro/Micronutrient Tracking
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Recovery Pillar -->
+                <div class="card-hover bg-pierre-dark rounded-xl p-8 border border-pierre-recovery/20">
+                    <div class="w-14 h-14 gradient-recovery rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-pierre-recovery">Recovery</h3>
+                    <p class="text-gray-400 mb-4">Rest, sleep, and restoration with clinical validation.</p>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-recovery"></span>
+                            NSF/AASM Sleep Scoring
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-recovery"></span>
+                            HRV-Based Recovery
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-recovery"></span>
+                            Recovery Readiness Index
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-pierre-recovery"></span>
+                            Sleep Stage Analysis
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Protocols Section -->
+    <section id="protocols" class="py-20 px-4">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Four Protocols, One Binary</h2>
+                <p class="text-gray-400 max-w-2xl mx-auto">
+                    A single Rust binary serving multiple integration patterns for maximum flexibility.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6">
+                <!-- MCP Protocol -->
+                <div class="card-hover bg-pierre-slate rounded-xl p-8 border border-white/10">
+                    <div class="flex items-start gap-4">
+                        <div class="w-12 h-12 rounded-lg bg-pierre-violet/20 flex items-center justify-center flex-shrink-0">
+                            <span class="text-pierre-violet font-bold">MCP</span>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold mb-2">Model Context Protocol</h3>
+                            <p class="text-gray-400 text-sm mb-4">
+                                For interactive AI assistants like Claude, ChatGPT, and custom LLMs.
+                                JSON-RPC 2.0 with 45 fitness tools.
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Claude Desktop</span>
+                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">ChatGPT</span>
+                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Custom LLMs</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- A2A Protocol -->
+                <div class="card-hover bg-pierre-slate rounded-xl p-8 border border-white/10">
+                    <div class="flex items-start gap-4">
+                        <div class="w-12 h-12 rounded-lg bg-pierre-cyan/20 flex items-center justify-center flex-shrink-0">
+                            <span class="text-pierre-cyan font-bold">A2A</span>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold mb-2">Agent-to-Agent Protocol</h3>
+                            <p class="text-gray-400 text-sm mb-4">
+                                For autonomous agents collaborating without human intervention.
+                                Capability discovery, task management, and agent cards.
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Autonomous Agents</span>
+                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Multi-Agent Systems</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OAuth2 Server -->
+                <div class="card-hover bg-pierre-slate rounded-xl p-8 border border-white/10">
+                    <div class="flex items-start gap-4">
+                        <div class="w-12 h-12 rounded-lg bg-pierre-activity/20 flex items-center justify-center flex-shrink-0">
+                            <span class="text-pierre-activity font-bold text-sm">OAuth</span>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold mb-2">OAuth2 Authorization Server</h3>
+                            <p class="text-gray-400 text-sm mb-4">
+                                RFC 7591 compliant with PKCE support, JWKS rotation, and
+                                per-IP rate limiting. Secure client registration.
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">PKCE</span>
+                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">RS256 JWT</span>
+                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">JWKS</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- REST APIs -->
+                <div class="card-hover bg-pierre-slate rounded-xl p-8 border border-white/10">
+                    <div class="flex items-start gap-4">
+                        <div class="w-12 h-12 rounded-lg bg-pierre-nutrition/20 flex items-center justify-center flex-shrink-0">
+                            <span class="text-pierre-nutrition font-bold">REST</span>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold mb-2">REST APIs</h3>
+                            <p class="text-gray-400 text-sm mb-4">
+                                Traditional HTTP endpoints for direct integration.
+                                OpenAPI spec, admin dashboard, and health checks.
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">OpenAPI 3.0</span>
+                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">Admin Dashboard</span>
+                                <span class="px-2 py-1 rounded bg-pierre-dark text-xs text-gray-400">SSE Streaming</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Providers Section -->
+    <section id="providers" class="py-20 px-4 bg-pierre-slate/50">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Provider Agnostic</h2>
+                <p class="text-gray-400 max-w-2xl mx-auto">
+                    Connect to any fitness data source with a pluggable provider architecture.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-12">
+                <div class="bg-pierre-dark rounded-lg p-6 text-center border border-white/5">
+                    <div class="text-2xl mb-2">🏃</div>
+                    <span class="text-sm text-gray-400">Strava</span>
+                </div>
+                <div class="bg-pierre-dark rounded-lg p-6 text-center border border-white/5">
+                    <div class="text-2xl mb-2">⌚</div>
+                    <span class="text-sm text-gray-400">Garmin</span>
+                </div>
+                <div class="bg-pierre-dark rounded-lg p-6 text-center border border-white/5">
+                    <div class="text-2xl mb-2">💚</div>
+                    <span class="text-sm text-gray-400">Fitbit</span>
+                </div>
+                <div class="bg-pierre-dark rounded-lg p-6 text-center border border-white/5">
+                    <div class="text-2xl mb-2">🔴</div>
+                    <span class="text-sm text-gray-400">WHOOP</span>
+                </div>
+                <div class="bg-pierre-dark rounded-lg p-6 text-center border border-white/5">
+                    <div class="text-2xl mb-2">🌍</div>
+                    <span class="text-sm text-gray-400">Terra</span>
+                </div>
+                <div class="bg-pierre-dark rounded-lg p-6 text-center border border-white/5">
+                    <div class="text-2xl mb-2">+150</div>
+                    <span class="text-sm text-gray-400">More via Terra</span>
+                </div>
+            </div>
+
+            <div class="text-center">
+                <p class="text-gray-500 text-sm">
+                    Compile-time provider selection with feature flags. Use multiple providers simultaneously.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Code Example Section -->
+    <section class="py-20 px-4">
+        <div class="max-w-4xl mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Quick Start</h2>
+                <p class="text-gray-400">Get running in minutes with the TypeScript SDK.</p>
+            </div>
+
+            <div class="bg-pierre-slate rounded-xl border border-white/10 overflow-hidden">
+                <div class="flex items-center gap-2 px-4 py-3 bg-pierre-dark border-b border-white/10">
+                    <span class="w-3 h-3 rounded-full bg-red-500"></span>
+                    <span class="w-3 h-3 rounded-full bg-yellow-500"></span>
+                    <span class="w-3 h-3 rounded-full bg-green-500"></span>
+                    <span class="ml-4 text-sm text-gray-500 font-mono">terminal</span>
+                </div>
+                <pre class="p-6 overflow-x-auto text-sm"><code class="text-gray-300 font-mono"><span class="text-gray-500"># Install the SDK</span>
+<span class="text-pierre-cyan">npm</span> install pierre-mcp-client
+
+<span class="text-gray-500"># Or run the server directly</span>
+<span class="text-pierre-cyan">cargo</span> install pierre-mcp-server
+<span class="text-pierre-cyan">pierre-mcp-server</span> --port 8081
+
+<span class="text-gray-500"># Connect from Claude Desktop</span>
+<span class="text-pierre-activity">{</span>
+  <span class="text-pierre-nutrition">"mcpServers"</span>: <span class="text-pierre-activity">{</span>
+    <span class="text-pierre-nutrition">"pierre"</span>: <span class="text-pierre-activity">{</span>
+      <span class="text-pierre-nutrition">"command"</span>: <span class="text-pierre-violet">"npx"</span>,
+      <span class="text-pierre-nutrition">"args"</span>: [<span class="text-pierre-violet">"pierre-mcp-client"</span>]
+    <span class="text-pierre-activity">}</span>
+  <span class="text-pierre-activity">}</span>
+<span class="text-pierre-activity">}</span></code></pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="py-20 px-4 bg-pierre-slate/50">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+                <div>
+                    <div class="text-4xl font-bold gradient-pierre-text mb-2">45</div>
+                    <div class="text-gray-400">MCP Tools</div>
+                </div>
+                <div>
+                    <div class="text-4xl font-bold gradient-pierre-text mb-2">4</div>
+                    <div class="text-gray-400">Protocols</div>
+                </div>
+                <div>
+                    <div class="text-4xl font-bold gradient-pierre-text mb-2">150+</div>
+                    <div class="text-gray-400">Supported Devices</div>
+                </div>
+                <div>
+                    <div class="text-4xl font-bold gradient-pierre-text mb-2">350k+</div>
+                    <div class="text-gray-400">Foods in Database</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Security Section -->
+    <section class="py-20 px-4">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Enterprise-Grade Security</h2>
+                <p class="text-gray-400 max-w-2xl mx-auto">
+                    Built for production with multi-tenant isolation and comprehensive encryption.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="bg-pierre-slate rounded-xl p-6 border border-white/10">
+                    <div class="w-10 h-10 rounded-lg bg-pierre-violet/20 flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-pierre-violet" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                    </div>
+                    <h3 class="font-semibold mb-2">AES-GCM Encryption</h3>
+                    <p class="text-gray-400 text-sm">All tokens encrypted at rest with per-user keys. Ed25519 signing for integrity.</p>
+                </div>
+
+                <div class="bg-pierre-slate rounded-xl p-6 border border-white/10">
+                    <div class="w-10 h-10 rounded-lg bg-pierre-cyan/20 flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-pierre-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </div>
+                    <h3 class="font-semibold mb-2">Multi-Tenant Isolation</h3>
+                    <p class="text-gray-400 text-sm">Complete data isolation between tenants. Per-user credential encryption.</p>
+                </div>
+
+                <div class="bg-pierre-slate rounded-xl p-6 border border-white/10">
+                    <div class="w-10 h-10 rounded-lg bg-pierre-activity/20 flex items-center justify-center mb-4">
+                        <svg class="w-5 h-5 text-pierre-activity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                    </div>
+                    <h3 class="font-semibold mb-2">PII-Safe Logging</h3>
+                    <p class="text-gray-400 text-sm">Automatic redaction of tokens, passwords, and API keys in all logs.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-16 px-4 border-t border-white/10">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid md:grid-cols-4 gap-12 mb-12">
+                <div class="md:col-span-2">
+                    <div class="flex items-center gap-3 mb-4">
+                        <img src="assets/pierre-logo.svg" alt="Pierre" class="h-10 w-10">
+                        <span class="text-xl font-semibold">Pierre</span>
+                    </div>
+                    <p class="text-gray-400 mb-6 max-w-md">
+                        Open-source multi-protocol fitness intelligence platform.
+                        Connect any AI to any fitness provider.
+                    </p>
+                    <div class="flex gap-4">
+                        <a href="https://github.com/Async-IO/pierre_mcp_server" class="text-gray-400 hover:text-white transition-colors">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="font-semibold mb-4">Documentation</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="https://github.com/Async-IO/pierre_mcp_server/blob/main/docs/getting-started.md" class="hover:text-white transition-colors">Getting Started</a></li>
+                        <li><a href="https://github.com/Async-IO/pierre_mcp_server/blob/main/docs/tools-reference.md" class="hover:text-white transition-colors">Tools Reference</a></li>
+                        <li><a href="https://github.com/Async-IO/pierre_mcp_server/blob/main/docs/protocols.md" class="hover:text-white transition-colors">Protocols</a></li>
+                        <li><a href="https://github.com/Async-IO/pierre_mcp_server/blob/main/docs/oauth2-server.md" class="hover:text-white transition-colors">OAuth2 Server</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="font-semibold mb-4">Resources</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="https://github.com/Async-IO/pierre_mcp_server" class="hover:text-white transition-colors">GitHub Repository</a></li>
+                        <li><a href="https://www.npmjs.com/package/pierre-mcp-client" class="hover:text-white transition-colors">NPM Package</a></li>
+                        <li><a href="https://github.com/Async-IO/pierre_mcp_server/blob/main/docs/contributing.md" class="hover:text-white transition-colors">Contributing</a></li>
+                        <li><a href="https://github.com/Async-IO/pierre_mcp_server/blob/main/LICENSE" class="hover:text-white transition-colors">MIT License</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Atmosphere Legacy Section -->
+            <div class="pt-8 border-t border-white/10">
+                <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                        <span class="text-gray-500 text-sm">Part of the Async-IO family</span>
+                        <span class="text-gray-600">|</span>
+                        <a href="https://github.com/Atmosphere/atmosphere" class="text-gray-400 hover:text-white transition-colors text-sm">
+                            Atmosphere Framework
+                        </a>
+                        <span class="px-2 py-0.5 rounded bg-pierre-slate text-xs text-gray-500">Java Async</span>
+                    </div>
+                    <div class="text-gray-500 text-sm">
+                        &copy; 2025 Pierre Fitness Intelligence. Open Source under MIT License.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Smooth scroll behavior -->
+    <script>
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
