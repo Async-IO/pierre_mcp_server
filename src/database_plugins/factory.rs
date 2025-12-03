@@ -83,6 +83,23 @@ impl Database {
         }
     }
 
+    /// Get the underlying `SQLite` connection pool
+    ///
+    /// # Panics
+    ///
+    /// Panics if the database is not `SQLite`. For `PostgreSQL` support, use the
+    /// appropriate method once implemented.
+    #[must_use]
+    pub const fn pool(&self) -> &sqlx::Pool<sqlx::Sqlite> {
+        match self {
+            Self::SQLite(db) => db.pool(),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(_) => {
+                panic!("pool() not available for PostgreSQL - use pg_pool() instead")
+            }
+        }
+    }
+
     /// Create a new database instance based on the connection string (internal implementation)
     ///
     /// # Errors

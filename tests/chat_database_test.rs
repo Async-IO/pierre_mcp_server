@@ -10,9 +10,7 @@ use sqlx::SqlitePool;
 
 /// Create a test database with chat schema
 async fn create_test_db() -> SqlitePool {
-    let pool = SqlitePool::connect("sqlite::memory:")
-        .await
-        .unwrap();
+    let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
 
     // Create users table first (for foreign key)
     sqlx::query(
@@ -94,7 +92,13 @@ async fn test_create_conversation() {
     let manager = ChatManager::new(pool);
 
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-2.0-flash-exp", None)
+        .create_conversation(
+            "user-1",
+            "tenant-1",
+            "Test Chat",
+            "gemini-2.0-flash-exp",
+            None,
+        )
         .await
         .unwrap();
 
@@ -134,7 +138,13 @@ async fn test_get_conversation() {
     let manager = ChatManager::new(pool);
 
     let created = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-2.0-flash-exp", None)
+        .create_conversation(
+            "user-1",
+            "tenant-1",
+            "Test Chat",
+            "gemini-2.0-flash-exp",
+            None,
+        )
         .await
         .unwrap();
 
@@ -155,7 +165,13 @@ async fn test_get_conversation_tenant_isolation() {
     let manager = ChatManager::new(pool);
 
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-2.0-flash-exp", None)
+        .create_conversation(
+            "user-1",
+            "tenant-1",
+            "Test Chat",
+            "gemini-2.0-flash-exp",
+            None,
+        )
         .await
         .unwrap();
 
@@ -242,7 +258,13 @@ async fn test_update_conversation_title() {
     let manager = ChatManager::new(pool);
 
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Original Title", "gemini-2.0-flash-exp", None)
+        .create_conversation(
+            "user-1",
+            "tenant-1",
+            "Original Title",
+            "gemini-2.0-flash-exp",
+            None,
+        )
         .await
         .unwrap();
 
@@ -268,7 +290,13 @@ async fn test_delete_conversation() {
     let manager = ChatManager::new(pool);
 
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "To Delete", "gemini-2.0-flash-exp", None)
+        .create_conversation(
+            "user-1",
+            "tenant-1",
+            "To Delete",
+            "gemini-2.0-flash-exp",
+            None,
+        )
         .await
         .unwrap();
 
@@ -297,7 +325,13 @@ async fn test_add_message() {
     let manager = ChatManager::new(pool);
 
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-2.0-flash-exp", None)
+        .create_conversation(
+            "user-1",
+            "tenant-1",
+            "Test Chat",
+            "gemini-2.0-flash-exp",
+            None,
+        )
         .await
         .unwrap();
 
@@ -319,7 +353,13 @@ async fn test_add_assistant_message_with_finish_reason() {
     let manager = ChatManager::new(pool);
 
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-2.0-flash-exp", None)
+        .create_conversation(
+            "user-1",
+            "tenant-1",
+            "Test Chat",
+            "gemini-2.0-flash-exp",
+            None,
+        )
         .await
         .unwrap();
 
@@ -344,7 +384,13 @@ async fn test_get_messages() {
     let manager = ChatManager::new(pool);
 
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-2.0-flash-exp", None)
+        .create_conversation(
+            "user-1",
+            "tenant-1",
+            "Test Chat",
+            "gemini-2.0-flash-exp",
+            None,
+        )
         .await
         .unwrap();
 
@@ -376,7 +422,13 @@ async fn test_get_recent_messages() {
     let manager = ChatManager::new(pool);
 
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-2.0-flash-exp", None)
+        .create_conversation(
+            "user-1",
+            "tenant-1",
+            "Test Chat",
+            "gemini-2.0-flash-exp",
+            None,
+        )
         .await
         .unwrap();
 
@@ -410,7 +462,13 @@ async fn test_message_updates_conversation_tokens() {
     let manager = ChatManager::new(pool);
 
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-2.0-flash-exp", None)
+        .create_conversation(
+            "user-1",
+            "tenant-1",
+            "Test Chat",
+            "gemini-2.0-flash-exp",
+            None,
+        )
         .await
         .unwrap();
 
@@ -442,7 +500,13 @@ async fn test_get_message_count() {
     let manager = ChatManager::new(pool);
 
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-2.0-flash-exp", None)
+        .create_conversation(
+            "user-1",
+            "tenant-1",
+            "Test Chat",
+            "gemini-2.0-flash-exp",
+            None,
+        )
         .await
         .unwrap();
 
@@ -470,7 +534,13 @@ async fn test_cascade_delete_messages() {
     let manager = ChatManager::new(pool);
 
     let conv = manager
-        .create_conversation("user-1", "tenant-1", "Test Chat", "gemini-2.0-flash-exp", None)
+        .create_conversation(
+            "user-1",
+            "tenant-1",
+            "Test Chat",
+            "gemini-2.0-flash-exp",
+            None,
+        )
         .await
         .unwrap();
 

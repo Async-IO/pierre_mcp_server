@@ -18,6 +18,8 @@ pub mod admin;
 pub mod api_keys;
 /// Authentication and authorization routes
 pub mod auth;
+/// Chat conversation routes for AI assistants
+pub mod chat;
 /// Configuration management routes
 pub mod configuration;
 /// Dashboard and monitoring routes
