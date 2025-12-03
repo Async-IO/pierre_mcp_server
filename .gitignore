@@ -89,8 +89,8 @@ GEMINI.md
 
 # Node.js dependencies
 node_modules/
-/package-lock.json
-# Note: sdk/package-lock.json is tracked for reproducible CI builds
+package-lock.json
+# Note: sdk uses Bun (bun.lock is tracked for reproducible CI builds)
 
 # MCP Validator (install locally, don't commit)
 /validator/
