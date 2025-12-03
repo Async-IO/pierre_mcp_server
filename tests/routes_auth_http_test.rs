@@ -135,7 +135,7 @@ async fn test_register_success() {
 }
 
 #[tokio::test]
-async fn test_register_requires_admin_auth() {
+async fn test_public_register_creates_pending_user() {
     let setup = AuthTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
 
@@ -145,27 +145,28 @@ async fn test_register_requires_admin_auth() {
         "display_name": "Public User"
     });
 
-    // Registration WITHOUT admin token should fail
+    // Public self-registration should succeed without admin auth
+    // (creates user in Pending status, requires admin approval)
     let response = AxumTestRequest::post("/api/auth/register")
         .json(&register_request)
         .send(routes)
         .await;
 
-    // Should require authentication (401 or 400 for missing auth header)
-    assert!(
-        response.status() == 400 || response.status() == 401,
-        "Expected 400 or 401, got {}",
-        response.status()
+    assert_eq!(
+        response.status(),
+        201,
+        "Public registration should succeed with 201 Created"
     );
 
     let body: serde_json::Value = response.json();
+    assert!(
+        body["user_id"].is_string(),
+        "Response should contain user_id"
+    );
     let message = body["message"].as_str().unwrap_or("");
     assert!(
-        message.contains("Authorization")
-            || message.contains("admin")
-            || message.contains("authentication")
-            || message.contains("credentials"),
-        "Error message should mention authorization: {}",
+        message.contains("pending") || message.contains("approval"),
+        "Message should indicate pending approval: {}",
         message
     );
 }
