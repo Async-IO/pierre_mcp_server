@@ -349,20 +349,23 @@ pub fn handle_connect_provider(
         }
 
         // Get user and extract tenant context
+        // Try user's tenant_id first, then fall back to request.tenant_id (for chat interface)
         let user = match db.get_user(user_uuid).await {
             Ok(Some(u)) => u,
             Ok(None) => return Ok(connection_error(format!("User {user_uuid} not found"))),
             Err(e) => return Ok(connection_error(format!("Database error: {e}"))),
         };
-        let Some(tenant_id) = user
+        let tenant_id = user
             .tenant_id
             .as_ref()
             .and_then(|t| uuid::Uuid::parse_str(t).ok())
-        else {
-            return Ok(connection_error(
-                "User does not belong to any tenant".to_owned(),
-            ));
-        };
+            .or_else(|| {
+                request
+                    .tenant_id
+                    .as_ref()
+                    .and_then(|t| uuid::Uuid::parse_str(t).ok())
+            })
+            .unwrap_or(user_uuid);
         let tenant_name = db
             .get_tenant_by_id(tenant_id)
             .await
