@@ -168,10 +168,23 @@ impl Database {
         let user_status_str: String = row.get("user_status");
         let user_status = shared::enums::str_to_user_status(&user_status_str);
         let is_admin: bool = row.get("is_admin");
+        let role_str: Option<String> = row.try_get("role").ok();
         let approved_by: Option<String> = row.get("approved_by");
         let approved_at: Option<chrono::DateTime<chrono::Utc>> = row.get("approved_at");
         let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
         let last_active: chrono::DateTime<chrono::Utc> = row.get("last_active");
+
+        // Derive role from explicit role column if present, otherwise from is_admin
+        let role = role_str.map_or_else(
+            || {
+                if is_admin {
+                    crate::permissions::UserRole::Admin
+                } else {
+                    crate::permissions::UserRole::User
+                }
+            },
+            |r| crate::permissions::UserRole::from_str_lossy(&r),
+        );
 
         Ok(User {
             id: Uuid::parse_str(&id)
@@ -188,6 +201,7 @@ impl Database {
             is_active,
             user_status,
             is_admin,
+            role,
             approved_by: approved_by.and_then(|id_str| {
                 Uuid::parse_str(&id_str)
                     .inspect_err(|e| {

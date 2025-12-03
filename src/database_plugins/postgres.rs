@@ -5350,6 +5350,8 @@ impl DatabaseProvider for PostgresDatabase {
         active_only: bool,
         limit: u32,
     ) -> AppResult<Vec<crate::permissions::impersonation::ImpersonationSession>> {
+        use std::fmt::Write;
+
         // Build dynamic query based on filters
         let mut query = String::from(
             r"
@@ -5362,17 +5364,17 @@ impl DatabaseProvider for PostgresDatabase {
         let mut param_idx = 1u32;
 
         if impersonator_id.is_some() {
-            query.push_str(&format!(" AND impersonator_id = ${param_idx}"));
+            let _ = write!(query, " AND impersonator_id = ${param_idx}");
             param_idx += 1;
         }
         if target_user_id.is_some() {
-            query.push_str(&format!(" AND target_user_id = ${param_idx}"));
+            let _ = write!(query, " AND target_user_id = ${param_idx}");
             param_idx += 1;
         }
         if active_only {
             query.push_str(" AND is_active = true");
         }
-        query.push_str(&format!(" ORDER BY started_at DESC LIMIT ${param_idx}"));
+        let _ = write!(query, " ORDER BY started_at DESC LIMIT ${param_idx}");
 
         let mut sql_query = sqlx::query(&query);
 
@@ -5382,7 +5384,7 @@ impl DatabaseProvider for PostgresDatabase {
         if let Some(id) = target_user_id {
             sql_query = sql_query.bind(id.to_string());
         }
-        #[allow(clippy::cast_possible_truncation)]
+        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
         let limit_i32 = limit as i32;
         sql_query = sql_query.bind(limit_i32);
 
@@ -5450,6 +5452,8 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     async fn validate_user_mcp_token(&self, token_value: &str) -> AppResult<Uuid> {
+        use sqlx::Row;
+
         let token_hash = Self::hash_mcp_token(token_value);
         let token_prefix = token_value.chars().take(12).collect::<String>();
 
@@ -5467,8 +5471,6 @@ impl DatabaseProvider for PostgresDatabase {
         .map_err(|e| AppError::database(format!("Failed to validate user MCP token: {e}")))?;
 
         let row = row.ok_or_else(|| AppError::auth_invalid("Invalid MCP token"))?;
-
-        use sqlx::Row;
         let is_revoked: bool = row.get("is_revoked");
         if is_revoked {
             return Err(AppError::auth_invalid("MCP token has been revoked"));
@@ -5493,6 +5495,8 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         user_id: Uuid,
     ) -> AppResult<Vec<crate::database::UserMcpTokenInfo>> {
+        use sqlx::Row;
+
         let rows = sqlx::query(
             r"
             SELECT id, name, token_prefix, expires_at, last_used_at,
@@ -5506,8 +5510,6 @@ impl DatabaseProvider for PostgresDatabase {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to list user MCP tokens: {e}")))?;
-
-        use sqlx::Row;
         rows.iter()
             .map(|row| {
                 Ok(crate::database::UserMcpTokenInfo {
