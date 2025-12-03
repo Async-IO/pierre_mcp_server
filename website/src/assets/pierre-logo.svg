@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <title>Pierre Fitness Platform</title>
+  <desc>Holistic fitness intelligence - running figure composed of data nodes representing Activity, Nutrition, and Recovery pillars</desc>
+
+  <defs>
+    <!-- Pierre Primary Gradient -->
+    <linearGradient id="pierreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7C3AED"/>
+      <stop offset="100%" style="stop-color:#06B6D4"/>
+    </linearGradient>
+
+    <!-- Activity (Emerald) -->
+    <linearGradient id="activityGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10B981"/>
+      <stop offset="100%" style="stop-color:#059669"/>
+    </linearGradient>
+
+    <!-- Nutrition (Amber) -->
+    <linearGradient id="nutritionGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F59E0B"/>
+      <stop offset="100%" style="stop-color:#D97706"/>
+    </linearGradient>
+
+    <!-- Recovery (Indigo) -->
+    <linearGradient id="recoveryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366F1"/>
+      <stop offset="100%" style="stop-color:#4F46E5"/>
+    </linearGradient>
+
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Data connection lines -->
+  <g stroke-width="2" opacity="0.5" stroke-linecap="round">
+    <!-- Activity connections (emerald) -->
+    <line x1="40" y1="30" x2="52" y2="42" stroke="url(#activityGrad)"/>
+    <line x1="52" y1="42" x2="70" y2="35" stroke="url(#activityGrad)"/>
+    <line x1="52" y1="42" x2="48" y2="55" stroke="url(#pierreGrad)"/>
+
+    <!-- To nutrition nodes -->
+    <line x1="48" y1="55" x2="75" y2="52" stroke="url(#nutritionGrad)"/>
+    <line x1="75" y1="52" x2="88" y2="60" stroke="url(#nutritionGrad)"/>
+
+    <!-- To recovery nodes -->
+    <line x1="48" y1="55" x2="55" y2="72" stroke="url(#pierreGrad)"/>
+    <line x1="55" y1="72" x2="35" y2="85" stroke="url(#recoveryGrad)"/>
+    <line x1="55" y1="72" x2="72" y2="82" stroke="url(#recoveryGrad)"/>
+
+    <!-- Cross connections -->
+    <line x1="70" y1="35" x2="88" y2="60" stroke="url(#pierreGrad)" opacity="0.3"/>
+    <line x1="35" y1="85" x2="72" y2="82" stroke="url(#pierreGrad)" opacity="0.3"/>
+  </g>
+
+  <!-- Running figure nodes - Activity (Emerald) -->
+  <g filter="url(#glow)">
+    <!-- Head -->
+    <circle cx="40" cy="30" r="7" fill="url(#activityGrad)"/>
+    <!-- Shoulder/chest -->
+    <circle cx="52" cy="42" r="5" fill="url(#activityGrad)"/>
+    <!-- Arm forward -->
+    <circle cx="70" cy="35" r="3.5" fill="url(#activityGrad)"/>
+  </g>
+
+  <!-- Core/center node - Pierre primary -->
+  <circle cx="48" cy="55" r="6" fill="url(#pierreGrad)" filter="url(#glow)"/>
+  <circle cx="48" cy="55" r="3" fill="#ffffff" opacity="0.9"/>
+
+  <!-- Nutrition nodes (Amber) -->
+  <g filter="url(#glow)">
+    <circle cx="75" cy="52" r="4.5" fill="url(#nutritionGrad)"/>
+    <circle cx="88" cy="60" r="3.5" fill="url(#nutritionGrad)"/>
+  </g>
+
+  <!-- Lower body + Recovery nodes (Indigo) -->
+  <g filter="url(#glow)">
+    <!-- Knee/stride node -->
+    <circle cx="55" cy="72" r="5" fill="url(#recoveryGrad)"/>
+    <!-- Feet/rest -->
+    <circle cx="35" cy="85" r="4" fill="url(#recoveryGrad)"/>
+    <circle cx="72" cy="82" r="4" fill="url(#recoveryGrad)"/>
+  </g>
+
+  <!-- Motion trails -->
+  <g fill="none" stroke-width="1.5" stroke-linecap="round" opacity="0.4">
+    <path d="M28,32 Q20,36 16,44" stroke="url(#activityGrad)"/>
+    <path d="M30,38 Q22,42 20,50" stroke="url(#activityGrad)"/>
+  </g>
+
+  <!-- Small accent details -->
+  <g opacity="0.6">
+    <!-- Activity sparkle -->
+    <circle cx="82" cy="28" r="1.5" fill="#10B981"/>
+    <!-- Nutrition sparkle -->
+    <circle cx="98" cy="50" r="1.5" fill="#F59E0B"/>
+    <!-- Recovery sparkle -->
+    <circle cx="25" cy="95" r="1.5" fill="#6366F1"/>
+  </g>
+
+  <!-- Pulse line accent -->
+  <path d="M15,105 l4,-5 l2,10 l3,-8 l2,5 l4,-3" fill="none" stroke="url(#pierreGrad)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+</svg>

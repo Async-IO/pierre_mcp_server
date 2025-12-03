@@ -1,0 +1,29 @@
+# ABOUTME: Git ignore rules for Astro website
+# ABOUTME: Excludes build artifacts, dependencies, and generated content
+
+# Build output
+dist/
+
+# Dependencies
+node_modules/
+
+# Astro
+.astro/
+
+# Generated content (copied from docs/)
+src/content/docs/*.md
+src/content/docs/installation-guides/
+src/content/docs/architecture/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

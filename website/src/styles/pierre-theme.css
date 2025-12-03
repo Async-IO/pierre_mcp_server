@@ -1,0 +1,122 @@
+/* ABOUTME: Pierre design system theme for Starlight */
+/* ABOUTME: Custom CSS overrides for Pierre branding */
+
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* Pierre CSS Variables */
+:root {
+  --pierre-violet: #7C3AED;
+  --pierre-cyan: #06B6D4;
+  --pierre-activity: #10B981;
+  --pierre-nutrition: #F59E0B;
+  --pierre-recovery: #6366F1;
+  --pierre-dark: #0F0F1A;
+  --pierre-slate: #1E1E2E;
+  --pierre-violet-light: #A78BFA;
+  --pierre-violet-dark: #5B21B6;
+  --pierre-cyan-light: #22D3EE;
+
+  /* Override Starlight accent colors with Pierre violet */
+  --sl-color-accent-low: #5B21B6;
+  --sl-color-accent: #7C3AED;
+  --sl-color-accent-high: #A78BFA;
+
+  /* Override fonts */
+  --sl-font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --sl-font-mono: 'JetBrains Mono', Monaco, Menlo, monospace;
+}
+
+/* Dark theme overrides */
+:root[data-theme='dark'] {
+  --sl-color-bg: #0F0F1A;
+  --sl-color-bg-nav: #1E1E2E;
+  --sl-color-bg-sidebar: #1E1E2E;
+  --sl-color-bg-accent: rgba(124, 58, 237, 0.15);
+  --sl-color-text-accent: #A78BFA;
+}
+
+/* Pierre gradient utilities */
+.gradient-pierre {
+  background: linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%);
+}
+
+.gradient-pierre-text {
+  background: linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-activity {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+}
+
+.gradient-nutrition {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+}
+
+.gradient-recovery {
+  background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+}
+
+/* Card hover effect */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(124, 58, 237, 0.15);
+}
+
+/* Protocol badge backdrop */
+.protocol-badge {
+  backdrop-filter: blur(8px);
+}
+
+/* Custom scrollbar for dark theme */
+:root[data-theme='dark'] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+:root[data-theme='dark'] ::-webkit-scrollbar-track {
+  background: #1E1E2E;
+}
+
+:root[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 4px;
+}
+
+:root[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
+  background: #4B5563;
+}
+
+/* Starlight header customization */
+header.header {
+  backdrop-filter: blur(12px);
+}
+
+/* Link styling in docs */
+.sl-markdown-content a {
+  color: var(--pierre-violet-light);
+}
+
+.sl-markdown-content a:hover {
+  color: var(--pierre-cyan-light);
+}
+
+/* Code block styling */
+.sl-markdown-content pre {
+  border: 1px solid rgba(124, 58, 237, 0.2);
+}
+
+/* Badge styling for pillar mentions in docs */
+.sl-markdown-content code {
+  background: rgba(124, 58, 237, 0.15);
+  color: var(--pierre-violet-light);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+}

@@ -1,5 +1,5 @@
 # ABOUTME: GitHub Actions workflow for deploying the Pierre website to GitHub Pages
-# ABOUTME: Deploys website/ folder to gh-pages branch on push to main
+# ABOUTME: Builds Astro site with Starlight docs and deploys to GitHub Pages
 
 name: Deploy Website
 
@@ -9,6 +9,7 @@ on:
       - main
     paths:
       - 'website/**'
+      - 'docs/**'
   workflow_dispatch:
 
 permissions:
@@ -21,23 +22,43 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: website/package.json
+
+      - name: Install dependencies
+        working-directory: website
+        run: npm install
+
+      - name: Prepare docs
+        working-directory: website
+        run: ./scripts/prepare-docs.sh
+
+      - name: Build Astro site
+        working-directory: website
+        run: npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './website'
+          path: './website/dist'
 
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
