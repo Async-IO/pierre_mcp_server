@@ -194,8 +194,8 @@ impl DatabaseProvider for PostgresDatabase {
     async fn create_user(&self, user: &User) -> AppResult<Uuid> {
         sqlx::query(
             r"
-            INSERT INTO users (id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin, user_status, approved_by, approved_at, created_at, last_active)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            INSERT INTO users (id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin, role, user_status, approved_by, approved_at, created_at, last_active)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
             ",
         )
         .bind(user.id)
@@ -206,6 +206,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&user.tenant_id)
         .bind(user.is_active)
         .bind(user.is_admin)
+        .bind(shared::enums::user_role_to_str(&user.role))
         .bind(shared::enums::user_status_to_str(&user.user_status))
         .bind(user.approved_by)
         .bind(user.approved_at)
@@ -5884,6 +5885,7 @@ impl PostgresDatabase {
                 is_active BOOLEAN NOT NULL DEFAULT true,
                 user_status TEXT NOT NULL DEFAULT 'pending' CHECK (user_status IN ('pending', 'active', 'suspended')),
                 is_admin BOOLEAN NOT NULL DEFAULT false,
+                role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('super_admin', 'admin', 'user')),
                 approved_by UUID REFERENCES users(id),
                 approved_at TIMESTAMPTZ,
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
