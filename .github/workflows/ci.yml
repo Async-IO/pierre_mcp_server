@@ -240,6 +240,17 @@ jobs:
           npm ci
           npm run build
 
+      - name: Clean Rust build cache to prevent disk exhaustion
+        run: |
+          echo "📊 Disk space before cleanup:"
+          df -h /
+          echo ""
+          echo "🧹 Cleaning Rust build artifacts..."
+          cargo clean
+          echo ""
+          echo "📊 Disk space after cleanup:"
+          df -h /
+
       - name: Run database plugin tests (PostgreSQL)
         # Using --test-threads=4 - concurrent tests use #[serial] for isolation (issue #36)
         run: cargo test --features postgresql database_plugins_test -- --test-threads=4

@@ -62,13 +62,18 @@
 //!
 //! ```rust,no_run
 //! use pierre_mcp_server::providers::terra::{TerraProvider, TerraDataCache};
+//! use pierre_mcp_server::providers::CoreFitnessProvider;
+//! use std::sync::Arc;
 //!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! // Create cache and provider
-//! let cache = TerraDataCache::new_in_memory();
+//! let cache = Arc::new(TerraDataCache::new_in_memory());
 //! let provider = TerraProvider::new(cache);
 //!
 //! // Provider reads from cache populated by webhook handler
 //! let activities = provider.get_activities(Some(10), None).await?;
+//! # Ok(())
+//! # }
 //! ```
 
 mod api_client;
