@@ -264,6 +264,16 @@ impl ChatRoutes {
             .unwrap_or_else(|| user_id.to_string()))
     }
 
+    /// Create a `ChatManager` from server resources
+    fn create_chat_manager(resources: &ServerResources) -> Result<ChatManager, AppError> {
+        let pool = resources
+            .database
+            .sqlite_pool()
+            .ok_or_else(|| AppError::internal("Chat feature requires SQLite database"))?
+            .clone();
+        Ok(ChatManager::new(pool))
+    }
+
     /// Get LLM provider (currently only Gemini)
     fn get_llm_provider() -> Result<GeminiProvider, AppError> {
         GeminiProvider::from_env()
@@ -640,7 +650,7 @@ impl ChatRoutes {
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
         let model = request.model.as_deref().unwrap_or("gemini-2.5-flash");
-        let chat_manager = ChatManager::new(resources.database.pool().clone());
+        let chat_manager = Self::create_chat_manager(&resources)?;
 
         let conv = chat_manager
             .create_conversation(
@@ -674,7 +684,7 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        let chat_manager = ChatManager::new(resources.database.pool().clone());
+        let chat_manager = Self::create_chat_manager(&resources)?;
 
         let conversations = chat_manager
             .list_conversations(
@@ -714,7 +724,7 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        let chat_manager = ChatManager::new(resources.database.pool().clone());
+        let chat_manager = Self::create_chat_manager(&resources)?;
 
         let conv = chat_manager
             .get_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
@@ -744,7 +754,7 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        let chat_manager = ChatManager::new(resources.database.pool().clone());
+        let chat_manager = Self::create_chat_manager(&resources)?;
 
         let updated = chat_manager
             .update_conversation_title(
@@ -771,7 +781,7 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        let chat_manager = ChatManager::new(resources.database.pool().clone());
+        let chat_manager = Self::create_chat_manager(&resources)?;
 
         let deleted = chat_manager
             .delete_conversation(&conversation_id, &auth.user_id.to_string(), &tenant_id)
@@ -797,7 +807,7 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        let chat_manager = ChatManager::new(resources.database.pool().clone());
+        let chat_manager = Self::create_chat_manager(&resources)?;
 
         // Verify user owns this conversation
         chat_manager
@@ -835,7 +845,7 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        let chat_manager = ChatManager::new(resources.database.pool().clone());
+        let chat_manager = Self::create_chat_manager(&resources)?;
 
         // Get conversation to verify ownership and get model/system prompt
         let conv = chat_manager
@@ -934,7 +944,7 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        let chat_manager = ChatManager::new(resources.database.pool().clone());
+        let chat_manager = Self::create_chat_manager(&resources)?;
 
         // Get conversation to verify ownership and get model/system prompt
         let conv = chat_manager
@@ -968,7 +978,11 @@ impl ChatRoutes {
         // Create stream for SSE
         // Clone values needed for the async block
         let conv_id = conversation_id.clone();
-        let pool = resources.database.pool().clone();
+        let pool = resources
+            .database
+            .sqlite_pool()
+            .ok_or_else(|| AppError::internal("Chat feature requires SQLite database"))?
+            .clone();
 
         let stream = async_stream::stream! {
             let mut full_content = String::new();
