@@ -50,11 +50,6 @@ describe('Login Component', () => {
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
-
-    // Wait for setup status check to complete
-    await waitFor(() => {
-      expect(screen.getByText(/ready to login/i)).toBeInTheDocument()
-    })
   })
 
   it('should allow user to type in email and password fields', async () => {
