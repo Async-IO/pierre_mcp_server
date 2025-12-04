@@ -84,7 +84,7 @@ async fn test_create_conversation_with_system_prompt() {
     assert_eq!(conv.model, "gemini-1.5-pro");
     assert_eq!(
         conv.system_prompt,
-        Some("You are a helpful fitness assistant.".to_string())
+        Some("You are a helpful fitness assistant.".to_owned())
     );
 }
 

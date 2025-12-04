@@ -4,6 +4,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+// Test files don't require documentation - this is a rustc lint (not clippy)
+#![allow(missing_docs)]
+
 use pierre_mcp_server::llm::{
     ChatMessage, ChatRequest, GeminiProvider, LlmCapabilities, LlmProvider, LlmProviderRegistry,
     MessageRole,
@@ -72,7 +75,7 @@ fn test_chat_request_builder() {
         .with_max_tokens(1000)
         .with_streaming();
 
-    assert_eq!(request.model, Some("gemini-pro".to_string()));
+    assert_eq!(request.model, Some("gemini-pro".to_owned()));
     assert_eq!(request.temperature, Some(0.7));
     assert_eq!(request.max_tokens, Some(1000));
     assert!(request.stream);
