@@ -95,7 +95,7 @@ export default function ApiKeyList() {
           <div className="text-center py-8 text-pierre-gray-500">
             <div className="text-4xl mb-4">🔑</div>
             <p className="text-lg mb-2">No API keys yet</p>
-            <p>Create your first API key to get started</p>
+            <p className="max-w-md mx-auto">Create an API key to access Pierre programmatically from your own scripts, applications, or automations.</p>
           </div>
         ) : (
           <div className="space-y-4 px-6 pb-6">

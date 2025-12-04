@@ -118,8 +118,22 @@ export default function UnifiedConnections() {
   const [tokenResponse, setTokenResponse] = useState<CreateAdminTokenResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Helper descriptions for each connection type
+  const getTabDescription = () => {
+    switch (activeConnectionType) {
+      case 'admin-tokens':
+        return 'Service tokens for MCP clients and automated tools to access the Pierre API.';
+      case 'api-keys':
+        return 'Personal API keys for your own scripts and applications to access Pierre programmatically.';
+      case 'oauth-apps':
+        return 'Third-party applications authorized to access your fitness data via OAuth.';
+      default:
+        return '';
+    }
+  };
+
   const renderTabs = () => (
-    <div className="border-b border-pierre-gray-200 mb-8">
+    <div className="border-b border-pierre-gray-200 mb-6">
       <nav className="-mb-px flex space-x-8">
         {user?.is_admin && (
           <button
@@ -132,7 +146,7 @@ export default function UnifiedConnections() {
             }}
           >
             <span>🛡️</span>
-            <span>Admin Tokens</span>
+            <span>MCP Tokens</span>
           </button>
         )}
         <button
@@ -160,6 +174,7 @@ export default function UnifiedConnections() {
           <span>Connected Apps</span>
         </button>
       </nav>
+      <p className="text-sm text-pierre-gray-500 mt-3 mb-2">{getTabDescription()}</p>
     </div>
   );
 

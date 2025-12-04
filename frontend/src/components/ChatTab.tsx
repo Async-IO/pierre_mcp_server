@@ -6,10 +6,17 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Input } from './ui';
+import { Button } from './ui';
 import { clsx } from 'clsx';
 import { apiService } from '../services/api';
 import Markdown from 'react-markdown';
+
+// Convert plain URLs to markdown links for clickability
+// Matches http/https URLs that aren't already in markdown link format
+const urlRegex = /(?<!\]\()(?<!\[)(https?:\/\/[^\s<>[\]()]+)/g;
+const linkifyUrls = (text: string): string => {
+  return text.replace(urlRegex, (url) => `[${url}](${url})`);
+};
 
 interface Conversation {
   id: string;
@@ -42,10 +49,11 @@ export default function ChatTab() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [showNewChat, setShowNewChat] = useState(false);
-  const [newChatTitle, setNewChatTitle] = useState('');
+  const [editingTitle, setEditingTitle] = useState<string | null>(null);
+  const [editedTitleValue, setEditedTitleValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch conversations
   const { data: conversationsData, isLoading: conversationsLoading } = useQuery<ConversationListResponse>({
@@ -60,14 +68,27 @@ export default function ChatTab() {
     enabled: !!selectedConversation,
   });
 
-  // Create conversation mutation
+  // Create conversation mutation - auto-creates with default title
   const createConversation = useMutation({
-    mutationFn: (title: string) => apiService.createConversation({ title }),
+    mutationFn: () => {
+      const now = new Date();
+      const defaultTitle = `Chat ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+      return apiService.createConversation({ title: defaultTitle });
+    },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
       setSelectedConversation(data.id);
-      setShowNewChat(false);
-      setNewChatTitle('');
+    },
+  });
+
+  // Update conversation mutation for renaming
+  const updateConversation = useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) =>
+      apiService.updateConversation(id, { title }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+      setEditingTitle(null);
+      setEditedTitleValue('');
     },
   });
 
@@ -192,8 +213,28 @@ export default function ChatTab() {
   };
 
   const handleNewChat = () => {
-    if (!newChatTitle.trim()) return;
-    createConversation.mutate(newChatTitle.trim());
+    createConversation.mutate();
+  };
+
+  const handleStartRename = (e: React.MouseEvent, conv: Conversation) => {
+    e.stopPropagation();
+    setEditingTitle(conv.id);
+    setEditedTitleValue(conv.title);
+    setTimeout(() => titleInputRef.current?.focus(), 0);
+  };
+
+  const handleSaveRename = (convId: string) => {
+    if (editedTitleValue.trim() && editedTitleValue.trim() !== conversationsData?.conversations.find(c => c.id === convId)?.title) {
+      updateConversation.mutate({ id: convId, title: editedTitleValue.trim() });
+    } else {
+      setEditingTitle(null);
+      setEditedTitleValue('');
+    }
+  };
+
+  const handleCancelRename = () => {
+    setEditingTitle(null);
+    setEditedTitleValue('');
   };
 
   const handleDeleteConversation = (e: React.MouseEvent, convId: string) => {
@@ -221,42 +262,27 @@ export default function ChatTab() {
       <div className="w-72 flex-shrink-0 border-r border-pierre-gray-200 bg-pierre-gray-50 flex flex-col">
         {/* Header with New Chat Button */}
         <div className="p-3 flex items-center gap-2">
-          {showNewChat ? (
-            <div className="flex-1 space-y-2">
-              <Input
-                value={newChatTitle}
-                onChange={(e) => setNewChatTitle(e.target.value)}
-                placeholder="Chat title..."
-                className="text-sm"
-                onKeyDown={(e) => e.key === 'Enter' && handleNewChat()}
-                autoFocus
-              />
-              <div className="flex gap-2">
-                <Button onClick={handleNewChat} disabled={!newChatTitle.trim()} size="sm" className="flex-1">
-                  Create
-                </Button>
-                <Button variant="secondary" onClick={() => { setShowNewChat(false); setNewChatTitle(''); }} size="sm">
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <button
-                onClick={() => setShowNewChat(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-pierre-violet bg-pierre-violet/10 hover:bg-pierre-violet/15 rounded-lg transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                New Chat
-              </button>
-              {conversationsData?.conversations && conversationsData.conversations.length > 0 && (
-                <span className="text-xs text-pierre-gray-500">
-                  History ({conversationsData.conversations.length})
-                </span>
-              )}
-            </>
+          <button
+            onClick={handleNewChat}
+            disabled={createConversation.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-pierre-violet bg-pierre-violet/10 hover:bg-pierre-violet/15 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {createConversation.isPending ? (
+              <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
+                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            )}
+            New Chat
+          </button>
+          {conversationsData?.conversations && conversationsData.conversations.length > 0 && (
+            <span className="text-xs text-pierre-gray-500">
+              History ({conversationsData.conversations.length})
+            </span>
           )}
         </div>
 
@@ -271,7 +297,7 @@ export default function ChatTab() {
               {conversationsData?.conversations?.map((conv) => (
                 <div
                   key={conv.id}
-                  onClick={() => setSelectedConversation(conv.id)}
+                  onClick={() => editingTitle !== conv.id && setSelectedConversation(conv.id)}
                   className={clsx(
                     'relative px-3 py-2 mx-2 rounded-lg cursor-pointer transition-colors group',
                     selectedConversation === conv.id
@@ -285,19 +311,49 @@ export default function ChatTab() {
                   )}
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0 pl-1">
-                      <p className="text-sm font-medium text-pierre-gray-800 truncate">
-                        {conv.title}
-                      </p>
+                      {editingTitle === conv.id ? (
+                        <input
+                          ref={titleInputRef}
+                          type="text"
+                          value={editedTitleValue}
+                          onChange={(e) => setEditedTitleValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveRename(conv.id);
+                            if (e.key === 'Escape') handleCancelRename();
+                          }}
+                          onBlur={() => handleSaveRename(conv.id)}
+                          className="w-full text-sm font-medium text-pierre-gray-800 bg-white border border-pierre-violet rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-pierre-violet"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <p className="text-sm font-medium text-pierre-gray-800 truncate">
+                          {conv.title}
+                        </p>
+                      )}
                       <p className="text-xs text-pierre-gray-500">{formatDate(conv.updated_at)}</p>
                     </div>
-                    <button
-                      onClick={(e) => handleDeleteConversation(e, conv.id)}
-                      className="opacity-0 group-hover:opacity-100 text-pierre-gray-400 hover:text-red-500 transition-all p-1"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {/* Rename button */}
+                      <button
+                        onClick={(e) => handleStartRename(e, conv)}
+                        className="opacity-0 group-hover:opacity-100 text-pierre-gray-400 hover:text-pierre-violet transition-all p-1"
+                        title="Rename"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                      {/* Delete button */}
+                      <button
+                        onClick={(e) => handleDeleteConversation(e, conv.id)}
+                        className="opacity-0 group-hover:opacity-100 text-pierre-gray-400 hover:text-red-500 transition-all p-1"
+                        title="Delete"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -321,8 +377,8 @@ export default function ChatTab() {
               <p className="text-pierre-gray-600 text-sm mb-4">
                 Ask about your fitness data, get training insights, analyze activities, or explore personalized recommendations.
               </p>
-              <Button onClick={() => setShowNewChat(true)} variant="primary">
-                Start a conversation
+              <Button onClick={handleNewChat} variant="primary" disabled={createConversation.isPending}>
+                {createConversation.isPending ? 'Creating...' : 'Start a conversation'}
               </Button>
             </div>
           </div>
@@ -360,13 +416,13 @@ export default function ChatTab() {
                             <Markdown
                               components={{
                                 a: ({ href, children }) => (
-                                  <a href={href} target="_blank" rel="noopener noreferrer">
+                                  <a href={href} target="_blank" rel="noopener noreferrer" className="break-all">
                                     {children}
                                   </a>
                                 ),
                               }}
                             >
-                              {msg.content}
+                              {linkifyUrls(msg.content)}
                             </Markdown>
                           </div>
                         </div>
@@ -390,13 +446,13 @@ export default function ChatTab() {
                             <Markdown
                               components={{
                                 a: ({ href, children }) => (
-                                  <a href={href} target="_blank" rel="noopener noreferrer">
+                                  <a href={href} target="_blank" rel="noopener noreferrer" className="break-all">
                                     {children}
                                   </a>
                                 ),
                               }}
                             >
-                              {streamingContent}
+                              {linkifyUrls(streamingContent)}
                             </Markdown>
                           </div>
                         </div>
