@@ -40,10 +40,10 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({ isOpen, onClose, 
       <div className="bg-white rounded-lg shadow-xl max-w-2xl mx-4 w-full p-6">
         <div className="mb-6">
           <h3 className="text-lg font-semibold text-pierre-gray-900">
-            🎉 API Key Generated Successfully
+            🎉 API Token Generated Successfully
           </h3>
           <p className="text-pierre-gray-600 mt-1">
-            Your new API key is ready for use
+            Your new API token is ready for use
           </p>
         </div>
         
@@ -120,7 +120,7 @@ export default function UnifiedConnections() {
   const getTabDescription = () => {
     switch (activeConnectionType) {
       case 'api-keys':
-        return 'API keys for MCP clients, scripts, and automated tools to access Pierre programmatically.';
+        return 'Service tokens for scripts, CI/CD pipelines, and automated tools to access Pierre programmatically.';
       case 'oauth-apps':
         return 'Third-party applications authorized to access your fitness data via OAuth.';
       default:
@@ -142,7 +142,7 @@ export default function UnifiedConnections() {
             }}
           >
             <span>🔑</span>
-            <span>API Keys</span>
+            <span>API Tokens</span>
           </button>
         )}
         <button
@@ -230,7 +230,7 @@ export default function UnifiedConnections() {
               className="flex items-center space-x-2"
             >
               <span>+</span>
-              <span>Create API Key</span>
+              <span>Create API Token</span>
             </Button>
           </div>
           <ApiKeyList

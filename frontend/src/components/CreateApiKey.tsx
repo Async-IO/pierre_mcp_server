@@ -106,9 +106,9 @@ export default function CreateApiKey({ onBack, onTokenCreated }: CreateApiKeyPro
           ← Back
         </button>
         <div>
-          <h2 className="text-xl font-semibold text-pierre-gray-900">Create API Key</h2>
+          <h2 className="text-xl font-semibold text-pierre-gray-900">Create API Token</h2>
           <p className="text-sm text-pierre-gray-600 mt-1">
-            Generate a new API key for MCP clients and programmatic access
+            Generate a new API token for MCP clients and programmatic access
           </p>
         </div>
       </div>
@@ -120,7 +120,7 @@ export default function CreateApiKey({ onBack, onTokenCreated }: CreateApiKeyPro
             <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
               {createTokenMutation.error instanceof Error
                 ? createTokenMutation.error.message
-                : 'Failed to create API key'}
+                : 'Failed to create API token'}
             </div>
           )}
 
@@ -174,7 +174,7 @@ export default function CreateApiKey({ onBack, onTokenCreated }: CreateApiKeyPro
                   className="mt-1 rounded border-pierre-gray-300 text-pierre-blue-600 focus:ring-pierre-blue-500"
                 />
                 <div>
-                  <div className="font-medium text-pierre-gray-900">Super Admin API Key</div>
+                  <div className="font-medium text-pierre-gray-900">Super Admin API Token</div>
                   <p className="text-sm text-pierre-gray-600">
                     Grants all permissions and never expires. Use with extreme caution.
                   </p>
@@ -190,7 +190,7 @@ export default function CreateApiKey({ onBack, onTokenCreated }: CreateApiKeyPro
                     <div>
                       <h4 className="font-medium text-pierre-red-800">Danger Zone</h4>
                       <p className="text-sm text-pierre-red-700 mt-1">
-                        Super admin API keys have unrestricted access to all system operations.
+                        Super admin API tokens have unrestricted access to all system operations.
                         Only create these for trusted, critical services.
                       </p>
                     </div>
@@ -301,7 +301,7 @@ export default function CreateApiKey({ onBack, onTokenCreated }: CreateApiKeyPro
               }
               className="btn-primary disabled:opacity-50"
             >
-              {createTokenMutation.isPending ? 'Creating API Key...' : 'Create API Key'}
+              {createTokenMutation.isPending ? 'Creating API Token...' : 'Create API Token'}
             </button>
             <button
               type="button"
@@ -319,11 +319,11 @@ export default function CreateApiKey({ onBack, onTokenCreated }: CreateApiKeyPro
       <div className="bg-pierre-blue-50 border border-pierre-blue-200 rounded-lg p-4">
         <h4 className="font-medium text-pierre-blue-900 mb-2">🔒 Security Reminder</h4>
         <ul className="text-sm text-pierre-blue-800 space-y-1">
-          <li>• The API key will be shown only once after creation</li>
-          <li>• Store the key securely in your environment</li>
-          <li>• Never commit API keys to version control</li>
-          <li>• Use HTTPS when transmitting API keys</li>
-          <li>• Regularly rotate keys for better security</li>
+          <li>• The API token will be shown only once after creation</li>
+          <li>• Store the token securely in your environment</li>
+          <li>• Never commit API tokens to version control</li>
+          <li>• Use HTTPS when transmitting API tokens</li>
+          <li>• Regularly rotate tokens for better security</li>
         </ul>
       </div>
     </div>

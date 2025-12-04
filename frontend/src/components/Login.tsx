@@ -199,12 +199,7 @@ export default function Login({ onNavigateToRegister }: LoginProps) {
                 </div>
               )}
 
-              {!isCheckingSetup && setupStatus && !setupStatus.needs_setup && (
-                <div className="bg-pierre-activity-light/20 border border-pierre-activity rounded-lg p-3 text-center">
-                  <p className="text-sm text-pierre-gray-700 font-medium">Ready to Login</p>
-                  <p className="text-xs text-pierre-gray-500 mt-1">Admin user configured</p>
-                </div>
-              )}
+              {/* Ready state: no indicator needed - the login form itself is the indicator */}
 
               {/* Link to register */}
               {onNavigateToRegister && (
