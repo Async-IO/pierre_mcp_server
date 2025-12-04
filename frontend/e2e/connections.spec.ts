@@ -272,6 +272,9 @@ test.describe('Connections Tab - API Tokens', () => {
   });
 
   test('shows list of API keys with details', async ({ page }) => {
+    // Click on API Tokens tab first
+    await page.locator('.tab').getByText('API Tokens').click();
+    await page.waitForTimeout(300);
     // Check for API key names
     await expect(page.getByText('Production API Key')).toBeVisible();
     await expect(page.getByText('Development Key')).toBeVisible();
