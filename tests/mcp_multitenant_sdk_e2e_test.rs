@@ -49,6 +49,7 @@ fn make_tenant_sdk_get_activities_request(
 /// - SDK stdio transport properly isolates tenant contexts
 /// - Test completes in <10 seconds
 #[tokio::test]
+#[serial]
 async fn test_concurrent_multitenant_get_activities() -> Result<()> {
     common::init_test_logging();
     common::init_test_http_clients();
@@ -158,6 +159,7 @@ async fn test_concurrent_multitenant_get_activities() -> Result<()> {
 /// - No transport-specific artifacts in responses
 /// - Test validates transport-agnostic MCP protocol
 #[tokio::test]
+#[serial]
 async fn test_http_transport_tools_list_parity() -> Result<()> {
     common::init_test_logging();
     common::init_test_http_clients();
