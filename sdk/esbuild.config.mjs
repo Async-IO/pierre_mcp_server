@@ -14,6 +14,9 @@ const commonOptions = {
   target: 'node24', // Target Node 24 LTS (has native fetch)
   format: 'cjs',
   sourcemap: true,
+  // Prefer ESM module resolution to handle packages like ajv@8 which are ESM-first
+  // This ensures proper default export handling when bundling to CJS
+  mainFields: ['module', 'main'],
   external: [
     // Keep native Node modules external - they can't be bundled
     '@napi-rs/keyring', // Native Rust module for OS keychain (replaces deprecated keytar)
