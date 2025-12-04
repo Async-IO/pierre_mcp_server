@@ -669,14 +669,15 @@ pub async fn spawn_sdk_bridge(jwt_token: &str, server_port: u16) -> Result<SdkBr
     // Check if process is still alive
     if let Ok(Some(status)) = process.try_wait() {
         // Capture stderr to understand why the process failed
-        let stderr_output = if let Some(mut stderr) = process.stderr.take() {
-            use std::io::Read;
-            let mut output = String::new();
-            stderr.read_to_string(&mut output).unwrap_or_default();
-            output
-        } else {
-            String::from("(stderr not available)")
-        };
+        use std::io::Read;
+        let stderr_output = process.stderr.take().map_or_else(
+            || String::from("(stderr not available)"),
+            |mut stderr| {
+                let mut output = String::new();
+                stderr.read_to_string(&mut output).unwrap_or_default();
+                output
+            },
+        );
         return Err(anyhow::Error::msg(format!(
             "SDK bridge process exited immediately with status: {}\nStderr: {}",
             status, stderr_output
