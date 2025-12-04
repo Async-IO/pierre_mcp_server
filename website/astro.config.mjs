@@ -40,7 +40,7 @@ export default defineConfig({
           },
           items: [
             { label: 'Overview', slug: 'getting-started', translations: { fr: 'Vue d\'ensemble' } },
-            { label: 'Installation', slug: 'install-mcp-client', translations: { fr: 'Installation' } },
+            { label: 'Installation', slug: 'installation-guides/install-mcp-client', translations: { fr: 'Installation' } },
             { label: 'Configuration', slug: 'configuration', translations: { fr: 'Configuration' } },
           ],
         },
