@@ -7,37 +7,43 @@
 import { test, expect, type Page } from '@playwright/test';
 import { setupDashboardMocks, loginToDashboard, navigateToTab } from './test-helpers';
 
-// Sample data for mocks
-const sampleApiKeys = [
+// Sample data for mocks - AdminToken structure matching frontend/src/types/api.ts
+const sampleAdminTokens = [
   {
-    id: 'key-1',
-    name: 'Production API Key',
-    description: 'Main production key for web app',
-    key_prefix: 'pk_live_abc',
+    id: 'token-1',
+    service_name: 'Production Service',
+    service_description: 'Main production service for web app',
+    permissions: ['list_keys', 'provision_keys'],
+    is_super_admin: false,
     is_active: true,
-    rate_limit_requests: 10000,
+    token_prefix: 'pk_live_abc',
+    usage_count: 1500,
     created_at: '2024-01-01T00:00:00Z',
     last_used_at: '2024-01-15T10:30:00Z',
     expires_at: null,
   },
   {
-    id: 'key-2',
-    name: 'Development Key',
-    description: 'Key for local development',
-    key_prefix: 'pk_test_xyz',
+    id: 'token-2',
+    service_name: 'Development Service',
+    service_description: 'Service for local development',
+    permissions: ['list_keys'],
+    is_super_admin: false,
     is_active: true,
-    rate_limit_requests: 1000,
+    token_prefix: 'pk_test_xyz',
+    usage_count: 250,
     created_at: '2024-01-05T00:00:00Z',
     last_used_at: '2024-01-14T08:00:00Z',
     expires_at: '2024-12-31T23:59:59Z',
   },
   {
-    id: 'key-3',
-    name: 'Legacy Key',
-    description: 'Old key no longer in use',
-    key_prefix: 'pk_old_123',
+    id: 'token-3',
+    service_name: 'Legacy Service',
+    service_description: 'Old service no longer in use',
+    permissions: ['list_keys'],
+    is_super_admin: false,
     is_active: false,
-    rate_limit_requests: 5000,
+    token_prefix: 'pk_old_123',
+    usage_count: 0,
     created_at: '2023-06-01T00:00:00Z',
     last_used_at: '2023-12-01T00:00:00Z',
     expires_at: null,
@@ -84,42 +90,46 @@ async function setupConnectionsMocks(page: Page, options: { isAdmin?: boolean } 
   // Set up base dashboard mocks with proper auth
   await setupDashboardMocks(page, { role: isAdmin ? 'admin' : 'user' });
 
-  // Mock API keys endpoint
-  await page.route('**/api/keys', async (route) => {
+  // Mock Admin Tokens endpoint (used by ApiKeyList component)
+  await page.route('**/api/admin/tokens**', async (route) => {
     if (route.request().method() === 'GET') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ api_keys: sampleApiKeys }),
+        body: JSON.stringify({
+          admin_tokens: sampleAdminTokens,
+          total_count: sampleAdminTokens.length
+        }),
       });
     } else if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
         body: JSON.stringify({
-          api_key: {
-            id: 'key-new',
-            name: 'New API Key',
-            key_prefix: 'pk_new_',
+          admin_token: {
+            id: 'token-new',
+            service_name: 'New Service',
+            service_description: 'Newly created service',
+            permissions: ['list_keys'],
+            is_super_admin: false,
             is_active: true,
-            rate_limit_requests: 5000,
+            token_prefix: 'pk_new_',
+            usage_count: 0,
             created_at: new Date().toISOString(),
           },
-          full_key: 'pk_new_abcdefghijklmnop1234567890',
+          jwt_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test',
         }),
+      });
+    } else if (route.request().method() === 'DELETE') {
+      // Handle revoke endpoint
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true }),
       });
     } else {
       await route.continue();
     }
-  });
-
-  // Mock deactivate API key endpoint
-  await page.route('**/api/keys/*/deactivate', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ success: true }),
-    });
   });
 
   // Mock A2A clients endpoint
@@ -271,19 +281,19 @@ test.describe('Connections Tab - API Tokens', () => {
     await expect(page.locator('.tab').getByText('API Tokens')).toBeVisible();
   });
 
-  test('shows list of API keys with details', async ({ page }) => {
+  test('shows list of API tokens with details', async ({ page }) => {
     // Click on API Tokens tab first
     await page.locator('.tab').getByText('API Tokens').click();
     await page.waitForTimeout(300);
-    // Check for API key names
-    await expect(page.getByText('Production API Key')).toBeVisible();
-    await expect(page.getByText('Development Key')).toBeVisible();
+    // Check for service names (from AdminToken.service_name)
+    await expect(page.getByText('Production Service')).toBeVisible();
+    await expect(page.getByText('Development Service')).toBeVisible();
 
     // Check for status badges
     await expect(page.getByText('Active').first()).toBeVisible();
 
-    // Check for key prefix display
-    await expect(page.getByText('pk_live_abc****')).toBeVisible();
+    // Check for token prefix display (component shows "prefix...")
+    await expect(page.getByText('pk_live_abc...')).toBeVisible();
   });
 
   test('can filter API tokens by status', async ({ page }) => {
@@ -291,8 +301,8 @@ test.describe('Connections Tab - API Tokens', () => {
     await page.locator('.tab').getByText('API Tokens').click();
     await page.waitForTimeout(300);
     // Initially showing active tokens
-    await expect(page.getByText('Production API Key')).toBeVisible();
-    await expect(page.getByText('Development Key')).toBeVisible();
+    await expect(page.getByText('Production Service')).toBeVisible();
+    await expect(page.getByText('Development Service')).toBeVisible();
 
     // Click on Inactive filter
     const inactiveFilter = page.getByRole('button', { name: /Inactive/i });
@@ -300,8 +310,8 @@ test.describe('Connections Tab - API Tokens', () => {
       await inactiveFilter.click();
       await page.waitForTimeout(300);
 
-      // Should show inactive key
-      await expect(page.getByText('Legacy Key')).toBeVisible();
+      // Should show inactive token
+      await expect(page.getByText('Legacy Service')).toBeVisible();
     }
 
     // Click on All filter
@@ -310,9 +320,9 @@ test.describe('Connections Tab - API Tokens', () => {
       await allFilter.click();
       await page.waitForTimeout(300);
 
-      // Should show all keys
-      await expect(page.getByText('Production API Key')).toBeVisible();
-      await expect(page.getByText('Legacy Key')).toBeVisible();
+      // Should show all tokens
+      await expect(page.getByText('Production Service')).toBeVisible();
+      await expect(page.getByText('Legacy Service')).toBeVisible();
     }
   });
 
@@ -334,55 +344,55 @@ test.describe('Connections Tab - API Tokens', () => {
     await expect(page.getByRole('button', { name: /Back/i })).toBeVisible();
   });
 
-  test('shows View Usage button for each token', async ({ page }) => {
+  test('shows View Details button for each token', async ({ page }) => {
     // Click on API Tokens tab first
     await page.locator('.tab').getByText('API Tokens').click();
     await page.waitForTimeout(300);
-    const viewUsageButtons = page.getByRole('button', { name: /View Usage/i });
-    await expect(viewUsageButtons.first()).toBeVisible();
+    const viewDetailsButtons = page.getByRole('button', { name: /View Details/i });
+    await expect(viewDetailsButtons.first()).toBeVisible();
   });
 
-  test('shows Deactivate button for active tokens', async ({ page }) => {
+  test('shows Revoke button for active tokens', async ({ page }) => {
     // Click on API Tokens tab first
     await page.locator('.tab').getByText('API Tokens').click();
     await page.waitForTimeout(300);
-    const deactivateButton = page.getByRole('button', { name: /Deactivate/i }).first();
-    await expect(deactivateButton).toBeVisible();
+    const revokeButton = page.getByRole('button', { name: /Revoke/i }).first();
+    await expect(revokeButton).toBeVisible();
   });
 
-  test('shows confirmation dialog when deactivating', async ({ page }) => {
+  test('shows confirmation dialog when revoking', async ({ page }) => {
     // Click on API Tokens tab first
     await page.locator('.tab').getByText('API Tokens').click();
     await page.waitForTimeout(300);
-    await page.getByRole('button', { name: /Deactivate/i }).first().click();
+    await page.getByRole('button', { name: /Revoke/i }).first().click();
     await page.waitForTimeout(300);
 
     // Should show confirmation dialog
-    await expect(page.getByText(/Deactivate.*Token/i)).toBeVisible();
-    await expect(page.getByText(/Are you sure you want to deactivate/)).toBeVisible();
+    await expect(page.getByText(/Revoke.*API Token/i)).toBeVisible();
+    await expect(page.getByText(/Are you sure you want to revoke/)).toBeVisible();
     await expect(page.getByRole('button', { name: /Cancel/i })).toBeVisible();
   });
 
-  test('can cancel deactivation', async ({ page }) => {
+  test('can cancel revocation', async ({ page }) => {
     // Click on API Tokens tab first
     await page.locator('.tab').getByText('API Tokens').click();
     await page.waitForTimeout(300);
-    await page.getByRole('button', { name: /Deactivate/i }).first().click();
+    await page.getByRole('button', { name: /Revoke/i }).first().click();
     await page.waitForTimeout(300);
 
     await page.getByRole('button', { name: /Cancel/i }).click();
     await page.waitForTimeout(300);
 
     // Dialog should be closed
-    await expect(page.getByText(/Deactivate.*Token/i)).not.toBeVisible();
+    await expect(page.getByText(/Revoke.*API Token/i)).not.toBeVisible();
   });
 
-  test('displays rate limit information', async ({ page }) => {
+  test('displays usage information', async ({ page }) => {
     // Click on API Tokens tab first
     await page.locator('.tab').getByText('API Tokens').click();
     await page.waitForTimeout(300);
-    // Check for rate limit badges
-    await expect(page.getByText(/req\/month/).first()).toBeVisible();
+    // Check for usage count display (component shows "X requests")
+    await expect(page.getByText(/requests/).first()).toBeVisible();
   });
 });
 
