@@ -698,6 +698,37 @@ class ApiService {
     const response = await axios.get(`/api/chat/conversations/${conversationId}/messages`);
     return response.data;
   }
+
+  // User OAuth App Credentials endpoints
+  async getUserOAuthApps(): Promise<{
+    apps: Array<{
+      provider: string;
+      client_id: string;
+      redirect_uri: string;
+      created_at: string;
+    }>;
+  }> {
+    const response = await axios.get('/api/users/oauth-apps');
+    return response.data;
+  }
+
+  async registerUserOAuthApp(data: {
+    provider: string;
+    client_id: string;
+    client_secret: string;
+    redirect_uri: string;
+  }): Promise<{
+    success: boolean;
+    provider: string;
+    message: string;
+  }> {
+    const response = await axios.post('/api/users/oauth-apps', data);
+    return response.data;
+  }
+
+  async deleteUserOAuthApp(provider: string): Promise<void> {
+    await axios.delete(`/api/users/oauth-apps/${provider}`);
+  }
 }
 
 export const apiService = new ApiService();
