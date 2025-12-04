@@ -14,6 +14,9 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
+    "test:integration": "playwright test --config=integration/config/playwright.integration.config.ts",
+    "test:integration:ui": "playwright test --config=integration/config/playwright.integration.config.ts --ui",
+    "test:integration:headed": "playwright test --config=integration/config/playwright.integration.config.ts --headed",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
