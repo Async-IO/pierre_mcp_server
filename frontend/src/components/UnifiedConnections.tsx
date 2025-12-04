@@ -4,8 +4,6 @@
 import { useState } from 'react';
 import { Button } from './ui';
 import { useAuth } from '../hooks/useAuth';
-import ApiKeyList from './ApiKeyList';
-import CreateApiKey from './CreateApiKey';
 import A2AClientList from './A2AClientList';
 import CreateA2AClient from './CreateA2AClient';
 import AdminTokenList from './AdminTokenList';
@@ -13,7 +11,7 @@ import CreateAdminToken from './CreateAdminToken';
 import AdminTokenDetails from './AdminTokenDetails';
 import type { AdminToken, CreateAdminTokenResponse } from '../types/api';
 
-type ConnectionType = 'api-keys' | 'oauth-apps' | 'admin-tokens';
+type ConnectionType = 'oauth-apps' | 'admin-tokens';
 type View = 'overview' | 'create' | 'details';
 
 interface TokenSuccessModalProps {
@@ -111,7 +109,7 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({ isOpen, onClose, 
 
 export default function UnifiedConnections() {
   const { user } = useAuth();
-  const [activeConnectionType, setActiveConnectionType] = useState<ConnectionType>('api-keys');
+  const [activeConnectionType, setActiveConnectionType] = useState<ConnectionType>(user?.is_admin ? 'admin-tokens' : 'oauth-apps');
   const [activeView, setActiveView] = useState<View>('overview');
   const [selectedToken, setSelectedToken] = useState<AdminToken | null>(null);
   const [showTokenSuccess, setShowTokenSuccess] = useState(false);
@@ -123,8 +121,6 @@ export default function UnifiedConnections() {
     switch (activeConnectionType) {
       case 'admin-tokens':
         return 'Service tokens for MCP clients and automated tools to access the Pierre API.';
-      case 'api-keys':
-        return 'Personal API keys for your own scripts and applications to access Pierre programmatically.';
       case 'oauth-apps':
         return 'Third-party applications authorized to access your fitness data via OAuth.';
       default:
@@ -149,18 +145,6 @@ export default function UnifiedConnections() {
             <span>MCP Tokens</span>
           </button>
         )}
-        <button
-          className={`tab ${activeConnectionType === 'api-keys' ? 'tab-active' : ''}`}
-          onClick={() => {
-            setActiveConnectionType('api-keys');
-            setActiveView('overview');
-            setSelectedToken(null);
-            setErrorMessage(null);
-          }}
-        >
-          <span>🔑</span>
-          <span>API Keys</span>
-        </button>
         <button
           className={`tab ${activeConnectionType === 'oauth-apps' ? 'tab-active' : ''}`}
           onClick={() => {
@@ -215,21 +199,6 @@ export default function UnifiedConnections() {
             onTokenCreated={handleTokenCreated}
           />
         );
-      } else if (activeConnectionType === 'api-keys') {
-        return (
-          <div>
-            <div className="mb-6">
-              <Button
-                variant="secondary"
-                onClick={() => setActiveView('overview')}
-                size="sm"
-              >
-                ← Back to API Keys
-              </Button>
-            </div>
-            <CreateApiKey />
-          </div>
-        );
       } else {
         return (
           <div>
@@ -271,21 +240,6 @@ export default function UnifiedConnections() {
               setErrorMessage(null);
             }}
           />
-        </div>
-      );
-    } else if (activeConnectionType === 'api-keys') {
-      return (
-        <div>
-          <div className="flex items-start mb-6">
-            <Button
-              onClick={() => setActiveView('create')}
-              className="flex items-center space-x-2"
-            >
-              <span>+</span>
-              <span>Create API Key</span>
-            </Button>
-          </div>
-          <ApiKeyList />
         </div>
       );
     }
