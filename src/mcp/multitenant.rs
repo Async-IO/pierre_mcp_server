@@ -975,6 +975,7 @@ impl MultiTenantMcpServer {
         use crate::routes::oauth2::OAuth2Routes;
         use crate::routes::tenants::TenantRoutes;
         use crate::routes::user_mcp_tokens::UserMcpTokenRoutes;
+        use crate::routes::user_oauth_apps::UserOAuthAppRoutes;
         use crate::routes::web_admin::WebAdminRoutes;
         use crate::routes::websocket::WebSocketRoutes;
         use crate::sse::SseRoutes;
@@ -1036,6 +1037,7 @@ impl MultiTenantMcpServer {
             .merge(ImpersonationRoutes::routes(Arc::clone(resources)))
             .merge(UserMcpTokenRoutes::routes(Arc::clone(resources)))
             .merge(ChatRoutes::routes(Arc::clone(resources)))
+            .merge(UserOAuthAppRoutes::routes(Arc::clone(resources)))
     }
 
     /// Create health check routes for Axum

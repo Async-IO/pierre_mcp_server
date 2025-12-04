@@ -83,11 +83,14 @@ impl UserOAuthAppRoutes {
     /// Create all user OAuth app routes
     pub fn routes(resources: Arc<ServerResources>) -> Router {
         Router::new()
-            .route("/users/oauth-apps", post(Self::handle_register_app))
-            .route("/users/oauth-apps", get(Self::handle_list_apps))
-            .route("/users/oauth-apps/{provider}", get(Self::handle_get_app))
+            .route("/api/users/oauth-apps", post(Self::handle_register_app))
+            .route("/api/users/oauth-apps", get(Self::handle_list_apps))
             .route(
-                "/users/oauth-apps/{provider}",
+                "/api/users/oauth-apps/{provider}",
+                get(Self::handle_get_app),
+            )
+            .route(
+                "/api/users/oauth-apps/{provider}",
                 delete(Self::handle_delete_app),
             )
             .with_state(resources)
