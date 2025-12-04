@@ -522,6 +522,7 @@ if [ "$PROBLEMATIC_UNWRAPS" -eq 0 ]; then
 else
     FIRST_UNWRAP=$(get_first_location 'rg "\.unwrap\(\)" src/ | rg -v "// Safe" -n')
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_UNWRAP"
+    VALIDATION_FAILED=true
 fi
 
 printf "│ %-35s │ %5d │ " "Problematic expects" "$PROBLEMATIC_EXPECTS"
@@ -530,6 +531,7 @@ if [ "$PROBLEMATIC_EXPECTS" -eq 0 ]; then
 else
     FIRST_EXPECT=$(get_first_location 'rg "\.expect\(" src/ | rg -v "// Safe" -n')
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_EXPECT"
+    VALIDATION_FAILED=true
 fi
 
 printf "│ %-35s │ %5d │ " "Panic calls" "$PANICS"
@@ -538,6 +540,7 @@ if [ "$PANICS" -eq 0 ]; then
 else
     FIRST_PANIC=$(get_first_location 'rg "panic!\(" src/ -n')
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_PANIC"
+    VALIDATION_FAILED=true
 fi
 
 printf "│ %-35s │ %5d │ " "TODOs/FIXMEs (all dirs)" "$TODOS"
