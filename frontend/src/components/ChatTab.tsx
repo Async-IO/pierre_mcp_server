@@ -261,11 +261,13 @@ export default function ChatTab() {
       {/* Left Sidebar - Conversation List */}
       <div className="w-72 flex-shrink-0 border-r border-pierre-gray-200 bg-pierre-gray-50 flex flex-col">
         {/* Header with New Chat Button */}
-        <div className="p-3 flex items-center gap-2">
+        <div className="p-3 flex items-center justify-between">
           <button
             onClick={handleNewChat}
             disabled={createConversation.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-pierre-violet bg-pierre-violet/10 hover:bg-pierre-violet/15 rounded-lg transition-colors disabled:opacity-50"
+            title="New conversation"
+            aria-label="New conversation"
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-pierre-violet text-white hover:bg-pierre-violet/90 transition-colors disabled:opacity-50 shadow-sm"
           >
             {createConversation.isPending ? (
               <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -277,11 +279,10 @@ export default function ChatTab() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
             )}
-            New Chat
           </button>
           {conversationsData?.conversations && conversationsData.conversations.length > 0 && (
             <span className="text-xs text-pierre-gray-500">
-              History ({conversationsData.conversations.length})
+              {conversationsData.conversations.length} chats
             </span>
           )}
         </div>
@@ -522,17 +523,18 @@ export default function ChatTab() {
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="Message Pierre..."
-                    className="w-full resize-none rounded-xl border border-pierre-gray-200 bg-pierre-gray-50 pl-4 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:border-transparent focus:bg-white text-sm transition-colors"
+                    className="w-full resize-none rounded-xl border border-pierre-gray-200 bg-pierre-gray-50 pl-4 pr-14 py-3 focus:outline-none focus:ring-2 focus:ring-pierre-violet focus:border-transparent focus:bg-white text-sm transition-colors overflow-hidden"
                     rows={1}
                     disabled={isStreaming}
                   />
                   <button
                     onClick={handleSendMessage}
                     disabled={!newMessage.trim() || isStreaming}
+                    aria-label="Send message"
                     className={clsx(
-                      'absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-colors',
+                      'absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg transition-colors',
                       newMessage.trim() && !isStreaming
-                        ? 'bg-pierre-violet text-white hover:bg-pierre-violet/90'
+                        ? 'bg-pierre-violet text-white hover:bg-pierre-violet/90 shadow-sm'
                         : 'text-pierre-gray-400 cursor-not-allowed'
                     )}
                   >
