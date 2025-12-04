@@ -10,11 +10,11 @@ import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
 import type { AdminToken } from '../types/api';
 
-interface AdminTokenListProps {
+interface ApiKeyListProps {
   onViewDetails: (token: AdminToken) => void;
 }
 
-export default function AdminTokenList({ onViewDetails }: AdminTokenListProps) {
+export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
   const { isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedTokens, setSelectedTokens] = useState<Set<string>>(new Set());
@@ -122,7 +122,7 @@ export default function AdminTokenList({ onViewDetails }: AdminTokenListProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
-            <h3 className="text-lg font-medium text-red-900">Failed to load admin tokens</h3>
+            <h3 className="text-lg font-medium text-red-900">Failed to load API keys</h3>
             <p className="text-red-700 mt-1">
               {error instanceof Error ? error.message : 'An unknown error occurred'}
             </p>
@@ -137,8 +137,8 @@ export default function AdminTokenList({ onViewDetails }: AdminTokenListProps) {
       {/* Main Card */}
       <Card>
         <CardHeader
-          title="Your Admin Tokens"
-          subtitle={`${allTokens.length} total tokens`}
+          title="Your API Keys"
+          subtitle={`${allTokens.length} total keys`}
         />
 
         {/* Status Filter */}
@@ -175,8 +175,8 @@ export default function AdminTokenList({ onViewDetails }: AdminTokenListProps) {
         {tokens.length === 0 ? (
           <div className="text-center py-8 text-pierre-gray-500 px-6 pb-6">
             <div className="text-4xl mb-4">🔐</div>
-            <p className="text-lg mb-2">No admin tokens yet</p>
-            <p>Create your first admin token to enable programmatic access</p>
+            <p className="text-lg mb-2">No API keys yet</p>
+            <p>Create your first API key to enable programmatic access</p>
           </div>
         ) : (
           <div className="space-y-4 px-6 pb-6">
@@ -297,14 +297,14 @@ export default function AdminTokenList({ onViewDetails }: AdminTokenListProps) {
       )}
       </Card>
 
-      {/* Single Token Revoke Confirmation */}
+      {/* Single API Key Revoke Confirmation */}
       <ConfirmDialog
         isOpen={tokenToRevoke !== null}
         onClose={() => setTokenToRevoke(null)}
         onConfirm={confirmSingleRevoke}
-        title="Revoke Token"
-        message={`Are you sure you want to revoke "${tokenToRevoke?.service_name}"? This action cannot be undone and any services using this token will lose access.`}
-        confirmLabel="Revoke Token"
+        title="Revoke API Key"
+        message={`Are you sure you want to revoke "${tokenToRevoke?.service_name}"? This action cannot be undone and any services using this API key will lose access.`}
+        confirmLabel="Revoke API Key"
         cancelLabel="Cancel"
         variant="danger"
         isLoading={revokeTokenMutation.isPending}
@@ -315,9 +315,9 @@ export default function AdminTokenList({ onViewDetails }: AdminTokenListProps) {
         isOpen={tokensToRevoke !== null}
         onClose={() => setTokensToRevoke(null)}
         onConfirm={confirmBulkRevoke}
-        title="Revoke Multiple Tokens"
-        message={`Are you sure you want to revoke ${tokensToRevoke?.size || 0} token(s)? This action cannot be undone and any services using these tokens will lose access.`}
-        confirmLabel={`Revoke ${tokensToRevoke?.size || 0} Token(s)`}
+        title="Revoke Multiple API Keys"
+        message={`Are you sure you want to revoke ${tokensToRevoke?.size || 0} API key(s)? This action cannot be undone and any services using these keys will lose access.`}
+        confirmLabel={`Revoke ${tokensToRevoke?.size || 0} API Key(s)`}
         cancelLabel="Cancel"
         variant="danger"
         isLoading={revokeTokenMutation.isPending}

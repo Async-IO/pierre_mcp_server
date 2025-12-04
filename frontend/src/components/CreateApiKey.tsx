@@ -6,7 +6,7 @@ import { useMutation } from '@tanstack/react-query';
 import { apiService } from '../services/api';
 import type { AdminPermission, CreateAdminTokenResponse } from '../types/api';
 
-interface CreateAdminTokenProps {
+interface CreateApiKeyProps {
   onBack: () => void;
   onTokenCreated: (response: CreateAdminTokenResponse) => void;
 }
@@ -41,7 +41,7 @@ const PERMISSION_DESCRIPTIONS: Record<AdminPermission, { label: string; descript
   },
 };
 
-export default function CreateAdminToken({ onBack, onTokenCreated }: CreateAdminTokenProps) {
+export default function CreateApiKey({ onBack, onTokenCreated }: CreateApiKeyProps) {
   const [serviceName, setServiceName] = useState('');
   const [serviceDescription, setServiceDescription] = useState('');
   const [selectedPermissions, setSelectedPermissions] = useState<Set<AdminPermission>>(new Set(['provision_keys']));
@@ -106,9 +106,9 @@ export default function CreateAdminToken({ onBack, onTokenCreated }: CreateAdmin
           ← Back
         </button>
         <div>
-          <h2 className="text-xl font-semibold text-pierre-gray-900">Create Admin Token</h2>
+          <h2 className="text-xl font-semibold text-pierre-gray-900">Create API Key</h2>
           <p className="text-sm text-pierre-gray-600 mt-1">
-            Generate a new JWT token for admin services and API key provisioning
+            Generate a new API key for MCP clients and programmatic access
           </p>
         </div>
       </div>
@@ -118,9 +118,9 @@ export default function CreateAdminToken({ onBack, onTokenCreated }: CreateAdmin
         <form onSubmit={handleSubmit} className="space-y-6">
           {createTokenMutation.error && (
             <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
-              {createTokenMutation.error instanceof Error 
-                ? createTokenMutation.error.message 
-                : 'Failed to create admin token'}
+              {createTokenMutation.error instanceof Error
+                ? createTokenMutation.error.message
+                : 'Failed to create API key'}
             </div>
           )}
 
@@ -174,7 +174,7 @@ export default function CreateAdminToken({ onBack, onTokenCreated }: CreateAdmin
                   className="mt-1 rounded border-pierre-gray-300 text-pierre-blue-600 focus:ring-pierre-blue-500"
                 />
                 <div>
-                  <div className="font-medium text-pierre-gray-900">Super Admin Token</div>
+                  <div className="font-medium text-pierre-gray-900">Super Admin API Key</div>
                   <p className="text-sm text-pierre-gray-600">
                     Grants all permissions and never expires. Use with extreme caution.
                   </p>
@@ -190,7 +190,7 @@ export default function CreateAdminToken({ onBack, onTokenCreated }: CreateAdmin
                     <div>
                       <h4 className="font-medium text-pierre-red-800">Danger Zone</h4>
                       <p className="text-sm text-pierre-red-700 mt-1">
-                        Super admin tokens have unrestricted access to all system operations. 
+                        Super admin API keys have unrestricted access to all system operations.
                         Only create these for trusted, critical services.
                       </p>
                     </div>
@@ -301,7 +301,7 @@ export default function CreateAdminToken({ onBack, onTokenCreated }: CreateAdmin
               }
               className="btn-primary disabled:opacity-50"
             >
-              {createTokenMutation.isPending ? 'Creating Token...' : 'Create Admin Token'}
+              {createTokenMutation.isPending ? 'Creating API Key...' : 'Create API Key'}
             </button>
             <button
               type="button"
@@ -319,11 +319,11 @@ export default function CreateAdminToken({ onBack, onTokenCreated }: CreateAdmin
       <div className="bg-pierre-blue-50 border border-pierre-blue-200 rounded-lg p-4">
         <h4 className="font-medium text-pierre-blue-900 mb-2">🔒 Security Reminder</h4>
         <ul className="text-sm text-pierre-blue-800 space-y-1">
-          <li>• The JWT token will be shown only once after creation</li>
-          <li>• Store the token securely in your service environment</li>
-          <li>• Never commit tokens to version control</li>
-          <li>• Use HTTPS when transmitting tokens</li>
-          <li>• Regularly rotate tokens for better security</li>
+          <li>• The API key will be shown only once after creation</li>
+          <li>• Store the key securely in your environment</li>
+          <li>• Never commit API keys to version control</li>
+          <li>• Use HTTPS when transmitting API keys</li>
+          <li>• Regularly rotate keys for better security</li>
         </ul>
       </div>
     </div>
