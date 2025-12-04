@@ -89,8 +89,8 @@ import '../styles/global.css';
             <p class="text-xl text-gray-300 max-w-3xl mx-auto mb-10">
                 Get smarter insights from your <strong class="text-white">Strava</strong>,
                 <strong class="text-white">Garmin</strong>, <strong class="text-white">Fitbit</strong>,
-                or <strong class="text-white">WHOOP</strong> data.
-                Real sports science formulas to help you train better, eat smarter, and recover faster.
+                <strong class="text-white">WHOOP</strong>, or <strong class="text-white">Terra</strong> data.
+                Real sports science to help you train better, eat smarter, and recover faster.
             </p>
 
             <div class="flex flex-col sm:flex-row gap-4 justify-center mb-16">
@@ -117,6 +117,9 @@ import '../styles/global.css';
                 </span>
                 <span class="protocol-badge px-4 py-2 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-sm font-medium">
                     🔴 WHOOP
+                </span>
+                <span class="protocol-badge px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-400 text-sm font-medium">
+                    🌐 Terra
                 </span>
             </div>
         </div>
@@ -226,65 +229,43 @@ import '../styles/global.css';
     <!-- Intelligence Section -->
     <section id="intelligence" class="py-20 px-4">
         <div class="max-w-7xl mx-auto">
-            <div class="text-center mb-16">
+            <div class="text-center mb-12">
                 <h2 class="text-3xl sm:text-4xl font-bold mb-4">Real Sports Science, Not Guesswork</h2>
                 <p class="text-gray-400 max-w-2xl mx-auto">
-                    Pierre uses the same formulas trusted by elite coaches and sports scientists around the world.
+                    Pierre uses the same methods trusted by elite coaches and sports scientists around the world.
                 </p>
             </div>
 
-            <div class="grid md:grid-cols-3 gap-6">
-                <!-- Training Load -->
-                <div class="card-hover bg-[#1E1E2E] rounded-xl p-8 border border-white/10">
-                    <div class="flex flex-col">
-                        <div class="w-12 h-12 rounded-lg bg-emerald-500/20 flex items-center justify-center mb-4">
+            <div class="bg-[#1E1E2E] rounded-xl p-8 border border-white/10">
+                <div class="grid md:grid-cols-3 gap-8">
+                    <div class="text-center">
+                        <div class="w-12 h-12 rounded-lg bg-emerald-500/20 flex items-center justify-center mx-auto mb-4">
                             <span class="text-emerald-500 text-xl">📊</span>
                         </div>
-                        <h3 class="text-lg font-semibold mb-2">Training Stress Score (TSS)</h3>
-                        <p class="text-gray-400 text-sm mb-4">
-                            Measures how hard each workout is based on intensity and duration.
-                            Know exactly how much stress you're putting on your body.
+                        <h3 class="text-lg font-semibold mb-2">Training Load</h3>
+                        <p class="text-gray-400 text-sm">
+                            Measures how hard each workout is based on intensity and duration so you know exactly how much stress you're putting on your body.
                         </p>
-                        <div class="flex flex-wrap gap-2 mt-auto">
-                            <span class="px-2 py-1 rounded bg-[#0F0F1A] text-xs text-gray-400">Heart Rate Based</span>
-                            <span class="px-2 py-1 rounded bg-[#0F0F1A] text-xs text-gray-400">Power Based</span>
-                        </div>
                     </div>
-                </div>
 
-                <!-- Fitness/Fatigue -->
-                <div class="card-hover bg-[#1E1E2E] rounded-xl p-8 border border-white/10">
-                    <div class="flex flex-col">
-                        <div class="w-12 h-12 rounded-lg bg-cyan-500/20 flex items-center justify-center mb-4">
+                    <div class="text-center">
+                        <div class="w-12 h-12 rounded-lg bg-cyan-500/20 flex items-center justify-center mx-auto mb-4">
                             <span class="text-cyan-500 text-xl">⚖️</span>
                         </div>
-                        <h3 class="text-lg font-semibold mb-2">Fitness vs Fatigue Balance</h3>
-                        <p class="text-gray-400 text-sm mb-4">
-                            Track your long-term fitness gains against short-term fatigue.
-                            Find the sweet spot for peak performance on race day.
+                        <h3 class="text-lg font-semibold mb-2">Fitness vs Fatigue</h3>
+                        <p class="text-gray-400 text-sm">
+                            Tracks your long-term fitness gains against short-term fatigue to find the sweet spot for peak performance on race day.
                         </p>
-                        <div class="flex flex-wrap gap-2 mt-auto">
-                            <span class="px-2 py-1 rounded bg-[#0F0F1A] text-xs text-gray-400">Form Tracking</span>
-                            <span class="px-2 py-1 rounded bg-[#0F0F1A] text-xs text-gray-400">Peak Planning</span>
-                        </div>
                     </div>
-                </div>
 
-                <!-- Race Predictions -->
-                <div class="card-hover bg-[#1E1E2E] rounded-xl p-8 border border-white/10">
-                    <div class="flex flex-col">
-                        <div class="w-12 h-12 rounded-lg bg-violet-600/20 flex items-center justify-center mb-4">
+                    <div class="text-center">
+                        <div class="w-12 h-12 rounded-lg bg-violet-600/20 flex items-center justify-center mx-auto mb-4">
                             <span class="text-violet-500 text-xl">🏆</span>
                         </div>
-                        <h3 class="text-lg font-semibold mb-2">Race Time Predictions</h3>
-                        <p class="text-gray-400 text-sm mb-4">
-                            Get accurate predictions for 5K, 10K, half marathon, and marathon
-                            based on your actual training data.
+                        <h3 class="text-lg font-semibold mb-2">Race Predictions</h3>
+                        <p class="text-gray-400 text-sm">
+                            Get accurate predictions for 5K, 10K, half marathon, and marathon distances based on your actual training data.
                         </p>
-                        <div class="flex flex-wrap gap-2 mt-auto">
-                            <span class="px-2 py-1 rounded bg-[#0F0F1A] text-xs text-gray-400">VDOT Formula</span>
-                            <span class="px-2 py-1 rounded bg-[#0F0F1A] text-xs text-gray-400">Pace Zones</span>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -301,7 +282,7 @@ import '../styles/global.css';
                 </p>
             </div>
 
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-12">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-12">
                 <div class="bg-[#0F0F1A] rounded-lg p-6 text-center border border-white/5">
                     <div class="text-2xl mb-2">🏃</div>
                     <span class="text-sm text-gray-400">Strava</span>
@@ -319,8 +300,8 @@ import '../styles/global.css';
                     <span class="text-sm text-gray-400">WHOOP</span>
                 </div>
                 <div class="bg-[#0F0F1A] rounded-lg p-6 text-center border border-white/5">
-                    <div class="text-2xl mb-2">🍎</div>
-                    <span class="text-sm text-gray-400">Apple Health</span>
+                    <div class="text-2xl mb-2">🌐</div>
+                    <span class="text-sm text-gray-400">Terra</span>
                 </div>
                 <div class="bg-[#0F0F1A] rounded-lg p-6 text-center border border-white/5">
                     <div class="text-2xl mb-2">+150</div>
@@ -352,7 +333,7 @@ import '../styles/global.css';
                         <span class="text-3xl">1️⃣</span>
                     </div>
                     <h3 class="text-xl font-semibold mb-3">Connect Your Devices</h3>
-                    <p class="text-gray-400">Link your Strava, Garmin, Fitbit, WHOOP, or other fitness accounts with one click.</p>
+                    <p class="text-gray-400">Link your Strava, Garmin, Fitbit, WHOOP, Terra, or other fitness accounts with one click.</p>
                 </div>
 
                 <div class="text-center">
@@ -472,19 +453,19 @@ import '../styles/global.css';
                 Pierre Fitness Intelligence is launching soon. Be the first to know when we go live and help shape the future of fitness insights.
             </p>
             <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="https://github.com/Async-IO/pierre_mcp_server"
+                <a href="#features"
                    class="gradient-pierre px-8 py-3 rounded-lg font-semibold text-lg hover:opacity-90 transition-opacity inline-flex items-center justify-center gap-2">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                     </svg>
-                    Get Notified
+                    Join the Waitlist
                 </a>
-                <a href="https://github.com/Async-IO/pierre_mcp_server/discussions"
+                <a href="#how-it-works"
                    class="px-8 py-3 rounded-lg font-semibold text-lg border border-white/20 hover:bg-white/5 transition-colors inline-flex items-center justify-center gap-2">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path fill-rule="evenodd" d="M4.848 2.771A49.144 49.144 0 0112 2.25c2.43 0 4.817.178 7.152.52 1.978.292 3.348 2.024 3.348 3.97v6.02c0 1.946-1.37 3.678-3.348 3.97a48.901 48.901 0 01-3.476.383.39.39 0 00-.297.17l-2.755 4.133a.75.75 0 01-1.248 0l-2.755-4.133a.39.39 0 00-.297-.17 48.9 48.9 0 01-3.476-.384c-1.978-.29-3.348-2.024-3.348-3.97V6.741c0-1.946 1.37-3.68 3.348-3.97z" clip-rule="evenodd"/>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
-                    Share Your Ideas
+                    Learn More
                 </a>
             </div>
         </div>
@@ -518,7 +499,7 @@ import '../styles/global.css';
                         <li><a href="/getting-started/" class="hover:text-white transition-colors">Getting Started</a></li>
                         <li><a href="/intelligence-methodology/" class="hover:text-white transition-colors">How It Works</a></li>
                         <li><a href="/nutrition-methodology/" class="hover:text-white transition-colors">Nutrition Science</a></li>
-                        <li><a href="https://github.com/Async-IO/pierre_mcp_server/discussions" class="hover:text-white transition-colors">Community</a></li>
+                        <li><a href="/recovery-methodology/" class="hover:text-white transition-colors">Recovery Science</a></li>
                     </ul>
                 </div>
 
