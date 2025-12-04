@@ -34,7 +34,7 @@ Developer documentation for Pierre Fitness Platform.
 - [Environment](environment.md) - .envrc variables reference
 
 ### OAuth
-- [OAuth Client](oauth-client.md) - Fitness provider connections (Strava, Fitbit, Garmin)
+- [OAuth Client](oauth-client.md) - Fitness provider connections (Strava, Fitbit, Garmin, WHOOP, Terra)
 - [OAuth2 Server](oauth2-server.md) - MCP client authentication
 
 ### Development
