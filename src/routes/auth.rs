@@ -16,7 +16,7 @@ use crate::{
     database_plugins::DatabaseProvider,
     errors::{AppError, AppResult},
     mcp::resources::ServerResources,
-    models::{User, UserStatus},
+    models::{Tenant, User, UserStatus},
     utils::errors::{auth_error, user_state_error, validation_error},
 };
 use chrono::Utc;
@@ -213,10 +213,54 @@ impl AuthService {
             .await
             .map_err(|e| AppError::database(format!("Failed to create user: {e}")))?;
 
+        // Create a personal tenant for the user
+        let display_name = user
+            .display_name
+            .as_deref()
+            .unwrap_or_else(|| request.email.split('@').next().unwrap_or("user"));
+        let tenant_name = format!("{display_name}'s Workspace");
+        let tenant_slug = format!("user-{}", user_id.as_simple());
+        let tenant_id = uuid::Uuid::new_v4();
+
+        let tenant = Tenant {
+            id: tenant_id,
+            name: tenant_name.clone(),
+            slug: tenant_slug,
+            domain: None,
+            plan: crate::constants::tiers::STARTER.to_owned(),
+            owner_user_id: user_id,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        self.data
+            .database()
+            .create_tenant(&tenant)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to create personal tenant for {}: {}",
+                    request.email,
+                    e
+                );
+                AppError::database(format!("Failed to create personal tenant: {e}"))
+            })?;
+
+        // Assign user to their personal tenant
+        self.data
+            .database()
+            .update_user_tenant_id(user_id, &tenant_id.to_string())
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to assign user to tenant: {}", e);
+                AppError::database(format!("Failed to assign tenant: {e}"))
+            })?;
+
         tracing::info!(
-            "User registered successfully: {} ({}) - status: {:?}",
+            "User registered successfully: {} ({}) with tenant {} - status: {:?}",
             request.email,
             user_id,
+            tenant_name,
             user.user_status
         );
 
