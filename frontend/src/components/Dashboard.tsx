@@ -21,8 +21,8 @@ const UserManagement = lazy(() => import('./UserManagement'));
 const UserHome = lazy(() => import('./UserHome'));
 const UserSettings = lazy(() => import('./UserSettings'));
 const AdminSettings = lazy(() => import('./AdminSettings'));
-const AdminTokenList = lazy(() => import('./AdminTokenList'));
-const AdminTokenDetails = lazy(() => import('./AdminTokenDetails'));
+const ApiKeyList = lazy(() => import('./ApiKeyList'));
+const ApiKeyDetails = lazy(() => import('./ApiKeyDetails'));
 const MCPTokensTab = lazy(() => import('./MCPTokensTab'));
 const ChatTab = lazy(() => import('./ChatTab'));
 
@@ -460,7 +460,7 @@ export default function Dashboard() {
           <div className="space-y-6">
             {selectedAdminToken ? (
               <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-                <AdminTokenDetails
+                <ApiKeyDetails
                   token={selectedAdminToken}
                   onBack={() => setSelectedAdminToken(null)}
                   onTokenUpdated={() => setSelectedAdminToken(null)}
@@ -469,13 +469,13 @@ export default function Dashboard() {
             ) : (
               <>
                 <Card>
-                  <h2 className="text-xl font-semibold mb-4">Admin Token Management</h2>
+                  <h2 className="text-xl font-semibold mb-4">API Key Management</h2>
                   <p className="text-pierre-gray-600 mb-4">
-                    Manage service tokens for API automation and administrative access. Only super admins can create, rotate, and revoke admin tokens.
+                    Manage API keys for MCP clients and programmatic access. Only super admins can create, rotate, and revoke API keys.
                   </p>
                 </Card>
                 <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-                  <AdminTokenList onViewDetails={setSelectedAdminToken} />
+                  <ApiKeyList onViewDetails={setSelectedAdminToken} />
                 </Suspense>
               </>
             )}

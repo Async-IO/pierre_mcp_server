@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-// ABOUTME: Playwright E2E tests for admin token management features.
-// ABOUTME: Tests token listing, creation, revocation, rotation, and bulk operations.
+// ABOUTME: Playwright E2E tests for API Key management features.
+// ABOUTME: Tests key listing, creation, revocation, rotation, and bulk operations.
 
 import { test, expect, type Page } from '@playwright/test';
 
@@ -132,7 +132,7 @@ const sampleTokens = [
   },
 ];
 
-test.describe('Admin Token List', () => {
+test.describe('API Key List', () => {
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedSession(page);
 
@@ -152,13 +152,13 @@ test.describe('Admin Token List', () => {
     await loginToDashboard(page);
   });
 
-  test('displays admin tokens list', async ({ page }) => {
-    // Navigate to tokens section (might be in Overview or separate tab)
-    // Look for token-related content
+  test('displays API keys list', async ({ page }) => {
+    // Navigate to keys section (might be in Overview or separate tab)
+    // Look for key-related content
     await page.waitForTimeout(500);
 
-    // Check if tokens are displayed on dashboard or need navigation
-    const tokenSection = page.getByText('Admin Tokens').or(page.getByText('CI/CD Pipeline'));
+    // Check if keys are displayed on dashboard or need navigation
+    const tokenSection = page.getByText('Your API Keys').or(page.getByText('CI/CD Pipeline'));
     if (await tokenSection.isVisible()) {
       await expect(page.getByText('CI/CD Pipeline')).toBeVisible();
       await expect(page.getByText('Admin Console')).toBeVisible();
@@ -223,7 +223,7 @@ test.describe('Admin Token List', () => {
   });
 });
 
-test.describe('Admin Token Creation', () => {
+test.describe('API Key Creation', () => {
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedSession(page);
 
@@ -275,7 +275,7 @@ test.describe('Admin Token Creation', () => {
       await page.waitForTimeout(300);
 
       // Try to submit without service name
-      const submitButton = page.getByRole('button', { name: /Create Admin Token/i });
+      const submitButton = page.getByRole('button', { name: /Create API Key/i });
       if (await submitButton.isVisible()) {
         await submitButton.click();
 
@@ -304,7 +304,7 @@ test.describe('Admin Token Creation', () => {
       }
 
       // Submit
-      const submitButton = page.getByRole('button', { name: /Create Admin Token/i });
+      const submitButton = page.getByRole('button', { name: /Create API Key/i });
       await submitButton.click();
 
       // Should show success modal with token
@@ -348,7 +348,7 @@ test.describe('Admin Token Creation', () => {
         await provisionKeysCheckbox.check();
       }
 
-      const submitButton = page.getByRole('button', { name: /Create Admin Token/i });
+      const submitButton = page.getByRole('button', { name: /Create API Key/i });
       await submitButton.click();
 
       // Modal should show the token
@@ -376,7 +376,7 @@ test.describe('Admin Token Creation', () => {
         await listKeysCheckbox.check();
       }
 
-      const submitButton = page.getByRole('button', { name: /Create Admin Token/i });
+      const submitButton = page.getByRole('button', { name: /Create API Key/i });
       await submitButton.click();
       await page.waitForTimeout(500);
 
@@ -390,7 +390,7 @@ test.describe('Admin Token Creation', () => {
   });
 });
 
-test.describe('Admin Token Revocation', () => {
+test.describe('API Key Revocation', () => {
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedSession(page);
 
@@ -484,7 +484,7 @@ test.describe('Admin Token Revocation', () => {
   });
 });
 
-test.describe('Admin Token Rotation', () => {
+test.describe('API Key Rotation', () => {
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedSession(page);
 
@@ -569,7 +569,7 @@ test.describe('Admin Token Rotation', () => {
   });
 });
 
-test.describe('Admin Token Details', () => {
+test.describe('API Key Details', () => {
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedSession(page);
 

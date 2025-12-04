@@ -6,7 +6,7 @@ A web dashboard for managing and monitoring Pierre MCP Server. Built with React,
 
 - **Dashboard Overview**: API key usage statistics and system metrics
 - **User Management**: User approval, registration, and tenant management
-- **Connections**: API keys, A2A clients, and admin tokens management
+- **Connections**: A2A clients and API Keys management
 - **MCP Tokens**: Token generation and management for MCP protocol
 - **Rate Limiting**: Monitor and configure API rate limits
 - **A2A Monitoring**: Agent-to-Agent communication tracking
@@ -34,7 +34,7 @@ The dashboard supports two user roles with distinct permissions:
 |---------|--------|
 | All Regular User features | Full access |
 | User Management | Approve/reject registrations, suspend users |
-| Admin Tokens | Create system-wide admin tokens |
+| API Keys | Create system-wide API keys |
 | User Impersonation | View dashboard as any user |
 | All Users Analytics | View platform-wide statistics |
 | Tenant Management | Manage multi-tenant configuration |
@@ -95,7 +95,7 @@ This creates a super-admin who can then approve other user registrations and gra
 | Tab | Description | User Access | Admin Access |
 |-----|-------------|-------------|--------------|
 | **Home** | Overview statistics, quick actions | Own data | Platform-wide |
-| **Connections** | API Keys, A2A clients | Own resources | + Admin Tokens tab |
+| **Connections** | A2A clients | Own resources | + API Keys tab |
 | **MCP Tokens** | Generate MCP protocol tokens | Own tokens | Own tokens |
 | **Analytics** | Usage charts, trends | Own analytics | All users |
 | **Monitor** | Request logs, tool usage | Own requests | All requests |
@@ -196,9 +196,9 @@ The E2E test suite covers **282 tests** across 13 spec files:
 | `pending-approval.spec.ts` | 10 | Approval workflow |
 | `dashboard.spec.ts` | 21 | Main dashboard |
 | `overview.spec.ts` | 45 | Overview tab |
-| `connections.spec.ts` | 37 | API keys, A2A clients, admin tokens |
+| `connections.spec.ts` | 37 | A2A clients, API Keys |
 | `mcp-tokens.spec.ts` | 27 | MCP token management |
-| `admin-tokens.spec.ts` | 23 | Admin token management |
+| `admin-tokens.spec.ts` | 23 | API Key management |
 | `analytics.spec.ts` | 14 | Usage analytics |
 | `monitor.spec.ts` | 25 | Request monitoring |
 | `tools.spec.ts` | 27 | MCP tools display |
@@ -256,9 +256,9 @@ To populate the dashboard with realistic demo data for visualization and testing
 
 The seed script creates:
 - **18 demo users** - Mix of tiers (starter/professional/enterprise) and statuses (active/pending/suspended)
-- **20 API keys** - Fitness-focused (Strava Sync, Garmin Connect, Apple Health, Training Plan Bot, etc.)
+- **20 MCP tokens** - User tokens for AI clients (Claude Desktop, Cursor IDE, etc.)
 - **10 A2A clients** - AI assistants and integration bots (Claude Desktop, GPT-4 Fitness Coach, Slack Bot, etc.)
-- **10 admin tokens** - Service tokens (CI/CD Pipeline, API Gateway, Monitoring Service, etc.)
+- **10 Admin API Keys** - Service tokens (CI/CD Pipeline, API Gateway, Monitoring Service, etc.)
 - **50,000+ API usage records** - 30 days of usage data with realistic patterns
 - **4,500+ request logs** - 14 days of endpoint access logs
 
