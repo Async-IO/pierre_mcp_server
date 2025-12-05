@@ -1,0 +1,21 @@
+{
+  "scenarios": {
+    "stress_test": {
+      "executor": "ramping-vus",
+      "startVUs": 0,
+      "stages": [
+        { "duration": "2m", "target": 50 },
+        { "duration": "5m", "target": 100 },
+        { "duration": "2m", "target": 200 },
+        { "duration": "5m", "target": 200 },
+        { "duration": "2m", "target": 100 },
+        { "duration": "2m", "target": 0 }
+      ],
+      "gracefulRampDown": "1m"
+    }
+  },
+  "thresholds": {
+    "http_req_duration": ["p(95)<500", "p(99)<1000"],
+    "http_req_failed": ["rate<0.05"]
+  }
+}

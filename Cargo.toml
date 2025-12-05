@@ -151,6 +151,30 @@ tokio-tungstenite = "0.24"
 criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
 
 # ============================================================================
+# Benchmark Configuration
+# ============================================================================
+# Each benchmark suite is defined as a separate [[bench]] entry.
+# Run all benchmarks: cargo bench
+# Run specific suite: cargo bench --bench intelligence_bench
+# Run specific benchmark: cargo bench --bench intelligence_bench -- "training_load"
+
+[[bench]]
+name = "intelligence_bench"
+harness = false
+
+[[bench]]
+name = "cache_bench"
+harness = false
+
+[[bench]]
+name = "database_bench"
+harness = false
+
+[[bench]]
+name = "serialization_bench"
+harness = false
+
+# ============================================================================
 # Linting Configuration (Replaces bash script clippy invocation)
 # ============================================================================
 # This configuration eliminates the need for custom clippy flags in scripts.

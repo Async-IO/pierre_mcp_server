@@ -1,0 +1,210 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright (c) 2025 Pierre Fitness Intelligence
+#
+# Performance Benchmarks CI
+# Runs Criterion benchmarks on any branch with bench/src changes
+# Detects performance regressions and stores baseline results
+
+name: Performance Benchmarks
+
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'benches/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/benchmarks.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'benches/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/benchmarks.yml'
+  workflow_dispatch:
+    inputs:
+      benchmark_suite:
+        description: 'Specific benchmark suite to run (empty for all)'
+        required: false
+        default: ''
+      compare_baseline:
+        description: 'Compare against baseline'
+        required: false
+        default: 'true'
+        type: boolean
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  benchmark:
+    name: Run Benchmarks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      # Cache temporarily disabled due to GitHub infrastructure issues
+      # Uncomment when cache service is stable
+      # - name: Cache cargo registry
+      #   continue-on-error: true
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: |
+      #       ~/.cargo/bin/
+      #       ~/.cargo/registry/index/
+      #       ~/.cargo/registry/cache/
+      #       ~/.cargo/git/db/
+      #       target/
+      #     key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-cargo-bench-
+      #       ${{ runner.os }}-cargo-
+
+      # - name: Restore baseline from cache
+      #   if: github.event_name == 'pull_request'
+      #   continue-on-error: true
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: target/criterion
+      #     key: criterion-baseline-${{ github.base_ref }}
+      #     restore-keys: |
+      #       criterion-baseline-main
+
+      - name: Run benchmarks
+        run: |
+          if [ -n "${{ github.event.inputs.benchmark_suite }}" ]; then
+            cargo bench --bench ${{ github.event.inputs.benchmark_suite }}
+          else
+            cargo bench
+          fi
+
+      - name: Compare against baseline (PR only)
+        if: github.event_name == 'pull_request' && github.event.inputs.compare_baseline != 'false'
+        run: |
+          # Check if baseline exists
+          if [ -d "target/criterion" ] && [ "$(ls -A target/criterion)" ]; then
+            echo "Comparing against baseline..."
+            cargo bench -- --baseline main 2>&1 | tee benchmark_comparison.txt || true
+
+            # Check for regressions (>10% slower)
+            if grep -E '\+[1-9][0-9]\.[0-9]+%' benchmark_comparison.txt; then
+              echo "::warning::Performance regression detected (>10% slower)"
+            fi
+          else
+            echo "No baseline found, skipping comparison"
+          fi
+
+      - name: Save baseline (main branch only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          cargo bench -- --save-baseline main
+
+      - name: Cache baseline for PRs
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/cache/save@v4
+        with:
+          path: target/criterion
+          key: criterion-baseline-main-${{ github.sha }}
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.sha }}
+          path: |
+            target/criterion/
+          retention-days: 30
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-report-${{ github.sha }}
+          path: target/criterion/report/
+          retention-days: 14
+
+  benchmark-comment:
+    name: Comment Benchmark Results
+    runs-on: ubuntu-latest
+    needs: benchmark
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Download benchmark results
+        uses: actions/download-artifact@v4
+        with:
+          name: benchmark-results-${{ github.sha }}
+          path: criterion-results
+
+      - name: Generate summary comment
+        id: summary
+        run: |
+          # Create summary from Criterion estimates
+          echo "## Performance Benchmark Results" > comment.md
+          echo "" >> comment.md
+          echo "Benchmarks completed for commit ${{ github.sha }}" >> comment.md
+          echo "" >> comment.md
+
+          # List benchmark groups
+          echo "### Benchmark Suites" >> comment.md
+          echo "" >> comment.md
+
+          for dir in criterion-results/*/; do
+            if [ -d "$dir" ]; then
+              suite=$(basename "$dir")
+              echo "- **${suite}**" >> comment.md
+            fi
+          done
+
+          echo "" >> comment.md
+          echo "📊 [View full HTML report in artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> comment.md
+
+          # Set output
+          echo "comment_body<<EOF" >> $GITHUB_OUTPUT
+          cat comment.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `${{ steps.summary.outputs.comment_body }}`;
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' &&
+              c.body.includes('Performance Benchmark Results')
+            );
+
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body,
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body,
+              });
+            }
