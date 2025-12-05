@@ -14,9 +14,9 @@ export default defineConfig({
         src: './src/assets/pierre-logo.svg',
         alt: 'Pierre Fitness Intelligence',
       },
-      social: [
-        { icon: 'github', label: 'GitHub', href: 'https://github.com/Async-IO/pierre_mcp_server' },
-      ],
+      social: {
+        github: 'https://github.com/Async-IO/pierre_mcp_server',
+      },
       customCss: [
         './src/styles/pierre-theme.css',
       ],
@@ -39,9 +39,9 @@ export default defineConfig({
             fr: 'Demarrer',
           },
           items: [
-            { label: 'Overview', slug: 'docs/getting-started', translations: { fr: 'Vue d\'ensemble' } },
-            { label: 'Installation', slug: 'docs/installation-guides/install-mcp-client', translations: { fr: 'Installation' } },
-            { label: 'Configuration', slug: 'docs/configuration', translations: { fr: 'Configuration' } },
+            { label: 'Overview', slug: 'getting-started', translations: { fr: 'Vue d\'ensemble' } },
+            { label: 'Installation', slug: 'installation-guides/install-mcp-client', translations: { fr: 'Installation' } },
+            { label: 'Configuration', slug: 'configuration', translations: { fr: 'Configuration' } },
           ],
         },
         {
@@ -50,9 +50,9 @@ export default defineConfig({
             fr: 'Concepts Cles',
           },
           items: [
-            { label: 'Architecture', slug: 'docs/architecture', translations: { fr: 'Architecture' } },
-            { label: 'Protocols', slug: 'docs/protocols', translations: { fr: 'Protocoles' } },
-            { label: 'Authentication', slug: 'docs/authentication', translations: { fr: 'Authentification' } },
+            { label: 'Architecture', slug: 'architecture', translations: { fr: 'Architecture' } },
+            { label: 'Protocols', slug: 'protocols', translations: { fr: 'Protocoles' } },
+            { label: 'Authentication', slug: 'authentication', translations: { fr: 'Authentification' } },
           ],
         },
         {
@@ -61,8 +61,8 @@ export default defineConfig({
             fr: 'Intelligence',
           },
           items: [
-            { label: 'Methodology', slug: 'docs/intelligence-methodology', translations: { fr: 'Methodologie' } },
-            { label: 'Nutrition', slug: 'docs/nutrition-methodology', translations: { fr: 'Nutrition' } },
+            { label: 'Methodology', slug: 'intelligence-methodology', translations: { fr: 'Methodologie' } },
+            { label: 'Nutrition', slug: 'nutrition-methodology', translations: { fr: 'Nutrition' } },
           ],
         },
         {
@@ -71,10 +71,10 @@ export default defineConfig({
             fr: 'References',
           },
           items: [
-            { label: 'Tools Reference', slug: 'docs/tools-reference', translations: { fr: 'Reference des Outils' } },
-            { label: 'OAuth2 Server', slug: 'docs/oauth2-server', translations: { fr: 'Serveur OAuth2' } },
-            { label: 'OAuth Client', slug: 'docs/oauth-client', translations: { fr: 'Client OAuth' } },
-            { label: 'Provider Registration', slug: 'docs/provider-registration-guide', translations: { fr: 'Enregistrement des Fournisseurs' } },
+            { label: 'Tools Reference', slug: 'tools-reference', translations: { fr: 'Reference des Outils' } },
+            { label: 'OAuth2 Server', slug: 'oauth2-server', translations: { fr: 'Serveur OAuth2' } },
+            { label: 'OAuth Client', slug: 'oauth-client', translations: { fr: 'Client OAuth' } },
+            { label: 'Provider Registration', slug: 'provider-registration-guide', translations: { fr: 'Enregistrement des Fournisseurs' } },
           ],
         },
         {
@@ -83,12 +83,12 @@ export default defineConfig({
             fr: 'Developpement',
           },
           items: [
-            { label: 'Development Guide', slug: 'docs/development', translations: { fr: 'Guide de Developpement' } },
-            { label: 'Build', slug: 'docs/build', translations: { fr: 'Compilation' } },
-            { label: 'Testing', slug: 'docs/testing', translations: { fr: 'Tests' } },
-            { label: 'Testing Strategy', slug: 'docs/testing-strategy', translations: { fr: 'Strategie de Test' } },
-            { label: 'CI/CD', slug: 'docs/ci-cd', translations: { fr: 'CI/CD' } },
-            { label: 'Contributing', slug: 'docs/contributing', translations: { fr: 'Contribuer' } },
+            { label: 'Development Guide', slug: 'development', translations: { fr: 'Guide de Developpement' } },
+            { label: 'Build', slug: 'build', translations: { fr: 'Compilation' } },
+            { label: 'Testing', slug: 'testing', translations: { fr: 'Tests' } },
+            { label: 'Testing Strategy', slug: 'testing-strategy', translations: { fr: 'Strategie de Test' } },
+            { label: 'CI/CD', slug: 'ci-cd', translations: { fr: 'CI/CD' } },
+            { label: 'Contributing', slug: 'contributing', translations: { fr: 'Contribuer' } },
           ],
         },
       ],
