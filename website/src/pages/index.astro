@@ -462,13 +462,9 @@ import '../styles/global.css';
 
             <!-- Buttondown Signup Form -->
             <form
-                action="https://buttondown.com/api/emails/embed-subscribe/pierre-fitness"
-                method="post"
-                target="popupwindow"
-                onsubmit="window.open('https://buttondown.com/pierre-fitness', 'popupwindow')"
-                class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto mb-6"
+                id="early-access-form"
+                class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto mb-4"
             >
-                <input type="hidden" value="1" name="embed" />
                 <input
                     type="email"
                     name="email"
@@ -479,15 +475,17 @@ import '../styles/global.css';
                 />
                 <button
                     type="submit"
+                    id="submit-btn"
                     class="gradient-pierre px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity inline-flex items-center justify-center gap-2 whitespace-nowrap"
                 >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                     </svg>
-                    Join Waitlist
+                    <span id="btn-text">Join Waitlist</span>
                 </button>
             </form>
 
+            <p id="form-message" class="text-sm mb-2 h-6"></p>
             <p class="text-gray-500 text-sm">
                 No spam, ever. Unsubscribe anytime.
             </p>
@@ -588,6 +586,60 @@ import '../styles/global.css';
                 }
             });
         });
+    </script>
+
+    <!-- Early Access Form Submission -->
+    <script>
+        (function() {
+            const form = document.getElementById('early-access-form');
+            const emailInput = document.getElementById('bd-email');
+            const submitBtn = document.getElementById('submit-btn');
+            const btnText = document.getElementById('btn-text');
+            const message = document.getElementById('form-message');
+
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                const email = emailInput.value.trim();
+                if (!email) return;
+
+                // Show loading state
+                submitBtn.disabled = true;
+                btnText.textContent = 'Joining...';
+                message.textContent = '';
+                message.className = 'text-sm mb-2 h-6';
+
+                try {
+                    const formData = new FormData();
+                    formData.append('email', email);
+                    formData.append('embed', '1');
+
+                    const response = await fetch('https://buttondown.com/api/emails/embed-subscribe/pierrefitness', {
+                        method: 'POST',
+                        body: formData,
+                        mode: 'no-cors'
+                    });
+
+                    // With no-cors, we can't read the response, so assume success
+                    message.textContent = '✓ You\'re on the list! Check your email to confirm.';
+                    message.className = 'text-sm mb-2 h-6 text-emerald-400';
+                    emailInput.value = '';
+                    btnText.textContent = 'Joined!';
+
+                    // Reset button after 3 seconds
+                    setTimeout(() => {
+                        btnText.textContent = 'Join Waitlist';
+                        submitBtn.disabled = false;
+                    }, 3000);
+
+                } catch (error) {
+                    message.textContent = 'Something went wrong. Please try again.';
+                    message.className = 'text-sm mb-2 h-6 text-red-400';
+                    btnText.textContent = 'Join Waitlist';
+                    submitBtn.disabled = false;
+                }
+            });
+        })();
     </script>
 
     <!-- Announcement Banner Logic -->
