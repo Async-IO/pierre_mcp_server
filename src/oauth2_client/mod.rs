@@ -1,5 +1,5 @@
 // ABOUTME: OAuth 2.0 client implementation for connecting to fitness providers
-// ABOUTME: Provides OAuth flows for Strava, Fitbit, and Garmin with multi-tenant support
+// ABOUTME: Provides OAuth flows for Strava, Fitbit, Garmin, WHOOP, and Terra with multi-tenant support
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
@@ -7,7 +7,7 @@
 //! # OAuth 2.0 Client Module
 //!
 //! Pierre acts as an OAuth 2.0 client to connect to third-party fitness providers
-//! (Strava, Fitbit, Garmin) on behalf of users. This module handles:
+//! (Strava, Fitbit, Garmin, WHOOP, Terra) on behalf of users. This module handles:
 //! - OAuth 2.0 authorization flows with PKCE
 //! - Token management and automatic refresh
 //! - Multi-tenant credential isolation

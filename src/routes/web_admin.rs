@@ -11,8 +11,8 @@
 //! accept standard user authentication for users with `is_admin: true`.
 
 use crate::{
-    database_plugins::DatabaseProvider, errors::AppError, errors::ErrorCode,
-    mcp::resources::ServerResources, models::UserStatus,
+    database::CreateUserMcpTokenRequest, database_plugins::DatabaseProvider, errors::AppError,
+    errors::ErrorCode, mcp::resources::ServerResources, models::UserStatus,
 };
 use axum::{
     extract::{Path, Query, State},
@@ -140,6 +140,36 @@ struct UserStatusChangeUser {
 pub struct UserActivityQuery {
     /// Number of days to look back (default: 30)
     pub days: Option<u32>,
+}
+
+/// Auto-create a default MCP token for a newly activated user.
+/// This is a non-fatal operation - failure is logged but does not propagate.
+async fn create_default_mcp_token_for_user(database: &impl DatabaseProvider, user_id: uuid::Uuid) {
+    let token_request = CreateUserMcpTokenRequest {
+        name: "Default Token".to_owned(),
+        expires_in_days: None, // Never expires
+    };
+
+    match database
+        .create_user_mcp_token(user_id, &token_request)
+        .await
+    {
+        Ok(token_result) => {
+            tracing::info!(
+                user_id = %user_id,
+                token_id = %token_result.token.id,
+                "Auto-created default MCP token for user"
+            );
+        }
+        Err(e) => {
+            // Log error but don't fail - user can create token manually
+            tracing::warn!(
+                user_id = %user_id,
+                error = %e,
+                "Failed to auto-create MCP token for user (non-fatal)"
+            );
+        }
+    }
 }
 
 /// Web admin routes - accessible via browser for admin users
@@ -455,6 +485,9 @@ impl WebAdminRoutes {
                 tracing::error!(error = %e, "Failed to update user status in database");
                 AppError::internal(format!("Failed to approve user: {e}"))
             })?;
+
+        // Auto-create a default MCP token for the newly approved user
+        create_default_mcp_token_for_user(resources.database.as_ref(), user_uuid).await;
 
         let reason = request.reason.as_deref().unwrap_or("No reason provided");
         tracing::info!("User {} approved successfully. Reason: {}", user_id, reason);

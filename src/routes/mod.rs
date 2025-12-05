@@ -18,6 +18,8 @@ pub mod admin;
 pub mod api_keys;
 /// Authentication and authorization routes
 pub mod auth;
+/// Chat conversation routes for AI assistants
+pub mod chat;
 /// Configuration management routes
 pub mod configuration;
 /// Dashboard and monitoring routes
@@ -96,6 +98,8 @@ pub type OAuthRoutes = OAuthService;
 // Re-export new route handlers
 /// API key route handlers
 pub use api_keys::ApiKeyRoutes;
+/// Chat conversation route handlers
+pub use chat::ChatRoutes;
 /// Configuration route handlers
 pub use configuration::ConfigurationRoutes;
 /// Dashboard route handlers

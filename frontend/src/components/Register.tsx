@@ -89,8 +89,8 @@ export default function Register({ onNavigateToLogin, onRegistrationSuccess }: R
       const response = await apiService.register(email, password, displayName || undefined);
       onRegistrationSuccess(response.message);
     } catch (err: unknown) {
-      const apiError = err as { response?: { data?: { error?: string } } };
-      setError(apiError.response?.data?.error || 'Registration failed. Please try again.');
+      const apiError = err as { response?: { data?: { message?: string; error?: string } } };
+      setError(apiError.response?.data?.message || apiError.response?.data?.error || 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }

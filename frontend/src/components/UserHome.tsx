@@ -26,7 +26,7 @@ export default function UserHome({ onNavigate }: UserHomeProps) {
           </div>
           <div>
             <h1 className="text-2xl font-semibold text-pierre-gray-900">
-              Welcome back, {user?.display_name || user?.email?.split('@')[0]}!
+              Welcome!
             </h1>
             <p className="text-pierre-gray-600 mt-1">
               Manage your fitness connections and explore your data with AI.

@@ -9,7 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
 import type { AdminToken, AdminTokenAudit, AdminTokenUsageStats, ProvisionedKey } from '../types/api';
 
-interface AdminTokenDetailsProps {
+interface ApiKeyDetailsProps {
   token: AdminToken;
   onBack: () => void;
   onTokenUpdated: () => void;
@@ -45,9 +45,9 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <Card className="max-w-2xl mx-4 w-full">
-        <CardHeader 
-          title="🔄 Token Rotated Successfully" 
-          subtitle="Your new admin token is ready"
+        <CardHeader
+          title="🔄 API Token Rotated Successfully"
+          subtitle="Your new API token is ready"
         />
         
         <div className="space-y-6">
@@ -59,7 +59,7 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({
               <div>
                 <h4 className="font-medium text-pierre-yellow-800">Important Security Notice</h4>
                 <p className="text-sm text-pierre-yellow-700 mt-1">
-                  This is the only time the full token will be displayed. Please copy it now and store it securely. 
+                  This is the only time the full API token will be displayed. Please copy it now and store it securely.
                   The old token has been invalidated and will no longer work.
                 </p>
               </div>
@@ -67,7 +67,7 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({
           </div>
 
           <div>
-            <label className="label">New JWT Token</label>
+            <label className="label">New API Key</label>
             <div className="relative">
               <textarea
                 className="input-field font-mono text-xs resize-none"
@@ -114,7 +114,7 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({
 
           <div className="flex gap-3 pt-4 border-t border-pierre-gray-200">
             <Button onClick={onClose} className="flex-1">
-              I've Saved the Token Securely
+              I've Saved the API Token Securely
             </Button>
           </div>
         </div>
@@ -123,7 +123,7 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({
   );
 };
 
-export default function AdminTokenDetails({ token, onBack, onTokenUpdated }: AdminTokenDetailsProps) {
+export default function ApiKeyDetails({ token, onBack, onTokenUpdated }: ApiKeyDetailsProps) {
   const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const [showRotateModal, setShowRotateModal] = useState(false);
@@ -169,7 +169,7 @@ export default function AdminTokenDetails({ token, onBack, onTokenUpdated }: Adm
 
   const handleRevoke = () => {
     const confirmed = confirm(
-      `Are you sure you want to revoke the admin token for "${token.service_name}"? This action cannot be undone and will immediately disable all access using this token.`
+      `Are you sure you want to revoke the API token for "${token.service_name}"? This action cannot be undone and will immediately disable all access using this token.`
     );
     if (confirmed) {
       revokeTokenMutation.mutate();
@@ -178,7 +178,7 @@ export default function AdminTokenDetails({ token, onBack, onTokenUpdated }: Adm
 
   const handleRotate = () => {
     const confirmed = confirm(
-      `Are you sure you want to rotate the admin token for "${token.service_name}"? The current token will be invalidated and a new one will be generated.`
+      `Are you sure you want to rotate the API token for "${token.service_name}"? The current token will be invalidated and a new one will be generated.`
     );
     if (confirmed) {
       rotateTokenMutation.mutate();
@@ -224,9 +224,9 @@ export default function AdminTokenDetails({ token, onBack, onTokenUpdated }: Adm
 
       {/* Header */}
       <Card>
-        <CardHeader 
-          title={token.service_name} 
-          subtitle={`Admin Token • ${token.token_prefix}...`}
+        <CardHeader
+          title={token.service_name}
+          subtitle={`API Token • ${token.token_prefix}...`}
         >
           <div className="flex gap-3">
             <Button variant="secondary" onClick={onBack}>
@@ -242,14 +242,14 @@ export default function AdminTokenDetails({ token, onBack, onTokenUpdated }: Adm
                   onClick={handleRotate}
                   loading={rotateTokenMutation.isPending}
                 >
-                  🔄 Rotate Token
+                  🔄 Rotate Key
                 </Button>
                 <Button
                   variant="danger"
                   onClick={handleRevoke}
                   loading={revokeTokenMutation.isPending}
                 >
-                  Revoke Token
+                  Revoke Key
                 </Button>
               </>
             )}
@@ -286,9 +286,9 @@ export default function AdminTokenDetails({ token, onBack, onTokenUpdated }: Adm
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Token Information */}
+        {/* API Token Information */}
         <Card>
-          <CardHeader title="Token Information" />
+          <CardHeader title="API Token Information" />
           <div className="space-y-4">
             <div>
               <label className="label">Service Name</label>
@@ -303,7 +303,7 @@ export default function AdminTokenDetails({ token, onBack, onTokenUpdated }: Adm
             )}
 
             <div>
-              <label className="label">Token Prefix</label>
+              <label className="label">Key Prefix</label>
               <div className="text-sm font-mono text-pierre-gray-900">{token.token_prefix}...</div>
             </div>
 
@@ -390,7 +390,7 @@ export default function AdminTokenDetails({ token, onBack, onTokenUpdated }: Adm
         <CardHeader title={`Provisioned API Keys (${provisionedKeysData.length})`} />
         {provisionedKeysData.length === 0 ? (
           <div className="text-center py-8 text-pierre-gray-500">
-            No API keys have been provisioned using this token yet.
+            No user keys have been provisioned using this API token yet.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -435,7 +435,7 @@ export default function AdminTokenDetails({ token, onBack, onTokenUpdated }: Adm
           </div>
         ) : auditEntries.length === 0 ? (
           <div className="text-center py-8 text-pierre-gray-500">
-            No recent activity found for this token.
+            No recent activity found for this API token.
           </div>
         ) : (
           <div className="space-y-3">

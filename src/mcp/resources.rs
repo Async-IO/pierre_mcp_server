@@ -55,7 +55,7 @@ pub struct ServerResources {
     pub sse_manager: Arc<crate::sse::SseManager>,
     /// OAuth client for multi-tenant authentication flows
     pub tenant_oauth_client: Arc<TenantOAuthClient>,
-    /// Registry of fitness data providers (Strava, Fitbit, Garmin)
+    /// Registry of fitness data providers (Strava, Fitbit, Garmin, WHOOP, Terra)
     pub provider_registry: Arc<ProviderRegistry>,
     /// Secret key for admin JWT token generation
     pub admin_jwt_secret: Arc<str>,

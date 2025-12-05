@@ -93,7 +93,6 @@ Quick reference for navigating the Pierre codebase.
   - **UserManagement.tsx**: User approval and management
   - **A2AManagement.tsx**: Agent-to-Agent monitoring
   - **ApiKeyList.tsx**: API key management
-  - **AdminTokenList.tsx**: Admin token management
   - **UsageAnalytics.tsx**: Request patterns and metrics
   - **RequestMonitor.tsx**: Real-time request monitoring
   - **ToolUsageBreakdown.tsx**: Tool usage visualization

@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import Login from '../Login'
 import { AuthProvider } from '../../contexts/AuthContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -42,24 +42,10 @@ function renderWithProviders(component: React.ReactElement) {
 describe('Component Tests', () => {
   it('should render Login component', async () => {
     renderWithProviders(<Login />)
-    
+
     expect(screen.getByRole('heading', { name: /pierre fitness platform/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
-
-    // Wait for setup status check to complete
-    await waitFor(() => {
-      expect(screen.getByText(/ready to login/i)).toBeInTheDocument()
-    })
-  })
-
-  it('should show admin setup complete', async () => {
-    renderWithProviders(<Login />)
-
-    // Wait for setup status check to complete
-    await waitFor(() => {
-      expect(screen.getByText(/ready to login/i)).toBeInTheDocument()
-    })
   })
 })

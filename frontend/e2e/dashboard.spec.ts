@@ -269,14 +269,14 @@ test.describe('Dashboard User Profile', () => {
     await expect(page.getByText('User', { exact: true })).toBeVisible();
   });
 
-  test('shows welcome message with user name', async ({ page }) => {
+  test('shows user display name in header', async ({ page }) => {
     await setupFullDashboardMocks(page, { isAdmin: false });
     await loginAndGoToDashboard(page);
 
     await page.waitForSelector('nav', { timeout: 10000 });
 
-    // Welcome message in header
-    await expect(page.getByText(/Welcome back, Test Admin/)).toBeVisible();
+    // User display name should be visible in header
+    await expect(page.getByText('Test Admin')).toBeVisible();
   });
 
   test('logout button is visible and functional', async ({ page }) => {

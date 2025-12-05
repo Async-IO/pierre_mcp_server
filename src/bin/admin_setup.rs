@@ -32,6 +32,7 @@ use bcrypt::{hash, DEFAULT_COST};
 use clap::{Parser, Subcommand};
 use pierre_mcp_server::{
     admin::models::{CreateAdminTokenRequest, GeneratedAdminToken},
+    database::CreateUserMcpTokenRequest,
     database_plugins::factory::Database,
     database_plugins::DatabaseProvider,
     errors::AppError,
@@ -99,9 +100,9 @@ enum AdminCommand {
         #[arg(long)]
         password: String,
 
-        /// Admin display name
-        #[arg(long, default_value = "Pierre Admin")]
-        name: String,
+        /// Admin display name (defaults to email prefix if not specified)
+        #[arg(long)]
+        name: Option<String>,
 
         /// Force update if user already exists
         #[arg(long)]
@@ -222,7 +223,11 @@ async fn main() -> Result<()> {
             force,
             super_admin,
         } => {
-            create_admin_user_command(&database, email, password, name, force, super_admin).await?;
+            // Derive display name from email prefix if not provided
+            let display_name =
+                name.unwrap_or_else(|| email.split('@').next().unwrap_or("Admin").to_owned());
+            create_admin_user_command(&database, email, password, display_name, force, super_admin)
+                .await?;
         }
         AdminCommand::ListTokens {
             include_inactive,
@@ -765,6 +770,36 @@ fn display_existing_user_error(existing_user: &pierre_mcp_server::models::User) 
     );
 }
 
+/// Auto-create a default MCP token for a newly activated user.
+/// This is a non-fatal operation - failure is logged but does not propagate.
+async fn create_default_mcp_token_for_user(database: &Database, user_id: Uuid) {
+    let token_request = CreateUserMcpTokenRequest {
+        name: "Default Token".to_owned(),
+        expires_in_days: None, // Never expires
+    };
+
+    match database
+        .create_user_mcp_token(user_id, &token_request)
+        .await
+    {
+        Ok(token_result) => {
+            info!(
+                user_id = %user_id,
+                token_id = %token_result.token.id,
+                "Auto-created default MCP token for admin user"
+            );
+        }
+        Err(e) => {
+            // Log error but don't fail - user can create token manually
+            warn!(
+                user_id = %user_id,
+                error = %e,
+                "Failed to auto-create MCP token for admin user (non-fatal)"
+            );
+        }
+    }
+}
+
 async fn create_new_admin_user(
     database: &Database,
     email: &str,
@@ -801,6 +836,10 @@ async fn create_new_admin_user(
     };
 
     database.create_user(&new_user).await?;
+
+    // Auto-create a default MCP token for the admin user
+    create_default_mcp_token_for_user(database, new_user.id).await;
+
     Ok(())
 }
 

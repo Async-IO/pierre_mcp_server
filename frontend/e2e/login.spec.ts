@@ -39,8 +39,8 @@ test.describe('Login Page', () => {
     await expect(page.locator('input[name="password"]')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
 
-    // Check for setup status
-    await expect(page.getByText('Ready to Login')).toBeVisible();
+    // When admin exists, no status indicator is shown - the form itself is the indicator
+    await expect(page.getByText('Setup Required')).not.toBeVisible();
   });
 
   test('allows typing in email and password fields', async ({ page }) => {
@@ -300,7 +300,7 @@ test.describe('Login Page - Setup Status', () => {
     await expect(page.getByText('Create admin via POST /admin/setup')).toBeVisible();
   });
 
-  test('shows "Ready to Login" when admin user exists', async ({ page }) => {
+  test('shows no status indicator when admin user exists', async ({ page }) => {
     await page.route('**/admin/setup/status', async (route) => {
       await route.fulfill({
         status: 200,
@@ -315,8 +315,9 @@ test.describe('Login Page - Setup Status', () => {
     await page.goto('/');
     await page.waitForSelector('form');
 
-    await expect(page.getByText('Ready to Login')).toBeVisible();
-    await expect(page.getByText('Admin user configured')).toBeVisible();
+    // When system is ready, no status indicator is shown - the form is the indicator
+    await expect(page.getByText('Setup Required')).not.toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
   });
 
   test('shows setup required on setup status API error', async ({ page }) => {

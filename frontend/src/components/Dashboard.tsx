@@ -21,9 +21,10 @@ const UserManagement = lazy(() => import('./UserManagement'));
 const UserHome = lazy(() => import('./UserHome'));
 const UserSettings = lazy(() => import('./UserSettings'));
 const AdminSettings = lazy(() => import('./AdminSettings'));
-const AdminTokenList = lazy(() => import('./AdminTokenList'));
-const AdminTokenDetails = lazy(() => import('./AdminTokenDetails'));
+const ApiKeyList = lazy(() => import('./ApiKeyList'));
+const ApiKeyDetails = lazy(() => import('./ApiKeyDetails'));
 const MCPTokensTab = lazy(() => import('./MCPTokensTab'));
+const ChatTab = lazy(() => import('./ChatTab'));
 
 // Tab definition type with optional badge for notification counts
 interface TabDefinition {
@@ -157,6 +158,11 @@ export default function Dashboard() {
     { id: 'home', name: 'Home', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      </svg>
+    ) },
+    { id: 'chat', name: 'AI Chat', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
       </svg>
     ) },
     { id: 'connections', name: 'Connections', icon: (
@@ -422,6 +428,11 @@ export default function Dashboard() {
             <UserHome onNavigate={setActiveTab} />
           </Suspense>
         )}
+        {activeTab === 'chat' && (
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+            <ChatTab />
+          </Suspense>
+        )}
         {activeTab === 'settings' && (
           <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
             <UserSettings />
@@ -449,7 +460,7 @@ export default function Dashboard() {
           <div className="space-y-6">
             {selectedAdminToken ? (
               <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-                <AdminTokenDetails
+                <ApiKeyDetails
                   token={selectedAdminToken}
                   onBack={() => setSelectedAdminToken(null)}
                   onTokenUpdated={() => setSelectedAdminToken(null)}
@@ -458,13 +469,13 @@ export default function Dashboard() {
             ) : (
               <>
                 <Card>
-                  <h2 className="text-xl font-semibold mb-4">Admin Token Management</h2>
+                  <h2 className="text-xl font-semibold mb-4">API Key Management</h2>
                   <p className="text-pierre-gray-600 mb-4">
-                    Manage service tokens for API automation and administrative access. Only super admins can create, rotate, and revoke admin tokens.
+                    Manage API keys for MCP clients and programmatic access. Only super admins can create, rotate, and revoke API keys.
                   </p>
                 </Card>
                 <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-                  <AdminTokenList onViewDetails={setSelectedAdminToken} />
+                  <ApiKeyList onViewDetails={setSelectedAdminToken} />
                 </Suspense>
               </>
             )}

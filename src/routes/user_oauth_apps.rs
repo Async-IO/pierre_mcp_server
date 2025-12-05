@@ -83,11 +83,14 @@ impl UserOAuthAppRoutes {
     /// Create all user OAuth app routes
     pub fn routes(resources: Arc<ServerResources>) -> Router {
         Router::new()
-            .route("/users/oauth-apps", post(Self::handle_register_app))
-            .route("/users/oauth-apps", get(Self::handle_list_apps))
-            .route("/users/oauth-apps/{provider}", get(Self::handle_get_app))
+            .route("/api/users/oauth-apps", post(Self::handle_register_app))
+            .route("/api/users/oauth-apps", get(Self::handle_list_apps))
             .route(
-                "/users/oauth-apps/{provider}",
+                "/api/users/oauth-apps/{provider}",
+                get(Self::handle_get_app),
+            )
+            .route(
+                "/api/users/oauth-apps/{provider}",
                 delete(Self::handle_delete_app),
             )
             .with_state(resources)
@@ -107,19 +110,29 @@ impl UserOAuthAppRoutes {
         }
     }
 
-    /// Extract and authenticate user from authorization header
+    /// Extract and authenticate user from authorization header or cookie
     async fn authenticate(
         headers: &axum::http::HeaderMap,
         resources: &Arc<ServerResources>,
     ) -> Result<Uuid, AppError> {
-        let auth_header = headers
-            .get("authorization")
-            .and_then(|h| h.to_str().ok())
-            .ok_or_else(|| AppError::auth_invalid("Missing authorization header"))?;
+        // Try Authorization header first, then fall back to auth_token cookie
+        let auth_value =
+            if let Some(auth_header) = headers.get("authorization").and_then(|h| h.to_str().ok()) {
+                auth_header.to_owned()
+            } else if let Some(token) =
+                crate::security::cookies::get_cookie_value(headers, "auth_token")
+            {
+                // Fall back to auth_token cookie, format as Bearer token
+                format!("Bearer {token}")
+            } else {
+                return Err(AppError::auth_invalid(
+                    "Missing authorization header or cookie",
+                ));
+            };
 
         let auth_result = resources
             .auth_middleware
-            .authenticate_request(Some(auth_header))
+            .authenticate_request(Some(&auth_value))
             .await
             .map_err(|e| AppError::auth_invalid(format!("Authentication failed: {e}")))?;
 

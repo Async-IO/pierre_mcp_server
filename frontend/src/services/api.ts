@@ -615,6 +615,120 @@ class ApiService {
     const response = await axios.delete(`/api/user/mcp-tokens/${tokenId}`);
     return response.data;
   }
+
+  // Chat Conversations endpoints
+  async getConversations(limit: number = 50, offset: number = 0): Promise<{
+    conversations: Array<{
+      id: string;
+      title: string;
+      model: string;
+      system_prompt?: string;
+      total_tokens: number;
+      message_count: number;
+      created_at: string;
+      updated_at: string;
+    }>;
+    total: number;
+    limit: number;
+    offset: number;
+  }> {
+    const response = await axios.get(`/api/chat/conversations?limit=${limit}&offset=${offset}`);
+    return response.data;
+  }
+
+  async createConversation(data: {
+    title: string;
+    model?: string;
+    system_prompt?: string;
+  }): Promise<{
+    id: string;
+    title: string;
+    model: string;
+    system_prompt?: string;
+    total_tokens: number;
+    created_at: string;
+    updated_at: string;
+  }> {
+    const response = await axios.post('/api/chat/conversations', data);
+    return response.data;
+  }
+
+  async getConversation(conversationId: string): Promise<{
+    id: string;
+    title: string;
+    model: string;
+    system_prompt?: string;
+    total_tokens: number;
+    message_count: number;
+    created_at: string;
+    updated_at: string;
+  }> {
+    const response = await axios.get(`/api/chat/conversations/${conversationId}`);
+    return response.data;
+  }
+
+  async updateConversation(conversationId: string, data: {
+    title?: string;
+  }): Promise<{
+    id: string;
+    title: string;
+    model: string;
+    system_prompt?: string;
+    total_tokens: number;
+    created_at: string;
+    updated_at: string;
+  }> {
+    const response = await axios.put(`/api/chat/conversations/${conversationId}`, data);
+    return response.data;
+  }
+
+  async deleteConversation(conversationId: string): Promise<void> {
+    await axios.delete(`/api/chat/conversations/${conversationId}`);
+  }
+
+  async getConversationMessages(conversationId: string): Promise<{
+    messages: Array<{
+      id: string;
+      role: 'user' | 'assistant' | 'system';
+      content: string;
+      token_count?: number;
+      created_at: string;
+    }>;
+  }> {
+    const response = await axios.get(`/api/chat/conversations/${conversationId}/messages`);
+    return response.data;
+  }
+
+  // User OAuth App Credentials endpoints
+  async getUserOAuthApps(): Promise<{
+    apps: Array<{
+      provider: string;
+      client_id: string;
+      redirect_uri: string;
+      created_at: string;
+    }>;
+  }> {
+    const response = await axios.get('/api/users/oauth-apps');
+    return response.data;
+  }
+
+  async registerUserOAuthApp(data: {
+    provider: string;
+    client_id: string;
+    client_secret: string;
+    redirect_uri: string;
+  }): Promise<{
+    success: boolean;
+    provider: string;
+    message: string;
+  }> {
+    const response = await axios.post('/api/users/oauth-apps', data);
+    return response.data;
+  }
+
+  async deleteUserOAuthApp(provider: string): Promise<void> {
+    await axios.delete(`/api/users/oauth-apps/${provider}`);
+  }
 }
 
 export const apiService = new ApiService();

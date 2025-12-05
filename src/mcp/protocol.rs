@@ -566,7 +566,7 @@ impl ProtocolHandler {
                 }
 
                 if req.argument.name == "provider" {
-                    let providers = ["strava", "fitbit", "garmin"];
+                    let providers = ["strava", "fitbit", "garmin", "whoop", "terra"];
                     let matching: Vec<String> = providers
                         .iter()
                         .filter(|p| p.starts_with(&req.argument.value))

@@ -135,7 +135,7 @@ glob = "0.3"
 # Regex for PII redaction and pattern matching
 regex = "1.11"
 # Bitflags for PII redaction feature configuration
-bitflags = "2.6"
+bitflags = { version = "2.6", features = ["serde"] }
 # Cross-platform system information without unsafe FFI
 sysinfo = "0.31"
 # Redis client with connection pooling and async support

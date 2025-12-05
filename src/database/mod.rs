@@ -12,6 +12,8 @@ pub mod admin;
 pub mod analytics;
 /// API key management and validation
 pub mod api_keys;
+/// Chat conversation and message storage
+pub mod chat;
 /// Database error types
 pub mod errors;
 /// User fitness configuration storage and retrieval
@@ -33,6 +35,7 @@ pub mod users;
 pub mod test_utils;
 
 pub use a2a::{A2AUsage, A2AUsageStats};
+pub use chat::{ChatManager, ConversationRecord, ConversationSummary, MessageRecord};
 pub use errors::{DatabaseError, DatabaseResult};
 pub use user_mcp_tokens::{
     CreateUserMcpTokenRequest, UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,

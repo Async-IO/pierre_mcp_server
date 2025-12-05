@@ -4,16 +4,14 @@
 import { useState } from 'react';
 import { Button } from './ui';
 import { useAuth } from '../hooks/useAuth';
-import ApiKeyList from './ApiKeyList';
-import CreateApiKey from './CreateApiKey';
 import A2AClientList from './A2AClientList';
 import CreateA2AClient from './CreateA2AClient';
-import AdminTokenList from './AdminTokenList';
-import CreateAdminToken from './CreateAdminToken';
-import AdminTokenDetails from './AdminTokenDetails';
+import ApiKeyList from './ApiKeyList';
+import CreateApiKey from './CreateApiKey';
+import ApiKeyDetails from './ApiKeyDetails';
 import type { AdminToken, CreateAdminTokenResponse } from '../types/api';
 
-type ConnectionType = 'api-keys' | 'oauth-apps' | 'admin-tokens';
+type ConnectionType = 'oauth-apps' | 'api-keys';
 type View = 'overview' | 'create' | 'details';
 
 interface TokenSuccessModalProps {
@@ -42,10 +40,10 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({ isOpen, onClose, 
       <div className="bg-white rounded-lg shadow-xl max-w-2xl mx-4 w-full p-6">
         <div className="mb-6">
           <h3 className="text-lg font-semibold text-pierre-gray-900">
-            🎉 Admin Token Generated Successfully
+            🎉 API Token Generated Successfully
           </h3>
           <p className="text-pierre-gray-600 mt-1">
-            Your new admin token is ready for use
+            Your new API token is ready for use
           </p>
         </div>
         
@@ -111,42 +109,42 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({ isOpen, onClose, 
 
 export default function UnifiedConnections() {
   const { user } = useAuth();
-  const [activeConnectionType, setActiveConnectionType] = useState<ConnectionType>('api-keys');
+  const [activeConnectionType, setActiveConnectionType] = useState<ConnectionType>(user?.is_admin ? 'api-keys' : 'oauth-apps');
   const [activeView, setActiveView] = useState<View>('overview');
   const [selectedToken, setSelectedToken] = useState<AdminToken | null>(null);
   const [showTokenSuccess, setShowTokenSuccess] = useState(false);
   const [tokenResponse, setTokenResponse] = useState<CreateAdminTokenResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Helper descriptions for each connection type
+  const getTabDescription = () => {
+    switch (activeConnectionType) {
+      case 'api-keys':
+        return 'Service tokens for scripts, CI/CD pipelines, and automated tools to access Pierre programmatically.';
+      case 'oauth-apps':
+        return 'Third-party applications authorized to access your fitness data via OAuth.';
+      default:
+        return '';
+    }
+  };
+
   const renderTabs = () => (
-    <div className="border-b border-pierre-gray-200 mb-8">
+    <div className="border-b border-pierre-gray-200 mb-6">
       <nav className="-mb-px flex space-x-8">
         {user?.is_admin && (
           <button
-            className={`tab ${activeConnectionType === 'admin-tokens' ? 'tab-active' : ''}`}
+            className={`tab ${activeConnectionType === 'api-keys' ? 'tab-active' : ''}`}
             onClick={() => {
-              setActiveConnectionType('admin-tokens');
+              setActiveConnectionType('api-keys');
               setActiveView('overview');
               setSelectedToken(null);
               setErrorMessage(null);
             }}
           >
-            <span>🛡️</span>
-            <span>Admin Tokens</span>
+            <span>🔑</span>
+            <span>API Tokens</span>
           </button>
         )}
-        <button
-          className={`tab ${activeConnectionType === 'api-keys' ? 'tab-active' : ''}`}
-          onClick={() => {
-            setActiveConnectionType('api-keys');
-            setActiveView('overview');
-            setSelectedToken(null);
-            setErrorMessage(null);
-          }}
-        >
-          <span>🔑</span>
-          <span>API Keys</span>
-        </button>
         <button
           className={`tab ${activeConnectionType === 'oauth-apps' ? 'tab-active' : ''}`}
           onClick={() => {
@@ -160,6 +158,7 @@ export default function UnifiedConnections() {
           <span>Connected Apps</span>
         </button>
       </nav>
+      <p className="text-sm text-pierre-gray-500 mt-3 mb-2">{getTabDescription()}</p>
     </div>
   );
 
@@ -178,7 +177,7 @@ export default function UnifiedConnections() {
     // Details view for admin tokens
     if (activeView === 'details' && selectedToken) {
       return (
-        <AdminTokenDetails
+        <ApiKeyDetails
           token={selectedToken}
           onBack={() => {
             setActiveView('overview');
@@ -193,27 +192,12 @@ export default function UnifiedConnections() {
 
     // Create views
     if (activeView === 'create') {
-      if (activeConnectionType === 'admin-tokens') {
+      if (activeConnectionType === 'api-keys') {
         return (
-          <CreateAdminToken
+          <CreateApiKey
             onBack={() => setActiveView('overview')}
             onTokenCreated={handleTokenCreated}
           />
-        );
-      } else if (activeConnectionType === 'api-keys') {
-        return (
-          <div>
-            <div className="mb-6">
-              <Button
-                variant="secondary"
-                onClick={() => setActiveView('overview')}
-                size="sm"
-              >
-                ← Back to API Keys
-              </Button>
-            </div>
-            <CreateApiKey />
-          </div>
         );
       } else {
         return (
@@ -237,7 +221,7 @@ export default function UnifiedConnections() {
     }
 
     // Overview content
-    if (activeConnectionType === 'admin-tokens') {
+    if (activeConnectionType === 'api-keys') {
       return (
         <div>
           <div className="flex items-start mb-6">
@@ -246,31 +230,16 @@ export default function UnifiedConnections() {
               className="flex items-center space-x-2"
             >
               <span>+</span>
-              <span>Create Token</span>
+              <span>Create API Token</span>
             </Button>
           </div>
-          <AdminTokenList
+          <ApiKeyList
             onViewDetails={(token) => {
               setSelectedToken(token);
               setActiveView('details');
               setErrorMessage(null);
             }}
           />
-        </div>
-      );
-    } else if (activeConnectionType === 'api-keys') {
-      return (
-        <div>
-          <div className="flex items-start mb-6">
-            <Button
-              onClick={() => setActiveView('create')}
-              className="flex items-center space-x-2"
-            >
-              <span>+</span>
-              <span>Create API Key</span>
-            </Button>
-          </div>
-          <ApiKeyList />
         </div>
       );
     }
