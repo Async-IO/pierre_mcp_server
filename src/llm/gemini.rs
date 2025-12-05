@@ -24,15 +24,17 @@
 //!
 //! ```rust,no_run
 //! use pierre_mcp_server::llm::{GeminiProvider, LlmProvider, ChatRequest, ChatMessage};
+//! use pierre_mcp_server::errors::AppError;
 //!
 //! #[tokio::main]
-//! async fn main() {
-//!     let provider = GeminiProvider::from_env().expect("GEMINI_API_KEY not set");
+//! async fn main() -> Result<(), AppError> {
+//!     let provider = GeminiProvider::from_env()?;
 //!     let request = ChatRequest::new(vec![
 //!         ChatMessage::user("What is machine learning?"),
 //!     ]);
-//!     let response = provider.complete(&request).await.expect("API call failed");
+//!     let response = provider.complete(&request).await?;
 //!     println!("{}", response.content);
+//!     Ok(())
 //! }
 //! ```
 
