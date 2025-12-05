@@ -14,9 +14,9 @@ export default defineConfig({
         src: './src/assets/pierre-logo.svg',
         alt: 'Pierre Fitness Intelligence',
       },
-      social: {
-        github: 'https://github.com/Async-IO/pierre_mcp_server',
-      },
+      social: [
+        { icon: 'github', label: 'GitHub', href: 'https://github.com/Async-IO/pierre_mcp_server' },
+      ],
       customCss: [
         './src/styles/pierre-theme.css',
       ],
