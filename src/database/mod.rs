@@ -22,6 +22,8 @@ pub mod fitness_configurations;
 pub mod impersonation;
 /// OAuth callback notification handling
 pub mod oauth_notifications;
+/// Recipe storage and management for nutrition planning
+pub mod recipes;
 /// System settings for admin-configurable options
 pub mod system_settings;
 /// User MCP token management for AI client authentication
