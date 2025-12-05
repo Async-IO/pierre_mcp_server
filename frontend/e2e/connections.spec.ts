@@ -277,9 +277,9 @@ test.describe('Connections Tab - API Tokens', () => {
     // Click on API Tokens tab first
     await page.locator('.tab').getByText('API Tokens').click();
     await page.waitForTimeout(300);
-    // Check for service names (from AdminToken.service_name)
-    await expect(page.getByText('Production Service')).toBeVisible();
-    await expect(page.getByText('Development Service')).toBeVisible();
+    // Check for service names (from AdminToken.service_name) - use heading role to avoid matching descriptions
+    await expect(page.getByRole('heading', { name: 'Production Service' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Development Service' })).toBeVisible();
 
     // Check for status badges
     await expect(page.getByText('Active').first()).toBeVisible();
@@ -292,9 +292,9 @@ test.describe('Connections Tab - API Tokens', () => {
     // Click on API Tokens tab first
     await page.locator('.tab').getByText('API Tokens').click();
     await page.waitForTimeout(300);
-    // Initially showing active tokens
-    await expect(page.getByText('Production Service')).toBeVisible();
-    await expect(page.getByText('Development Service')).toBeVisible();
+    // Initially showing active tokens - use heading role to avoid matching descriptions
+    await expect(page.getByRole('heading', { name: 'Production Service' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Development Service' })).toBeVisible();
 
     // Click on Inactive filter
     const inactiveFilter = page.getByRole('button', { name: /Inactive/i });
@@ -303,7 +303,7 @@ test.describe('Connections Tab - API Tokens', () => {
       await page.waitForTimeout(300);
 
       // Should show inactive token
-      await expect(page.getByText('Legacy Service')).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Legacy Service' })).toBeVisible();
     }
 
     // Click on All filter
@@ -312,9 +312,9 @@ test.describe('Connections Tab - API Tokens', () => {
       await allFilter.click();
       await page.waitForTimeout(300);
 
-      // Should show all tokens
-      await expect(page.getByText('Production Service')).toBeVisible();
-      await expect(page.getByText('Legacy Service')).toBeVisible();
+      // Should show all tokens - use heading role to avoid matching descriptions
+      await expect(page.getByRole('heading', { name: 'Production Service' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Legacy Service' })).toBeVisible();
     }
   });
 
@@ -359,8 +359,8 @@ test.describe('Connections Tab - API Tokens', () => {
     await page.getByRole('button', { name: /Revoke/i }).first().click();
     await page.waitForTimeout(300);
 
-    // Should show confirmation dialog
-    await expect(page.getByText(/Revoke.*API Token/i)).toBeVisible();
+    // Should show confirmation dialog - use heading role to avoid matching multiple elements
+    await expect(page.getByRole('heading', { name: 'Revoke API Token' })).toBeVisible();
     await expect(page.getByText(/Are you sure you want to revoke/)).toBeVisible();
     await expect(page.getByRole('button', { name: /Cancel/i })).toBeVisible();
   });
@@ -375,8 +375,8 @@ test.describe('Connections Tab - API Tokens', () => {
     await page.getByRole('button', { name: /Cancel/i }).click();
     await page.waitForTimeout(300);
 
-    // Dialog should be closed
-    await expect(page.getByText(/Revoke.*API Token/i)).not.toBeVisible();
+    // Dialog should be closed - use heading role to avoid matching multiple elements
+    await expect(page.getByRole('heading', { name: 'Revoke API Token' })).not.toBeVisible();
   });
 
   test('displays usage information', async ({ page }) => {
