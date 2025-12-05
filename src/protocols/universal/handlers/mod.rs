@@ -18,6 +18,8 @@ pub mod intelligence;
 pub mod nutrition;
 /// Shared provider helper functions
 pub mod provider_helpers;
+/// Recipe management tool handlers ("Combat des Chefs" architecture)
+pub mod recipes;
 /// Sleep quality and recovery analysis tool handlers
 pub mod sleep_recovery;
 
@@ -85,4 +87,10 @@ pub use nutrition::{
 /// Re-export fitness provider API integration handlers (provider-agnostic)
 pub use fitness_api::{
     handle_analyze_activity, handle_get_activities, handle_get_athlete, handle_get_stats,
+};
+
+/// Re-export recipe management handlers
+pub use recipes::{
+    handle_delete_recipe, handle_get_recipe, handle_get_recipe_constraints, handle_list_recipes,
+    handle_save_recipe, handle_search_recipes, handle_validate_recipe,
 };

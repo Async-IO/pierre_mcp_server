@@ -118,6 +118,22 @@ pub enum ToolId {
     GetFoodDetails,
     /// Analyze total calories and macronutrients for a meal of multiple foods
     AnalyzeMealNutrition,
+
+    // Recipe management tools ("Combat des Chefs" architecture)
+    /// Get macro targets and constraints for LLM recipe generation
+    GetRecipeConstraints,
+    /// Validate a recipe's nutrition against USDA database
+    ValidateRecipe,
+    /// Save a validated recipe to user's collection
+    SaveRecipe,
+    /// List user's saved recipes with optional filtering
+    ListRecipes,
+    /// Get a specific recipe by ID
+    GetRecipe,
+    /// Delete a recipe from user's collection
+    DeleteRecipe,
+    /// Search user's recipes by name, tags, or description
+    SearchRecipes,
 }
 
 impl ToolId {
@@ -171,6 +187,14 @@ impl ToolId {
             "search_food" => Some(Self::SearchFood),
             "get_food_details" => Some(Self::GetFoodDetails),
             "analyze_meal_nutrition" => Some(Self::AnalyzeMealNutrition),
+            // Recipe management tools
+            "get_recipe_constraints" => Some(Self::GetRecipeConstraints),
+            "validate_recipe" => Some(Self::ValidateRecipe),
+            "save_recipe" => Some(Self::SaveRecipe),
+            "list_recipes" => Some(Self::ListRecipes),
+            "get_recipe" => Some(Self::GetRecipe),
+            "delete_recipe" => Some(Self::DeleteRecipe),
+            "search_recipes" => Some(Self::SearchRecipes),
             _ => None,
         }
     }
@@ -224,6 +248,14 @@ impl ToolId {
             Self::SearchFood => "search_food",
             Self::GetFoodDetails => "get_food_details",
             Self::AnalyzeMealNutrition => "analyze_meal_nutrition",
+            // Recipe management tools
+            Self::GetRecipeConstraints => "get_recipe_constraints",
+            Self::ValidateRecipe => "validate_recipe",
+            Self::SaveRecipe => "save_recipe",
+            Self::ListRecipes => "list_recipes",
+            Self::GetRecipe => "get_recipe",
+            Self::DeleteRecipe => "delete_recipe",
+            Self::SearchRecipes => "search_recipes",
         }
     }
 
@@ -314,6 +346,14 @@ impl ToolId {
             Self::AnalyzeMealNutrition => {
                 "Analyze total calories and macronutrients for a meal composed of multiple USDA foods"
             }
+            // Recipe management tools ("Combat des Chefs" architecture)
+            Self::GetRecipeConstraints => "Get macro targets for LLM recipe generation by training phase",
+            Self::ValidateRecipe => "Validate recipe nutrition against USDA and calculate macros",
+            Self::SaveRecipe => "Save validated recipe with cached nutrition data",
+            Self::ListRecipes => "List saved recipes with optional meal timing filter",
+            Self::GetRecipe => "Get a specific recipe by ID",
+            Self::DeleteRecipe => "Delete a recipe from collection",
+            Self::SearchRecipes => "Search recipes by name, tags, or description"
         }
     }
 
