@@ -209,16 +209,8 @@ async function setupConnectionsMocks(page: Page, options: { isAdmin?: boolean } 
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          tokens: [
-            {
-              id: 'token-1',
-              service_name: 'Admin Console',
-              token_prefix: 'adm_',
-              is_active: true,
-              created_at: '2024-01-01T00:00:00Z',
-            },
-          ],
-          total: 1,
+          admin_tokens: sampleAdminTokens,
+          total_count: sampleAdminTokens.length,
         }),
       });
     } else {
