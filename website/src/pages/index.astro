@@ -447,26 +447,80 @@ import '../styles/global.css';
 
     <!-- Early Access Section -->
     <section id="early-access" class="py-20 px-4 bg-[#1E1E2E]/50">
-        <div class="max-w-7xl mx-auto text-center">
+        <div class="max-w-3xl mx-auto text-center">
+            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-400 text-sm font-medium mb-6">
+                <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-violet-500"></span>
+                </span>
+                Coming Soon
+            </div>
             <h2 class="text-3xl sm:text-4xl font-bold mb-4">Get Early Access</h2>
             <p class="text-gray-300 max-w-2xl mx-auto mb-8">
                 Pierre Fitness Intelligence is launching soon. Be the first to know when we go live and help shape the future of fitness insights.
             </p>
-            <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="#features"
-                   class="gradient-pierre px-8 py-3 rounded-lg font-semibold text-lg hover:opacity-90 transition-opacity inline-flex items-center justify-center gap-2">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                    </svg>
-                    Join the Waitlist
-                </a>
-                <a href="#how-it-works"
-                   class="px-8 py-3 rounded-lg font-semibold text-lg border border-white/20 hover:bg-white/5 transition-colors inline-flex items-center justify-center gap-2">
+
+            <!-- Buttondown Signup Form -->
+            <form
+                action="https://buttondown.com/api/emails/embed-subscribe/pierre-fitness"
+                method="post"
+                target="popupwindow"
+                onsubmit="window.open('https://buttondown.com/pierre-fitness', 'popupwindow')"
+                class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto mb-6"
+            >
+                <input type="hidden" value="1" name="embed" />
+                <input
+                    type="email"
+                    name="email"
+                    id="bd-email"
+                    placeholder="you@example.com"
+                    required
+                    class="flex-1 px-4 py-3 rounded-lg bg-[#0F0F1A] border border-white/20 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
+                />
+                <button
+                    type="submit"
+                    class="gradient-pierre px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity inline-flex items-center justify-center gap-2 whitespace-nowrap"
+                >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                     </svg>
-                    Learn More
-                </a>
+                    Join Waitlist
+                </button>
+            </form>
+
+            <p class="text-gray-500 text-sm">
+                No spam, ever. Unsubscribe anytime.
+            </p>
+
+            <!-- Benefits -->
+            <div class="mt-12 grid sm:grid-cols-3 gap-6 text-left">
+                <div class="bg-[#0F0F1A] rounded-lg p-5 border border-white/5">
+                    <div class="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center mb-3">
+                        <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <h3 class="font-semibold mb-1">Early Access</h3>
+                    <p class="text-gray-400 text-sm">Be among the first to try Pierre before public launch.</p>
+                </div>
+                <div class="bg-[#0F0F1A] rounded-lg p-5 border border-white/5">
+                    <div class="w-10 h-10 rounded-lg bg-violet-600/20 flex items-center justify-center mb-3">
+                        <svg class="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                        </svg>
+                    </div>
+                    <h3 class="font-semibold mb-1">Shape the Product</h3>
+                    <p class="text-gray-400 text-sm">Your feedback will directly influence features and direction.</p>
+                </div>
+                <div class="bg-[#0F0F1A] rounded-lg p-5 border border-white/5">
+                    <div class="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center mb-3">
+                        <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
+                        </svg>
+                    </div>
+                    <h3 class="font-semibold mb-1">Exclusive Updates</h3>
+                    <p class="text-gray-400 text-sm">Get development updates and behind-the-scenes insights.</p>
+                </div>
             </div>
         </div>
     </section>
