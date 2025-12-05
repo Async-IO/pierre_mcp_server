@@ -87,6 +87,8 @@ pub struct ServerResources {
     pub progress_notification_sender: Option<mpsc::UnboundedSender<ProgressNotification>>,
     /// Cancellation token registry for progress token -> cancellation token mapping
     pub cancellation_registry: Arc<RwLock<HashMap<String, CancellationToken>>>,
+    /// Firebase Authentication handler for social login (Google, Apple, etc.)
+    pub firebase_auth: Option<Arc<crate::admin::FirebaseAuth>>,
 }
 
 impl ServerResources {
@@ -196,6 +198,15 @@ impl ServerResources {
         let csrf_middleware =
             Arc::new(crate::middleware::CsrfMiddleware::new(csrf_manager.clone()));
 
+        // Create Firebase auth handler if configured
+        let firebase_auth = if config.firebase.is_configured() {
+            Some(Arc::new(crate::admin::FirebaseAuth::new(
+                config.firebase.clone(),
+            )))
+        } else {
+            None
+        };
+
         Self {
             database: database_arc,
             auth_manager: auth_manager_arc,
@@ -220,6 +231,7 @@ impl ServerResources {
             sampling_peer: None,
             progress_notification_sender: None,
             cancellation_registry: Arc::new(RwLock::new(HashMap::new())),
+            firebase_auth,
         }
     }
 

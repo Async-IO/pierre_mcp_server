@@ -112,6 +112,8 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
         approved_at: None,
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     let user_id = database.create_user(&test_user).await?;
@@ -490,6 +492,8 @@ async fn create_test_pending_user(database: &Database) -> Result<uuid::Uuid> {
         role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     database.create_user(&test_user).await?;
     Ok(test_user_id)

@@ -204,6 +204,7 @@ async fn test_register_user() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -371,6 +372,7 @@ async fn test_register_duplicate_user() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(

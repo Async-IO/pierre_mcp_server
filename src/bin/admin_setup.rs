@@ -748,6 +748,8 @@ async fn update_existing_admin_user(
         approved_at: existing_user.approved_at,
         created_at: existing_user.created_at,
         last_active: chrono::Utc::now(),
+        firebase_uid: existing_user.firebase_uid,
+        auth_provider: existing_user.auth_provider,
     };
 
     database.create_user(&updated_user).await?;
@@ -833,6 +835,8 @@ async fn create_new_admin_user(
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: "email".to_owned(),
     };
 
     database.create_user(&new_user).await?;

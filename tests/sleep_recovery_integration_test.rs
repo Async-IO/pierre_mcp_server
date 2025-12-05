@@ -174,6 +174,7 @@ fn create_test_config() -> Arc<ServerConfig> {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     })
 }
 

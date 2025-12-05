@@ -188,6 +188,7 @@ async fn test_oauth_authorization_url_generation() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -231,6 +232,8 @@ async fn test_oauth_authorization_url_generation() {
         role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     let admin_id = database.create_user(&admin_user).await.unwrap();
 
@@ -470,6 +473,7 @@ async fn test_oauth_state_validation() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -656,6 +660,7 @@ async fn test_connection_status_no_providers() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let user_id = Uuid::new_v4();
@@ -678,6 +683,8 @@ async fn test_connection_status_no_providers() {
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     database.create_user(&user).await.unwrap();
 
@@ -873,6 +880,7 @@ async fn test_invalid_provider_error() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -1055,6 +1063,7 @@ async fn test_disconnect_provider() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -1093,6 +1102,8 @@ async fn test_disconnect_provider() {
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     server_context
         .data()
@@ -1154,6 +1165,8 @@ async fn test_oauth_urls_contain_required_parameters() {
         role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     let admin_id = database.create_user(&admin_user).await.unwrap();
 
@@ -1331,6 +1344,7 @@ async fn test_oauth_urls_contain_required_parameters() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(

@@ -65,6 +65,8 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
         role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     let admin_id = database.create_user(&admin_user).await?;
 
@@ -244,6 +246,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthService, OAuthSe
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache_config = pierre_mcp_server::cache::CacheConfig {

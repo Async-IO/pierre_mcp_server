@@ -1172,6 +1172,10 @@ pub struct User {
     pub approved_by: Option<Uuid>,
     /// When the user was approved by admin
     pub approved_at: Option<DateTime<Utc>>,
+    /// Firebase UID if user authenticated via Firebase (Google, Apple, etc.)
+    pub firebase_uid: Option<String>,
+    /// Authentication provider: "email", "google.com", "apple.com", "github.com"
+    pub auth_provider: String,
 }
 
 /// User physiological profile for personalized analysis
@@ -1492,6 +1496,8 @@ impl User {
             role: crate::permissions::UserRole::User, // Default to regular user
             approved_by: None,
             approved_at: None,
+            firebase_uid: None, // No Firebase UID for email/password users
+            auth_provider: "email".to_owned(), // Default to email provider
         }
     }
 

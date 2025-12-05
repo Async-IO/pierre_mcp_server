@@ -86,6 +86,8 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         role: pierre_mcp_server::permissions::UserRole::Admin,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     let beta_admin = User {
@@ -105,6 +107,8 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         role: pierre_mcp_server::permissions::UserRole::Admin,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     database.create_user(&acme_admin).await?;
@@ -402,6 +406,8 @@ async fn setup_multitenant_scenario(database: &Arc<Database>) -> Result<(Uuid, U
         role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     database.create_user(&user).await?;

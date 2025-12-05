@@ -105,6 +105,8 @@ async fn create_test_oauth_routes() -> Result<(OAuthService, Uuid, Arc<Database>
         role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     let admin_id = database.create_user(&admin_user).await?;
 
@@ -285,6 +287,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthService, Uuid, Arc<Database>
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -567,6 +570,7 @@ async fn test_user_login_success() -> Result<()> {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -846,6 +850,7 @@ async fn test_token_refresh_success() -> Result<()> {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1073,6 +1078,7 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1219,6 +1225,8 @@ async fn test_oauth_connection_status_no_connections() -> Result<()> {
         role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     database.create_user(&user).await?;
 
@@ -1260,6 +1268,8 @@ async fn test_oauth_disconnect_provider_success() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     database.create_user(&user).await?;
 
@@ -1295,6 +1305,8 @@ async fn test_oauth_disconnect_invalid_provider() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     database.create_user(&user).await?;
 
@@ -1551,6 +1563,7 @@ async fn test_complete_auth_flow() -> Result<()> {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1636,6 +1649,8 @@ async fn test_complete_auth_flow() -> Result<()> {
         role: pierre_mcp_server::permissions::UserRole::Admin,
         approved_by: None,
         approved_at: None,
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     let admin_id = database.create_user(&admin_user).await?;
 
@@ -1855,6 +1870,7 @@ async fn test_concurrent_logins() -> Result<()> {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();

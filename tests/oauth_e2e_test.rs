@@ -321,6 +321,7 @@ async fn test_oauth_flow_through_mcp() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     // Create server instance
@@ -438,6 +439,8 @@ async fn test_oauth_callback_error_handling() {
         role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     let admin_id = database.create_user(&admin_user).await.unwrap();
 
@@ -472,6 +475,8 @@ async fn test_oauth_callback_error_handling() {
         role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     let test_user_id = database.create_user(&test_user).await.unwrap();
 
@@ -612,6 +617,7 @@ async fn test_oauth_callback_error_handling() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -700,6 +706,8 @@ async fn test_oauth_state_csrf_protection() {
         role: pierre_mcp_server::permissions::UserRole::User,
         approved_by: None,
         approved_at: None,
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     let admin_id = database.create_user(&admin_user).await.unwrap();
 
@@ -869,6 +877,7 @@ async fn test_oauth_state_csrf_protection() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1046,6 +1055,7 @@ async fn test_connection_status_tracking() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();

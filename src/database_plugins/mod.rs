@@ -65,6 +65,9 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Get user by email (required - fails if not found)
     async fn get_user_by_email_required(&self, email: &str) -> AppResult<User>;
 
+    /// Get user by Firebase UID
+    async fn get_user_by_firebase_uid(&self, firebase_uid: &str) -> AppResult<Option<User>>;
+
     /// Update user's last active timestamp
     async fn update_last_active(&self, user_id: Uuid) -> AppResult<()>;
 

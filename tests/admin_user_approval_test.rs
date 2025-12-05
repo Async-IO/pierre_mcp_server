@@ -76,6 +76,8 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
         approved_at: None,
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     let admin_user_id = admin_user.id;
     database.create_user(&admin_user).await?;
@@ -122,6 +124,8 @@ async fn test_get_pending_users() -> Result<()> {
         approved_at: None,
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     database.create_user(&pending_user).await?;
 
@@ -142,6 +146,8 @@ async fn test_get_pending_users() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     database.create_user(&active_user).await?;
 
@@ -179,6 +185,8 @@ async fn test_approve_user() -> Result<()> {
         approved_at: None,
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     let user_id = pending_user.id;
     database.create_user(&pending_user).await?;
@@ -209,6 +217,8 @@ async fn test_approve_user() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     // This should succeed since the admin user exists
@@ -249,6 +259,8 @@ async fn test_suspend_user() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     let user_id = user.id;
     database.create_user(&user).await?;
@@ -291,6 +303,8 @@ async fn test_user_status_transitions() -> Result<()> {
         approved_at: None,
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     let user_id = user.id;
     database.create_user(&user).await?;

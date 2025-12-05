@@ -217,6 +217,8 @@ impl MultiTenantMcpClient {
             approved_at: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),
             last_active: chrono::Utc::now(),
+            firebase_uid: None,
+            auth_provider: String::new(),
         };
         database.create_user(&test_user).await?;
 

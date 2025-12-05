@@ -53,6 +53,8 @@ async fn test_mcp_request_processing_flow() -> Result<()> {
         strava_token: None,
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_owned()),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     server.database().create_user(&user).await?;
 
@@ -102,6 +104,8 @@ async fn test_model_serialization_coverage() -> Result<()> {
         }),
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_owned()),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     // Test serialization
@@ -145,6 +149,8 @@ async fn test_admin_auth_flow() -> Result<()> {
         strava_token: None,
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_owned()),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     database.create_user(&admin_user).await?;
@@ -192,6 +198,8 @@ async fn test_mcp_multitenant_request_routing() -> Result<()> {
             strava_token: None,
             fitbit_token: None,
             tenant_id: Some("test-tenant".to_owned()),
+            firebase_uid: None,
+            auth_provider: String::new(),
         };
         server.database().create_user(&user).await?;
         users.push(user);
@@ -236,6 +244,8 @@ async fn test_production_database_scenarios() -> Result<()> {
         strava_token: None,
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_owned()),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     // Create first user
@@ -259,6 +269,8 @@ async fn test_production_database_scenarios() -> Result<()> {
         strava_token: None,
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_owned()),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     let result = database.create_user(&user2).await;
@@ -291,6 +303,8 @@ async fn test_production_rate_limiting() -> Result<()> {
         strava_token: None,
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_owned()),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     database.create_user(&user).await?;

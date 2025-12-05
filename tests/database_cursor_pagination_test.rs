@@ -52,6 +52,8 @@ async fn test_get_users_by_status_cursor() -> Result<()> {
             approved_at: None,
             created_at: chrono::Utc::now(),
             last_active: chrono::Utc::now(),
+            firebase_uid: None,
+            auth_provider: String::new(),
         };
 
         database.create_user(&user).await?;
@@ -174,6 +176,8 @@ async fn test_cursor_pagination_consistency() -> Result<()> {
             approved_at: None,
             created_at: chrono::Utc::now(),
             last_active: chrono::Utc::now(),
+            firebase_uid: None,
+            auth_provider: String::new(),
         };
         database.create_user(&user).await?;
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
@@ -206,6 +210,8 @@ async fn test_cursor_pagination_consistency() -> Result<()> {
         approved_at: None,
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     database.create_user(&new_user).await?;
 

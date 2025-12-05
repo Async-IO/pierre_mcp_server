@@ -357,6 +357,25 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Get a user by Firebase UID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    async fn get_user_by_firebase_uid(
+        &self,
+        firebase_uid: &str,
+    ) -> AppResult<Option<crate::models::User>> {
+        match self {
+            Self::SQLite(db) => db.get_user_by_firebase_uid(firebase_uid).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_user_by_firebase_uid(firebase_uid).await,
+        }
+    }
+
     /// Update user's last active timestamp
     ///
     /// # Errors

@@ -2234,6 +2234,10 @@ impl crate::database_plugins::DatabaseProvider for Database {
         Self::get_user_by_email_required_impl(self, email).await
     }
 
+    async fn get_user_by_firebase_uid(&self, firebase_uid: &str) -> AppResult<Option<User>> {
+        Self::get_user_by_firebase_uid(self, firebase_uid).await
+    }
+
     async fn update_last_active(&self, user_id: Uuid) -> AppResult<()> {
         Self::update_last_active_impl(self, user_id).await
     }
