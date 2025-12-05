@@ -77,6 +77,8 @@ pub mod sleep_analysis;
 
 /// Nutrition needs calculation and meal planning
 pub mod nutrition_calculator;
+/// Recipe management with training-aware suggestions
+pub mod recipes;
 
 // Algorithm selection and pluggable implementations
 
@@ -263,6 +265,33 @@ pub use nutrition_calculator::ProteinDistribution;
 pub use nutrition_calculator::TrainingGoal;
 /// Workout intensity level
 pub use nutrition_calculator::WorkoutIntensity;
+
+// Re-export recipe types
+
+/// Unit conversion for recipe ingredients
+pub use recipes::convert_to_grams;
+/// Conversion error types
+pub use recipes::ConversionError;
+/// Dietary restriction for recipe filtering
+pub use recipes::DietaryRestriction;
+/// Ingredient density lookup
+pub use recipes::IngredientDensity;
+/// Ingredient measurement unit
+pub use recipes::IngredientUnit;
+/// Macro nutrient targets
+pub use recipes::MacroTargets;
+/// Meal timing context for training-aware recipes
+pub use recipes::MealTiming;
+/// A complete recipe with ingredients and instructions
+pub use recipes::Recipe;
+/// Constraints for recipe suggestions
+pub use recipes::RecipeConstraints;
+/// Single ingredient in a recipe
+pub use recipes::RecipeIngredient;
+/// Cooking skill level
+pub use recipes::SkillLevel;
+/// USDA-validated nutrition data
+pub use recipes::ValidatedNutrition;
 
 // Re-export configuration types for external use
 pub use crate::config::intelligence_config::{
