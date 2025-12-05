@@ -160,8 +160,8 @@ PROBLEMATIC_EXPECTS=$(rg "\.expect\(" src/ | rg -v "// Safe|ServerResources.*req
 PANICS=$(rg "panic!\(" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 TODOS_SRC=$(rg "TODO|FIXME|XXX" src/ -g "!*.json" -g "!*.md" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 TODOS_TESTS=$(rg "TODO|FIXME|XXX" tests/ -g "!*.json" -g "!*.md" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-TODOS_SDK=$(rg "TODO|FIXME|XXX" sdk/ -g "!*.json" -g "!*.md" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-TODOS_FRONTEND=$(rg "TODO|FIXME|XXX" frontend/ -g "!*.json" -g "!*.md" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+TODOS_SDK=$(rg "TODO|FIXME|XXX" sdk/ -g "!*.json" -g "!*.md" -g "!*.lock" -g "!node_modules/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+TODOS_FRONTEND=$(rg "TODO|FIXME|XXX" frontend/ -g "!*.json" -g "!*.md" -g "!*.lock" -g "!node_modules/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 TODOS=$((TODOS_SRC + TODOS_TESTS + TODOS_SDK + TODOS_FRONTEND))
 PRODUCTION_MOCKS=$(rg "mock_|get_mock|return.*mock|demo purposes|for demo|stub implementation|mock implementation" src/ -g "!src/bin/*" -g "!tests/*" | wc -l 2>/dev/null | tr -d ' ' || echo 0)
 PROBLEMATIC_UNDERSCORE_NAMES=$(rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ | rg -v "let _[[:space:]]*=" | rg -v "let _result|let _response|let _output" | wc -l 2>/dev/null | tr -d ' ' || echo 0)
@@ -548,7 +548,8 @@ if [ "$TODOS" -eq 0 ]; then
     printf "$(format_status "✅ PASS")│ %-39s │\n" "No incomplete code"
 else
     TODO_BREAKDOWN="src:$TODOS_SRC tests:$TODOS_TESTS sdk:$TODOS_SDK fe:$TODOS_FRONTEND"
-    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$TODO_BREAKDOWN"
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$TODO_BREAKDOWN"
+    VALIDATION_FAILED=true
 fi
 
 printf "│ %-35s │ %5d │ " "Production mock implementations" "$PRODUCTION_MOCKS"
