@@ -97,6 +97,35 @@ describe('Tool Call Validation: Schema Compliance', () => {
       description: 'Check provider connection status',
       arguments: {},
       expectedError: null // This tool works without auth
+    },
+    // Recipe management tools
+    {
+      name: 'get_recipe_constraints',
+      description: 'Get recipe constraints for meal timing',
+      arguments: { meal_timing: 'pre_training' },
+      expectedError: null // This tool works without external auth
+    },
+    {
+      name: 'validate_recipe',
+      description: 'Validate recipe nutrition against targets',
+      arguments: {
+        name: 'Test Recipe',
+        ingredients: [{ name: 'chicken breast', quantity: 200, unit: 'grams' }],
+        meal_timing: 'post_training'
+      },
+      expectedError: null // This tool works without external auth
+    },
+    {
+      name: 'list_recipes',
+      description: 'List user recipes',
+      arguments: {},
+      expectedError: null // Works with Pierre auth only
+    },
+    {
+      name: 'search_recipes',
+      description: 'Search recipes by query',
+      arguments: { query: 'chicken' },
+      expectedError: null // Works with Pierre auth only
     }
   ];
 

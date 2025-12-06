@@ -15,6 +15,7 @@ This chapter covers Pierre's nutrition system including daily calorie/macro calc
 - Protein requirements by sport
 - Carbohydrate periodization
 - Hydration recommendations
+- Training-aware recipe management (Combat des Chefs)
 
 ## Daily Nutrition Calculation
 
@@ -290,6 +291,101 @@ Sweat Rate = (70.0 - 69.2 + 0.5 - 0) / 1 = 1.3 L/hr
 - **Average**: 500-800 mg/L
 - **Heavy/salty sweaters**: 800-1200 mg/L
 
+## Recipe Management (Combat des Chefs)
+
+Pierre provides training-aware recipe management using the "Combat des Chefs" architecture:
+- **LLM clients generate recipes** (cost-efficient, creative)
+- **Pierre validates nutrition via USDA** (accurate, authoritative)
+- **Per-user storage** (private recipe collections)
+
+### Meal Timing & Macro Targets
+
+Recipes are categorized by training timing with specific macro distributions:
+
+| Meal Timing | Protein | Carbs | Fat | Use Case |
+|-------------|---------|-------|-----|----------|
+| `pre_training` | 20% | 55% | 25% | 1-3 hours before workout |
+| `post_training` | 30% | 45% | 25% | Within 60 min after workout |
+| `rest_day` | 30% | 35% | 35% | Recovery days, lower carb |
+| `general` | 25% | 45% | 30% | Balanced everyday meals |
+
+### Recipe Workflow
+
+**Step 1: Get Constraints**
+```json
+{
+  "tool": "get_recipe_constraints",
+  "parameters": {
+    "meal_timing": "post_training",
+    "target_calories": 600
+  }
+}
+```
+
+Returns macro targets, guidelines, and example ingredients for the LLM to use.
+
+**Step 2: LLM Generates Recipe**
+
+The AI assistant creates a recipe based on constraints and user preferences.
+
+**Step 3: Validate with Pierre**
+```json
+{
+  "tool": "validate_recipe",
+  "parameters": {
+    "name": "Recovery Protein Bowl",
+    "meal_timing": "post_training",
+    "target_calories": 600,
+    "ingredients": [
+      {"name": "chicken breast", "quantity": 200, "unit": "grams"},
+      {"name": "brown rice", "quantity": 1, "unit": "cup"},
+      {"name": "broccoli", "quantity": 150, "unit": "grams"}
+    ]
+  }
+}
+```
+
+Pierre validates nutrition via USDA and returns:
+- Actual calories and macros
+- Compliance score vs targets
+- Suggestions for improvements
+
+**Step 4: Save if Valid**
+```json
+{
+  "tool": "save_recipe",
+  "parameters": {
+    "name": "Recovery Protein Bowl",
+    "meal_timing": "post_training",
+    "ingredients": [...],
+    "instructions": ["Cook rice", "Grill chicken", "Steam broccoli", "Combine and serve"],
+    "tags": ["high-protein", "post-workout", "quick"]
+  }
+}
+```
+
+### Unit Conversion
+
+Pierre automatically converts common units to grams for accurate nutrition lookup:
+
+| Category | Units | Example Conversion |
+|----------|-------|-------------------|
+| Weight | oz, lb, kg | 1 oz → 28.35g |
+| Volume | cups, tbsp, tsp, ml | 1 cup → ~240g (varies by ingredient) |
+| Count | pieces, whole | 1 banana → ~118g |
+
+### Recipe Tools Summary
+
+| Tool | Purpose |
+|------|---------|
+| `get_recipe_constraints` | Get macro targets for meal timing |
+| `validate_recipe` | Validate nutrition via USDA |
+| `save_recipe` | Store in user's collection |
+| `list_recipes` | Browse saved recipes |
+| `get_recipe` | Retrieve specific recipe |
+| `delete_recipe` | Remove from collection |
+| `search_recipes` | Find by name/ingredients/tags |
+
 ## Key Takeaways
 
 1. **TDEE calculation**: BMR + activity + exercise + TEF determines daily calorie needs.
@@ -312,14 +408,18 @@ Sweat Rate = (70.0 - 69.2 + 0.5 - 0) / 1 = 1.3 L/hr
 
 10. **Total daily intake**: 24-hour totals matter more than strict timing windows.
 
+11. **Combat des Chefs**: LLM generates recipes, Pierre validates via USDA for accuracy.
+
+12. **Meal timing macros**: Pre-training (high carb), post-training (high protein), rest day (balanced).
+
 ---
 
 **End of Part VI: Tools & Intelligence**
 
 You've completed the tools and intelligence section. You now understand:
-- All 45 MCP tools and their usage (Chapter 19)
+- All 52 MCP tools and their usage (Chapter 19)
 - Sports science algorithms (Chapter 20)
 - Recovery and sleep analysis (Chapter 21)
-- Nutrition system and USDA integration (Chapter 22)
+- Nutrition system, USDA integration, and recipe management (Chapter 22)
 
 **Next Chapter**: [Chapter 23: Testing Framework](./chapter-23-testing.md) - Begin Part VII by learning about Pierre's testing infrastructure including synthetic data generation, E2E tests, tools-to-types validation, and test organization.
