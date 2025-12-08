@@ -9,7 +9,7 @@ use crate::protocols::ProtocolError;
 use chrono::{Duration, Utc};
 use std::future::Future;
 use std::pin::Pin;
-use tracing;
+use tracing::{info, warn};
 
 /// Activity parameters extracted from request
 struct ActivityParameters {
@@ -621,7 +621,7 @@ async fn create_intelligence_response(
     if let Some(peer) = sampling_peer {
         match generate_activity_intelligence_with_claude(peer, activity).await {
             Ok(claude_analysis) => {
-                tracing::info!("Generated activity intelligence using Claude sampling");
+                info!("Generated activity intelligence using Claude sampling");
                 return UniversalResponse {
                     success: true,
                     result: Some(claude_analysis),
@@ -648,7 +648,7 @@ async fn create_intelligence_response(
                 };
             }
             Err(e) => {
-                tracing::warn!(
+                warn!(
                     "Claude sampling failed, falling back to static analysis: {}",
                     e
                 );
@@ -1456,7 +1456,7 @@ pub fn handle_generate_recommendations(
                             {
                                 Ok(claude_recommendations) => claude_recommendations,
                                 Err(e) => {
-                                    tracing::warn!("Claude sampling failed, falling back to static recommendations: {}", e);
+                                    warn!("Claude sampling failed, falling back to static recommendations: {}", e);
                                     generate_training_recommendations(
                                         &activities,
                                         recommendation_type,
@@ -1627,7 +1627,7 @@ pub fn handle_calculate_fitness_score(
                             {
                                 Ok(info) => Some(info),
                                 Err(err_msg) => {
-                                    tracing::warn!(
+                                    warn!(
                                         sleep_provider = sleep_provider_name,
                                         error = %err_msg,
                                         "Failed to fetch recovery data, proceeding without adjustment"
@@ -1979,7 +1979,7 @@ pub fn handle_analyze_training_load(
                                     Some(context)
                                 }
                                 Err(err_msg) => {
-                                    tracing::warn!(
+                                    warn!(
                                         sleep_provider = sleep_provider_name,
                                         error = %err_msg,
                                         "Failed to fetch recovery context, proceeding without"
@@ -4157,7 +4157,7 @@ fn calculate_performance_trend(activities: &[crate::models::Activity]) -> f64 {
         .iter()
         .map(|a| {
             let distance = a.distance_meters.unwrap_or_else(|| {
-                tracing::warn!(
+                warn!(
                     activity_id = a.id,
                     "Activity missing distance_meters in pace calculation, using 1.0m fallback"
                 );
@@ -4173,7 +4173,7 @@ fn calculate_performance_trend(activities: &[crate::models::Activity]) -> f64 {
         .iter()
         .map(|a| {
             let distance = a.distance_meters.unwrap_or_else(|| {
-                tracing::warn!(
+                warn!(
                     activity_id = a.id,
                     "Activity missing distance_meters in pace calculation, using 1.0m fallback"
                 );
@@ -4274,7 +4274,7 @@ fn predict_race_performance(
     };
 
     let best_distance = best_activity.distance_meters.unwrap_or_else(|| {
-        tracing::warn!(
+        warn!(
             activity_id = best_activity.id,
             "Best activity missing distance_meters despite find_best_performance validation, using 0.0m"
         );

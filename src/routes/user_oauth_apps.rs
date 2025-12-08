@@ -30,6 +30,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tracing::info;
 use uuid::Uuid;
 
 /// Routes for user OAuth app management
@@ -172,7 +173,7 @@ impl UserOAuthAppRoutes {
             )
             .await?;
 
-        tracing::info!(
+        info!(
             user_id = %user_id,
             provider = %provider,
             "User registered OAuth app"
@@ -258,7 +259,7 @@ impl UserOAuthAppRoutes {
             .remove_user_oauth_app(user_id, &provider)
             .await?;
 
-        tracing::info!(
+        info!(
             user_id = %user_id,
             provider = %provider,
             "User removed OAuth app"

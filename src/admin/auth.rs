@@ -19,7 +19,7 @@ use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{debug, info};
 
 /// Admin authentication service
 #[derive(Clone)]
@@ -197,7 +197,7 @@ impl AdminAuthService {
                     // Expired - remove it
                     cache.remove(&validated_token.token_id);
                     drop(cache);
-                    tracing::debug!(
+                    debug!(
                         "Removed expired admin token from cache: {}",
                         validated_token.token_id
                     );

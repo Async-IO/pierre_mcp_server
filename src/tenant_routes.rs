@@ -17,7 +17,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 // Tenant Management Request/Response Types
@@ -320,7 +320,7 @@ pub async fn list_tenants(
             .get_tenant_oauth_providers(tenant.id)
             .await
             .unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     tenant_id = %tenant.id,
                     tenant_name = %tenant.name,
                     error = %e,
@@ -366,7 +366,7 @@ pub async fn configure_tenant_oauth(
     );
 
     let tenant_uuid = Uuid::parse_str(&tenant_id).map_err(|e| {
-        tracing::warn!(
+        warn!(
             tenant_id = %tenant_id,
             user_id = %auth_result.user_id,
             error = %e,
@@ -443,7 +443,7 @@ pub async fn get_tenant_oauth(
     info!("Getting OAuth config for tenant: {}", tenant_id);
 
     let tenant_uuid = Uuid::parse_str(&tenant_id).map_err(|e| {
-        tracing::warn!(
+        warn!(
             tenant_id = %tenant_id,
             user_id = %auth_result.user_id,
             error = %e,
@@ -559,7 +559,7 @@ pub async fn oauth_authorize(
         .get_oauth_app_by_client_id(&auth_params.client_id)
         .await
         .map_err(|e| {
-            tracing::warn!(
+            warn!(
                 client_id = %auth_params.client_id,
                 error = %e,
                 "OAuth app lookup failed for authorization request"
@@ -626,7 +626,7 @@ pub async fn oauth_token(
         .get_oauth_app_by_client_id(&token_request.client_id)
         .await
         .map_err(|e| {
-            tracing::warn!(
+            warn!(
                 client_id = %token_request.client_id,
                 grant_type = %token_request.grant_type,
                 error = %e,
@@ -650,7 +650,7 @@ pub async fn oauth_token(
                 .ok_or_else(|| AppError::invalid_input("Missing authorization code".to_owned()))?;
 
             database.get_authorization_code(&code).await.map_err(|e| {
-                tracing::warn!(
+                warn!(
                     code = %code,
                     error = %e,
                     "Failed to retrieve authorization code from database"
@@ -672,7 +672,7 @@ pub async fn oauth_token(
 
             // Clean up authorization code
             if let Err(e) = database.delete_authorization_code(&code).await {
-                tracing::warn!(
+                warn!(
                     code = %code,
                     client_id = %oauth_app.client_id,
                     error = %e,

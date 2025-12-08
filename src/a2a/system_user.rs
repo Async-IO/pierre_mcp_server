@@ -11,6 +11,7 @@ use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
 use crate::models::User;
 use std::sync::Arc;
+use tracing::{debug, info};
 use uuid::Uuid;
 
 /// Service for managing A2A system users
@@ -84,7 +85,7 @@ impl A2ASystemUserService {
         // Store metadata about this being a system user
         Self::store_system_user_metadata(user_id, client_id, contact_email);
 
-        tracing::info!(
+        info!(
             user_id = %user_id,
             client_id = %client_id,
             "Created A2A system user"
@@ -112,7 +113,7 @@ impl A2ASystemUserService {
     fn store_system_user_metadata(user_id: Uuid, client_id: &str, contact_email: &str) {
         // Store in a metadata table or as user properties
         // Store system identifier in user display name and email patterns
-        tracing::debug!(
+        debug!(
             user_id = %user_id,
             client_id = %client_id,
             contact_email = %contact_email,
@@ -179,7 +180,7 @@ impl A2ASystemUserService {
         {
             // Instead of deleting, we could mark as inactive
             // Log system user deactivation
-            tracing::info!(
+            info!(
                 user_id = %user.id,
                 client_id = %client_id,
                 "Deactivated A2A system user"

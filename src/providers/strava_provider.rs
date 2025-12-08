@@ -18,7 +18,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use reqwest::Client;
 use serde::Deserialize;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Strava API error response format
 #[derive(Debug, Deserialize)]
@@ -268,7 +268,7 @@ impl StravaProvider {
     fn parse_not_found_error(text: &str, url: &str) -> Option<ProviderError> {
         let error_response: StravaErrorResponse = serde_json::from_str(text).ok()?;
 
-        tracing::debug!(
+        debug!(
             "Strava 404 error: {} (errors: {})",
             error_response.message,
             error_response.errors.as_ref().map_or(0, std::vec::Vec::len)
@@ -276,11 +276,9 @@ impl StravaProvider {
 
         let first_error = error_response.errors?.into_iter().next()?;
 
-        tracing::debug!(
+        debug!(
             "Strava error details: resource={}, field={}, code={}",
-            first_error.resource,
-            first_error.field,
-            first_error.code
+            first_error.resource, first_error.field, first_error.code
         );
 
         let resource_id = url.split('/').next_back().unwrap_or("unknown").to_owned();
@@ -294,7 +292,7 @@ impl StravaProvider {
 
     /// Handle non-success API responses
     fn handle_api_error(status: reqwest::StatusCode, text: &str, url: &str) -> AppError {
-        tracing::error!("Strava API request failed - status: {status}, body: {text}");
+        error!("Strava API request failed - status: {status}, body: {text}");
 
         if status.as_u16() == 404 {
             if let Some(not_found_err) = Self::parse_not_found_error(text, url) {
@@ -330,7 +328,7 @@ impl StravaProvider {
     where
         T: for<'de> Deserialize<'de>,
     {
-        tracing::info!("Starting API request to endpoint: {endpoint}");
+        info!("Starting API request to endpoint: {endpoint}");
 
         self.refresh_token_if_needed().await?;
 
@@ -353,7 +351,7 @@ impl StravaProvider {
         url: &str,
         access_token: &str,
     ) -> AppResult<reqwest::Response> {
-        tracing::info!("Making HTTP GET request to: {url}");
+        info!("Making HTTP GET request to: {url}");
 
         self.client
             .get(url)
@@ -371,16 +369,16 @@ impl StravaProvider {
         T: for<'de> Deserialize<'de>,
     {
         let status = response.status();
-        tracing::info!("Received HTTP response with status: {status}");
+        info!("Received HTTP response with status: {status}");
 
         if !status.is_success() {
             let text = response.text().await.unwrap_or_default();
             return Err(Self::handle_api_error(status, &text, url));
         }
 
-        tracing::info!("Parsing JSON response from Strava API");
+        info!("Parsing JSON response from Strava API");
         response.json().await.map_err(|e| {
-            tracing::error!("Failed to parse JSON response: {e}");
+            error!("Failed to parse JSON response: {e}");
             AppError::external_service("Strava", format!("Failed to parse API response: {e}"))
         })
     }
@@ -548,7 +546,7 @@ impl StravaProvider {
         }
 
         // Fetch detailed data for each activity (N+1 query pattern)
-        tracing::warn!(
+        warn!(
             "Fetching detailed data for {} activities - this will make {} additional API calls",
             activities.len(),
             activities.len()
@@ -559,10 +557,9 @@ impl StravaProvider {
             match self.get_activity_details(&activity.id).await {
                 Ok(detailed) => detailed_activities.push(detailed),
                 Err(e) => {
-                    tracing::error!(
+                    error!(
                         "Failed to fetch details for activity {}: {} - using summary data",
-                        activity.id,
-                        e
+                        activity.id, e
                     );
                     // Fallback: use summary data if detail fetch fails
                     detailed_activities.push(activity);
@@ -723,10 +720,9 @@ impl FitnessProvider for StravaProvider {
             limit.unwrap_or(api_provider_limits::strava::DEFAULT_ACTIVITIES_PER_PAGE);
         let start_offset = offset.unwrap_or(0);
 
-        tracing::info!(
+        info!(
             "Starting get_activities - requested_limit: {}, offset: {}",
-            requested_limit,
-            start_offset
+            requested_limit, start_offset
         );
 
         // If request is within single page limit, use single page fetch
@@ -765,14 +761,14 @@ impl FitnessProvider for StravaProvider {
                         let _ = write!(endpoint, "&after={}", timestamp.timestamp());
                     }
                 }
-                tracing::info!("Cursor pagination: timestamp={}, id={}", timestamp, id);
+                info!("Cursor pagination: timestamp={}, id={}", timestamp, id);
             }
         }
 
-        tracing::info!("Cursor-based request - endpoint: {}", endpoint);
+        info!("Cursor-based request - endpoint: {}", endpoint);
 
         let strava_activities: Vec<StravaActivityResponse> = self.api_request(&endpoint).await?;
-        tracing::info!(
+        info!(
             "Received {} activities from cursor request",
             strava_activities.len()
         );
@@ -897,10 +893,10 @@ impl StravaProvider {
         let page = offset / limit + 1;
         let endpoint = format!("athlete/activities?per_page={limit}&page={page}");
 
-        tracing::info!("Single page request - endpoint: {}", endpoint);
+        info!("Single page request - endpoint: {}", endpoint);
 
         let strava_activities: Vec<StravaActivityResponse> = self.api_request(&endpoint).await?;
-        tracing::info!(
+        info!(
             "Received {} activities from single page",
             strava_activities.len()
         );
@@ -947,7 +943,7 @@ impl StravaProvider {
 
         let expected_count = (page_index + 1) * activities_per_page.min(total_limit);
         if activities_count < expected_count {
-            tracing::info!(
+            info!(
                 "Reached end of activities - got {} total, breaking early",
                 activities_count
             );
@@ -966,11 +962,9 @@ impl StravaProvider {
         let activities_per_page = api_provider_limits::strava::MAX_ACTIVITIES_PER_REQUEST;
         let pages_needed = total_limit.div_ceil(activities_per_page);
 
-        tracing::info!(
+        info!(
             "Multi-page request - total_limit: {}, pages_needed: {}, start_offset: {}",
-            total_limit,
-            pages_needed,
-            start_offset
+            total_limit, pages_needed, start_offset
         );
 
         for page_index in 0..pages_needed {
@@ -994,7 +988,7 @@ impl StravaProvider {
             }
         }
 
-        tracing::info!(
+        info!(
             "Multi-page fetch completed - requested: {}, retrieved: {}",
             total_limit,
             all_activities.len()
@@ -1018,7 +1012,7 @@ impl StravaProvider {
         let page_number = current_offset / activities_per_page + 1;
 
         let endpoint = Self::build_activities_endpoint(current_page_limit, page_number);
-        tracing::info!(
+        info!(
             "Fetching page {} of {} - endpoint: {} (expecting {} activities)",
             page_index + 1,
             pages_needed,
@@ -1030,7 +1024,7 @@ impl StravaProvider {
             .api_request::<Vec<StravaActivityResponse>>(&endpoint)
             .await?;
 
-        tracing::info!(
+        info!(
             "Page {} returned {} activities",
             page_index + 1,
             strava_activities.len()

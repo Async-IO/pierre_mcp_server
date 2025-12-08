@@ -13,6 +13,7 @@ use chrono::{Duration, Utc};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 /// Get OAuth credentials for a specific provider from configuration
@@ -649,7 +650,7 @@ pub fn handle_analyze_sleep_quality(
                 .and_then(|v| {
                     serde_json::from_value::<Vec<f64>>(v.clone())
                         .inspect_err(|e| {
-                            tracing::debug!(
+                            debug!(
                                 error = %e,
                                 "Failed to deserialize recent_hrv_values, using empty default"
                             );
@@ -879,7 +880,7 @@ pub fn handle_calculate_recovery_score(
                 .and_then(|v| {
                     serde_json::from_value::<Vec<f64>>(v.clone())
                         .inspect_err(|e| {
-                            tracing::debug!(
+                            debug!(
                                 error = %e,
                                 "Failed to deserialize recent_hrv_values, using empty default"
                             );
@@ -1134,7 +1135,7 @@ pub fn handle_suggest_rest_day(
                 .and_then(|v| {
                     serde_json::from_value::<Vec<f64>>(v.clone())
                         .inspect_err(|e| {
-                            tracing::debug!(
+                            debug!(
                                 error = %e,
                                 "Failed to deserialize recent_hrv_values, using empty default"
                             );
@@ -1232,7 +1233,7 @@ pub fn handle_suggest_rest_day(
                         serde_json::Value::Number(confidence_number),
                     );
                 } else {
-                    tracing::warn!(
+                    warn!(
                         confidence = recommendation.confidence,
                         "Invalid confidence value (NaN/Infinity), omitting from metadata"
                     );
@@ -1674,11 +1675,11 @@ fn parse_hour(hour_str: &str) -> i64 {
     match hour_str.parse() {
         Ok(h) if (0..24).contains(&h) => h,
         Ok(h) => {
-            tracing::warn!(hour = h, "Invalid hour value, using default 6");
+            warn!(hour = h, "Invalid hour value, using default 6");
             6
         }
         Err(e) => {
-            tracing::warn!(
+            warn!(
                 hour_str = hour_str,
                 error = %e,
                 "Failed to parse hour, using default 6"
@@ -1693,11 +1694,11 @@ fn parse_minute(minute_str: &str) -> i64 {
     match minute_str.parse() {
         Ok(m) if (0..60).contains(&m) => m,
         Ok(m) => {
-            tracing::warn!(minute = m, "Invalid minute value, using default 0");
+            warn!(minute = m, "Invalid minute value, using default 0");
             0
         }
         Err(e) => {
-            tracing::warn!(
+            warn!(
                 minute_str = minute_str,
                 error = %e,
                 "Failed to parse minute, using default 0"
@@ -1718,7 +1719,7 @@ fn calculate_bedtime(
     // Parse wake time (format: "HH:MM")
     let parts: Vec<&str> = wake_time.split(':').collect();
     if parts.len() != 2 {
-        tracing::warn!(
+        warn!(
             wake_time = wake_time,
             "Invalid wake_time format (expected HH:MM), using default 06:00"
         );

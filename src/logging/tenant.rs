@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use tracing::Span;
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 /// Context for provider API call logging
@@ -39,7 +40,7 @@ impl TenantLogger {
         success: bool,
         duration_ms: u64,
     ) {
-        tracing::info!(
+        info!(
             user_id = %user_id,
             tenant_id = %tenant_id,
             tool_name = %tool_name,
@@ -59,7 +60,7 @@ impl TenantLogger {
         error_details: Option<&str>,
     ) {
         if success {
-            tracing::info!(
+            info!(
                 user_id = ?user_id,
                 tenant_id = ?tenant_id,
                 auth_method = %auth_method,
@@ -68,7 +69,7 @@ impl TenantLogger {
                 "Authentication successful"
             );
         } else {
-            tracing::warn!(
+            warn!(
                 user_id = ?user_id,
                 tenant_id = ?tenant_id,
                 auth_method = %auth_method,
@@ -90,7 +91,7 @@ impl TenantLogger {
         duration_ms: u64,
     ) {
         if status_code < crate::constants::network_config::HTTP_CLIENT_ERROR_THRESHOLD {
-            tracing::info!(
+            info!(
                 user_id = ?user_id,
                 tenant_id = ?tenant_id,
                 http_method = %method,
@@ -101,7 +102,7 @@ impl TenantLogger {
                 "HTTP request completed"
             );
         } else {
-            tracing::warn!(
+            warn!(
                 user_id = ?user_id,
                 tenant_id = ?tenant_id,
                 http_method = %method,
@@ -124,7 +125,7 @@ impl TenantLogger {
         duration_ms: u64,
         rows_affected: Option<usize>,
     ) {
-        tracing::debug!(
+        debug!(
             user_id = ?user_id,
             tenant_id = ?tenant_id,
             db_operation = %operation,
@@ -145,7 +146,7 @@ impl TenantLogger {
         severity: &str,
         details: &str,
     ) {
-        tracing::warn!(
+        warn!(
             user_id = ?user_id,
             tenant_id = ?tenant_id,
             security_event = %event_type,
@@ -158,7 +159,7 @@ impl TenantLogger {
 
     /// Log provider API call with tenant context
     pub fn log_provider_api_call(context: &ProviderApiContext) {
-        tracing::debug!(
+        debug!(
             user_id = %context.user_id,
             tenant_id = %context.tenant_id,
             provider = %context.provider,

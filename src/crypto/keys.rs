@@ -11,6 +11,7 @@ use base64::{engine::general_purpose, Engine};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
+use tracing::error;
 use zeroize::Zeroize;
 
 /// Ed25519 keypair for A2A client authentication
@@ -129,7 +130,7 @@ impl A2AKeyManager {
         match verifying_key.verify(data, &signature) {
             Ok(()) => Ok(true),
             Err(e) => {
-                tracing::error!(
+                error!(
                     error = %e,
                     "Failed to verify key signature"
                 );

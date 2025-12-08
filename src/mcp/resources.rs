@@ -34,6 +34,7 @@ use crate::websocket::WebSocketManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, RwLock};
+use tracing::{error, info, warn};
 
 /// Centralized resource container for dependency injection
 ///
@@ -132,7 +133,7 @@ impl ServerResources {
 
         // Initialize PII redaction config from environment
         let redaction_config = Arc::new(RedactionConfig::from_env());
-        tracing::info!(
+        info!(
             "Redaction middleware initialized: enabled={}",
             redaction_config.enabled
         );
@@ -149,13 +150,13 @@ impl ServerResources {
             match loaded_jwks {
                 Ok(jwks) => Arc::new(jwks),
                 Err(e) => {
-                    tracing::error!(
+                    error!(
                         "Failed to initialize JWKS manager: {}. Creating new keys without persistence.",
                         e
                     );
                     let mut new_jwks = JwksManager::new();
                     if let Err(e) = new_jwks.generate_rsa_key_pair_with_size("initial_key", rsa_key_size_bits) {
-                        tracing::warn!(
+                        warn!(
                             "Failed to generate initial JWKS key pair: {}. RS256 tokens will not be available.",
                             e
                         );
@@ -296,7 +297,7 @@ impl ServerResources {
             )
             .await?;
 
-        tracing::info!("Generated and persisted new RSA keypair: {}", kid);
+        info!("Generated and persisted new RSA keypair: {}", kid);
         Ok(())
     }
 
@@ -329,12 +330,12 @@ impl ServerResources {
         jwks_manager: &mut JwksManager,
         keypairs: Vec<(String, String, String, chrono::DateTime<chrono::Utc>, bool)>,
     ) -> crate::errors::AppResult<()> {
-        tracing::info!(
+        info!(
             "Loading {} persisted RSA keypairs from database",
             keypairs.len()
         );
         jwks_manager.load_keys_from_database(keypairs)?;
-        tracing::info!("Successfully loaded RSA keys from database");
+        info!("Successfully loaded RSA keys from database");
         Ok(())
     }
 
@@ -343,7 +344,7 @@ impl ServerResources {
         jwks_manager: &mut JwksManager,
         rsa_key_size_bits: usize,
     ) -> crate::errors::AppResult<()> {
-        tracing::info!("No persisted RSA keys found, generating new keypair");
+        info!("No persisted RSA keys found, generating new keypair");
         Self::generate_and_persist_keypair(database, jwks_manager, rsa_key_size_bits).await
     }
 
@@ -352,7 +353,7 @@ impl ServerResources {
         rsa_key_size_bits: usize,
         error: &crate::errors::AppError,
     ) -> crate::errors::AppResult<()> {
-        tracing::warn!(
+        warn!(
             "Failed to load RSA keys from database: {}. Generating new keys without persistence.",
             error
         );
@@ -401,13 +402,13 @@ impl ServerResources {
     pub async fn cancel_by_progress_token(&self, progress_token: &str) {
         let registry = self.cancellation_registry.read().await;
         if let Some(token) = registry.get(progress_token) {
-            tracing::info!(
+            info!(
                 "Cancelling operation with progress token: {}",
                 progress_token
             );
             token.cancel().await;
         } else {
-            tracing::warn!(
+            warn!(
                 "Received cancellation for unknown progress token: {}",
                 progress_token
             );

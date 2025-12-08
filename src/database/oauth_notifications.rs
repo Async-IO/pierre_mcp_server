@@ -9,6 +9,7 @@ use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
+use tracing::debug;
 use uuid::Uuid;
 
 /// OAuth notification data structure
@@ -82,7 +83,7 @@ impl Database {
         &self,
         user_id: Uuid,
     ) -> AppResult<Vec<OAuthNotification>> {
-        tracing::debug!("Querying unread notifications for user_id: {}", user_id);
+        debug!("Querying unread notifications for user_id: {}", user_id);
         let rows = sqlx::query(
             r"
             SELECT id, user_id, provider, success, message, expires_at, created_at, read_at
@@ -98,7 +99,7 @@ impl Database {
             AppError::database(format!("Failed to query unread OAuth notifications: {e}"))
         })?;
 
-        tracing::debug!(
+        debug!(
             "Found {} unread notification rows for user {}",
             rows.len(),
             user_id

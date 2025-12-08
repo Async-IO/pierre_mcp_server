@@ -8,6 +8,7 @@ use super::{memory::InMemoryCache, redis::RedisCache, CacheConfig, CacheProvider
 use crate::errors::AppResult;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use tracing::info;
 
 /// Cache backend enum for pluggable implementations
 #[non_exhaustive]
@@ -31,11 +32,11 @@ impl Cache {
     /// Returns an error if cache initialization fails
     pub async fn new(config: CacheConfig) -> AppResult<Self> {
         let inner = if let Some(ref redis_url) = config.redis_url {
-            tracing::info!("Initializing Redis cache (url: {})", redis_url);
+            info!("Initializing Redis cache (url: {})", redis_url);
             let redis = RedisCache::new(config).await?;
             CacheBackend::Redis(Box::new(redis))
         } else {
-            tracing::info!(
+            info!(
                 "Initializing in-memory cache (max entries: {})",
                 config.max_entries
             );

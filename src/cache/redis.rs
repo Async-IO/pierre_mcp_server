@@ -9,6 +9,7 @@ use crate::errors::{AppError, AppResult};
 use redis::{aio::ConnectionManager, AsyncCommands};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use tracing::{error, info};
 
 /// Redis cache implementation with connection pooling
 ///
@@ -32,7 +33,7 @@ impl RedisCache {
             .as_ref()
             .ok_or_else(|| AppError::config("Redis URL is required for Redis cache backend"))?;
 
-        tracing::info!("Connecting to Redis at {}", redis_url);
+        info!("Connecting to Redis at {}", redis_url);
 
         // Create Redis client with connection timeout
         let client = redis::Client::open(redis_url.as_str())
@@ -43,7 +44,7 @@ impl RedisCache {
             .await
             .map_err(|e| AppError::internal(format!("Failed to connect to Redis: {e}")))?;
 
-        tracing::info!("Successfully connected to Redis");
+        info!("Successfully connected to Redis");
 
         Ok(Self { manager })
     }
@@ -80,7 +81,7 @@ impl CacheProvider for RedisCache {
         conn.set_ex::<_, _, ()>(&redis_key, serialized, ttl_secs)
             .await
             .map_err(|e| {
-                tracing::error!("Redis SET operation failed: {}", e);
+                error!("Redis SET operation failed: {}", e);
                 AppError::internal(format!("Cache error: {e}"))
             })?;
 
@@ -92,7 +93,7 @@ impl CacheProvider for RedisCache {
         let mut conn = self.manager.clone();
 
         let data: Option<Vec<u8>> = conn.get(&redis_key).await.map_err(|e| {
-            tracing::error!("Redis GET operation failed: {}", e);
+            error!("Redis GET operation failed: {}", e);
             AppError::internal(format!("Cache error: {e}"))
         })?;
 
@@ -112,7 +113,7 @@ impl CacheProvider for RedisCache {
         let mut conn = self.manager.clone();
 
         let _: () = conn.del(&redis_key).await.map_err(|e| {
-            tracing::error!("Redis DEL operation failed: {}", e);
+            error!("Redis DEL operation failed: {}", e);
             AppError::internal(format!("Cache error: {e}"))
         })?;
 
@@ -138,14 +139,14 @@ impl CacheProvider for RedisCache {
                 .query_async(&mut conn)
                 .await
                 .map_err(|e| {
-                    tracing::error!("Redis SCAN failed: {}", e);
+                    error!("Redis SCAN failed: {}", e);
                     AppError::internal(format!("Cache error: {e}"))
                 })?;
 
             // Delete matching keys in pipeline for efficiency
             if !keys.is_empty() {
                 let deleted: u64 = conn.del(&keys).await.map_err(|e| {
-                    tracing::error!("Redis DEL failed: {}", e);
+                    error!("Redis DEL failed: {}", e);
                     AppError::internal(format!("Cache error: {e}"))
                 })?;
                 count += deleted;
@@ -165,7 +166,7 @@ impl CacheProvider for RedisCache {
         let mut conn = self.manager.clone();
 
         let exists: bool = conn.exists(&redis_key).await.map_err(|e| {
-            tracing::error!("Redis EXISTS operation failed: {}", e);
+            error!("Redis EXISTS operation failed: {}", e);
             AppError::internal(format!("Cache error: {e}"))
         })?;
 
@@ -177,7 +178,7 @@ impl CacheProvider for RedisCache {
         let mut conn = self.manager.clone();
 
         let ttl_secs: i64 = conn.ttl(&redis_key).await.map_err(|e| {
-            tracing::error!("Redis TTL operation failed: {}", e);
+            error!("Redis TTL operation failed: {}", e);
             AppError::internal(format!("Cache error: {e}"))
         })?;
 
@@ -198,7 +199,7 @@ impl CacheProvider for RedisCache {
             .query_async(&mut conn)
             .await
             .map_err(|e| {
-                tracing::error!("Redis PING failed: {}", e);
+                error!("Redis PING failed: {}", e);
                 AppError::internal(format!("Cache error: {e}"))
             })?;
 
@@ -228,13 +229,13 @@ impl CacheProvider for RedisCache {
                 .query_async(&mut conn)
                 .await
                 .map_err(|e| {
-                    tracing::error!("Redis SCAN failed during clear_all: {}", e);
+                    error!("Redis SCAN failed during clear_all: {}", e);
                     AppError::internal(format!("Cache error: {e}"))
                 })?;
 
             if !keys.is_empty() {
                 let _: u64 = conn.del(&keys).await.map_err(|e| {
-                    tracing::error!("Redis DEL failed during clear_all: {}", e);
+                    error!("Redis DEL failed during clear_all: {}", e);
                     AppError::internal(format!("Cache error: {e}"))
                 })?;
             }

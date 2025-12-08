@@ -13,6 +13,7 @@
 use crate::errors::AppResult;
 use std::time::Duration;
 use tokio::time::sleep;
+use tracing::{error, warn};
 
 /// Retry a transaction operation if it fails due to deadlock or timeout
 ///
@@ -71,7 +72,7 @@ where
             Err(e) => {
                 attempts += 1;
                 if attempts >= max_retries {
-                    tracing::error!(
+                    error!(
                         attempts = attempts,
                         max_retries = max_retries,
                         error = %e,
@@ -85,7 +86,7 @@ where
                 if is_retryable_error(&error_msg) {
                     // Exponential backoff: 10ms, 20ms, 40ms, 80ms, 160ms, ...
                     let backoff_ms = 10 * (1 << attempts);
-                    tracing::warn!(
+                    warn!(
                         attempt = attempts,
                         max_retries = max_retries,
                         backoff_ms = backoff_ms,
@@ -95,7 +96,7 @@ where
                     sleep(Duration::from_millis(backoff_ms)).await;
                 } else {
                     // Non-retryable error (e.g., constraint violation, invalid data)
-                    tracing::error!(
+                    error!(
                         attempts = attempts,
                         error = %e,
                         "Transaction failed with non-retryable error"

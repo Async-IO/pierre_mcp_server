@@ -16,6 +16,7 @@ use axum::{
 };
 use futures_util::stream::Stream;
 use std::{convert::Infallible, sync::Arc, time::Duration};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 /// SSE routes implementation
@@ -51,10 +52,10 @@ impl SseRoutes {
         headers: axum::http::HeaderMap,
         State((manager, resources)): State<(Arc<SseManager>, Arc<ServerResources>)>,
     ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
-        tracing::info!("New notification SSE connection for user: {}", user_id);
+        info!("New notification SSE connection for user: {}", user_id);
 
         let user_uuid = Uuid::parse_str(&user_id).map_err(|e| {
-            tracing::warn!(user_id = %user_id, error = %e, "Invalid user ID format for SSE connection");
+            warn!(user_id = %user_id, error = %e, "Invalid user ID format for SSE connection");
             AppError::invalid_input(format!("Invalid user ID format: {e}"))
         })?;
 
@@ -63,12 +64,12 @@ impl SseRoutes {
             .get("authorization")
             .and_then(|h| h.to_str().ok())
             .ok_or_else(|| {
-                tracing::warn!(user_id = %user_uuid, "Missing Authorization header for SSE notification stream");
+                warn!(user_id = %user_uuid, "Missing Authorization header for SSE notification stream");
                 AppError::auth_invalid("Missing Authorization header - JWT token required for SSE notifications")
             })?;
 
         let token = crate::utils::auth::extract_bearer_token_owned(auth_header).map_err(|_| {
-            tracing::warn!(user_id = %user_uuid, "Invalid Authorization header format for SSE");
+            warn!(user_id = %user_uuid, "Invalid Authorization header format for SSE");
             AppError::auth_invalid("Invalid Authorization header format")
         })?;
 
@@ -78,13 +79,13 @@ impl SseRoutes {
             .authenticate_request(Some(&format!("Bearer {token}")))
             .await
             .map_err(|e| {
-                tracing::warn!(user_id = %user_uuid, error = %e, "Failed to authenticate JWT token for SSE");
+                warn!(user_id = %user_uuid, error = %e, "Failed to authenticate JWT token for SSE");
                 AppError::auth_invalid(format!("Authentication failed: {e}"))
             })?;
 
         // Verify authenticated user matches requested user_id
         if auth_result.user_id != user_uuid {
-            tracing::warn!(
+            warn!(
                 authenticated_user = %auth_result.user_id,
                 requested_user = %user_uuid,
                 "User attempting to access another user's SSE notification stream"
@@ -123,7 +124,7 @@ impl SseRoutes {
                         );
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                        tracing::warn!(
+                        warn!(
                             "SSE buffer overflow for user {}: {} messages dropped (strategy: {:?})",
                             user_id_clone, skipped, overflow_strategy
                         );
@@ -132,18 +133,18 @@ impl SseRoutes {
                         match overflow_strategy {
                             SseBufferStrategy::DropOldest => {
                                 // Continue operation - this is the default broadcast behavior
-                                tracing::debug!("Continuing with DropOldest strategy for user {}", user_id_clone);
+                                debug!("Continuing with DropOldest strategy for user {}", user_id_clone);
                             }
                             SseBufferStrategy::DropNew => {
                                 // Note: broadcast channels inherently drop oldest, not newest
                                 // For true DropNew behavior, would need mpsc bounded channel
-                                tracing::warn!(
+                                warn!(
                                     "DropNew strategy configured but broadcast channels drop oldest. \
                                     Consider using bounded mpsc for true DropNew behavior."
                                 );
                             }
                             SseBufferStrategy::CloseConnection => {
-                                tracing::info!(
+                                info!(
                                     "Closing SSE connection for user {} due to buffer overflow",
                                     user_id_clone
                                 );
@@ -152,7 +153,7 @@ impl SseRoutes {
                         }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                        tracing::info!("SSE channel closed for user: {}", user_id_clone);
+                        info!("SSE channel closed for user: {}", user_id_clone);
                         break;
                     }
                 }
@@ -181,7 +182,7 @@ impl SseRoutes {
         headers: axum::http::HeaderMap,
         State((manager, resources)): State<(Arc<SseManager>, Arc<ServerResources>)>,
     ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
-        tracing::info!(
+        info!(
             "New MCP protocol SSE connection for session: {}",
             session_id
         );
@@ -195,7 +196,7 @@ impl SseRoutes {
         // Validate authentication if provided
         if let Some(ref auth) = auth_header {
             let token = crate::utils::auth::extract_bearer_token_owned(auth).map_err(|_| {
-                tracing::warn!(session_id = %session_id, "Invalid Authorization header format for MCP SSE");
+                warn!(session_id = %session_id, "Invalid Authorization header format for MCP SSE");
                 AppError::auth_invalid("Invalid Authorization header format")
             })?;
 
@@ -205,12 +206,12 @@ impl SseRoutes {
                 .authenticate_request(Some(&format!("Bearer {token}")))
                 .await
                 .map_err(|e| {
-                    tracing::warn!(session_id = %session_id, error = %e, "Failed to authenticate JWT token for MCP SSE");
+                    warn!(session_id = %session_id, error = %e, "Failed to authenticate JWT token for MCP SSE");
                     AppError::auth_invalid(format!("Authentication failed: {e}"))
                 })?;
         } else {
             // MCP SSE requires authentication
-            tracing::warn!(session_id = %session_id, "Missing Authorization header for MCP SSE connection");
+            warn!(session_id = %session_id, "Missing Authorization header for MCP SSE connection");
             return Err(AppError::auth_invalid(
                 "Missing Authorization header - JWT token required for MCP SSE",
             ));
@@ -246,14 +247,14 @@ impl SseRoutes {
                         );
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                        tracing::warn!(
+                        warn!(
                             "SSE buffer overflow for session {}: {} messages dropped",
                             session_id_clone, skipped
                         );
                         // Continue operation for protocol streams
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                        tracing::info!("SSE channel closed for session: {}", session_id_clone);
+                        info!("SSE channel closed for session: {}", session_id_clone);
                         break;
                     }
                 }
@@ -282,21 +283,21 @@ impl SseRoutes {
         headers: axum::http::HeaderMap,
         State((manager, resources)): State<(Arc<SseManager>, Arc<ServerResources>)>,
     ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
-        tracing::info!("New A2A task SSE connection for task: {}", task_id);
+        info!("New A2A task SSE connection for task: {}", task_id);
 
         // Extract and validate JWT token
         let auth_header = headers
             .get("authorization")
             .and_then(|h| h.to_str().ok())
             .ok_or_else(|| {
-                tracing::warn!(task_id = %task_id, "Missing Authorization header for A2A task SSE");
+                warn!(task_id = %task_id, "Missing Authorization header for A2A task SSE");
                 AppError::auth_invalid(
                     "Missing Authorization header - JWT token required for A2A task streams",
                 )
             })?;
 
         let token = crate::utils::auth::extract_bearer_token_owned(auth_header).map_err(|_| {
-            tracing::warn!(task_id = %task_id, "Invalid Authorization header format for A2A SSE");
+            warn!(task_id = %task_id, "Invalid Authorization header format for A2A SSE");
             AppError::auth_invalid("Invalid Authorization header format")
         })?;
 
@@ -306,26 +307,27 @@ impl SseRoutes {
             .authenticate_request(Some(&format!("Bearer {token}")))
             .await
             .map_err(|e| {
-                tracing::warn!(task_id = %task_id, error = %e, "Failed to authenticate JWT token for A2A SSE");
+                warn!(task_id = %task_id, error = %e, "Failed to authenticate JWT token for A2A SSE");
                 AppError::auth_invalid(format!("Authentication failed: {e}"))
             })?;
 
-        tracing::info!(
+        info!(
             task_id = %task_id,
             user_id = %auth_result.user_id,
             "Authenticated A2A task SSE connection"
         );
 
         // Verify task exists in database
-        let task = resources.database
+        let task = resources
+            .database
             .get_a2a_task(&task_id)
             .await
             .map_err(|e| {
-                tracing::error!(task_id = %task_id, error = %e, "Failed to fetch task for SSE streaming");
+                error!(task_id = %task_id, error = %e, "Failed to fetch task for SSE streaming");
                 AppError::internal(format!("Failed to fetch task: {e}"))
             })?
             .ok_or_else(|| {
-                tracing::warn!(task_id = %task_id, "Task not found for SSE streaming");
+                warn!(task_id = %task_id, "Task not found for SSE streaming");
                 AppError::not_found(format!("Task {task_id} not found"))
             })?;
 
@@ -369,14 +371,14 @@ impl SseRoutes {
                         );
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                        tracing::warn!(
+                        warn!(
                             "SSE buffer overflow for task {}: {} messages dropped",
                             task_id_clone, skipped
                         );
                         // Continue operation
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                        tracing::info!("SSE channel closed for task: {}", task_id_clone);
+                        info!("SSE channel closed for task: {}", task_id_clone);
                         break;
                     }
                 }

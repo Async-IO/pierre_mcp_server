@@ -9,7 +9,7 @@ use chrono::{TimeZone, Utc};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use std::time::Duration;
-use tracing::warn;
+use tracing::{error, info, warn};
 
 use super::core::OAuth2Credentials;
 use super::errors::ProviderError;
@@ -145,7 +145,7 @@ fn rate_limit_error(
 
 /// Create an API error for non-success responses
 fn api_error(status: StatusCode, text: &str, provider_name: &str) -> AppError {
-    tracing::error!("{provider_name} API request failed - status: {status}, body: {text}");
+    error!("{provider_name} API request failed - status: {status}, body: {text}");
     let err = ProviderError::ApiError {
         provider: provider_name.to_owned(),
         status_code: status.as_u16(),
@@ -174,7 +174,7 @@ pub async fn api_request_with_retry<T>(
 where
     T: for<'de> Deserialize<'de>,
 {
-    tracing::info!("Starting {provider_name} API request to: {url}");
+    info!("Starting {provider_name} API request to: {url}");
 
     let mut attempt = 0;
     loop {
@@ -188,7 +188,7 @@ where
             })?;
 
         let status = response.status();
-        tracing::info!("Received HTTP response with status: {status}");
+        info!("Received HTTP response with status: {status}");
 
         match check_retry_status(status, attempt, retry_config, provider_name) {
             RetryDecision::Retry { backoff_ms } => {
@@ -207,9 +207,9 @@ where
             return Err(api_error(status, &text, provider_name));
         }
 
-        tracing::info!("Parsing JSON response from {provider_name} API");
+        info!("Parsing JSON response from {provider_name} API");
         return response.json().await.map_err(|e| {
-            tracing::error!("Failed to parse JSON response: {e}");
+            error!("Failed to parse JSON response: {e}");
             AppError::external_service(provider_name, format!("Failed to parse API response: {e}"))
         });
     }
@@ -246,7 +246,7 @@ pub async fn refresh_oauth_token(
     refresh_token: &str,
     provider_name: &str,
 ) -> AppResult<OAuth2Credentials> {
-    tracing::info!("Refreshing {provider_name} access token");
+    info!("Refreshing {provider_name} access token");
 
     let params = [
         ("client_id", client_id),

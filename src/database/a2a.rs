@@ -16,6 +16,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::Row;
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 /// Records of A2A protocol usage for analytics and billing
@@ -79,7 +80,7 @@ pub struct A2AUsageStats {
 /// Helper functions for safe type conversions
 fn safe_u32_to_i32(value: u32) -> AppResult<i32> {
     i32::try_from(value).map_err(|e| {
-        tracing::warn!(
+        warn!(
             value = value,
             max_i32 = i32::MAX,
             error = %e,
@@ -92,7 +93,7 @@ fn safe_u32_to_i32(value: u32) -> AppResult<i32> {
 /// Safely convert i32 to u32, returning an error if negative
 fn safe_i32_to_u32(value: i32) -> AppResult<u32> {
     u32::try_from(value).map_err(|e| {
-        tracing::warn!(
+        warn!(
             value = value,
             error = %e,
             "Type conversion failed: negative i32 cannot convert to u32"
@@ -187,10 +188,9 @@ impl Database {
             ))
         })?;
 
-        tracing::debug!(
+        debug!(
             "Created A2A client {} with API key {} association",
-            client.id,
-            api_key_id
+            client.id, api_key_id
         );
 
         Ok(client.id.clone()) // Safe: String ownership needed for return value
@@ -221,7 +221,7 @@ impl Database {
 
             let capabilities_json: String = row.get("capabilities");
             let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     client_id = ?row.get::<String, _>("id"),
                     error = %e,
                     operation = "get_a2a_client",
@@ -232,7 +232,7 @@ impl Database {
 
             let redirect_uris_json: String = row.get("redirect_uris");
             let redirect_uris = serde_json::from_str(&redirect_uris_json).unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     client_id = ?row.get::<String, _>("id"),
                     error = %e,
                     operation = "get_a2a_client",
@@ -292,7 +292,7 @@ impl Database {
 
             let capabilities_json: String = row.get("capabilities");
             let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     client_id = ?row.get::<String, _>("id"),
                     api_key_id = api_key_id,
                     error = %e,
@@ -304,7 +304,7 @@ impl Database {
 
             let redirect_uris_json: String = row.get("redirect_uris");
             let redirect_uris = serde_json::from_str(&redirect_uris_json).unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     client_id = ?row.get::<String, _>("id"),
                     api_key_id = api_key_id,
                     error = %e,
@@ -381,7 +381,7 @@ impl Database {
 
             let capabilities_json: String = row.get("capabilities");
             let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     client_id = ?row.get::<String, _>("id"),
                     error = %e,
                     operation = "list_a2a_clients",
@@ -392,7 +392,7 @@ impl Database {
 
             let redirect_uris_json: String = row.get("redirect_uris");
             let redirect_uris = serde_json::from_str(&redirect_uris_json).unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     client_id = ?row.get::<String, _>("id"),
                     error = %e,
                     operation = "list_a2a_clients",
@@ -536,7 +536,7 @@ impl Database {
 
             let capabilities_json: String = row.get("capabilities");
             let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     client_name = name,
                     error = %e,
                     operation = "get_a2a_client_by_name",
@@ -547,7 +547,7 @@ impl Database {
 
             let redirect_uris_json: String = row.get("redirect_uris");
             let redirect_uris = serde_json::from_str(&redirect_uris_json).unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     client_name = name,
                     error = %e,
                     operation = "get_a2a_client_by_name",

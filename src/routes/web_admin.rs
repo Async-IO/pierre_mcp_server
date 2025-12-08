@@ -23,6 +23,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tracing::{debug, error, info, warn};
 
 /// Response for pending users list
 #[derive(Serialize)]
@@ -155,7 +156,7 @@ async fn create_default_mcp_token_for_user(database: &impl DatabaseProvider, use
         .await
     {
         Ok(token_result) => {
-            tracing::info!(
+            info!(
                 user_id = %user_id,
                 token_id = %token_result.token.id,
                 "Auto-created default MCP token for user"
@@ -163,7 +164,7 @@ async fn create_default_mcp_token_for_user(database: &impl DatabaseProvider, use
         }
         Err(e) => {
             // Log error but don't fail - user can create token manually
-            tracing::warn!(
+            warn!(
                 user_id = %user_id,
                 error = %e,
                 "Failed to auto-create MCP token for user (non-fatal)"
@@ -271,7 +272,7 @@ impl WebAdminRoutes {
         // Authenticate and verify admin status
         let auth = Self::authenticate_admin(&headers, &resources).await?;
 
-        tracing::info!(
+        info!(
             user_id = %auth.user_id,
             "Web admin listing pending users"
         );
@@ -282,7 +283,7 @@ impl WebAdminRoutes {
             .get_users_by_status("pending")
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to fetch pending users from database");
+                error!(error = %e, "Failed to fetch pending users from database");
                 AppError::internal(format!("Failed to fetch pending users: {e}"))
             })?;
 
@@ -301,7 +302,7 @@ impl WebAdminRoutes {
 
         let count = user_summaries.len();
 
-        tracing::info!("Retrieved {count} pending users for web admin");
+        info!("Retrieved {count} pending users for web admin");
 
         Ok((
             StatusCode::OK,
@@ -321,7 +322,7 @@ impl WebAdminRoutes {
         // Authenticate and verify admin status
         let auth = Self::authenticate_admin(&headers, &resources).await?;
 
-        tracing::info!(
+        info!(
             user_id = %auth.user_id,
             "Web admin listing all users"
         );
@@ -335,7 +336,7 @@ impl WebAdminRoutes {
                 .get_users_by_status(status)
                 .await
                 .map_err(|e| {
-                    tracing::error!(error = %e, status = status, "Failed to fetch users from database");
+                    error!(error = %e, status = status, "Failed to fetch users from database");
                     AppError::internal(format!("Failed to fetch {status} users: {e}"))
                 })?;
             all_users.extend(users);
@@ -362,7 +363,7 @@ impl WebAdminRoutes {
 
         let total_count = user_summaries.len();
 
-        tracing::info!("Retrieved {total_count} users for web admin");
+        info!("Retrieved {total_count} users for web admin");
 
         Ok((
             StatusCode::OK,
@@ -382,7 +383,7 @@ impl WebAdminRoutes {
         // Authenticate and verify admin status
         let auth = Self::authenticate_admin(&headers, &resources).await?;
 
-        tracing::info!(
+        info!(
             user_id = %auth.user_id,
             "Web admin listing admin tokens"
         );
@@ -393,7 +394,7 @@ impl WebAdminRoutes {
             .list_admin_tokens(false)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to fetch admin tokens from database");
+                error!(error = %e, "Failed to fetch admin tokens from database");
                 AppError::internal(format!("Failed to fetch admin tokens: {e}"))
             })?;
 
@@ -415,7 +416,7 @@ impl WebAdminRoutes {
 
         let total_count = token_summaries.len();
 
-        tracing::info!("Retrieved {total_count} admin tokens for web admin");
+        info!("Retrieved {total_count} admin tokens for web admin");
 
         Ok((
             StatusCode::OK,
@@ -437,7 +438,7 @@ impl WebAdminRoutes {
         // Authenticate and verify admin status
         let auth = Self::authenticate_admin(&headers, &resources).await?;
 
-        tracing::info!(
+        info!(
             admin_user_id = %auth.user_id,
             target_user_id = %user_id,
             "Web admin approving user"
@@ -445,7 +446,7 @@ impl WebAdminRoutes {
 
         // Parse user ID
         let user_uuid = uuid::Uuid::parse_str(&user_id).map_err(|e| {
-            tracing::error!(error = %e, "Invalid user ID format");
+            error!(error = %e, "Invalid user ID format");
             AppError::invalid_input(format!("Invalid user ID format: {e}"))
         })?;
 
@@ -455,11 +456,11 @@ impl WebAdminRoutes {
             .get_user(user_uuid)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to fetch user from database");
+                error!(error = %e, "Failed to fetch user from database");
                 AppError::internal(format!("Failed to fetch user: {e}"))
             })?
             .ok_or_else(|| {
-                tracing::warn!("User not found: {}", user_id);
+                warn!("User not found: {}", user_id);
                 AppError::not_found("User not found")
             })?;
 
@@ -482,7 +483,7 @@ impl WebAdminRoutes {
             .update_user_status(user_uuid, UserStatus::Active, &approver_id)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to update user status in database");
+                error!(error = %e, "Failed to update user status in database");
                 AppError::internal(format!("Failed to approve user: {e}"))
             })?;
 
@@ -490,7 +491,7 @@ impl WebAdminRoutes {
         create_default_mcp_token_for_user(resources.database.as_ref(), user_uuid).await;
 
         let reason = request.reason.as_deref().unwrap_or("No reason provided");
-        tracing::info!("User {} approved successfully. Reason: {}", user_id, reason);
+        info!("User {} approved successfully. Reason: {}", user_id, reason);
 
         Ok((
             StatusCode::OK,
@@ -517,7 +518,7 @@ impl WebAdminRoutes {
         // Authenticate and verify admin status
         let auth = Self::authenticate_admin(&headers, &resources).await?;
 
-        tracing::info!(
+        info!(
             admin_user_id = %auth.user_id,
             target_user_id = %user_id,
             "Web admin suspending user"
@@ -525,7 +526,7 @@ impl WebAdminRoutes {
 
         // Parse user ID
         let user_uuid = uuid::Uuid::parse_str(&user_id).map_err(|e| {
-            tracing::error!(error = %e, "Invalid user ID format");
+            error!(error = %e, "Invalid user ID format");
             AppError::invalid_input(format!("Invalid user ID format: {e}"))
         })?;
 
@@ -535,11 +536,11 @@ impl WebAdminRoutes {
             .get_user(user_uuid)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to fetch user from database");
+                error!(error = %e, "Failed to fetch user from database");
                 AppError::internal(format!("Failed to fetch user: {e}"))
             })?
             .ok_or_else(|| {
-                tracing::warn!("User not found: {}", user_id);
+                warn!("User not found: {}", user_id);
                 AppError::not_found("User not found")
             })?;
 
@@ -562,15 +563,14 @@ impl WebAdminRoutes {
             .update_user_status(user_uuid, UserStatus::Suspended, &suspender_id)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to update user status in database");
+                error!(error = %e, "Failed to update user status in database");
                 AppError::internal(format!("Failed to suspend user: {e}"))
             })?;
 
         let reason = request.reason.as_deref().unwrap_or("No reason provided");
-        tracing::info!(
+        info!(
             "User {} suspended successfully. Reason: {}",
-            user_id,
-            reason
+            user_id, reason
         );
 
         Ok((
@@ -596,7 +596,7 @@ impl WebAdminRoutes {
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
 
-        tracing::info!(
+        info!(
             user_id = %auth.user_id,
             service_name = %request.service_name,
             "Web admin creating admin token"
@@ -629,11 +629,11 @@ impl WebAdminRoutes {
             )
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to create admin token");
+                error!(error = %e, "Failed to create admin token");
                 AppError::internal(format!("Failed to create admin token: {e}"))
             })?;
 
-        tracing::info!(
+        info!(
             token_id = %generated_token.token_id,
             "Admin token created successfully via web admin"
         );
@@ -661,7 +661,7 @@ impl WebAdminRoutes {
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
 
-        tracing::info!(
+        info!(
             user_id = %auth.user_id,
             token_id = %token_id,
             "Web admin getting admin token details"
@@ -672,7 +672,7 @@ impl WebAdminRoutes {
             .get_admin_token_by_id(&token_id)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to fetch admin token from database");
+                error!(error = %e, "Failed to fetch admin token from database");
                 AppError::internal(format!("Failed to fetch admin token: {e}"))
             })?
             .ok_or_else(|| AppError::not_found(format!("Admin token {token_id}")))?;
@@ -702,7 +702,7 @@ impl WebAdminRoutes {
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
 
-        tracing::info!(
+        info!(
             user_id = %auth.user_id,
             token_id = %token_id,
             "Web admin revoking admin token"
@@ -713,11 +713,11 @@ impl WebAdminRoutes {
             .deactivate_admin_token(&token_id)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to revoke admin token");
+                error!(error = %e, "Failed to revoke admin token");
                 AppError::internal(format!("Failed to revoke admin token: {e}"))
             })?;
 
-        tracing::info!(
+        info!(
             "Admin token {} revoked successfully via web admin",
             token_id
         );
@@ -741,7 +741,7 @@ impl WebAdminRoutes {
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
 
-        tracing::info!(
+        info!(
             admin_id = %auth.user_id,
             target_user_id = %user_id,
             "Web admin resetting user password"
@@ -800,7 +800,7 @@ impl WebAdminRoutes {
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
 
-        tracing::debug!(
+        debug!(
             admin_id = %auth.user_id,
             target_user_id = %user_id,
             "Web admin fetching user rate limit"
@@ -896,7 +896,7 @@ impl WebAdminRoutes {
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate_admin(&headers, &resources).await?;
 
-        tracing::debug!(
+        debug!(
             admin_id = %auth.user_id,
             target_user_id = %user_id,
             "Web admin fetching user activity"
@@ -973,7 +973,7 @@ impl WebAdminRoutes {
             Ok(Some(db_setting)) => db_setting,
             Ok(None) => resources.config.app_behavior.auto_approve_users,
             Err(e) => {
-                tracing::error!(error = %e, "Failed to get auto-approval setting");
+                error!(error = %e, "Failed to get auto-approval setting");
                 return Err(AppError::internal(format!(
                     "Failed to get auto-approval setting: {e}"
                 )));
@@ -1007,7 +1007,7 @@ impl WebAdminRoutes {
             .and_then(serde_json::Value::as_bool)
             .ok_or_else(|| AppError::invalid_input("Missing or invalid 'enabled' field"))?;
 
-        tracing::info!(
+        info!(
             user_id = %auth.user_id,
             enabled = enabled,
             "Setting auto-approval"
@@ -1018,11 +1018,11 @@ impl WebAdminRoutes {
             .set_auto_approval_enabled(enabled)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to set auto-approval setting");
+                error!(error = %e, "Failed to set auto-approval setting");
                 AppError::internal(format!("Failed to set auto-approval setting: {e}"))
             })?;
 
-        tracing::info!(
+        info!(
             user_id = %auth.user_id,
             enabled = enabled,
             "Auto-approval setting updated"

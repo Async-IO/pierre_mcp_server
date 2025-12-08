@@ -15,6 +15,7 @@ use crate::errors::{AppError, AppResult};
 use crate::mcp::resources::ServerResources;
 use chrono::{Datelike, Duration, TimeZone, Utc};
 use serde::Serialize;
+use tracing::{debug, info};
 use uuid::Uuid;
 
 /// Dashboard overview with key metrics and recent activity
@@ -187,7 +188,7 @@ impl DashboardRoutes {
     /// # Panics
     /// Panics if date construction fails with invalid values
     pub async fn get_dashboard_overview(&self, auth: AuthResult) -> AppResult<DashboardOverview> {
-        tracing::debug!("Dashboard overview request received");
+        debug!("Dashboard overview request received");
 
         let user_id = auth.user_id;
 
@@ -196,7 +197,7 @@ impl DashboardRoutes {
             return Err(AppError::invalid_input("Invalid user ID"));
         }
 
-        tracing::info!(
+        info!(
             "Dashboard overview data access granted for user: {}",
             user_id
         );
@@ -314,7 +315,7 @@ impl DashboardRoutes {
         auth: AuthResult,
         days: u32,
     ) -> AppResult<UsageAnalytics> {
-        tracing::debug!("Dashboard analytics request received for {} days", days);
+        debug!("Dashboard analytics request received for {} days", days);
 
         let user_id = auth.user_id;
 
@@ -323,10 +324,9 @@ impl DashboardRoutes {
             return Err(AppError::invalid_input("Invalid user ID"));
         }
 
-        tracing::info!(
+        info!(
             "Dashboard analytics data access granted for user: {} (timeframe: {} days)",
-            user_id,
-            days
+            user_id, days
         );
 
         let api_keys = self
@@ -430,7 +430,7 @@ impl DashboardRoutes {
         &self,
         auth: AuthResult,
     ) -> AppResult<Vec<RateLimitOverview>> {
-        tracing::debug!("Dashboard rate limit overview request received");
+        debug!("Dashboard rate limit overview request received");
 
         let user_id = auth.user_id;
 
@@ -439,7 +439,7 @@ impl DashboardRoutes {
             return Err(AppError::invalid_input("Invalid user ID"));
         }
 
-        tracing::info!(
+        info!(
             "Dashboard rate limit data access granted for user: {}",
             user_id
         );
@@ -672,7 +672,7 @@ impl DashboardRoutes {
         status: Option<&str>,
         tool: Option<&str>,
     ) -> AppResult<Vec<RequestLog>> {
-        tracing::debug!("Dashboard request logs request received");
+        debug!("Dashboard request logs request received");
 
         let user_id = auth.user_id;
 
@@ -681,7 +681,7 @@ impl DashboardRoutes {
             return Err(AppError::invalid_input("Invalid user ID"));
         }
 
-        tracing::info!(
+        info!(
             "Dashboard request logs access granted for user: {}",
             user_id
         );
@@ -730,7 +730,7 @@ impl DashboardRoutes {
         api_key_id: Option<&str>,
         time_range: Option<&str>,
     ) -> AppResult<RequestStats> {
-        tracing::debug!("Dashboard request stats request received");
+        debug!("Dashboard request stats request received");
 
         let user_id = auth.user_id;
 
@@ -739,7 +739,7 @@ impl DashboardRoutes {
             return Err(AppError::invalid_input("Invalid user ID"));
         }
 
-        tracing::info!(
+        info!(
             "Dashboard request stats access granted for user: {}",
             user_id
         );
@@ -835,7 +835,7 @@ impl DashboardRoutes {
         _api_key_id: Option<&str>,
         time_range: Option<&str>,
     ) -> AppResult<Vec<ToolUsage>> {
-        tracing::debug!("Dashboard tool usage breakdown request received");
+        debug!("Dashboard tool usage breakdown request received");
 
         let user_id = auth.user_id;
 
@@ -844,7 +844,7 @@ impl DashboardRoutes {
             return Err(AppError::invalid_input("Invalid user ID"));
         }
 
-        tracing::info!(
+        info!(
             "Dashboard tool usage breakdown access granted for user: {}",
             user_id
         );

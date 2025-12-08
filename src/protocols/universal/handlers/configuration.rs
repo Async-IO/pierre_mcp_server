@@ -11,6 +11,7 @@ use crate::protocols::ProtocolError;
 use crate::utils::uuid::parse_user_id_for_protocol;
 use std::future::Future;
 use std::pin::Pin;
+use tracing::warn;
 
 /// Handle `get_configuration_catalog` tool - get complete configuration catalog
 ///
@@ -183,7 +184,7 @@ pub fn handle_get_user_configuration(
             Ok(Some(config_str)) => {
                 let stored_config: serde_json::Value = serde_json::from_str(&config_str)
                     .unwrap_or_else(|e| {
-                        tracing::warn!(
+                        warn!(
                             user_id = %user_uuid,
                             error = %e,
                             "Failed to parse stored fitness configuration JSON, using empty default"
@@ -375,27 +376,27 @@ fn calculate_power_zones_from_ftp(
     let zone_1_min = 0_u32; // Active Recovery: 0-zone1%
     let zone_1_max = u32::try_from(u64::from(ftp) * u64::from(config.ftp_zone1_percent) / 100)
         .unwrap_or_else(|e| {
-            tracing::warn!(ftp = ftp, error = %e, "Zone 1 max calculation failed, using u32::MAX");
+            warn!(ftp = ftp, error = %e, "Zone 1 max calculation failed, using u32::MAX");
             u32::MAX
         });
     let zone_2_max = u32::try_from(u64::from(ftp) * u64::from(config.ftp_zone2_percent) / 100)
         .unwrap_or_else(|e| {
-            tracing::warn!(ftp = ftp, error = %e, "Zone 2 max calculation failed, using u32::MAX");
+            warn!(ftp = ftp, error = %e, "Zone 2 max calculation failed, using u32::MAX");
             u32::MAX
         });
     let zone_3_max = u32::try_from(u64::from(ftp) * u64::from(config.ftp_zone3_percent) / 100)
         .unwrap_or_else(|e| {
-            tracing::warn!(ftp = ftp, error = %e, "Zone 3 max calculation failed, using u32::MAX");
+            warn!(ftp = ftp, error = %e, "Zone 3 max calculation failed, using u32::MAX");
             u32::MAX
         });
     let zone_4_max = u32::try_from(u64::from(ftp) * u64::from(config.ftp_zone4_percent) / 100)
         .unwrap_or_else(|e| {
-            tracing::warn!(ftp = ftp, error = %e, "Zone 4 max calculation failed, using u32::MAX");
+            warn!(ftp = ftp, error = %e, "Zone 4 max calculation failed, using u32::MAX");
             u32::MAX
         });
     let zone_5_max = u32::try_from(u64::from(ftp) * u64::from(config.ftp_zone5_percent) / 100)
         .unwrap_or_else(|e| {
-            tracing::warn!(ftp = ftp, error = %e, "Zone 5 max calculation failed, using u32::MAX");
+            warn!(ftp = ftp, error = %e, "Zone 5 max calculation failed, using u32::MAX");
             u32::MAX
         });
 
@@ -455,7 +456,7 @@ pub fn handle_calculate_personalized_zones(
             if let Some(vo2_number) = serde_json::Number::from_f64(params.vo2_max) {
                 map.insert("vo2_max".to_owned(), serde_json::Value::Number(vo2_number));
             } else {
-                tracing::warn!(
+                warn!(
                     vo2_max = params.vo2_max,
                     "Invalid VO2 max value (NaN/Infinity), omitting from metadata"
                 );

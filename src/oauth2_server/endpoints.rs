@@ -22,6 +22,7 @@ use ring::rand::{SecureRandom, SystemRandom};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 /// Parameters for authorization code generation
@@ -93,10 +94,10 @@ fn verify_pkce_challenge(
         .ct_eq(stored_challenge.as_bytes())
         .into()
     {
-        tracing::debug!("PKCE verification successful for client {}", client_id);
+        debug!("PKCE verification successful for client {}", client_id);
         Ok(())
     } else {
-        tracing::warn!(
+        warn!(
             "PKCE verification failed for client {} - code_verifier does not match code_challenge",
             client_id
         );
@@ -146,10 +147,9 @@ impl OAuth2AuthorizationServer {
             .get_client(&request.client_id)
             .await
             .map_err(|e| {
-                tracing::error!(
+                error!(
                     "Client lookup failed for client_id={}: {:#}",
-                    request.client_id,
-                    e
+                    request.client_id, e
                 );
                 OAuth2Error::invalid_client()
             })?;
@@ -209,10 +209,9 @@ impl OAuth2AuthorizationServer {
             })
             .await
             .map_err(|e| {
-                tracing::error!(
+                error!(
                     "Failed to generate authorization code for client_id={}: {:#}",
-                    request.client_id,
-                    e
+                    request.client_id, e
                 );
                 OAuth2Error::invalid_request("Failed to generate authorization code")
             })?;
@@ -236,7 +235,7 @@ impl OAuth2AuthorizationServer {
             .validate_client(&request.client_id, &request.client_secret)
             .await
             .inspect_err(|e| {
-                tracing::error!(
+                error!(
                     client_id = %request.client_id,
                     grant_type = %request.grant_type,
                     error = ?e,
@@ -283,17 +282,16 @@ impl OAuth2AuthorizationServer {
                 auth_code.scope.as_deref(),
             )
             .map_err(|e| {
-                tracing::error!(
+                error!(
                     "Failed to generate access token for client_id={}: {:#}",
-                    request.client_id,
-                    e
+                    request.client_id, e
                 );
                 OAuth2Error::invalid_request("Failed to generate access token")
             })?;
 
         // Generate refresh token
         let refresh_token_value = Self::generate_refresh_token().map_err(|e| {
-            tracing::error!("Failed to generate secure refresh token: {:#}", e);
+            error!("Failed to generate secure refresh token: {:#}", e);
             OAuth2Error::invalid_request("Failed to generate secure refresh token")
         })?;
         let refresh_token_expires_at = Utc::now() + Duration::days(30); // 30 days
@@ -313,10 +311,9 @@ impl OAuth2AuthorizationServer {
         self.store_refresh_token(&refresh_token)
             .await
             .map_err(|e| {
-                tracing::error!(
+                error!(
                     "Failed to store refresh token for client_id={}: {:#}",
-                    request.client_id,
-                    e
+                    request.client_id, e
                 );
                 OAuth2Error::invalid_request("Failed to store refresh token")
             })?;
@@ -343,10 +340,9 @@ impl OAuth2AuthorizationServer {
                 request.scope.as_deref(),
             )
             .map_err(|e| {
-                tracing::error!(
+                error!(
                     "Failed to generate client credentials access token for client_id={}: {:#}",
-                    request.client_id,
-                    e
+                    request.client_id, e
                 );
                 OAuth2Error::invalid_request("Failed to generate access token")
             })?;
@@ -382,17 +378,16 @@ impl OAuth2AuthorizationServer {
                 old_refresh_token.scope.as_deref(),
             )
             .map_err(|e| {
-                tracing::error!(
+                error!(
                     "Failed to generate access token from refresh for client_id={}: {:#}",
-                    request.client_id,
-                    e
+                    request.client_id, e
                 );
                 OAuth2Error::invalid_request("Failed to generate access token")
             })?;
 
         // Generate new refresh token (rotation)
         let new_refresh_token_value = Self::generate_refresh_token().map_err(|e| {
-            tracing::error!(
+            error!(
                 "Failed to generate new refresh token during rotation: {:#}",
                 e
             );
@@ -415,18 +410,16 @@ impl OAuth2AuthorizationServer {
         self.store_refresh_token(&new_refresh_token)
             .await
             .map_err(|e| {
-                tracing::error!(
+                error!(
                     "Failed to store new refresh token for client_id={}: {:#}",
-                    request.client_id,
-                    e
+                    request.client_id, e
                 );
                 OAuth2Error::invalid_request("Failed to store new refresh token")
             })?;
 
-        tracing::info!(
+        info!(
             "Refresh token rotated for client {} and user {}",
-            request.client_id,
-            old_refresh_token.user_id
+            request.client_id, old_refresh_token.user_id
         );
 
         Ok(TokenResponse {
@@ -495,15 +488,14 @@ impl OAuth2AuthorizationServer {
             };
 
             if let Err(e) = self.database.store_oauth2_state(&oauth2_state).await {
-                tracing::error!(
+                error!(
                     "Failed to store OAuth2 state for client_id={}: {:#}",
-                    params.client_id,
-                    e
+                    params.client_id, e
                 );
                 return Err(e);
             }
 
-            tracing::debug!(
+            debug!(
                 "Stored OAuth2 state for server-side validation: client_id={}, state_length={}",
                 params.client_id,
                 state_value.len()
@@ -528,7 +520,7 @@ impl OAuth2AuthorizationServer {
             .consume_auth_code(code, client_id, redirect_uri, Utc::now())
             .await
             .map_err(|e| {
-                tracing::error!(
+                error!(
                     "Failed to atomically consume authorization code for client_id={}: {:#}",
                     client_id,
                     e
@@ -536,7 +528,7 @@ impl OAuth2AuthorizationServer {
                 OAuth2Error::invalid_grant("Failed to consume authorization code")
             })?
             .ok_or_else(|| {
-                tracing::warn!(
+                warn!(
                     "Authorization code validation failed for client_id={}: code not found, already used, expired, or mismatched credentials",
                     client_id
                 );
@@ -575,17 +567,16 @@ impl OAuth2AuthorizationServer {
                 .consume_oauth2_state(state_value, client_id, Utc::now())
                 .await
                 .map_err(|e| {
-                    tracing::error!(
+                    error!(
                         "Failed to consume OAuth2 state for client_id={}: {:#}",
-                        client_id,
-                        e
+                        client_id, e
                     );
                     OAuth2Error::invalid_grant("Failed to validate state parameter")
                 })?;
 
             // None indicates validation failure (state not found, expired, used, or client_id mismatch)
             if consumed_state.is_none() {
-                tracing::warn!(
+                warn!(
                     "OAuth2 state validation failed for client_id={}: state not found, already used, expired, or client_id mismatch",
                     client_id
                 );
@@ -594,7 +585,7 @@ impl OAuth2AuthorizationServer {
                 ));
             }
 
-            tracing::debug!(
+            debug!(
                 "OAuth2 state validation successful for client_id={}, state_length={}",
                 client_id,
                 state_value.len()
@@ -629,7 +620,7 @@ impl OAuth2AuthorizationServer {
     ) -> AppResult<String> {
         let scopes = scope.map_or_else(
             || {
-                tracing::debug!(
+                debug!(
                     client_id = %client_id,
                     user_id = ?user_id,
                     "No scopes provided for token generation, using empty scope list"
@@ -674,7 +665,7 @@ impl OAuth2AuthorizationServer {
         let mut bytes = vec![0u8; length];
 
         rng.fill(&mut bytes).map_err(|e| {
-            tracing::error!(
+            error!(
                 "CRITICAL: SystemRandom failed - cannot generate secure random bytes: {}",
                 e
             );
@@ -722,7 +713,7 @@ impl OAuth2AuthorizationServer {
             .consume_refresh_token(token, client_id, Utc::now())
             .await
             .map_err(|e| {
-                tracing::error!(
+                error!(
                     "Failed to atomically consume refresh token for client_id={}: {:#}",
                     client_id,
                     e
@@ -730,7 +721,7 @@ impl OAuth2AuthorizationServer {
                 OAuth2Error::invalid_grant("Failed to consume refresh token")
             })?
             .ok_or_else(|| {
-                tracing::warn!(
+                warn!(
                     "Refresh token validation failed for client_id={}: token not found, already revoked, expired, or mismatched client",
                     client_id
                 );
@@ -786,7 +777,7 @@ impl OAuth2AuthorizationServer {
                 }),
                 Ok(None) => Ok(Self::create_invalid_response("user_not_found")),
                 Err(e) => {
-                    tracing::error!("Database error while validating token: {}", e);
+                    error!("Database error while validating token: {}", e);
                     Ok(Self::create_invalid_response("database_error"))
                 }
             },
@@ -824,7 +815,7 @@ impl OAuth2AuthorizationServer {
         {
             Ok(data) => data,
             Err(e) => {
-                tracing::warn!("Refresh token validation failed: {}", e);
+                warn!("Refresh token validation failed: {}", e);
                 return Ok(Self::create_invalid_response("invalid_refresh_token"));
             }
         };
@@ -836,7 +827,7 @@ impl OAuth2AuthorizationServer {
             refresh_token_data.scope.as_deref(),
         ) {
             Ok(new_access_token) => {
-                tracing::info!(
+                info!(
                     "Successfully refreshed access token for user {}",
                     claims.sub
                 );
@@ -846,7 +837,7 @@ impl OAuth2AuthorizationServer {
                 ))
             }
             Err(e) => {
-                tracing::error!("Failed to generate new access token: {}", e);
+                error!("Failed to generate new access token: {}", e);
                 Ok(Self::create_invalid_response(
                     "refresh_failed_token_generation",
                 ))
@@ -864,13 +855,13 @@ impl OAuth2AuthorizationServer {
             return Ok(Self::create_invalid_response("token_expired"));
         };
 
-        tracing::info!("Access token expired, attempting refresh with provided refresh_token");
+        info!("Access token expired, attempting refresh with provided refresh_token");
 
         // Decode expired token to extract user_id and client info (without validation)
         let claims = match Self::decode_expired_token(expired_access_token) {
             Ok(claims) => claims,
             Err(e) => {
-                tracing::error!("Failed to decode expired token: {}", e);
+                error!("Failed to decode expired token: {}", e);
                 return Ok(Self::create_invalid_response("malformed_expired_token"));
             }
         };

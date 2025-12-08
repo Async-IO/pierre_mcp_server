@@ -28,6 +28,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
+use tracing::{debug, error};
 
 /// Safe casting helper functions to avoid clippy warnings
 #[inline]
@@ -217,7 +218,7 @@ impl WeatherService {
                 Ok(weather)
             }
             Err(e) => {
-                tracing::error!("Weather API request failed: {}", e);
+                error!("Weather API request failed: {}", e);
                 Err(e)
             }
         }
@@ -263,7 +264,7 @@ impl WeatherService {
             api_key
         );
 
-        tracing::debug!("Fetching weather from: {}", url);
+        debug!("Fetching weather from: {}", url);
 
         let response = self.client.get(&url).send().await?;
 

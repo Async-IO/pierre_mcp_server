@@ -13,6 +13,7 @@ use crate::errors::{AppError, AppResult};
 use crate::security::csrf::CsrfTokenManager;
 use axum::http::{HeaderMap, Method};
 use std::sync::Arc;
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 /// CSRF validation middleware
@@ -56,7 +57,7 @@ impl CsrfMiddleware {
             .get("X-CSRF-Token")
             .and_then(|h| h.to_str().ok())
             .ok_or_else(|| {
-                tracing::warn!(
+                warn!(
                     user_id = %user_id,
                     method = %method,
                     "CSRF token missing for state-changing request"
@@ -69,7 +70,7 @@ impl CsrfMiddleware {
             .validate_token(csrf_token, user_id)
             .await
             .map_err(|e| {
-                tracing::warn!(
+                warn!(
                     user_id = %user_id,
                     method = %method,
                     error = %e,
@@ -78,7 +79,7 @@ impl CsrfMiddleware {
                 e
             })?;
 
-        tracing::debug!(
+        debug!(
             user_id = %user_id,
             method = %method,
             "CSRF token validated successfully"

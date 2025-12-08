@@ -17,7 +17,7 @@ use lru::LruCache;
 use serde_json::Value;
 use std::{num::NonZeroUsize, sync::Arc};
 use tokio::sync::Mutex;
-use tracing::{debug, info};
+use tracing::{debug, error, info, warn};
 
 use crate::database_plugins::DatabaseProvider;
 use crate::mcp::resources::ServerResources;
@@ -159,7 +159,7 @@ impl McpRoutes {
         let body_bytes = to_bytes(request.into_body(), usize::MAX)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to read request body");
+                error!(error = %e, "Failed to read request body");
                 (StatusCode::BAD_REQUEST, "Failed to read request body").into_response()
             })?;
 
@@ -168,7 +168,7 @@ impl McpRoutes {
         }
 
         serde_json::from_slice(&body_bytes).map_err(|e| {
-            tracing::warn!(error = %e, "Failed to parse JSON body");
+            warn!(error = %e, "Failed to parse JSON body");
             (StatusCode::BAD_REQUEST, "Invalid JSON").into_response()
         })
     }
@@ -280,7 +280,7 @@ impl McpRoutes {
         // Parse JSON-RPC request
         let mut mcp_request: crate::mcp::multitenant::McpRequest =
             serde_json::from_value(body.clone()).map_err(|e| {
-                tracing::error!(error = %e, "Failed to parse MCP request");
+                error!(error = %e, "Failed to parse MCP request");
                 (StatusCode::BAD_REQUEST, "Invalid MCP request format").into_response()
             })?;
 
@@ -305,7 +305,7 @@ impl McpRoutes {
         match response_opt {
             Some(mcp_response) => {
                 let json_response = serde_json::to_value(&mcp_response).map_err(|e| {
-                    tracing::error!(error = %e, "Failed to serialize MCP response");
+                    error!(error = %e, "Failed to serialize MCP response");
                     (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         "Failed to serialize response",

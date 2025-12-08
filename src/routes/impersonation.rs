@@ -24,6 +24,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tracing::info;
 use uuid::Uuid;
 
 /// Response for listing impersonation sessions
@@ -219,7 +220,7 @@ impl ImpersonationRoutes {
                 AppError::internal(format!("Failed to generate impersonation token: {e}"))
             })?;
 
-        tracing::info!(
+        info!(
             impersonator_id = %auth.user_id,
             impersonator_email = %impersonator.email,
             target_user_id = %target_user_id,
@@ -293,7 +294,7 @@ impl ImpersonationRoutes {
 
         let duration = session.duration_seconds();
 
-        tracing::info!(
+        info!(
             impersonator_id = %session.impersonator_id,
             target_user_id = %session.target_user_id,
             session_id = %session.id,
@@ -321,7 +322,7 @@ impl ImpersonationRoutes {
         // Authenticate and verify super admin status
         let (auth, _user) = Self::authenticate_super_admin(&headers, &resources).await?;
 
-        tracing::info!(
+        info!(
             user_id = %auth.user_id,
             "Super admin listing impersonation sessions"
         );

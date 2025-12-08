@@ -16,6 +16,7 @@ use crate::models::{Tenant, User, UserTier};
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing::warn;
 use uuid::Uuid;
 
 /// JWT token usage record for tracking
@@ -610,12 +611,12 @@ impl UnifiedRateLimitCalculator {
             now.with_year(now.year() + 1)
                 .and_then(|dt| dt.with_month(1))
                 .unwrap_or_else(|| {
-                    tracing::warn!("Failed to calculate next year/January, using fallback");
+                    warn!("Failed to calculate next year/January, using fallback");
                     now + chrono::Duration::days(31)
                 })
         } else {
             now.with_month(now.month() + 1).unwrap_or_else(|| {
-                tracing::warn!("Failed to increment month, using fallback");
+                warn!("Failed to increment month, using fallback");
                 now + chrono::Duration::days(31)
             })
         };
@@ -626,7 +627,7 @@ impl UnifiedRateLimitCalculator {
             .and_then(|dt| dt.with_minute(0))
             .and_then(|dt| dt.with_second(0))
             .unwrap_or_else(|| {
-                tracing::warn!("Failed to set reset time components, using next month");
+                warn!("Failed to set reset time components, using next month");
                 next_month
             })
     }

@@ -12,7 +12,7 @@ use crate::middleware::redaction::RedactionFeatures;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::PathBuf;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 /// Strongly typed log level configuration
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -2206,7 +2206,7 @@ pub fn default_provider() -> String {
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| oauth_providers::SYNTHETIC.to_owned());
 
-    tracing::info!("Default provider configured: {}", provider);
+    info!("Default provider configured: {}", provider);
     provider
 }
 
@@ -2286,7 +2286,7 @@ pub fn get_oauth_config(provider_name: &str) -> OAuthProviderConfig {
             }
         }
         _ => {
-            tracing::debug!(
+            debug!(
                 "Unknown provider '{}', returning default config",
                 provider_name
             );

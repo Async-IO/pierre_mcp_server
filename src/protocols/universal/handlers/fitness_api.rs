@@ -15,6 +15,7 @@ use crate::utils::uuid::parse_user_id_for_protocol;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use tracing::{debug, info, warn};
 
 /// Create metadata for activity analysis responses
 fn create_activity_metadata(
@@ -51,7 +52,7 @@ async fn try_get_cached_activities(
 ) -> Option<UniversalResponse> {
     if let Ok(Some(cached_activities)) = cache.get::<Vec<crate::models::Activity>>(cache_key).await
     {
-        tracing::info!("Cache hit for activities (limit={})", limit);
+        info!("Cache hit for activities (limit={})", limit);
         return Some(UniversalResponse {
             success: true,
             result: Some(serde_json::json!({
@@ -81,7 +82,7 @@ async fn try_get_cached_activities(
             }),
         });
     }
-    tracing::info!("Cache miss for activities (limit={})", limit);
+    info!("Cache miss for activities (limit={})", limit);
     None
 }
 
@@ -94,9 +95,9 @@ async fn cache_activities_result(
 ) {
     let ttl = CacheResource::ActivityList { page: 1, per_page }.recommended_ttl();
     if let Err(e) = cache.set(cache_key, activities, ttl).await {
-        tracing::warn!("Failed to cache activities: {}", e);
+        warn!("Failed to cache activities: {}", e);
     } else {
-        tracing::info!("Cached {} activities with TTL {:?}", activities.len(), ttl);
+        info!("Cached {} activities with TTL {:?}", activities.len(), ttl);
     }
 }
 
@@ -143,7 +144,7 @@ async fn try_get_cached_athlete(
     tenant_id: Option<&String>,
 ) -> Result<Option<UniversalResponse>, ProtocolError> {
     if let Ok(Some(cached_athlete)) = cache.get::<crate::models::Athlete>(cache_key).await {
-        tracing::info!("Cache hit for athlete profile");
+        info!("Cache hit for athlete profile");
         return Ok(Some(UniversalResponse {
             success: true,
             result: Some(serde_json::to_value(&cached_athlete).map_err(|e| {
@@ -169,7 +170,7 @@ async fn try_get_cached_athlete(
             }),
         }));
     }
-    tracing::info!("Cache miss for athlete profile");
+    info!("Cache miss for athlete profile");
     Ok(None)
 }
 
@@ -181,9 +182,9 @@ async fn cache_athlete_result(
 ) {
     let ttl = CacheResource::AthleteProfile.recommended_ttl();
     if let Err(e) = cache.set(cache_key, athlete, ttl).await {
-        tracing::warn!("Failed to cache athlete profile: {}", e);
+        warn!("Failed to cache athlete profile: {}", e);
     } else {
-        tracing::info!("Cached athlete profile with TTL {:?}", ttl);
+        info!("Cached athlete profile with TTL {:?}", ttl);
     }
 }
 
@@ -309,7 +310,7 @@ pub fn handle_get_activities(
             .and_then(|t| {
                 uuid::Uuid::parse_str(t)
                     .inspect_err(|e| {
-                        tracing::debug!(
+                        debug!(
                             tenant_id_str = %t,
                             error = %e,
                             "Failed to parse tenant ID for activities cache key - using nil UUID"
@@ -472,7 +473,7 @@ pub fn handle_get_athlete(
             .and_then(|t| {
                 uuid::Uuid::parse_str(t)
                     .inspect_err(|e| {
-                        tracing::debug!(
+                        debug!(
                             tenant_id_str = %t,
                             error = %e,
                             "Failed to parse tenant ID for cache key - using nil UUID"
@@ -589,7 +590,7 @@ async fn try_get_athlete_id_from_cache(
             .id
             .parse::<u64>()
             .inspect_err(|e| {
-                tracing::debug!(
+                debug!(
                     athlete_id_str = %athlete.id,
                     error = %e,
                     "Failed to parse athlete ID from cache as u64"
@@ -608,7 +609,7 @@ async fn try_get_cached_stats(
     tenant_id: Option<&String>,
 ) -> Result<Option<UniversalResponse>, ProtocolError> {
     if let Ok(Some(cached_stats)) = cache.get::<crate::models::Stats>(stats_cache_key).await {
-        tracing::info!("Cache hit for stats");
+        info!("Cache hit for stats");
         return Ok(Some(UniversalResponse {
             success: true,
             result: Some(serde_json::to_value(&cached_stats).map_err(|e| {
@@ -632,7 +633,7 @@ async fn try_get_cached_stats(
             }),
         }));
     }
-    tracing::info!("Cache miss for stats");
+    info!("Cache miss for stats");
     Ok(None)
 }
 
@@ -664,7 +665,7 @@ async fn cache_item<T: serde::Serialize + Send + Sync>(
     item_name: &str,
 ) {
     if let Err(e) = cache.set(key, item, ttl).await {
-        tracing::warn!("Failed to cache {}: {}", item_name, e);
+        warn!("Failed to cache {}: {}", item_name, e);
     }
 }
 
@@ -681,7 +682,7 @@ async fn cache_athlete_and_stats(
     let Some(athlete_id) = athlete
         .id
         .parse::<u64>()
-        .inspect_err(|e| tracing::debug!("Failed to parse athlete ID: {e}"))
+        .inspect_err(|e| debug!("Failed to parse athlete ID: {e}"))
         .ok()
     else {
         return;
@@ -700,7 +701,7 @@ async fn cache_athlete_and_stats(
     );
     let stats_ttl = CacheResource::Stats { athlete_id }.recommended_ttl();
     cache_item(cache, &stats_cache_key, stats, stats_ttl, "stats").await;
-    tracing::info!("Cached stats with TTL {:?}", stats_ttl);
+    info!("Cached stats with TTL {:?}", stats_ttl);
 }
 
 /// Fetch stats from API and cache both athlete and stats
@@ -782,7 +783,7 @@ pub fn handle_get_stats(
             .and_then(|t| {
                 uuid::Uuid::parse_str(t)
                     .inspect_err(|e| {
-                        tracing::debug!(
+                        debug!(
                             tenant_id_str = %t,
                             error = %e,
                             "Failed to parse tenant ID for cache key - using nil UUID"

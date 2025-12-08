@@ -29,6 +29,7 @@ use axum::{
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 // Helper function for JSON responses with status
@@ -259,7 +260,7 @@ impl AdminApiContext {
         admin_api_key_monthly_limit: u32,
         admin_token_cache_ttl_secs: u64,
     ) -> Self {
-        tracing::info!("AdminApiContext initialized with JWT signing key");
+        info!("AdminApiContext initialized with JWT signing key");
         let auth_service = AdminAuthService::new(
             (*database).clone(),
             jwks_manager.clone(),
@@ -308,7 +309,7 @@ async fn get_existing_user(database: &Database, email: &str) -> AppResult<User> 
     match database.get_user_by_email(email).await {
         Ok(Some(user)) => Ok(user),
         Ok(None) => {
-            tracing::warn!("API key provisioning failed: User {} does not exist", email);
+            warn!("API key provisioning failed: User {} does not exist", email);
             Err(AppError::invalid_input(format!(
                 "User {email} must register and be approved before API key provisioning"
             )))
@@ -402,7 +403,7 @@ fn parse_provision_request(
     match serde_json::from_slice(body) {
         Ok(req) => Ok(req),
         Err(e) => {
-            tracing::warn!(error = %e, "Invalid JSON body in provision API key request");
+            warn!(error = %e, "Invalid JSON body in provision API key request");
             Err((
                 axum::http::StatusCode::BAD_REQUEST,
                 Json(AdminResponse {
@@ -489,7 +490,7 @@ async fn record_provisioning_audit(
         )
         .await
     {
-        tracing::warn!("Failed to record admin provisioned key: {}", e);
+        warn!("Failed to record admin provisioned key: {}", e);
     }
 }
 
@@ -516,7 +517,7 @@ async fn check_no_admin_exists(
             Ok(None)
         }
         Err(e) => {
-            tracing::error!("Failed to check existing admin users: {}", e);
+            error!("Failed to check existing admin users: {}", e);
             Ok(Some((
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 Json(AdminResponse {
@@ -540,7 +541,7 @@ async fn create_admin_user_record(
     let password_hash = match bcrypt::hash(&request.password, bcrypt::DEFAULT_COST) {
         Ok(hash) => hash,
         Err(e) => {
-            tracing::error!("Failed to hash password: {}", e);
+            error!("Failed to hash password: {}", e);
             return Err((
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 Json(AdminResponse {
@@ -565,11 +566,11 @@ async fn create_admin_user_record(
     // Persist to database
     match database.create_user(&admin_user).await {
         Ok(_) => {
-            tracing::info!("Admin user created successfully: {}", request.email);
+            info!("Admin user created successfully: {}", request.email);
             Ok(user_id)
         }
         Err(e) => {
-            tracing::error!("Failed to create admin user: {}", e);
+            error!("Failed to create admin user: {}", e);
             Err((
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 Json(AdminResponse {
@@ -610,7 +611,7 @@ async fn generate_initial_admin_token(
     {
         Ok(generated_token) => Ok(generated_token.jwt_token),
         Err(e) => {
-            tracing::error!("Failed to generate admin token after creating user: {}", e);
+            error!("Failed to generate admin token after creating user: {}", e);
             Err((
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 Json(AdminResponse {
@@ -780,10 +781,9 @@ impl AdminRoutes {
             return Ok(response);
         }
 
-        tracing::info!(
+        info!(
             "Provisioning API key for user: {} by service: {}",
-            request.user_email,
-            admin_token.service_name
+            request.user_email, admin_token.service_name
         );
 
         let ctx = context.as_ref();
@@ -837,10 +837,9 @@ impl AdminRoutes {
         )
         .await;
 
-        tracing::info!(
+        info!(
             "API key provisioned successfully: {} for user: {}",
-            final_api_key.id,
-            user.email
+            final_api_key.id, user.email
         );
 
         let provision_response =
@@ -878,10 +877,9 @@ impl AdminRoutes {
             ));
         }
 
-        tracing::info!(
+        info!(
             "Revoking API key: {} by service: {}",
-            request.api_key_id,
-            admin_token.service_name
+            request.api_key_id, admin_token.service_name
         );
 
         let ctx = context.as_ref();
@@ -917,7 +915,7 @@ impl AdminRoutes {
             .await
         {
             Ok(()) => {
-                tracing::info!("API key revoked successfully: {}", request.api_key_id);
+                info!("API key revoked successfully: {}", request.api_key_id);
 
                 Ok(json_response(
                     AdminResponse {
@@ -933,7 +931,7 @@ impl AdminRoutes {
                 ))
             }
             Err(e) => {
-                tracing::warn!("Failed to revoke API key {}: {}", request.api_key_id, e);
+                warn!("Failed to revoke API key {}: {}", request.api_key_id, e);
 
                 Ok(json_response(
                     AdminResponse {
@@ -968,7 +966,7 @@ impl AdminRoutes {
             ));
         }
 
-        tracing::info!("Listing API keys by service: {}", admin_token.service_name);
+        info!("Listing API keys by service: {}", admin_token.service_name);
 
         let ctx = context.as_ref();
 
@@ -1034,7 +1032,7 @@ impl AdminRoutes {
                 ))
             }
             Err(e) => {
-                tracing::warn!("Failed to list API keys: {}", e);
+                warn!("Failed to list API keys: {}", e);
                 Ok(json_response(
                     AdminResponse {
                         success: false,
@@ -1068,7 +1066,7 @@ impl AdminRoutes {
             ));
         }
 
-        tracing::info!("Listing users by service: {}", admin_token.service_name);
+        info!("Listing users by service: {}", admin_token.service_name);
 
         let ctx = context.as_ref();
 
@@ -1081,7 +1079,7 @@ impl AdminRoutes {
             .get_users_by_status(status)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to fetch users from database");
+                error!(error = %e, "Failed to fetch users from database");
                 AppError::internal(format!("Failed to fetch users: {e}"))
             })?;
 
@@ -1100,7 +1098,7 @@ impl AdminRoutes {
 
         let total = user_summaries.len();
 
-        tracing::info!("Retrieved {} users", total);
+        info!("Retrieved {} users", total);
 
         Ok(json_response(
             AdminResponse {
@@ -1136,7 +1134,7 @@ impl AdminRoutes {
             ));
         }
 
-        tracing::info!(
+        info!(
             "Listing pending users by service: {}",
             admin_token.service_name
         );
@@ -1149,7 +1147,7 @@ impl AdminRoutes {
             .get_users_by_status("pending")
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to fetch pending users from database");
+                error!(error = %e, "Failed to fetch pending users from database");
                 AppError::internal(format!("Failed to fetch pending users: {e}"))
             })?;
 
@@ -1168,7 +1166,7 @@ impl AdminRoutes {
 
         let count = user_summaries.len();
 
-        tracing::info!("Retrieved {} pending users", count);
+        info!("Retrieved {} pending users", count);
 
         Ok(json_response(
             AdminResponse {
@@ -1218,18 +1216,16 @@ impl AdminRoutes {
             Self::create_default_tenant_for_user(database, user_uuid, &tenant_name, &tenant_slug)
                 .await
                 .map_err(|e| {
-                    tracing::error!(
+                    error!(
                         "Failed to create default tenant for user {}: {}",
-                        user_email,
-                        e
+                        user_email, e
                     );
                     AppError::internal(format!("Failed to create tenant: {e}"))
                 })?;
 
-        tracing::info!(
+        info!(
             "Created default tenant '{}' for user {}",
-            tenant.name,
-            user_email
+            tenant.name, user_email
         );
 
         let tenant_id_str = tenant.id.to_string();
@@ -1237,11 +1233,9 @@ impl AdminRoutes {
             .update_user_tenant_id(user_uuid, &tenant_id_str)
             .await
             .map_err(|e| {
-                tracing::error!(
+                error!(
                     "Failed to link user {} to tenant {}: {}",
-                    user_email,
-                    tenant.id,
-                    e
+                    user_email, tenant.id, e
                 );
                 AppError::internal(format!("Failed to link user to created tenant: {e}"))
             })?;
@@ -1276,15 +1270,14 @@ impl AdminRoutes {
             ));
         }
 
-        tracing::info!(
+        info!(
             "Approving user {} by service: {}",
-            user_id,
-            admin_token.service_name
+            user_id, admin_token.service_name
         );
 
         let ctx = context.as_ref();
         let user_uuid = uuid::Uuid::parse_str(&user_id).map_err(|e| {
-            tracing::error!(error = %e, "Invalid user ID format");
+            error!(error = %e, "Invalid user ID format");
             AppError::invalid_input(format!("Invalid user ID format: {e}"))
         })?;
 
@@ -1293,11 +1286,11 @@ impl AdminRoutes {
             .get_user(user_uuid)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to fetch user from database");
+                error!(error = %e, "Failed to fetch user from database");
                 AppError::internal(format!("Failed to fetch user: {e}"))
             })?
             .ok_or_else(|| {
-                tracing::warn!("User not found: {}", user_id);
+                warn!("User not found: {}", user_id);
                 AppError::not_found("User not found")
             })?;
 
@@ -1317,7 +1310,7 @@ impl AdminRoutes {
             .update_user_status(user_uuid, UserStatus::Active, &admin_token.token_id)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to update user status in database");
+                error!(error = %e, "Failed to update user status in database");
                 AppError::internal(format!("Failed to approve user: {e}"))
             })?;
 
@@ -1331,7 +1324,7 @@ impl AdminRoutes {
         .await?;
 
         let reason = request.reason.as_deref().unwrap_or("No reason provided");
-        tracing::info!("User {} approved successfully. Reason: {}", user_id, reason);
+        info!("User {} approved successfully. Reason: {}", user_id, reason);
 
         Ok(json_response(
             AdminResponse {
@@ -1375,15 +1368,14 @@ impl AdminRoutes {
             ));
         }
 
-        tracing::info!(
+        info!(
             "Suspending user {} by service: {}",
-            user_id,
-            admin_token.service_name
+            user_id, admin_token.service_name
         );
 
         let ctx = context.as_ref();
         let user_uuid = uuid::Uuid::parse_str(&user_id).map_err(|e| {
-            tracing::error!(error = %e, "Invalid user ID format");
+            error!(error = %e, "Invalid user ID format");
             AppError::invalid_input(format!("Invalid user ID format: {e}"))
         })?;
 
@@ -1392,11 +1384,11 @@ impl AdminRoutes {
             .get_user(user_uuid)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to fetch user from database");
+                error!(error = %e, "Failed to fetch user from database");
                 AppError::internal(format!("Failed to fetch user: {e}"))
             })?
             .ok_or_else(|| {
-                tracing::warn!("User not found: {}", user_id);
+                warn!("User not found: {}", user_id);
                 AppError::not_found("User not found")
             })?;
 
@@ -1416,15 +1408,14 @@ impl AdminRoutes {
             .update_user_status(user_uuid, UserStatus::Suspended, &admin_token.token_id)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to update user status in database");
+                error!(error = %e, "Failed to update user status in database");
                 AppError::internal(format!("Failed to suspend user: {e}"))
             })?;
 
         let reason = request.reason.as_deref().unwrap_or("No reason provided");
-        tracing::info!(
+        info!(
             "User {} suspended successfully. Reason: {}",
-            user_id,
-            reason
+            user_id, reason
         );
 
         Ok(json_response(
@@ -1468,15 +1459,14 @@ impl AdminRoutes {
             ));
         }
 
-        tracing::info!(
+        info!(
             "Resetting password for user {} by service: {}",
-            user_id,
-            admin_token.service_name
+            user_id, admin_token.service_name
         );
 
         let ctx = context.as_ref();
         let user_uuid = uuid::Uuid::parse_str(&user_id).map_err(|e| {
-            tracing::error!(error = %e, "Invalid user ID format");
+            error!(error = %e, "Invalid user ID format");
             AppError::invalid_input(format!("Invalid user ID format: {e}"))
         })?;
 
@@ -1486,11 +1476,11 @@ impl AdminRoutes {
             .get_user(user_uuid)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to fetch user from database");
+                error!(error = %e, "Failed to fetch user from database");
                 AppError::internal(format!("Failed to fetch user: {e}"))
             })?
             .ok_or_else(|| {
-                tracing::warn!("User not found: {}", user_id);
+                warn!("User not found: {}", user_id);
                 AppError::not_found("User not found")
             })?;
 
@@ -1503,7 +1493,7 @@ impl AdminRoutes {
 
         // Hash the password
         let password_hash = bcrypt::hash(&temp_password, bcrypt::DEFAULT_COST).map_err(|e| {
-            tracing::error!("Failed to hash password: {}", e);
+            error!("Failed to hash password: {}", e);
             AppError::internal("Failed to process password")
         })?;
 
@@ -1512,14 +1502,13 @@ impl AdminRoutes {
             .update_user_password(user_uuid, &password_hash)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to update user password");
+                error!(error = %e, "Failed to update user password");
                 AppError::internal(format!("Failed to reset password: {e}"))
             })?;
 
-        tracing::info!(
+        info!(
             "Password reset successfully for user {} by service {}",
-            user.email,
-            admin_token.service_name
+            user.email, admin_token.service_name
         );
 
         Ok(json_response(
@@ -1742,7 +1731,7 @@ impl AdminRoutes {
             ));
         }
 
-        tracing::info!(
+        info!(
             "Getting auto-approval setting by service: {}",
             admin_token.service_name
         );
@@ -1755,7 +1744,7 @@ impl AdminRoutes {
             .is_auto_approval_enabled()
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to get auto-approval setting");
+                error!(error = %e, "Failed to get auto-approval setting");
                 AppError::internal(format!("Failed to get auto-approval setting: {e}"))
             })?
             .unwrap_or(false);
@@ -1795,10 +1784,9 @@ impl AdminRoutes {
             ));
         }
 
-        tracing::info!(
+        info!(
             "Setting auto-approval to {} by service: {}",
-            request.enabled,
-            admin_token.service_name
+            request.enabled, admin_token.service_name
         );
 
         let ctx = context.as_ref();
@@ -1807,14 +1795,13 @@ impl AdminRoutes {
             .set_auto_approval_enabled(request.enabled)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to set auto-approval setting");
+                error!(error = %e, "Failed to set auto-approval setting");
                 AppError::internal(format!("Failed to set auto-approval setting: {e}"))
             })?;
 
-        tracing::info!(
+        info!(
             "Auto-approval setting updated to {} by {}",
-            request.enabled,
-            admin_token.service_name
+            request.enabled, admin_token.service_name
         );
 
         Ok(json_response(
@@ -1855,7 +1842,7 @@ impl AdminRoutes {
             ));
         }
 
-        tracing::info!(
+        info!(
             "Creating admin token by service: {}",
             admin_token.service_name
         );
@@ -1924,11 +1911,11 @@ impl AdminRoutes {
             .create_admin_token(&token_request, &ctx.admin_jwt_secret, &ctx.jwks_manager)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to generate admin token");
+                error!(error = %e, "Failed to generate admin token");
                 AppError::internal(format!("Failed to generate admin token: {e}"))
             })?;
 
-        tracing::info!("Admin token created: {}", generated_token.token_id);
+        info!("Admin token created: {}", generated_token.token_id);
 
         Ok(json_response(
             AdminResponse {
@@ -1968,7 +1955,7 @@ impl AdminRoutes {
             ));
         }
 
-        tracing::info!(
+        info!(
             "Listing admin tokens by service: {}",
             admin_token.service_name
         );
@@ -1976,11 +1963,11 @@ impl AdminRoutes {
         let ctx = context.as_ref();
 
         let tokens = ctx.database.list_admin_tokens(false).await.map_err(|e| {
-            tracing::error!(error = %e, "Failed to list admin tokens");
+            error!(error = %e, "Failed to list admin tokens");
             AppError::internal(format!("Failed to list admin tokens: {e}"))
         })?;
 
-        tracing::info!("Retrieved {} admin tokens", tokens.len());
+        info!("Retrieved {} admin tokens", tokens.len());
 
         Ok(json_response(
             AdminResponse {
@@ -2017,10 +2004,9 @@ impl AdminRoutes {
             ));
         }
 
-        tracing::info!(
+        info!(
             "Getting admin token {} by service: {}",
-            token_id,
-            admin_token.service_name
+            token_id, admin_token.service_name
         );
 
         let ctx = context.as_ref();
@@ -2038,7 +2024,7 @@ impl AdminRoutes {
                 ));
             }
             Err(e) => {
-                tracing::error!(error = %e, "Failed to get admin token");
+                error!(error = %e, "Failed to get admin token");
                 return Ok(json_response(
                     AdminResponse {
                         success: false,
@@ -2081,10 +2067,9 @@ impl AdminRoutes {
             ));
         }
 
-        tracing::info!(
+        info!(
             "Revoking admin token {} by service: {}",
-            token_id,
-            admin_token.service_name
+            token_id, admin_token.service_name
         );
 
         let ctx = context.as_ref();
@@ -2094,11 +2079,11 @@ impl AdminRoutes {
             .deactivate_admin_token(&token_id)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to revoke admin token");
+                error!(error = %e, "Failed to revoke admin token");
                 AppError::internal(format!("Failed to revoke admin token: {e}"))
             })?;
 
-        tracing::info!("Admin token {} revoked successfully", token_id);
+        info!("Admin token {} revoked successfully", token_id);
 
         Ok(json_response(
             AdminResponse {
@@ -2134,10 +2119,9 @@ impl AdminRoutes {
             ));
         }
 
-        tracing::info!(
+        info!(
             "Rotating admin token {} by service: {}",
-            token_id,
-            admin_token.service_name
+            token_id, admin_token.service_name
         );
 
         let ctx = context.as_ref();
@@ -2148,7 +2132,7 @@ impl AdminRoutes {
             .get_admin_token_by_id(&token_id)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to get admin token");
+                error!(error = %e, "Failed to get admin token");
                 AppError::internal(format!("Failed to get admin token: {e}"))
             })?
             .ok_or_else(|| AppError::not_found("Admin token not found"))?;
@@ -2158,7 +2142,7 @@ impl AdminRoutes {
             .deactivate_admin_token(&token_id)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to deactivate old token");
+                error!(error = %e, "Failed to deactivate old token");
                 AppError::internal(format!("Failed to deactivate old token: {e}"))
             })?;
 
@@ -2176,14 +2160,13 @@ impl AdminRoutes {
             .create_admin_token(&token_request, &ctx.admin_jwt_secret, &ctx.jwks_manager)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to generate new admin token");
+                error!(error = %e, "Failed to generate new admin token");
                 AppError::internal(format!("Failed to generate new admin token: {e}"))
             })?;
 
-        tracing::info!(
+        info!(
             "Admin token {} rotated successfully, new token: {}",
-            token_id,
-            new_token.token_id
+            token_id, new_token.token_id
         );
 
         Ok(json_response(
@@ -2211,7 +2194,7 @@ impl AdminRoutes {
         State(context): State<Arc<AdminApiContext>>,
         Json(request): Json<AdminSetupRequest>,
     ) -> AppResult<impl axum::response::IntoResponse> {
-        tracing::info!("Admin setup request for email: {}", request.email);
+        info!("Admin setup request for email: {}", request.email);
 
         let ctx = context.as_ref();
 
@@ -2242,7 +2225,7 @@ impl AdminRoutes {
         };
 
         // Return success response
-        tracing::info!("Admin setup completed successfully for: {}", request.email);
+        info!("Admin setup completed successfully for: {}", request.email);
         Ok((
             axum::http::StatusCode::CREATED,
             Json(AdminResponse {
@@ -2263,23 +2246,22 @@ impl AdminRoutes {
     async fn handle_setup_status(
         State(context): State<Arc<AdminApiContext>>,
     ) -> AppResult<impl axum::response::IntoResponse> {
-        tracing::info!("Setup status check requested");
+        info!("Setup status check requested");
 
         let ctx = context.as_ref();
 
         match ctx.auth_manager.check_setup_status(&ctx.database).await {
             Ok(setup_status) => {
-                tracing::info!(
+                info!(
                     "Setup status check successful: needs_setup={}, admin_user_exists={}",
-                    setup_status.needs_setup,
-                    setup_status.admin_user_exists
+                    setup_status.needs_setup, setup_status.admin_user_exists
                 );
                 Ok(json_response(setup_status, axum::http::StatusCode::OK))
             }
             Err(e) => {
                 use crate::routes::auth::SetupStatusResponse;
 
-                tracing::error!("Failed to check setup status: {}", e);
+                error!("Failed to check setup status: {}", e);
                 Ok(json_response(
                     SetupStatusResponse {
                         needs_setup: true,

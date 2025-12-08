@@ -27,7 +27,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::Deserialize;
-use tracing::info;
+use tracing::{info, warn};
 
 const FITBIT_API_BASE: &str = "https://api.fitbit.com/1";
 const FITBIT_AUTH_URL: &str = "https://www.fitbit.com/oauth2/authorize";
@@ -493,7 +493,7 @@ impl From<FitbitActivity> for Activity {
         let start_date = DateTime::parse_from_rfc3339(&fitbit.start_time)
             .or_else(|_| DateTime::parse_from_str(&fitbit.start_time, "%Y-%m-%dT%H:%M:%S%.3f"))
             .unwrap_or_else(|_| {
-                tracing::warn!(
+                warn!(
                     "Failed to parse start_time '{}', using current time",
                     fitbit.start_time
                 );
@@ -526,7 +526,7 @@ impl From<FitbitActivity> for Activity {
                 if fitbit.duration > 0 {
                     let duration_seconds =
                         f64::from(u32::try_from(fitbit.duration / 1000).unwrap_or_else(|_| {
-                            tracing::warn!(
+                            warn!(
                                 "Duration too large for conversion: {}",
                                 fitbit.duration
                             );

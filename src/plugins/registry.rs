@@ -14,6 +14,7 @@ use crate::protocols::universal::UniversalRequest;
 use crate::protocols::ProtocolError;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::{debug, info};
 
 /// Plugin registry that manages all available plugins
 pub struct PluginRegistry {
@@ -49,7 +50,7 @@ impl PluginRegistry {
         ))
         .ok();
 
-        tracing::info!("Registered {} plugins", self.plugins.len());
+        info!("Registered {} plugins", self.plugins.len());
     }
 
     /// Register a plugin dynamically (for testing or runtime registration)
@@ -76,7 +77,7 @@ impl PluginRegistry {
                 details: format!("Plugin registration failed: {e}"),
             })?;
 
-        tracing::info!("Dynamically registering plugin: {}", info.name);
+        info!("Dynamically registering plugin: {}", info.name);
 
         let plugin_arc = Arc::from(plugin);
         self.plugins.insert(info.name.to_owned(), plugin_arc);
@@ -103,7 +104,7 @@ impl PluginRegistry {
         // Call plugin lifecycle hook
         plugin.on_unregister()?;
 
-        tracing::info!("Unregistered plugin: {}", plugin_name);
+        info!("Unregistered plugin: {}", plugin_name);
         Ok(())
     }
 
@@ -149,10 +150,9 @@ impl PluginRegistry {
                     plugin_id: plugin_name.to_owned(),
                 })?;
 
-        tracing::debug!(
+        debug!(
             "Executing plugin: {} for user: {}",
-            plugin_name,
-            request.user_id
+            plugin_name, request.user_id
         );
 
         plugin.execute(request, env).await

@@ -132,6 +132,7 @@ use crate::providers::errors::ProviderError;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use tracing::info;
 use uuid::Uuid;
 
 /// Authentication credentials for `OAuth2` providers (Shared Request Type)
@@ -399,7 +400,7 @@ impl FitnessProvider for TenantProvider {
 
     async fn set_credentials(&self, credentials: OAuth2Credentials) -> AppResult<()> {
         // Add tenant-specific logging/metrics here
-        tracing::info!(
+        info!(
             "Setting credentials for provider {} in tenant {} for user {}",
             self.name(),
             self.tenant_id,

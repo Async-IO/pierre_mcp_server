@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 use std::sync::OnceLock;
 use thiserror::Error;
+use tracing::warn;
 
 /// Configuration error types
 /// Configuration-related errors
@@ -1082,7 +1083,7 @@ impl IntelligenceConfig<true> {
     pub fn global() -> &'static Self {
         INTELLIGENCE_CONFIG.get_or_init(|| {
             Self::load().unwrap_or_else(|e| {
-                tracing::warn!("Failed to load intelligence config: {}, using defaults", e);
+                warn!("Failed to load intelligence config: {}, using defaults", e);
                 Self::default()
             })
         })

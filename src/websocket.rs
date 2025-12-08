@@ -24,6 +24,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 use tokio::time::{interval, Duration};
+use tracing::{debug, trace, warn};
 use uuid::Uuid;
 
 // WebSocket message type alias for Axum
@@ -137,7 +138,7 @@ impl WebSocketManager {
                 };
                 if let Ok(json) = serde_json::to_string(&success_msg) {
                     if let Err(e) = tx.send(Message::Text(json)) {
-                        tracing::warn!(
+                        warn!(
                             user_id = %auth_result.user_id,
                             error = ?e,
                             "Failed to send authentication success message over WebSocket"
@@ -152,7 +153,7 @@ impl WebSocketManager {
                 };
                 if let Ok(json) = serde_json::to_string(&error_msg) {
                     if let Err(send_err) = tx.send(Message::Text(json)) {
-                        tracing::warn!(
+                        warn!(
                             auth_error = %e,
                             send_error = ?send_err,
                             "Failed to send authentication error message over WebSocket"
@@ -176,7 +177,7 @@ impl WebSocketManager {
             };
             if let Ok(json) = serde_json::to_string(&success_msg) {
                 if let Err(e) = tx.send(Message::Text(json)) {
-                    tracing::warn!(
+                    warn!(
                         user_id = ?authenticated_user,
                         topic_count = topics.len(),
                         error = ?e,
@@ -191,7 +192,7 @@ impl WebSocketManager {
             };
             if let Ok(json) = serde_json::to_string(&error_msg) {
                 if let Err(e) = tx.send(Message::Text(json)) {
-                    tracing::warn!(
+                    warn!(
                         error = ?e,
                         "Failed to send authentication required error message over WebSocket"
                     );
@@ -236,7 +237,7 @@ impl WebSocketManager {
                         };
                         if let Ok(json) = serde_json::to_string(&error_msg) {
                             if let Err(send_err) = tx.send(Message::Text(json)) {
-                                tracing::warn!(
+                                warn!(
                                     parse_error = %e,
                                     send_error = ?send_err,
                                     "Failed to send invalid message format error over WebSocket"
@@ -332,7 +333,7 @@ impl WebSocketManager {
             if client.user_id == *user_id && client.subscriptions.contains(&topic.to_owned()) {
                 if let Ok(msg_text) = serde_json::to_string(message) {
                     if let Err(e) = client.tx.send(Message::Text(msg_text)) {
-                        tracing::warn!(
+                        warn!(
                             user_id = %user_id,
                             topic = %topic,
                             error = ?e,
@@ -349,7 +350,7 @@ impl WebSocketManager {
         // Use broadcast channel for efficient message distribution
         if let Err(e) = self.broadcast_tx.send(message.clone()) {
             // Safe: broadcast channel needs ownership while we reuse message below
-            tracing::trace!("Failed to send broadcast message: {}", e);
+            trace!("Failed to send broadcast message: {}", e);
         }
 
         // Also send directly to subscribed clients for immediate delivery
@@ -358,7 +359,7 @@ impl WebSocketManager {
             if client.subscriptions.contains(&topic.to_owned()) {
                 if let Ok(msg_text) = serde_json::to_string(message) {
                     if let Err(e) = client.tx.send(Message::Text(msg_text)) {
-                        tracing::warn!(
+                        warn!(
                             topic = %topic,
                             error = ?e,
                             "Failed to broadcast message to client over WebSocket"
@@ -378,10 +379,9 @@ impl WebSocketManager {
             .await
             .map_err(|e| AppError::database(e.to_string()))?;
 
-        tracing::debug!(
+        debug!(
             "System statistics: {} requests today, {} this month",
-            today_count,
-            month_count
+            today_count, month_count
         );
 
         Ok(SystemStats {
@@ -401,7 +401,7 @@ impl WebSocketManager {
 
                 // Broadcast system stats
                 if let Err(e) = manager.broadcast_system_stats().await {
-                    tracing::warn!("Failed to broadcast system stats: {}", e);
+                    warn!("Failed to broadcast system stats: {}", e);
                 }
             }
         });

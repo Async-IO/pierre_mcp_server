@@ -416,10 +416,9 @@ impl FitnessProvider for GarminProvider {
             limit.unwrap_or(api_provider_limits::garmin::DEFAULT_ACTIVITIES_PER_PAGE);
         let start_offset = offset.unwrap_or(0);
 
-        tracing::info!(
+        info!(
             "Starting get_activities - requested_limit: {}, offset: {}",
-            requested_limit,
-            start_offset
+            requested_limit, start_offset
         );
 
         if requested_limit <= api_provider_limits::garmin::MAX_ACTIVITIES_PER_REQUEST {
@@ -543,10 +542,10 @@ impl GarminProvider {
             "activitylist-service/activities/search/activities?start={offset}&limit={limit}"
         );
 
-        tracing::info!("Single page request - endpoint: {}", endpoint);
+        info!("Single page request - endpoint: {}", endpoint);
 
         let garmin_activities: Vec<GarminActivityResponse> = self.api_request(&endpoint).await?;
-        tracing::info!(
+        info!(
             "Received {} activities from single page",
             garmin_activities.len()
         );
@@ -593,7 +592,7 @@ impl GarminProvider {
 
         let expected_count = (page_index + 1) * activities_per_page.min(total_limit);
         if activities_count < expected_count {
-            tracing::info!(
+            info!(
                 "Reached end of activities - got {} total, breaking early",
                 activities_count
             );
@@ -618,7 +617,7 @@ impl GarminProvider {
         let current_offset = start_offset + (page_index * activities_per_page);
 
         let endpoint = Self::build_activities_endpoint(current_offset, current_page_limit);
-        tracing::info!(
+        info!(
             "Fetching page {} of {} - endpoint: {}",
             page_index + 1,
             pages_needed,
@@ -629,7 +628,7 @@ impl GarminProvider {
             .api_request::<Vec<GarminActivityResponse>>(&endpoint)
             .await?;
 
-        tracing::info!(
+        info!(
             "Page {} returned {} activities",
             page_index + 1,
             garmin_activities.len()
@@ -654,11 +653,9 @@ impl GarminProvider {
         let activities_per_page = api_provider_limits::garmin::MAX_ACTIVITIES_PER_REQUEST;
         let pages_needed = total_limit.div_ceil(activities_per_page);
 
-        tracing::info!(
+        info!(
             "Multi-page request - total_limit: {}, pages_needed: {}, start_offset: {}",
-            total_limit,
-            pages_needed,
-            start_offset
+            total_limit, pages_needed, start_offset
         );
 
         for page_index in 0..pages_needed {
@@ -678,7 +675,7 @@ impl GarminProvider {
             }
         }
 
-        tracing::info!(
+        info!(
             "Multi-page fetch completed - requested: {}, retrieved: {}",
             total_limit,
             all_activities.len()

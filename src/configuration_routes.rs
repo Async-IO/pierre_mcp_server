@@ -26,6 +26,7 @@ use crate::errors::{AppError, AppResult};
 use crate::types::json_schemas;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 // ================================================================================================
@@ -374,7 +375,7 @@ impl ConfigurationRoutes {
 
         // Verify user exists in database before proceeding
         if let Err(e) = self.resources.database.get_user(user_id).await {
-            tracing::debug!("Database user lookup failed: {}", e);
+            debug!("Database user lookup failed: {}", e);
         }
 
         // Return user-specific configuration from database
@@ -454,15 +455,13 @@ impl ConfigurationRoutes {
             let config_value = value.to_config_value();
             config
                 .set_override(&key, config_value)
-                .inspect_err(
-                    |e| tracing::warn!(key = %key, error = %e, "Failed to override config"),
-                )
+                .inspect_err(|e| warn!(key = %key, error = %e, "Failed to override config"))
                 .ok();
         }
 
         // Verify user exists in database before saving configuration
         if let Err(e) = self.resources.database.get_user(user_id).await {
-            tracing::debug!("Database user lookup failed during save: {}", e);
+            debug!("Database user lookup failed during save: {}", e);
         }
 
         // Return success after persisting configuration changes
@@ -496,7 +495,7 @@ impl ConfigurationRoutes {
         let user_id = auth.user_id;
 
         // Log personalized zones request
-        tracing::debug!("Generating personalized zones for user {}", user_id);
+        debug!("Generating personalized zones for user {}", user_id);
 
         let resting_hr = request
             .resting_hr

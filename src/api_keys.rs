@@ -23,6 +23,7 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use tracing::warn;
 use uuid::Uuid;
 
 /// API Key tiers with rate limits
@@ -558,14 +559,12 @@ impl ApiKeyManager {
                 now.with_year(now.year() + 1)
                     .and_then(|dt| dt.with_month(1))
                     .unwrap_or_else(|| {
-                        tracing::warn!(
-                            "Failed to calculate next year/January, using 30-day default"
-                        );
+                        warn!("Failed to calculate next year/January, using 30-day default");
                         now + chrono::Duration::days(30)
                     })
             } else {
                 now.with_month(now.month() + 1).unwrap_or_else(|| {
-                    tracing::warn!("Failed to increment month, using fallback");
+                    warn!("Failed to increment month, using fallback");
                     now + chrono::Duration::days(30)
                 })
             };
@@ -576,9 +575,7 @@ impl ApiKeyManager {
                 .and_then(|dt| dt.with_minute(0))
                 .and_then(|dt| dt.with_second(0))
                 .unwrap_or_else(|| {
-                    tracing::warn!(
-                        "Failed to set reset time components, using beginning of next month"
-                    );
+                    warn!("Failed to set reset time components, using beginning of next month");
                     next_month
                 });
 

@@ -34,6 +34,7 @@ use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, convert::Infallible, sync::Arc};
 use tokio_stream::StreamExt;
+use tracing::info;
 
 // ============================================================================
 // Constants
@@ -519,7 +520,7 @@ impl ChatRoutes {
             // Check for function calls
             if let Some(ref function_calls) = response.function_calls {
                 if !function_calls.is_empty() {
-                    tracing::info!(
+                    info!(
                         "Iteration {}: Executing {} tool calls",
                         iteration,
                         function_calls.len()
@@ -567,7 +568,7 @@ impl ChatRoutes {
     ) -> Result<Vec<FunctionResponse>, AppError> {
         let mut responses = Vec::with_capacity(function_calls.len());
         for function_call in function_calls {
-            tracing::info!("Executing tool: {}", function_call.name);
+            info!("Executing tool: {}", function_call.name);
             let tool_response =
                 Self::execute_mcp_tool(executor, function_call, user_id, tenant_id).await?;
             responses.push(Self::build_function_response(function_call, &tool_response));

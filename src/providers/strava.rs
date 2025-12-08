@@ -18,7 +18,7 @@ use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::Deserialize;
 use std::sync::OnceLock;
-use tracing::{error, info};
+use tracing::{debug, error, info, warn};
 
 /// Configuration for Strava API integration
 #[derive(Debug, Clone)]
@@ -199,7 +199,7 @@ impl StravaProvider {
 
         // Return tokens - handle missing refresh token properly
         let refresh_token = token.refresh_token.unwrap_or_else(|| {
-            tracing::warn!("No refresh token provided by Strava");
+            warn!("No refresh token provided by Strava");
             String::new()
         });
 
@@ -248,7 +248,7 @@ impl StravaProvider {
 
         // Return tokens - handle missing refresh token properly
         let refresh_token = token.refresh_token.unwrap_or_else(|| {
-            tracing::warn!("No refresh token provided by Strava");
+            warn!("No refresh token provided by Strava");
             String::new()
         });
 
@@ -291,7 +291,7 @@ impl StravaProvider {
 
         // Return tokens - handle missing refresh token properly
         let refresh_token = new_token.refresh_token.unwrap_or_else(|| {
-            tracing::warn!("No refresh token provided by Strava");
+            warn!("No refresh token provided by Strava");
             String::new()
         });
 
@@ -350,7 +350,7 @@ impl FitnessProvider for StravaProvider {
         Ok(Athlete {
             id: response.id.to_string(),
             username: response.username.unwrap_or_else(|| {
-                tracing::debug!("No username provided by Strava for athlete {}", response.id);
+                debug!("No username provided by Strava for athlete {}", response.id);
                 String::new()
             }),
             firstname: response.firstname,
@@ -404,7 +404,7 @@ impl FitnessProvider for StravaProvider {
 
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_else(|e| {
-                tracing::warn!("Failed to read error response body: {}", e);
+                warn!("Failed to read error response body: {}", e);
                 "Unable to read error response".into()
             });
             error!("Strava API error response: {} - {}", status, error_text);
@@ -547,7 +547,7 @@ impl FitnessProvider for StravaProvider {
         // Personal records require analysis of activities to determine bests
         // This would involve fetching activities and calculating personal bests
         // Strava API does not provide direct PR endpoints - requires activity analysis
-        tracing::debug!("Personal records require activity analysis - returning empty set");
+        debug!("Personal records require activity analysis - returning empty set");
         Ok(vec![])
     }
 

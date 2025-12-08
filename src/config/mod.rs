@@ -16,6 +16,8 @@ pub mod fitness_config;
 /// Intelligence module configuration and strategies
 pub mod intelligence_config;
 
+use tracing::{debug, info};
+
 // Re-export main configuration types
 pub use environment::ServerConfig;
 pub use fitness_config::{FitnessConfig, WeatherApiConfig};
@@ -35,7 +37,7 @@ pub fn init_configs() -> Result<(), Box<dyn std::error::Error>> {
     let intelligence_config = IntelligenceConfig::global();
 
     // Validate configuration is properly loaded by accessing a field
-    tracing::debug!(
+    debug!(
         "Intelligence config initialized successfully (min duration: {}s)",
         intelligence_config
             .activity_analyzer
@@ -43,6 +45,6 @@ pub fn init_configs() -> Result<(), Box<dyn std::error::Error>> {
             .min_duration_seconds
     );
 
-    tracing::info!("All configurations initialized successfully");
+    info!("All configurations initialized successfully");
     Ok(())
 }

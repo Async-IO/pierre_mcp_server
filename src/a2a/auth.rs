@@ -15,6 +15,7 @@ use crate::errors::{AppError, AppResult};
 use crate::providers::errors::ProviderError;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tracing::debug;
 
 /// A2A Authentication token
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -179,7 +180,7 @@ impl A2AAuthenticator {
                 // Store A2A rate limit status in auth result
                 // Note: This requires extending AuthResult to include A2A rate limit info
                 // Log successful A2A authentication
-                tracing::debug!(
+                debug!(
                     "A2A client {} authenticated with {} requests remaining",
                     client.id,
                     rate_limit_status.remaining.unwrap_or(0)

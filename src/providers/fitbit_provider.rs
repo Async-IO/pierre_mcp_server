@@ -21,7 +21,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use reqwest::Client;
 use serde::Deserialize;
-use tracing::{info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Fitbit API base URL
 const FITBIT_API_BASE: &str = "https://api.fitbit.com/1";
@@ -263,7 +263,7 @@ impl FitbitProvider {
 
     /// Handle non-success API responses
     fn handle_api_error(status: reqwest::StatusCode, text: &str, url: &str) -> AppError {
-        tracing::error!("Fitbit API request failed - status: {status}, url: {url}, body: {text}");
+        error!("Fitbit API request failed - status: {status}, url: {url}, body: {text}");
 
         // Try to parse Fitbit error response
         if let Ok(error_response) = serde_json::from_str::<FitbitErrorResponse>(text) {
@@ -306,7 +306,7 @@ impl FitbitProvider {
     where
         T: for<'de> Deserialize<'de>,
     {
-        tracing::debug!("Starting Fitbit API request to endpoint: {endpoint}");
+        debug!("Starting Fitbit API request to endpoint: {endpoint}");
 
         self.refresh_token_if_needed().await?;
 
@@ -328,7 +328,7 @@ impl FitbitProvider {
         url: &str,
         access_token: &str,
     ) -> AppResult<reqwest::Response> {
-        tracing::debug!("Making HTTP GET request to: {url}");
+        debug!("Making HTTP GET request to: {url}");
 
         self.client
             .get(url)
@@ -346,16 +346,16 @@ impl FitbitProvider {
         T: for<'de> Deserialize<'de>,
     {
         let status = response.status();
-        tracing::debug!("Received HTTP response with status: {status}");
+        debug!("Received HTTP response with status: {status}");
 
         if !status.is_success() {
             let text = response.text().await.unwrap_or_default();
             return Err(Self::handle_api_error(status, &text, url));
         }
 
-        tracing::debug!("Parsing JSON response from Fitbit API");
+        debug!("Parsing JSON response from Fitbit API");
         response.json().await.map_err(|e| {
-            tracing::error!("Failed to parse JSON response: {e}");
+            error!("Failed to parse JSON response: {e}");
             AppError::external_service("Fitbit", format!("Failed to parse API response: {e}"))
         })
     }
