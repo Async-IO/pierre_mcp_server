@@ -81,11 +81,13 @@ jobs:
 
       - name: Run tests
         shell: bash
+        # Note: Using --lib --bins --tests instead of --all-targets to exclude benches
+        # Criterion benchmarks don't accept --test-threads and will fail
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            cargo test --all-targets --release --quiet -- --test-threads=4
+            cargo test --lib --bins --tests --release --quiet -- --test-threads=4
           else
-            cargo test --all-targets --quiet -- --test-threads=4
+            cargo test --lib --bins --tests --quiet -- --test-threads=4
           fi
         env:
           DATABASE_URL: "sqlite::memory:"
