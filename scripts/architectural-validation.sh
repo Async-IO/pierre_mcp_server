@@ -389,6 +389,28 @@ else
 fi
 
 # ============================================================================
+# IGNORED DOCTESTS VALIDATION
+# ============================================================================
+
+echo ""
+echo -e "${BLUE}==== Ignored Doctests Validation ====${NC}"
+
+# Check for ignored doctests - these are not compiled or tested
+# Patterns: ```ignore, ```rust,ignore, ```rust, ignore
+IGNORED_DOCTESTS=$(rg '///\s*```(rust,\s*)?ignore' src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+if [ "$IGNORED_DOCTESTS" -gt 0 ]; then
+    echo -e "${RED}❌ Found $IGNORED_DOCTESTS ignored doctests${NC}"
+    echo -e "${RED}Doctests marked with 'ignore' are not compiled or tested.${NC}"
+    echo -e "${RED}Use 'no_run' if code should compile but not execute,${NC}"
+    echo -e "${RED}or remove the code fence if it's not meant to be code.${NC}"
+    rg '///\s*```(rust,\s*)?ignore' src/ -n | head -5
+    fail_validation "Replace 'ignore' with 'no_run' or remove code fence"
+else
+    pass_validation "No ignored doctests found"
+fi
+
+# ============================================================================
 # LEGACY FUNCTION DETECTION (UX Anti-Patterns)
 # ============================================================================
 
@@ -606,6 +628,14 @@ if [ "$IGNORED_TESTS" -eq 0 ]; then
 else
     FIRST_IGNORED=$(get_first_location 'rg "#\[ignore\]" tests/ -n')
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_IGNORED"
+fi
+
+printf "│ %-35s │ %5d │ " "Ignored doctests" "$IGNORED_DOCTESTS"
+if [ "$IGNORED_DOCTESTS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "All doctests compiled/tested"
+else
+    FIRST_DOCTEST=$(get_first_location 'rg "///\s*\`\`\`(rust,\s*)?ignore" src/ -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_DOCTEST"
 fi
 
 printf "│ %-35s │ %5d │ " "Backup files" "${BACKUP_FILES:-0}"
