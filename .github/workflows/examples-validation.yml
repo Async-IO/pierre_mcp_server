@@ -134,8 +134,18 @@ jobs:
           STRAVA_REDIRECT_URI="http://localhost:8080/callback" \
           ./target/release/pierre-mcp-server &
           echo "Waiting for server startup..."
-          sleep 5
-          curl -sf http://localhost:8081/health || (echo "Server failed to start" && exit 1)
+          for i in 1 2 3 4 5; do
+            echo "Health check attempt $i/5..."
+            if curl -sf http://localhost:8081/health > /dev/null 2>&1; then
+              echo "Server is healthy!"
+              break
+            fi
+            if [ "$i" -eq 5 ]; then
+              echo "Server failed to start after 5 attempts"
+              exit 1
+            fi
+            sleep 5
+          done
 
       - name: Run agent_discovery against live server
         run: |
