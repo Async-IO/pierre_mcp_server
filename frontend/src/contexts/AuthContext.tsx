@@ -68,6 +68,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('user', JSON.stringify(userData));
   };
 
+  const loginWithFirebase = async (idToken: string) => {
+    const response = await apiService.loginWithFirebase(idToken);
+    const { csrf_token, jwt_token, user: userData } = response;
+
+    // Store CSRF token in API service
+    apiService.setCsrfToken(csrf_token);
+
+    // Store JWT token for WebSocket authentication
+    if (jwt_token) {
+      setToken(jwt_token);
+      localStorage.setItem('jwt_token', jwt_token);
+    }
+
+    // Store user info in state and localStorage
+    setUser(userData);
+    localStorage.setItem('user', JSON.stringify(userData));
+
+    return response;
+  };
+
   const logout = useCallback(() => {
     // If impersonating, also clear impersonation state
     if (impersonation.isImpersonating) {
@@ -151,6 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading,
     loading: isLoading, // For test compatibility
     login,
+    loginWithFirebase,
     logout,
     impersonation,
     startImpersonation,

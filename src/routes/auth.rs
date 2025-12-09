@@ -54,6 +54,13 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+/// Firebase login request - authenticate with Firebase ID token
+#[derive(Debug, Deserialize)]
+pub struct FirebaseLoginRequest {
+    /// Firebase ID token from client-side Firebase SDK
+    pub id_token: String,
+}
+
 /// User info for login response
 #[derive(Debug, Serialize)]
 pub struct UserInfo {
@@ -188,18 +195,7 @@ impl AuthService {
         let mut user = User::new(request.email.clone(), password_hash, request.display_name); // Safe: String ownership needed for user model
 
         // Check if auto-approval is enabled (database setting takes precedence over config)
-        let auto_approve = self
-            .data
-            .database()
-            .is_auto_approval_enabled()
-            .await
-            .unwrap_or_else(|e| {
-                tracing::warn!(
-                    "Failed to check auto-approval setting, falling back to config: {e}"
-                );
-                self.config.config().app_behavior.auto_approve_users
-            });
-        if auto_approve {
+        if self.is_auto_approval_enabled().await {
             user.user_status = UserStatus::Active;
             user.approved_at = Some(Utc::now());
             tracing::info!("Auto-approving user registration (auto_approval_enabled=true)");
@@ -264,7 +260,7 @@ impl AuthService {
             user.user_status
         );
 
-        let message = if auto_approve {
+        let message = if user.user_status == UserStatus::Active {
             "User registered successfully. Your account is ready to use.".to_owned()
         } else {
             "User registered successfully. Your account is pending admin approval.".to_owned()
@@ -349,6 +345,173 @@ impl AuthService {
                 user_id: user.id.to_string(),
                 email: user.email.clone(),
                 display_name: user.display_name,
+                is_admin: user.is_admin,
+                role: user.role.as_str().to_owned(),
+                user_status: user.user_status.to_string(),
+            },
+        })
+    }
+
+    /// Handle Firebase login - authenticate with Firebase ID token
+    ///
+    /// This method validates the Firebase ID token, finds or creates a user,
+    /// and returns a JWT token for our authentication system.
+    ///
+    /// # Errors
+    /// Returns error if Firebase validation fails, or user creation fails
+    pub async fn login_with_firebase(
+        &self,
+        request: FirebaseLoginRequest,
+        firebase_auth: &crate::admin::FirebaseAuth,
+    ) -> AppResult<LoginResponse> {
+        tracing::info!("Firebase login attempt");
+
+        // Validate the Firebase ID token
+        let claims = firebase_auth.validate_token(&request.id_token).await?;
+
+        // Get the email from the claims (required)
+        let email = claims
+            .email
+            .as_ref()
+            .ok_or_else(|| AppError::auth_invalid("Firebase token missing email claim"))?;
+
+        // Find or create user from Firebase claims
+        let user = self.find_or_create_firebase_user(&claims, email).await?;
+
+        // Check if user can login (not suspended)
+        Self::validate_user_can_login(&user)?;
+
+        // Generate session and return response
+        self.complete_firebase_login(&user, &claims.provider).await
+    }
+
+    /// Find existing user or create new one from Firebase claims
+    async fn find_or_create_firebase_user(
+        &self,
+        claims: &crate::admin::FirebaseClaims,
+        email: &str,
+    ) -> AppResult<User> {
+        // Try to find user by Firebase UID first
+        if let Some(user) = self
+            .data
+            .database()
+            .get_user_by_firebase_uid(&claims.sub)
+            .await?
+        {
+            tracing::info!(user_id = %user.id, firebase_uid = %claims.sub, "Found user by Firebase UID");
+            return Ok(user);
+        }
+
+        // Check if user exists by email (might need linking)
+        if let Some(mut user) = self.data.database().get_user_by_email(email).await? {
+            tracing::info!(user_id = %user.id, "Linking existing email user to Firebase UID");
+            user.firebase_uid = Some(claims.sub.clone());
+            user.auth_provider.clone_from(&claims.provider);
+            self.data.database().create_user(&user).await?;
+            return Ok(user);
+        }
+
+        // Create new user from Firebase claims
+        self.create_firebase_user(claims, email).await
+    }
+
+    /// Check if auto-approval is enabled (database setting takes precedence over config)
+    async fn is_auto_approval_enabled(&self) -> bool {
+        match self.data.database().is_auto_approval_enabled().await {
+            Ok(Some(db_setting)) => db_setting,
+            Ok(None) => self.config.config().app_behavior.auto_approve_users,
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to check auto-approval setting, falling back to config: {e}"
+                );
+                self.config.config().app_behavior.auto_approve_users
+            }
+        }
+    }
+
+    /// Create a new user from Firebase claims
+    async fn create_firebase_user(
+        &self,
+        claims: &crate::admin::FirebaseClaims,
+        email: &str,
+    ) -> AppResult<User> {
+        tracing::info!(firebase_uid = %claims.sub, email = %email, "Creating new Firebase user");
+
+        let auto_approve = self.is_auto_approval_enabled().await;
+        let now = Utc::now();
+        let (user_status, approved_at) = if auto_approve {
+            tracing::info!("Auto-approving Firebase user (auto_approval_enabled=true)");
+            (UserStatus::Active, Some(now))
+        } else {
+            (UserStatus::Pending, None)
+        };
+
+        let new_user = User {
+            id: uuid::Uuid::new_v4(),
+            email: email.to_owned(),
+            display_name: claims.name.clone(),
+            password_hash: "!firebase-auth-only!".to_owned(),
+            tier: crate::models::UserTier::Starter,
+            tenant_id: None,
+            strava_token: None,
+            fitbit_token: None,
+            created_at: now,
+            last_active: now,
+            is_active: true,
+            user_status,
+            is_admin: false,
+            role: crate::permissions::UserRole::User,
+            approved_by: None,
+            approved_at,
+            firebase_uid: Some(claims.sub.clone()),
+            auth_provider: claims.provider.clone(),
+        };
+
+        self.data.database().create_user(&new_user).await?;
+        Ok(new_user)
+    }
+
+    /// Validate that user is allowed to login
+    fn validate_user_can_login(user: &User) -> AppResult<()> {
+        if user.user_status.can_login() {
+            return Ok(());
+        }
+
+        tracing::warn!(user_id = %user.id, status = %user.user_status, "Login denied: user status");
+        let status_msg = match user.user_status {
+            UserStatus::Pending => "Account pending approval",
+            UserStatus::Suspended => "Account suspended",
+            UserStatus::Active => "Account active",
+        };
+        Err(user_state_error(status_msg))
+    }
+
+    /// Complete Firebase login: generate JWT and update last active
+    async fn complete_firebase_login(
+        &self,
+        user: &User,
+        provider: &str,
+    ) -> AppResult<LoginResponse> {
+        let jwt_token = self
+            .auth
+            .auth_manager()
+            .generate_token(user, self.auth.jwks_manager())
+            .map_err(|e| AppError::auth_invalid(format!("Failed to generate token: {e}")))?;
+
+        let expires_at = Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS);
+
+        self.data.database().update_last_active(user.id).await?;
+
+        tracing::info!(user_id = %user.id, provider = %provider, "Firebase login successful");
+
+        Ok(LoginResponse {
+            jwt_token: Some(jwt_token),
+            csrf_token: String::new(),
+            expires_at: expires_at.to_rfc3339(),
+            user: UserInfo {
+                user_id: user.id.to_string(),
+                email: user.email.clone(),
+                display_name: user.display_name.clone(),
                 is_admin: user.is_admin,
                 role: user.role.as_str().to_owned(),
                 user_status: user.user_status.to_string(),
@@ -1052,6 +1215,7 @@ impl AuthRoutes {
             .route("/api/auth/register", post(Self::handle_public_register))
             .route("/api/auth/admin/register", post(Self::handle_register))
             .route("/api/auth/login", post(Self::handle_login))
+            .route("/api/auth/firebase", post(Self::handle_firebase_login))
             .route("/api/auth/logout", post(Self::handle_logout))
             .route("/api/auth/refresh", post(Self::handle_refresh))
             .route(
@@ -1216,6 +1380,72 @@ impl AuthRoutes {
             }
             Err(e) => {
                 tracing::error!("Login failed: {}", e);
+                Err(e)
+            }
+        }
+    }
+
+    /// Handle Firebase authentication login (Axum)
+    ///
+    /// Authenticates users via Firebase ID tokens (Google Sign-In, Apple, etc.)
+    async fn handle_firebase_login(
+        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
+        axum::Json(request): axum::Json<FirebaseLoginRequest>,
+    ) -> Result<axum::response::Response, AppError> {
+        use axum::response::IntoResponse;
+
+        // Check if Firebase is configured
+        let firebase_auth = resources.firebase_auth.as_ref().ok_or_else(|| {
+            AppError::invalid_input("Firebase authentication is not configured on this server")
+        })?;
+
+        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let auth_service = AuthService::new(
+            server_context.auth().clone(),
+            server_context.config().clone(),
+            server_context.data().clone(),
+        );
+
+        match auth_service
+            .login_with_firebase(request, firebase_auth)
+            .await
+        {
+            Ok(mut response) => {
+                // Clone JWT for cookie (keep in response for backward compatibility)
+                let jwt_token = response
+                    .jwt_token
+                    .clone() // Safe: JWT string ownership for cookie
+                    .ok_or_else(|| AppError::internal("JWT token missing from login response"))?;
+
+                // Parse user ID for CSRF token generation
+                let user_id = uuid::Uuid::parse_str(&response.user.user_id)
+                    .map_err(|e| AppError::internal(format!("Invalid user ID format: {e}")))?;
+
+                // Generate CSRF token
+                let csrf_token = resources
+                    .csrf_manager
+                    .generate_token(user_id)
+                    .await
+                    .map_err(|e| {
+                        AppError::internal(format!("Failed to generate CSRF token: {e}"))
+                    })?;
+
+                // Set response CSRF token
+                response.csrf_token.clone_from(&csrf_token);
+
+                // Build response with secure cookies
+                let mut headers = axum::http::HeaderMap::new();
+
+                // Set httpOnly auth cookie (24 hour expiry to match JWT)
+                crate::security::cookies::set_auth_cookie(&mut headers, &jwt_token, 24 * 60 * 60);
+
+                // Set CSRF cookie (30 minute expiry to match CSRF token)
+                crate::security::cookies::set_csrf_cookie(&mut headers, &csrf_token, 30 * 60);
+
+                Ok((axum::http::StatusCode::OK, headers, axum::Json(response)).into_response())
+            }
+            Err(e) => {
+                tracing::error!("Firebase login failed: {}", e);
                 Err(e)
             }
         }

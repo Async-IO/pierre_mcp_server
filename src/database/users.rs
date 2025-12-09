@@ -64,8 +64,8 @@ impl Database {
                 INSERT INTO users (
                     id, email, display_name, password_hash, tier, tenant_id,
                     is_active, user_status, is_admin, approved_by, approved_at,
-                    created_at, last_active
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    created_at, last_active, firebase_uid, auth_provider
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
                 ",
             )
             .bind(user.id.to_string())
@@ -81,6 +81,8 @@ impl Database {
             .bind(user.approved_at)
             .bind(user.created_at)
             .bind(user.last_active)
+            .bind(&user.firebase_uid)
+            .bind(&user.auth_provider)
             .execute(&self.pool)
             .await
             .map_err(|e| AppError::database(format!("Failed to create user: {e}")))?;
@@ -136,7 +138,7 @@ impl Database {
             r"
             SELECT id, email, display_name, password_hash, tier, tenant_id,
                    is_active, user_status, is_admin, approved_by, approved_at,
-                   created_at, last_active
+                   created_at, last_active, firebase_uid, auth_provider
             FROM users WHERE {field} = $1
             "
         );
@@ -173,6 +175,12 @@ impl Database {
         let approved_at: Option<chrono::DateTime<chrono::Utc>> = row.get("approved_at");
         let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
         let last_active: chrono::DateTime<chrono::Utc> = row.get("last_active");
+        let firebase_uid: Option<String> = row.try_get("firebase_uid").ok().flatten();
+        // Default to "email" for existing users without auth_provider column
+        let auth_provider: String = row
+            .try_get("auth_provider")
+            .ok()
+            .unwrap_or_else(|| "email".to_owned());
 
         // Derive role from explicit role column if present, otherwise from is_admin
         let role = role_str.map_or_else(
@@ -217,6 +225,8 @@ impl Database {
             approved_at,
             created_at,
             last_active,
+            firebase_uid,
+            auth_provider,
         })
     }
 
@@ -474,7 +484,7 @@ impl Database {
             let query = r"
                 SELECT id, email, display_name, password_hash, tier, tenant_id,
                        is_active, user_status, is_admin, approved_by, approved_at,
-                       created_at, last_active
+                       created_at, last_active, firebase_uid, auth_provider
                 FROM users
                 WHERE user_status = ?1
                   AND (created_at < ?2 OR (created_at = ?2 AND id < ?3))
@@ -487,7 +497,7 @@ impl Database {
             let query = r"
                 SELECT id, email, display_name, password_hash, tier, tenant_id,
                        is_active, user_status, is_admin, approved_by, approved_at,
-                       created_at, last_active
+                       created_at, last_active, firebase_uid, auth_provider
                 FROM users
                 WHERE user_status = ?1
                 ORDER BY created_at DESC, id DESC
@@ -655,6 +665,17 @@ impl Database {
     /// Returns error if database operation fails
     pub async fn get_user_by_email(&self, email: &str) -> AppResult<Option<User>> {
         self.get_user_by_email_impl(email).await
+    }
+
+    /// Get user by Firebase UID
+    ///
+    /// Looks up a user by their Firebase authentication UID. Used when
+    /// authenticating users via Firebase (Google Sign-In, Apple Sign-In, etc.)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_user_by_firebase_uid(&self, firebase_uid: &str) -> AppResult<Option<User>> {
+        self.get_user_by_field("firebase_uid", firebase_uid).await
     }
 
     /// Get user by email, returning error if not found (public API)

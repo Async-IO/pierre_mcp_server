@@ -73,6 +73,8 @@ fn create_test_user(tier: UserTier) -> User {
         approved_at: Some(Utc::now()),
         created_at: Utc::now(),
         last_active: Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     }
 }
 

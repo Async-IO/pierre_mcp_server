@@ -11,6 +11,8 @@
 
 /// Admin authentication service
 pub mod auth;
+/// Firebase Authentication token validation
+pub mod firebase;
 /// JWKS (JSON Web Key Set) management for RS256 JWT
 pub mod jwks;
 /// JWT token generation and validation for admin auth
@@ -65,3 +67,12 @@ pub use models::ProvisionedApiKey;
 pub use models::RateLimitPeriod;
 /// Validated admin token
 pub use models::ValidatedAdminToken;
+
+// Firebase Authentication
+
+/// Firebase Authentication handler
+pub use firebase::FirebaseAuth;
+/// Firebase ID token claims
+pub use firebase::FirebaseClaims;
+/// Firebase-specific token claims
+pub use firebase::FirebaseSpecificClaims;

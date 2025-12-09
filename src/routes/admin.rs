@@ -1749,10 +1749,16 @@ impl AdminRoutes {
 
         let ctx = context.as_ref();
 
-        let enabled = ctx.database.is_auto_approval_enabled().await.map_err(|e| {
-            tracing::error!(error = %e, "Failed to get auto-approval setting");
-            AppError::internal(format!("Failed to get auto-approval setting: {e}"))
-        })?;
+        // Get database setting (None = no explicit database override, use config default)
+        let enabled = ctx
+            .database
+            .is_auto_approval_enabled()
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to get auto-approval setting");
+                AppError::internal(format!("Failed to get auto-approval setting: {e}"))
+            })?
+            .unwrap_or(false);
 
         Ok(json_response(
             AdminResponse {

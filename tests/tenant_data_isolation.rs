@@ -166,6 +166,8 @@ async fn create_test_tenant_user(
         approved_at: Some(chrono::Utc::now()),
         created_at: Utc::now(),
         last_active: Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     database.create_user(&user).await.map_err(Into::into)
 }

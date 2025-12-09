@@ -30,6 +30,13 @@ interface ImpersonationState {
   originalUser: User | null;
 }
 
+interface FirebaseLoginResponse {
+  csrf_token: string;
+  jwt_token: string;
+  user: User;
+  is_new_user: boolean;
+}
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
@@ -37,6 +44,7 @@ interface AuthContextType {
   isLoading: boolean;
   loading: boolean; // For test compatibility
   login: (email: string, password: string) => Promise<void>;
+  loginWithFirebase: (idToken: string) => Promise<FirebaseLoginResponse>;
   logout: () => void;
   impersonation: ImpersonationState;
   startImpersonation: (targetUserId: string, reason?: string) => Promise<void>;

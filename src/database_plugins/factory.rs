@@ -194,14 +194,17 @@ impl Database {
 
     /// Check if auto-approval is enabled for new user registrations
     ///
+    /// Returns `Some(true/false)` if explicitly set in database,
+    /// or `None` if no database setting exists (caller should use config default).
+    ///
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn is_auto_approval_enabled(&self) -> AppResult<bool> {
+    pub async fn is_auto_approval_enabled(&self) -> AppResult<Option<bool>> {
         match self {
             Self::SQLite(db) => db.is_auto_approval_enabled().await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(_db) => Ok(false), // PostgreSQL implementation pending
+            Self::PostgreSQL(_db) => Ok(None), // PostgreSQL: use config default
         }
     }
 
@@ -354,6 +357,25 @@ impl DatabaseProvider for Database {
             Self::SQLite(db) => db.get_user_by_email_required(email).await,
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.get_user_by_email_required(email).await,
+        }
+    }
+
+    /// Get a user by Firebase UID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    async fn get_user_by_firebase_uid(
+        &self,
+        firebase_uid: &str,
+    ) -> AppResult<Option<crate::models::User>> {
+        match self {
+            Self::SQLite(db) => db.get_user_by_firebase_uid(firebase_uid).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_user_by_firebase_uid(firebase_uid).await,
         }
     }
 

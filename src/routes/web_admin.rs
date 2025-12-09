@@ -968,14 +968,17 @@ impl WebAdminRoutes {
     ) -> Result<impl IntoResponse, AppError> {
         Self::authenticate_admin(&headers, &resources).await?;
 
-        let enabled = resources
-            .database
-            .is_auto_approval_enabled()
-            .await
-            .map_err(|e| {
+        // Get effective auto-approval setting (database takes precedence over config)
+        let enabled = match resources.database.is_auto_approval_enabled().await {
+            Ok(Some(db_setting)) => db_setting,
+            Ok(None) => resources.config.app_behavior.auto_approve_users,
+            Err(e) => {
                 tracing::error!(error = %e, "Failed to get auto-approval setting");
-                AppError::internal(format!("Failed to get auto-approval setting: {e}"))
-            })?;
+                return Err(AppError::internal(format!(
+                    "Failed to get auto-approval setting: {e}"
+                )));
+            }
+        };
 
         Ok((
             StatusCode::OK,

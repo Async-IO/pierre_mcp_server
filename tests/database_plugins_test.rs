@@ -59,6 +59,8 @@ async fn create_test_user(db: &Database) -> Uuid {
         strava_token: None,
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_owned()),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     db.create_user(&user).await.expect("Failed to create user");
@@ -321,6 +323,8 @@ async fn test_database_trait_abstraction() {
                 strava_token: None,
                 fitbit_token: None,
                 tenant_id: Some("test-tenant".to_owned()),
+                firebase_uid: None,
+                auth_provider: String::new(),
             };
 
             db_clone.create_user(&user).await
@@ -368,6 +372,8 @@ async fn test_system_stats() {
             strava_token: None,
             fitbit_token: None,
             tenant_id: Some("test-tenant".to_owned()),
+            firebase_uid: None,
+            auth_provider: String::new(),
         };
 
         db.create_user(&user).await.expect("Failed to create user");

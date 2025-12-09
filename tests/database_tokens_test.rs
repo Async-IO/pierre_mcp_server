@@ -36,6 +36,8 @@ async fn test_strava_token_storage() {
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     db.create_user(&user).await.expect("Failed to create user");
@@ -137,6 +139,8 @@ async fn test_fitbit_token_storage() {
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     db.create_user(&user).await.expect("Failed to create user");

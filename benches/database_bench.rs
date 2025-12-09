@@ -51,6 +51,8 @@ fn generate_test_user() -> User {
         role: UserRole::User,
         approved_by: Some(admin_id),
         approved_at: Some(chrono::Utc::now()),
+        firebase_uid: None,
+        auth_provider: "email".to_owned(),
     }
 }
 

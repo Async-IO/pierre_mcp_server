@@ -104,6 +104,11 @@ where
         last_active: row
             .try_get("last_active")
             .map_err(|e| AppError::database(format!("Failed to get column 'last_active': {e}")))?,
+        // Firebase fields - default to None/"email" for backward compatibility
+        firebase_uid: row.try_get("firebase_uid").ok().flatten(),
+        auth_provider: row
+            .try_get("auth_provider")
+            .unwrap_or_else(|_| "email".to_owned()),
     })
 }
 

@@ -433,6 +433,8 @@ pub struct ServerConfig {
     pub database: DatabaseConfig,
     /// Authentication configuration
     pub auth: AuthConfig,
+    /// Firebase authentication configuration for social logins
+    pub firebase: FirebaseConfig,
     /// OAuth provider configurations
     pub oauth: OAuthConfig,
     /// `OAuth2` authorization server configuration
@@ -538,6 +540,39 @@ impl Default for AuthConfig {
             enable_refresh_tokens: false,
             admin_token_cache_ttl_secs: 300, // 5 minutes
         }
+    }
+}
+
+/// Firebase Authentication configuration for social logins
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FirebaseConfig {
+    /// Firebase project ID (required for token validation)
+    pub project_id: Option<String>,
+    /// Firebase API key (optional, for client-side SDK)
+    pub api_key: Option<String>,
+    /// Whether Firebase authentication is enabled
+    pub enabled: bool,
+    /// Cache TTL for Firebase public keys in seconds (default: 3600 = 1 hour)
+    pub key_cache_ttl_secs: u64,
+}
+
+impl Default for FirebaseConfig {
+    fn default() -> Self {
+        Self {
+            project_id: None,
+            api_key: None,
+            enabled: false,
+            key_cache_ttl_secs: 3600, // 1 hour - Firebase keys are rotated daily
+        }
+    }
+}
+
+impl FirebaseConfig {
+    /// Check if Firebase is properly configured and enabled
+    /// Returns `true` if Firebase is enabled and has a project ID configured
+    #[must_use]
+    pub const fn is_configured(&self) -> bool {
+        self.enabled && self.project_id.is_some()
     }
 }
 
@@ -1103,6 +1138,7 @@ impl ServerConfig {
             logging: Self::load_logging_config(),
             database: Self::load_database_config()?,
             auth: Self::load_auth_config()?,
+            firebase: Self::load_firebase_config(),
             oauth: Self::load_oauth_config(),
             oauth2_server: Self::load_oauth2_server_config(),
             security: Self::load_security_config()?,
@@ -1419,6 +1455,41 @@ impl ServerConfig {
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(300),
         })
+    }
+
+    /// Load Firebase configuration from environment
+    ///
+    /// Environment variables:
+    /// - `FIREBASE_PROJECT_ID` - Firebase project ID (required for token validation)
+    /// - `FIREBASE_API_KEY` - Firebase API key (optional, for client-side SDK)
+    /// - `FIREBASE_ENABLED` - Enable Firebase authentication (default: false)
+    /// - `FIREBASE_KEY_CACHE_TTL_SECS` - Public key cache TTL (default: 3600)
+    fn load_firebase_config() -> FirebaseConfig {
+        let project_id = env::var("FIREBASE_PROJECT_ID").ok();
+        let api_key = env::var("FIREBASE_API_KEY").ok();
+
+        // Firebase is enabled if project_id is set and FIREBASE_ENABLED is not explicitly false
+        let enabled = project_id.is_some()
+            && env_var_or("FIREBASE_ENABLED", "true")
+                .parse()
+                .unwrap_or(true);
+
+        if enabled {
+            info!(
+                project_id = project_id.as_deref().unwrap_or("(not set)"),
+                "Firebase authentication enabled"
+            );
+        }
+
+        FirebaseConfig {
+            project_id,
+            api_key,
+            enabled,
+            key_cache_ttl_secs: env::var("FIREBASE_KEY_CACHE_TTL_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(3600), // 1 hour default
+        }
     }
 
     /// Load OAuth configuration from environment

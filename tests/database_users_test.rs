@@ -35,6 +35,8 @@ async fn test_create_and_get_user() {
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     // Create user
@@ -84,6 +86,8 @@ async fn test_last_active_update() {
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now() - chrono::Duration::hours(1),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     db.create_user(&user).await.expect("Failed to create user");
@@ -130,6 +134,8 @@ fn create_test_user(email: &str, display_name: Option<String>) -> User {
         approved_at: Some(now),
         created_at: now,
         last_active: now,
+        firebase_uid: None,
+        auth_provider: String::new(),
     }
 }
 

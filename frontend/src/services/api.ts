@@ -66,6 +66,11 @@ class ApiService {
     return response.data;
   }
 
+  async loginWithFirebase(idToken: string) {
+    const response = await axios.post('/api/auth/firebase', { id_token: idToken });
+    return response.data;
+  }
+
   async logout() {
     try {
       // Call logout endpoint to clear httpOnly cookies

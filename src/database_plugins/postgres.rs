@@ -194,8 +194,8 @@ impl DatabaseProvider for PostgresDatabase {
     async fn create_user(&self, user: &User) -> AppResult<Uuid> {
         sqlx::query(
             r"
-            INSERT INTO users (id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin, role, user_status, approved_by, approved_at, created_at, last_active)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            INSERT INTO users (id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin, role, user_status, approved_by, approved_at, created_at, last_active, firebase_uid, auth_provider)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             ",
         )
         .bind(user.id)
@@ -212,6 +212,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(user.approved_at)
         .bind(user.created_at)
         .bind(user.last_active)
+        .bind(&user.firebase_uid)
+        .bind(&user.auth_provider)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to create user: {e}")))?;
@@ -223,7 +225,8 @@ impl DatabaseProvider for PostgresDatabase {
         let row = sqlx::query(
             r"
             SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
-                   role, user_status, approved_by, approved_at, created_at, last_active
+                   role, user_status, approved_by, approved_at, created_at, last_active,
+                   firebase_uid, auth_provider
             FROM users
             WHERE id = $1
             ",
@@ -268,6 +271,10 @@ impl DatabaseProvider for PostgresDatabase {
                     approved_at: row.get("approved_at"),
                     created_at: row.get("created_at"),
                     last_active: row.get("last_active"),
+                    firebase_uid: row.try_get("firebase_uid").ok().flatten(),
+                    auth_provider: row
+                        .try_get("auth_provider")
+                        .unwrap_or_else(|_| "email".to_owned()),
                 }))
             },
         )
@@ -277,7 +284,8 @@ impl DatabaseProvider for PostgresDatabase {
         let row = sqlx::query(
             r"
             SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
-                   role, user_status, approved_by, approved_at, created_at, last_active
+                   role, user_status, approved_by, approved_at, created_at, last_active,
+                   firebase_uid, auth_provider
             FROM users
             WHERE email = $1
             ",
@@ -322,6 +330,10 @@ impl DatabaseProvider for PostgresDatabase {
                     approved_at: row.get("approved_at"),
                     created_at: row.get("created_at"),
                     last_active: row.get("last_active"),
+                    firebase_uid: row.try_get("firebase_uid").ok().flatten(),
+                    auth_provider: row
+                        .try_get("auth_provider")
+                        .unwrap_or_else(|_| "email".to_owned()),
                 }))
             },
         )
@@ -331,6 +343,65 @@ impl DatabaseProvider for PostgresDatabase {
         self.get_user_by_email(email)
             .await?
             .ok_or_else(|| AppError::not_found(format!("User with email {email}")))
+    }
+
+    async fn get_user_by_firebase_uid(&self, firebase_uid: &str) -> AppResult<Option<User>> {
+        let row = sqlx::query(
+            r"
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
+                   role, user_status, approved_by, approved_at, created_at, last_active,
+                   firebase_uid, auth_provider
+            FROM users
+            WHERE firebase_uid = $1
+            ",
+        )
+        .bind(firebase_uid)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get user by firebase_uid: {e}")))?;
+
+        row.map_or_else(
+            || Ok(None),
+            |row| {
+                Ok(Some(User {
+                    id: row.get("id"),
+                    email: row.get("email"),
+                    display_name: row.get("display_name"),
+                    password_hash: row.get("password_hash"),
+                    tier: {
+                        let tier_str: String = row.get("tier");
+                        match tier_str.as_str() {
+                            tiers::PROFESSIONAL => UserTier::Professional,
+                            tiers::ENTERPRISE => UserTier::Enterprise,
+                            _ => UserTier::Starter,
+                        }
+                    },
+                    tenant_id: row.get("tenant_id"),
+                    strava_token: None, // Tokens are loaded separately
+                    fitbit_token: None, // Tokens are loaded separately
+                    is_active: row.get("is_active"),
+                    user_status: {
+                        let status_str: String = row.get("user_status");
+                        shared::enums::str_to_user_status(&status_str)
+                    },
+                    is_admin: row.get("is_admin"),
+                    role: {
+                        let role_str: Option<String> = row.try_get("role").ok().flatten();
+                        role_str.map_or(crate::permissions::UserRole::User, |s| {
+                            shared::enums::str_to_user_role(&s)
+                        })
+                    },
+                    approved_by: row.get("approved_by"),
+                    approved_at: row.get("approved_at"),
+                    created_at: row.get("created_at"),
+                    last_active: row.get("last_active"),
+                    firebase_uid: row.try_get("firebase_uid").ok().flatten(),
+                    auth_provider: row
+                        .try_get("auth_provider")
+                        .unwrap_or_else(|_| "email".to_owned()),
+                }))
+            },
+        )
     }
 
     async fn update_last_active(&self, user_id: Uuid) -> AppResult<()> {
@@ -374,7 +445,8 @@ impl DatabaseProvider for PostgresDatabase {
         let rows = sqlx::query(
             r"
             SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
-                   role, COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
+                   role, COALESCE(user_status, 'active') as user_status, approved_by, approved_at,
+                   created_at, last_active, firebase_uid, auth_provider
             FROM users
             WHERE COALESCE(user_status, 'active') = $1
             ORDER BY created_at DESC
@@ -423,6 +495,10 @@ impl DatabaseProvider for PostgresDatabase {
                 approved_at: row.get("approved_at"),
                 created_at: row.get("created_at"),
                 last_active: row.get("last_active"),
+                firebase_uid: row.try_get("firebase_uid").ok().flatten(),
+                auth_provider: row
+                    .try_get("auth_provider")
+                    .unwrap_or_else(|_| "email".to_owned()),
             });
         }
 
@@ -438,7 +514,8 @@ impl DatabaseProvider for PostgresDatabase {
 
         const QUERY_WITH_CURSOR: &str = r"
             SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
-                   COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
+                   COALESCE(user_status, 'active') as user_status, approved_by, approved_at,
+                   created_at, last_active, firebase_uid, auth_provider
             FROM users
             WHERE COALESCE(user_status, 'active') = $1
               AND (created_at < $2 OR (created_at = $2 AND id::text < $3))
@@ -5889,13 +5966,38 @@ impl PostgresDatabase {
                 approved_by UUID REFERENCES users(id),
                 approved_at TIMESTAMPTZ,
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                last_active TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                last_active TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                firebase_uid TEXT,
+                auth_provider TEXT NOT NULL DEFAULT 'email'
             )
             ",
         )
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::database(format!("Failed to create users table: {e}")))?;
+
+        // Create unique index for Firebase UID lookups (enforces uniqueness for non-null values)
+        sqlx::query(
+            r"
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_users_firebase_uid
+            ON users(firebase_uid)
+            WHERE firebase_uid IS NOT NULL
+            ",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create firebase_uid index: {e}")))?;
+
+        // Create index for auth provider queries
+        sqlx::query(
+            r"
+            CREATE INDEX IF NOT EXISTS idx_users_auth_provider ON users(auth_provider)
+            ",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create auth_provider index: {e}")))?;
+
         Ok(())
     }
 

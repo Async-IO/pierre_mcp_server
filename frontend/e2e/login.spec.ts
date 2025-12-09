@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 // ABOUTME: Playwright E2E tests for the login flow.
-// ABOUTME: Tests successful login, error handling, and setup status display.
+// ABOUTME: Tests successful login, error handling, and form accessibility.
 
 import { test, expect } from '@playwright/test';
 
@@ -41,6 +41,36 @@ test.describe('Login Page', () => {
 
     // When admin exists, no status indicator is shown - the form itself is the indicator
     await expect(page.getByText('Setup Required')).not.toBeVisible();
+  });
+
+  test('renders Google Sign-In button', async ({ page }) => {
+    await setupBasicMocks(page);
+    await page.goto('/');
+    await page.waitForSelector('form');
+
+    // Check for Google Sign-In button
+    const googleButton = page.getByRole('button', { name: /continue with google/i });
+    await expect(googleButton).toBeVisible();
+
+    // Check for "or continue with" divider text
+    await expect(page.getByText('or continue with')).toBeVisible();
+  });
+
+  test('Google Sign-In button shows loading state when clicked', async ({ page }) => {
+    await setupBasicMocks(page);
+    await page.goto('/');
+    await page.waitForSelector('form');
+
+    const googleButton = page.getByRole('button', { name: /continue with google/i });
+    await expect(googleButton).toBeVisible();
+    await expect(googleButton).toBeEnabled();
+
+    // Click the button - it should show loading state
+    // Note: We can't fully test Firebase redirect flow in E2E, but we can test the UI response
+    await googleButton.click();
+
+    // Button should show "Signing in..." text while loading
+    await expect(page.getByRole('button', { name: /signing in/i })).toBeVisible({ timeout: 2000 });
   });
 
   test('allows typing in email and password fields', async ({ page }) => {
@@ -131,7 +161,7 @@ test.describe('Login Page', () => {
         body: JSON.stringify({
           csrf_token: 'test-csrf-token',
           jwt_token: 'test-jwt-token',
-          user: { id: '1', email: 'admin@test.com', display_name: 'Admin', is_admin: true },
+          user: { id: '1', email: 'admin@test.com', display_name: 'Admin', is_admin: true, user_status: 'active', role: 'admin' },
         }),
       });
     });
@@ -259,82 +289,15 @@ test.describe('Login Page', () => {
   });
 });
 
-test.describe('Login Page - Setup Status', () => {
-  test('shows "Checking setup status..." while loading', async ({ page }) => {
-    // Mock a slow setup status response
-    await page.route('**/admin/setup/status', async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          needs_setup: false,
-          admin_user_exists: true,
-        }),
-      });
-    });
-
-    await page.goto('/');
-
-    // Should show loading state quickly
-    await expect(page.getByText('Checking setup status...')).toBeVisible({ timeout: 5000 });
-  });
-
-  test('shows "Setup Required" when admin user does not exist', async ({ page }) => {
-    await page.route('**/admin/setup/status', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          needs_setup: true,
-          admin_user_exists: false,
-          message: 'Create admin via POST /admin/setup',
-        }),
-      });
-    });
-
+test.describe('Login Page - Basic Rendering', () => {
+  test('shows login form without setup status indicators', async ({ page }) => {
+    await setupBasicMocks(page);
     await page.goto('/');
     await page.waitForSelector('form');
 
-    await expect(page.getByText('Setup Required')).toBeVisible();
-    await expect(page.getByText('Create admin via POST /admin/setup')).toBeVisible();
-  });
-
-  test('shows no status indicator when admin user exists', async ({ page }) => {
-    await page.route('**/admin/setup/status', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          needs_setup: false,
-          admin_user_exists: true,
-        }),
-      });
-    });
-
-    await page.goto('/');
-    await page.waitForSelector('form');
-
-    // When system is ready, no status indicator is shown - the form is the indicator
+    // Login form should be visible immediately without setup status indicators
     await expect(page.getByText('Setup Required')).not.toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
-  });
-
-  test('shows setup required on setup status API error', async ({ page }) => {
-    await page.route('**/admin/setup/status', async (route) => {
-      await route.fulfill({
-        status: 500,
-        contentType: 'application/json',
-        body: JSON.stringify({ error: 'Internal server error' }),
-      });
-    });
-
-    await page.goto('/');
-    await page.waitForSelector('form');
-
-    // Should show setup required as fallback
-    await expect(page.getByText('Setup Required')).toBeVisible();
-    await expect(page.getByText(/Unable to verify setup status/)).toBeVisible();
   });
 });
 

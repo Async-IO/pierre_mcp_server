@@ -67,6 +67,8 @@ async fn create_test_user(database: &Database, email: &str, tenant_id: Uuid) -> 
         approved_at: Some(Utc::now()),
         created_at: Utc::now(),
         last_active: Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     database.create_user(&user).await?;
     Ok(user_id)

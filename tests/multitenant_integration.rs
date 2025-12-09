@@ -315,6 +315,7 @@ async fn test_multitenant_auth_flow() -> Result<()> {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     // Create test cache with background cleanup disabled
@@ -391,6 +392,8 @@ async fn test_multitenant_auth_flow() -> Result<()> {
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     database.create_user(&admin_user).await?;
 
@@ -800,6 +803,7 @@ async fn test_input_validation() -> Result<()> {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     // Create test cache with background cleanup disabled

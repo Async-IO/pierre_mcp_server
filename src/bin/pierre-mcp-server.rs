@@ -252,7 +252,7 @@ async fn initialize_core_systems(config: &ServerConfig) -> Result<(Database, Aut
     key_manager.complete_initialization(&database).await?;
     info!("Two-tier key management system fully initialized");
 
-    let jwt_secret_string = initialize_jwt_secret(&database).await?;
+    let jwt_secret_string = initialize_jwt_secret(&database, config).await?;
     let auth_manager = create_auth_manager(config);
 
     Ok((database, auth_manager, jwt_secret_string))
@@ -287,13 +287,46 @@ async fn initialize_database(
     Ok(database)
 }
 
-async fn initialize_jwt_secret(database: &Database) -> Result<String> {
+async fn initialize_jwt_secret(database: &Database, config: &ServerConfig) -> Result<String> {
     let jwt_secret_string = database
         .get_or_create_system_secret("admin_jwt_secret")
         .await?;
 
     info!("Admin JWT secret ready for secure token generation");
-    info!("Server is ready for admin setup via POST /admin/setup");
+
+    // Check auto-approval setting (database takes precedence over config)
+    let auto_approve = database
+        .is_auto_approval_enabled()
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or(config.app_behavior.auto_approve_users);
+
+    // Check if admin user exists and log appropriate message
+    match database.get_users_by_status("active").await {
+        Ok(users) => {
+            let admin_exists = users.iter().any(|u| u.is_admin);
+            if admin_exists {
+                info!("Admin user configured - server ready for authentication");
+            } else {
+                eprintln!();
+                eprintln!("WARNING: No admin user configured!");
+                eprintln!("  - Users cannot log in with email/password");
+                if auto_approve {
+                    eprintln!("  - Firebase/OAuth login will auto-approve users (active status)");
+                } else {
+                    eprintln!("  - Firebase/OAuth login will create users in 'pending' status");
+                }
+                eprintln!();
+                eprintln!("To fix: Run 'cargo run --bin admin-setup -- create-admin-user --email admin@example.com --password <password>'");
+                eprintln!();
+            }
+        }
+        Err(e) => {
+            eprintln!("WARNING: Failed to check admin user status: {e}");
+        }
+    }
+
     Ok(jwt_secret_string)
 }
 

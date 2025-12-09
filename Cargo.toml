@@ -143,6 +143,7 @@ redis = { version = "0.28", features = ["tokio-comp", "connection-manager", "aio
 
 num-traits = "0.2"
 rsa = "0.9"
+x509-parser = "0.18.0"
 [dev-dependencies]
 tempfile = "3.20"
 serial_test = "3.1"

@@ -232,6 +232,7 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                     pierre_mcp_server::config::environment::GoalManagementConfig::default(),
                 training_zones:
                     pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+                firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
             }
         }),
         cache,

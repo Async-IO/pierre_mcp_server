@@ -29,6 +29,8 @@ pub fn create_test_admin_user(email: &str, display_name: Option<String>) -> User
         approved_at: Some(Utc::now()),
         created_at: Utc::now(),
         last_active: Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     }
 }
 
@@ -52,6 +54,8 @@ pub fn create_test_user(email: &str, display_name: Option<String>) -> User {
         approved_at: Some(Utc::now()),
         created_at: Utc::now(),
         last_active: Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     }
 }
 
@@ -75,6 +79,8 @@ pub fn create_test_pending_user(email: &str, display_name: Option<String>) -> Us
         approved_at: None, // Not approved yet
         created_at: Utc::now(),
         last_active: Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     }
 }
 
@@ -113,5 +119,7 @@ pub fn create_test_user_with_fields(
         },
         created_at: Utc::now(),
         last_active: Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     }
 }

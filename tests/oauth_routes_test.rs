@@ -157,6 +157,7 @@ async fn test_email_validation() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -361,6 +362,7 @@ async fn test_password_validation() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -537,6 +539,7 @@ async fn test_duplicate_user_registration() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -704,6 +707,7 @@ async fn test_login_with_correct_credentials() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -753,6 +757,8 @@ async fn test_login_with_correct_credentials() {
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
     server_resources
         .database
@@ -916,6 +922,7 @@ async fn test_login_with_wrong_password() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1090,6 +1097,7 @@ async fn test_login_with_non_existent_user() {
         sleep_recovery: pierre_mcp_server::config::environment::SleepRecoveryConfig::default(),
         goal_management: pierre_mcp_server::config::environment::GoalManagementConfig::default(),
         training_zones: pierre_mcp_server::config::environment::TrainingZonesConfig::default(),
+        firebase: pierre_mcp_server::config::environment::FirebaseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();

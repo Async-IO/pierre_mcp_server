@@ -367,6 +367,8 @@ fn test_user_creation_with_required_fields() {
         approved_at: Some(now),
         created_at: now,
         last_active: now,
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     assert_eq!(user.id, user_id);
@@ -408,6 +410,8 @@ fn test_user_serialization_roundtrip() {
         approved_at: Some(now),
         created_at: now,
         last_active: now,
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     let json = serde_json::to_string(&original_user).unwrap();
@@ -573,6 +577,8 @@ fn test_user_with_encrypted_tokens() {
         approved_at: Some(now),
         created_at: now,
         last_active: now,
+        firebase_uid: None,
+        auth_provider: String::new(),
     };
 
     // Verify tokens are present

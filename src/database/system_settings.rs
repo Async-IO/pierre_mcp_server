@@ -120,18 +120,21 @@ impl Database {
         Ok(settings)
     }
 
-    /// Check if auto-approval is enabled
+    /// Check if auto-approval is enabled in database
+    ///
+    /// Returns `Some(true/false)` if explicitly set in database,
+    /// or `None` if no database setting exists (caller should use config default).
     ///
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn is_auto_approval_enabled(&self) -> AppResult<bool> {
+    pub async fn is_auto_approval_enabled(&self) -> AppResult<Option<bool>> {
         match self
             .get_system_setting(SETTING_AUTO_APPROVAL_ENABLED)
             .await?
         {
-            Some(setting) => Ok(setting.value.eq_ignore_ascii_case("true")),
-            None => Ok(false), // Default to disabled
+            Some(setting) => Ok(Some(setting.value.eq_ignore_ascii_case("true"))),
+            None => Ok(None), // No database setting - caller should use config default
         }
     }
 
