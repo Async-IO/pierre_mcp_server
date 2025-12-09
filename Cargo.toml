@@ -11,6 +11,8 @@ categories = ["api-bindings", "web-programming"]
 [lib]
 name = "pierre_mcp_server"
 path = "src/lib.rs"
+# Disable built-in bench harness for lib (we use Criterion benches in benches/ instead)
+bench = false
 
 [[bin]]
 name = "pierre-mcp-server"
