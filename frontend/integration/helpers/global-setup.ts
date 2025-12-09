@@ -4,7 +4,7 @@
 // ABOUTME: Global setup for Playwright integration tests.
 // ABOUTME: Initializes test database and ensures servers are ready before tests run.
 
-import { cleanupTestDatabase, ensureDataDirectory, createTestAdminUser } from './db-setup';
+import { ensureDataDirectory, createTestAdminUser } from './db-setup';
 import { waitForServersReady } from './server-manager';
 import { testUsers } from '../fixtures/test-data';
 
@@ -13,10 +13,10 @@ async function globalSetup(): Promise<void> {
 
   ensureDataDirectory();
 
-  if (process.env.CI) {
-    console.log('[Integration Tests] Cleaning up test database for fresh run...');
-    cleanupTestDatabase();
-  }
+  // NOTE: Do NOT clean up the database here in CI!
+  // The webServer (pierre-mcp-server) starts BEFORE globalSetup runs,
+  // so deleting the database would disconnect the running server.
+  // Instead, CI ensures a fresh runner environment each time.
 
   console.log('[Integration Tests] Waiting for servers to be ready...');
   const serversReady = await waitForServersReady();
