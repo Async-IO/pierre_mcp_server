@@ -32,19 +32,35 @@ export async function loginWithCredentials(
 
     await page.getByRole('button', { name: 'Sign in' }).click();
 
-    const loginSucceeded = await Promise.race([
-      page.waitForSelector('input[name="email"]', { state: 'hidden', timeout: 15000 })
-        .then(() => true)
-        .catch(() => false),
-      page.waitForSelector('.bg-red-50', { timeout: 5000 })
-        .then(() => false)
-        .catch(() => true),
-    ]);
+    // Wait for navigation after login attempt - either dashboard loads or error appears
+    // Use a longer timeout for CI environments where server startup may be slower
+    const loginTimeout = process.env.CI ? 30000 : 15000;
 
-    if (!loginSucceeded) {
+    // First, check if an error message appears quickly (within 5 seconds)
+    const errorAppeared = await page.waitForSelector('.bg-red-50', { timeout: 5000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (errorAppeared) {
       const errorElement = page.locator('.bg-red-50');
       const errorText = await errorElement.textContent().catch(() => 'Unknown error');
       return { success: false, error: errorText || 'Login failed' };
+    }
+
+    // No error appeared, wait for the login form to disappear (indicating successful navigation)
+    try {
+      await page.waitForSelector('input[name="email"]', { state: 'hidden', timeout: loginTimeout });
+    } catch {
+      // Login form still visible after timeout - login likely failed
+      return { success: false, error: 'Login timed out - form still visible' };
+    }
+
+    // Additional verification: wait for dashboard content to appear
+    try {
+      await page.waitForSelector('nav, text=Pierre, [class*="dashboard"]', { timeout: 10000 });
+    } catch {
+      // Dashboard didn't load, but login form disappeared - ambiguous state
+      return { success: false, error: 'Login redirect occurred but dashboard did not load' };
     }
 
     await page.waitForTimeout(500);

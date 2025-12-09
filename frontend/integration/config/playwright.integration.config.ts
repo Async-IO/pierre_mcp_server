@@ -14,6 +14,13 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '../../..');
 const frontendRoot = path.resolve(__dirname, '../..');
 
+// Use pre-built release binary if available (CI builds release first for performance)
+// Falls back to cargo run for local development
+const releaseBinary = path.join(projectRoot, 'target', 'release', 'pierre-mcp-server');
+const serverCommand = process.env.CI
+  ? `${releaseBinary}`
+  : `cd ${projectRoot} && cargo run --bin pierre-mcp-server`;
+
 export default defineConfig({
   testDir: '../specs',
   fullyParallel: false,
@@ -53,19 +60,19 @@ export default defineConfig({
 
   webServer: [
     {
-      command: `cd ${projectRoot} && DATABASE_URL="sqlite:${projectRoot}/data/integration-test.db" RUST_LOG=warn cargo run --bin pierre-mcp-server`,
+      command: serverCommand,
       url: 'http://localhost:8081/health',
       timeout: 180000,
       reuseExistingServer: !process.env.CI,
       env: {
-        DATABASE_URL: `sqlite:${projectRoot}/data/integration-test.db`,
-        PIERRE_MASTER_ENCRYPTION_KEY: 'rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo=',
-        PIERRE_RSA_KEY_SIZE: '2048',
-        HTTP_PORT: '8081',
-        RUST_LOG: 'warn',
-        STRAVA_CLIENT_ID: 'test_client_id_integration',
-        STRAVA_CLIENT_SECRET: 'test_client_secret_integration',
-        STRAVA_REDIRECT_URI: 'http://localhost:8080/auth/strava/callback',
+        DATABASE_URL: process.env.DATABASE_URL || `sqlite:${projectRoot}/data/integration-test.db`,
+        PIERRE_MASTER_ENCRYPTION_KEY: process.env.PIERRE_MASTER_ENCRYPTION_KEY || 'rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo=',
+        PIERRE_RSA_KEY_SIZE: process.env.PIERRE_RSA_KEY_SIZE || '2048',
+        HTTP_PORT: process.env.HTTP_PORT || '8081',
+        RUST_LOG: process.env.RUST_LOG || 'warn',
+        STRAVA_CLIENT_ID: process.env.STRAVA_CLIENT_ID || 'test_client_id_integration',
+        STRAVA_CLIENT_SECRET: process.env.STRAVA_CLIENT_SECRET || 'test_client_secret_integration',
+        STRAVA_REDIRECT_URI: process.env.STRAVA_REDIRECT_URI || 'http://localhost:8080/auth/strava/callback',
       },
     },
     {
