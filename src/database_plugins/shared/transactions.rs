@@ -1,3 +1,6 @@
+// ABOUTME: Transaction retry patterns for database operations with deadlock handling.
+// ABOUTME: Provides exponential backoff for PostgreSQL and SQLite database operations.
+
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 

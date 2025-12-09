@@ -1,3 +1,6 @@
+// ABOUTME: Model to SQL row conversion helpers for database operations.
+// ABOUTME: Provides generic row parsing functions for PostgreSQL and SQLite backends.
+
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 

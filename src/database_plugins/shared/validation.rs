@@ -1,3 +1,6 @@
+// ABOUTME: Input validation logic shared across database implementations.
+// ABOUTME: Provides common validation functions for PostgreSQL and SQLite backends.
+
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
