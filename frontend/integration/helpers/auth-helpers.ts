@@ -23,13 +23,16 @@ export async function loginWithCredentials(
   password: string
 ): Promise<LoginResult> {
   try {
+    console.log(`[Login] Starting login for ${email}`);
     await page.goto('/');
 
+    console.log('[Login] Waiting for login form...');
     await page.waitForSelector('form', { timeout: 15000 });
 
     await page.locator('input[name="email"]').fill(email);
     await page.locator('input[name="password"]').fill(password);
 
+    console.log('[Login] Clicking sign in button...');
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     // Wait for navigation after login attempt - either dashboard loads or error appears
@@ -37,6 +40,7 @@ export async function loginWithCredentials(
     const loginTimeout = process.env.CI ? 30000 : 15000;
 
     // First, check if an error message appears quickly (within 5 seconds)
+    console.log('[Login] Checking for error message...');
     const errorAppeared = await page.waitForSelector('.bg-red-50', { timeout: 5000 })
       .then(() => true)
       .catch(() => false);
@@ -44,32 +48,42 @@ export async function loginWithCredentials(
     if (errorAppeared) {
       const errorElement = page.locator('.bg-red-50');
       const errorText = await errorElement.textContent().catch(() => 'Unknown error');
+      console.log(`[Login] Error appeared: ${errorText}`);
       return { success: false, error: errorText || 'Login failed' };
     }
 
     // No error appeared, wait for the login form to disappear (indicating successful navigation)
+    console.log('[Login] No error, waiting for form to disappear...');
     try {
       await page.waitForSelector('input[name="email"]', { state: 'hidden', timeout: loginTimeout });
+      console.log('[Login] Form disappeared');
     } catch {
       // Login form still visible after timeout - login likely failed
+      console.log('[Login] Form still visible after timeout');
       return { success: false, error: 'Login timed out - form still visible' };
     }
 
     // Additional verification: wait for dashboard content to appear
+    console.log('[Login] Waiting for dashboard content...');
     try {
       await page.waitForSelector('nav, text=Pierre, [class*="dashboard"]', { timeout: 10000 });
+      console.log('[Login] Dashboard content visible');
     } catch {
       // Dashboard didn't load, but login form disappeared - ambiguous state
+      console.log('[Login] Dashboard did not load');
       return { success: false, error: 'Login redirect occurred but dashboard did not load' };
     }
 
     await page.waitForTimeout(500);
 
+    console.log('[Login] Success!');
     return { success: true };
   } catch (error) {
+    const errorMsg = `Login failed: ${error instanceof Error ? error.message : String(error)}`;
+    console.log(`[Login] Exception: ${errorMsg}`);
     return {
       success: false,
-      error: `Login failed: ${error instanceof Error ? error.message : String(error)}`,
+      error: errorMsg,
     };
   }
 }
@@ -80,11 +94,14 @@ export async function loginWithCredentials(
  */
 export async function createAndLoginAsAdmin(page: Page): Promise<LoginResult> {
   const user = testUsers.admin;
+  console.log(`[Auth] Creating admin user: ${user.email}`);
 
   const createResult = await createTestAdminUser(user);
   if (!createResult.success) {
+    console.log(`[Auth] Failed to create admin user: ${createResult.error}`);
     return { success: false, error: createResult.error };
   }
+  console.log(`[Auth] Admin user created, proceeding to login`);
 
   return loginWithCredentials(page, user.email, user.password);
 }

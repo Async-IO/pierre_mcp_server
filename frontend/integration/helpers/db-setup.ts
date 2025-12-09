@@ -62,19 +62,24 @@ export async function createTestAdminUser(user: TestUser): Promise<CreateUserRes
   try {
     const adminSetup = getAdminSetupCommand();
     const command = `${adminSetup} create-admin-user --email "${user.email}" --password "${user.password}"`;
+    console.log(`[DB Setup] Running: ${command}`);
+    console.log(`[DB Setup] DATABASE_URL: ${getAdminSetupEnv().DATABASE_URL}`);
 
-    execSync(command, {
+    const output = execSync(command, {
       cwd: PROJECT_ROOT,
       env: getAdminSetupEnv(),
       stdio: 'pipe',
       timeout: 60000,
     });
 
+    console.log(`[DB Setup] Command output: ${output.toString()}`);
     return { success: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    console.log(`[DB Setup] Command error: ${errorMessage}`);
 
     if (errorMessage.includes('already exists')) {
+      console.log(`[DB Setup] User already exists, treating as success`);
       return { success: true };
     }
 
