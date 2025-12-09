@@ -64,9 +64,13 @@ export async function loginWithCredentials(
     }
 
     // Additional verification: wait for dashboard content to appear
+    // Use OR pattern since selectors have different syntax (CSS vs Playwright text=)
     console.log('[Login] Waiting for dashboard content...');
     try {
-      await page.waitForSelector('nav, text=Pierre, [class*="dashboard"]', { timeout: 10000 });
+      const dashboardLocator = page.locator('nav')
+        .or(page.locator('text=Pierre'))
+        .or(page.locator('[class*="dashboard"]'));
+      await dashboardLocator.first().waitFor({ state: 'visible', timeout: 10000 });
       console.log('[Login] Dashboard content visible');
     } catch {
       // Dashboard didn't load, but login form disappeared - ambiguous state
