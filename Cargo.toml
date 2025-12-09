@@ -17,6 +17,7 @@ bench = false
 [[bin]]
 name = "pierre-mcp-server"
 path = "src/bin/pierre-mcp-server.rs"
+bench = false
 
 # [[bin]]
 # name = "auth-setup"
@@ -25,14 +26,17 @@ path = "src/bin/pierre-mcp-server.rs"
 [[bin]]
 name = "admin-setup"
 path = "src/bin/admin_setup.rs"
+bench = false
 
 [[bin]]
 name = "diagnose-weather-api"
 path = "src/bin/diagnose_weather_api.rs"
+bench = false
 
 [[bin]]
 name = "seed-demo-data"
 path = "src/bin/seed_demo_data.rs"
+bench = false
 
 # [[bin]]
 # name = "serve-docs"
