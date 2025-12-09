@@ -132,27 +132,51 @@ export async function isLoggedIn(page: Page): Promise<boolean> {
 
 /**
  * Navigate to a specific dashboard tab.
+ * Tries multiple selector strategies to handle both expanded and collapsed sidebar states.
  */
 export async function navigateToTab(page: Page, tabName: string): Promise<void> {
+  // Wait for the sidebar to be present
+  await page.waitForSelector('nav', { timeout: 10000 });
+
   const selectors = [
+    // Button with span containing the text (expanded sidebar)
     page.locator('button').filter({ has: page.locator(`span:has-text("${tabName}")`) }),
-    page.locator('button').filter({ has: page.locator(`div:has-text("${tabName}")`) }),
-    page.locator(`button:has-text("${tabName}")`),
+    // Button with title attribute (collapsed sidebar)
     page.locator(`button[title="${tabName}"]`),
+    // Button containing the text directly
+    page.locator(`button:has-text("${tabName}")`),
+    // Button with div containing text
+    page.locator('button').filter({ has: page.locator(`div:has-text("${tabName}")`) }),
+    // Sidebar button by role and accessible name
+    page.getByRole('button', { name: new RegExp(`.*${tabName}.*`, 'i') }),
   ];
 
   for (const selector of selectors) {
-    const isVisible = await selector.first().isVisible().catch(() => false);
-    if (isVisible) {
-      await selector.first().click();
-      await page.waitForTimeout(500);
-      return;
+    try {
+      const count = await selector.count();
+      if (count > 0) {
+        const isVisible = await selector.first().isVisible().catch(() => false);
+        if (isVisible) {
+          await selector.first().click();
+          await page.waitForTimeout(500);
+          return;
+        }
+      }
+    } catch {
+      // Continue to next selector
     }
   }
 
-  const buttonByName = page.getByRole('button', { name: new RegExp(`.*${tabName}.*`, 'i') });
-  await buttonByName.click();
-  await page.waitForTimeout(500);
+  // Last resort: find by data-testid or aria-label if available
+  const lastResort = page.locator(`[data-testid*="${tabName.toLowerCase()}"], [aria-label*="${tabName}" i]`);
+  const lastResortCount = await lastResort.count().catch(() => 0);
+  if (lastResortCount > 0) {
+    await lastResort.first().click();
+    await page.waitForTimeout(500);
+    return;
+  }
+
+  throw new Error(`Could not find tab button for "${tabName}". Available buttons: check screenshot for details.`);
 }
 
 /**
