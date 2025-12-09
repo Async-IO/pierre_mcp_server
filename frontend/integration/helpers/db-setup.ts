@@ -28,18 +28,30 @@ export interface CreateUserResult {
 
 /**
  * Environment variables required for running admin-setup commands.
+ * Uses CI environment variables if set, otherwise falls back to defaults.
  */
 function getAdminSetupEnv(): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    DATABASE_URL: `sqlite:${DB_PATH}`,
-    PIERRE_MASTER_ENCRYPTION_KEY: 'rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo=',
-    PIERRE_RSA_KEY_SIZE: '2048',
-    RUST_LOG: 'warn',
-    STRAVA_CLIENT_ID: 'test_client_id_integration',
-    STRAVA_CLIENT_SECRET: 'test_client_secret_integration',
-    STRAVA_REDIRECT_URI: 'http://localhost:8080/auth/strava/callback',
+    DATABASE_URL: process.env.DATABASE_URL || `sqlite:${DB_PATH}`,
+    PIERRE_MASTER_ENCRYPTION_KEY: process.env.PIERRE_MASTER_ENCRYPTION_KEY || 'rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo=',
+    PIERRE_RSA_KEY_SIZE: process.env.PIERRE_RSA_KEY_SIZE || '2048',
+    RUST_LOG: process.env.RUST_LOG || 'warn',
+    STRAVA_CLIENT_ID: process.env.STRAVA_CLIENT_ID || 'test_client_id_integration',
+    STRAVA_CLIENT_SECRET: process.env.STRAVA_CLIENT_SECRET || 'test_client_secret_integration',
+    STRAVA_REDIRECT_URI: process.env.STRAVA_REDIRECT_URI || 'http://localhost:8080/auth/strava/callback',
   };
+}
+
+/**
+ * Get the admin-setup command, using release binary if available (faster in CI).
+ */
+function getAdminSetupCommand(): string {
+  const releaseBinary = path.join(PROJECT_ROOT, 'target', 'release', 'admin-setup');
+  if (fs.existsSync(releaseBinary)) {
+    return releaseBinary;
+  }
+  return 'cargo run --release --bin admin-setup --';
 }
 
 /**
@@ -48,7 +60,8 @@ function getAdminSetupEnv(): NodeJS.ProcessEnv {
  */
 export async function createTestAdminUser(user: TestUser): Promise<CreateUserResult> {
   try {
-    const command = `cargo run --bin admin-setup -- create-admin-user --email "${user.email}" --password "${user.password}"`;
+    const adminSetup = getAdminSetupCommand();
+    const command = `${adminSetup} create-admin-user --email "${user.email}" --password "${user.password}"`;
 
     execSync(command, {
       cwd: PROJECT_ROOT,
@@ -80,7 +93,8 @@ export async function generateApiToken(
   expiresDays: number = 30
 ): Promise<{ success: boolean; token?: string; error?: string }> {
   try {
-    const command = `cargo run --bin admin-setup -- generate-token --service "${service}" --expires-days ${expiresDays}`;
+    const adminSetup = getAdminSetupCommand();
+    const command = `${adminSetup} generate-token --service "${service}" --expires-days ${expiresDays}`;
 
     const output = execSync(command, {
       cwd: PROJECT_ROOT,
