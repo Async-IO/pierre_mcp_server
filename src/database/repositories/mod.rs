@@ -28,6 +28,8 @@ pub mod api_key_repository;
 pub mod fitness_config_repository;
 /// AI-generated insights repository implementation
 pub mod insight_repository;
+/// Recipe storage repository implementation
+pub mod recipe_repository;
 /// OAuth notification repository implementation
 pub mod notification_repository;
 /// OAuth 2.0 server repository implementation
@@ -55,6 +57,7 @@ pub use notification_repository::NotificationRepositoryImpl;
 pub use oauth2_server_repository::OAuth2ServerRepositoryImpl;
 pub use oauth_token_repository::OAuthTokenRepositoryImpl;
 pub use profile_repository::ProfileRepositoryImpl;
+pub use recipe_repository::RecipeRepositoryImpl;
 pub use security_repository::SecurityRepositoryImpl;
 pub use tenant_repository::TenantRepositoryImpl;
 pub use usage_repository::UsageRepositoryImpl;
@@ -852,4 +855,72 @@ pub trait FitnessConfigRepository: Send + Sync {
         user_id: Option<&str>,
         configuration_name: &str,
     ) -> Result<bool, DatabaseError>;
+}
+
+/// Recipe storage and management repository (tenant-scoped)
+#[async_trait]
+pub trait RecipeRepository: Send + Sync {
+    /// Create a new recipe for a user
+    async fn create(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        recipe: &crate::intelligence::recipes::Recipe,
+    ) -> Result<String, DatabaseError>;
+
+    /// Get recipe by ID for a specific user
+    async fn get_by_id(
+        &self,
+        recipe_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> Result<Option<crate::intelligence::recipes::Recipe>, DatabaseError>;
+
+    /// List recipes for a user with optional meal timing filter
+    async fn list(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        meal_timing: Option<crate::intelligence::recipes::MealTiming>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<crate::intelligence::recipes::Recipe>, DatabaseError>;
+
+    /// Update a recipe
+    async fn update(
+        &self,
+        recipe_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+        recipe: &crate::intelligence::recipes::Recipe,
+    ) -> Result<bool, DatabaseError>;
+
+    /// Delete a recipe
+    async fn delete(
+        &self,
+        recipe_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+    ) -> Result<bool, DatabaseError>;
+
+    /// Update cached nutrition for a recipe after USDA validation
+    async fn update_nutrition_cache(
+        &self,
+        recipe_id: &str,
+        user_id: Uuid,
+        tenant_id: &str,
+        nutrition: &crate::intelligence::recipes::ValidatedNutrition,
+    ) -> Result<bool, DatabaseError>;
+
+    /// Search recipes by name, tags, or description
+    async fn search(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        query: &str,
+        limit: Option<u32>,
+    ) -> Result<Vec<crate::intelligence::recipes::Recipe>, DatabaseError>;
+
+    /// Count recipes for a user
+    async fn count(&self, user_id: Uuid, tenant_id: &str) -> Result<u32, DatabaseError>;
 }

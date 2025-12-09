@@ -1,0 +1,854 @@
+// ABOUTME: Recipe management tool handlers for MCP protocol ("Combat des Chefs" architecture)
+// ABOUTME: Implements 7 tools: get_recipe_constraints, validate_recipe, save_recipe, list_recipes, get_recipe, delete_recipe, search_recipes
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Copyright (c) 2025 Pierre Fitness Intelligence
+
+use crate::database::recipes::RecipeManager;
+use crate::external::{UsdaClient, UsdaClientConfig};
+use crate::intelligence::recipes::{
+    convert_to_grams, IngredientUnit, MacroTargets, MealTiming, Recipe, RecipeConstraints,
+    RecipeIngredient, SkillLevel,
+};
+use crate::protocols::universal::{UniversalRequest, UniversalResponse};
+use crate::protocols::ProtocolError;
+use crate::utils::uuid::parse_user_id_for_protocol;
+use chrono::Utc;
+use serde::Deserialize;
+use serde_json::{json, Value};
+use std::future::Future;
+use std::pin::Pin;
+
+/// Input parameters for saving a recipe
+#[derive(Debug, Deserialize)]
+struct SaveRecipeParams {
+    name: String,
+    description: Option<String>,
+    servings: u8,
+    prep_time_mins: Option<u16>,
+    cook_time_mins: Option<u16>,
+    instructions: Vec<String>,
+    ingredients: Vec<IngredientInput>,
+    tags: Option<Vec<String>>,
+    meal_timing: Option<String>,
+}
+
+/// Input format for recipe ingredients
+#[derive(Debug, Deserialize)]
+struct IngredientInput {
+    name: String,
+    amount: f64,
+    unit: String,
+    preparation: Option<String>,
+}
+
+/// Handle `get_recipe_constraints` tool - get macro targets for LLM recipe generation
+///
+/// Returns personalized macro targets and constraints based on:
+/// - Daily calorie budget (or defaults based on timing)
+/// - Meal timing (pre-training, post-training, rest day, general)
+/// - User's dietary restrictions and preferences
+///
+/// This tool is designed for the "Combat des Chefs" architecture where LLM clients
+/// generate recipes themselves, then validate via Pierre's USDA integration.
+///
+/// # Parameters
+/// - `calories`: Target calories for the meal (optional, calculated from timing if not provided)
+/// - `meal_timing`: `pre_training`, `post_training`, `rest_day`, or `general` (optional, default: `general`)
+/// - `dietary_restrictions`: Array of restrictions like `gluten_free`, `vegan` (optional)
+/// - `max_prep_time_mins`: Maximum preparation time (optional)
+/// - `max_cook_time_mins`: Maximum cooking time (optional)
+///
+/// # Returns
+/// JSON object with macro targets and a prompt hint for LLM recipe generation
+///
+/// # Errors
+/// Returns `ProtocolError` if parameters are invalid
+#[must_use]
+pub fn handle_get_recipe_constraints(
+    _executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        // Check cancellation
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "get_recipe_constraints cancelled".to_owned(),
+                ));
+            }
+        }
+
+        // Parse meal timing
+        let meal_timing = request
+            .parameters
+            .get("meal_timing")
+            .and_then(Value::as_str)
+            .map_or(MealTiming::General, parse_meal_timing);
+
+        // Get or calculate target calories
+        let calories = request
+            .parameters
+            .get("calories")
+            .and_then(Value::as_f64)
+            .unwrap_or_else(|| default_calories_for_timing(meal_timing));
+
+        // Calculate macro targets based on timing
+        let macro_targets = MacroTargets::from_calories_and_timing(calories, meal_timing);
+
+        // Build prompt hint for LLM clients
+        let (protein_pct, carbs_pct, fat_pct) = meal_timing.macro_distribution();
+        let prompt_hint = format!(
+            "Create a {} recipe (~{:.0} kcal) with approximately {:.0}g protein, {:.0}g carbs, {:.0}g fat. \
+             Macro distribution: {}% protein, {}% carbs, {}% fat.",
+            meal_timing.description(),
+            calories,
+            macro_targets.protein_g.unwrap_or(0.0),
+            macro_targets.carbs_g.unwrap_or(0.0),
+            macro_targets.fat_g.unwrap_or(0.0),
+            protein_pct,
+            carbs_pct,
+            fat_pct
+        );
+
+        // Build constraints response
+        let constraints = RecipeConstraints {
+            macro_targets,
+            dietary_restrictions: parse_dietary_restrictions(
+                request
+                    .parameters
+                    .get("dietary_restrictions")
+                    .and_then(Value::as_array),
+            ),
+            cuisine_preferences: Vec::new(),
+            excluded_ingredients: Vec::new(),
+            max_prep_time_mins: request
+                .parameters
+                .get("max_prep_time_mins")
+                .and_then(Value::as_u64)
+                .map(|v| v.min(480) as u16),
+            max_cook_time_mins: request
+                .parameters
+                .get("max_cook_time_mins")
+                .and_then(Value::as_u64)
+                .map(|v| v.min(480) as u16),
+            skill_level: SkillLevel::default(),
+            meal_timing,
+            prompt_hint: Some(prompt_hint.clone()),
+        };
+
+        Ok(UniversalResponse {
+            success: true,
+            result: Some(json!({
+                "calories": calories,
+                "protein_g": constraints.macro_targets.protein_g,
+                "carbs_g": constraints.macro_targets.carbs_g,
+                "fat_g": constraints.macro_targets.fat_g,
+                "meal_timing": format!("{meal_timing:?}").to_lowercase(),
+                "meal_timing_description": meal_timing.description(),
+                "prompt_hint": prompt_hint,
+                "max_prep_time_mins": constraints.max_prep_time_mins,
+                "max_cook_time_mins": constraints.max_cook_time_mins,
+            })),
+            error: None,
+            metadata: None,
+        })
+    })
+}
+
+/// Handle `validate_recipe` tool - validate recipe nutrition via USDA
+///
+/// Validates a recipe's ingredients against the USDA `FoodData` Central database
+/// and calculates accurate nutrition information per serving.
+///
+/// # Parameters
+/// - `name`: Recipe name (required)
+/// - `servings`: Number of servings (required)
+/// - `ingredients`: Array of {name, amount, unit, preparation?} (required)
+///
+/// # Returns
+/// JSON object with validated nutrition per serving and any warnings
+///
+/// # Errors
+/// Returns `ProtocolError` if required parameters missing or USDA API fails
+#[must_use]
+#[allow(clippy::too_many_lines)] // Complex validation logic with USDA API calls
+pub fn handle_validate_recipe(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        // Check cancellation
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "validate_recipe cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let servings_val = request
+            .parameters
+            .get("servings")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: servings".to_owned())
+            })?;
+        #[allow(clippy::cast_possible_truncation)]
+        let servings = servings_val.min(255) as u8;
+
+        let ingredients_json = request
+            .parameters
+            .get("ingredients")
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest(
+                    "Missing required parameter: ingredients (must be array)".to_owned(),
+                )
+            })?;
+
+        // Get USDA client
+        let api_key = executor
+            .resources
+            .config
+            .usda_api_key
+            .clone()
+            .unwrap_or_default();
+
+        if api_key.is_empty() {
+            return Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("USDA API key not configured".to_owned()),
+                metadata: None,
+            });
+        }
+
+        let usda_config = UsdaClientConfig {
+            api_key,
+            ..UsdaClientConfig::default()
+        };
+        let client = UsdaClient::new(usda_config);
+
+        // Process ingredients and calculate nutrition
+        let mut total_calories = 0.0;
+        let mut total_protein = 0.0;
+        let mut total_carbs = 0.0;
+        let mut total_fat = 0.0;
+        let mut total_fiber = 0.0;
+        let mut total_sodium = 0.0;
+        let mut total_sugar = 0.0;
+        let mut warnings: Vec<String> = Vec::new();
+        let mut validated_ingredients: Vec<Value> = Vec::new();
+
+        for ingredient_value in ingredients_json {
+            let name = ingredient_value
+                .get("name")
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    ProtocolError::InvalidRequest("Each ingredient must have 'name'".to_owned())
+                })?;
+
+            let amount = ingredient_value
+                .get("amount")
+                .and_then(Value::as_f64)
+                .ok_or_else(|| {
+                    ProtocolError::InvalidRequest("Each ingredient must have 'amount'".to_owned())
+                })?;
+
+            let unit_str = ingredient_value
+                .get("unit")
+                .and_then(Value::as_str)
+                .unwrap_or("grams");
+
+            // Convert to grams
+            let unit = parse_ingredient_unit(unit_str);
+            let grams = match convert_to_grams(name, amount, unit) {
+                Ok(g) => g,
+                Err(e) => {
+                    warnings.push(format!("Could not convert {name}: {e}"));
+                    // Estimate 100g per cup as fallback
+                    if unit.is_volume() {
+                        amount * 100.0
+                    } else if unit.is_count() {
+                        amount * 50.0
+                    } else {
+                        amount
+                    }
+                }
+            };
+
+            // Search USDA for ingredient
+            match client.search_foods(name, 1).await {
+                Ok(foods) if !foods.is_empty() => {
+                    let food = &foods[0];
+                    match client.get_food_details(food.fdc_id).await {
+                        Ok(details) => {
+                            let multiplier = grams / 100.0;
+                            for nutrient in &details.food_nutrients {
+                                match nutrient.nutrient_name.as_str() {
+                                    "Energy" => total_calories += nutrient.amount * multiplier,
+                                    "Protein" => total_protein += nutrient.amount * multiplier,
+                                    "Carbohydrate, by difference" => {
+                                        total_carbs += nutrient.amount * multiplier;
+                                    }
+                                    "Total lipid (fat)" => {
+                                        total_fat += nutrient.amount * multiplier;
+                                    }
+                                    "Fiber, total dietary" => {
+                                        total_fiber += nutrient.amount * multiplier;
+                                    }
+                                    "Sodium, Na" => total_sodium += nutrient.amount * multiplier,
+                                    "Sugars, total including NLEA" => {
+                                        total_sugar += nutrient.amount * multiplier;
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            validated_ingredients.push(json!({
+                                "name": name,
+                                "amount": amount,
+                                "unit": unit_str,
+                                "grams": grams,
+                                "fdc_id": food.fdc_id,
+                                "usda_match": food.description,
+                            }));
+                        }
+                        Err(e) => {
+                            warnings.push(format!("USDA lookup failed for {name}: {e}"));
+                            validated_ingredients.push(json!({
+                                "name": name,
+                                "amount": amount,
+                                "unit": unit_str,
+                                "grams": grams,
+                                "usda_match": null,
+                            }));
+                        }
+                    }
+                }
+                Ok(_) => {
+                    warnings.push(format!("No USDA match found for: {name}"));
+                    validated_ingredients.push(json!({
+                        "name": name,
+                        "amount": amount,
+                        "unit": unit_str,
+                        "grams": grams,
+                        "usda_match": null,
+                    }));
+                }
+                Err(e) => {
+                    warnings.push(format!("USDA search failed for {name}: {e}"));
+                    validated_ingredients.push(json!({
+                        "name": name,
+                        "amount": amount,
+                        "unit": unit_str,
+                        "grams": grams,
+                        "usda_match": null,
+                    }));
+                }
+            }
+        }
+
+        // Calculate per-serving values
+        let servings_f64 = f64::from(servings);
+        let nutrition_per_serving = json!({
+            "calories": (total_calories / servings_f64).round(),
+            "protein_g": (total_protein / servings_f64 * 10.0).round() / 10.0,
+            "carbs_g": (total_carbs / servings_f64 * 10.0).round() / 10.0,
+            "fat_g": (total_fat / servings_f64 * 10.0).round() / 10.0,
+            "fiber_g": (total_fiber / servings_f64 * 10.0).round() / 10.0,
+            "sodium_mg": (total_sodium / servings_f64).round(),
+            "sugar_g": (total_sugar / servings_f64 * 10.0).round() / 10.0,
+        });
+
+        Ok(UniversalResponse {
+            success: true,
+            result: Some(json!({
+                "validated": true,
+                "servings": servings,
+                "nutrition_per_serving": nutrition_per_serving,
+                "ingredients": validated_ingredients,
+                "warnings": warnings,
+                "validated_at": Utc::now().to_rfc3339(),
+            })),
+            error: None,
+            metadata: None,
+        })
+    })
+}
+
+/// Handle `save_recipe` tool - save a validated recipe to user's collection
+///
+/// Saves a recipe with validated nutrition information to the user's personal recipe collection.
+///
+/// # Parameters
+/// - `name`: Recipe name (required)
+/// - `description`: Recipe description (optional)
+/// - `servings`: Number of servings (required)
+/// - `prep_time_mins`: Preparation time in minutes (optional)
+/// - `cook_time_mins`: Cooking time in minutes (optional)
+/// - `instructions`: Array of instruction steps (required)
+/// - `ingredients`: Array of {name, amount, unit, preparation?} (required)
+/// - `tags`: Array of tags (optional)
+/// - `meal_timing`: `pre_training`, `post_training`, `rest_day`, or `general` (optional)
+///
+/// # Returns
+/// JSON object with the saved recipe ID
+///
+/// # Errors
+/// Returns `ProtocolError` if required parameters missing or save fails
+#[must_use]
+pub fn handle_save_recipe(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        // Check cancellation
+        if let Some(token) = &request.cancellation_token {
+            if token.is_cancelled().await {
+                return Err(ProtocolError::OperationCancelled(
+                    "save_recipe cancelled".to_owned(),
+                ));
+            }
+        }
+
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let user_id_string = user_id.to_string();
+        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+
+        // Parse recipe parameters
+        let params: SaveRecipeParams =
+            serde_json::from_value(request.parameters.clone()).map_err(|e| {
+                ProtocolError::InvalidRequest(format!("Invalid recipe parameters: {e}"))
+            })?;
+
+        // Build recipe
+        let meal_timing = params
+            .meal_timing
+            .as_deref()
+            .map_or(MealTiming::General, parse_meal_timing);
+
+        let mut recipe = Recipe::new(user_id, &params.name, params.servings)
+            .with_meal_timing(meal_timing)
+            .with_instructions(params.instructions);
+
+        if let Some(desc) = params.description {
+            recipe = recipe.with_description(desc);
+        }
+
+        if let Some(prep) = params.prep_time_mins {
+            recipe = recipe.with_prep_time(prep);
+        }
+
+        if let Some(cook) = params.cook_time_mins {
+            recipe = recipe.with_cook_time(cook);
+        }
+
+        if let Some(tags) = params.tags {
+            for tag in tags {
+                recipe = recipe.with_tag(tag);
+            }
+        }
+
+        // Convert ingredients
+        let mut ingredients = Vec::new();
+        for ing in params.ingredients {
+            let unit = parse_ingredient_unit(&ing.unit);
+            let grams = convert_to_grams(&ing.name, ing.amount, unit).unwrap_or(ing.amount);
+            let mut ingredient = RecipeIngredient::new(&ing.name, ing.amount, unit, grams);
+            if let Some(prep) = ing.preparation {
+                ingredient = ingredient.with_preparation(prep);
+            }
+            ingredients.push(ingredient);
+        }
+        recipe = recipe.with_ingredients(ingredients);
+
+        // Save to database
+        let pool = executor
+            .resources
+            .database
+            .sqlite_pool()
+            .ok_or_else(|| ProtocolError::InternalError("Database not available".to_owned()))?;
+
+        let manager = RecipeManager::new(pool.clone());
+        let recipe_id = manager
+            .create_recipe(user_id, tenant_id, &recipe)
+            .await
+            .map_err(|e| ProtocolError::InternalError(format!("Failed to save recipe: {e}")))?;
+
+        Ok(UniversalResponse {
+            success: true,
+            result: Some(json!({
+                "recipe_id": recipe_id,
+                "name": params.name,
+                "servings": params.servings,
+                "meal_timing": format!("{meal_timing:?}").to_lowercase(),
+                "created_at": Utc::now().to_rfc3339(),
+            })),
+            error: None,
+            metadata: None,
+        })
+    })
+}
+
+/// Handle `list_recipes` tool - list user's saved recipes
+///
+/// # Parameters
+/// - `meal_timing`: Filter by `pre_training`, `post_training`, `rest_day`, `general` (optional)
+/// - `limit`: Maximum number of recipes to return (default: 50)
+/// - `offset`: Pagination offset (default: 0)
+///
+/// # Returns
+/// JSON array of recipe summaries
+#[must_use]
+pub fn handle_list_recipes(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let user_id_string = user_id.to_string();
+        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+
+        let meal_timing = request
+            .parameters
+            .get("meal_timing")
+            .and_then(Value::as_str)
+            .map(parse_meal_timing);
+
+        let limit = request
+            .parameters
+            .get("limit")
+            .and_then(Value::as_u64)
+            .map(|v| {
+                #[allow(clippy::cast_possible_truncation)]
+                let capped = v.min(100) as u32;
+                capped
+            });
+
+        let offset = request
+            .parameters
+            .get("offset")
+            .and_then(Value::as_u64)
+            .map(|v| {
+                #[allow(clippy::cast_possible_truncation)]
+                let capped = v.min(u64::from(u32::MAX)) as u32;
+                capped
+            });
+
+        let pool = executor
+            .resources
+            .database
+            .sqlite_pool()
+            .ok_or_else(|| ProtocolError::InternalError("Database not available".to_owned()))?;
+
+        let manager = RecipeManager::new(pool.clone());
+        let recipes = manager
+            .list_recipes(user_id, tenant_id, meal_timing, limit, offset)
+            .await
+            .map_err(|e| ProtocolError::InternalError(format!("Failed to list recipes: {e}")))?;
+
+        let recipe_summaries: Vec<Value> = recipes
+            .iter()
+            .map(|r| {
+                json!({
+                    "id": r.id.to_string(),
+                    "name": r.name,
+                    "servings": r.servings,
+                    "meal_timing": format!("{:?}", r.meal_timing).to_lowercase(),
+                    "total_time_mins": r.total_time_mins(),
+                    "tags": r.tags,
+                    "has_nutrition": r.nutrition.is_some(),
+                    "calories_per_serving": r.nutrition.as_ref().map(|n| n.calories.round()),
+                    "updated_at": r.updated_at.to_rfc3339(),
+                })
+            })
+            .collect();
+
+        Ok(UniversalResponse {
+            success: true,
+            result: Some(json!({
+                "recipes": recipe_summaries,
+                "count": recipe_summaries.len(),
+            })),
+            error: None,
+            metadata: None,
+        })
+    })
+}
+
+/// Handle `get_recipe` tool - get a specific recipe by ID
+///
+/// # Parameters
+/// - `recipe_id`: Recipe UUID (required)
+///
+/// # Returns
+/// Full recipe details including ingredients and nutrition
+#[must_use]
+pub fn handle_get_recipe(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let user_id_string = user_id.to_string();
+        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+
+        let recipe_id = request
+            .parameters
+            .get("recipe_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: recipe_id".to_owned())
+            })?;
+
+        let pool = executor
+            .resources
+            .database
+            .sqlite_pool()
+            .ok_or_else(|| ProtocolError::InternalError("Database not available".to_owned()))?;
+
+        let manager = RecipeManager::new(pool.clone());
+        let recipe = manager
+            .get_recipe(recipe_id, user_id, tenant_id)
+            .await
+            .map_err(|e| ProtocolError::InternalError(format!("Failed to get recipe: {e}")))?;
+
+        match recipe {
+            Some(r) => Ok(UniversalResponse {
+                success: true,
+                result: Some(json!({
+                    "id": r.id.to_string(),
+                    "name": r.name,
+                    "description": r.description,
+                    "servings": r.servings,
+                    "prep_time_mins": r.prep_time_mins,
+                    "cook_time_mins": r.cook_time_mins,
+                    "total_time_mins": r.total_time_mins(),
+                    "meal_timing": format!("{:?}", r.meal_timing).to_lowercase(),
+                    "ingredients": r.ingredients.iter().map(|i| json!({
+                        "name": i.name,
+                        "amount": i.amount,
+                        "unit": format!("{:?}", i.unit).to_lowercase(),
+                        "grams": i.grams,
+                        "preparation": i.preparation,
+                        "fdc_id": i.fdc_id,
+                    })).collect::<Vec<_>>(),
+                    "instructions": r.instructions,
+                    "tags": r.tags,
+                    "nutrition_per_serving": r.nutrition.map(|n| json!({
+                        "calories": n.calories.round(),
+                        "protein_g": (n.protein_g * 10.0).round() / 10.0,
+                        "carbs_g": (n.carbs_g * 10.0).round() / 10.0,
+                        "fat_g": (n.fat_g * 10.0).round() / 10.0,
+                        "fiber_g": n.fiber_g.map(|v| (v * 10.0).round() / 10.0),
+                        "sodium_mg": n.sodium_mg.map(f64::round),
+                        "sugar_g": n.sugar_g.map(|v| (v * 10.0).round() / 10.0),
+                        "validated_at": n.validated_at.to_rfc3339(),
+                    })),
+                    "created_at": r.created_at.to_rfc3339(),
+                    "updated_at": r.updated_at.to_rfc3339(),
+                })),
+                error: None,
+                metadata: None,
+            }),
+            None => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Recipe not found: {recipe_id}")),
+                metadata: None,
+            }),
+        }
+    })
+}
+
+/// Handle `delete_recipe` tool - delete a recipe from user's collection
+///
+/// # Parameters
+/// - `recipe_id`: Recipe UUID (required)
+///
+/// # Returns
+/// Success confirmation
+#[must_use]
+pub fn handle_delete_recipe(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let user_id_string = user_id.to_string();
+        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+
+        let recipe_id = request
+            .parameters
+            .get("recipe_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: recipe_id".to_owned())
+            })?;
+
+        let pool = executor
+            .resources
+            .database
+            .sqlite_pool()
+            .ok_or_else(|| ProtocolError::InternalError("Database not available".to_owned()))?;
+
+        let manager = RecipeManager::new(pool.clone());
+        let deleted = manager
+            .delete_recipe(recipe_id, user_id, tenant_id)
+            .await
+            .map_err(|e| ProtocolError::InternalError(format!("Failed to delete recipe: {e}")))?;
+
+        if deleted {
+            Ok(UniversalResponse {
+                success: true,
+                result: Some(json!({
+                    "deleted": true,
+                    "recipe_id": recipe_id,
+                })),
+                error: None,
+                metadata: None,
+            })
+        } else {
+            Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Recipe not found: {recipe_id}")),
+                metadata: None,
+            })
+        }
+    })
+}
+
+/// Handle `search_recipes` tool - search user's recipes by name, tags, or description
+///
+/// # Parameters
+/// - `query`: Search query string (required)
+/// - `limit`: Maximum results (default: 20)
+///
+/// # Returns
+/// JSON array of matching recipes
+#[must_use]
+pub fn handle_search_recipes(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        let user_id = parse_user_id_for_protocol(&request.user_id)?;
+        let user_id_string = user_id.to_string();
+        let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
+
+        let query = request
+            .parameters
+            .get("query")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: query".to_owned())
+            })?;
+
+        let limit = request
+            .parameters
+            .get("limit")
+            .and_then(Value::as_u64)
+            .map(|v| v.min(100) as u32);
+
+        let pool = executor
+            .resources
+            .database
+            .sqlite_pool()
+            .ok_or_else(|| ProtocolError::InternalError("Database not available".to_owned()))?;
+
+        let manager = RecipeManager::new(pool.clone());
+        let recipes = manager
+            .search_recipes(user_id, tenant_id, query, limit)
+            .await
+            .map_err(|e| ProtocolError::InternalError(format!("Failed to search recipes: {e}")))?;
+
+        let results: Vec<Value> = recipes
+            .iter()
+            .map(|r| {
+                json!({
+                    "id": r.id.to_string(),
+                    "name": r.name,
+                    "description": r.description,
+                    "servings": r.servings,
+                    "meal_timing": format!("{:?}", r.meal_timing).to_lowercase(),
+                    "tags": r.tags,
+                    "calories_per_serving": r.nutrition.as_ref().map(|n| n.calories.round()),
+                })
+            })
+            .collect();
+
+        Ok(UniversalResponse {
+            success: true,
+            result: Some(json!({
+                "query": query,
+                "results": results,
+                "count": results.len(),
+            })),
+            error: None,
+            metadata: None,
+        })
+    })
+}
+
+// Helper functions
+
+fn parse_meal_timing(s: &str) -> MealTiming {
+    match s.to_lowercase().as_str() {
+        "pre_training" => MealTiming::PreTraining,
+        "post_training" => MealTiming::PostTraining,
+        "rest_day" => MealTiming::RestDay,
+        _ => MealTiming::General,
+    }
+}
+
+fn parse_ingredient_unit(s: &str) -> IngredientUnit {
+    match s.to_lowercase().as_str() {
+        "milliliters" | "ml" => IngredientUnit::Milliliters,
+        "cups" | "cup" => IngredientUnit::Cups,
+        "tablespoons" | "tbsp" => IngredientUnit::Tablespoons,
+        "teaspoons" | "tsp" => IngredientUnit::Teaspoons,
+        "pieces" | "piece" | "pc" => IngredientUnit::Pieces,
+        "ounces" | "oz" => IngredientUnit::Ounces,
+        "pounds" | "lb" => IngredientUnit::Pounds,
+        "kilograms" | "kg" => IngredientUnit::Kilograms,
+        // Default to grams for "grams", "g", or any unrecognized unit
+        _ => IngredientUnit::Grams,
+    }
+}
+
+const fn default_calories_for_timing(timing: MealTiming) -> f64 {
+    match timing {
+        MealTiming::PreTraining => 400.0,  // Light meal before workout
+        MealTiming::PostTraining => 600.0, // Recovery meal
+        MealTiming::RestDay | MealTiming::General => 500.0, // Moderate/default meal
+    }
+}
+
+fn parse_dietary_restrictions(
+    arr: Option<&Vec<Value>>,
+) -> Vec<crate::intelligence::recipes::DietaryRestriction> {
+    use crate::intelligence::recipes::DietaryRestriction;
+
+    let Some(values) = arr else {
+        return Vec::new();
+    };
+
+    values
+        .iter()
+        .filter_map(|v| v.as_str())
+        .filter_map(|s| match s.to_lowercase().as_str() {
+            "gluten_free" => Some(DietaryRestriction::GlutenFree),
+            "dairy_free" => Some(DietaryRestriction::DairyFree),
+            "vegan" => Some(DietaryRestriction::Vegan),
+            "vegetarian" => Some(DietaryRestriction::Vegetarian),
+            "nut_free" => Some(DietaryRestriction::NutFree),
+            "low_sodium" => Some(DietaryRestriction::LowSodium),
+            "low_sugar" => Some(DietaryRestriction::LowSugar),
+            "keto" => Some(DietaryRestriction::Keto),
+            "paleo" => Some(DietaryRestriction::Paleo),
+            _ => None,
+        })
+        .collect()
+}

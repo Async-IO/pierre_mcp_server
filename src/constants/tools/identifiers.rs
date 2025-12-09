@@ -73,3 +73,18 @@ pub const CALCULATE_FITNESS_SCORE: &str = "calculate_fitness_score";
 pub const GENERATE_RECOMMENDATIONS: &str = "generate_recommendations";
 /// Tool identifier for goal suggestion functionality
 pub const SUGGEST_GOALS: &str = "suggest_goals";
+
+/// Recipe management tools (Combat des Chefs)
+pub const GET_RECIPE_CONSTRAINTS: &str = "get_recipe_constraints";
+/// Tool identifier for listing user recipes
+pub const LIST_RECIPES: &str = "list_recipes";
+/// Tool identifier for retrieving a specific recipe
+pub const GET_RECIPE: &str = "get_recipe";
+/// Tool identifier for deleting a recipe
+pub const DELETE_RECIPE: &str = "delete_recipe";
+/// Tool identifier for searching recipes
+pub const SEARCH_RECIPES: &str = "search_recipes";
+/// Tool identifier for saving a new recipe
+pub const SAVE_RECIPE: &str = "save_recipe";
+/// Tool identifier for validating recipe nutrition
+pub const VALIDATE_RECIPE: &str = "validate_recipe";

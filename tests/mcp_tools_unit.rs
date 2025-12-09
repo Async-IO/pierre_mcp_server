@@ -14,12 +14,13 @@ mod common;
 use pierre_mcp_server::mcp::schema::*;
 
 #[test]
+#[allow(clippy::cognitive_complexity)]
 fn test_mcp_tool_schemas() {
     // Test that all analytics tools are properly defined
     let tools = get_tools();
 
-    // Should have all 45 tools (39 fitness + 6 configuration, includes nutrition and sleep/recovery)
-    assert_eq!(tools.len(), 45);
+    // Should have all 52 tools (39 fitness + 6 configuration + 7 recipe, includes nutrition and sleep/recovery)
+    assert_eq!(tools.len(), 52);
 
     // Check key analytics tools are present
     let tool_names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
@@ -58,6 +59,15 @@ fn test_mcp_tool_schemas() {
     assert!(tool_names.contains(&"set_fitness_config"));
     assert!(tool_names.contains(&"list_fitness_configs"));
     assert!(tool_names.contains(&"delete_fitness_config"));
+
+    // Recipe management tools (Combat des Chefs)
+    assert!(tool_names.contains(&"get_recipe_constraints"));
+    assert!(tool_names.contains(&"validate_recipe"));
+    assert!(tool_names.contains(&"save_recipe"));
+    assert!(tool_names.contains(&"list_recipes"));
+    assert!(tool_names.contains(&"get_recipe"));
+    assert!(tool_names.contains(&"delete_recipe"));
+    assert!(tool_names.contains(&"search_recipes"));
 }
 
 #[test]
@@ -104,6 +114,69 @@ fn test_analytics_tool_schemas() {
         assert!(required.contains(&"target_date".to_owned()));
     } else {
         panic!("set_goal should have required parameters");
+    }
+}
+
+#[test]
+fn test_recipe_tool_schemas() {
+    let tools = get_tools();
+
+    // Test get_recipe_constraints tool schema
+    let get_constraints = tools
+        .iter()
+        .find(|t| t.name == "get_recipe_constraints")
+        .expect("get_recipe_constraints tool should exist");
+
+    assert!(get_constraints.description.contains("macro targets"));
+
+    if let Some(required) = &get_constraints.input_schema.required {
+        assert!(required.contains(&"meal_timing".to_owned()));
+    } else {
+        panic!("get_recipe_constraints should have required parameters");
+    }
+
+    // Test list_recipes tool schema (no required params)
+    let list_recipes = tools
+        .iter()
+        .find(|t| t.name == "list_recipes")
+        .expect("list_recipes tool should exist");
+
+    assert!(list_recipes.description.contains("recipes"));
+
+    // Test get_recipe tool schema
+    let get_recipe = tools
+        .iter()
+        .find(|t| t.name == "get_recipe")
+        .expect("get_recipe tool should exist");
+
+    if let Some(required) = &get_recipe.input_schema.required {
+        assert!(required.contains(&"recipe_id".to_owned()));
+    } else {
+        panic!("get_recipe should have required parameters");
+    }
+
+    // Test search_recipes tool schema
+    let search_recipes = tools
+        .iter()
+        .find(|t| t.name == "search_recipes")
+        .expect("search_recipes tool should exist");
+
+    if let Some(required) = &search_recipes.input_schema.required {
+        assert!(required.contains(&"query".to_owned()));
+    } else {
+        panic!("search_recipes should have required parameters");
+    }
+
+    // Test delete_recipe tool schema
+    let delete_recipe = tools
+        .iter()
+        .find(|t| t.name == "delete_recipe")
+        .expect("delete_recipe tool should exist");
+
+    if let Some(required) = &delete_recipe.input_schema.required {
+        assert!(required.contains(&"recipe_id".to_owned()));
+    } else {
+        panic!("delete_recipe should have required parameters");
     }
 }
 

@@ -269,4 +269,4 @@ module_name_repetitions = "allow"
 uninlined_format_args = "warn"
 
 # Warn on .map().unwrap_or() - should use map_or() or is_some_and() instead
-option_map_unwrap_or = "warn"
+map_unwrap_or = "warn"

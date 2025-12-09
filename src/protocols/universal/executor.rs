@@ -19,6 +19,10 @@ use super::handlers::{
     handle_set_goal, handle_suggest_goals, handle_suggest_rest_day, handle_track_progress,
     handle_track_sleep_trends, handle_update_user_configuration, handle_validate_configuration,
 };
+use super::handlers::{
+    handle_delete_recipe, handle_get_recipe, handle_get_recipe_constraints, handle_list_recipes,
+    handle_save_recipe, handle_search_recipes, handle_validate_recipe,
+};
 use super::tool_registry::{ToolId, ToolInfo, ToolRegistry};
 use crate::mcp::resources::ServerResources;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
@@ -312,6 +316,37 @@ impl UniversalExecutor {
         ));
     }
 
+    fn register_recipe_tools(registry: &mut ToolRegistry) {
+        registry.register(ToolInfo::async_tool(
+            ToolId::GetRecipeConstraints,
+            |executor, request| Box::pin(handle_get_recipe_constraints(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::ValidateRecipe,
+            |executor, request| Box::pin(handle_validate_recipe(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::SaveRecipe,
+            |executor, request| Box::pin(handle_save_recipe(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::ListRecipes,
+            |executor, request| Box::pin(handle_list_recipes(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::GetRecipe,
+            |executor, request| Box::pin(handle_get_recipe(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::DeleteRecipe,
+            |executor, request| Box::pin(handle_delete_recipe(executor, request)),
+        ));
+        registry.register(ToolInfo::async_tool(
+            ToolId::SearchRecipes,
+            |executor, request| Box::pin(handle_search_recipes(executor, request)),
+        ));
+    }
+
     fn register_all_tools(registry: &mut ToolRegistry) {
         Self::register_strava_tools(registry);
         Self::register_connection_tools(registry);
@@ -320,6 +355,7 @@ impl UniversalExecutor {
         Self::register_goal_tools(registry);
         Self::register_sleep_recovery_tools(registry);
         Self::register_nutrition_tools(registry);
+        Self::register_recipe_tools(registry);
     }
 
     /// Execute a tool with type-safe routing (no string matching!)

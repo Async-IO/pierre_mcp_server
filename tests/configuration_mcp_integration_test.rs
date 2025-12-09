@@ -223,6 +223,6 @@ async fn test_configuration_tools_count_in_total() {
         6,
         "Expected exactly 6 configuration tools"
     );
-    assert_eq!(fitness_tools, 39, "Expected exactly 39 fitness tools"); // Includes nutrition (5) + sleep/recovery (5) tools
-    assert_eq!(tools.len(), 45, "Expected total of 45 tools"); // 39 fitness + 6 configuration
+    assert_eq!(fitness_tools, 46, "Expected exactly 46 fitness tools"); // Includes nutrition (5) + sleep/recovery (5) + recipes (7) tools
+    assert_eq!(tools.len(), 52, "Expected total of 52 tools"); // 46 fitness + 6 configuration
 }

@@ -3,11 +3,11 @@
 
 # MCP Tools Reference
 
-Comprehensive reference for all 45 Model Context Protocol (MCP) tools provided by Pierre Fitness Platform. These tools enable AI assistants to access fitness data, analyze performance, manage configurations, and provide personalized recommendations.
+Comprehensive reference for all 52 Model Context Protocol (MCP) tools provided by Pierre Fitness Platform. These tools enable AI assistants to access fitness data, analyze performance, manage configurations, and provide personalized recommendations.
 
 ## Overview
 
-Pierre MCP Server provides tools organized into 8 functional categories:
+Pierre MCP Server provides tools organized into 9 functional categories:
 - **Core Fitness Tools**: Activity data and provider connections
 - **OAuth & Notifications**: Authentication status and notifications
 - **Goals & Planning**: Goal setting and progress tracking
@@ -16,6 +16,7 @@ Pierre MCP Server provides tools organized into 8 functional categories:
 - **Fitness Configuration**: User fitness zones and thresholds
 - **Sleep & Recovery**: Sleep analysis and recovery tracking
 - **Nutrition**: Dietary calculations and USDA food database
+- **Recipe Management**: Training-aware meal planning and recipe storage
 
 ---
 
@@ -459,6 +460,88 @@ Nutrition calculation tools with USDA FoodData Central database integration.
 
 ---
 
+## Recipe Management
+
+Training-aware recipe management tools for meal planning aligned with workout schedules. Uses the "Combat des Chefs" architecture where LLM clients generate recipes and Pierre validates nutrition via USDA.
+
+| Tool Name | Description | Required Parameters | Optional Parameters |
+|-----------|-------------|---------------------|---------------------|
+| `get_recipe_constraints` | Get macro targets and guidelines for meal timing | - | `meal_timing` (string), `target_calories` (number) |
+| `validate_recipe` | Validate recipe nutrition against training targets | `name` (string), `ingredients` (array), `meal_timing` (string) | `target_calories` (number), `dietary_restrictions` (array) |
+| `save_recipe` | Save validated recipe to user's collection | `name` (string), `ingredients` (array), `meal_timing` (string) | `description` (string), `servings` (number), `prep_time_minutes` (number), `cook_time_minutes` (number), `instructions` (array), `tags` (array), `dietary_restrictions` (array), `skill_level` (string), `source` (string) |
+| `list_recipes` | List user's saved recipes | - | `meal_timing` (string), `tags` (array), `limit` (number), `offset` (number) |
+| `get_recipe` | Get a specific recipe by ID | `recipe_id` (string) | - |
+| `delete_recipe` | Delete a recipe from user's collection | `recipe_id` (string) | - |
+| `search_recipes` | Search recipes by name, ingredients, or tags | `query` (string) | `meal_timing` (string), `limit` (number) |
+
+### Parameter Details
+
+**Meal Timing Values**:
+- `pre_training`: High-carb focus (55% carbs, 20% protein, 25% fat)
+- `post_training`: High-protein focus (45% carbs, 30% protein, 25% fat)
+- `rest_day`: Lower carb, moderate protein (35% carbs, 30% protein, 35% fat)
+- `general`: Balanced macros (45% carbs, 25% protein, 30% fat)
+
+**Ingredient Object Structure**:
+```json
+{
+  "name": "chicken breast",
+  "quantity": 200,
+  "unit": "grams",
+  "fdc_id": 171077
+}
+```
+
+**Supported Units** (auto-converted to grams):
+- Weight: `grams`, `g`, `oz`, `ounces`, `lb`, `pounds`, `kg`
+- Volume: `ml`, `milliliters`, `cups`, `cup`, `tbsp`, `tablespoon`, `tsp`, `teaspoon`
+- Count: `pieces`, `piece`, `whole`
+
+**Skill Level Values**: `beginner`, `intermediate`, `advanced`
+
+**Dietary Restrictions**: `vegetarian`, `vegan`, `gluten_free`, `dairy_free`, `nut_free`, `keto`, `paleo`
+
+**Example: Validate a Post-Workout Recipe**:
+```json
+{
+  "tool": "validate_recipe",
+  "parameters": {
+    "name": "Post-Workout Protein Bowl",
+    "meal_timing": "post_training",
+    "target_calories": 600,
+    "ingredients": [
+      {"name": "chicken breast", "quantity": 200, "unit": "grams"},
+      {"name": "brown rice", "quantity": 1, "unit": "cup"},
+      {"name": "broccoli", "quantity": 150, "unit": "grams"}
+    ]
+  }
+}
+```
+
+**Example: Save a Recipe**:
+```json
+{
+  "tool": "save_recipe",
+  "parameters": {
+    "name": "Recovery Shake",
+    "meal_timing": "post_training",
+    "description": "Quick protein shake for post-workout recovery",
+    "servings": 1,
+    "prep_time_minutes": 5,
+    "ingredients": [
+      {"name": "whey protein powder", "quantity": 30, "unit": "grams"},
+      {"name": "banana", "quantity": 1, "unit": "piece"},
+      {"name": "almond milk", "quantity": 1, "unit": "cup"}
+    ],
+    "instructions": ["Add all ingredients to blender", "Blend until smooth"],
+    "tags": ["quick", "shake", "high-protein"],
+    "skill_level": "beginner"
+  }
+}
+```
+
+---
+
 ## Notes
 
 - **Authentication**: Most tools require OAuth authentication with Pierre and the respective fitness provider
@@ -485,7 +568,8 @@ Nutrition calculation tools with USDA FoodData Central database integration.
 | Fitness Configuration | 4 | User fitness settings |
 | Sleep & Recovery | 5 | Sleep analysis and recovery metrics |
 | Nutrition | 5 | Dietary calculations and food database |
-| **Total** | **45** | **Complete MCP tool suite** |
+| Recipe Management | 7 | Training-aware meal planning and recipes |
+| **Total** | **52** | **Complete MCP tool suite** |
 
 ---
 
@@ -499,5 +583,5 @@ Nutrition calculation tools with USDA FoodData Central database integration.
 
 ---
 
-*Last Updated: 2025-11-28*
+*Last Updated: 2025-12-06*
 *Pierre Fitness Platform v1.0.0*

@@ -563,6 +563,63 @@ pub struct NutrientTimingConfig {
 }
 ```
 
+### Recipe Meal Timing Macro Distributions
+
+The recipe system (`src/intelligence/recipes/`) uses percentage-based macronutrient distributions that adjust based on training context. These distributions are applied when generating recipe constraints for LLM clients or validating recipes.
+
+#### Macro Distribution by Meal Timing
+
+| Meal Timing    | Protein | Carbs | Fat  | Rationale                                      |
+|----------------|---------|-------|------|------------------------------------------------|
+| Pre-training   | 20%     | 55%   | 25%  | Maximize glycogen, minimize GI distress        |
+| Post-training  | 30%     | 45%   | 25%  | Optimize MPS + glycogen replenishment          |
+| Rest day       | 30%     | 35%   | 35%  | Lower glycogen needs, carb periodization       |
+| General        | 25%     | 45%   | 30%  | Balanced for non-specific meals                |
+
+#### Scientific Justification
+
+**Pre-training (20% protein, 55% carbs, 25% fat)**
+
+High carbohydrate availability maximizes muscle glycogen stores for energy. The ISSN recommends 1-4 g/kg of high-glycemic carbohydrates 1-4 hours before exercise for glycogen optimization. Lower fat (25%) aids gastric emptying, reducing gastrointestinal distress during exercise.
+
+*Reference: Kerksick CM, Arent S, Schoenfeld BJ, et al. (2017) "International Society of Sports Nutrition Position Stand: Nutrient Timing" Journal of the International Society of Sports Nutrition 14:33. DOI: [10.1186/s12970-017-0189-4](https://doi.org/10.1186/s12970-017-0189-4)*
+
+**Post-training (30% protein, 45% carbs, 25% fat)**
+
+Elevated protein intake (0.25-0.4 g/kg or approximately 20-40g) within 2 hours post-exercise maximizes muscle protein synthesis (MPS). Moderate carbohydrates (0.8-1.2 g/kg) accelerate glycogen resynthesis, especially when combined with protein. The 30% protein proportion ensures adequate leucine threshold (~2.5-3g) for MPS activation.
+
+*Reference: Jäger R, Kerksick CM, Campbell BI, et al. (2017) "International Society of Sports Nutrition Position Stand: Protein and Exercise" Journal of the International Society of Sports Nutrition 14:20. DOI: [10.1186/s12970-017-0177-8](https://doi.org/10.1186/s12970-017-0177-8)*
+
+**Rest day (30% protein, 35% carbs, 35% fat)**
+
+Carbohydrate periodization principles advocate for reduced carbohydrate intake on non-training days when glycogen demands are lower. Training with reduced glycogen availability (the "train-low" approach) stimulates mitochondrial biogenesis and improves oxidative capacity. Higher fat (35%) compensates for reduced carbohydrate calories while maintaining satiety through slower gastric emptying.
+
+*Reference: Impey SG, Hearris MA, Hammond KM, et al. (2018) "Fuel for the Work Required: A Theoretical Framework for Carbohydrate Periodization and the Glycogen Threshold Hypothesis" Sports Medicine 48(5):1031-1048. DOI: [10.1007/s40279-018-0867-7](https://doi.org/10.1007/s40279-018-0867-7)*
+
+#### Implementation
+
+`src/intelligence/recipes/models.rs:33-49`
+
+```rust
+impl MealTiming {
+    /// Get recommended macro distribution percentages for this timing
+    ///
+    /// Returns (`protein_pct`, `carbs_pct`, `fat_pct`) tuple that sums to 100
+    pub const fn macro_distribution(&self) -> (u8, u8, u8) {
+        match self {
+            // Pre-training: prioritize carbs for energy
+            Self::PreTraining => (20, 55, 25),
+            // Post-training: prioritize protein for recovery
+            Self::PostTraining => (30, 45, 25),
+            // Rest day: balanced with lower carbs
+            Self::RestDay => (30, 35, 35),
+            // General: balanced distribution
+            Self::General => (25, 45, 30),
+        }
+    }
+}
+```
+
 ---
 
 ## 5. USDA FoodData Central Integration

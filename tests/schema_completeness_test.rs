@@ -189,6 +189,14 @@ fn get_all_tool_names() -> Vec<&'static str> {
         "search_food",
         "get_food_details",
         "analyze_meal_nutrition",
+        // Recipe management tools
+        "get_recipe_constraints",
+        "validate_recipe",
+        "save_recipe",
+        "list_recipes",
+        "get_recipe",
+        "delete_recipe",
+        "search_recipes",
     ]
 }
 

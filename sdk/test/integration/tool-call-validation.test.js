@@ -97,6 +97,37 @@ describe('Tool Call Validation: Schema Compliance', () => {
       description: 'Check provider connection status',
       arguments: {},
       expectedError: null // This tool works without auth
+    },
+    // Recipe tools (Combat des Chefs)
+    {
+      name: 'get_recipe_constraints',
+      description: 'Get recipe constraints for meal timing',
+      arguments: { meal_timing: 'post_training', target_calories: 500 },
+      expectedError: null // Works without external auth
+    },
+    {
+      name: 'list_recipes',
+      description: 'List user recipes with optional filtering',
+      arguments: { limit: 10 },
+      expectedError: null // Works without provider auth
+    },
+    {
+      name: 'get_recipe',
+      description: 'Get a specific recipe by ID',
+      arguments: { recipe_id: 'test-recipe-123' },
+      expectedError: /not found|No recipe/i // Expected when recipe doesn't exist
+    },
+    {
+      name: 'delete_recipe',
+      description: 'Delete a recipe by ID',
+      arguments: { recipe_id: 'test-recipe-456' },
+      expectedError: /not found|No recipe/i // Expected when recipe doesn't exist
+    },
+    {
+      name: 'search_recipes',
+      description: 'Search recipes by query',
+      arguments: { query: 'chicken', limit: 5 },
+      expectedError: null // Works without provider auth
     }
   ];
 

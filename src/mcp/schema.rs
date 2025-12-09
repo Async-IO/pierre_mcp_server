@@ -14,10 +14,11 @@ use crate::constants::{
     json_fields::{ACTIVITY_ID, LIMIT, OFFSET, PROVIDER},
     tools::{
         ANALYZE_ACTIVITY, ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, CONNECT_PROVIDER,
-        CONNECT_TO_PIERRE, DELETE_FITNESS_CONFIG, DISCONNECT_PROVIDER, GET_ACTIVITIES,
-        GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE, GET_CONNECTION_STATUS, GET_FITNESS_CONFIG,
-        GET_NOTIFICATIONS, GET_STATS, LIST_FITNESS_CONFIGS, MARK_NOTIFICATIONS_READ,
-        SET_FITNESS_CONFIG,
+        CONNECT_TO_PIERRE, DELETE_FITNESS_CONFIG, DELETE_RECIPE, DISCONNECT_PROVIDER,
+        GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE, GET_CONNECTION_STATUS,
+        GET_FITNESS_CONFIG, GET_NOTIFICATIONS, GET_RECIPE, GET_RECIPE_CONSTRAINTS, GET_STATS,
+        LIST_FITNESS_CONFIGS, LIST_RECIPES, MARK_NOTIFICATIONS_READ, SAVE_RECIPE, SEARCH_RECIPES,
+        SET_FITNESS_CONFIG, VALIDATE_RECIPE,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -752,6 +753,14 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
         create_suggest_rest_day_tool(),
         create_track_sleep_trends_tool(),
         create_optimize_sleep_schedule_tool(),
+        // Recipe Management Tools ("Combat des Chefs" architecture)
+        create_get_recipe_constraints_tool(),
+        create_validate_recipe_tool(),
+        create_save_recipe_tool(),
+        create_list_recipes_tool(),
+        create_get_recipe_tool(),
+        create_delete_recipe_tool(),
+        create_search_recipes_tool(),
     ]
 }
 
@@ -2404,6 +2413,326 @@ fn create_optimize_sleep_schedule_tool() -> ToolSchema {
             schema_type: "object".into(),
             properties: Some(properties),
             required: None, // Auto-selects provider
+        },
+    }
+}
+
+// === RECIPE MANAGEMENT TOOLS ("Combat des Chefs" architecture) ===
+
+/// Create the `get_recipe_constraints` tool schema
+fn create_get_recipe_constraints_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "meal_timing".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "Training phase for macro targets: 'pre_training', 'post_training', 'rest_day', or 'general'".into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        "target_calories".to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some(
+                "Target calories for the meal (optional, for portion guidance)".into(),
+            ),
+        },
+    );
+
+    ToolSchema {
+        name: GET_RECIPE_CONSTRAINTS.to_owned(),
+        description: "Get macro targets and constraints for LLM recipe generation based on training phase. Returns protein/carbs/fat percentages optimized for meal timing (e.g., high carbs pre-training, high protein post-training). Use this before generating recipes to ensure nutrition alignment.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["meal_timing".to_owned()]),
+        },
+    }
+}
+
+/// Create the `validate_recipe` tool schema
+fn create_validate_recipe_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "name".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Recipe name".into()),
+        },
+    );
+
+    properties.insert(
+        "servings".to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Number of servings the recipe makes".into()),
+        },
+    );
+
+    properties.insert(
+        "ingredients".to_owned(),
+        PropertySchema {
+            property_type: "array".into(),
+            description: Some(
+                "Array of ingredients with: name (string), amount (number), unit (string: 'grams', 'cups', 'tablespoons', 'teaspoons', 'pieces', 'ounces', 'milliliters'), fdc_id (number, optional USDA food ID for validation)".into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        "meal_timing".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "Intended meal timing: 'pre_training', 'post_training', 'rest_day', or 'general'"
+                    .into(),
+            ),
+        },
+    );
+
+    ToolSchema {
+        name: VALIDATE_RECIPE.to_owned(),
+        description: "Validate a recipe's nutrition against USDA database and calculate per-serving macros. Converts units to grams and looks up ingredients in USDA FoodData Central. Returns validation results with calculated calories, protein, carbs, fat, and any warnings about missing foods or macro targets.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec![
+                "name".to_owned(),
+                "servings".to_owned(),
+                "ingredients".to_owned(),
+            ]),
+        },
+    }
+}
+
+/// Create the `save_recipe` tool schema
+fn create_save_recipe_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "name".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Recipe name".into()),
+        },
+    );
+
+    properties.insert(
+        "description".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Recipe description (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        "servings".to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Number of servings".into()),
+        },
+    );
+
+    properties.insert(
+        "prep_time_mins".to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Preparation time in minutes (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        "cook_time_mins".to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Cooking time in minutes (optional)".into()),
+        },
+    );
+
+    properties.insert(
+        "ingredients".to_owned(),
+        PropertySchema {
+            property_type: "array".into(),
+            description: Some(
+                "Array of ingredients with: name (string), amount (number), unit (string), grams (number), fdc_id (number, optional), preparation (string, optional)".into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        "instructions".to_owned(),
+        PropertySchema {
+            property_type: "array".into(),
+            description: Some("Array of instruction steps as strings".into()),
+        },
+    );
+
+    properties.insert(
+        "tags".to_owned(),
+        PropertySchema {
+            property_type: "array".into(),
+            description: Some(
+                "Array of tags (optional, e.g., ['high-protein', 'quick', 'vegetarian'])".into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        "meal_timing".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "Meal timing category: 'pre_training', 'post_training', 'rest_day', or 'general'"
+                    .into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        "cached_nutrition".to_owned(),
+        PropertySchema {
+            property_type: "object".into(),
+            description: Some(
+                "Pre-validated nutrition data with: calories, protein_g, carbs_g, fat_g, fiber_g (optional), sodium_mg (optional), sugar_g (optional)".into(),
+            ),
+        },
+    );
+
+    ToolSchema {
+        name: SAVE_RECIPE.to_owned(),
+        description: "Save a validated recipe to user's personal collection. Should be called after validate_recipe to ensure nutrition data is accurate. Stores recipe with cached nutrition for quick access.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec![
+                "name".to_owned(),
+                "servings".to_owned(),
+                "ingredients".to_owned(),
+                "instructions".to_owned(),
+            ]),
+        },
+    }
+}
+
+/// Create the `list_recipes` tool schema
+fn create_list_recipes_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "meal_timing".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "Filter by meal timing: 'pre_training', 'post_training', 'rest_day', or 'general' (optional)".into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        "limit".to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Maximum number of recipes to return (default: 20)".into()),
+        },
+    );
+
+    properties.insert(
+        "offset".to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Number of recipes to skip for pagination (default: 0)".into()),
+        },
+    );
+
+    ToolSchema {
+        name: LIST_RECIPES.to_owned(),
+        description: "List user's saved recipes with optional filtering by meal timing. Returns recipe summaries with name, description, meal timing, and cached nutrition per serving.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec![]),
+        },
+    }
+}
+
+/// Create the `get_recipe` tool schema
+fn create_get_recipe_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "recipe_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the recipe to retrieve".into()),
+        },
+    );
+
+    ToolSchema {
+        name: GET_RECIPE.to_owned(),
+        description: "Get a specific recipe by ID from user's collection. Returns full recipe details including ingredients, instructions, and nutrition data.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["recipe_id".to_owned()]),
+        },
+    }
+}
+
+/// Create the `delete_recipe` tool schema
+fn create_delete_recipe_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "recipe_id".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of the recipe to delete".into()),
+        },
+    );
+
+    ToolSchema {
+        name: DELETE_RECIPE.to_owned(),
+        description: "Delete a recipe from user's collection. This action cannot be undone.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["recipe_id".to_owned()]),
+        },
+    }
+}
+
+/// Create the `search_recipes` tool schema
+fn create_search_recipes_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "query".to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Search query for recipe name, description, or tags".into()),
+        },
+    );
+
+    properties.insert(
+        "limit".to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Maximum number of results to return (default: 10)".into()),
+        },
+    );
+
+    ToolSchema {
+        name: SEARCH_RECIPES.to_owned(),
+        description: "Search user's recipes by name, description, or tags. Returns matching recipes with relevance ranking.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["query".to_owned()]),
         },
     }
 }

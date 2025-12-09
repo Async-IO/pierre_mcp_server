@@ -4,6 +4,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::constants::tools::{
+    DELETE_RECIPE, GET_RECIPE, GET_RECIPE_CONSTRAINTS, LIST_RECIPES, SAVE_RECIPE, SEARCH_RECIPES,
+    VALIDATE_RECIPE,
+};
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
 use std::collections::HashMap;
@@ -118,6 +122,22 @@ pub enum ToolId {
     GetFoodDetails,
     /// Analyze total calories and macronutrients for a meal of multiple foods
     AnalyzeMealNutrition,
+
+    // Recipe management tools ("Combat des Chefs" architecture)
+    /// Get macro targets and constraints for LLM recipe generation
+    GetRecipeConstraints,
+    /// Validate a recipe's nutrition against USDA database
+    ValidateRecipe,
+    /// Save a validated recipe to user's collection
+    SaveRecipe,
+    /// List user's saved recipes with optional filtering
+    ListRecipes,
+    /// Get a specific recipe by ID
+    GetRecipe,
+    /// Delete a recipe from user's collection
+    DeleteRecipe,
+    /// Search user's recipes by name, tags, or description
+    SearchRecipes,
 }
 
 impl ToolId {
@@ -171,6 +191,14 @@ impl ToolId {
             "search_food" => Some(Self::SearchFood),
             "get_food_details" => Some(Self::GetFoodDetails),
             "analyze_meal_nutrition" => Some(Self::AnalyzeMealNutrition),
+            // Recipe management tools
+            GET_RECIPE_CONSTRAINTS => Some(Self::GetRecipeConstraints),
+            VALIDATE_RECIPE => Some(Self::ValidateRecipe),
+            SAVE_RECIPE => Some(Self::SaveRecipe),
+            LIST_RECIPES => Some(Self::ListRecipes),
+            GET_RECIPE => Some(Self::GetRecipe),
+            DELETE_RECIPE => Some(Self::DeleteRecipe),
+            SEARCH_RECIPES => Some(Self::SearchRecipes),
             _ => None,
         }
     }
@@ -224,6 +252,14 @@ impl ToolId {
             Self::SearchFood => "search_food",
             Self::GetFoodDetails => "get_food_details",
             Self::AnalyzeMealNutrition => "analyze_meal_nutrition",
+            // Recipe management tools
+            Self::GetRecipeConstraints => GET_RECIPE_CONSTRAINTS,
+            Self::ValidateRecipe => VALIDATE_RECIPE,
+            Self::SaveRecipe => SAVE_RECIPE,
+            Self::ListRecipes => LIST_RECIPES,
+            Self::GetRecipe => GET_RECIPE,
+            Self::DeleteRecipe => DELETE_RECIPE,
+            Self::SearchRecipes => SEARCH_RECIPES,
         }
     }
 
@@ -314,6 +350,14 @@ impl ToolId {
             Self::AnalyzeMealNutrition => {
                 "Analyze total calories and macronutrients for a meal composed of multiple USDA foods"
             }
+            // Recipe management tools ("Combat des Chefs" architecture)
+            Self::GetRecipeConstraints => "Get macro targets for LLM recipe generation by training phase",
+            Self::ValidateRecipe => "Validate recipe nutrition against USDA and calculate macros",
+            Self::SaveRecipe => "Save validated recipe with cached nutrition data",
+            Self::ListRecipes => "List saved recipes with optional meal timing filter",
+            Self::GetRecipe => "Get a specific recipe by ID",
+            Self::DeleteRecipe => "Delete a recipe from collection",
+            Self::SearchRecipes => "Search recipes by name, tags, or description"
         }
     }
 
