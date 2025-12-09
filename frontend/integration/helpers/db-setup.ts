@@ -7,6 +7,10 @@
 import { execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const PROJECT_ROOT = path.resolve(__dirname, '../../..');
 const DB_PATH = path.join(PROJECT_ROOT, 'data', 'integration-test.db');
