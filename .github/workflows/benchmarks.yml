@@ -84,7 +84,8 @@ jobs:
           if [ -n "${{ github.event.inputs.benchmark_suite }}" ]; then
             cargo bench --bench ${{ github.event.inputs.benchmark_suite }}
           else
-            cargo bench
+            # Use --benches to only run Criterion benches (benches/), not lib.rs unit tests
+            cargo bench --benches
           fi
 
       - name: Compare against baseline (PR only)
@@ -93,7 +94,7 @@ jobs:
           # Check if baseline exists
           if [ -d "target/criterion" ] && [ "$(ls -A target/criterion)" ]; then
             echo "Comparing against baseline..."
-            cargo bench -- --baseline main 2>&1 | tee benchmark_comparison.txt || true
+            cargo bench --benches -- --baseline main 2>&1 | tee benchmark_comparison.txt || true
 
             # Check for regressions (>10% slower)
             if grep -E '\+[1-9][0-9]\.[0-9]+%' benchmark_comparison.txt; then
@@ -106,7 +107,7 @@ jobs:
       - name: Save baseline (main branch only)
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
-          cargo bench -- --save-baseline main
+          cargo bench --benches -- --save-baseline main
 
       - name: Cache baseline for PRs
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
