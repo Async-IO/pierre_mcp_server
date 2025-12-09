@@ -191,7 +191,10 @@ cargo test --test <test_file> -- --list
   - Test code with clear failure expectations
   - Static data known to be valid at compile time
   - Binary main() functions where failure should crash the program
-- `expect()` - Never acceptable, use proper error context instead
+- `expect()` - Acceptable ONLY for documenting invariants that should never fail:
+  - Static/compile-time data: `"127.0.0.1".parse().expect("valid IP literal")`
+  - Environment setup in main(): `env::var("DATABASE_URL").expect("DATABASE_URL must be set")`
+  - NEVER use expect() for runtime errors that could legitimately occur
 - `panic!()` - Only in test assertions or unrecoverable binary errors
 - **`anyhow!()` macro** - ABSOLUTELY FORBIDDEN in all production code (src/)
 - **`anyhow::anyhow!()` macro** - ABSOLUTELY FORBIDDEN in all production code (src/)
@@ -434,14 +437,15 @@ Run `cargo test` (all tests) ONLY when:
 - PREFER `std::borrow::Cow<T>` for conditionally owned data
 - PREFER `AsRef<T>` and `Into<T>` traits for flexible APIs
 - NEVER clone Arc contents - clone the Arc itself: `arc.clone()` not `(*arc).clone()`
-- JUSTIFY every `.clone()` with a comment explaining why ownership transfer is necessary
+- Arc/Rc clones are self-documenting and don't need comments
+- JUSTIFY non-obvious `.clone()` calls with comments when the reason isn't apparent from context
 
 ## Collection and Iterator Patterns
 - PREFER iterator chains over manual loops
-- PREFER `collect()` into specific types rather than `Vec<_>`
+- USE turbofish `.collect::<Vec<_>>()` when element type is inferred; specify full type when not
 - PREFER `filter_map()` over `filter().map()`
 - PREFER `and_then()` over nested match statements for Options/Results
-- USE `Iterator::fold()` instead of manual accumulation
+- USE `Iterator::fold()` for accumulation, but prefer explicit loops when fold reduces readability
 - PREFER `Vec::with_capacity()` when size is known
 - USE `HashMap::with_capacity()` when size is known
 
@@ -453,31 +457,32 @@ Run `cargo test` (all tests) ONLY when:
 - USE `format!()` macro for complex string building
 
 ## Async/Await Patterns
-- PREFER `async fn` over `impl Future`
-- PREFER `tokio::spawn()` over manual future polling
+- PREFER `async fn` over `impl Future` (clearer, more maintainable)
+- USE `tokio::spawn()` for concurrent background tasks; use `.await` for sequential execution
 - USE `#[tokio::main]` for async main functions
 - PREFER structured concurrency with `tokio::join!()` and `tokio::select!()`
-- ALWAYS handle `JoinHandle` results properly
+- ALWAYS handle `JoinHandle` results properly (don't ignore panics)
 
 ## Function Design
 - PREFER small, focused functions (max 50 lines)
 - PREFER composition over inheritance
 - USE builder pattern for complex construction
-- PREFER `impl Trait` for return types when possible
-- USE associated types over generic parameters when relationship is clear
+- USE `impl Trait` for return types when the concrete type is an implementation detail
+- PREFER concrete return types when callers need to name the type or use it in bounds
+- USE associated types over generic parameters when the relationship is 1:1 (not multiple implementations)
 
 ## Pattern Matching
-- PREFER exhaustive matching over catch-all `_` patterns
+- USE exhaustive matching when all variants need distinct handling
+- USE catch-all `_` when only specific variants need special handling (more maintainable for evolving enums)
 - USE `if let` for simple single-pattern matches
 - USE `match` for complex logic or multiple patterns
 - PREFER early returns with `?` over nested matches
 
 ## Type System Usage
-- PREFER newtype patterns for domain modeling
-- USE `#[derive]` macros for common traits
-- PREFER `enum` over boolean flags for state
-- USE `PhantomData<T>` for zero-cost type safety
-- PREFER associated constants over `const fn` when possible
+- PREFER newtype patterns for domain modeling (e.g., `struct UserId(i64)`)
+- USE `#[derive]` macros for common traits (Debug, Clone, PartialEq, etc.)
+- PREFER `enum` over boolean flags for state (more expressive, harder to misuse)
+- USE associated constants for type-level values; use `const fn` for computed constants
 
 ## Advanced Performance Optimization
 
@@ -485,8 +490,9 @@ Run `cargo test` (all tests) ONLY when:
 - AVOID unnecessary allocations in hot paths
 - PREFER stack allocation over heap when possible
 - USE `Box<T>` only when dynamic sizing required
-- PREFER `Rc<T>` over `Arc<T>` for single-threaded shared ownership
-- USE `lazy_static!` or `std::sync::OnceLock` for expensive static initialization
+- PREFER `Rc<T>` over `Arc<T>` for single-threaded contexts (note: async Tokio typically requires Arc)
+- USE `std::sync::LazyLock` for lazy statics (Rust 1.80+, replaces lazy_static! crate)
+- USE `std::sync::OnceLock` for one-time initialization with runtime values
 
 ### Concurrent Programming
 - PREFER `Arc<RwLock<T>>` over `Arc<Mutex<T>>` for read-heavy workloads
@@ -496,8 +502,9 @@ Run `cargo test` (all tests) ONLY when:
 - AVOID `Arc<Mutex<T>>` for simple data - consider message passing
 
 ### Compilation Optimization
-- USE `#[inline]` for small, frequently-called functions
-- USE `#[cold]` for error handling paths
+- AVOID premature `#[inline]` - LLVM handles inlining well
+- USE `#[inline]` only for cross-crate generics or profiler-identified hot paths
+- USE `#[cold]` for error handling paths to hint branch prediction
 - PREFER `const fn` for compile-time evaluation when possible
 - USE `#[repr(C)]` only when needed for FFI
 - AVOID recursive types without `Box<T>` indirection
@@ -506,9 +513,13 @@ Run `cargo test` (all tests) ONLY when:
 
 ### Module Structure
 - PREFER flat module hierarchies over deep nesting
-- USE `pub(crate)` for internal APIs
-- PREFER re-exports at crate root for public APIs
 - GROUP related functionality in modules
+- For library crates:
+  - USE `pub(crate)` for internal APIs not exposed to consumers
+  - PREFER re-exports at crate root for public APIs
+- For binary crates (like this project):
+  - USE explicit module paths for clarity (no external consumers)
+  - `pub(crate)` documents intent but has no visibility effect
 
 ### Dependency Management
 - PREFER minimal dependencies
@@ -517,10 +528,10 @@ Run `cargo test` (all tests) ONLY when:
 - PREFER `std` library over external crates when sufficient
 
 ### API Design
-- PREFER `impl Trait` over generic bounds for simple cases
-- USE explicit lifetimes only when necessary
-- DESIGN APIs to be hard to misuse
-- PROVIDE builder patterns for complex configuration
+- PREFER `impl Trait` in argument position for flexibility; use concrete types in return position for clarity
+- USE explicit lifetimes only when the compiler cannot infer them
+- DESIGN APIs to be hard to misuse (parse, don't validate)
+- PROVIDE builder patterns for structs with many optional fields
 
 ## CODE GENERATION RULES
 
