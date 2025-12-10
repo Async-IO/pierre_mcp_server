@@ -1,0 +1,93 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ "main", "debug/*", "feature/*", "claude/*" ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  integration-tests:
+    name: Playwright Integration Tests (Real Server)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.91.0
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-integration-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-integration-1.91.0-
+            ${{ runner.os }}-cargo-
+
+      - name: Build Pierre server (release for performance)
+        run: cargo build --release
+        env:
+          CARGO_INCREMENTAL: 0
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: bunx playwright install --with-deps chromium
+
+      - name: Create data directory
+        run: mkdir -p data
+
+      - name: Run integration tests
+        working-directory: frontend
+        run: bun run test:integration
+        env:
+          CI: true
+          DATABASE_URL: "sqlite:${{ github.workspace }}/data/integration-test.db"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_RSA_KEY_SIZE: "2048"
+          HTTP_PORT: "8081"
+          RUST_LOG: "warn"
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: integration-test-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
+      - name: Upload test screenshots
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: integration-test-screenshots
+          path: frontend/test-results/
+          retention-days: 7
+
+      - name: Upload test videos
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: integration-test-videos
+          path: frontend/test-results/
+          retention-days: 7
