@@ -141,17 +141,27 @@ export async function createAndLoginTestUser(
 
 /**
  * Log out of the current session.
+ * Tries multiple selectors to handle different UI states (icon button vs text button).
  */
 export async function logout(page: Page): Promise<void> {
-  const logoutButton = page.locator('button:has-text("Logout")');
-  const isVisible = await logoutButton.isVisible().catch(() => false);
+  // Try multiple selectors: icon button with title, or text button
+  const selectors = [
+    page.locator('button[title="Sign out"]'),
+    page.locator('button:has-text("Sign Out")'),
+    page.locator('button:has-text("Logout")'),
+  ];
 
-  if (isVisible) {
-    await logoutButton.click();
-    await page.waitForSelector('input[name="email"]', { timeout: 10000 });
-  } else {
-    await page.goto('/');
+  for (const selector of selectors) {
+    const isVisible = await selector.first().isVisible().catch(() => false);
+    if (isVisible) {
+      await selector.first().click();
+      await page.waitForSelector('input[name="email"]', { timeout: 10000 });
+      return;
+    }
   }
+
+  // Fallback: navigate to root which will redirect to login if not authenticated
+  await page.goto('/');
 }
 
 /**
