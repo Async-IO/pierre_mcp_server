@@ -22,7 +22,7 @@ pub use fitness_config::{FitnessConfig, WeatherApiConfig};
 /// Re-export intelligence configuration types and strategies
 pub use intelligence_config::{
     AggressiveStrategy, ConfigError, ConservativeStrategy, DefaultStrategy, IntelligenceConfig,
-    IntelligenceStrategy,
+    IntelligenceStrategy, MacroDistribution, MealTdeeProportionsConfig, MealTimingMacrosConfig,
 };
 
 /// Initialize all configurations

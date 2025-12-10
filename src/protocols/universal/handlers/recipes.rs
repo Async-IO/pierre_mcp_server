@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+use crate::config::IntelligenceConfig;
 use crate::database::recipes::RecipeManager;
 use crate::external::{UsdaClient, UsdaClientConfig};
 use crate::intelligence::recipes::{
@@ -18,6 +19,17 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::future::Future;
 use std::pin::Pin;
+
+/// TDEE context for calorie calculation in recipe constraints
+/// Bundles TDEE-related parameters to reduce function argument count
+struct TdeeContext<'a> {
+    /// Whether the calories were calculated from TDEE (vs explicit or fallback)
+    tdee_based: bool,
+    /// User's daily TDEE if provided
+    tdee: Option<f64>,
+    /// Reference to the TDEE proportion configuration
+    proportions: &'a crate::config::MealTdeeProportionsConfig,
+}
 
 /// Input parameters for saving a recipe
 #[derive(Debug, Deserialize)]
@@ -44,23 +56,20 @@ struct IngredientInput {
 
 /// Handle `get_recipe_constraints` tool - get macro targets for LLM recipe generation
 ///
-/// Returns personalized macro targets and constraints based on:
-/// - Daily calorie budget (or defaults based on timing)
-/// - Meal timing (pre-training, post-training, rest day, general)
-/// - User's dietary restrictions and preferences
-///
-/// This tool is designed for the "Combat des Chefs" architecture where LLM clients
-/// generate recipes themselves, then validate via Pierre's USDA integration.
+/// Returns personalized macro targets and constraints based on daily calorie budget,
+/// user's TDEE for personalized calculation, meal timing, and dietary restrictions.
 ///
 /// # Parameters
-/// - `calories`: Target calories for the meal (optional, calculated from timing if not provided)
+/// - `calories`: Target calories for the meal (optional, calculated from TDEE/timing if not provided)
+/// - `tdee`: User's Total Daily Energy Expenditure in kcal (optional, enables personalized meal calories)
 /// - `meal_timing`: `pre_training`, `post_training`, `rest_day`, or `general` (optional, default: `general`)
 /// - `dietary_restrictions`: Array of restrictions like `gluten_free`, `vegan` (optional)
 /// - `max_prep_time_mins`: Maximum preparation time (optional)
 /// - `max_cook_time_mins`: Maximum cooking time (optional)
 ///
 /// # Returns
-/// JSON object with macro targets and a prompt hint for LLM recipe generation
+/// JSON object with macro targets and a prompt hint for LLM recipe generation.
+/// When TDEE is provided, includes `tdee_based: true` and `tdee_proportion` in response.
 ///
 /// # Errors
 /// Returns `ProtocolError` if parameters are invalid
@@ -70,7 +79,6 @@ pub fn handle_get_recipe_constraints(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        // Check cancellation
         if let Some(token) = &request.cancellation_token {
             if token.is_cancelled().await {
                 return Err(ProtocolError::OperationCancelled(
@@ -79,81 +87,167 @@ pub fn handle_get_recipe_constraints(
             }
         }
 
-        // Parse meal timing
         let meal_timing = request
             .parameters
             .get("meal_timing")
             .and_then(Value::as_str)
             .map_or(MealTiming::General, parse_meal_timing);
 
-        // Get or calculate target calories
-        let calories = request
+        let tdee = request.parameters.get("tdee").and_then(Value::as_f64);
+        let config = IntelligenceConfig::global();
+        let tdee_proportions = &config.nutrition.meal_tdee_proportions;
+
+        // Get calories: explicit > TDEE-based > defaults
+        let (calories, tdee_based) = request
             .parameters
             .get("calories")
             .and_then(Value::as_f64)
-            .unwrap_or_else(|| default_calories_for_timing(meal_timing));
+            .map_or_else(
+                || {
+                    (
+                        tdee_proportions.calories_for_timing(meal_timing, tdee),
+                        tdee.is_some(),
+                    )
+                },
+                |explicit_cals| (explicit_cals, false),
+            );
 
-        // Calculate macro targets based on timing
         let macro_targets = MacroTargets::from_calories_and_timing(calories, meal_timing);
-
-        // Build prompt hint for LLM clients
         let (protein_pct, carbs_pct, fat_pct) = meal_timing.macro_distribution();
-        let prompt_hint = format!(
-            "Create a {} recipe (~{:.0} kcal) with approximately {:.0}g protein, {:.0}g carbs, {:.0}g fat. \
-             Macro distribution: {}% protein, {}% carbs, {}% fat.",
-            meal_timing.description(),
+
+        let tdee_ctx = TdeeContext {
+            tdee_based,
+            tdee,
+            proportions: tdee_proportions,
+        };
+
+        let prompt_hint = build_recipe_prompt_hint(
+            meal_timing,
             calories,
-            macro_targets.protein_g.unwrap_or(0.0),
-            macro_targets.carbs_g.unwrap_or(0.0),
-            macro_targets.fat_g.unwrap_or(0.0),
+            &macro_targets,
             protein_pct,
             carbs_pct,
-            fat_pct
+            fat_pct,
+            &tdee_ctx,
         );
 
-        // Build constraints response
-        let constraints = RecipeConstraints {
-            macro_targets,
-            dietary_restrictions: parse_dietary_restrictions(
-                request
-                    .parameters
-                    .get("dietary_restrictions")
-                    .and_then(Value::as_array),
-            ),
-            cuisine_preferences: Vec::new(),
-            excluded_ingredients: Vec::new(),
-            max_prep_time_mins: request
-                .parameters
-                .get("max_prep_time_mins")
-                .and_then(Value::as_u64)
-                .map(|v| v.min(480) as u16),
-            max_cook_time_mins: request
-                .parameters
-                .get("max_cook_time_mins")
-                .and_then(Value::as_u64)
-                .map(|v| v.min(480) as u16),
-            skill_level: SkillLevel::default(),
+        let constraints =
+            build_recipe_constraints(macro_targets, meal_timing, &prompt_hint, &request);
+
+        let result = build_constraints_response(
+            &constraints,
+            calories,
             meal_timing,
-            prompt_hint: Some(prompt_hint.clone()),
-        };
+            &prompt_hint,
+            &tdee_ctx,
+        );
 
         Ok(UniversalResponse {
             success: true,
-            result: Some(json!({
-                "calories": calories,
-                "protein_g": constraints.macro_targets.protein_g,
-                "carbs_g": constraints.macro_targets.carbs_g,
-                "fat_g": constraints.macro_targets.fat_g,
-                "meal_timing": format!("{meal_timing:?}").to_lowercase(),
-                "meal_timing_description": meal_timing.description(),
-                "prompt_hint": prompt_hint,
-                "max_prep_time_mins": constraints.max_prep_time_mins,
-                "max_cook_time_mins": constraints.max_cook_time_mins,
-            })),
+            result: Some(result),
             error: None,
             metadata: None,
         })
     })
+}
+
+/// Build prompt hint for LLM recipe generation
+fn build_recipe_prompt_hint(
+    timing: MealTiming,
+    calories: f64,
+    macros: &MacroTargets,
+    protein_pct: u8,
+    carbs_pct: u8,
+    fat_pct: u8,
+    tdee_ctx: &TdeeContext<'_>,
+) -> String {
+    let tdee_info = if tdee_ctx.tdee_based {
+        let proportion = tdee_ctx.proportions.proportion_for_timing(timing);
+        format!(
+            " (Based on TDEE of {:.0} kcal, {:.1}% of daily calories)",
+            tdee_ctx.tdee.unwrap_or(0.0),
+            proportion * 100.0
+        )
+    } else {
+        String::new()
+    };
+
+    format!(
+        "Create a {} recipe (~{:.0} kcal){} with approximately {:.0}g protein, {:.0}g carbs, {:.0}g fat. \
+         Macro distribution: {}% protein, {}% carbs, {}% fat.",
+        timing.description(),
+        calories,
+        tdee_info,
+        macros.protein_g.unwrap_or(0.0),
+        macros.carbs_g.unwrap_or(0.0),
+        macros.fat_g.unwrap_or(0.0),
+        protein_pct,
+        carbs_pct,
+        fat_pct
+    )
+}
+
+/// Build recipe constraints struct from request parameters
+fn build_recipe_constraints(
+    macro_targets: MacroTargets,
+    meal_timing: MealTiming,
+    prompt_hint: &str,
+    request: &UniversalRequest,
+) -> RecipeConstraints {
+    RecipeConstraints {
+        macro_targets,
+        dietary_restrictions: parse_dietary_restrictions(
+            request
+                .parameters
+                .get("dietary_restrictions")
+                .and_then(Value::as_array),
+        ),
+        cuisine_preferences: Vec::new(),
+        excluded_ingredients: Vec::new(),
+        max_prep_time_mins: parse_time_mins(&request.parameters, "max_prep_time_mins"),
+        max_cook_time_mins: parse_time_mins(&request.parameters, "max_cook_time_mins"),
+        skill_level: SkillLevel::default(),
+        meal_timing,
+        prompt_hint: Some(prompt_hint.to_owned()),
+    }
+}
+
+/// Parse time in minutes from request parameters with capping
+fn parse_time_mins(params: &Value, key: &str) -> Option<u16> {
+    params.get(key).and_then(Value::as_u64).map(|v| {
+        #[allow(clippy::cast_possible_truncation)]
+        let capped = v.min(480) as u16;
+        capped
+    })
+}
+
+/// Build the JSON response for recipe constraints
+fn build_constraints_response(
+    constraints: &RecipeConstraints,
+    calories: f64,
+    meal_timing: MealTiming,
+    prompt_hint: &str,
+    tdee_ctx: &TdeeContext<'_>,
+) -> Value {
+    let mut result = json!({
+        "calories": calories,
+        "protein_g": constraints.macro_targets.protein_g,
+        "carbs_g": constraints.macro_targets.carbs_g,
+        "fat_g": constraints.macro_targets.fat_g,
+        "meal_timing": format!("{meal_timing:?}").to_lowercase(),
+        "meal_timing_description": meal_timing.description(),
+        "prompt_hint": prompt_hint,
+        "max_prep_time_mins": constraints.max_prep_time_mins,
+        "max_cook_time_mins": constraints.max_cook_time_mins,
+        "tdee_based": tdee_ctx.tdee_based,
+    });
+
+    if let Some(user_tdee) = tdee_ctx.tdee {
+        result["tdee"] = json!(user_tdee);
+        result["tdee_proportion"] = json!(tdee_ctx.proportions.proportion_for_timing(meal_timing));
+    }
+
+    result
 }
 
 /// Handle `validate_recipe` tool - validate recipe nutrition via USDA
@@ -167,7 +261,12 @@ pub fn handle_get_recipe_constraints(
 /// - `ingredients`: Array of {name, amount, unit, preparation?} (required)
 ///
 /// # Returns
-/// JSON object with validated nutrition per serving and any warnings
+/// JSON object with:
+/// - `nutrition_per_serving`: Calculated macros and micronutrients per serving
+/// - `validation_completeness`: Percentage of ingredients matched (0.0 to 1.0)
+/// - `usda_matched_count`: Number of ingredients with successful USDA lookups
+/// - `total_ingredients`: Total number of ingredients in the recipe
+/// - `warnings`: Any issues encountered during validation
 ///
 /// # Errors
 /// Returns `ProtocolError` if required parameters missing or USDA API fails
@@ -240,6 +339,7 @@ pub fn handle_validate_recipe(
         let mut total_sugar = 0.0;
         let mut warnings: Vec<String> = Vec::new();
         let mut validated_ingredients: Vec<Value> = Vec::new();
+        let mut usda_matched_count: u32 = 0;
 
         for ingredient_value in ingredients_json {
             let name = ingredient_value
@@ -313,6 +413,7 @@ pub fn handle_validate_recipe(
                                 "fdc_id": food.fdc_id,
                                 "usda_match": food.description,
                             }));
+                            usda_matched_count += 1;
                         }
                         Err(e) => {
                             warnings.push(format!("USDA lookup failed for {name}: {e}"));
@@ -361,6 +462,15 @@ pub fn handle_validate_recipe(
             "sugar_g": (total_sugar / servings_f64 * 10.0).round() / 10.0,
         });
 
+        // Calculate validation completeness (percentage of ingredients with USDA matches)
+        #[allow(clippy::cast_precision_loss)]
+        let total_ingredients = validated_ingredients.len() as f64;
+        let validation_completeness = if total_ingredients > 0.0 {
+            (f64::from(usda_matched_count) / total_ingredients * 100.0).round() / 100.0
+        } else {
+            0.0
+        };
+
         Ok(UniversalResponse {
             success: true,
             result: Some(json!({
@@ -370,6 +480,9 @@ pub fn handle_validate_recipe(
                 "ingredients": validated_ingredients,
                 "warnings": warnings,
                 "validated_at": Utc::now().to_rfc3339(),
+                "validation_completeness": validation_completeness,
+                "usda_matched_count": usda_matched_count,
+                "total_ingredients": validated_ingredients.len(),
             })),
             error: None,
             metadata: None,
@@ -815,14 +928,6 @@ fn parse_ingredient_unit(s: &str) -> IngredientUnit {
         "kilograms" | "kg" => IngredientUnit::Kilograms,
         // Default to grams for "grams", "g", or any unrecognized unit
         _ => IngredientUnit::Grams,
-    }
-}
-
-const fn default_calories_for_timing(timing: MealTiming) -> f64 {
-    match timing {
-        MealTiming::PreTraining => 400.0,  // Light meal before workout
-        MealTiming::PostTraining => 600.0, // Recovery meal
-        MealTiming::RestDay | MealTiming::General => 500.0, // Moderate/default meal
     }
 }
 

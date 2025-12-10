@@ -236,10 +236,14 @@ impl RecipeManager {
             .map_err(|e| AppError::database(format!("Failed to list recipes: {e}")))?
         };
 
+        // Batch fetch ingredients (2 queries instead of N+1)
+        let recipe_ids: Vec<String> = rows.iter().map(|r| r.get("id")).collect();
+        let mut ingredients_map = self.get_ingredients_batch(&recipe_ids).await?;
+
         let mut recipes = Vec::with_capacity(rows.len());
         for row in rows {
             let recipe_id: String = row.get("id");
-            let ingredients = self.get_recipe_ingredients(&recipe_id).await?;
+            let ingredients = ingredients_map.remove(&recipe_id).unwrap_or_default();
             recipes.push(row_to_recipe(&row, ingredients)?);
         }
 
@@ -452,10 +456,14 @@ impl RecipeManager {
         .await
         .map_err(|e| AppError::database(format!("Failed to search recipes: {e}")))?;
 
+        // Batch fetch ingredients (2 queries instead of N+1)
+        let recipe_ids: Vec<String> = rows.iter().map(|r| r.get("id")).collect();
+        let mut ingredients_map = self.get_ingredients_batch(&recipe_ids).await?;
+
         let mut recipes = Vec::with_capacity(rows.len());
         for row in rows {
             let recipe_id: String = row.get("id");
-            let ingredients = self.get_recipe_ingredients(&recipe_id).await?;
+            let ingredients = ingredients_map.remove(&recipe_id).unwrap_or_default();
             recipes.push(row_to_recipe(&row, ingredients)?);
         }
 
@@ -514,6 +522,67 @@ impl RecipeManager {
         }
 
         Ok(ingredients)
+    }
+
+    /// Batch fetch ingredients for multiple recipes in a single query
+    ///
+    /// Returns a `HashMap` keyed by `recipe_id` for efficient lookup.
+    /// This eliminates N+1 query pattern when listing multiple recipes.
+    async fn get_ingredients_batch(
+        &self,
+        recipe_ids: &[String],
+    ) -> AppResult<std::collections::HashMap<String, Vec<RecipeIngredient>>> {
+        use std::collections::HashMap;
+
+        if recipe_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        // Build parameterized IN clause for SQLite
+        let placeholders: Vec<String> = (1..=recipe_ids.len()).map(|i| format!("${i}")).collect();
+        let in_clause = placeholders.join(", ");
+
+        let query = format!(
+            r"
+            SELECT id, recipe_id, fdc_id, name, amount, unit, grams, preparation, sort_order
+            FROM recipe_ingredients
+            WHERE recipe_id IN ({in_clause})
+            ORDER BY recipe_id, sort_order
+            "
+        );
+
+        let mut query_builder = sqlx::query(&query);
+        for recipe_id in recipe_ids {
+            query_builder = query_builder.bind(recipe_id);
+        }
+
+        let rows = query_builder
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to batch fetch ingredients: {e}")))?;
+
+        // Group ingredients by recipe_id
+        let mut ingredients_map: HashMap<String, Vec<RecipeIngredient>> =
+            HashMap::with_capacity(recipe_ids.len());
+
+        for row in rows {
+            let recipe_id: String = row.get("recipe_id");
+            let unit_str: String = row.get("unit");
+            let ingredient = RecipeIngredient {
+                fdc_id: row.get("fdc_id"),
+                name: row.get("name"),
+                amount: row.get("amount"),
+                unit: string_to_unit(&unit_str),
+                grams: row.get("grams"),
+                preparation: row.get("preparation"),
+            };
+            ingredients_map
+                .entry(recipe_id)
+                .or_default()
+                .push(ingredient);
+        }
+
+        Ok(ingredients_map)
     }
 }
 

@@ -225,9 +225,15 @@ impl MacroTargets {
     }
 
     /// Create targets from calorie goal and meal timing
+    ///
+    /// Uses configurable macro distribution percentages from the global intelligence config.
+    /// Defaults are based on ISSN sports nutrition position stands.
     #[must_use]
     pub fn from_calories_and_timing(calories: f64, timing: MealTiming) -> Self {
-        let (protein_pct, carbs_pct, fat_pct) = timing.macro_distribution();
+        // Use configurable macro distribution from global config
+        let config = crate::config::IntelligenceConfig::global();
+        let (protein_pct, carbs_pct, fat_pct) =
+            config.nutrition.meal_timing_macros.get_distribution(timing);
 
         // Calculate grams from percentages
         // Protein: 4 cal/g, Carbs: 4 cal/g, Fat: 9 cal/g

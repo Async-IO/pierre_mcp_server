@@ -620,6 +620,84 @@ impl MealTiming {
 }
 ```
 
+### TDEE-Based Recipe Calorie Calculation
+
+When generating recipe constraints via `get_recipe_constraints`, the system calculates target calories using a priority-based approach:
+
+1. **Explicit calories** - If provided in the request, uses the exact value
+2. **TDEE-based** - When user's TDEE is provided, calculates calories as a proportion of daily energy
+3. **Fallback defaults** - Uses research-based defaults when no TDEE is available
+
+#### TDEE Proportions by Meal Timing
+
+| Meal Timing    | TDEE Proportion | Example (2500 kcal TDEE) | Rationale                                      |
+|----------------|-----------------|--------------------------|------------------------------------------------|
+| Pre-training   | 17.5%           | 438 kcal                 | Moderate meal to fuel workout without GI stress |
+| Post-training  | 27.5%           | 688 kcal                 | Largest meal for recovery and glycogen restoration |
+| Rest day       | 25.0%           | 625 kcal                 | Standard meal proportion for recovery days     |
+| General        | 25.0%           | 625 kcal                 | Balanced default for non-training meals        |
+
+#### Fallback Calorie Values
+
+When TDEE is not provided, the system uses these scientifically-informed defaults:
+
+| Meal Timing    | Fallback Calories | Rationale                                      |
+|----------------|-------------------|------------------------------------------------|
+| Pre-training   | 400 kcal          | Light meal suitable for pre-workout fueling    |
+| Post-training  | 600 kcal          | Larger meal for optimal recovery nutrition     |
+| Rest day       | 500 kcal          | Moderate meal for non-training days            |
+| General        | 500 kcal          | Balanced default for general meal planning     |
+
+#### Scientific Justification
+
+**Post-training as largest meal (27.5% of TDEE)**
+
+The post-workout period represents the optimal window for nutrient partitioning. Elevated muscle glycogen synthase activity and enhanced insulin sensitivity make this the ideal time for higher calorie intake. The 27.5% proportion ensures adequate calories for both glycogen restoration (requiring 0.8-1.2 g/kg carbohydrates) and muscle protein synthesis (requiring 20-40g protein).
+
+*Reference: Ivy JL, Katz AL, Cutler CL, et al. (1988) "Muscle glycogen synthesis after exercise: effect of time of carbohydrate ingestion" Journal of Applied Physiology 64(4):1480-1485. DOI: [10.1152/jappl.1988.64.4.1480](https://doi.org/10.1152/jappl.1988.64.4.1480)*
+
+**Pre-training as smaller meal (17.5% of TDEE)**
+
+Lower calorie intake pre-workout minimizes gastrointestinal distress while still providing adequate fuel. The ISSN recommends consuming carbohydrates 1-4 hours before exercise, with smaller meals closer to workout time. The 17.5% proportion provides sufficient energy without compromising exercise performance or comfort.
+
+#### Configuration
+
+`src/config/intelligence_config.rs`
+
+```rust
+/// Meal TDEE proportion configuration based on ISSN research
+pub struct MealTdeeProportionsConfig {
+    pub pre_training: f64,    // 0.175 (17.5% of TDEE)
+    pub post_training: f64,   // 0.275 (27.5% of TDEE)
+    pub rest_day: f64,        // 0.25 (25% of TDEE)
+    pub general: f64,         // 0.25 (25% of TDEE)
+    pub fallback_calories: MealFallbackCaloriesConfig,
+}
+
+/// Fallback calorie values when TDEE is not available
+pub struct MealFallbackCaloriesConfig {
+    pub pre_training: f64,   // 400.0 kcal
+    pub post_training: f64,  // 600.0 kcal
+    pub rest_day: f64,       // 500.0 kcal
+    pub general: f64,        // 500.0 kcal
+}
+```
+
+#### API Response Fields
+
+When TDEE is provided, `get_recipe_constraints` includes additional fields:
+
+```json
+{
+  "calories": 688,
+  "tdee_based": true,
+  "tdee": 2500,
+  "tdee_proportion": 0.275
+}
+```
+
+When TDEE is not provided, `tdee_based` is `false` and fallback calories are used.
+
 ---
 
 ## 5. USDA FoodData Central Integration
