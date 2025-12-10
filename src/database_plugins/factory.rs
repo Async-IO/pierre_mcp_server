@@ -17,7 +17,9 @@ use crate::models::UserOAuthApp;
 use crate::rate_limiting::JwtUsage;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use tracing::{debug, error, info};
+#[cfg(not(feature = "postgresql"))]
+use tracing::error;
+use tracing::{debug, info};
 use uuid::Uuid;
 
 #[cfg(feature = "postgresql")]
