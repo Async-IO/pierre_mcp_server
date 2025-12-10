@@ -56,11 +56,12 @@ async function startServer(config) {
   const port = config.port || process.env.HTTP_PORT || process.env.MCP_PORT || 8081;
 
   // Try multiple possible locations for the server binary
+  // Supports: explicit config, relative paths from sdk/test/helpers/, and PIERRE_SERVER_BINARY env var
   const possiblePaths = [
     config.binaryPath,
+    process.env.PIERRE_SERVER_BINARY,
     path.join(__dirname, '../../../target/debug/pierre-mcp-server'),
-    '/Users/jeanfrancoisarcand/workspace/strava_ai/pierre_mcp_server/target/debug/pierre-mcp-server',
-    path.join(__dirname, '../../../../../target/debug/pierre-mcp-server')
+    path.join(__dirname, '../../../target/release/pierre-mcp-server')
   ].filter(Boolean);
 
   let serverPath = null;

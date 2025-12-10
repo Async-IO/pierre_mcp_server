@@ -99,7 +99,7 @@ impl LocationService {
     #[must_use]
     pub fn with_config(base_url: String, enabled: bool) -> Self {
         let client = Client::builder()
-            .user_agent("Pierre MCP Server/0.1.0 (https://github.com/jfarcand/pierre_mcp_server)")
+            .user_agent(crate::constants::project::user_agent())
             .timeout(Duration::from_secs(10))
             .build()
             .unwrap_or_else(|e| {

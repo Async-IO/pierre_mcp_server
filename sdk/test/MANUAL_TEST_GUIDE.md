@@ -9,7 +9,7 @@ This guide covers **Scenarios 7-8** which require manual testing with the MCP In
 Before starting these tests:
 
 1. ✅ Pierre server running on `http://localhost:8081`
-2. ✅ SDK built in test worktree: `cd /Users/jeanfrancoisarcand/workspace/strava_ai/pierre_mcp_server_test_clean/sdk && npm run build`
+2. ✅ SDK built: `cd sdk && npm run build`
 3. ✅ User account created on Pierre server (or will be created during OAuth)
 4. ✅ Strava app credentials configured on Pierre server
 
@@ -31,7 +31,7 @@ Before starting these tests:
 
 2. **Start MCP Inspector**:
    ```bash
-   cd /Users/jeanfrancoisarcand/workspace/strava_ai/pierre_mcp_server_test_clean/sdk
+   cd sdk
    npm run inspect:cli
    ```
 
@@ -92,7 +92,7 @@ Before starting these tests:
 
 2. **Start MCP Inspector**:
    ```bash
-   cd /Users/jeanfrancoisarcand/workspace/strava_ai/pierre_mcp_server_test_clean/sdk
+   cd sdk
    npm run inspect:cli
    ```
 

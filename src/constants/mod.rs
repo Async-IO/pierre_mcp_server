@@ -370,6 +370,24 @@ pub mod service_names {
     pub const PIERRE_MCP_ADMIN_API: &str = "pierre-mcp-admin-api";
 }
 
+/// Project metadata constants
+pub mod project {
+    /// Project name
+    pub const NAME: &str = "Pierre MCP Server";
+    /// Project version (synced from Cargo.toml at compile time)
+    pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+    /// Project repository URL (synced from Cargo.toml at compile time)
+    pub const REPOSITORY_URL: &str = env!("CARGO_PKG_REPOSITORY");
+
+    /// Builds the HTTP User-Agent string for external API requests
+    ///
+    /// Format: `Pierre MCP Server/{version} ({repository_url})`
+    #[must_use]
+    pub fn user_agent() -> String {
+        format!("{NAME}/{VERSION} ({REPOSITORY_URL})")
+    }
+}
+
 /// Time constants
 pub mod time_constants {
     /// Seconds per hour
