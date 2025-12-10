@@ -14,6 +14,7 @@ use crate::{
 };
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{broadcast, RwLock};
+use tracing::{info, warn};
 use uuid::Uuid;
 
 /// Connection types for different SSE streams
@@ -107,7 +108,7 @@ impl SseManager {
             metadata_map.insert(connection_id.clone(), metadata);
         }
 
-        tracing::info!("Registered notification stream for user: {}", user_id);
+        info!("Registered notification stream for user: {}", user_id);
         receiver
     }
 
@@ -156,13 +157,12 @@ impl SseManager {
                 .entry(user_id)
                 .or_default()
                 .push(session_id.clone());
-            tracing::info!(
+            info!(
                 "Registered protocol stream for session {} belonging to user {}",
-                session_id,
-                user_id
+                session_id, user_id
             );
         } else {
-            tracing::info!("Registered protocol stream for session: {}", session_id);
+            info!("Registered protocol stream for session: {}", session_id);
         }
 
         let connection_id = format!("protocol_{session_id}");
@@ -237,10 +237,9 @@ impl SseManager {
             for session_id in &sessions {
                 if let Some(stream) = streams.get(session_id) {
                     if let Err(e) = stream.send_oauth_notification(notification).await {
-                        tracing::warn!(
+                        warn!(
                             "Failed to send OAuth notification to session {}: {}",
-                            session_id,
-                            e
+                            session_id, e
                         );
                     } else {
                         sent_count += 1;
@@ -249,10 +248,9 @@ impl SseManager {
             }
 
             if sent_count > 0 {
-                tracing::info!(
+                info!(
                     "Sent OAuth notification to {} protocol stream(s) for user {}",
-                    sent_count,
-                    user_id
+                    sent_count, user_id
                 );
                 Ok(())
             } else {
@@ -314,7 +312,7 @@ impl SseManager {
             metadata_map.remove(&connection_id);
         }
 
-        tracing::info!("Unregistered notification stream for user: {}", user_id);
+        info!("Unregistered notification stream for user: {}", user_id);
     }
 
     /// Unregister a protocol stream
@@ -340,7 +338,7 @@ impl SseManager {
             });
         }
 
-        tracing::info!("Unregistered protocol stream for session: {}", session_id);
+        info!("Unregistered protocol stream for session: {}", session_id);
     }
 
     /// Get count of active notification streams
@@ -388,7 +386,7 @@ impl SseManager {
                     self.unregister_a2a_task_stream(&task_id).await;
                 }
             }
-            tracing::info!("Cleaned up inactive connection: {}", connection_id);
+            info!("Cleaned up inactive connection: {}", connection_id);
         }
     }
 
@@ -421,7 +419,7 @@ impl SseManager {
             metadata_map.insert(connection_id.clone(), metadata);
         }
 
-        tracing::info!("Registered A2A task stream for task: {}", task_id);
+        info!("Registered A2A task stream for task: {}", task_id);
         receiver
     }
 
@@ -474,7 +472,7 @@ impl SseManager {
             metadata_map.remove(&connection_id);
         }
 
-        tracing::info!("Unregistered A2A task stream for task: {}", task_id);
+        info!("Unregistered A2A task stream for task: {}", task_id);
     }
 
     /// Get count of active A2A task streams

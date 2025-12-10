@@ -8,6 +8,7 @@ use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::errors::{AppError, AppResult};
 use chrono::Utc;
 use std::collections::HashMap;
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 /// Credential configuration for storing OAuth credentials
@@ -213,7 +214,7 @@ impl TenantOAuthManager {
             "whoop" => self.try_whoop_config_credentials(tenant_id),
             "terra" => self.try_terra_config_credentials(tenant_id),
             _ => {
-                tracing::warn!("Unsupported OAuth provider: {}", provider);
+                warn!("Unsupported OAuth provider: {}", provider);
                 None
             }
         }
@@ -230,7 +231,7 @@ impl TenantOAuthManager {
                 .redirect_uri
                 .clone()
                 .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/strava".to_owned());
-            tracing::info!(
+            info!(
                 "Using server-level Strava OAuth credentials for tenant {}",
                 tenant_id
             );
@@ -251,7 +252,7 @@ impl TenantOAuthManager {
                 rate_limit_per_day: crate::constants::rate_limits::STRAVA_DEFAULT_DAILY_RATE_LIMIT,
             });
         }
-        tracing::warn!(
+        warn!(
             "No Strava OAuth credentials in ServerConfig for tenant {}. MCP client should provide these credentials via OAuth configuration tool.",
             tenant_id
         );
@@ -269,7 +270,7 @@ impl TenantOAuthManager {
                 .redirect_uri
                 .clone()
                 .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/fitbit".to_owned());
-            tracing::info!(
+            info!(
                 "Using server-level Fitbit OAuth credentials for tenant {}",
                 tenant_id
             );
@@ -297,7 +298,7 @@ impl TenantOAuthManager {
                 rate_limit_per_day: crate::constants::rate_limits::FITBIT_DEFAULT_DAILY_RATE_LIMIT,
             });
         }
-        tracing::warn!(
+        warn!(
             "No Fitbit OAuth credentials in ServerConfig for tenant {}. MCP client should provide these credentials via OAuth configuration tool.",
             tenant_id
         );
@@ -315,7 +316,7 @@ impl TenantOAuthManager {
                 .redirect_uri
                 .clone()
                 .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/garmin".to_owned());
-            tracing::info!(
+            info!(
                 "Using server-level Garmin OAuth credentials for tenant {}",
                 tenant_id
             );
@@ -333,7 +334,7 @@ impl TenantOAuthManager {
                 rate_limit_per_day: crate::constants::rate_limits::GARMIN_DEFAULT_DAILY_RATE_LIMIT,
             });
         }
-        tracing::warn!(
+        warn!(
             "No Garmin OAuth credentials in ServerConfig for tenant {}. MCP client should provide these credentials via OAuth configuration tool.",
             tenant_id
         );
@@ -351,7 +352,7 @@ impl TenantOAuthManager {
                 .redirect_uri
                 .clone()
                 .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/whoop".to_owned());
-            tracing::info!(
+            info!(
                 "Using server-level WHOOP OAuth credentials for tenant {}",
                 tenant_id
             );
@@ -377,7 +378,7 @@ impl TenantOAuthManager {
                 rate_limit_per_day: crate::constants::rate_limits::WHOOP_DEFAULT_DAILY_RATE_LIMIT,
             });
         }
-        tracing::warn!(
+        warn!(
             "No WHOOP OAuth credentials in ServerConfig for tenant {}. MCP client should provide these credentials via OAuth configuration tool.",
             tenant_id
         );
@@ -395,7 +396,7 @@ impl TenantOAuthManager {
                 .redirect_uri
                 .clone()
                 .unwrap_or_else(|| "http://localhost:8080/api/oauth/callback/terra".to_owned());
-            tracing::info!(
+            info!(
                 "Using server-level Terra OAuth credentials for tenant {}",
                 tenant_id
             );
@@ -419,7 +420,7 @@ impl TenantOAuthManager {
                 rate_limit_per_day: crate::constants::rate_limits::TERRA_DEFAULT_DAILY_RATE_LIMIT,
             });
         }
-        tracing::warn!(
+        warn!(
             "No Terra OAuth credentials in ServerConfig for tenant {}. MCP client should provide these credentials via OAuth configuration tool.",
             tenant_id
         );
@@ -439,11 +440,9 @@ impl TenantOAuthManager {
     ) -> Option<TenantOAuthCredentials> {
         match database.get_user_oauth_app(user_id, provider).await {
             Ok(Some(user_app)) => {
-                tracing::info!(
+                info!(
                     "Using user-specific {} OAuth credentials for user {} in tenant {}",
-                    provider,
-                    user_id,
-                    tenant_id
+                    provider, user_id, tenant_id
                 );
                 Some(TenantOAuthCredentials {
                     tenant_id,
@@ -456,20 +455,16 @@ impl TenantOAuthManager {
                 })
             }
             Ok(None) => {
-                tracing::debug!(
+                debug!(
                     "No user-specific {} OAuth credentials found for user {} in tenant {}",
-                    provider,
-                    user_id,
-                    tenant_id
+                    provider, user_id, tenant_id
                 );
                 None
             }
             Err(e) => {
-                tracing::warn!(
+                warn!(
                     "Error fetching user-specific {} OAuth credentials for user {}: {}",
-                    provider,
-                    user_id,
-                    e
+                    provider, user_id, e
                 );
                 None
             }
@@ -540,10 +535,9 @@ impl TenantOAuthManager {
             .get(&(tenant_id, provider.to_owned()))
             .cloned()
         {
-            tracing::info!(
+            info!(
                 "Using cached tenant-specific {} OAuth credentials for tenant {}",
-                provider,
-                tenant_id
+                provider, tenant_id
             );
             return Some(credentials);
         }
@@ -553,18 +547,16 @@ impl TenantOAuthManager {
             .get_tenant_oauth_credentials(tenant_id, provider)
             .await
         {
-            tracing::info!(
+            info!(
                 "Using database-stored tenant-specific {} OAuth credentials for tenant {}",
-                provider,
-                tenant_id
+                provider, tenant_id
             );
             return Some(db_credentials);
         }
 
-        tracing::debug!(
+        debug!(
             "No tenant-specific {} OAuth credentials found for tenant {}",
-            provider,
-            tenant_id
+            provider, tenant_id
         );
         None
     }

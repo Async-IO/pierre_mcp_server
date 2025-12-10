@@ -14,7 +14,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 /// Geographic location data with rich context
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,7 +103,7 @@ impl LocationService {
             .timeout(Duration::from_secs(10))
             .build()
             .unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     "Failed to create HTTP client for location service: {}, using default",
                     e
                 );

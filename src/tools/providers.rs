@@ -10,6 +10,7 @@ use crate::errors::AppError;
 use crate::providers::CoreFitnessProvider;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::error;
 use uuid::Uuid;
 
 /// Supported fitness providers
@@ -362,7 +363,7 @@ impl GlobalProviderManager {
         self.inner
             .set(ProviderManager::new(database))
             .map_err(|_| {
-                tracing::error!(
+                error!(
                     "Attempted to initialize provider manager multiple times (programming error)"
                 );
                 AppError::internal("Provider manager already initialized")

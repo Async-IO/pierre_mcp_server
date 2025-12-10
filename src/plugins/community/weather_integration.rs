@@ -11,6 +11,7 @@ use crate::protocols::ProtocolError;
 use crate::{impl_static_plugin, plugin_info};
 use async_trait::async_trait;
 use serde_json::Value;
+use tracing::info;
 
 /// Weather integration plugin for environmental analysis
 pub struct WeatherIntegrationPlugin;
@@ -77,11 +78,9 @@ impl PluginImplementation for WeatherIntegrationPlugin {
             .and_then(|v| v.as_str())
             .unwrap_or("metric");
 
-        tracing::info!(
+        info!(
             "Analyzing weather for activity {} with forecast: {} ({})",
-            activity_id,
-            include_forecast,
-            units
+            activity_id, include_forecast, units
         );
 
         // Attempt to fetch actual weather data - return error if unavailable

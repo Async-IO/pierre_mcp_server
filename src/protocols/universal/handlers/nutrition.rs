@@ -19,6 +19,7 @@ use chrono::{Duration, Utc};
 use serde_json::{json, Value};
 use std::future::Future;
 use std::pin::Pin;
+use tracing::{debug, warn};
 
 /// Fetch food details from USDA API
 async fn fetch_food_details(
@@ -473,7 +474,7 @@ async fn determine_intensity_from_provider(
                 _ => WorkoutIntensity::Low,
             };
 
-            tracing::debug!(
+            debug!(
                 provider = provider_name,
                 days_back = days_back,
                 activity_count = recent.len(),
@@ -491,7 +492,7 @@ async fn determine_intensity_from_provider(
                 .and_then(Value::as_str)
             {
                 let intensity = parse_workout_intensity(intensity_str).map_err(Err)?;
-                tracing::warn!(
+                warn!(
                     provider = provider_name,
                     error = ?response.error,
                     "Activity fetch failed, falling back to explicit intensity"

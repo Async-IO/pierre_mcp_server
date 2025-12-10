@@ -18,7 +18,7 @@ use crate::types::json_schemas;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use tracing::{info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 // Phase 2: Type aliases pointing to unified JSON-RPC foundation
@@ -429,7 +429,7 @@ impl A2AServer {
         let init_request = request.params.as_ref().and_then(|params| {
             serde_json::from_value::<A2AInitializeRequest>(params.clone()) // Safe: JSON value ownership for deserialization
                 .inspect_err(|e| {
-                    tracing::warn!(
+                    warn!(
                         error = ?e,
                         params = ?params,
                         "Failed to parse A2A initialize request parameters - using defaults"
@@ -443,7 +443,7 @@ impl A2AServer {
             (req.protocol_version, req.client_info.name)
         } else {
             // Default values if parsing fails
-            tracing::debug!("A2A initialize: using default values (no valid params provided)");
+            debug!("A2A initialize: using default values (no valid params provided)");
             (crate::a2a::A2A_VERSION.to_owned(), "unknown".to_owned())
         };
 
@@ -623,7 +623,7 @@ impl A2AServer {
             {
                 Ok(params) => params,
                 Err(e) => {
-                    tracing::error!("Failed to parse A2A task create parameters: {}", e);
+                    error!("Failed to parse A2A task create parameters: {}", e);
                     return A2AResponse {
                         jsonrpc: "2.0".into(),
                         result: None,
@@ -654,7 +654,7 @@ impl A2AServer {
             {
                 Ok(id) => {
                     // Task successfully persisted
-                    tracing::info!("Created A2A task {} for client {}", id, client_id);
+                    info!("Created A2A task {} for client {}", id, client_id);
                     id
                 }
                 Err(e) => {
@@ -755,7 +755,7 @@ impl A2AServer {
             ) {
                 Ok(params) => params,
                 Err(e) => {
-                    tracing::error!("Failed to parse A2A task get parameters: {}", e);
+                    error!("Failed to parse A2A task get parameters: {}", e);
                     return A2AResponse {
                         jsonrpc: "2.0".into(),
                         result: None,
@@ -942,7 +942,7 @@ impl A2AServer {
             .get("tool_name")
             .and_then(|v| v.as_str())
             .unwrap_or_else(|| {
-                tracing::warn!("Missing tool_name in A2A tool execution request, using 'unknown'");
+                warn!("Missing tool_name in A2A tool execution request, using 'unknown'");
                 "unknown"
             });
 
@@ -1047,7 +1047,7 @@ impl A2AServer {
             .get("task_id")
             .and_then(|v| v.as_str())
             .unwrap_or_else(|| {
-                tracing::warn!("Missing task_id in A2A task cancel request, using 'unknown'");
+                warn!("Missing task_id in A2A task cancel request, using 'unknown'");
                 "unknown"
             });
 

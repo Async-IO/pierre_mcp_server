@@ -8,6 +8,7 @@ use super::Database;
 use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Utc};
 use sqlx::Row;
+use tracing::debug;
 
 impl Database {
     /// Create a new admin token
@@ -35,7 +36,7 @@ impl Database {
         let token_id = format!("admin_{uuid}");
 
         // Debug: Log token creation without exposing secrets
-        tracing::debug!("Creating admin token with RS256 asymmetric signing");
+        debug!("Creating admin token with RS256 asymmetric signing");
 
         // Create JWT manager for RS256 token operations
         let jwt_manager = AdminJwtManager::new();

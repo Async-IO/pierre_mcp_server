@@ -13,6 +13,7 @@ use crate::mcp::schema::{ToolCall, ToolResponse};
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tracing::{debug, warn};
 
 /// Supported protocol types
 #[non_exhaustive]
@@ -251,12 +252,12 @@ impl ProtocolConverter {
                     moving_time,
                     activity_id
                 )
-                .unwrap_or_else(|_| tracing::warn!("Failed to write activity line"));
+                .unwrap_or_else(|_| warn!("Failed to write activity line"));
             }
 
             if count > 10 {
                 writeln!(&mut text, "\n... and {} more activities", count - 10)
-                    .unwrap_or_else(|_| tracing::warn!("Failed to write activity count"));
+                    .unwrap_or_else(|_| warn!("Failed to write activity count"));
             }
 
             return text;
@@ -293,8 +294,10 @@ impl ProtocolConverter {
     ) -> Result<ProtocolType, crate::protocols::ProtocolError> {
         // Try to parse as JSON first
         let json: Value = serde_json::from_str(request_data).map_err(|e| {
-            tracing::debug!(error = %e, "Failed to parse request as JSON during protocol detection");
-            crate::protocols::ProtocolError::SerializationError("Invalid JSON during protocol detection".into())
+            debug!(error = %e, "Failed to parse request as JSON during protocol detection");
+            crate::protocols::ProtocolError::SerializationError(
+                "Invalid JSON during protocol detection".into(),
+            )
         })?;
 
         // Check for A2A indicators

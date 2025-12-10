@@ -20,6 +20,7 @@ use crate::utils::auth::extract_bearer_token;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
+use tracing::warn;
 
 /// A2A dashboard overview statistics
 #[derive(Debug, Serialize)]
@@ -95,7 +96,7 @@ impl A2ARoutes {
         })?;
 
         let token = extract_bearer_token(auth).map_err(|e| {
-            tracing::warn!(
+            warn!(
                 error = %e,
                 "Failed to extract bearer token from A2A authorization header"
             );
@@ -115,7 +116,7 @@ impl A2ARoutes {
             .validate_token(token, &self.resources.jwks_manager)
             .map(|claims| claims.sub)
             .map_err(|e| {
-                tracing::warn!(
+                warn!(
                     error = %e,
                     "A2A authentication token validation failed"
                 );

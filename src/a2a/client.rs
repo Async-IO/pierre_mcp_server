@@ -24,6 +24,7 @@ use chrono::{DateTime, Datelike, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 /// A2A Client registration request
@@ -265,7 +266,7 @@ impl A2AClientManager {
         self.store_client_secure(&client, &client_secret, &api_key, system_user_id)
             .await?;
 
-        tracing::info!(
+        info!(
             client_id = %client_id,
             contact_email = %request.contact_email,
             capabilities = ?request.capabilities,
@@ -353,7 +354,7 @@ impl A2AClientManager {
             })?;
 
         // Log the generated API key for audit purposes
-        tracing::debug!(
+        debug!(
             "Generated API key: {} (hidden for security)",
             if generated_key.len() > 8 {
                 &generated_key[..8]
@@ -370,7 +371,7 @@ impl A2AClientManager {
                 crate::a2a::A2AError::InternalError(format!("Failed to create A2A client: {e}"))
             })?;
 
-        tracing::info!(
+        info!(
             client_id = %client.id,
             client_name = %client.name,
             system_user_id = %system_user_id,
@@ -449,20 +450,18 @@ impl A2AClientManager {
             .invalidate_a2a_client_sessions(client_id)
             .await
         {
-            tracing::error!(
+            error!(
                 "Failed to invalidate sessions for client {}: {}",
-                client_id,
-                e
+                client_id, e
             );
             // Continue with deactivation even if session invalidation fails
         }
 
         // Deactivate associated API keys - this is critical for security
         if let Err(e) = self.database.deactivate_client_api_keys(client_id).await {
-            tracing::error!(
+            error!(
                 "Failed to deactivate API keys for client {}: {}",
-                client_id,
-                e
+                client_id, e
             );
             // Continue with deactivation even if API key deactivation fails
         }
@@ -637,7 +636,7 @@ impl A2AClientManager {
                 db_sessions
             }
             Err(e) => {
-                tracing::error!("Failed to query active sessions from database: {e}");
+                error!("Failed to query active sessions from database: {e}");
                 vec![]
             }
         }
@@ -708,11 +707,9 @@ impl A2AClientManager {
             crate::a2a::A2AError::InternalError(format!("Failed to record A2A usage: {e}"))
         })?;
 
-        tracing::debug!(
+        debug!(
             "A2A usage recorded - Client: {}, Tool: {}, Status: {}",
-            params.client_id,
-            params.tool_name,
-            params.status_code
+            params.client_id, params.tool_name, params.status_code
         );
         Ok(())
     }
@@ -828,7 +825,7 @@ impl A2AClientManager {
             let client = self.get_client(&id).await?;
             let public_key = client.map_or_else(
                 || {
-                    tracing::warn!("Could not retrieve public key for client {id}");
+                    warn!("Could not retrieve public key for client {id}");
                     String::new()
                 },
                 |c| c.public_key,

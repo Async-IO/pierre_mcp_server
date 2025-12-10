@@ -14,6 +14,7 @@ use crate::errors::{AppError, AppResult};
 use crate::models::User;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
+use tracing::warn;
 use uuid::Uuid;
 
 /// Parse User from database row (database-agnostic)
@@ -150,7 +151,7 @@ where
         .try_get("input_data")
         .map_err(|e| AppError::database(format!("Failed to get column 'input_data': {e}")))?;
     let input_data: Value = serde_json::from_str(&input_str).unwrap_or_else(|e| {
-        tracing::warn!(
+        warn!(
             task_id = %task_id,
             error = %e,
             "Failed to deserialize A2A task input_data, using null"
@@ -165,7 +166,7 @@ where
             result_str.and_then(|s| {
                 serde_json::from_str(&s)
                     .inspect_err(|e| {
-                        tracing::warn!(
+                        warn!(
                             task_id = %task_id,
                             error = %e,
                             "Failed to deserialize A2A task output_data"

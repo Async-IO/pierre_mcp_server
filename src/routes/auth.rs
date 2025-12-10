@@ -22,7 +22,7 @@ use crate::{
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing;
+use tracing::{debug, error, info, warn};
 use urlencoding::encode;
 
 /// User registration request
@@ -170,7 +170,7 @@ impl AuthService {
     /// Returns error if user validation fails or database operation fails
     #[tracing::instrument(skip(self, request), fields(route = "register", email = %request.email))]
     pub async fn register(&self, request: RegisterRequest) -> AppResult<RegisterResponse> {
-        tracing::info!("User registration attempt for email: {}", request.email);
+        info!("User registration attempt for email: {}", request.email);
 
         // Validate email format
         if !Self::is_valid_email(&request.email) {
@@ -198,7 +198,7 @@ impl AuthService {
         if self.is_auto_approval_enabled().await {
             user.user_status = UserStatus::Active;
             user.approved_at = Some(Utc::now());
-            tracing::info!("Auto-approving user registration (auto_approval_enabled=true)");
+            info!("Auto-approving user registration (auto_approval_enabled=true)");
         }
 
         // Save user to database
@@ -234,10 +234,9 @@ impl AuthService {
             .create_tenant(&tenant)
             .await
             .map_err(|e| {
-                tracing::error!(
+                error!(
                     "Failed to create personal tenant for {}: {}",
-                    request.email,
-                    e
+                    request.email, e
                 );
                 AppError::database(format!("Failed to create personal tenant: {e}"))
             })?;
@@ -248,16 +247,13 @@ impl AuthService {
             .update_user_tenant_id(user_id, &tenant_id.to_string())
             .await
             .map_err(|e| {
-                tracing::error!("Failed to assign user to tenant: {}", e);
+                error!("Failed to assign user to tenant: {}", e);
                 AppError::database(format!("Failed to assign tenant: {e}"))
             })?;
 
-        tracing::info!(
+        info!(
             "User registered successfully: {} ({}) with tenant {} - status: {:?}",
-            request.email,
-            user_id,
-            tenant_name,
-            user.user_status
+            request.email, user_id, tenant_name, user.user_status
         );
 
         let message = if user.user_status == UserStatus::Active {
@@ -278,7 +274,7 @@ impl AuthService {
     /// Returns error if authentication fails or token generation fails
     #[tracing::instrument(skip(self, request), fields(route = "login", email = %request.email))]
     pub async fn login(&self, request: LoginRequest) -> AppResult<LoginResponse> {
-        tracing::info!("User login attempt for email: {}", request.email);
+        info!("User login attempt for email: {}", request.email);
 
         // Get user from database
         let user = self
@@ -287,7 +283,7 @@ impl AuthService {
             .get_user_by_email_required(&request.email)
             .await
             .map_err(|e| {
-                tracing::debug!(email = %request.email, error = %e, "Login failed: user lookup error");
+                debug!(email = %request.email, error = %e, "Login failed: user lookup error");
                 AppError::auth_invalid("Invalid email or password")
             })?;
 
@@ -301,17 +297,16 @@ impl AuthService {
                 .map_err(|_| AppError::auth_invalid("Invalid email or password"))?;
 
         if !is_valid {
-            tracing::error!("Invalid password for user: {}", request.email);
+            error!("Invalid password for user: {}", request.email);
             return Err(auth_error(error_messages::INVALID_CREDENTIALS));
         }
 
         // Log user status for auditing (pending/suspended users can authenticate
         // but frontend restricts access based on user_status)
         if !user.user_status.can_login() {
-            tracing::info!(
+            info!(
                 "User login with restricted status: {} - status: {:?}",
-                request.email,
-                user.user_status
+                request.email, user.user_status
             );
         }
 
@@ -331,10 +326,9 @@ impl AuthService {
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS); // Default 24h expiry
 
-        tracing::info!(
+        info!(
             "User logged in successfully: {} ({})",
-            request.email,
-            user.id
+            request.email, user.id
         );
 
         Ok(LoginResponse {
@@ -524,7 +518,7 @@ impl AuthService {
     /// # Errors
     /// Returns error if refresh token is invalid or token generation fails
     pub async fn refresh_token(&self, request: RefreshTokenRequest) -> AppResult<LoginResponse> {
-        tracing::info!("Token refresh attempt for user with refresh token");
+        info!("Token refresh attempt for user with refresh token");
 
         // Extract user from refresh token using RS256 validation
         let token_claims = self
@@ -566,7 +560,7 @@ impl AuthService {
             .await
             .map_err(|e| AppError::database(format!("Failed to update last active: {e}")))?;
 
-        tracing::info!("Token refreshed successfully for user: {}", user.id);
+        info!("Token refreshed successfully for user: {}", user.id);
 
         Ok(LoginResponse {
             jwt_token: Some(new_jwt_token),
@@ -655,11 +649,9 @@ impl OAuthService {
         // Validate provider is supported
         self.validate_provider(provider)?;
 
-        tracing::info!(
+        info!(
             "Processing OAuth callback for user {} provider {} with code {}",
-            user_id,
-            provider,
-            code
+            user_id, provider, code
         );
 
         // Get user and tenant from database
@@ -670,10 +662,9 @@ impl OAuthService {
             .exchange_oauth_code(code, provider, user_id, &user)
             .await?;
 
-        tracing::info!(
+        info!(
             "Successfully exchanged OAuth code for user {} provider {}",
-            user_id,
-            provider
+            user_id, provider
         );
 
         // Store token and send notifications
@@ -738,25 +729,24 @@ impl OAuthService {
             .await
             .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
             .ok_or_else(|| {
-                tracing::error!(
+                error!(
                     "OAuth callback failed: User not found - user_id: {}, provider: {}",
-                    user_id,
-                    provider
+                    user_id, provider
                 );
                 AppError::not_found("User")
             })?;
 
-        let tenant_id =
-            user.tenant_id
-                .as_ref()
-                .ok_or_else(|| {
-                    tracing::error!(
+        let tenant_id = user
+            .tenant_id
+            .as_ref()
+            .ok_or_else(|| {
+                error!(
                     "OAuth callback failed: Missing tenant - user_id: {}, email: {}, provider: {}",
                     user.id, user.email, provider
                 );
-                    AppError::invalid_input("User has no tenant")
-                })?
-                .clone(); // Safe: Uuid ownership for return value
+                AppError::invalid_input("User has no tenant")
+            })?
+            .clone(); // Safe: Uuid ownership for return value
 
         Ok((user, tenant_id))
     }
@@ -773,7 +763,7 @@ impl OAuthService {
         let oauth_client = crate::oauth2_client::OAuth2Client::new(oauth_config.clone());
 
         let token = oauth_client.exchange_code(code).await.map_err(|e| {
-            tracing::error!(
+            error!(
                 "OAuth token exchange failed for {provider} - user_id: {user_id}, email: {}, code: {code}, error: {e}",
                 user.email
             );
@@ -901,15 +891,13 @@ impl OAuthService {
             .await
             .map_err(|e| AppError::database(format!("Failed to store OAuth notification: {e}")))?;
 
-        tracing::info!(
+        info!(
             "Created OAuth completion notification {} for user {} provider {}",
-            notification_id,
-            user_id,
-            provider
+            notification_id, user_id, provider
         );
 
         // OAuth notification - SSE notification sending disabled
-        tracing::info!(
+        info!(
             notification_id = %notification_id,
             user_id = %user_id,
             provider = %provider,
@@ -943,23 +931,22 @@ impl OAuthService {
     ) {
         match result {
             Ok(response) if response.status().is_success() => {
-                tracing::info!(
+                info!(
                     "✅ Successfully notified bridge about {} OAuth completion",
                     provider
                 );
             }
             Ok(response) => {
-                tracing::warn!(
+                warn!(
                     "Bridge notification responded with status {} for provider {}",
                     response.status(),
                     provider
                 );
             }
             Err(e) => {
-                tracing::warn!(
+                warn!(
                     "Failed to notify bridge about {} OAuth (bridge may not be running): {}",
-                    provider,
-                    e
+                    provider, e
                 );
             }
         }
@@ -977,10 +964,9 @@ impl OAuthService {
 
         let token_data = Self::build_bridge_token_data(token);
 
-        tracing::debug!(
+        debug!(
             "Notifying bridge about {} OAuth success at {}",
-            provider,
-            callback_url
+            provider, callback_url
         );
 
         // Best-effort notification with configured timeout - don't fail OAuth flow if bridge notification fails
@@ -1002,10 +988,9 @@ impl OAuthService {
     /// # Errors
     /// Returns error if provider is unsupported or disconnection fails
     pub async fn disconnect_provider(&self, user_id: uuid::Uuid, provider: &str) -> AppResult<()> {
-        tracing::debug!(
+        debug!(
             "Processing OAuth provider disconnect for user {} provider {}",
-            user_id,
-            provider
+            user_id, provider
         );
 
         // Validate provider is supported
@@ -1028,7 +1013,7 @@ impl OAuthService {
             .await
             .map_err(|e| AppError::database(format!("Failed to delete OAuth token: {e}")))?;
 
-        tracing::info!("Disconnected {} for user {}", provider, user_id);
+        info!("Disconnected {} for user {}", provider, user_id);
 
         Ok(())
     }
@@ -1114,11 +1099,9 @@ impl OAuthService {
 
         let authorization_url = auth_url;
 
-        tracing::debug!(
+        debug!(
             "Generated OAuth authorization URL for user {} tenant {} provider {}",
-            user_id,
-            tenant_id,
-            provider
+            user_id, tenant_id, provider
         );
 
         Ok(OAuthAuthorizationResponse {
@@ -1137,7 +1120,7 @@ impl OAuthService {
         &self,
         user_id: uuid::Uuid,
     ) -> AppResult<Vec<ConnectionStatus>> {
-        tracing::debug!("Getting OAuth connection status for user {}", user_id);
+        debug!("Getting OAuth connection status for user {}", user_id);
 
         // Get all OAuth tokens for the user from database
         let tokens = self
@@ -1268,11 +1251,11 @@ impl AuthRoutes {
             .authenticate(&token, None)
             .await
             .map_err(|e| {
-                tracing::warn!(error = %e, "Failed to authenticate admin token for user registration");
+                warn!(error = %e, "Failed to authenticate admin token for user registration");
                 AppError::auth_invalid(format!("Admin authentication failed: {e}"))
             })?;
 
-        tracing::info!(
+        info!(
             "Admin-authenticated user registration attempt for email: {}",
             request.email
         );
@@ -1289,7 +1272,7 @@ impl AuthRoutes {
                 Ok((axum::http::StatusCode::CREATED, axum::Json(response)).into_response())
             }
             Err(e) => {
-                tracing::error!("Registration failed: {}", e);
+                error!("Registration failed: {}", e);
                 Err(e)
             }
         }
@@ -1306,7 +1289,7 @@ impl AuthRoutes {
     ) -> Result<axum::response::Response, AppError> {
         use axum::response::IntoResponse;
 
-        tracing::info!(
+        info!(
             "Public self-registration attempt for email: {}",
             request.email
         );
@@ -1323,7 +1306,7 @@ impl AuthRoutes {
                 Ok((axum::http::StatusCode::CREATED, axum::Json(response)).into_response())
             }
             Err(e) => {
-                tracing::error!("Public registration failed: {}", e);
+                error!("Public registration failed: {}", e);
                 Err(e)
             }
         }
@@ -1379,7 +1362,7 @@ impl AuthRoutes {
                 Ok((axum::http::StatusCode::OK, headers, axum::Json(response)).into_response())
             }
             Err(e) => {
-                tracing::error!("Login failed: {}", e);
+                error!("Login failed: {}", e);
                 Err(e)
             }
         }
@@ -1501,7 +1484,7 @@ impl AuthRoutes {
                 Ok((axum::http::StatusCode::OK, headers, axum::Json(response)).into_response())
             }
             Err(e) => {
-                tracing::error!("Token refresh failed: {}", e);
+                error!("Token refresh failed: {}", e);
                 Err(e)
             }
         }
@@ -1563,7 +1546,7 @@ impl AuthRoutes {
                         &provider, &response,
                     )
                     .map_err(|e| {
-                        tracing::error!("Failed to render OAuth success template: {}", e);
+                        error!("Failed to render OAuth success template: {}", e);
                         AppError::internal("Template rendering failed")
                     })?;
 
@@ -1575,7 +1558,7 @@ impl AuthRoutes {
                     .into_response())
             }
             Err(e) => {
-                tracing::error!("OAuth callback failed: {}", e);
+                error!("OAuth callback failed: {}", e);
 
                 // Determine error message and description based on error type
                 let (error_msg, description) = Self::categorize_oauth_error(&e);
@@ -1587,7 +1570,7 @@ impl AuthRoutes {
                         description,
                     )
                     .map_err(|template_err| {
-                        tracing::error!(
+                        error!(
                             "Critical: Failed to render OAuth error template: {}",
                             template_err
                         );
@@ -1675,7 +1658,7 @@ impl AuthRoutes {
     /// Parse a user ID string to UUID
     fn parse_user_id(user_id_str: &str) -> Result<uuid::Uuid, AppError> {
         uuid::Uuid::parse_str(user_id_str).map_err(|_| {
-            tracing::error!("Invalid user_id format: {}", user_id_str);
+            error!("Invalid user_id format: {}", user_id_str);
             AppError::invalid_input("Invalid user ID format")
         })
     }
@@ -1688,11 +1671,11 @@ impl AuthRoutes {
         match database.get_user(user_id).await {
             Ok(Some(user)) => Ok(user),
             Ok(None) => {
-                tracing::error!("User {} not found in database", user_id);
+                error!("User {} not found in database", user_id);
                 Err(AppError::not_found("User account not found"))
             }
             Err(e) => {
-                tracing::error!("Failed to get user {} for OAuth: {}", user_id, e);
+                error!("Failed to get user {} for OAuth: {}", user_id, e);
                 Err(AppError::database(format!(
                     "Failed to retrieve user information: {e}"
                 )))
@@ -1706,12 +1689,12 @@ impl AuthRoutes {
         user_id: uuid::Uuid,
     ) -> Result<uuid::Uuid, AppError> {
         let Some(tid) = &user.tenant_id else {
-            tracing::debug!(user_id = %user_id, "User has no tenant_id - using user_id as tenant");
+            debug!(user_id = %user_id, "User has no tenant_id - using user_id as tenant");
             return Ok(user_id);
         };
 
         uuid::Uuid::parse_str(tid.as_str()).map_err(|e| {
-            tracing::error!(
+            error!(
                 user_id = %user_id,
                 tenant_id_str = %tid,
                 error = ?e,
@@ -1728,10 +1711,9 @@ impl AuthRoutes {
     ) -> Result<axum::response::Response, AppError> {
         use axum::response::IntoResponse;
 
-        tracing::info!(
+        info!(
             "OAuth authorization initiation for provider: {} user: {}",
-            provider,
-            user_id_str
+            provider, user_id_str
         );
 
         let user_id = Self::parse_user_id(&user_id_str)?;
@@ -1749,20 +1731,16 @@ impl AuthRoutes {
             .get_auth_url(user_id, tenant_id, &provider)
             .await
             .map_err(|e| {
-                tracing::error!(
+                error!(
                     "Failed to generate OAuth URL for {} user {}: {}",
-                    provider,
-                    user_id,
-                    e
+                    provider, user_id, e
                 );
                 AppError::internal(format!("Failed to generate OAuth URL for {provider}: {e}"))
             })?;
 
-        tracing::info!(
+        info!(
             "Generated OAuth URL for {} user {}: {}",
-            provider,
-            user_id,
-            auth_response.authorization_url
+            provider, user_id, auth_response.authorization_url
         );
 
         Ok((

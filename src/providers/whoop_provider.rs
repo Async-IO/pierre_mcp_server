@@ -32,7 +32,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::Deserialize;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 // ============================================================================
 // WHOOP API Response Structures
@@ -273,7 +273,7 @@ impl WhoopProvider {
 
     /// Handle non-success API responses
     fn handle_api_error(status: reqwest::StatusCode, text: &str) -> AppError {
-        tracing::error!("WHOOP API request failed - status: {status}, body: {text}");
+        error!("WHOOP API request failed - status: {status}, body: {text}");
 
         let status_code = status.as_u16();
 

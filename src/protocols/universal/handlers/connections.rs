@@ -11,6 +11,7 @@ use crate::tenant::TenantContext;
 use crate::utils::uuid::parse_user_id_for_protocol;
 use std::future::Future;
 use std::pin::Pin;
+use tracing::{error, info};
 
 /// Handle `get_connection_status` tool - check OAuth connection status
 #[must_use]
@@ -386,17 +387,16 @@ pub fn handle_connect_provider(
             .await
         {
             Ok(url) => {
-                tracing::info!(
+                info!(
                     "Generated OAuth URL for user {} provider {}",
-                    user_uuid,
-                    provider
+                    user_uuid, provider
                 );
                 Ok(build_oauth_success_response(
                     user_uuid, tenant_id, provider, &url, &state,
                 ))
             }
             Err(e) => {
-                tracing::error!("OAuth URL generation failed for {}: {}", provider, e);
+                error!("OAuth URL generation failed for {}: {}", provider, e);
                 Ok(build_oauth_error_response(provider, &e.to_string()))
             }
         }

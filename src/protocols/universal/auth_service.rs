@@ -10,6 +10,7 @@ use crate::protocols::universal::UniversalResponse;
 use crate::providers::{CoreFitnessProvider, OAuth2Credentials};
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 /// OAuth token data structure
@@ -174,10 +175,9 @@ impl AuthService {
             return Ok(None);
         }
 
-        tracing::info!(
+        info!(
             "Token expired for user {} provider {}, attempting refresh",
-            user_id,
-            provider
+            user_id, provider
         );
 
         // Attempt to refresh the token
@@ -186,19 +186,16 @@ impl AuthService {
             .await
         {
             Ok(refreshed_token) => {
-                tracing::info!(
+                info!(
                     "Token refreshed successfully for user {} provider {}",
-                    user_id,
-                    provider
+                    user_id, provider
                 );
                 Ok(Some(refreshed_token))
             }
             Err(e) => {
-                tracing::warn!(
+                warn!(
                     "Token refresh failed for user {} provider {}: {}",
-                    user_id,
-                    provider,
-                    e
+                    user_id, provider, e
                 );
                 Ok(None)
             }
@@ -320,7 +317,7 @@ impl AuthService {
         provider_name: &str,
     ) -> Result<(String, String), UniversalResponse> {
         let tenant_uuid = Uuid::parse_str(tenant_id_str).map_err(|e| {
-            tracing::warn!(tenant_id = %tenant_id_str, error = %e, "Invalid tenant ID format in OAuth credentials request");
+            warn!(tenant_id = %tenant_id_str, error = %e, "Invalid tenant ID format in OAuth credentials request");
             UniversalResponse {
                 success: false,
                 result: None,

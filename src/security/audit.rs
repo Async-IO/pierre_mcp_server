@@ -16,6 +16,7 @@ use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppResult;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 /// Types of audit events tracked by the system
@@ -234,7 +235,7 @@ impl SecurityAuditor {
     }
 
     fn log_info_event(event: &AuditEvent) {
-        tracing::info!(
+        info!(
             event_id = %event.event_id,
             event_type = ?event.event_type,
             user_id = ?event.user_id,
@@ -248,7 +249,7 @@ impl SecurityAuditor {
     }
 
     fn log_warning_event(event: &AuditEvent) {
-        tracing::warn!(
+        warn!(
             event_id = %event.event_id,
             event_type = ?event.event_type,
             user_id = ?event.user_id,
@@ -262,7 +263,7 @@ impl SecurityAuditor {
     }
 
     fn log_error_event(event: &AuditEvent) {
-        tracing::error!(
+        error!(
             event_id = %event.event_id,
             event_type = ?event.event_type,
             user_id = ?event.user_id,
@@ -276,7 +277,7 @@ impl SecurityAuditor {
     }
 
     fn log_critical_event(event: &AuditEvent) {
-        tracing::error!(
+        error!(
             event_id = %event.event_id,
             event_type = ?event.event_type,
             user_id = ?event.user_id,
@@ -314,10 +315,9 @@ impl SecurityAuditor {
         // Store audit event in database
         self.database.store_audit_event(event).await?;
 
-        tracing::debug!(
+        debug!(
             "Stored audit event {} in database: {}",
-            event.event_id,
-            event.description
+            event.event_id, event.description
         );
 
         Ok(())
@@ -326,7 +326,7 @@ impl SecurityAuditor {
     /// Trigger security alert for critical events
     fn trigger_security_alert(event: &AuditEvent) {
         // Log critical security events with structured format for monitoring systems
-        tracing::error!(
+        error!(
             target: "security_alert",
             event_id = %event.event_id,
             event_type = ?event.event_type,
@@ -588,7 +588,7 @@ macro_rules! audit_oauth_access {
             .log_oauth_credential_access($tenant_id, $provider, $user_id, $source_ip)
             .await
         {
-            tracing::error!("Failed to log OAuth credential access audit: {}", e);
+            error!("Failed to log OAuth credential access audit: {}", e);
         }
     };
 }
@@ -603,7 +603,7 @@ macro_rules! audit_tool_execution {
             )
             .await
         {
-            tracing::error!("Failed to log tool execution audit: {}", e);
+            error!("Failed to log tool execution audit: {}", e);
         }
     };
 }

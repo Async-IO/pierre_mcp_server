@@ -123,7 +123,7 @@ impl ToolHandlers {
                     .update_last_active(auth_result.user_id)
                     .await
                 {
-                    tracing::warn!(
+                    warn!(
                         user_id = %auth_result.user_id,
                         error = %e,
                         "Failed to update user last active timestamp (activity tracking impacted)"
@@ -139,7 +139,7 @@ impl ToolHandlers {
                 )
                 .await
                 .inspect_err(|e| {
-                    tracing::warn!(
+                    warn!(
                         user_id = %auth_result.user_id,
                         error = %e,
                         "Failed to extract tenant context - tool will execute without tenant isolation"
@@ -632,18 +632,14 @@ impl ToolHandlers {
         notifications: &[crate::database::oauth_notifications::OAuthNotification],
         user_id: Uuid,
     ) {
-        tracing::debug!(
+        debug!(
             "Final notification count to return: {}",
             notifications.len()
         );
         for (i, notif) in notifications.iter().enumerate() {
-            tracing::debug!(
+            debug!(
                 "Notification {} for user {}: id={}, provider={}, message={}",
-                i,
-                user_id,
-                notif.id,
-                notif.provider,
-                notif.message
+                i, user_id, notif.id, notif.provider, notif.message
             );
         }
     }
@@ -658,7 +654,7 @@ impl ToolHandlers {
             "notifications": notifications,
             "count": notifications.len()
         });
-        tracing::debug!(
+        debug!(
             "MCP Response JSON: {}",
             serde_json::to_string_pretty(&response_data).unwrap_or_default()
         );
@@ -678,7 +674,7 @@ impl ToolHandlers {
     ) {
         let initial_count = notifications.len();
         notifications.retain(|n| n.provider.as_str() == provider_filter);
-        tracing::debug!(
+        debug!(
             "After provider filter '{}': {} notifications (was {})",
             provider_filter,
             notifications.len(),
@@ -707,7 +703,7 @@ impl ToolHandlers {
 
         match result {
             Ok(mut notifications) => {
-                tracing::debug!(
+                debug!(
                     "Retrieved {} notifications from database for user {}",
                     notifications.len(),
                     user_id
@@ -1166,7 +1162,7 @@ impl ToolHandlers {
             .list_user_fitness_configurations(tenant_id, user_id)
             .await
             .unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     tenant_id = %tenant_id,
                     user_id = %user_id,
                     error = %e,
@@ -1178,7 +1174,7 @@ impl ToolHandlers {
             .list_tenant_fitness_configurations(tenant_id)
             .await
             .unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     tenant_id = %tenant_id,
                     error = %e,
                     "Failed to fetch tenant fitness configurations, using empty list"
@@ -1284,7 +1280,7 @@ impl ToolHandlers {
                 notification.provider.to_uppercase(),
                 notification.message
             )
-            .unwrap_or_else(|_| tracing::warn!("Failed to write notification text"));
+            .unwrap_or_else(|_| warn!("Failed to write notification text"));
         }
         notification_text
     }

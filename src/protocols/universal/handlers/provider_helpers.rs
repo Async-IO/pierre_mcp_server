@@ -11,6 +11,7 @@ use crate::protocols::universal::{UniversalResponse, UniversalToolExecutor};
 use crate::providers::core::FitnessProvider;
 use crate::providers::ProviderRegistry;
 use std::sync::Arc;
+use tracing::debug;
 use uuid::Uuid;
 
 /// Extract provider name from request parameters, falling back to default provider
@@ -176,7 +177,7 @@ pub fn build_activities_success_response(
 /// Get OAuth config for a provider, with logging
 pub fn get_provider_oauth_config(provider_name: &str) -> OAuthProviderConfig {
     let config = crate::config::environment::get_oauth_config(provider_name);
-    tracing::debug!(
+    debug!(
         provider = provider_name,
         has_client_id = config.client_id.is_some(),
         "Loaded OAuth config for provider"

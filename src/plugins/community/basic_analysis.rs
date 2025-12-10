@@ -11,6 +11,7 @@ use crate::protocols::ProtocolError;
 use crate::{impl_static_plugin, plugin_info};
 use async_trait::async_trait;
 use serde_json::Value;
+use tracing::info;
 
 /// Basic analysis plugin for community use
 pub struct BasicAnalysisPlugin;
@@ -65,10 +66,9 @@ impl PluginImplementation for BasicAnalysisPlugin {
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(false);
 
-        tracing::info!(
+        info!(
             "Analyzing activity {} with zones: {}",
-            activity_id,
-            include_zones
+            activity_id, include_zones
         );
 
         // Verify Strava provider is available in the registry

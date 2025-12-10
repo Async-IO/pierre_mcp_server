@@ -36,7 +36,7 @@ use chrono::Utc;
 use serde_json::Value;
 use std::fmt::Write;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 // Constants are now imported from the constants module
@@ -305,10 +305,9 @@ impl MultiTenantMcpServer {
         oauth_client: &Arc<TenantOAuthClient>,
         params: OAuthProviderParams<'_>,
     ) {
-        tracing::info!(
+        info!(
             "Storing MCP-provided {} OAuth credentials for tenant {}",
-            params.provider,
-            tenant_context.tenant_id
+            params.provider, tenant_context.tenant_id
         );
 
         let redirect_uri = params.configured_redirect_uri.map_or_else(
@@ -333,10 +332,9 @@ impl MultiTenantMcpServer {
             .store_credentials(tenant_context.tenant_id, params.provider, request)
             .await
         {
-            tracing::error!(
+            error!(
                 "Failed to store {} OAuth credentials: {}",
-                params.provider,
-                e
+                params.provider, e
             );
         }
     }
@@ -374,10 +372,9 @@ impl MultiTenantMcpServer {
         http_port: u16,
         config: &Arc<crate::config::environment::ServerConfig>,
     ) -> McpResponse {
-        tracing::info!(
+        info!(
             "Checking connection status for tenant {} user {}",
-            tenant_context.tenant_name,
-            tenant_context.user_id
+            tenant_context.tenant_name, tenant_context.user_id
         );
 
         // Store MCP-provided OAuth credentials if supplied
@@ -440,22 +437,21 @@ impl MultiTenantMcpServer {
         let tenant_id_str = tenant_context.tenant_id.to_string();
 
         // Check Strava connection status
-        tracing::debug!(
+        debug!(
             "Checking Strava token for user_id={}, tenant_id={}, provider=strava",
-            user_id,
-            tenant_id_str
+            user_id, tenant_id_str
         );
         let strava_connected = database
             .get_user_oauth_token(user_id, &tenant_id_str, "strava")
             .await
             .map_or_else(
                 |e| {
-                    tracing::warn!("Failed to query Strava OAuth token: {e}");
+                    warn!("Failed to query Strava OAuth token: {e}");
                     false
                 },
                 |token| {
                     let connected = token.is_some();
-                    tracing::debug!("Strava token lookup result: connected={connected}");
+                    debug!("Strava token lookup result: connected={connected}");
                     connected
                 },
             );
@@ -478,7 +474,7 @@ impl MultiTenantMcpServer {
             .get_unread_oauth_notifications(user_id)
             .await
             .unwrap_or_else(|e| {
-                tracing::warn!("Failed to fetch unread notifications: {e}");
+                warn!("Failed to fetch unread notifications: {e}");
                 Vec::new()
             });
 
@@ -498,7 +494,7 @@ impl MultiTenantMcpServer {
                     notification.provider.to_uppercase(),
                     notification.message
                 )
-                .unwrap_or_else(|_| tracing::warn!("Failed to write notification text"));
+                .unwrap_or_else(|_| warn!("Failed to write notification text"));
             }
             notifications_msg
         }
@@ -515,7 +511,7 @@ impl MultiTenantMcpServer {
             .get_unread_oauth_notifications(tenant_context.user_id)
             .await
             .unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     user_id = %tenant_context.user_id,
                     error = %e,
                     "Failed to fetch OAuth notifications for connection status"
@@ -638,11 +634,9 @@ impl MultiTenantMcpServer {
         _database: &Arc<Database>,
         request_id: Value,
     ) -> McpResponse {
-        tracing::info!(
+        info!(
             "Tenant {} disconnecting provider {} for user {}",
-            tenant_context.tenant_name,
-            provider_name,
-            tenant_context.user_id
+            tenant_context.tenant_name, provider_name, tenant_context.user_id
         );
 
         // In a real implementation, this would revoke tenant-specific OAuth tokens
@@ -668,11 +662,9 @@ impl MultiTenantMcpServer {
     ) -> McpResponse {
         let error_msg = response_error
             .unwrap_or_else(|| "Tool execution failed with no error message".to_owned());
-        tracing::error!(
+        error!(
             "Tool execution failed for {} with provider {}: {} (success=false)",
-            tool_name,
-            provider_name,
-            error_msg
+            tool_name, provider_name, error_msg
         );
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_owned(),
@@ -719,12 +711,9 @@ impl MultiTenantMcpServer {
         };
         let provider_name = params.provider.as_deref().unwrap_or("");
 
-        tracing::info!(
+        info!(
             "Executing tenant tool {} with provider {} for tenant {} user {}",
-            tool_name,
-            provider_name,
-            tenant_context.tenant_name,
-            tenant_context.user_id
+            tool_name, provider_name, tenant_context.tenant_name, tenant_context.user_id
         );
 
         // Create Universal protocol request
@@ -1071,8 +1060,6 @@ impl MultiTenantMcpServer {
     fn create_security_headers_layer(
         config: &Arc<crate::config::environment::ServerConfig>,
     ) -> tower::layer::util::Identity {
-        use tracing::warn;
-
         // Validate security headers configuration at startup
         let security_config = Self::setup_security_config(config);
         let headers = security_config.to_headers();

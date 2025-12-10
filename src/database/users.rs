@@ -10,6 +10,7 @@ use crate::errors::{AppError, AppResult};
 use crate::models::{User, UserStatus};
 use crate::pagination::{Cursor, CursorPage, PaginationParams};
 use sqlx::Row;
+use tracing::warn;
 use uuid::Uuid;
 
 impl Database {
@@ -213,7 +214,7 @@ impl Database {
             approved_by: approved_by.and_then(|id_str| {
                 Uuid::parse_str(&id_str)
                     .inspect_err(|e| {
-                        tracing::warn!(
+                        warn!(
                             user_id = %id,
                             approved_by_str = %id_str,
                             error = %e,

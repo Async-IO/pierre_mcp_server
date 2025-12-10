@@ -17,6 +17,8 @@ use crate::models::UserOAuthApp;
 use crate::rate_limiting::JwtUsage;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+#[cfg(not(feature = "postgresql"))]
+use tracing::error;
 use tracing::{debug, info};
 use uuid::Uuid;
 
@@ -163,7 +165,7 @@ impl Database {
     #[cfg(not(feature = "postgresql"))]
     fn postgresql_not_enabled() -> AppResult<Self> {
         let err_msg = "PostgreSQL support not enabled. Enable the 'postgresql' feature flag.";
-        tracing::error!("{}", err_msg);
+        error!("{}", err_msg);
         Err(AppError::config(err_msg))
     }
 

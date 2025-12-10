@@ -25,6 +25,7 @@ use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres, Row};
 use std::fmt::Write;
 use std::time::Duration;
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 /// `PostgreSQL` database implementation
@@ -122,7 +123,7 @@ impl PostgresDatabase {
         let acquire_timeout_secs = pool_config.acquire_timeout_secs;
 
         // Log connection pool configuration for debugging
-        tracing::info!(
+        info!(
             "PostgreSQL pool config: max_connections={max_connections}, min_connections={min_connections}, timeout={acquire_timeout_secs}s"
         );
 
@@ -549,7 +550,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         // Convert to i64 for SQL LIMIT clause (pagination limits are always reasonable)
         let fetch_limit_i64 = i64::try_from(fetch_limit).map_err(|e| {
-            tracing::warn!(
+            warn!(
                 fetch_limit = fetch_limit,
                 max_allowed = i64::MAX,
                 error = %e,
@@ -2020,7 +2021,7 @@ impl DatabaseProvider for PostgresDatabase {
                 AppError::database(format!("Failed to parse input_data column: {e}"))
             })?;
             let input_data: Value = serde_json::from_str(&input_str).unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     task_id = %task_id,
                     error = %e,
                     "Failed to deserialize A2A task input_data, using null"
@@ -2030,7 +2031,7 @@ impl DatabaseProvider for PostgresDatabase {
 
             // Validate input data structure
             if !input_data.is_null() && !input_data.is_object() {
-                tracing::warn!(
+                warn!(
                     "Invalid input data structure for task, expected object but got: {:?}",
                     input_data
                 );
@@ -2042,7 +2043,7 @@ impl DatabaseProvider for PostgresDatabase {
                         result_str.and_then(|s| {
                             serde_json::from_str(&s)
                                 .inspect_err(|e| {
-                                    tracing::warn!(
+                                    warn!(
                                         task_id = %task_id,
                                         error = %e,
                                         "Failed to deserialize A2A task result_data"
@@ -2195,7 +2196,7 @@ impl DatabaseProvider for PostgresDatabase {
         .execute(&self.pool)
         .await
         .inspect_err(|e| {
-            tracing::warn!(
+            warn!(
                 client_id = %usage.client_id,
                 endpoint = %usage.tool_name,
                 status_code = usage.status_code,
@@ -2277,11 +2278,9 @@ impl DatabaseProvider for PostgresDatabase {
 
         // Log byte usage for monitoring
         if let (Some(req_bytes), Some(resp_bytes)) = (total_request_bytes, total_response_bytes) {
-            tracing::debug!(
+            debug!(
                 "A2A client {} usage: {} req bytes, {} resp bytes",
-                client_id,
-                req_bytes,
-                resp_bytes
+                client_id, req_bytes, resp_bytes
             );
         }
 
@@ -2435,7 +2434,7 @@ impl DatabaseProvider for PostgresDatabase {
                 let error_rate = f64::from(u32::try_from(error_count.max(0)).unwrap_or(0))
                     / f64::from(u32::try_from(usage_count.max(1)).unwrap_or(1));
                 if error_rate > 0.1 {
-                    tracing::warn!(
+                    warn!(
                         "High error rate for endpoint {}: {:.2}% ({} errors out of {} requests)",
                         endpoint,
                         error_rate * 100.0,
@@ -2482,7 +2481,7 @@ impl DatabaseProvider for PostgresDatabase {
         let token_id = format!("admin_{uuid}");
 
         // Debug: Log token creation without exposing secrets
-        tracing::debug!("Creating admin token with RS256 asymmetric signing");
+        debug!("Creating admin token with RS256 asymmetric signing");
 
         // Create JWT manager for RS256 token operations (no HS256 secret needed)
         let jwt_manager = AdminJwtManager::new();
@@ -2977,10 +2976,9 @@ impl DatabaseProvider for PostgresDatabase {
         .await
         .map_err(|e| AppError::database(format!("Failed to add owner to tenant: {e}")))?;
 
-        tracing::info!(
+        info!(
             "Created tenant: {} ({}) and added owner to tenant_users",
-            tenant.name,
-            tenant.id
+            tenant.name, tenant.id
         );
         Ok(())
     }
@@ -3498,7 +3496,7 @@ impl DatabaseProvider for PostgresDatabase {
         .map_err(|e| AppError::database(format!("Failed to delete authorization code: {e}")))?;
 
         if result.rows_affected() == 0 {
-            tracing::warn!("Authorization code not found for deletion: {}", code);
+            warn!("Authorization code not found for deletion: {}", code);
         }
 
         Ok(())
@@ -3532,10 +3530,9 @@ impl DatabaseProvider for PostgresDatabase {
             .await
             .map_err(|e| AppError::database(format!("Failed to store key version: {e}")))?;
 
-        tracing::debug!(
+        debug!(
             "Stored key version {} for tenant {:?}",
-            version.version,
-            version.tenant_id
+            version.version, version.tenant_id
         );
         Ok(())
     }
@@ -3693,17 +3690,14 @@ impl DatabaseProvider for PostgresDatabase {
         .map_err(|e| AppError::database(format!("Failed to update key version status: {e}")))?;
 
         if result.rows_affected() == 0 {
-            tracing::warn!(
+            warn!(
                 "No key version found to update: tenant={:?}, version={}",
-                tenant_id,
-                version
+                tenant_id, version
             );
         } else {
-            tracing::debug!(
+            debug!(
                 "Updated key version {} status to {} for tenant {:?}",
-                version,
-                is_active,
-                tenant_id
+                version, is_active, tenant_id
             );
         }
 
@@ -3757,11 +3751,9 @@ impl DatabaseProvider for PostgresDatabase {
         .map_err(|e| AppError::database(format!("Failed to delete old key versions: {e}")))?;
 
         let deleted_count = result.rows_affected();
-        tracing::debug!(
+        debug!(
             "Deleted {} old key versions for tenant {:?}, kept {} most recent",
-            deleted_count,
-            tenant_id,
-            keep_count
+            deleted_count, tenant_id, keep_count
         );
 
         Ok(deleted_count)

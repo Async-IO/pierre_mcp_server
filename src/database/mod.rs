@@ -54,6 +54,7 @@ use base64::Engine;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sqlx::{Pool, Row, Sqlite, SqlitePool};
+use tracing::{info, warn};
 use uuid::Uuid;
 
 /// Database connection pool with encryption support
@@ -165,7 +166,7 @@ impl Database {
     /// - Database connection is lost during migration
     /// - Insufficient database permissions
     async fn migrate_impl(&self) -> AppResult<()> {
-        tracing::info!("Running database migrations...");
+        info!("Running database migrations...");
 
         // Run all pending migrations embedded at compile-time from ./migrations directory
         // Using compile-time macro which embeds migrations into the binary
@@ -175,7 +176,7 @@ impl Database {
             .await
             .map_err(|e| AppError::database(format!("Migration failed: {e}")))?;
 
-        tracing::info!("Database migrations completed successfully");
+        info!("Database migrations completed successfully");
         Ok(())
     }
 
@@ -1876,7 +1877,7 @@ impl Database {
         .map_err(|e| AppError::database(format!("Failed to delete authorization code: {e}")))?;
 
         if result.rows_affected() == 0 {
-            tracing::warn!("Authorization code not found for deletion: {}", code);
+            warn!("Authorization code not found for deletion: {}", code);
         }
 
         Ok(())

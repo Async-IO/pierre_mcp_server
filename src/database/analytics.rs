@@ -10,6 +10,7 @@ use crate::rate_limiting::JwtUsage;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
+use tracing::{error, warn};
 use uuid::Uuid;
 
 /// Log entry for API requests including timing and status information
@@ -58,7 +59,7 @@ impl Database {
         .bind(i32::from(usage.status_code))
         .bind(usage.response_time_ms.map(|t| {
             i32::try_from(t).unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     user_id = ?usage.user_id,
                     endpoint = %usage.endpoint,
                     response_time_ms = t,
@@ -71,7 +72,7 @@ impl Database {
         }))
         .bind(usage.request_size_bytes.map(|s| {
             i32::try_from(s).unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     user_id = ?usage.user_id,
                     endpoint = %usage.endpoint,
                     request_size_bytes = s,
@@ -84,7 +85,7 @@ impl Database {
         }))
         .bind(usage.response_size_bytes.map(|s| {
             i32::try_from(s).unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     user_id = ?usage.user_id,
                     endpoint = %usage.endpoint,
                     response_size_bytes = s,
@@ -125,7 +126,7 @@ impl Database {
         .map_err(|e| AppError::database(format!("Failed to get JWT current usage: {e}")))?;
 
         Ok(u32::try_from(count).unwrap_or_else(|e| {
-            tracing::error!(
+            error!(
                 user_id = %user_id,
                 count = count,
                 error = %e,
@@ -446,7 +447,7 @@ impl Database {
 
             let log_id: String = row.get("id");
             let status_code = u16::try_from(row.get::<i32, _>("status_code")).unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     log_id = %log_id,
                     user_id = ?user_id,
                     error = %e,
@@ -458,7 +459,7 @@ impl Database {
             let response_time_ms = row.get::<Option<i32>, _>("response_time_ms").and_then(|t| {
                 u32::try_from(t)
                     .inspect_err(|e| {
-                        tracing::warn!(
+                        warn!(
                             log_id = %log_id,
                             user_id = ?user_id,
                             response_time_i32 = t,
@@ -505,7 +506,7 @@ impl Database {
 
         Ok((
             u64::try_from(user_count).unwrap_or_else(|e| {
-                tracing::error!(
+                error!(
                     user_count = user_count,
                     error = %e,
                     operation = "get_system_stats",
@@ -514,7 +515,7 @@ impl Database {
                 0
             }),
             u64::try_from(api_key_count).unwrap_or_else(|e| {
-                tracing::error!(
+                error!(
                     api_key_count = api_key_count,
                     error = %e,
                     operation = "get_system_stats",

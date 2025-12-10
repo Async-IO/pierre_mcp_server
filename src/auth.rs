@@ -22,6 +22,7 @@ use crate::rate_limiting::UnifiedRateLimitInfo;
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, Header, Validation};
 use serde::{Deserialize, Serialize};
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 /// Convert a duration to a human-readable format
@@ -323,7 +324,7 @@ impl AuthManager {
             AppError::auth_invalid("Token header missing kid (key ID)")
         })?;
 
-        tracing::debug!("Validating RS256 JWT token with kid: {}", kid);
+        debug!("Validating RS256 JWT token with kid: {}", kid);
 
         // Get public key from JWKS manager
         let key_pair = jwks_manager.get_key(&kid).ok_or_else(|| -> AppError {
@@ -340,7 +341,7 @@ impl AuthManager {
         validation.set_issuer(&[crate::constants::service_names::PIERRE_MCP_SERVER]);
 
         let token_data = decode::<Claims>(token, &decoding_key, &validation).map_err(|e| {
-            tracing::error!("RS256 JWT validation failed: {:?}", e);
+            error!("RS256 JWT validation failed: {:?}", e);
             AppError::auth_invalid(format!("JWT validation failed: {e}"))
         })?;
 
@@ -355,7 +356,7 @@ impl AuthManager {
     ) -> Result<(), JwtValidationError> {
         if current_time.timestamp() > claims.exp {
             let time_since_expiry = current_time.signed_duration_since(expired_at);
-            tracing::warn!(
+            warn!(
                 "JWT token expired for user: {} - Expired {} ago at {}",
                 claims.sub,
                 humanize_duration(time_since_expiry),
@@ -372,17 +373,17 @@ impl AuthManager {
     /// Convert JWT library errors to detailed validation errors
     fn convert_jwt_error(e: &jsonwebtoken::errors::Error) -> JwtValidationError {
         use jsonwebtoken::errors::ErrorKind;
-        tracing::warn!("JWT token validation failed: {:?}", e);
+        warn!("JWT token validation failed: {:?}", e);
 
         match e.kind() {
             ErrorKind::InvalidSignature => {
-                tracing::warn!("JWT token signature verification failed");
+                warn!("JWT token signature verification failed");
                 JwtValidationError::TokenInvalid {
                     reason: "Token signature verification failed".to_owned(),
                 }
             }
             ErrorKind::InvalidToken => {
-                tracing::warn!("JWT token format is invalid: {:?}", e);
+                warn!("JWT token format is invalid: {:?}", e);
                 JwtValidationError::TokenMalformed {
                     details: "Token format is invalid".to_owned(),
                 }
@@ -418,7 +419,7 @@ impl AuthManager {
         token: &str,
         jwks_manager: &crate::admin::jwks::JwksManager,
     ) -> Result<Claims, JwtValidationError> {
-        tracing::debug!(
+        debug!(
             "Validating RS256 JWT token (length: {} chars): {}",
             token.len(),
             &token[..std::cmp::min(100, token.len())]
@@ -427,7 +428,7 @@ impl AuthManager {
         let claims = Self::decode_token_claims(token, jwks_manager)?;
         Self::validate_claims_expiry(&claims)?;
 
-        tracing::debug!(
+        debug!(
             "RS256 JWT token validation successful for user: {}",
             claims.sub
         );
@@ -481,7 +482,7 @@ impl AuthManager {
         let current_time = Utc::now();
         let expired_at = DateTime::from_timestamp(claims.exp, 0).unwrap_or_else(Utc::now);
 
-        tracing::debug!(
+        debug!(
             "Token validation details - User: {}, Issued: {}, Expires: {}, Current: {}",
             claims.sub,
             DateTime::from_timestamp(claims.iat, 0)
@@ -535,7 +536,7 @@ impl AuthManager {
                     available_providers: claims.providers,
                 },
                 Err(e) => {
-                    tracing::warn!(
+                    warn!(
                         sub = %claims.sub,
                         issuer = ?claims.iss,
                         error = %e,
@@ -621,7 +622,7 @@ impl AuthManager {
             }
             Err(e) => {
                 // Database error
-                tracing::error!("Error checking admin user existence: {}", e);
+                error!("Error checking admin user existence: {}", e);
                 Ok(crate::routes::SetupStatusResponse {
                     needs_setup: true,
                     admin_user_exists: false,
@@ -746,7 +747,7 @@ pub fn generate_jwt_secret() -> AppResult<[u8; 64]> {
     let mut secret = [0u8; 64];
 
     rng.fill(&mut secret).map_err(|e| {
-        tracing::error!(
+        error!(
             "CRITICAL: Failed to generate cryptographically secure JWT secret: {}",
             e
         );

@@ -370,7 +370,7 @@ impl HealthChecker {
         {
             Ok(client) => client,
             Err(e) => {
-                tracing::error!("Failed to create HTTP client for health check: {}", e);
+                error!("Failed to create HTTP client for health check: {}", e);
                 return ComponentHealth {
                     name: "external_apis".into(),
                     status: HealthStatus::Unhealthy,

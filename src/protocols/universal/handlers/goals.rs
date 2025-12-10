@@ -14,6 +14,7 @@ use crate::types::json_schemas::{AnalyzeGoalFeasibilityParams, SetGoalParams};
 use num_traits::ToPrimitive;
 use std::future::Future;
 use std::pin::Pin;
+use tracing::{debug, warn};
 
 /// Safe conversion from usize to f64 for activity counts
 /// Uses num-traits to avoid clippy cast warnings
@@ -55,7 +56,7 @@ fn extract_feasibility_params(
     );
 
     let effective_timeframe = if timeframe_days > crate::constants::limits::MAX_TIMEFRAME_DAYS {
-        tracing::warn!(
+        warn!(
             "Timeframe {timeframe_days} days is unusually long, capping at {}",
             crate::constants::limits::MAX_TIMEFRAME_DAYS
         );
@@ -333,7 +334,7 @@ async fn load_user_profile(
 ) -> crate::intelligence::UserFitnessProfile {
     match database.get_user_profile(user_uuid).await {
         Ok(Some(profile_json)) => serde_json::from_value(profile_json).unwrap_or_else(|e| {
-            tracing::warn!(
+            warn!(
                 user_id = %user_id,
                 error = %e,
                 "Failed to deserialize user fitness profile, using fallback profile"
@@ -748,7 +749,7 @@ fn analyze_duration_goal_feasibility(
             f64::from(duration_u32) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
         }
         Err(e) => {
-            tracing::warn!(
+            warn!(
                 total_duration = total_duration,
                 error = %e,
                 "Duration conversion failed (should not happen after min() with u32::MAX), using u32::MAX"
@@ -812,7 +813,7 @@ fn calculate_training_history_months(activities: &[crate::models::Activity]) -> 
 
     // Find earliest activity date
     let Some(earliest_date) = activities.iter().map(|a| a.start_date).min() else {
-        tracing::warn!("No activities found for training history calculation, returning 0 months");
+        warn!("No activities found for training history calculation, returning 0 months");
         return 0;
     };
 
@@ -971,7 +972,7 @@ fn calculate_days_remaining(
             let elapsed_u32 = match u32::try_from(elapsed.max(0)) {
                 Ok(val) => val,
                 Err(e) => {
-                    tracing::warn!(
+                    warn!(
                         elapsed = elapsed,
                         error = %e,
                         "Elapsed days conversion failed (negative or too large), using 0"
@@ -1005,7 +1006,7 @@ fn calculate_current_progress(
                     f64::from(duration_u32) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
                 }
                 Err(e) => {
-                    tracing::warn!(
+                    warn!(
                         total_duration = total_duration,
                         error = %e,
                         "Duration conversion failed in progress calculation, using u32::MAX"
@@ -1080,7 +1081,7 @@ fn build_progress_response(params: &ProgressResponseParams) -> UniversalResponse
                 "total_duration_hours": match u32::try_from(params.total_duration.min(u64::from(u32::MAX))) {
                     Ok(duration_u32) => f64::from(duration_u32) / crate::constants::time_constants::SECONDS_PER_HOUR_F64,
                     Err(e) => {
-                        tracing::warn!(
+                        warn!(
                             total_duration = params.total_duration,
                             error = %e,
                             "Duration conversion failed in response summary, using u32::MAX"
@@ -1119,7 +1120,7 @@ async fn fetch_progress_activities(
         .await
     {
         Ok(provider) => {
-            tracing::debug!("Provider authenticated for progress tracking");
+            debug!("Provider authenticated for progress tracking");
             Ok(provider
                 .get_activities(
                     Some(crate::intelligence::physiological_constants::goal_feasibility::PROGRESS_TRACKING_ACTIVITY_LIMIT),
@@ -1129,7 +1130,7 @@ async fn fetch_progress_activities(
                 .unwrap_or_default())
         }
         Err(response) => {
-            tracing::debug!("Authentication failed for progress tracking");
+            debug!("Authentication failed for progress tracking");
             Err(response)
         }
     }

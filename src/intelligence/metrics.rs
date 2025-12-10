@@ -20,6 +20,7 @@ use crate::intelligence::physiological_constants::{
 use crate::models::Activity;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing::{debug, warn};
 
 /// Safe casting helper functions to avoid clippy warnings
 #[inline]
@@ -198,7 +199,7 @@ impl MetricsCalculator {
                     f64::from(duration_u32) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
                 }
                 Err(e) => {
-                    tracing::debug!(
+                    debug!(
                         activity_id = activity.id,
                         duration = activity.duration_seconds,
                         error = %e,
@@ -216,7 +217,7 @@ impl MetricsCalculator {
             let tss_algorithm = match config.algorithms.tss.parse::<TssAlgorithm>() {
                 Ok(algo) => algo,
                 Err(e) => {
-                    tracing::warn!(
+                    warn!(
                         activity_id = activity.id,
                         tss_config = %config.algorithms.tss,
                         error = %e,
@@ -303,7 +304,7 @@ impl MetricsCalculator {
                             / crate::constants::time_constants::SECONDS_PER_HOUR_F64
                     }
                     Err(e) => {
-                        tracing::debug!(
+                        debug!(
                             activity_id = activity.id,
                             duration = activity.duration_seconds,
                             error = %e,
@@ -353,7 +354,7 @@ impl MetricsCalculator {
                 match u32::try_from(activity.duration_seconds) {
                     Ok(duration_u32) => f64::from(duration_u32) / 60.0,
                     Err(e) => {
-                        tracing::debug!(
+                        debug!(
                             activity_id = activity.id,
                             duration = activity.duration_seconds,
                             error = %e,
@@ -460,7 +461,7 @@ impl MetricsCalculator {
         let mean_power4 = match u32::try_from(rolling_avg_power4.len()) {
             Ok(len) => rolling_avg_power4.iter().sum::<f64>() / f64::from(len),
             Err(e) => {
-                tracing::debug!(
+                debug!(
                     data_points = rolling_avg_power4.len(),
                     error = %e,
                     metric_name = "normalized_power",
@@ -482,7 +483,7 @@ impl MetricsCalculator {
         let avg_power: f64 = match u32::try_from(power_data.len()) {
             Ok(len) => power_data.iter().map(|&p| f64::from(p)).sum::<f64>() / f64::from(len),
             Err(e) => {
-                tracing::debug!(
+                debug!(
                     data_points = power_data.len(),
                     error = %e,
                     metric_name = "variability_index",
@@ -501,7 +502,7 @@ impl MetricsCalculator {
                 let rms_power = match u32::try_from(power_data.len()) {
                     Ok(len) => (sum_of_squares / f64::from(len)).sqrt(),
                     Err(e) => {
-                        tracing::debug!(
+                        debug!(
                             data_points = power_data.len(),
                             error = %e,
                             metric_name = "variability_index_rms",
@@ -525,7 +526,7 @@ impl MetricsCalculator {
         let first_half_size = match u32::try_from(half_point) {
             Ok(size) => f64::from(size),
             Err(e) => {
-                tracing::debug!(
+                debug!(
                     data_points = hr_data.len(),
                     half_point,
                     error = %e,
@@ -538,7 +539,7 @@ impl MetricsCalculator {
         let second_half_size = match u32::try_from(hr_data.len() - half_point) {
             Ok(size) => f64::from(size),
             Err(e) => {
-                tracing::debug!(
+                debug!(
                     data_points = hr_data.len(),
                     half_point,
                     second_half_len = hr_data.len() - half_point,
@@ -630,7 +631,7 @@ impl MetricsCalculator {
             match u32::try_from(activity.duration_seconds) {
                 Ok(duration_u32) => f64::from(duration_u32) / 3600.0,
                 Err(e) => {
-                    tracing::debug!(
+                    debug!(
                         activity_id = activity.id,
                         duration = activity.duration_seconds,
                         error = %e,
@@ -736,7 +737,7 @@ fn safe_count_to_f64(count: usize, zone_name: &str, metric_type: &str) -> f64 {
     match u32::try_from(count) {
         Ok(count_u32) => f64::from(count_u32),
         Err(e) => {
-            tracing::debug!(
+            debug!(
                 zone_count = count,
                 error = %e,
                 zone = zone_name,
@@ -755,7 +756,7 @@ impl ZoneAnalysis {
         let total_points = match u32::try_from(hr_data.len()) {
             Ok(len) => f64::from(len),
             Err(e) => {
-                tracing::debug!(
+                debug!(
                     data_points = hr_data.len(),
                     error = %e,
                     metric_name = "heart_rate_zone_analysis",
@@ -842,7 +843,7 @@ impl ZoneAnalysis {
         let total_points = match u32::try_from(power_data.len()) {
             Ok(len) => f64::from(len),
             Err(e) => {
-                tracing::debug!(
+                debug!(
                     data_points = power_data.len(),
                     error = %e,
                     metric_name = "power_zone_analysis",

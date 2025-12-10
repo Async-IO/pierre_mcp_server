@@ -22,6 +22,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tracing::{error, info};
 
 /// Response for A2A client list
 #[derive(Debug, Serialize)]
@@ -213,7 +214,7 @@ impl A2ARoutes {
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
 
-        tracing::info!(
+        info!(
             user_id = %auth.user_id,
             client_name = %request.name,
             "Creating new A2A client"
@@ -234,7 +235,7 @@ impl A2ARoutes {
             .register_client(registration_request, auth.user_id)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "Failed to register A2A client");
+                error!(error = %e, "Failed to register A2A client");
                 AppError::internal(format!("Failed to register A2A client: {e}"))
             })?;
 
@@ -247,7 +248,7 @@ impl A2ARoutes {
             key_type: credentials.key_type,
         };
 
-        tracing::info!(
+        info!(
             client_id = %response.client_id,
             "A2A client created successfully"
         );

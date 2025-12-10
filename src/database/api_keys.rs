@@ -9,6 +9,7 @@ use crate::api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage, ApiKeyUsageStats};
 use crate::errors::{AppError, AppResult};
 use chrono::{DateTime, Duration, Utc};
 use sqlx::Row;
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 impl Database {
@@ -422,7 +423,7 @@ impl Database {
             let success_count: i32 = row.get("success_count");
 
             let avg_time = avg_response_time.unwrap_or_else(|| {
-                tracing::debug!(
+                debug!(
                     api_key_id = %api_key_id,
                     tool_name = %tool_name,
                     "No average response time available for tool usage stats"
@@ -443,7 +444,7 @@ impl Database {
 
         let total_time = total_response_time.map_or(0, |t| {
             u64::try_from(t).unwrap_or_else(|e| {
-                tracing::warn!(
+                warn!(
                     api_key_id = %api_key_id,
                     total_response_time = t,
                     error = %e,

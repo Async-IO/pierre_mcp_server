@@ -10,6 +10,7 @@ use crate::protocols::ProtocolError;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tracing::info;
 
 /// Plugin metadata for discovery and registration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -130,7 +131,7 @@ pub trait PluginTool: Send + Sync {
     ///
     /// Returns `ProtocolError` if plugin registration fails
     fn on_register(&self) -> Result<(), ProtocolError> {
-        tracing::info!("Registered plugin: {}", self.info().name);
+        info!("Registered plugin: {}", self.info().name);
         Ok(())
     }
 
@@ -140,7 +141,7 @@ pub trait PluginTool: Send + Sync {
     ///
     /// Returns `ProtocolError` if plugin unregistration fails
     fn on_unregister(&self) -> Result<(), ProtocolError> {
-        tracing::info!("Unregistered plugin: {}", self.info().name);
+        info!("Unregistered plugin: {}", self.info().name);
         Ok(())
     }
 }

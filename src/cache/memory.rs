@@ -12,6 +12,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
+use tracing::debug;
 
 /// In-memory cache entry with expiration
 #[derive(Debug, Clone)]
@@ -79,7 +80,7 @@ impl InMemoryCache {
                             Self::cleanup_expired(&store_clone).await;
                         }
                         _ = shutdown_rx.recv() => {
-                            tracing::debug!("Cache cleanup task received shutdown signal");
+                            debug!("Cache cleanup task received shutdown signal");
                             break;
                         }
                     }
@@ -118,7 +119,7 @@ impl InMemoryCache {
         let removed = expired_keys.len();
         drop(store_guard);
         if removed > 0 {
-            tracing::debug!("Cleaned up {} expired cache entries", removed);
+            debug!("Cleaned up {} expired cache entries", removed);
         }
     }
 }
@@ -256,7 +257,7 @@ impl Drop for InMemoryCache {
         if let Some(tx) = &self.shutdown_tx {
             // Try to send shutdown signal, errors are expected if channel is already closed
             if let Err(e) = tx.try_send(()) {
-                tracing::debug!(error = ?e, "Cache shutdown signal send failed (channel likely closed)");
+                debug!(error = ?e, "Cache shutdown signal send failed (channel likely closed)");
             }
         }
     }

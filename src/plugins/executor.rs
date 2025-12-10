@@ -14,6 +14,7 @@ use crate::mcp::resources::ServerResources;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse, UniversalToolExecutor};
 use crate::protocols::ProtocolError;
 use std::sync::Arc;
+use tracing::{debug, error};
 
 /// Plugin-enabled tool executor that extends `UniversalToolExecutor` with plugin support
 pub struct PluginToolExecutor {
@@ -90,7 +91,7 @@ impl PluginToolExecutor {
 
         // Check if it's a plugin tool first
         if self.plugin_registry.has_plugin(&request.tool_name) {
-            tracing::debug!("Executing plugin tool: {}", request.tool_name);
+            debug!("Executing plugin tool: {}", request.tool_name);
 
             let env = PluginEnvironment::new(
                 &self.resources.database,
@@ -107,7 +108,7 @@ impl PluginToolExecutor {
         }
 
         // Fall back to core executor for hardcoded tools
-        tracing::debug!("Executing core tool: {}", request.tool_name);
+        debug!("Executing core tool: {}", request.tool_name);
         self.core_executor.execute_tool(request).await
     }
 
@@ -296,7 +297,7 @@ impl PluginToolExecutorBuilder {
         // Register additional dynamic plugins
         for plugin in self.plugins {
             if let Err(e) = executor.plugin_registry_mut().register_plugin(plugin) {
-                tracing::error!("Failed to register dynamic plugin: {}", e);
+                error!("Failed to register dynamic plugin: {}", e);
             }
         }
 

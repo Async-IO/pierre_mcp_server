@@ -15,7 +15,7 @@ use crate::errors::{AppError, AppResult};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Manages server lifecycle, startup, and transport coordination
 pub struct ServerLifecycle {
@@ -216,7 +216,7 @@ impl ServerLifecycle {
         let mut stdout_lock = stdout.lock().await;
 
         if let Err(e) = Self::write_json_data(&mut stdout_lock, json).await {
-            tracing::error!(error = ?e, "Failed to write JSON to stdout");
+            error!(error = ?e, "Failed to write JSON to stdout");
         }
     }
 

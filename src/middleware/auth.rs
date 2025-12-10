@@ -12,6 +12,7 @@ use crate::errors::{AppError, AppResult};
 use crate::providers::errors::ProviderError;
 use crate::rate_limiting::UnifiedRateLimitCalculator;
 use crate::utils::errors::auth_error;
+use tracing::{debug, info, warn};
 
 /// Middleware for `MCP` protocol authentication
 #[derive(Clone)]
@@ -65,11 +66,11 @@ impl McpAuthMiddleware {
         &self,
         headers: &axum::http::HeaderMap,
     ) -> AppResult<AuthResult> {
-        tracing::debug!("=== AUTH MIDDLEWARE AUTHENTICATE_REQUEST_WITH_HEADERS START ===");
+        debug!("=== AUTH MIDDLEWARE AUTHENTICATE_REQUEST_WITH_HEADERS START ===");
 
         // Try cookie authentication first (preferred for web clients)
         if let Some(jwt_token) = crate::security::cookies::get_cookie_value(headers, "auth_token") {
-            tracing::debug!("Found JWT in httpOnly cookie, attempting authentication");
+            debug!("Found JWT in httpOnly cookie, attempting authentication");
             tracing::Span::current().record("auth_method", "JWT_COOKIE");
             match self.authenticate_jwt_token(&jwt_token).await {
                 Ok(result) => {
@@ -77,7 +78,7 @@ impl McpAuthMiddleware {
                         .record("user_id", result.user_id.to_string())
                         .record("tenant_id", result.user_id.to_string())
                         .record("success", true);
-                    tracing::info!(
+                    info!(
                         "JWT cookie authentication successful for user: {}",
                         result.user_id
                     );
@@ -85,7 +86,7 @@ impl McpAuthMiddleware {
                 }
                 Err(e) => {
                     tracing::Span::current().record("success", false);
-                    tracing::warn!("JWT cookie authentication failed: {}", e);
+                    warn!("JWT cookie authentication failed: {}", e);
                     return Err(e);
                 }
             }
@@ -118,12 +119,12 @@ impl McpAuthMiddleware {
         )
     )]
     pub async fn authenticate_request(&self, auth_header: Option<&str>) -> AppResult<AuthResult> {
-        tracing::debug!("=== AUTH MIDDLEWARE AUTHENTICATE_REQUEST START ===");
-        tracing::debug!("Auth header provided: {}", auth_header.is_some());
+        debug!("=== AUTH MIDDLEWARE AUTHENTICATE_REQUEST START ===");
+        debug!("Auth header provided: {}", auth_header.is_some());
 
         let auth_str = if let Some(header) = auth_header {
             // Security: Do not log auth header content to prevent token leakage
-            tracing::debug!(
+            debug!(
                 "Authentication attempt with header type: {}",
                 if header.starts_with(key_prefixes::API_KEY_LIVE) {
                     "API_KEY"
@@ -135,21 +136,21 @@ impl McpAuthMiddleware {
             );
             header
         } else {
-            tracing::warn!("Authentication failed: Missing authorization header");
+            warn!("Authentication failed: Missing authorization header");
             return Err(auth_error("Missing authorization header - Request authentication requires Authorization header with Bearer token or API key"));
         };
 
         // Try API key authentication first (starts with pk_live_)
         if auth_str.starts_with(key_prefixes::API_KEY_LIVE) {
             tracing::Span::current().record("auth_method", "API_KEY");
-            tracing::debug!("Attempting API key authentication");
+            debug!("Attempting API key authentication");
             match self.authenticate_api_key(auth_str).await {
                 Ok(result) => {
                     tracing::Span::current()
                         .record("user_id", result.user_id.to_string())
                         .record("tenant_id", result.user_id.to_string()) // Use user_id as tenant_id for now
                         .record("success", true);
-                    tracing::info!(
+                    info!(
                         "API key authentication successful for user: {}",
                         result.user_id
                     );
@@ -157,7 +158,7 @@ impl McpAuthMiddleware {
                 }
                 Err(e) => {
                     tracing::Span::current().record("success", false);
-                    tracing::warn!("API key authentication failed: {}", e);
+                    warn!("API key authentication failed: {}", e);
                     Err(e)
                 }
             }
@@ -165,19 +166,19 @@ impl McpAuthMiddleware {
         // Then try Bearer token authentication
         else if let Some(token) = auth_str.strip_prefix("Bearer ") {
             tracing::Span::current().record("auth_method", "JWT_TOKEN");
-            tracing::debug!("Attempting JWT token authentication");
+            debug!("Attempting JWT token authentication");
             match self.authenticate_jwt_token(token).await {
                 Ok(result) => {
                     tracing::Span::current()
                         .record("user_id", result.user_id.to_string())
                         .record("tenant_id", result.user_id.to_string()) // Use user_id as tenant_id for now
                         .record("success", true);
-                    tracing::info!("JWT authentication successful for user: {}", result.user_id);
+                    info!("JWT authentication successful for user: {}", result.user_id);
                     Ok(result)
                 }
                 Err(e) => {
                     tracing::Span::current().record("success", false);
-                    tracing::warn!("JWT authentication failed: {}", e);
+                    warn!("JWT authentication failed: {}", e);
                     Err(e)
                 }
             }
@@ -185,7 +186,7 @@ impl McpAuthMiddleware {
             tracing::Span::current()
                 .record("auth_method", "INVALID")
                 .record("success", false);
-            tracing::warn!("Authentication failed: Invalid authorization header format (expected 'Bearer ...' or 'pk_live_...')");
+            warn!("Authentication failed: Invalid authorization header format (expected 'Bearer ...' or 'pk_live_...')");
             Err(AppError::auth_invalid("Invalid authorization header format - must be 'Bearer <token>' or 'pk_live_<api_key>'"))
         }
     }

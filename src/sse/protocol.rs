@@ -13,6 +13,7 @@ use crate::mcp::{
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
+use tracing::{debug, error, info};
 
 /// MCP protocol stream for a specific session
 pub struct McpProtocolStream {
@@ -169,14 +170,14 @@ impl McpProtocolStream {
     ) -> Result<(), AppError> {
         match sender.send(json_data) {
             Ok(count) => {
-                tracing::info!(
+                info!(
                     "OAuth notification broadcast succeeded! Reached {} receiver(s) for provider {}",
                     count, provider
                 );
                 Ok(())
             }
             Err(e) => {
-                tracing::error!("OAuth notification broadcast FAILED: {}", e);
+                error!("OAuth notification broadcast FAILED: {}", e);
                 Err(AppError::internal(format!(
                     "Failed to send OAuth notification: {e}"
                 )))
@@ -194,7 +195,7 @@ impl McpProtocolStream {
         &self,
         notification: &crate::database::oauth_notifications::OAuthNotification,
     ) -> Result<(), AppError> {
-        tracing::debug!(
+        debug!(
             "send_oauth_notification called for provider: {}",
             notification.provider
         );
@@ -202,7 +203,7 @@ impl McpProtocolStream {
         let sender = self.get_active_sender().await?;
         let json_data = Self::build_oauth_notification_json(notification)?;
 
-        tracing::debug!("JSON data to send: {}", json_data);
+        debug!("JSON data to send: {}", json_data);
         Self::broadcast_notification(&sender, json_data, &notification.provider)
     }
 
@@ -210,12 +211,12 @@ impl McpProtocolStream {
         let sender_guard = self.sender.read().await;
         let Some(sender) = sender_guard.as_ref().cloned() else {
             drop(sender_guard);
-            tracing::error!("No active sender for protocol stream");
+            error!("No active sender for protocol stream");
             return Err(AppError::internal("No active sender for protocol stream"));
         };
         drop(sender_guard);
 
-        tracing::debug!(
+        debug!(
             "Active SSE receivers for this stream: {}",
             sender.receiver_count()
         );

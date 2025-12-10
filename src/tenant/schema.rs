@@ -6,6 +6,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 use uuid::Uuid;
 
 /// Tenant role within an organization
@@ -32,7 +33,7 @@ impl TenantRole {
             "member" => Self::Member,
             _ => {
                 // Log unknown role but fallback to member for security
-                tracing::warn!(
+                warn!(
                     "Unknown tenant role '{}' encountered, defaulting to Member",
                     s
                 );

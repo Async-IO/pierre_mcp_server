@@ -21,6 +21,7 @@ use ring::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 /// Security audit logging
@@ -44,7 +45,7 @@ pub fn audit_security_headers<S: ::std::hash::BuildHasher>(
 
     for header in &required_headers {
         if !headers.contains_key(*header) {
-            tracing::warn!("Missing required security header: {}", header);
+            warn!("Missing required security header: {}", header);
             return false;
         }
     }
@@ -217,7 +218,7 @@ impl TenantEncryptionManager {
         // Check cache first
         {
             let cache = self.derived_keys_cache.read().map_err(|e| {
-                tracing::error!(error = ?e, "Security cache RwLock poisoned - key derivation unavailable (CRITICAL SYSTEM FAILURE)");
+                error!(error = ?e, "Security cache RwLock poisoned - key derivation unavailable (CRITICAL SYSTEM FAILURE)");
                 AppError::internal("Security cache lock poisoned - key derivation unavailable")
             })?;
             if let Some(cached_key) = cache.get(&tenant_id) {
@@ -244,7 +245,7 @@ impl TenantEncryptionManager {
         // Cache the derived key
         {
             let mut cache = self.derived_keys_cache.write().map_err(|e| {
-                tracing::error!(tenant_id = %tenant_id, error = ?e, "Security cache RwLock write poisoned - cannot cache derived key (CRITICAL)");
+                error!(tenant_id = %tenant_id, error = ?e, "Security cache RwLock write poisoned - cannot cache derived key (CRITICAL)");
                 AppError::internal("Security cache lock poisoned - cannot cache derived key")
             })?;
             cache.insert(tenant_id, derived_key);
@@ -260,7 +261,7 @@ impl TenantEncryptionManager {
     /// Returns an error if the version lock is poisoned
     pub fn get_current_version(&self) -> AppResult<u32> {
         Ok(*self.current_version.read().map_err(|e| {
-            tracing::error!(error = ?e, "Key version RwLock poisoned (CRITICAL SYSTEM FAILURE)");
+            error!(error = ?e, "Key version RwLock poisoned (CRITICAL SYSTEM FAILURE)");
             AppError::internal("Version lock poisoned")
         })?)
     }
@@ -275,7 +276,7 @@ impl TenantEncryptionManager {
             .current_version
             .write()
             .map_err(|e| {
-                tracing::error!(version = version, error = ?e, "Key version RwLock write poisoned (CRITICAL SYSTEM FAILURE)");
+                error!(version = version, error = ?e, "Key version RwLock write poisoned (CRITICAL SYSTEM FAILURE)");
                 AppError::internal("Version lock poisoned")
             })? = version;
         Ok(())
@@ -443,11 +444,10 @@ impl TenantEncryptionManager {
 
             // Re-encrypt existing OAuth tokens and sensitive data with new key
             // This is a complex operation that requires careful implementation
-            tracing::warn!(
+            warn!(
                 "Key rotation for tenant {} requires manual re-encryption of existing data. \
                  Old data encrypted with version {} may become inaccessible.",
-                tenant_id,
-                old_version
+                tenant_id, old_version
             );
 
             // Activate the new key version
@@ -464,7 +464,7 @@ impl TenantEncryptionManager {
         // Clear cached key to force regeneration with new parameters
         {
             let mut cache = self.derived_keys_cache.write().map_err(|e| {
-                tracing::error!(tenant_id = %tenant_id, error = ?e, "Security cache RwLock write poisoned during key rotation (CRITICAL)");
+                error!(tenant_id = %tenant_id, error = ?e, "Security cache RwLock write poisoned during key rotation (CRITICAL)");
                 AppError::internal("Security cache lock poisoned - cannot rotate tenant key")
             })?;
             cache.remove(&tenant_id);
@@ -476,11 +476,9 @@ impl TenantEncryptionManager {
         // Re-derive key with new version to populate cache
         self.derive_tenant_key(tenant_id)?;
 
-        tracing::info!(
+        info!(
             "Rotated encryption key for tenant {} from version {} to version {}",
-            tenant_id,
-            old_version,
-            new_version
+            tenant_id, old_version, new_version
         );
 
         Ok(())
@@ -495,11 +493,11 @@ impl TenantEncryptionManager {
         self.derived_keys_cache
             .write()
             .map_err(|e| {
-                tracing::error!(error = ?e, "Security cache RwLock write poisoned - cannot clear cache (CRITICAL)");
+                error!(error = ?e, "Security cache RwLock write poisoned - cannot clear cache (CRITICAL)");
                 AppError::internal("Security cache lock poisoned - cannot clear cache")
             })?
             .clear();
-        tracing::info!("Cleared encryption key cache");
+        info!("Cleared encryption key cache");
         Ok(())
     }
 
@@ -509,13 +507,10 @@ impl TenantEncryptionManager {
     ///
     /// Returns an error if the key cache `RwLock` is poisoned
     pub fn get_stats(&self) -> AppResult<EncryptionStats> {
-        let cache = self
-            .derived_keys_cache
-            .read()
-            .map_err(|e| {
-                tracing::error!(error = ?e, "Security cache RwLock poisoned - cannot get stats (CRITICAL)");
-                AppError::internal("Security cache lock poisoned - cannot get stats")
-            })?;
+        let cache = self.derived_keys_cache.read().map_err(|e| {
+            error!(error = ?e, "Security cache RwLock poisoned - cannot get stats (CRITICAL)");
+            AppError::internal("Security cache lock poisoned - cannot get stats")
+        })?;
         Ok(EncryptionStats {
             cached_tenant_keys: cache.len(),
             master_key_algorithm: "AES-256-GCM".to_owned(),

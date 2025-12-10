@@ -18,6 +18,7 @@ use chrono::Timelike;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 use tokio::time::Duration;
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 /// Key rotation configuration
@@ -135,14 +136,13 @@ impl KeyRotationManager {
     /// Returns an error if the scheduler cannot be started
     pub fn start_scheduler(self: Arc<Self>) -> AppResult<()> {
         if !self.config.auto_rotation_enabled {
-            tracing::info!("Key rotation scheduler disabled");
+            info!("Key rotation scheduler disabled");
             return Ok(());
         }
 
-        tracing::info!(
+        info!(
             "Starting key rotation scheduler - checking every {} days at {}:00 UTC",
-            self.config.rotation_interval_days,
-            self.config.rotation_hour
+            self.config.rotation_interval_days, self.config.rotation_hour
         );
 
         let manager = Arc::clone(&self);
@@ -157,7 +157,7 @@ impl KeyRotationManager {
                 let now = chrono::Utc::now();
                 if u8::try_from(now.hour()).unwrap_or(0) == manager.config.rotation_hour {
                     if let Err(e) = manager.check_and_rotate_keys().await {
-                        tracing::error!("Key rotation check failed: {}", e);
+                        error!("Key rotation check failed: {}", e);
                     }
                 }
             }
@@ -168,7 +168,7 @@ impl KeyRotationManager {
 
     /// Check all tenants and rotate keys as needed
     async fn check_and_rotate_keys(&self) -> AppResult<()> {
-        tracing::info!("Checking for keys that need rotation");
+        info!("Checking for keys that need rotation");
 
         // Get all tenants from database
         let tenants = self.database.get_all_tenants().await?;
@@ -179,10 +179,9 @@ impl KeyRotationManager {
         // Check each tenant's keys
         for tenant in tenants {
             if let Err(e) = self.check_key_rotation(Some(tenant.id)).await {
-                tracing::error!(
+                error!(
                     "Failed to check key rotation for tenant {}: {}",
-                    tenant.id,
-                    e
+                    tenant.id, e
                 );
             }
         }
@@ -198,16 +197,15 @@ impl KeyRotationManager {
             let age_days = (chrono::Utc::now() - version.created_at).num_days();
 
             if age_days >= i64::from(self.config.rotation_interval_days) {
-                tracing::info!(
+                info!(
                     "Key for tenant {:?} is {} days old, scheduling rotation",
-                    tenant_id,
-                    age_days
+                    tenant_id, age_days
                 );
                 self.schedule_key_rotation(tenant_id).await?;
             }
         } else {
             // No key version found, create initial version
-            tracing::info!(
+            info!(
                 "No key version found for tenant {:?}, creating initial version",
                 tenant_id
             );
@@ -242,7 +240,7 @@ impl KeyRotationManager {
         };
 
         if let Err(e) = self.auditor.log_event(event).await {
-            tracing::error!("Failed to log key rotation audit event: {}", e);
+            error!("Failed to log key rotation audit event: {}", e);
         }
 
         // Perform the rotation
@@ -272,7 +270,7 @@ impl KeyRotationManager {
                         completed_at: chrono::Utc::now(),
                     },
                 );
-                tracing::info!(
+                info!(
                     "Key rotation completed successfully for tenant {:?}",
                     tenant_id
                 );
@@ -285,14 +283,14 @@ impl KeyRotationManager {
                         error: e.to_string(),
                     },
                 );
-                tracing::error!("Key rotation failed for tenant {:?}: {}", tenant_id, e);
+                error!("Key rotation failed for tenant {:?}: {}", tenant_id, e);
             }
         }
     }
 
     /// Perform actual key rotation
     async fn perform_key_rotation(&self, tenant_id: Option<Uuid>) -> AppResult<()> {
-        tracing::info!("Starting key rotation for tenant {:?}", tenant_id);
+        info!("Starting key rotation for tenant {:?}", tenant_id);
 
         self.set_rotation_in_progress(tenant_id).await;
 
@@ -397,10 +395,9 @@ impl KeyRotationManager {
             .await?;
 
         if deleted_count > 0 {
-            tracing::info!(
+            info!(
                 "Cleaned up {} old key versions for tenant {:?}",
-                deleted_count,
-                tenant_id
+                deleted_count, tenant_id
             );
 
             // Update in-memory cache by reloading from database
@@ -508,22 +505,21 @@ impl KeyRotationManager {
         tenant_id: Option<Uuid>,
         reason: &str,
     ) -> AppResult<()> {
-        tracing::warn!(
+        warn!(
             "Emergency key rotation initiated for tenant {:?}. Reason: {}",
-            tenant_id,
-            reason
+            tenant_id, reason
         );
 
         // Log critical audit event
         let event = Self::build_emergency_rotation_audit_event(tenant_id, reason);
         if let Err(e) = self.auditor.log_event(event).await {
-            tracing::error!("Failed to log emergency key rotation audit: {}", e);
+            error!("Failed to log emergency key rotation audit: {}", e);
         }
 
         // Perform immediate rotation
         self.perform_key_rotation(tenant_id).await?;
 
-        tracing::info!(
+        info!(
             "Emergency key rotation completed for tenant {:?}",
             tenant_id
         );

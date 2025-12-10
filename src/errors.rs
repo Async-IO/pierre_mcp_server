@@ -13,6 +13,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
+use tracing::warn;
 
 /// Standard error codes used throughout the application
 #[non_exhaustive]
@@ -319,7 +320,7 @@ pub struct ErrorResponse {
 impl From<AppError> for ErrorResponse {
     fn from(error: AppError) -> Self {
         // Log full details internally before sanitizing
-        tracing::warn!("API error: {}", error.internal_details());
+        warn!("API error: {}", error.internal_details());
 
         Self {
             code: error.code,

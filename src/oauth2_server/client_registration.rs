@@ -17,6 +17,7 @@ use base64::{engine::general_purpose, Engine as _};
 use chrono::{Duration, Utc};
 use ring::rand::{SecureRandom, SystemRandom};
 use std::sync::Arc;
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 /// OAuth 2.0 Client Registration Manager
@@ -79,7 +80,7 @@ impl ClientRegistrationManager {
         self.store_client(&client)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, client_id = %client_id, "Failed to store OAuth2 client registration in database");
+                error!(error = %e, client_id = %client_id, "Failed to store OAuth2 client registration in database");
                 OAuth2Error::invalid_request("Failed to store client registration")
             })?;
 
@@ -113,7 +114,7 @@ impl ClientRegistrationManager {
         client_secret_hash: &str,
     ) -> Result<(), OAuth2Error> {
         let parsed_hash = PasswordHash::new(client_secret_hash).map_err(|e| {
-            tracing::error!("Failed to parse stored password hash: {}", e);
+            error!("Failed to parse stored password hash: {}", e);
             OAuth2Error::invalid_client()
         })?;
 
@@ -122,7 +123,7 @@ impl ClientRegistrationManager {
             .verify_password(client_secret.as_bytes(), &parsed_hash)
             .is_err()
         {
-            tracing::warn!("OAuth client {} secret validation failed", client_id);
+            warn!("OAuth client {} secret validation failed", client_id);
             return Err(OAuth2Error::invalid_client());
         }
 
@@ -136,7 +137,7 @@ impl ClientRegistrationManager {
     ) -> Result<(), OAuth2Error> {
         if let Some(expires_at) = expires_at {
             if Utc::now() > expires_at {
-                tracing::warn!("OAuth client {} has expired", client_id);
+                warn!("OAuth client {} has expired", client_id);
                 return Err(OAuth2Error::invalid_client());
             }
         }
@@ -152,14 +153,14 @@ impl ClientRegistrationManager {
         client_id: &str,
         client_secret: &str,
     ) -> Result<OAuth2Client, OAuth2Error> {
-        tracing::debug!("Validating OAuth client: {}", client_id);
+        debug!("Validating OAuth client: {}", client_id);
 
         let client = self.get_client(client_id).await.map_err(|e| {
-            tracing::warn!("OAuth client {} not found: {}", client_id, e);
+            warn!("OAuth client {} not found: {}", client_id, e);
             OAuth2Error::invalid_client()
         })?;
 
-        tracing::debug!("OAuth client {} found, validating secret", client_id);
+        debug!("OAuth client {} found, validating secret", client_id);
 
         // Verify client secret using constant-time comparison via Argon2
         Self::verify_client_secret(client_id, client_secret, &client.client_secret_hash)?;
@@ -167,7 +168,7 @@ impl ClientRegistrationManager {
         // Check if client is expired
         Self::check_client_expiry(client_id, client.expires_at)?;
 
-        tracing::info!("OAuth client {} validated successfully", client_id);
+        info!("OAuth client {} validated successfully", client_id);
         Ok(client)
     }
 
@@ -260,13 +261,13 @@ impl ClientRegistrationManager {
 
         // Reject URIs with fragments (security risk - RFC 6749 Section 3.1.2)
         if uri.contains('#') {
-            tracing::warn!("Rejected redirect_uri with fragment: {}", uri);
+            warn!("Rejected redirect_uri with fragment: {}", uri);
             return false;
         }
 
         // Reject wildcard patterns (subdomain bypass attack prevention)
         if uri.contains('*') {
-            tracing::warn!("Rejected redirect_uri with wildcard: {}", uri);
+            warn!("Rejected redirect_uri with wildcard: {}", uri);
             return false;
         }
 
@@ -276,7 +277,7 @@ impl ClientRegistrationManager {
     /// Validate HTTP(S) URI scheme and host
     fn validate_http_uri(uri: &str) -> bool {
         let Ok(parsed_uri) = url::Url::parse(uri) else {
-            tracing::warn!("Rejected malformed redirect_uri: {}", uri);
+            warn!("Rejected malformed redirect_uri: {}", uri);
             return false;
         };
 
@@ -294,7 +295,7 @@ impl ClientRegistrationManager {
             return true;
         }
 
-        tracing::warn!(
+        warn!(
             "Rejected redirect_uri with non-HTTPS scheme for non-localhost: {}",
             uri
         );
@@ -337,7 +338,7 @@ impl ClientRegistrationManager {
         let rng = SystemRandom::new();
         let mut secret = [0u8; 32];
         rng.fill(&mut secret).map_err(|e| {
-            tracing::error!(error = ?e, "System RNG failure - cannot generate secure client secret (CRITICAL SECURITY ISSUE)");
+            error!(error = ?e, "System RNG failure - cannot generate secure client secret (CRITICAL SECURITY ISSUE)");
             OAuth2Error::invalid_request(
                 "System RNG failure - cannot generate secure client secret",
             )

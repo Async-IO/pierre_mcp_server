@@ -14,6 +14,7 @@ use axum::{
     Router,
 };
 use std::sync::Arc;
+use tracing::{debug, info};
 
 /// WebSocket routes implementation
 pub struct WebSocketRoutes;
@@ -47,14 +48,14 @@ impl WebSocketRoutes {
         ws: WebSocketUpgrade,
         State(manager): State<Arc<WebSocketManager>>,
     ) -> impl IntoResponse {
-        tracing::info!("New WebSocket connection request");
+        info!("New WebSocket connection request");
 
         // Yield to scheduler to allow other tasks to progress during upgrade
         tokio::task::yield_now().await;
 
         // Upgrade HTTP connection to WebSocket
         ws.on_upgrade(move |socket: WebSocket| async move {
-            tracing::debug!("WebSocket upgraded, delegating to manager");
+            debug!("WebSocket upgraded, delegating to manager");
             manager.handle_connection(socket).await;
         })
     }

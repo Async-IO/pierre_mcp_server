@@ -10,6 +10,7 @@ use crate::constants::oauth_providers;
 use crate::errors::{AppError, AppResult};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::info;
 use uuid::Uuid;
 
 // Conditional imports for provider-specific types
@@ -83,7 +84,7 @@ impl ProviderRegistry {
 
         // Log registered providers at startup
         let providers = registry.supported_providers().join(", ");
-        tracing::info!(
+        info!(
             "Provider registry initialized with {} provider(s): [{}]",
             registry.factories.len(),
             providers
@@ -338,7 +339,7 @@ impl ProviderRegistry {
             .insert(static_name, bundle.descriptor.to_config());
         self.descriptors.insert(static_name, bundle.descriptor);
 
-        tracing::info!("Registered external provider: {}", static_name);
+        info!("Registered external provider: {}", static_name);
     }
 
     /// Get list of supported provider names

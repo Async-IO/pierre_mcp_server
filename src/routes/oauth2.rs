@@ -33,6 +33,7 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tracing::{debug, error, info, trace, warn};
 
 /// OAuth 2.0 server context shared across all handlers
 #[derive(Clone)]
@@ -200,9 +201,7 @@ impl OAuth2Routes {
 
         // If no authenticated user, redirect to login page with OAuth parameters
         let Some(authenticated_user_id) = user_id else {
-            tracing::info!(
-                "No authenticated session for OAuth authorization, redirecting to login"
-            );
+            info!("No authenticated session for OAuth authorization, redirecting to login");
             let login_url = Self::build_login_url_with_oauth_params(&request);
             return Redirect::to(&login_url).into_response();
         };
@@ -241,19 +240,19 @@ impl OAuth2Routes {
             .validate_token(token, &context.jwks_manager)
         {
             Ok(claims) => {
-                tracing::info!(
+                info!(
                     "OAuth authorization for authenticated user: {}",
                     claims.email
                 );
                 if let Ok(user_uuid) = uuid::Uuid::parse_str(&claims.sub) {
                     Some((user_uuid, claims.tenant_id))
                 } else {
-                    tracing::warn!("Invalid user ID format in JWT: {}", claims.sub);
+                    warn!("Invalid user ID format in JWT: {}", claims.sub);
                     None
                 }
             }
             Err(e) => {
-                tracing::warn!("Invalid session token in OAuth authorization: {}", e);
+                warn!("Invalid session token in OAuth authorization: {}", e);
                 None
             }
         }
@@ -283,7 +282,7 @@ impl OAuth2Routes {
                     write!(&mut final_redirect_url, "&state={state}").ok();
                 }
 
-                tracing::info!(
+                info!(
                     "OAuth authorization successful for user {}, redirecting with code",
                     authenticated_user_id
                 );
@@ -291,10 +290,9 @@ impl OAuth2Routes {
                 Redirect::to(&final_redirect_url).into_response()
             }
             Err(error) => {
-                tracing::error!(
+                error!(
                     "OAuth authorization failed for user {}: {:?}",
-                    authenticated_user_id,
-                    error
+                    authenticated_user_id, error
                 );
                 Self::render_oauth_error_response(&error)
             }
@@ -354,14 +352,14 @@ impl OAuth2Routes {
         form: &HashMap<String, String>,
     ) -> Result<crate::oauth2_server::models::TokenRequest, crate::oauth2_server::models::OAuth2Error>
     {
-        tracing::debug!(
+        debug!(
             "OAuth token request received with grant_type: {:?}, client_id: {:?}",
             form.get("grant_type"),
             form.get("client_id")
         );
 
         Self::parse_token_request(form).map_err(|error| {
-            tracing::warn!("OAuth token request parsing failed: {:?}", error);
+            warn!("OAuth token request parsing failed: {:?}", error);
             error
         })
     }
@@ -373,14 +371,14 @@ impl OAuth2Routes {
     ) -> Response {
         match auth_server.token(request).await {
             Ok(response) => {
-                tracing::info!(
+                info!(
                     "OAuth token exchange successful for client: {}",
                     form.get("client_id").map_or("unknown", |v| v)
                 );
                 (StatusCode::OK, Json(response)).into_response()
             }
             Err(error) => {
-                tracing::warn!(
+                warn!(
                     "OAuth token exchange failed for client {}: {:?}",
                     form.get("client_id").map_or("unknown", |v| v),
                     error
@@ -402,7 +400,7 @@ impl OAuth2Routes {
             Err(response) => return *response,
         };
 
-        tracing::debug!(
+        debug!(
             "Validate-and-refresh request received with token (first 20 chars): {}...",
             &access_token[..std::cmp::min(20, access_token.len())]
         );
@@ -418,14 +416,14 @@ impl OAuth2Routes {
             .await
         {
             Ok(response) => {
-                tracing::info!(
+                info!(
                     "Token validation completed with status: {:?}",
                     response.status
                 );
                 (StatusCode::OK, Json(response)).into_response()
             }
             Err(error) => {
-                tracing::error!("Validate-and-refresh failed: {}", error);
+                error!("Validate-and-refresh failed: {}", error);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(serde_json::json!({
@@ -483,14 +481,14 @@ impl OAuth2Routes {
         let client_manager = ClientRegistrationManager::new(database);
         match client_manager.get_client(client_id).await {
             Ok(_) => {
-                tracing::info!(
+                info!(
                     "Credentials validated successfully for client_id: {}",
                     client_id
                 );
                 Self::validation_success_response()
             }
             Err(e) => {
-                tracing::debug!("Client validation failed for {}: {}", client_id, e);
+                debug!("Client validation failed for {}: {}", client_id, e);
                 Self::validation_invalid_client_response()
             }
         }
@@ -502,7 +500,7 @@ impl OAuth2Routes {
         headers: HeaderMap,
         Json(request): Json<serde_json::Value>,
     ) -> Response {
-        tracing::debug!("Token validation request received");
+        debug!("Token validation request received");
 
         // Extract client_id from request body (optional)
         let client_id = request.get("client_id").and_then(|v| v.as_str());
@@ -661,7 +659,7 @@ impl OAuth2Routes {
                     code_challenge_method,
                 );
 
-                tracing::info!(
+                info!(
                     "User {} authenticated successfully for OAuth, redirecting to authorization",
                     email
                 );
@@ -683,7 +681,7 @@ impl OAuth2Routes {
                     .into_response()
             }
             Err(e) => {
-                tracing::warn!("Authentication failed for OAuth login: {}", e);
+                warn!("Authentication failed for OAuth login: {}", e);
 
                 // Use embedded template - zero filesystem IO, guaranteed to exist at compile-time
                 let error_html = Self::OAUTH_LOGIN_ERROR_TEMPLATE
@@ -725,7 +723,7 @@ impl OAuth2Routes {
         let jwks = match context.jwks_manager.get_jwks() {
             Ok(jwks) => jwks,
             Err(e) => {
-                tracing::error!("Failed to generate JWKS: {}", e);
+                error!("Failed to generate JWKS: {}", e);
                 // Return empty JWKS on error (graceful degradation)
                 return (
                     StatusCode::OK,
@@ -736,7 +734,7 @@ impl OAuth2Routes {
             }
         };
 
-        tracing::debug!("JWKS endpoint accessed, returning {} keys", jwks.keys.len());
+        debug!("JWKS endpoint accessed, returning {} keys", jwks.keys.len());
 
         // Calculate ETag from JWKS content for efficient caching
         let (_jwks_json, etag) = match Self::compute_jwks_etag(jwks.clone()).await {
@@ -746,7 +744,7 @@ impl OAuth2Routes {
 
         // Check if client's cached version matches current version
         if Self::check_etag_match(&headers, &etag) {
-            tracing::debug!("JWKS ETag match, returning 304 Not Modified");
+            debug!("JWKS ETag match, returning 304 Not Modified");
             return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
         }
 
@@ -783,11 +781,11 @@ impl OAuth2Routes {
         match etag_result {
             Ok(Ok((json, tag))) => Ok((json, tag)),
             Ok(Err(_)) => {
-                tracing::error!("Failed to serialize JWKS for ETag calculation");
+                error!("Failed to serialize JWKS for ETag calculation");
                 Err(Self::jwks_error_response())
             }
             Err(_) => {
-                tracing::error!("Spawn blocking task panicked during JWKS serialization");
+                error!("Spawn blocking task panicked during JWKS serialization");
                 Err(Self::jwks_error_response())
             }
         }
@@ -815,7 +813,7 @@ impl OAuth2Routes {
     /// Extract Bearer token from Authorization header
     fn extract_bearer_token(headers: &HeaderMap) -> Result<String, Box<Response>> {
         let header = headers.get(header::AUTHORIZATION).ok_or_else(|| {
-            tracing::warn!("Missing Authorization header");
+            warn!("Missing Authorization header");
             Box::new(
                 (
                     StatusCode::UNAUTHORIZED,
@@ -845,7 +843,7 @@ impl OAuth2Routes {
             .strip_prefix("Bearer ")
             .map(str::to_owned)
             .ok_or_else(|| {
-                tracing::warn!("Invalid Authorization header format - missing Bearer prefix");
+                warn!("Invalid Authorization header format - missing Bearer prefix");
                 Box::new(
                     (
                         StatusCode::UNAUTHORIZED,
@@ -901,7 +899,7 @@ impl OAuth2Routes {
         match auth_manager.validate_token(token, jwks_manager) {
             Ok(_) => Ok(true),
             Err(e) => {
-                tracing::debug!("Token validation failed: {}", e);
+                debug!("Token validation failed: {}", e);
                 Err(Box::new(
                     (
                         StatusCode::OK,
@@ -1003,7 +1001,7 @@ impl OAuth2Routes {
     fn parse_authorize_request(
         params: &HashMap<String, String>,
     ) -> Result<AuthorizeRequest, OAuth2Error> {
-        tracing::trace!(
+        trace!(
             "Parsing OAuth authorize request with {} parameters",
             params.len()
         );
