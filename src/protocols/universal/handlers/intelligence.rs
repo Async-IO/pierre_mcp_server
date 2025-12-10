@@ -609,7 +609,7 @@ fn build_intelligence_metadata(
     metadata
 }
 
-/// Create intelligence analysis JSON response with optional Claude sampling
+/// Create intelligence analysis JSON response with optional MCP sampling
 async fn create_intelligence_response(
     activity: &crate::models::Activity,
     activity_id: &str,
@@ -617,14 +617,14 @@ async fn create_intelligence_response(
     tenant_id: Option<String>,
     sampling_peer: Option<&std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>>,
 ) -> UniversalResponse {
-    // Try Claude sampling first if available (MCP Sampling feature)
+    // Try MCP sampling first if available (uses client's LLM)
     if let Some(peer) = sampling_peer {
-        match generate_activity_intelligence_with_claude(peer, activity).await {
-            Ok(claude_analysis) => {
-                info!("Generated activity intelligence using Claude sampling");
+        match generate_activity_intelligence_via_sampling(peer, activity).await {
+            Ok(llm_analysis) => {
+                info!("Generated activity intelligence using MCP sampling");
                 return UniversalResponse {
                     success: true,
-                    result: Some(claude_analysis),
+                    result: Some(llm_analysis),
                     error: None,
                     metadata: Some({
                         let mut map = std::collections::HashMap::new();
@@ -641,7 +641,7 @@ async fn create_intelligence_response(
                         }
                         map.insert(
                             "analysis_source".to_owned(),
-                            serde_json::Value::String("claude_sampling".to_owned()),
+                            serde_json::Value::String("mcp_sampling".to_owned()),
                         );
                         map
                     }),
@@ -649,7 +649,7 @@ async fn create_intelligence_response(
             }
             Err(e) => {
                 warn!(
-                    "Claude sampling failed, falling back to static analysis: {}",
+                    "MCP sampling failed, falling back to static analysis: {}",
                     e
                 );
             }
@@ -1442,21 +1442,21 @@ pub fn handle_generate_recommendations(
                             );
                         }
 
-                        // Try to use Claude sampling if available, otherwise use static analysis
+                        // Try to use MCP sampling if available, otherwise use static analysis
                         let analysis = if let Some(sampling_peer) =
                             &executor.resources.sampling_peer
                         {
-                            // Use Claude to generate personalized recommendations
-                            match generate_recommendations_with_claude(
+                            // Use MCP sampling (client's LLM) to generate personalized recommendations
+                            match generate_recommendations_via_sampling(
                                 sampling_peer,
                                 &activities,
                                 recommendation_type,
                             )
                             .await
                             {
-                                Ok(claude_recommendations) => claude_recommendations,
+                                Ok(llm_recommendations) => llm_recommendations,
                                 Err(e) => {
-                                    warn!("Claude sampling failed, falling back to static recommendations: {}", e);
+                                    warn!("MCP sampling failed, falling back to static recommendations: {}", e);
                                     generate_training_recommendations(
                                         &activities,
                                         recommendation_type,
@@ -3020,28 +3020,26 @@ fn format_overtraining_signals(
 // Helper Functions for Training Recommendations
 // ============================================================================
 
-/// Generate activity intelligence using Claude sampling (MCP feature)
+/// Generate activity intelligence via MCP sampling
 ///
-/// Analyzes a single activity using Claude for AI-powered insights.
+/// Analyzes a single activity using the client's LLM via MCP sampling for AI-powered insights.
 ///
 /// # Arguments
 /// * `sampling_peer` - MCP sampling peer for LLM requests
 /// * `activity` - Activity to analyze
 ///
 /// # Returns
-/// JSON response with Claude-generated activity analysis
+/// JSON response with LLM-generated activity analysis
 ///
 /// # Errors
 /// Returns error if sampling request fails or response is invalid
-async fn generate_activity_intelligence_with_claude(
+async fn generate_activity_intelligence_via_sampling(
     sampling_peer: &std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>,
     activity: &crate::models::Activity,
 ) -> crate::errors::AppResult<serde_json::Value> {
-    use crate::mcp::schema::{
-        Content, CreateMessageRequest, ModelHint, ModelPreferences, PromptMessage,
-    };
+    use crate::mcp::schema::{Content, CreateMessageRequest, ModelPreferences, PromptMessage};
 
-    // Prepare activity data for Claude
+    // Prepare activity data for LLM analysis
     #[allow(clippy::cast_precision_loss)]
     let duration_min = activity.duration_seconds as f64 / 60.0;
     let distance_km = activity.distance_meters.map(|d| d / 1000.0);
@@ -3067,7 +3065,7 @@ async fn generate_activity_intelligence_with_claude(
             .map_or_else(|| "N/A".to_owned(), |c| c.to_string())
     );
 
-    // Create prompt for Claude
+    // Create prompt for LLM
     let prompt = format!(
         "You are an expert fitness coach analyzing an athlete's activity.\n\n\
          {activity_summary}\n\n\
@@ -3086,15 +3084,14 @@ async fn generate_activity_intelligence_with_claude(
          }}"
     );
 
-    // Send sampling request
+    // Send sampling request to client's LLM
     let request = CreateMessageRequest {
         messages: vec![PromptMessage::user(Content::Text {
             text: prompt,
         })],
         model_preferences: Some(ModelPreferences {
-            hints: Some(vec![ModelHint {
-                name: Some("claude-3-5-sonnet".to_owned()),
-            }]),
+            // Hint for high-quality model - client decides actual model
+            hints: None,
             intelligence_priority: Some(0.9),
             cost_priority: None,
             speed_priority: None,
@@ -3109,7 +3106,7 @@ async fn generate_activity_intelligence_with_claude(
 
     let result = sampling_peer.create_message(request).await?;
 
-    // Parse Claude's response
+    // Parse LLM response
     serde_json::from_str::<serde_json::Value>(&result.content.text).or_else(|_| {
         // Wrap non-JSON response
         Ok(serde_json::json!({
@@ -3117,14 +3114,14 @@ async fn generate_activity_intelligence_with_claude(
             "insights": [result.content.text],
             "recommendations": [],
             "analysis_type": "ai_powered",
-            "source": "claude_sampling"
+            "source": "mcp_sampling"
         }))
     })
 }
 
-/// Generate training recommendations using Claude sampling (MCP feature)
+/// Generate training recommendations via MCP sampling
 ///
-/// Sends activity data to Claude via MCP sampling for AI-powered coaching advice.
+/// Sends activity data to the client's LLM via MCP sampling for AI-powered coaching advice.
 /// Returns natural language recommendations based on training patterns.
 ///
 /// # Arguments
@@ -3133,20 +3130,18 @@ async fn generate_activity_intelligence_with_claude(
 /// * `recommendation_type` - Type of recommendations requested
 ///
 /// # Returns
-/// JSON response with Claude-generated training recommendations
+/// JSON response with LLM-generated training recommendations
 ///
 /// # Errors
 /// Returns error if sampling request fails or response is invalid
-async fn generate_recommendations_with_claude(
+async fn generate_recommendations_via_sampling(
     sampling_peer: &std::sync::Arc<crate::mcp::sampling_peer::SamplingPeer>,
     activities: &[crate::models::Activity],
     recommendation_type: &str,
 ) -> crate::errors::AppResult<serde_json::Value> {
-    use crate::mcp::schema::{
-        Content, CreateMessageRequest, ModelHint, ModelPreferences, PromptMessage,
-    };
+    use crate::mcp::schema::{Content, CreateMessageRequest, ModelPreferences, PromptMessage};
 
-    // Prepare activity summary for Claude
+    // Prepare activity summary for LLM analysis
     let activity_summary = if activities.is_empty() {
         "No recent training data available.".to_owned()
     } else {
@@ -3181,7 +3176,7 @@ async fn generate_recommendations_with_claude(
         }
     };
 
-    // Create prompt for Claude
+    // Create prompt for LLM
     let prompt = format!(
         "You are an expert fitness coach analyzing training data.\n\n\
          {activity_summary}\n\n\
@@ -3196,15 +3191,14 @@ async fn generate_recommendations_with_claude(
          }}"
     );
 
-    // Send sampling request to Claude
+    // Send sampling request to client's LLM
     let request = CreateMessageRequest {
         messages: vec![PromptMessage::user(Content::Text {
             text: prompt,
         })],
         model_preferences: Some(ModelPreferences {
-            hints: Some(vec![ModelHint {
-                name: Some("claude-3-5-sonnet".to_owned()),
-            }]),
+            // High intelligence priority - client decides actual model
+            hints: None,
             intelligence_priority: Some(0.8),
             cost_priority: None,
             speed_priority: None,
@@ -3219,16 +3213,16 @@ async fn generate_recommendations_with_claude(
 
     let result = sampling_peer.create_message(request).await?;
 
-    // Parse Claude's response as JSON
+    // Parse LLM response as JSON
     let response_text = &result.content.text;
     serde_json::from_str::<serde_json::Value>(response_text).or_else(|_| {
-        // If Claude didn't return pure JSON, wrap the text in a response structure
+        // If LLM didn't return pure JSON, wrap the text in a response structure
         Ok(serde_json::json!({
             "recommendation_type": recommendation_type,
             "recommendations": [response_text],
             "priority": "medium",
-            "reasoning": "Generated by Claude",
-            "source": "claude_sampling"
+            "reasoning": "Generated via MCP sampling",
+            "source": "mcp_sampling"
         }))
     })
 }
