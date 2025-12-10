@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
-use pierre_mcp_server::configuration::{
+use pierre_mcp_server::config::{
     profiles::FitnessLevel, runtime::ConfigValue, validation::ConfigValidator,
 };
 use pierre_mcp_server::models::{SportType, UserPhysiologicalProfile};

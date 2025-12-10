@@ -11,7 +11,7 @@ mod helpers;
 
 use chrono::Utc;
 use helpers::test_utils::{create_synthetic_provider_with_scenario, TestScenario};
-use pierre_mcp_server::config::intelligence_config::DefaultStrategy;
+use pierre_mcp_server::config::intelligence::DefaultStrategy;
 use pierre_mcp_server::intelligence::{
     ActivityGoal, AdvancedGoalEngine, FitnessLevel, Goal, GoalEngineTrait, GoalStatus, GoalType,
     PerformanceAnalyzerV2, TimeAvailability, TimeFrame, UserFitnessProfile, UserPreferences,

@@ -1199,7 +1199,7 @@ pub struct UserPhysiologicalProfile {
     /// Weight in kg
     pub weight: Option<f64>,
     /// Overall fitness level
-    pub fitness_level: crate::configuration::profiles::FitnessLevel,
+    pub fitness_level: crate::config::profiles::FitnessLevel,
     /// Primary sport for specialized calculations
     pub primary_sport: SportType,
     /// Years of training experience
@@ -1218,7 +1218,7 @@ impl UserPhysiologicalProfile {
             lactate_threshold_percentage: None,
             age: None,
             weight: None,
-            fitness_level: crate::configuration::profiles::FitnessLevel::Recreational,
+            fitness_level: crate::config::profiles::FitnessLevel::Recreational,
             primary_sport,
             training_experience_years: None,
         }
@@ -1252,9 +1252,9 @@ impl UserPhysiologicalProfile {
 
     /// Get fitness level from VO2 max if available
     #[must_use]
-    pub fn fitness_level_from_vo2_max(&self) -> crate::configuration::profiles::FitnessLevel {
+    pub fn fitness_level_from_vo2_max(&self) -> crate::config::profiles::FitnessLevel {
         self.vo2_max.map_or(self.fitness_level, |vo2_max| {
-            crate::configuration::profiles::FitnessLevel::from_vo2_max(
+            crate::config::profiles::FitnessLevel::from_vo2_max(
                 vo2_max, self.age, None, // Gender not stored in this profile
             )
         })

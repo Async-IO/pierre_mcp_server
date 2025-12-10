@@ -19,8 +19,8 @@ use pierre_mcp_server::intelligence::sleep_analysis::{
 use pierre_mcp_server::intelligence::training_load::TrainingLoad;
 
 /// Helper to get default test config
-fn test_config() -> pierre_mcp_server::config::intelligence_config::SleepRecoveryConfig {
-    pierre_mcp_server::config::intelligence_config::IntelligenceConfig::default().sleep_recovery
+fn test_config() -> pierre_mcp_server::config::intelligence::SleepRecoveryConfig {
+    pierre_mcp_server::config::intelligence::IntelligenceConfig::default().sleep_recovery
 }
 
 /// Helper to get default test algorithm (matches config weights)

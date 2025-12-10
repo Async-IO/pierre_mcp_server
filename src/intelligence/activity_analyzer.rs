@@ -9,7 +9,7 @@ use super::{
     ActivityInsights, AdvancedInsight, AdvancedMetrics, Anomaly, Confidence, InsightSeverity,
     MetricsCalculator,
 };
-use crate::config::intelligence_config::{ActivityAnalyzerConfig, IntelligenceConfig};
+use crate::config::intelligence::{ActivityAnalyzerConfig, IntelligenceConfig};
 use crate::errors::{AppError, AppResult};
 use crate::intelligence::physiological_constants::{
     activity_scoring::{

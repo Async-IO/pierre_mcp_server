@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use crate::configuration::{catalog::CatalogBuilder, profiles::ProfileTemplates};
+use crate::config::{catalog::CatalogBuilder, profiles::ProfileTemplates};
 use crate::database_plugins::DatabaseProvider;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;

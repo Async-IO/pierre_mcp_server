@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
-use pierre_mcp_server::configuration::profiles::{ConfigProfile, FitnessLevel, ProfileTemplates};
+use pierre_mcp_server::config::profiles::{ConfigProfile, FitnessLevel, ProfileTemplates};
 
 #[test]
 fn test_profile_names() {

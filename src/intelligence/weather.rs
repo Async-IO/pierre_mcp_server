@@ -7,8 +7,8 @@
 //! Weather service integration for contextual activity analysis
 
 use super::WeatherConditions;
-use crate::config::fitness_config::WeatherApiConfig;
-use crate::config::intelligence_config::{IntelligenceConfig, WeatherAnalysisConfig};
+use crate::config::fitness::WeatherApiConfig;
+use crate::config::intelligence::{IntelligenceConfig, WeatherAnalysisConfig};
 use crate::intelligence::physiological_constants::{
     unit_conversions::MS_TO_KMH_FACTOR,
     weather_impact_factors::{

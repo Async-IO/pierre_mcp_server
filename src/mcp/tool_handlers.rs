@@ -1103,10 +1103,9 @@ impl ToolHandlers {
 
         let config_name = &params.configuration_name;
 
-        let configuration = match serde_json::from_value::<
-            crate::config::fitness_config::FitnessConfig,
-        >(params.configuration)
-        {
+        let configuration = match serde_json::from_value::<crate::config::fitness::FitnessConfig>(
+            params.configuration,
+        ) {
             Ok(fc) => fc,
             Err(e) => {
                 return McpResponse {

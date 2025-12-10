@@ -10,7 +10,7 @@
 //! thresholds, and personalized settings. All handlers require valid JWT authentication.
 
 use crate::{
-    configuration_routes::ConfigurationRoutes as ConfigService, errors::AppError,
+    config::routes::configuration::ConfigurationRoutes as ConfigService, errors::AppError,
     mcp::resources::ServerResources,
 };
 use axum::{
@@ -73,7 +73,7 @@ impl ConfigurationRoutes {
     async fn handle_update_config(
         State(resources): State<Arc<ServerResources>>,
         headers: axum::http::HeaderMap,
-        Json(request): Json<crate::configuration_routes::UpdateConfigurationRequest>,
+        Json(request): Json<crate::config::routes::configuration::UpdateConfigurationRequest>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
 
@@ -106,7 +106,7 @@ impl ConfigurationRoutes {
     async fn handle_update_user_config(
         State(resources): State<Arc<ServerResources>>,
         headers: axum::http::HeaderMap,
-        Json(request): Json<crate::configuration_routes::UpdateConfigurationRequest>,
+        Json(request): Json<crate::config::routes::configuration::UpdateConfigurationRequest>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
 

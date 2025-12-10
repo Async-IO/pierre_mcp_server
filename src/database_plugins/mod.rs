@@ -875,7 +875,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness_config::FitnessConfig,
+        config: &crate::config::fitness::FitnessConfig,
     ) -> AppResult<String>;
 
     /// Save user-specific fitness configuration
@@ -884,7 +884,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness_config::FitnessConfig,
+        config: &crate::config::fitness::FitnessConfig,
     ) -> AppResult<String>;
 
     /// Get tenant-level fitness configuration
@@ -892,7 +892,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>>;
+    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>>;
 
     /// Get user-specific fitness configuration
     async fn get_user_fitness_config(
@@ -900,7 +900,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>>;
+    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>>;
 
     /// List all tenant-level fitness configuration names
     async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> AppResult<Vec<String>>;

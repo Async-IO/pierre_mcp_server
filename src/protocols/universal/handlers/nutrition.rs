@@ -259,8 +259,7 @@ pub fn handle_calculate_daily_nutrition(
         };
 
         // Get nutrition config
-        let nutrition_config =
-            &crate::config::intelligence_config::IntelligenceConfig::global().nutrition;
+        let nutrition_config = &crate::config::intelligence::IntelligenceConfig::global().nutrition;
 
         // Calculate daily nutrition needs
         let nutrition_result = calculate_daily_nutrition_needs(
@@ -390,7 +389,7 @@ pub fn handle_get_nutrient_timing(
             (parse_workout_intensity(intensity_str)?, "explicit")
         };
 
-        let config = &crate::config::intelligence_config::IntelligenceConfig::global().nutrition;
+        let config = &crate::config::intelligence::IntelligenceConfig::global().nutrition;
 
         let timing_result = calculate_nutrient_timing(
             weight_kg,

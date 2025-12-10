@@ -27,7 +27,7 @@
 //!   *Journal of the International Society of Sports Nutrition*, 14, 33.
 //!   <https://doi.org/10.1186/s12970-017-0189-4>
 
-use crate::config::intelligence_config::{
+use crate::config::intelligence::{
     ActivityFactorsConfig, BmrConfig, MacronutrientConfig, NutrientTimingConfig,
 };
 use crate::errors::AppError;

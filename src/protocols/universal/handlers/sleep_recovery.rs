@@ -630,8 +630,7 @@ pub fn handle_analyze_sleep_quality(
         };
 
         // Get sleep/recovery config
-        let config =
-            &crate::config::intelligence_config::IntelligenceConfig::global().sleep_recovery;
+        let config = &crate::config::intelligence::IntelligenceConfig::global().sleep_recovery;
 
         // Calculate sleep quality using foundation module
         let sleep_quality =
@@ -862,8 +861,7 @@ pub fn handle_calculate_recovery_score(
         };
 
         // Get sleep/recovery config
-        let config =
-            &crate::config::intelligence_config::IntelligenceConfig::global().sleep_recovery;
+        let config = &crate::config::intelligence::IntelligenceConfig::global().sleep_recovery;
 
         let sleep_quality =
             SleepAnalyzer::calculate_sleep_quality(&sleep_data, config).map_err(|e| {
@@ -1117,8 +1115,7 @@ pub fn handle_suggest_rest_day(
         };
 
         // Get sleep/recovery config
-        let config =
-            &crate::config::intelligence_config::IntelligenceConfig::global().sleep_recovery;
+        let config = &crate::config::intelligence::IntelligenceConfig::global().sleep_recovery;
 
         let sleep_quality =
             SleepAnalyzer::calculate_sleep_quality(&sleep_data, config).map_err(|e| {
@@ -1372,8 +1369,7 @@ pub fn handle_track_sleep_trends(
                 .count() as f64;
 
         // Get sleep/recovery config
-        let config =
-            &crate::config::intelligence_config::IntelligenceConfig::global().sleep_recovery;
+        let config = &crate::config::intelligence::IntelligenceConfig::global().sleep_recovery;
 
         // Calculate quality scores for each day
         let mut quality_scores = Vec::new();
@@ -1567,8 +1563,7 @@ pub fn handle_optimize_sleep_schedule(
             })?;
 
         // Get sleep/recovery config
-        let config =
-            &crate::config::intelligence_config::IntelligenceConfig::global().sleep_recovery;
+        let config = &crate::config::intelligence::IntelligenceConfig::global().sleep_recovery;
 
         // Get upcoming workout info (optional)
         let upcoming_workout_intensity = request

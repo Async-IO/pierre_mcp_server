@@ -28,7 +28,7 @@ impl FitnessConfigRepository for FitnessConfigRepositoryImpl {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness_config::FitnessConfig,
+        config: &crate::config::fitness::FitnessConfig,
     ) -> Result<String, DatabaseError> {
         self.db
             .save_tenant_fitness_config(tenant_id, configuration_name, config)
@@ -43,7 +43,7 @@ impl FitnessConfigRepository for FitnessConfigRepositoryImpl {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness_config::FitnessConfig,
+        config: &crate::config::fitness::FitnessConfig,
     ) -> Result<String, DatabaseError> {
         self.db
             .save_user_fitness_config(tenant_id, user_id, configuration_name, config)
@@ -57,7 +57,7 @@ impl FitnessConfigRepository for FitnessConfigRepositoryImpl {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>, DatabaseError> {
+    ) -> Result<Option<crate::config::fitness::FitnessConfig>, DatabaseError> {
         self.db
             .get_tenant_fitness_config(tenant_id, configuration_name)
             .await
@@ -71,7 +71,7 @@ impl FitnessConfigRepository for FitnessConfigRepositoryImpl {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>, DatabaseError> {
+    ) -> Result<Option<crate::config::fitness::FitnessConfig>, DatabaseError> {
         self.db
             .get_user_fitness_config(tenant_id, user_id, configuration_name)
             .await

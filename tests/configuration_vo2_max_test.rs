@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
-use pierre_mcp_server::configuration::vo2_max::VO2MaxCalculator;
+use pierre_mcp_server::config::vo2_max::VO2MaxCalculator;
 
 #[test]
 fn test_vo2_max_calculator_creation() {

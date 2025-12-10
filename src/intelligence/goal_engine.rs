@@ -13,9 +13,7 @@ use super::{
     AdvancedInsight, Confidence, Deserialize, FitnessLevel, Goal, GoalType, InsightSeverity,
     Milestone, ProgressReport, Serialize, TimeFrame, UserFitnessProfile,
 };
-use crate::config::intelligence_config::{
-    GoalEngineConfig, IntelligenceConfig, IntelligenceStrategy,
-};
+use crate::config::intelligence::{GoalEngineConfig, IntelligenceConfig, IntelligenceStrategy};
 use crate::errors::{AppError, AppResult};
 use crate::intelligence::physiological_constants::{
     consistency::{
@@ -65,7 +63,7 @@ pub trait GoalEngineTrait {
 
 /// Advanced goal engine implementation with configurable strategy
 pub struct AdvancedGoalEngine<
-    S: IntelligenceStrategy = crate::config::intelligence_config::DefaultStrategy,
+    S: IntelligenceStrategy = crate::config::intelligence::DefaultStrategy,
 > {
     strategy: S,
     config: GoalEngineConfig,
@@ -84,7 +82,7 @@ impl AdvancedGoalEngine {
     pub fn new() -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
-            strategy: crate::config::intelligence_config::DefaultStrategy,
+            strategy: crate::config::intelligence::DefaultStrategy,
             config: global_config.goal_engine.clone(),
             user_profile: None,
         }
@@ -119,7 +117,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
     pub fn with_profile(profile: UserFitnessProfile) -> AdvancedGoalEngine {
         let global_config = IntelligenceConfig::global();
         AdvancedGoalEngine {
-            strategy: crate::config::intelligence_config::DefaultStrategy,
+            strategy: crate::config::intelligence::DefaultStrategy,
             config: global_config.goal_engine.clone(),
             user_profile: Some(profile),
         }

@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use crate::config::fitness_config::FitnessConfig;
+use crate::config::fitness::FitnessConfig;
 use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqlitePool};

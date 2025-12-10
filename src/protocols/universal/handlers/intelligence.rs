@@ -58,7 +58,7 @@ async fn fetch_and_calculate_recovery_adjustment(
             .map_err(|e| e.error.unwrap_or_else(|| "Unknown error".to_owned()))?;
 
     // Calculate sleep quality score using SleepAnalyzer
-    let config = &crate::config::intelligence_config::IntelligenceConfig::global().sleep_recovery;
+    let config = &crate::config::intelligence::IntelligenceConfig::global().sleep_recovery;
     let sleep_quality = SleepAnalyzer::calculate_sleep_quality(&sleep_data, config)
         .map_err(|e| format!("Sleep quality calculation failed: {e}"))?;
 
@@ -134,7 +134,7 @@ async fn fetch_recovery_context_for_training_load(
             .map_err(|e| e.error.unwrap_or_else(|| "Unknown error".to_owned()))?;
 
     // Calculate sleep quality score
-    let config = &crate::config::intelligence_config::IntelligenceConfig::global().sleep_recovery;
+    let config = &crate::config::intelligence::IntelligenceConfig::global().sleep_recovery;
     let sleep_quality = SleepAnalyzer::calculate_sleep_quality(&sleep_data, config)
         .map_err(|e| format!("Sleep quality calculation failed: {e}"))?;
 

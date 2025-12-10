@@ -1247,7 +1247,7 @@ impl ServerConfig {
     /// Returns an error if intelligence configuration cannot be loaded or validated
     pub fn init_all_configs(&self) -> AppResult<()> {
         // Initialize intelligence configuration
-        let intelligence_config = crate::config::intelligence_config::IntelligenceConfig::global();
+        let intelligence_config = crate::config::intelligence::IntelligenceConfig::global();
 
         // Validate intelligence configuration is properly loaded by accessing a field
         info!(

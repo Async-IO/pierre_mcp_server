@@ -21,7 +21,7 @@
 #![allow(missing_docs)]
 
 use pierre_mcp_server::{
-    config::intelligence_config::IntelligenceConfig,
+    config::intelligence::IntelligenceConfig,
     intelligence::nutrition_calculator::{
         calculate_carb_needs, calculate_daily_nutrition_needs, calculate_fat_needs,
         calculate_mifflin_st_jeor, calculate_nutrient_timing, calculate_protein_needs,

@@ -13,7 +13,7 @@ use super::{
     FITNESS_STABLE_THRESHOLD, MIN_STATISTICAL_SIGNIFICANCE_POINTS, SMALL_DATASET_REDUCTION_FACTOR,
     STATISTICAL_SIGNIFICANCE_THRESHOLD, STRENGTH_ENDURANCE_DIVISOR,
 };
-use crate::config::intelligence_config::{
+use crate::config::intelligence::{
     IntelligenceConfig, IntelligenceStrategy, PerformanceAnalyzerConfig,
 };
 use crate::errors::{AppError, AppResult};
@@ -112,7 +112,7 @@ pub trait PerformanceAnalyzerTrait {
 
 /// Advanced performance analyzer implementation with configurable strategy
 pub struct AdvancedPerformanceAnalyzer<
-    S: IntelligenceStrategy = crate::config::intelligence_config::DefaultStrategy,
+    S: IntelligenceStrategy = crate::config::intelligence::DefaultStrategy,
 > {
     strategy: S,
     config: PerformanceAnalyzerConfig,
@@ -131,7 +131,7 @@ impl AdvancedPerformanceAnalyzer {
     pub fn new() -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
-            strategy: crate::config::intelligence_config::DefaultStrategy,
+            strategy: crate::config::intelligence::DefaultStrategy,
             config: global_config.performance_analyzer.clone(),
             user_profile: None,
         }
@@ -165,7 +165,7 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
     pub fn with_profile(profile: UserFitnessProfile) -> AdvancedPerformanceAnalyzer {
         let global_config = IntelligenceConfig::global();
         AdvancedPerformanceAnalyzer {
-            strategy: crate::config::intelligence_config::DefaultStrategy,
+            strategy: crate::config::intelligence::DefaultStrategy,
             config: global_config.performance_analyzer.clone(),
             user_profile: Some(profile),
         }

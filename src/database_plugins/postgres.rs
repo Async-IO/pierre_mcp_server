@@ -4621,7 +4621,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness_config::FitnessConfig,
+        config: &crate::config::fitness::FitnessConfig,
     ) -> AppResult<String> {
         let config_json = serde_json::to_string(config)?;
         let now = chrono::Utc::now().to_rfc3339();
@@ -4654,7 +4654,7 @@ impl DatabaseProvider for PostgresDatabase {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness_config::FitnessConfig,
+        config: &crate::config::fitness::FitnessConfig,
     ) -> AppResult<String> {
         let config_json = serde_json::to_string(config)?;
         let now = chrono::Utc::now().to_rfc3339();
@@ -4687,7 +4687,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>> {
+    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>> {
         let result = sqlx::query(
             r"
             SELECT config_data FROM fitness_configurations
@@ -4702,8 +4702,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         if let Some(row) = result {
             let config_json: String = row.get("config_data");
-            let config: crate::config::fitness_config::FitnessConfig =
-                serde_json::from_str(&config_json)?;
+            let config: crate::config::fitness::FitnessConfig = serde_json::from_str(&config_json)?;
             Ok(Some(config))
         } else {
             Ok(None)
@@ -4716,7 +4715,7 @@ impl DatabaseProvider for PostgresDatabase {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>> {
+    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>> {
         // First try to get user-specific configuration
         let result = sqlx::query(
             r"
@@ -4733,8 +4732,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         if let Some(row) = result {
             let config_json: String = row.get("config_data");
-            let config: crate::config::fitness_config::FitnessConfig =
-                serde_json::from_str(&config_json)?;
+            let config: crate::config::fitness::FitnessConfig = serde_json::from_str(&config_json)?;
             return Ok(Some(config));
         }
 
@@ -4753,8 +4751,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         if let Some(row) = result {
             let config_json: String = row.get("config_data");
-            let config: crate::config::fitness_config::FitnessConfig =
-                serde_json::from_str(&config_json)?;
+            let config: crate::config::fitness::FitnessConfig = serde_json::from_str(&config_json)?;
             Ok(Some(config))
         } else {
             Ok(None)

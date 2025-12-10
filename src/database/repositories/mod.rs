@@ -811,7 +811,7 @@ pub trait FitnessConfigRepository: Send + Sync {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness_config::FitnessConfig,
+        config: &crate::config::fitness::FitnessConfig,
     ) -> Result<String, DatabaseError>;
 
     /// Save user-specific fitness configuration
@@ -820,7 +820,7 @@ pub trait FitnessConfigRepository: Send + Sync {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness_config::FitnessConfig,
+        config: &crate::config::fitness::FitnessConfig,
     ) -> Result<String, DatabaseError>;
 
     /// Get tenant-level fitness configuration
@@ -828,7 +828,7 @@ pub trait FitnessConfigRepository: Send + Sync {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>, DatabaseError>;
+    ) -> Result<Option<crate::config::fitness::FitnessConfig>, DatabaseError>;
 
     /// Get user-specific fitness configuration
     async fn get_user_config(
@@ -836,7 +836,7 @@ pub trait FitnessConfigRepository: Send + Sync {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>, DatabaseError>;
+    ) -> Result<Option<crate::config::fitness::FitnessConfig>, DatabaseError>;
 
     /// List all tenant-level fitness configuration names
     async fn list_tenant_configs(&self, tenant_id: &str) -> Result<Vec<String>, DatabaseError>;

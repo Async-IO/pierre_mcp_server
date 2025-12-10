@@ -85,15 +85,6 @@ pub mod intelligence;
 /// External API clients (USDA, weather services)
 pub mod external;
 
-/// Configuration management and runtime parameter system
-pub mod configuration;
-
-/// `HTTP` routes for configuration management
-pub mod configuration_routes;
-
-/// `HTTP` routes for fitness configuration management
-pub mod fitness_configuration_routes;
-
 /// Unified JSON-RPC 2.0 foundation for all protocols
 pub mod jsonrpc;
 

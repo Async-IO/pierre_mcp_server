@@ -143,7 +143,7 @@
 )]
 //! Tests for the intelligence configuration system
 
-use pierre_mcp_server::config::intelligence_config::{
+use pierre_mcp_server::config::intelligence::{
     AggressiveStrategy, ConservativeStrategy, DefaultStrategy, IntelligenceConfig,
     IntelligenceStrategy,
 };

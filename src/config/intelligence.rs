@@ -67,7 +67,7 @@ pub enum ConfigError {
 /// # Examples
 ///
 /// ```rust
-/// use pierre_mcp_server::config::intelligence_config::AlgorithmConfig;
+/// use pierre_mcp_server::config::intelligence::AlgorithmConfig;
 ///
 /// let config = AlgorithmConfig::default();
 /// assert_eq!(config.tss, "avg_power");

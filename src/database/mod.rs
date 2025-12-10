@@ -3027,7 +3027,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness_config::FitnessConfig,
+        config: &crate::config::fitness::FitnessConfig,
     ) -> AppResult<String> {
         let manager = self.fitness_configurations();
         manager
@@ -3040,7 +3040,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness_config::FitnessConfig,
+        config: &crate::config::fitness::FitnessConfig,
     ) -> AppResult<String> {
         let manager = self.fitness_configurations();
         manager
@@ -3052,7 +3052,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>> {
+    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>> {
         let manager = self.fitness_configurations();
         manager
             .get_tenant_config(tenant_id, configuration_name)
@@ -3064,7 +3064,7 @@ impl crate::database_plugins::DatabaseProvider for Database {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>> {
+    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>> {
         let manager = self.fitness_configurations();
         manager
             .get_user_config(tenant_id, user_id, configuration_name)

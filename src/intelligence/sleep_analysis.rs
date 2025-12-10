@@ -197,7 +197,7 @@ impl SleepAnalyzer {
     /// Returns `AppError` if sleep data is invalid (negative values, impossible percentages)
     pub fn calculate_sleep_quality(
         sleep: &SleepData,
-        config: &crate::config::intelligence_config::SleepRecoveryConfig,
+        config: &crate::config::intelligence::SleepRecoveryConfig,
     ) -> Result<SleepQualityScore, AppError> {
         // Validate input
         if sleep.duration_hours < 0.0 {
@@ -263,7 +263,7 @@ impl SleepAnalyzer {
     #[must_use]
     pub fn score_duration(
         hours: f64,
-        config: &crate::config::intelligence_config::SleepRecoveryConfig,
+        config: &crate::config::intelligence::SleepRecoveryConfig,
     ) -> f64 {
         let adult_min_hours = config.sleep_duration.adult_min_hours;
         let adult_max_hours = config.sleep_duration.adult_max_hours;
@@ -305,7 +305,7 @@ impl SleepAnalyzer {
         deep_hours: f64,
         rem_hours: f64,
         light_hours: f64,
-        config: &crate::config::intelligence_config::SleepRecoveryConfig,
+        config: &crate::config::intelligence::SleepRecoveryConfig,
     ) -> Result<f64, AppError> {
         let deep_sleep_min_percent = config.sleep_stages.deep_sleep_min_percent;
         let deep_sleep_max_percent = config.sleep_stages.deep_sleep_max_percent;
@@ -367,7 +367,7 @@ impl SleepAnalyzer {
     #[must_use]
     pub fn score_efficiency(
         efficiency_percent: f64,
-        config: &crate::config::intelligence_config::SleepRecoveryConfig,
+        config: &crate::config::intelligence::SleepRecoveryConfig,
     ) -> f64 {
         let excellent_threshold = config.sleep_efficiency.excellent_threshold;
         let good_threshold = config.sleep_efficiency.good_threshold;
@@ -406,7 +406,7 @@ impl SleepAnalyzer {
     fn add_duration_insights(
         insights: &mut Vec<String>,
         hours: f64,
-        config: &crate::config::intelligence_config::SleepRecoveryConfig,
+        config: &crate::config::intelligence::SleepRecoveryConfig,
     ) {
         let adult_max_hours = config.sleep_duration.adult_max_hours;
         let athlete_min_hours = config.sleep_duration.athlete_min_hours;
@@ -436,7 +436,7 @@ impl SleepAnalyzer {
     fn add_efficiency_insights(
         insights: &mut Vec<String>,
         efficiency: f64,
-        config: &crate::config::intelligence_config::SleepRecoveryConfig,
+        config: &crate::config::intelligence::SleepRecoveryConfig,
     ) {
         let excellent_threshold = config.sleep_efficiency.excellent_threshold;
         let poor_threshold = config.sleep_efficiency.poor_threshold;
@@ -454,7 +454,7 @@ impl SleepAnalyzer {
     fn generate_recommendations(
         sleep: &SleepData,
         overall_score: f64,
-        config: &crate::config::intelligence_config::SleepRecoveryConfig,
+        config: &crate::config::intelligence::SleepRecoveryConfig,
     ) -> Vec<String> {
         let mut recommendations = Vec::new();
         let athlete_min_hours = config.sleep_duration.athlete_min_hours;
@@ -504,7 +504,7 @@ impl SleepAnalyzer {
         current_rmssd: f64,
         recent_rmssd_values: &[f64],
         baseline_rmssd: Option<f64>,
-        config: &crate::config::intelligence_config::SleepRecoveryConfig,
+        config: &crate::config::intelligence::SleepRecoveryConfig,
     ) -> Result<HrvTrendAnalysis, AppError> {
         if current_rmssd <= 0.0 {
             return Err(AppError::invalid_input(
@@ -565,7 +565,7 @@ impl SleepAnalyzer {
         current: f64,
         weekly_avg: f64,
         baseline_deviation: Option<f64>,
-        config: &crate::config::intelligence_config::SleepRecoveryConfig,
+        config: &crate::config::intelligence::SleepRecoveryConfig,
     ) -> HrvRecoveryStatus {
         let baseline_deviation_concern = config.hrv.baseline_deviation_concern_percent;
         let rmssd_decrease_threshold = config.hrv.rmssd_decrease_concern_threshold;

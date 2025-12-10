@@ -294,7 +294,7 @@ pub use recipes::SkillLevel;
 pub use recipes::ValidatedNutrition;
 
 // Re-export configuration types for external use
-pub use crate::config::intelligence_config::{
+pub use crate::config::intelligence::{
     AggressiveStrategy, ConfigError, ConservativeStrategy, DefaultStrategy, IntelligenceConfig,
     IntelligenceStrategy,
 };

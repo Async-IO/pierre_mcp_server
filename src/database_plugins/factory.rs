@@ -2055,7 +2055,7 @@ impl DatabaseProvider for Database {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness_config::FitnessConfig,
+        config: &crate::config::fitness::FitnessConfig,
     ) -> AppResult<String> {
         match self {
             Self::SQLite(db) => {
@@ -2076,7 +2076,7 @@ impl DatabaseProvider for Database {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-        config: &crate::config::fitness_config::FitnessConfig,
+        config: &crate::config::fitness::FitnessConfig,
     ) -> AppResult<String> {
         match self {
             Self::SQLite(db) => {
@@ -2096,7 +2096,7 @@ impl DatabaseProvider for Database {
         &self,
         tenant_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>> {
+    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>> {
         match self {
             Self::SQLite(db) => {
                 db.get_tenant_fitness_config(tenant_id, configuration_name)
@@ -2116,7 +2116,7 @@ impl DatabaseProvider for Database {
         tenant_id: &str,
         user_id: &str,
         configuration_name: &str,
-    ) -> AppResult<Option<crate::config::fitness_config::FitnessConfig>> {
+    ) -> AppResult<Option<crate::config::fitness::FitnessConfig>> {
         match self {
             Self::SQLite(db) => {
                 db.get_user_fitness_config(tenant_id, user_id, configuration_name)

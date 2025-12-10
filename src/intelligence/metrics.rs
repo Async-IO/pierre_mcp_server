@@ -6,7 +6,7 @@
 //! Advanced fitness metrics calculation and analysis
 #![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges for fitness metrics
 
-use crate::config::intelligence_config::IntelligenceConfig;
+use crate::config::intelligence::IntelligenceConfig;
 use crate::errors::{AppError, AppResult};
 use crate::intelligence::algorithms::{TrimpAlgorithm, TssAlgorithm};
 use crate::intelligence::physiological_constants::{

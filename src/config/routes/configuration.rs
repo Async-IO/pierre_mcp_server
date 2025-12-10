@@ -14,7 +14,7 @@
 //! physiological profiles, and personalized training zones.
 
 use crate::auth::AuthResult;
-use crate::configuration::{
+use crate::config::{
     catalog::{CatalogBuilder, ConfigCatalog},
     profiles::{ConfigProfile, ProfileTemplates},
     runtime::{ConfigValue, RuntimeConfig},
@@ -180,11 +180,11 @@ pub struct UserProfileParameters {
 #[derive(Debug, Serialize)]
 pub struct PersonalizedZones {
     /// Heart rate zones
-    pub heart_rate_zones: crate::configuration::vo2_max::PersonalizedHRZones,
+    pub heart_rate_zones: crate::config::vo2_max::PersonalizedHRZones,
     /// Pace zones
-    pub pace_zones: crate::configuration::vo2_max::PersonalizedPaceZones,
+    pub pace_zones: crate::config::vo2_max::PersonalizedPaceZones,
     /// Power zones
-    pub power_zones: crate::configuration::vo2_max::PersonalizedPowerZones,
+    pub power_zones: crate::config::vo2_max::PersonalizedPowerZones,
     /// Estimated FTP
     pub estimated_ftp: f64,
 }
@@ -220,7 +220,7 @@ pub struct ValidationResponse {
 #[serde(untagged)]
 pub enum ValidationDetails {
     /// Successful validation
-    Success(crate::configuration::validation::ValidationResult),
+    Success(crate::config::validation::ValidationResult),
     /// Validation errors
     Errors(Vec<String>),
 }

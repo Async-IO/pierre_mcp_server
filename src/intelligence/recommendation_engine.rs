@@ -12,7 +12,7 @@ use super::{
     Confidence, FitnessLevel, InsightSeverity, RecommendationPriority, RecommendationType,
     TrainingRecommendation, UserFitnessProfile,
 };
-use crate::config::intelligence_config::{
+use crate::config::intelligence::{
     IntelligenceConfig, IntelligenceStrategy, RecommendationEngineConfig,
 };
 use crate::errors::AppResult;
@@ -72,7 +72,7 @@ pub trait RecommendationEngineTrait {
 
 /// Advanced recommendation engine implementation with configurable strategy
 pub struct AdvancedRecommendationEngine<
-    S: IntelligenceStrategy = crate::config::intelligence_config::DefaultStrategy,
+    S: IntelligenceStrategy = crate::config::intelligence::DefaultStrategy,
 > {
     strategy: S,
     config: RecommendationEngineConfig,
@@ -91,7 +91,7 @@ impl AdvancedRecommendationEngine {
     pub fn new() -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
-            strategy: crate::config::intelligence_config::DefaultStrategy,
+            strategy: crate::config::intelligence::DefaultStrategy,
             config: global_config.recommendation_engine.clone(),
             user_profile: None,
         }
@@ -125,7 +125,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
     pub fn with_profile(profile: UserFitnessProfile) -> AdvancedRecommendationEngine {
         let global_config = IntelligenceConfig::global();
         AdvancedRecommendationEngine {
-            strategy: crate::config::intelligence_config::DefaultStrategy,
+            strategy: crate::config::intelligence::DefaultStrategy,
             config: global_config.recommendation_engine.clone(),
             user_profile: Some(profile),
         }

@@ -132,7 +132,7 @@ fn test_deny_unknown_fields() {
 
 #[test]
 fn test_config_value_conversion_to_internal() {
-    use pierre_mcp_server::configuration::runtime::ConfigValue;
+    use pierre_mcp_server::config::runtime::ConfigValue;
 
     // Test Float conversion
     let input = ConfigValueInput::Float(5.25);

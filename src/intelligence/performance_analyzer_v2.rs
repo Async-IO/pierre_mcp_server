@@ -15,7 +15,7 @@ use super::{
     AdvancedInsight, Confidence, InsightSeverity, TimeFrame, TrendAnalysis, TrendDataPoint,
     TrendDirection,
 };
-use crate::config::intelligence_config::IntelligenceStrategy;
+use crate::config::intelligence::IntelligenceStrategy;
 use crate::errors::{AppError, AppResult};
 use crate::models::Activity;
 use chrono::{DateTime, Utc};

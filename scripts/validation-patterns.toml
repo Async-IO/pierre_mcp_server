@@ -519,7 +519,7 @@ name = "Recovery Score"
 enum_name = "RecoveryScoreAlgorithm"
 module_path = "src/intelligence/algorithms/recovery.rs"
 # Note: OAuth scope files excluded to avoid false positives from "sleep ... weight" scope strings
-exclude_paths = ["src/intelligence/algorithms/recovery.rs", "src/intelligence/algorithms/recovery_aggregation.rs", "src/intelligence/recovery_calculator.rs", "src/protocols/universal/handlers/sleep_recovery.rs", "src/config/intelligence_config.rs", "src/constants/oauth/*", "src/providers/spi.rs", "tests/*"]
+exclude_paths = ["src/intelligence/algorithms/recovery.rs", "src/intelligence/algorithms/recovery_aggregation.rs", "src/intelligence/recovery_calculator.rs", "src/protocols/universal/handlers/sleep_recovery.rs", "src/config/intelligence.rs", "src/constants/oauth/*", "src/providers/spi.rs", "tests/*"]
 
 [algorithm_di_patterns.recovery_score.formulas]
 score_calculation = 'overall_score.*=.*(tsb.*\+.*sleep|sleep.*\+.*tsb)'
@@ -530,7 +530,7 @@ component_weights = 'tsb.*weight|sleep.*weight|hrv.*weight'
 name = "FTP"
 enum_name = "FtpAlgorithm"
 module_path = "src/intelligence/algorithms/ftp.rs"
-exclude_paths = ["src/intelligence/algorithms/ftp.rs", "src/configuration/vo2_max.rs"]
+exclude_paths = ["src/intelligence/algorithms/ftp.rs", "src/config/vo2_max.rs"]
 
 [algorithm_di_patterns.ftp.formulas]
 twenty_min_test = '0\.95.*power|power.*0\.95'

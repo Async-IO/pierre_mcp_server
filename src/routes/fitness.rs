@@ -10,7 +10,7 @@
 //! thresholds, and workout parameters. All handlers require valid JWT authentication.
 
 use crate::{
-    errors::AppError, fitness_configuration_routes::FitnessConfigurationRoutes as FitnessService,
+    config::routes::fitness::FitnessConfigurationRoutes as FitnessService, errors::AppError,
     mcp::resources::ServerResources,
 };
 use axum::{
@@ -86,7 +86,7 @@ impl FitnessConfigurationRoutes {
     async fn handle_save_config(
         State(resources): State<Arc<ServerResources>>,
         headers: axum::http::HeaderMap,
-        Json(request): Json<crate::fitness_configuration_routes::SaveFitnessConfigRequest>,
+        Json(request): Json<crate::config::routes::fitness::SaveFitnessConfigRequest>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
 

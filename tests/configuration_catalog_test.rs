@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
-use pierre_mcp_server::configuration::{
+use pierre_mcp_server::config::{
     catalog::{CatalogBuilder, ParameterType},
     runtime::ConfigValue,
 };

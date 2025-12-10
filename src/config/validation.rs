@@ -140,10 +140,10 @@ impl ConfigValidator {
 
         // Validate data type
         match (&param_def.data_type, value) {
-            (crate::configuration::catalog::ParameterType::Float, ConfigValue::Float(_))
-            | (crate::configuration::catalog::ParameterType::Integer, ConfigValue::Integer(_))
-            | (crate::configuration::catalog::ParameterType::Boolean, ConfigValue::Boolean(_))
-            | (crate::configuration::catalog::ParameterType::String, ConfigValue::String(_)) => {}
+            (crate::config::catalog::ParameterType::Float, ConfigValue::Float(_))
+            | (crate::config::catalog::ParameterType::Integer, ConfigValue::Integer(_))
+            | (crate::config::catalog::ParameterType::Boolean, ConfigValue::Boolean(_))
+            | (crate::config::catalog::ParameterType::String, ConfigValue::String(_)) => {}
             _ => return Err(format!("Type mismatch for parameter {key}")),
         }
 

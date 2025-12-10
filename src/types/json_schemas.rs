@@ -57,8 +57,8 @@ impl ConfigValueInput {
     ///
     /// This is a helper for migrating from the old `HashMap`<String, Value> pattern
     #[must_use]
-    pub fn to_config_value(self) -> crate::configuration::runtime::ConfigValue {
-        use crate::configuration::runtime::ConfigValue;
+    pub fn to_config_value(self) -> crate::config::runtime::ConfigValue {
+        use crate::config::runtime::ConfigValue;
         match self {
             Self::Float(v) => ConfigValue::Float(v),
             Self::Integer(v) => ConfigValue::Integer(v),
