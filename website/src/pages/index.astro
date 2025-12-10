@@ -172,20 +172,20 @@ import '../styles/global.css';
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold mb-3 text-amber-500">Nutrition</h3>
-                    <p class="text-gray-400 mb-4">Know exactly what to eat to fuel your goals.</p>
+                    <h3 class="text-xl font-semibold mb-3 text-amber-500">Nutrition & Recipes</h3>
+                    <p class="text-gray-400 mb-4">Know exactly what to eat and build your personal recipe collection.</p>
                     <ul class="space-y-2 text-sm text-gray-500">
                         <li class="flex items-center gap-2">
                             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                            Daily calorie needs
+                            Daily calorie & macro targets
                         </li>
                         <li class="flex items-center gap-2">
                             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                            Protein, carbs & fat targets
+                            Pre/post-workout meal timing
                         </li>
                         <li class="flex items-center gap-2">
                             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                            Training-aware recipe planning
+                            Save & search your recipes
                         </li>
                         <li class="flex items-center gap-2">
                             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
@@ -266,6 +266,70 @@ import '../styles/global.css';
                         <p class="text-gray-400 text-sm">
                             Get accurate predictions for 5K, 10K, half marathon, and marathon distances based on your actual training data.
                         </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nutrition & Recipes Feature Highlight -->
+            <div class="mt-8 bg-[#1E1E2E] rounded-xl p-8 border border-amber-500/20">
+                <div class="grid md:grid-cols-2 gap-8 items-center">
+                    <div>
+                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-medium mb-4">
+                            <span>🍳</span> Recipe Management
+                        </div>
+                        <h3 class="text-2xl font-semibold mb-4">Training-Aware Meal Planning</h3>
+                        <p class="text-gray-400 mb-6">
+                            Build your personal recipe collection with meals optimized for your training schedule. Pierre validates nutrition using USDA data and adjusts macros based on whether you're fueling up, recovering, or resting.
+                        </p>
+                        <div class="space-y-3">
+                            <div class="flex items-start gap-3">
+                                <span class="text-amber-500 mt-0.5">✓</span>
+                                <span class="text-gray-300 text-sm"><strong class="text-white">Pre-training meals</strong> — High-carb focus (55%) for energy without GI distress</span>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <span class="text-amber-500 mt-0.5">✓</span>
+                                <span class="text-gray-300 text-sm"><strong class="text-white">Post-training meals</strong> — High-protein (30%) for recovery and muscle synthesis</span>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <span class="text-amber-500 mt-0.5">✓</span>
+                                <span class="text-gray-300 text-sm"><strong class="text-white">Rest day meals</strong> — Balanced macros with strategic carb reduction</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-[#0F0F1A] rounded-lg p-6 border border-white/5">
+                        <div class="text-xs text-gray-500 mb-3 font-mono">Recipe validation based on ISSN guidelines</div>
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="text-gray-400">Pre-Training</span>
+                                    <span class="text-amber-400">55% carbs</span>
+                                </div>
+                                <div class="h-2 bg-[#1E1E2E] rounded-full overflow-hidden">
+                                    <div class="h-full bg-gradient-to-r from-amber-600 to-amber-400" style="width: 55%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="text-gray-400">Post-Training</span>
+                                    <span class="text-emerald-400">30% protein</span>
+                                </div>
+                                <div class="h-2 bg-[#1E1E2E] rounded-full overflow-hidden">
+                                    <div class="h-full bg-gradient-to-r from-emerald-600 to-emerald-400" style="width: 30%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="text-gray-400">Rest Day</span>
+                                    <span class="text-indigo-400">35% fat</span>
+                                </div>
+                                <div class="h-2 bg-[#1E1E2E] rounded-full overflow-hidden">
+                                    <div class="h-full bg-gradient-to-r from-indigo-600 to-indigo-400" style="width: 35%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-4 border-t border-white/5 text-xs text-gray-500">
+                            Macros adjust automatically based on your TDEE and meal timing
+                        </div>
                     </div>
                 </div>
             </div>
@@ -369,13 +433,13 @@ import '../styles/global.css';
                     </div>
                     <div class="space-y-3">
                         <div class="bg-[#0F0F1A] rounded-lg p-4">
-                            <p class="text-gray-300 text-sm">"How's my sleep quality this week?"</p>
+                            <p class="text-gray-300 text-sm">"Create a high-protein post-workout meal and save it to my recipes."</p>
                         </div>
                         <div class="bg-[#0F0F1A] rounded-lg p-4">
-                            <p class="text-gray-300 text-sm">"Am I overtraining? Should I take a rest day?"</p>
+                            <p class="text-gray-300 text-sm">"What should I eat before my morning run?"</p>
                         </div>
                         <div class="bg-[#0F0F1A] rounded-lg p-4">
-                            <p class="text-gray-300 text-sm">"Create a high-protein post-workout recipe for me."</p>
+                            <p class="text-gray-300 text-sm">"Show me my saved recipes tagged 'quick' for rest days."</p>
                         </div>
                     </div>
                 </div>
