@@ -29,20 +29,67 @@
 
 use anyhow::Result;
 use bcrypt::{hash, DEFAULT_COST};
+use chrono::Utc;
 use clap::{Parser, Subcommand};
 use pierre_mcp_server::{
     admin::{
         jwks::JwksManager,
         models::{CreateAdminTokenRequest, GeneratedAdminToken},
     },
+    constants::tiers,
     database::CreateUserMcpTokenRequest,
     database_plugins::factory::Database,
     database_plugins::DatabaseProvider,
     errors::AppError,
+    models::Tenant,
 };
 use std::env;
 use tracing::{error, info, warn};
 use uuid::Uuid;
+
+/// Generate a new RSA keypair and persist it to the database
+async fn generate_and_persist_keypair(
+    database: &Database,
+    jwks_manager: &mut JwksManager,
+) -> Result<(), AppError> {
+    info!("No persisted RSA keys found, generating new keypair");
+    let kid = format!("key_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+    jwks_manager.generate_rsa_key_pair(&kid)?;
+
+    let key_pair = jwks_manager.get_active_key()?;
+    let private_pem = key_pair.export_private_key_pem()?;
+    let public_pem = key_pair.export_public_key_pem()?;
+    let created_at = chrono::Utc::now();
+    database
+        .save_rsa_keypair(&kid, &private_pem, &public_pem, created_at, true, 4096)
+        .await?;
+    info!("Generated and persisted new RSA keypair: {}", kid);
+    Ok(())
+}
+
+/// Load existing RSA keypairs from database into JWKS manager
+fn load_existing_keypairs(
+    jwks_manager: &mut JwksManager,
+    keypairs: Vec<(String, String, String, chrono::DateTime<chrono::Utc>, bool)>,
+) -> Result<(), AppError> {
+    info!(
+        "Loading {} persisted RSA keypairs from database",
+        keypairs.len()
+    );
+    jwks_manager.load_keys_from_database(keypairs)?;
+    info!("Successfully loaded RSA keys from database");
+    Ok(())
+}
+
+/// Generate ephemeral keys when database fails
+fn generate_ephemeral_keys(
+    jwks_manager: &mut JwksManager,
+    error: &AppError,
+) -> Result<(), AppError> {
+    warn!("Failed to load RSA keys from database: {error}. Generating ephemeral keys.");
+    jwks_manager.generate_rsa_key_pair("admin_key_ephemeral")?;
+    Ok(())
+}
 
 /// Initialize JWKS manager by loading keys from database or generating new ones
 /// This ensures the CLI uses the same RSA keys as the running server
@@ -52,36 +99,13 @@ async fn initialize_jwks_manager(database: &Database) -> Result<JwksManager, App
 
     match database.load_rsa_keypairs().await {
         Ok(keypairs) if !keypairs.is_empty() => {
-            info!(
-                "Loading {} persisted RSA keypairs from database",
-                keypairs.len()
-            );
-            jwks_manager.load_keys_from_database(keypairs)?;
-            info!("Successfully loaded RSA keys from database");
+            load_existing_keypairs(&mut jwks_manager, keypairs)?;
         }
         Ok(_) => {
-            // No keys exist yet - generate and persist new ones
-            info!("No persisted RSA keys found, generating new keypair");
-            let kid = format!("key_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
-            jwks_manager.generate_rsa_key_pair(&kid)?;
-
-            // Persist to database so server will use the same keys
-            let key_pair = jwks_manager.get_active_key()?;
-            let private_pem = key_pair.export_private_key_pem()?;
-            let public_pem = key_pair.export_public_key_pem()?;
-            let created_at = chrono::Utc::now();
-            database
-                .save_rsa_keypair(&kid, &private_pem, &public_pem, created_at, true, 4096)
-                .await?;
-            info!("Generated and persisted new RSA keypair: {}", kid);
+            generate_and_persist_keypair(database, &mut jwks_manager).await?;
         }
         Err(e) => {
-            // Database error - generate ephemeral keys (won't work with running server)
-            warn!(
-                "Failed to load RSA keys from database: {}. Generating ephemeral keys.",
-                e
-            );
-            jwks_manager.generate_rsa_key_pair("admin_key_ephemeral")?;
+            generate_ephemeral_keys(&mut jwks_manager, &e)?;
         }
     }
     info!("JWKS manager initialized");
@@ -846,6 +870,66 @@ async fn create_default_mcp_token_for_user(database: &Database, user_id: Uuid) {
     }
 }
 
+/// Create a personal tenant for a user and link them to it
+async fn create_and_link_personal_tenant(
+    database: &Database,
+    user_id: Uuid,
+    name: &str,
+    slug_prefix: &str,
+) -> Result<()> {
+    let tenant_id = Uuid::new_v4();
+    let tenant_slug = format!("{slug_prefix}-{}", user_id.as_simple());
+    let tenant = Tenant {
+        id: tenant_id,
+        name: format!("{name}'s Workspace"),
+        slug: tenant_slug,
+        domain: None,
+        plan: tiers::ENTERPRISE.to_owned(),
+        owner_user_id: user_id,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
+
+    database.create_tenant(&tenant).await?;
+    info!("Created personal tenant: {} ({})", tenant.name, tenant_id);
+
+    database
+        .update_user_tenant_id(user_id, &tenant_id.to_string())
+        .await?;
+
+    Ok(())
+}
+
+/// Build admin user model with the given parameters
+fn build_admin_user(
+    user_id: Uuid,
+    email: &str,
+    password_hash: String,
+    name: &str,
+    role: pierre_mcp_server::permissions::UserRole,
+) -> pierre_mcp_server::models::User {
+    pierre_mcp_server::models::User {
+        id: user_id,
+        email: email.to_owned(),
+        display_name: Some(name.to_owned()),
+        password_hash,
+        tier: pierre_mcp_server::models::UserTier::Enterprise,
+        tenant_id: None,
+        strava_token: None,
+        fitbit_token: None,
+        is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: true,
+        role,
+        approved_by: None,
+        approved_at: Some(Utc::now()),
+        created_at: Utc::now(),
+        last_active: Utc::now(),
+        firebase_uid: None,
+        auth_provider: "email".to_owned(),
+    }
+}
+
 async fn create_new_admin_user(
     database: &Database,
     email: &str,
@@ -862,30 +946,15 @@ async fn create_new_admin_user(
         pierre_mcp_server::permissions::UserRole::Admin
     };
 
-    let new_user = pierre_mcp_server::models::User {
-        id: Uuid::new_v4(),
-        email: email.to_owned(),
-        display_name: Some(name.to_owned()),
-        password_hash: hash(password, DEFAULT_COST)?,
-        tier: pierre_mcp_server::models::UserTier::Enterprise,
-        tenant_id: None,
-        strava_token: None,
-        fitbit_token: None,
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        is_admin: true,
-        role,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        firebase_uid: None,
-        auth_provider: "email".to_owned(),
-    };
+    let user_id = Uuid::new_v4();
+    let password_hash = hash(password, DEFAULT_COST)?;
+    let new_user = build_admin_user(user_id, email, password_hash, name, role);
 
     database.create_user(&new_user).await?;
+    info!("Created {} user: {}", role_str, email);
 
-    // Auto-create a default MCP token for the admin user
+    create_and_link_personal_tenant(database, user_id, name, "admin").await?;
+
     create_default_mcp_token_for_user(database, new_user.id).await;
 
     Ok(())

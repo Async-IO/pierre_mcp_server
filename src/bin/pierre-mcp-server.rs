@@ -287,6 +287,36 @@ async fn initialize_database(
     Ok(database)
 }
 
+/// Log startup warnings when no admin user is configured
+fn log_missing_admin_warning(auto_approve: bool) {
+    let oauth_behavior = if auto_approve {
+        "auto-approve"
+    } else {
+        "pending"
+    };
+    error!(
+        "No admin user configured! Email/password login unavailable. \
+         Firebase/OAuth creates {oauth_behavior} users. Fix: cargo run --bin admin-setup -- create-admin-user --email admin@example.com --password <password>"
+    );
+}
+
+/// Check admin user status and log appropriate startup message
+async fn check_admin_status(database: &Database, auto_approve: bool) {
+    match database.get_users_by_status("active").await {
+        Ok(users) => {
+            let admin_exists = users.iter().any(|u| u.is_admin);
+            if admin_exists {
+                info!("Admin user configured - server ready for authentication");
+            } else {
+                log_missing_admin_warning(auto_approve);
+            }
+        }
+        Err(e) => {
+            error!("Failed to check admin user status: {e}");
+        }
+    }
+}
+
 async fn initialize_jwt_secret(database: &Database, config: &ServerConfig) -> Result<String> {
     let jwt_secret_string = database
         .get_or_create_system_secret("admin_jwt_secret")
@@ -302,27 +332,7 @@ async fn initialize_jwt_secret(database: &Database, config: &ServerConfig) -> Re
         .flatten()
         .unwrap_or(config.app_behavior.auto_approve_users);
 
-    // Check if admin user exists and log appropriate message
-    match database.get_users_by_status("active").await {
-        Ok(users) => {
-            let admin_exists = users.iter().any(|u| u.is_admin);
-            if admin_exists {
-                info!("Admin user configured - server ready for authentication");
-            } else {
-                error!("No admin user configured!");
-                error!("  - Users cannot log in with email/password");
-                if auto_approve {
-                    error!("  - Firebase/OAuth login will auto-approve users (active status)");
-                } else {
-                    error!("  - Firebase/OAuth login will create users in 'pending' status");
-                }
-                error!("To fix: Run 'cargo run --bin admin-setup -- create-admin-user --email admin@example.com --password <password>'");
-            }
-        }
-        Err(e) => {
-            error!("Failed to check admin user status: {e}");
-        }
-    }
+    check_admin_status(database, auto_approve).await;
 
     Ok(jwt_secret_string)
 }

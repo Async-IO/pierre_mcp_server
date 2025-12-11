@@ -262,37 +262,15 @@ impl AuthService {
             .await
             .map_err(|e| AppError::database(format!("Failed to create user: {e}")))?;
 
-        // Create a personal tenant for the user
+        // Create a personal tenant for the user (required for MCP operations)
         let display_name = user
             .display_name
             .as_deref()
             .unwrap_or_else(|| request.email.split('@').next().unwrap_or("user"));
-        let tenant_name = format!("{display_name}'s Workspace");
-        let tenant_slug = format!("user-{}", user_id.as_simple());
-        let tenant_id = uuid::Uuid::new_v4();
 
-        let tenant = Tenant {
-            id: tenant_id,
-            name: tenant_name.clone(),
-            slug: tenant_slug,
-            domain: None,
-            plan: crate::constants::tiers::STARTER.to_owned(),
-            owner_user_id: user_id,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        };
-
-        self.data
-            .database()
-            .create_tenant(&tenant)
-            .await
-            .map_err(|e| {
-                error!(
-                    "Failed to create personal tenant for {}: {}",
-                    request.email, e
-                );
-                AppError::database(format!("Failed to create personal tenant: {e}"))
-            })?;
+        let tenant_id = self
+            .create_personal_tenant(user_id, display_name, crate::constants::tiers::STARTER)
+            .await?;
 
         // Assign user to their personal tenant
         self.data
@@ -304,10 +282,7 @@ impl AuthService {
                 AppError::database(format!("Failed to assign tenant: {e}"))
             })?;
 
-        info!(
-            "User registered successfully: {} ({}) with tenant {} - status: {:?}",
-            request.email, user_id, tenant_name, user.user_status
-        );
+        info!(user_id = %user_id, email = %request.email, "User registered successfully");
 
         let message = if user.user_status == UserStatus::Active {
             "User registered successfully. Your account is ready to use.".to_owned()
@@ -462,6 +437,48 @@ impl AuthService {
         self.create_firebase_user(claims, email).await
     }
 
+    /// Create a personal tenant for a user (required for MCP operations)
+    ///
+    /// # Errors
+    /// Returns error if tenant creation fails
+    async fn create_personal_tenant(
+        &self,
+        user_id: uuid::Uuid,
+        display_name: &str,
+        plan: &str,
+    ) -> AppResult<uuid::Uuid> {
+        let tenant_id = uuid::Uuid::new_v4();
+        let tenant_name = format!("{display_name}'s Workspace");
+        let tenant_slug = format!("user-{}", user_id.as_simple());
+        let now = Utc::now();
+
+        let tenant = Tenant {
+            id: tenant_id,
+            name: tenant_name.clone(),
+            slug: tenant_slug,
+            domain: None,
+            plan: plan.to_owned(),
+            owner_user_id: user_id,
+            created_at: now,
+            updated_at: now,
+        };
+
+        self.data
+            .database()
+            .create_tenant(&tenant)
+            .await
+            .map_err(|e| {
+                error!(
+                    "Failed to create personal tenant for user {}: {}",
+                    user_id, e
+                );
+                AppError::database(format!("Failed to create personal tenant: {e}"))
+            })?;
+
+        debug!("Created personal tenant: {} ({})", tenant_name, tenant_id);
+        Ok(tenant_id)
+    }
+
     /// Check if auto-approval is enabled (database setting takes precedence over config)
     async fn is_auto_approval_enabled(&self) -> bool {
         match self.data.database().is_auto_approval_enabled().await {
@@ -476,6 +493,17 @@ impl AuthService {
         }
     }
 
+    /// Determine user approval status based on auto-approval setting
+    async fn determine_approval_status(&self) -> (UserStatus, Option<chrono::DateTime<Utc>>) {
+        let now = Utc::now();
+        if self.is_auto_approval_enabled().await {
+            tracing::debug!("Auto-approval enabled for new user");
+            (UserStatus::Active, Some(now))
+        } else {
+            (UserStatus::Pending, None)
+        }
+    }
+
     /// Create a new user from Firebase claims
     async fn create_firebase_user(
         &self,
@@ -484,17 +512,17 @@ impl AuthService {
     ) -> AppResult<User> {
         tracing::info!(firebase_uid = %claims.sub, email = %email, "Creating new Firebase user");
 
-        let auto_approve = self.is_auto_approval_enabled().await;
-        let now = Utc::now();
-        let (user_status, approved_at) = if auto_approve {
-            tracing::info!("Auto-approving Firebase user (auto_approval_enabled=true)");
-            (UserStatus::Active, Some(now))
-        } else {
-            (UserStatus::Pending, None)
-        };
+        let (user_status, approved_at) = self.determine_approval_status().await;
+        let user_id = uuid::Uuid::new_v4();
+        let display_name = claims
+            .name
+            .as_deref()
+            .unwrap_or_else(|| email.split('@').next().unwrap_or("user"));
 
+        // Step 1: Create user first (without tenant_id) - required for tenant FK constraint
+        let now = Utc::now();
         let new_user = User {
-            id: uuid::Uuid::new_v4(),
+            id: user_id,
             email: email.to_owned(),
             display_name: claims.name.clone(),
             password_hash: "!firebase-auth-only!".to_owned(),
@@ -515,7 +543,24 @@ impl AuthService {
         };
 
         self.data.database().create_user(&new_user).await?;
-        Ok(new_user)
+
+        // Step 2: Create personal tenant (owner_user_id FK now satisfied)
+        let tenant_id = self
+            .create_personal_tenant(user_id, display_name, crate::constants::tiers::STARTER)
+            .await?;
+
+        // Step 3: Link user to tenant
+        self.data
+            .database()
+            .update_user_tenant_id(user_id, &tenant_id.to_string())
+            .await?;
+
+        // Return user with updated tenant_id
+        let mut user_with_tenant = new_user;
+        user_with_tenant.tenant_id = Some(tenant_id.to_string());
+
+        info!(firebase_uid = %claims.sub, user_id = %user_id, "Firebase user registered");
+        Ok(user_with_tenant)
     }
 
     /// Validate that user is allowed to login
