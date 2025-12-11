@@ -427,6 +427,8 @@ async fn test_redis_cache_different_resource_types() -> Result<()> {
         CacheResource::ActivityList {
             page: 1,
             per_page: 30,
+            before: None,
+            after: None,
         },
         CacheResource::Activity { activity_id: 123 },
         CacheResource::Stats { athlete_id: 456 },

@@ -177,12 +177,16 @@ impl fmt::Display for CacheKey {
 pub enum CacheResource {
     /// Athlete profile (24h TTL)
     AthleteProfile,
-    /// Activity list with pagination (15min TTL)
+    /// Activity list with pagination and optional time filters (15min TTL)
     ActivityList {
         /// Page number for pagination
         page: u32,
         /// Items per page
         per_page: u32,
+        /// Optional Unix timestamp (seconds) - return activities before this time
+        before: Option<i64>,
+        /// Optional Unix timestamp (seconds) - return activities after this time
+        after: Option<i64>,
     },
     /// Single activity summary (1h TTL)
     Activity {
@@ -222,8 +226,18 @@ impl fmt::Display for CacheResource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::AthleteProfile => write!(f, "athlete_profile"),
-            Self::ActivityList { page, per_page } => {
-                write!(f, "activity_list:page:{page}:per_page:{per_page}")
+            Self::ActivityList {
+                page,
+                per_page,
+                before,
+                after,
+            } => {
+                let before_str = before.map_or(String::new(), |t| format!(":before:{t}"));
+                let after_str = after.map_or(String::new(), |t| format!(":after:{t}"));
+                write!(
+                    f,
+                    "activity_list:page:{page}:per_page:{per_page}{before_str}{after_str}"
+                )
             }
             Self::Activity { activity_id } => write!(f, "activity:{activity_id}"),
             Self::Stats { athlete_id } => write!(f, "stats:{athlete_id}"),

@@ -4452,13 +4452,18 @@ impl DatabaseProvider for PostgresDatabase {
             .map_err(|e| AppError::database(format!("Failed to parse secret_value column: {e}")))?)
     }
 
-    /// Update system secret (for rotation)
+    /// Update or insert system secret (supports both initial storage and rotation)
     async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> AppResult<()> {
+        let now = chrono::Utc::now().to_rfc3339();
         sqlx::query(
-            "UPDATE system_secrets SET secret_value = $1, updated_at = CURRENT_TIMESTAMP WHERE secret_type = $2",
+            "INSERT INTO system_secrets (secret_type, secret_value, created_at, updated_at) \
+             VALUES ($1, $2, $3, $4) \
+             ON CONFLICT(secret_type) DO UPDATE SET secret_value = EXCLUDED.secret_value, updated_at = EXCLUDED.updated_at",
         )
-        .bind(new_value)
         .bind(secret_type)
+        .bind(new_value)
+        .bind(&now)
+        .bind(&now)
         .execute(&self.pool).await.map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())

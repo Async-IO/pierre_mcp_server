@@ -606,26 +606,31 @@ impl Database {
             .map_err(|e| AppError::database(format!("Failed to get secret_value: {e}")))
     }
 
-    /// Update system secret (for rotation)
+    /// Update or insert system secret (supports both initial storage and rotation)
+    ///
+    /// Uses upsert semantics: inserts if the secret doesn't exist, updates if it does.
     ///
     /// # Errors
     ///
-    /// Returns an error if database update fails
+    /// Returns an error if database operation fails
     pub async fn update_system_secret_impl(
         &self,
         secret_type: &str,
         new_value: &str,
     ) -> AppResult<()> {
+        let now = chrono::Utc::now().to_rfc3339();
         sqlx::query(
-            "UPDATE system_secrets SET secret_value = ?, updated_at = CURRENT_TIMESTAMP WHERE secret_type = ?",
+            "INSERT INTO system_secrets (secret_type, secret_value, created_at, updated_at) \
+             VALUES (?, ?, ?, ?) \
+             ON CONFLICT(secret_type) DO UPDATE SET secret_value = excluded.secret_value, updated_at = excluded.updated_at",
         )
-        .bind(new_value)
         .bind(secret_type)
+        .bind(new_value)
+        .bind(&now)
+        .bind(&now)
         .execute(&self.pool)
-
-            .await
-
-            .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
+        .await
+        .map_err(|e| AppError::database(format!("Database operation failed: {e}")))?;
 
         Ok(())
     }
