@@ -85,7 +85,7 @@ describe('Tools List Snapshot Tests', () => {
     // These tools MUST always be present - removing them would be a breaking change
     const CRITICAL_TOOLS = [
       // Core connection tools
-      'connect_to_pierre',
+      // Note: connect_to_pierre removed - SDK bridge handles authentication locally via RFC 8414 discovery
       'connect_provider',
       'disconnect_provider',
       'get_connection_status',
@@ -106,10 +106,6 @@ describe('Tools List Snapshot Tests', () => {
       'set_goal',
       'track_progress',
       'suggest_goals',
-
-      // Notification tools
-      'get_notifications',
-      'check_oauth_notifications',
 
       // Configuration tools
       'get_user_configuration',

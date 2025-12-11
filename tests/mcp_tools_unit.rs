@@ -19,8 +19,10 @@ fn test_mcp_tool_schemas() {
     // Test that all analytics tools are properly defined
     let tools = get_tools();
 
-    // Should have all 52 tools (39 fitness + 6 configuration + 7 recipe, includes nutrition and sleep/recovery)
-    assert_eq!(tools.len(), 52);
+    // Should have all 47 tools (34 fitness + 6 configuration + 7 recipe, includes nutrition and sleep/recovery)
+    // Note: OAuth notification tools removed (get_notifications, mark_notifications_read, announce_oauth_success, check_oauth_notifications)
+    // Note: connect_to_pierre removed - SDK bridge handles authentication locally via RFC 8414 discovery
+    assert_eq!(tools.len(), 47);
 
     // Check key analytics tools are present
     let tool_names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();

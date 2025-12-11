@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-// ABOUTME: Comprehensive response shape validation for ALL 52 MCP tools
+// ABOUTME: Comprehensive response shape validation for ALL 47 MCP tools
 // ABOUTME: Ensures response formats are stable and match documented schemas
 
 const { ensureServerRunning } = require('../helpers/server');
@@ -98,19 +98,11 @@ describe('All Tools Response Validation', () => {
     ];
 
     // Connection tools
+    // Note: connect_to_pierre removed - SDK bridge handles authentication locally via RFC 8414 discovery
     const connectionTools = [
-      'connect_to_pierre',
       'connect_provider',
       'get_connection_status',
       'disconnect_provider'
-    ];
-
-    // Notification tools
-    const notificationTools = [
-      'mark_notifications_read',
-      'get_notifications',
-      'announce_oauth_success',
-      'check_oauth_notifications'
     ];
 
     // Analytics tools
@@ -181,7 +173,6 @@ describe('All Tools Response Validation', () => {
     const allExpectedTools = [
       ...coreTools,
       ...connectionTools,
-      ...notificationTools,
       ...analyticsTools,
       ...goalTools,
       ...configTools,

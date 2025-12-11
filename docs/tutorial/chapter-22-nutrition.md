@@ -417,7 +417,7 @@ Pierre automatically converts common units to grams for accurate nutrition looku
 **End of Part VI: Tools & Intelligence**
 
 You've completed the tools and intelligence section. You now understand:
-- All 52 MCP tools and their usage (Chapter 19)
+- All 47 MCP tools and their usage (Chapter 19)
 - Sports science algorithms (Chapter 20)
 - Recovery and sleep analysis (Chapter 21)
 - Nutrition system, USDA integration, and recipe management (Chapter 22)

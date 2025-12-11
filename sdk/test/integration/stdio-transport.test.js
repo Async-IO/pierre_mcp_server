@@ -312,12 +312,12 @@ describe('Stdio Transport Integration Tests (Claude Desktop Path)', () => {
       const toolNames = response.result.tools.map(t => t.name);
 
       // Critical tools that must be present (from schema_completeness_test.rs)
+      // Note: connect_to_pierre removed - SDK bridge handles authentication locally via RFC 8414 discovery
       const criticalTools = [
         'get_activities',
         'get_athlete',
         'connect_provider',
-        'get_connection_status',
-        'connect_to_pierre'
+        'get_connection_status'
       ];
 
       const missingTools = criticalTools.filter(t => !toolNames.includes(t));

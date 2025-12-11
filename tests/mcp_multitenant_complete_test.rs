@@ -736,8 +736,8 @@ async fn test_mcp_authentication_required() -> Result<()> {
     let tools = tools_response["result"]["tools"].as_array().unwrap();
     assert_eq!(
         tools.len(),
-        52,
-        "Should expose all 52 tools for discovery (includes nutrition, sleep/recovery, and recipes)"
+        47,
+        "Should expose all 47 tools for discovery (includes nutrition, sleep/recovery, and recipes)"
     );
 
     // Try to call a tool without authentication (this should fail)

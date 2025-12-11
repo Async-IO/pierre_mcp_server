@@ -4,13 +4,13 @@
 // ABOUTME: Auto-generated TypeScript type definitions for Pierre MCP tools
 // ABOUTME: Generated from server tool schemas - DO NOT EDIT MANUALLY
 //
-// Generated: 2025-11-11T00:18:33.582Z
-// Tool count: 45
+// Generated: 2025-12-11
+// Tool count: 40
 
 /**
  * Pierre MCP Tool Type Definitions
  *
- * This file contains TypeScript interfaces for all 45 Pierre MCP tools.
+ * This file contains TypeScript interfaces for all 40 Pierre MCP tools.
  * These types are auto-generated from the server's JSON schemas.
  *
  * To regenerate: npm run generate-types
@@ -20,12 +20,7 @@
 // TOOL PARAMETER TYPES
 // ============================================================================
 
-
-/**
- * Connect to Pierre - Authenticate with Pierre Fitness Server to access your fitness data. This will open a browser window for secure login. Use this when you're not connected or need to reconnect.
- */
-export interface ConnectToPierreParams {}
-
+// Note: connect_to_pierre removed - SDK bridge handles authentication locally via RFC 8414 discovery
 
 /**
  * Connect to Fitness Provider - Unified authentication flow that connects you to both Pierre and a fitness provider (like Strava or Fitbit) in a single seamless process. This will open a browser window for secure authentication with both systems.
@@ -119,51 +114,6 @@ export interface GetActivityIntelligenceParams {
   /** Fitness provider name (e.g., 'strava', 'fitbit') */
   provider: string;
 }
-
-
-/**
- * Get OAuth notifications for the user. By default returns only unread notifications. Optionally filter by provider.
- */
-export interface GetNotificationsParams {
-
-  /** Whether to include already read notifications (default: false) */
-  include_read?: boolean;
-
-  /** Filter notifications by provider (optional - e.g., 'strava', 'fitbit') */
-  provider?: string;
-}
-
-
-/**
- * Mark OAuth notifications as read. Provide notification_id to mark specific notification, or omit to mark all unread notifications as read.
- */
-export interface MarkNotificationsReadParams {
-
-  /** ID of specific notification to mark as read (optional - if not provided, marks all as read) */
-  notification_id?: string;
-}
-
-
-/**
- * Announce OAuth connection success directly in chat so users can see it. This tool will display a visible message when OAuth authentication completes.
- */
-export interface AnnounceOauthSuccessParams {
-
-  /** Success message to display to user */
-  message: string;
-
-  /** Original notification ID that triggered this announcement */
-  notification_id: string;
-
-  /** OAuth provider name (e.g., 'strava', 'fitbit') */
-  provider: string;
-}
-
-
-/**
- * Check for new OAuth completion notifications and display them to the user. This tool will announce any successful OAuth connections that happened recently.
- */
-export interface CheckOauthNotificationsParams {}
 
 
 /**
@@ -639,13 +589,12 @@ export interface McpErrorResponse {
 /**
  * Union type of all available tool names
  */
-export type ToolName = "connect_to_pierre" | "connect_provider" | "get_connection_status" | "disconnect_provider" | "get_activities" | "get_athlete" | "get_stats" | "get_activity_intelligence" | "get_notifications" | "mark_notifications_read" | "announce_oauth_success" | "check_oauth_notifications" | "analyze_activity" | "calculate_metrics" | "analyze_performance_trends" | "compare_activities" | "detect_patterns" | "set_goal" | "track_progress" | "suggest_goals" | "analyze_goal_feasibility" | "generate_recommendations" | "calculate_fitness_score" | "predict_performance" | "analyze_training_load" | "get_configuration_catalog" | "get_configuration_profiles" | "get_user_configuration" | "update_user_configuration" | "calculate_personalized_zones" | "validate_configuration" | "get_fitness_config" | "set_fitness_config" | "list_fitness_configs" | "delete_fitness_config" | "calculate_daily_nutrition" | "get_nutrient_timing" | "search_food" | "get_food_details" | "analyze_meal_nutrition" | "analyze_sleep_quality" | "calculate_recovery_score" | "suggest_rest_day" | "track_sleep_trends" | "optimize_sleep_schedule";
+export type ToolName = "connect_provider" | "get_connection_status" | "disconnect_provider" | "get_activities" | "get_athlete" | "get_stats" | "get_activity_intelligence" | "analyze_activity" | "calculate_metrics" | "analyze_performance_trends" | "compare_activities" | "detect_patterns" | "set_goal" | "track_progress" | "suggest_goals" | "analyze_goal_feasibility" | "generate_recommendations" | "calculate_fitness_score" | "predict_performance" | "analyze_training_load" | "get_configuration_catalog" | "get_configuration_profiles" | "get_user_configuration" | "update_user_configuration" | "calculate_personalized_zones" | "validate_configuration" | "get_fitness_config" | "set_fitness_config" | "list_fitness_configs" | "delete_fitness_config" | "calculate_daily_nutrition" | "get_nutrient_timing" | "search_food" | "get_food_details" | "analyze_meal_nutrition" | "analyze_sleep_quality" | "calculate_recovery_score" | "suggest_rest_day" | "track_sleep_trends" | "optimize_sleep_schedule";
 
 /**
  * Map of tool names to their parameter types
  */
 export interface ToolParamsMap {
-  "connect_to_pierre": ConnectToPierreParams;
   "connect_provider": ConnectProviderParams;
   "get_connection_status": GetConnectionStatusParams;
   "disconnect_provider": DisconnectProviderParams;
@@ -653,10 +602,6 @@ export interface ToolParamsMap {
   "get_athlete": GetAthleteParams;
   "get_stats": GetStatsParams;
   "get_activity_intelligence": GetActivityIntelligenceParams;
-  "get_notifications": GetNotificationsParams;
-  "mark_notifications_read": MarkNotificationsReadParams;
-  "announce_oauth_success": AnnounceOauthSuccessParams;
-  "check_oauth_notifications": CheckOauthNotificationsParams;
   "analyze_activity": AnalyzeActivityParams;
   "calculate_metrics": CalculateMetricsParams;
   "analyze_performance_trends": AnalyzePerformanceTrendsParams;

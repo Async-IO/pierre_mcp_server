@@ -223,6 +223,7 @@ async fn test_configuration_tools_count_in_total() {
         6,
         "Expected exactly 6 configuration tools"
     );
-    assert_eq!(fitness_tools, 46, "Expected exactly 46 fitness tools"); // Includes nutrition (5) + sleep/recovery (5) + recipes (7) tools
-    assert_eq!(tools.len(), 52, "Expected total of 52 tools"); // 46 fitness + 6 configuration
+    // Note: OAuth notification tools removed (4) + connect_to_pierre removed (1) = 5 fewer non-config tools
+    assert_eq!(fitness_tools, 41, "Expected exactly 41 fitness tools"); // Includes nutrition (5) + sleep/recovery (5) + recipes (7) tools
+    assert_eq!(tools.len(), 47, "Expected total of 47 tools"); // 41 fitness + 6 configuration
 }

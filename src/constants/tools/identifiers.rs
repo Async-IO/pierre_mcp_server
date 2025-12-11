@@ -16,22 +16,12 @@ pub const GET_STATS: &str = "get_stats";
 pub const GET_ACTIVITY_INTELLIGENCE: &str = "get_activity_intelligence";
 
 /// Connection management tools
-pub const CONNECT_TO_PIERRE: &str = "connect_to_pierre"; // Tool ID remains snake_case for internal use
 /// Tool identifier for unified Pierre and fitness provider OAuth connection
 pub const CONNECT_PROVIDER: &str = "connect_provider"; // Unified Pierre + Provider OAuth flow
 /// Tool identifier for checking connection status with fitness providers
 pub const GET_CONNECTION_STATUS: &str = "get_connection_status";
 /// Tool identifier for disconnecting from fitness providers
 pub const DISCONNECT_PROVIDER: &str = "disconnect_provider";
-
-/// Notification management tools
-pub const MARK_NOTIFICATIONS_READ: &str = "mark_notifications_read";
-/// Tool identifier for retrieving user notifications
-pub const GET_NOTIFICATIONS: &str = "get_notifications";
-/// Tool identifier for announcing successful OAuth completion
-pub const ANNOUNCE_OAUTH_SUCCESS: &str = "announce_oauth_success";
-/// Tool identifier for checking pending OAuth notifications
-pub const CHECK_OAUTH_NOTIFICATIONS: &str = "check_oauth_notifications";
 
 /// Analytics and performance analysis tools
 pub const ANALYZE_ACTIVITY: &str = "analyze_activity";

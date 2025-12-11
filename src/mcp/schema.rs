@@ -13,12 +13,11 @@
 use crate::constants::{
     json_fields::{ACTIVITY_ID, AFTER, BEFORE, LIMIT, MODE, OFFSET, PROVIDER, SPORT_TYPE},
     tools::{
-        ANALYZE_ACTIVITY, ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, CONNECT_PROVIDER,
-        CONNECT_TO_PIERRE, DELETE_FITNESS_CONFIG, DELETE_RECIPE, DISCONNECT_PROVIDER,
-        GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE, GET_CONNECTION_STATUS,
-        GET_FITNESS_CONFIG, GET_NOTIFICATIONS, GET_RECIPE, GET_RECIPE_CONSTRAINTS, GET_STATS,
-        LIST_FITNESS_CONFIGS, LIST_RECIPES, MARK_NOTIFICATIONS_READ, SAVE_RECIPE, SEARCH_RECIPES,
-        SET_FITNESS_CONFIG, VALIDATE_RECIPE,
+        ANALYZE_ACTIVITY, CONNECT_PROVIDER, DELETE_FITNESS_CONFIG, DELETE_RECIPE,
+        DISCONNECT_PROVIDER, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE,
+        GET_CONNECTION_STATUS, GET_FITNESS_CONFIG, GET_RECIPE, GET_RECIPE_CONSTRAINTS, GET_STATS,
+        LIST_FITNESS_CONFIGS, LIST_RECIPES, SAVE_RECIPE, SEARCH_RECIPES, SET_FITNESS_CONFIG,
+        VALIDATE_RECIPE,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -702,7 +701,7 @@ pub fn get_tools() -> Vec<ToolSchema> {
 fn create_fitness_tools() -> Vec<ToolSchema> {
     vec![
         // Connection tools
-        create_connect_to_pierre_tool(),
+        // Note: connect_to_pierre removed - SDK bridge handles it locally via RFC 8414 discovery
         create_connect_provider_tool(),
         create_get_connection_status_tool(),
         create_disconnect_provider_tool(),
@@ -711,10 +710,6 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
         create_get_athlete_tool(),
         create_get_stats_tool(),
         create_get_activity_intelligence_tool(),
-        create_get_notifications_tool(),
-        create_mark_notifications_read_tool(),
-        create_announce_oauth_success_tool(),
-        create_check_oauth_notifications_tool(),
         // Advanced Analytics Tools
         create_analyze_activity_tool(),
         create_calculate_metrics_tool(),
@@ -936,30 +931,6 @@ fn create_get_activity_intelligence_tool() -> ToolSchema {
     }
 }
 
-/// Create the `connect_to_pierre` tool schema
-///
-/// NOTE: This tool is a UX convenience, not part of the MCP standard.
-/// MCP authentication should happen at the transport layer (via pre-configured API keys
-/// in environment variables or config files), not through tool calls.
-///
-/// The MCP-compliant approach is to configure `PIERRE_JWT_TOKEN` before starting the client.
-/// This tool exists as a fallback for interactive scenarios where browser-based OAuth
-/// is acceptable and the user doesn't have a pre-configured token.
-#[must_use]
-pub fn create_connect_to_pierre_tool() -> ToolSchema {
-    let properties = HashMap::new(); // No parameters needed for this tool
-
-    ToolSchema {
-        name: CONNECT_TO_PIERRE.to_owned(),
-        description: "Connect to Pierre - Authenticate with Pierre Fitness Server to access your fitness data. This will open a browser window for secure login. Use this when you're not connected or need to reconnect. NOTE: This is a UX convenience tool, not MCP standard. For MCP-compliant auth, configure PIERRE_JWT_TOKEN env var before starting the client.".into(),
-        input_schema: JsonSchema {
-            schema_type: "object".into(),
-            properties: Some(properties),
-            required: Some(vec![]), // No required fields
-        },
-    }
-}
-
 /// Create the `connect_provider` tool schema
 fn create_connect_provider_tool() -> ToolSchema {
     let mut properties = HashMap::new();
@@ -1060,99 +1031,6 @@ fn create_disconnect_provider_tool() -> ToolSchema {
             schema_type: "object".into(),
             properties: Some(properties),
             required: Some(vec![PROVIDER.to_owned()]),
-        },
-    }
-}
-
-/// Create mark notifications read tool schema
-fn create_mark_notifications_read_tool() -> ToolSchema {
-    let mut properties = HashMap::new();
-
-    properties.insert(
-        "notification_id".to_owned(),
-        PropertySchema {
-            property_type: "string".into(),
-            description: Some("ID of specific notification to mark as read (optional - if not provided, marks all as read)".into()),
-        },
-    );
-
-    ToolSchema {
-        name: MARK_NOTIFICATIONS_READ.to_owned(),
-        description: "Mark OAuth notifications as read. Provide notification_id to mark specific notification, or omit to mark all unread notifications as read.".into(),
-        input_schema: JsonSchema {
-            schema_type: "object".into(),
-            properties: Some(properties),
-            required: Some(vec![]), // No required fields - can mark all or specific
-        },
-    }
-}
-
-/// Create announce OAuth success tool schema
-fn create_announce_oauth_success_tool() -> ToolSchema {
-    let mut properties = HashMap::new();
-    properties.insert(
-        PROVIDER.to_owned(),
-        PropertySchema {
-            property_type: "string".into(),
-            description: Some("OAuth provider name (e.g., 'strava', 'fitbit')".into()),
-        },
-    );
-    properties.insert(
-        "message".to_owned(),
-        PropertySchema {
-            property_type: "string".into(),
-            description: Some("Success message to display to user".into()),
-        },
-    );
-    properties.insert(
-        "notification_id".to_owned(),
-        PropertySchema {
-            property_type: "string".into(),
-            description: Some("Original notification ID that triggered this announcement".into()),
-        },
-    );
-    ToolSchema {
-        name: ANNOUNCE_OAUTH_SUCCESS.to_owned(),
-        description: "Announce OAuth connection success directly in chat so users can see it. This tool will display a visible message when OAuth authentication completes.".into(),
-        input_schema: JsonSchema {
-            schema_type: "object".into(),
-            properties: Some(properties),
-            required: Some(vec![PROVIDER.to_owned(), "message".to_owned(), "notification_id".to_owned()]),
-        },
-    }
-}
-
-/// Create get notifications tool schema
-fn create_get_notifications_tool() -> ToolSchema {
-    let mut properties = HashMap::new();
-
-    properties.insert(
-        "include_read".to_owned(),
-        PropertySchema {
-            property_type: "boolean".into(),
-            description: Some(
-                "Whether to include already read notifications (default: false)".into(),
-            ),
-        },
-    );
-
-    properties.insert(
-        "provider".to_owned(),
-        PropertySchema {
-            property_type: "string".into(),
-            description: Some(
-                "Filter notifications by provider (optional - e.g., 'strava', 'fitbit')".into(),
-            ),
-        },
-    );
-
-    ToolSchema {
-        name: GET_NOTIFICATIONS.to_owned(),
-        description: "Get OAuth notifications for the user. By default returns only unread notifications. Optionally filter by provider.".into(),
-        input_schema: JsonSchema {
-            schema_type: "object".into(),
-            properties: Some(properties),
-            required: Some(vec![]), // No required fields
         },
     }
 }
@@ -1849,19 +1727,6 @@ fn create_validate_configuration_tool() -> ToolSchema {
             schema_type: "object".into(),
             properties: Some(properties),
             required: Some(vec!["parameters".into()]),
-        },
-    }
-}
-
-/// Create check OAuth notifications tool schema
-fn create_check_oauth_notifications_tool() -> ToolSchema {
-    ToolSchema {
-        name: CHECK_OAUTH_NOTIFICATIONS.to_owned(),
-        description: "Check for new OAuth completion notifications and display them to the user. This tool will announce any successful OAuth connections that happened recently.".into(),
-        input_schema: JsonSchema {
-            schema_type: "object".into(),
-            properties: None,
-            required: None,
         },
     }
 }

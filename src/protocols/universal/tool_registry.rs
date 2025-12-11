@@ -30,22 +30,10 @@ pub enum ToolId {
     GetActivityIntelligence,
     /// Check OAuth connection status for fitness providers
     GetConnectionStatus,
-    /// Connect to Pierre MCP server (triggers OAuth flow)
-    ConnectToPierre,
     /// Connect to a fitness data provider via OAuth
     ConnectProvider,
     /// Disconnect user from a fitness data provider
     DisconnectProvider,
-
-    // OAuth notification tools
-    /// Announce OAuth connection success to user
-    AnnounceOAuthSuccess,
-    /// Check for OAuth completion notifications
-    CheckOAuthNotifications,
-    /// Get list of OAuth notifications
-    GetNotifications,
-    /// Mark OAuth notifications as read
-    MarkNotificationsRead,
 
     // Goal and planning tools
     /// Set a new fitness goal for the user
@@ -152,13 +140,9 @@ impl ToolId {
             "analyze_activity" => Some(Self::AnalyzeActivity),
             "get_activity_intelligence" => Some(Self::GetActivityIntelligence),
             "get_connection_status" => Some(Self::GetConnectionStatus),
-            "connect_to_pierre" => Some(Self::ConnectToPierre),
+            // Note: connect_to_pierre removed - SDK bridge handles it locally via RFC 8414 discovery
             "connect_provider" => Some(Self::ConnectProvider),
             "disconnect_provider" => Some(Self::DisconnectProvider),
-            "announce_oauth_success" => Some(Self::AnnounceOAuthSuccess),
-            "check_oauth_notifications" => Some(Self::CheckOAuthNotifications),
-            "get_notifications" => Some(Self::GetNotifications),
-            "mark_notifications_read" => Some(Self::MarkNotificationsRead),
             "set_goal" => Some(Self::SetGoal),
             "suggest_goals" => Some(Self::SuggestGoals),
             "analyze_goal_feasibility" => Some(Self::AnalyzeGoalFeasibility),
@@ -213,13 +197,8 @@ impl ToolId {
             Self::AnalyzeActivity => "analyze_activity",
             Self::GetActivityIntelligence => "get_activity_intelligence",
             Self::GetConnectionStatus => "get_connection_status",
-            Self::ConnectToPierre => "connect_to_pierre",
             Self::ConnectProvider => "connect_provider",
             Self::DisconnectProvider => "disconnect_provider",
-            Self::AnnounceOAuthSuccess => "announce_oauth_success",
-            Self::CheckOAuthNotifications => "check_oauth_notifications",
-            Self::GetNotifications => "get_notifications",
-            Self::MarkNotificationsRead => "mark_notifications_read",
             Self::SetGoal => "set_goal",
             Self::SuggestGoals => "suggest_goals",
             Self::AnalyzeGoalFeasibility => "analyze_goal_feasibility",
@@ -277,13 +256,8 @@ impl ToolId {
             }
             Self::GetActivityIntelligence => "Get AI-powered intelligence analysis for an activity",
             Self::GetConnectionStatus => "Check OAuth connection status for fitness providers",
-            Self::ConnectToPierre => "Connect to Pierre MCP server and trigger OAuth authentication flow",
             Self::ConnectProvider => "Connect to a fitness data provider via OAuth",
             Self::DisconnectProvider => "Disconnect user from a fitness data provider",
-            Self::AnnounceOAuthSuccess => "Announce OAuth connection success directly in chat",
-            Self::CheckOAuthNotifications => "Check for new OAuth completion notifications",
-            Self::GetNotifications => "Get list of OAuth notifications for the user",
-            Self::MarkNotificationsRead => "Mark OAuth notifications as read",
             Self::SetGoal => "Set a new fitness goal for the user",
             Self::SuggestGoals => "Get AI-suggested fitness goals based on user's activity history",
             Self::AnalyzeGoalFeasibility => {

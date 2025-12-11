@@ -69,7 +69,7 @@ describe('MCP Spec Compliance: tools/list Visibility', () => {
     console.log(`Unauthenticated tools/list returned: ${toolNames.length} tools`);
 
     // CRITICAL: ALL tools must be visible, including:
-    expect(toolNames).toContain('connect_to_pierre');
+    // Note: connect_to_pierre removed from server - SDK bridge handles authentication locally via RFC 8414 discovery
     expect(toolNames).toContain('connect_provider');
     expect(toolNames).toContain('get_activities');
     expect(toolNames).toContain('get_athlete');
@@ -108,7 +108,7 @@ describe('MCP Spec Compliance: tools/list Visibility', () => {
       toolsList = await bridgeClient.send(MCPMessages.toolsList);
       toolNames = toolsList.result.tools.map(t => t.name);
 
-      // If we have more than just connect_to_pierre, connection succeeded
+      // If we have multiple tools, connection succeeded
       if (toolNames.length > 5) {
         break;
       }
@@ -117,7 +117,7 @@ describe('MCP Spec Compliance: tools/list Visibility', () => {
     console.log(`Authenticated tools/list returned: ${toolNames.length} tools`);
 
     // Should have EXACT SAME tools as unauthenticated
-    expect(toolNames).toContain('connect_to_pierre');
+    // Note: connect_to_pierre removed from server - SDK bridge handles authentication locally via RFC 8414 discovery
     expect(toolNames).toContain('connect_provider');
     expect(toolNames).toContain('get_activities');
     expect(toolNames).toContain('get_athlete');

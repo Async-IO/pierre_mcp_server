@@ -143,14 +143,9 @@ fn get_all_tool_names() -> Vec<&'static str> {
         "analyze_activity",
         "get_activity_intelligence",
         "get_connection_status",
-        "connect_to_pierre",
+        // Note: connect_to_pierre removed - SDK bridge handles authentication locally via RFC 8414 discovery
         "connect_provider",
         "disconnect_provider",
-        // Notification tools
-        "announce_oauth_success",
-        "check_oauth_notifications",
-        "get_notifications",
-        "mark_notifications_read",
         // Goal tools
         "set_goal",
         "suggest_goals",

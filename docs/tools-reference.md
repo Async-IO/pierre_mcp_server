@@ -3,13 +3,12 @@
 
 # MCP Tools Reference
 
-Comprehensive reference for all 52 Model Context Protocol (MCP) tools provided by Pierre Fitness Platform. These tools enable AI assistants to access fitness data, analyze performance, manage configurations, and provide personalized recommendations.
+Comprehensive reference for all 47 Model Context Protocol (MCP) tools provided by Pierre Fitness Platform. These tools enable AI assistants to access fitness data, analyze performance, manage configurations, and provide personalized recommendations.
 
 ## Overview
 
-Pierre MCP Server provides tools organized into 9 functional categories:
+Pierre MCP Server provides tools organized into 8 functional categories:
 - **Core Fitness Tools**: Activity data and provider connections
-- **OAuth & Notifications**: Authentication status and notifications
 - **Goals & Planning**: Goal setting and progress tracking
 - **Performance Analysis**: Activity insights and trend analysis
 - **Configuration Management**: System-wide configuration
@@ -48,28 +47,6 @@ Basic fitness data retrieval and provider connection management.
 - `strava_client_secret`: Your Strava OAuth client secret
 - `fitbit_client_id`: Your Fitbit OAuth client ID (uses server defaults if not provided)
 - `fitbit_client_secret`: Your Fitbit OAuth client secret
-
----
-
-## OAuth & Notifications
-
-Tools for managing OAuth authentication notifications and status updates.
-
-| Tool Name | Description | Required Parameters | Optional Parameters |
-|-----------|-------------|---------------------|---------------------|
-| `announce_oauth_success` | Announce OAuth connection success directly in chat | `provider` (string), `message` (string), `notification_id` (string) | - |
-| `check_oauth_notifications` | Check for new OAuth completion notifications | - | - |
-| `get_notifications` | Get list of OAuth notifications for the user | - | `include_read` (boolean), `provider` (string) |
-| `mark_notifications_read` | Mark OAuth notifications as read | - | `notification_id` (string) |
-
-### Parameter Details
-
-**`get_notifications` Parameters**:
-- `include_read`: Whether to include already read notifications (default: false)
-- `provider`: Filter notifications by provider (e.g., 'strava', 'fitbit')
-
-**`mark_notifications_read` Parameters**:
-- `notification_id`: ID of specific notification to mark as read. If omitted, marks all unread notifications as read.
 
 ---
 
@@ -561,15 +538,14 @@ Training-aware recipe management tools for meal planning aligned with workout sc
 | Category | Tool Count | Description |
 |----------|------------|-------------|
 | Core Fitness | 7 | Activity data and provider connections |
-| OAuth & Notifications | 4 | Authentication status and notifications |
 | Goals & Planning | 4 | Goal management and progress tracking |
 | Performance Analysis | 10 | Activity analytics and predictions |
 | Configuration Management | 6 | System configuration and zones |
 | Fitness Configuration | 4 | User fitness settings |
 | Sleep & Recovery | 5 | Sleep analysis and recovery metrics |
 | Nutrition | 5 | Dietary calculations and food database |
-| Recipe Management | 7 | Training-aware meal planning and recipes |
-| **Total** | **52** | **Complete MCP tool suite** |
+| Recipe Management | 6 | Training-aware meal planning and recipes |
+| **Total** | **47** | **Complete MCP tool suite** |
 
 ---
 

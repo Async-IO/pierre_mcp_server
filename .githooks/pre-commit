@@ -128,8 +128,8 @@ check_sdk_lint() {
             run_cmd="bun run"
         fi
 
-        # Run lint
-        if ! (cd sdk && $run_cmd lint --silent 2>/dev/null); then
+        # Run lint (suppress output, bun doesn't support --silent flag)
+        if ! (cd sdk && $run_cmd lint >/dev/null 2>&1); then
             echo "❌ ERROR: SDK lint check failed!"
             echo ""
             echo "Please fix lint errors before committing."
@@ -137,8 +137,8 @@ check_sdk_lint() {
             return 1
         fi
 
-        # Run type-check
-        if ! (cd sdk && $run_cmd type-check --silent 2>/dev/null); then
+        # Run type-check (suppress output, bun doesn't support --silent flag)
+        if ! (cd sdk && $run_cmd type-check >/dev/null 2>&1); then
             echo "❌ ERROR: SDK type-check failed!"
             echo ""
             echo "Please fix TypeScript errors before committing."

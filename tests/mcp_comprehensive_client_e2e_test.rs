@@ -83,10 +83,6 @@ impl MockMcpHandler {
             DELETE_FITNESS_CONFIG,
             GET_CONNECTION_STATUS,
             DISCONNECT_PROVIDER,
-            GET_NOTIFICATIONS,
-            MARK_NOTIFICATIONS_READ,
-            CHECK_OAUTH_NOTIFICATIONS,
-            ANNOUNCE_OAUTH_SUCCESS,
         ];
 
         let tools: Vec<Value> = all_tools
@@ -317,14 +313,6 @@ impl McpProtocolTester {
         // Provider tools
         self.test_tool(GET_CONNECTION_STATUS, json!({})).await;
         self.test_tool(DISCONNECT_PROVIDER, json!({ "provider": "non_existent" }))
-            .await;
-
-        // Notification tools
-        self.test_tool(GET_NOTIFICATIONS, json!({})).await;
-        self.test_tool(MARK_NOTIFICATIONS_READ, json!({ "notification_ids": [] }))
-            .await;
-        self.test_tool(CHECK_OAUTH_NOTIFICATIONS, json!({})).await;
-        self.test_tool(ANNOUNCE_OAUTH_SUCCESS, json!({ "provider": "strava" }))
             .await;
     }
 
