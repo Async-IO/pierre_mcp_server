@@ -14,6 +14,10 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       proxy: {
+        '/oauth': {
+          target: backendUrl,
+          changeOrigin: true,
+        },
         '/api': {
           target: backendUrl,
           changeOrigin: true,

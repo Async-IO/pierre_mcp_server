@@ -309,21 +309,18 @@ async fn initialize_jwt_secret(database: &Database, config: &ServerConfig) -> Re
             if admin_exists {
                 info!("Admin user configured - server ready for authentication");
             } else {
-                eprintln!();
-                eprintln!("WARNING: No admin user configured!");
-                eprintln!("  - Users cannot log in with email/password");
+                error!("No admin user configured!");
+                error!("  - Users cannot log in with email/password");
                 if auto_approve {
-                    eprintln!("  - Firebase/OAuth login will auto-approve users (active status)");
+                    error!("  - Firebase/OAuth login will auto-approve users (active status)");
                 } else {
-                    eprintln!("  - Firebase/OAuth login will create users in 'pending' status");
+                    error!("  - Firebase/OAuth login will create users in 'pending' status");
                 }
-                eprintln!();
-                eprintln!("To fix: Run 'cargo run --bin admin-setup -- create-admin-user --email admin@example.com --password <password>'");
-                eprintln!();
+                error!("To fix: Run 'cargo run --bin admin-setup -- create-admin-user --email admin@example.com --password <password>'");
             }
         }
         Err(e) => {
-            eprintln!("WARNING: Failed to check admin user status: {e}");
+            error!("Failed to check admin user status: {e}");
         }
     }
 

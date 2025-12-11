@@ -117,16 +117,18 @@ test.describe('Login Page', () => {
   test('shows loading state during form submission', async ({ page }) => {
     await setupBasicMocks(page);
 
-    // Mock a slow login response
-    await page.route('**/api/auth/login', async (route) => {
+    // Mock a slow OAuth2 ROPC login response
+    await page.route('**/oauth/token', async (route) => {
       // Delay the response to observe loading state
       await new Promise((resolve) => setTimeout(resolve, 500));
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
+          access_token: 'test-jwt-token',
+          token_type: 'Bearer',
+          expires_in: 86400,
           csrf_token: 'test-csrf-token',
-          jwt_token: 'test-jwt-token',
           user: { id: '1', email: 'admin@test.com', is_admin: true },
         }),
       });
@@ -152,15 +154,17 @@ test.describe('Login Page', () => {
     // Track login state
     let hasLoggedIn = false;
 
-    // Mock successful login
-    await page.route('**/api/auth/login', async (route) => {
+    // Mock successful OAuth2 ROPC login
+    await page.route('**/oauth/token', async (route) => {
       hasLoggedIn = true;
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
+          access_token: 'test-jwt-token',
+          token_type: 'Bearer',
+          expires_in: 86400,
           csrf_token: 'test-csrf-token',
-          jwt_token: 'test-jwt-token',
           user: { id: '1', email: 'admin@test.com', display_name: 'Admin', is_admin: true, user_status: 'active', role: 'admin' },
         }),
       });
@@ -218,13 +222,14 @@ test.describe('Login Page', () => {
   test('displays error message on login failure', async ({ page }) => {
     await setupBasicMocks(page);
 
-    // Mock failed login with error response that includes axios-compatible format
-    await page.route('**/api/auth/login', async (route) => {
+    // Mock failed OAuth2 ROPC login with error response
+    await page.route('**/oauth/token', async (route) => {
       await route.fulfill({
         status: 401,
         contentType: 'application/json',
         body: JSON.stringify({
-          error: 'Invalid email or password',
+          error: 'invalid_grant',
+          error_description: 'Invalid email or password',
         }),
       });
     });
@@ -258,7 +263,7 @@ test.describe('Login Page', () => {
     await setupBasicMocks(page);
 
     // Mock network error
-    await page.route('**/api/auth/login', async (route) => {
+    await page.route('**/oauth/token', async (route) => {
       await route.abort('failed');
     });
 
@@ -334,15 +339,17 @@ test.describe('Login Page - Accessibility', () => {
   test('submit button shows disabled state when loading', async ({ page }) => {
     await setupBasicMocks(page);
 
-    await page.route('**/api/auth/login', async (route) => {
+    await page.route('**/oauth/token', async (route) => {
       // Very slow response to observe disabled state
       await new Promise((resolve) => setTimeout(resolve, 3000));
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
+          access_token: 'test-jwt-token',
+          token_type: 'Bearer',
+          expires_in: 86400,
           csrf_token: 'test-csrf-token',
-          jwt_token: 'test-jwt-token',
           user: { id: '1', email: 'admin@test.com', is_admin: true },
         }),
       });

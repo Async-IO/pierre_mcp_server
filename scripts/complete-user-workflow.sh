@@ -40,8 +40,8 @@ fi
 
 echo -e "${GREEN}✅ Server is running${NC}"
 
-# Step 1: Create Admin User
-echo -e "\n${BLUE}=== Step 1: Create Admin User ===${NC}"
+# Step 1: Create or Get Admin Token
+echo -e "\n${BLUE}=== Step 1: Create or Get Admin Token ===${NC}"
 
 ADMIN_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/admin/setup \
   -H "Content-Type: application/json" \
@@ -55,15 +55,30 @@ ADMIN_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/admin/setup \
 ADMIN_TOKEN=$(echo $ADMIN_RESPONSE | jq -r '.data.admin_token')
 
 if [[ "$ADMIN_TOKEN" == "null" || -z "$ADMIN_TOKEN" ]]; then
-    echo -e "${RED}❌ Failed to create admin or extract admin token${NC}"
-    echo "Response: $ADMIN_RESPONSE"
-    exit 1
-fi
+    # Admin already exists - generate admin token using CLI tool
+    echo -e "${YELLOW}Admin already exists, generating admin token via CLI...${NC}"
 
-echo -e "${GREEN}✅ Admin created successfully${NC}"
+    # Generate admin token using admin-setup CLI
+    ADMIN_SETUP_OUTPUT=$(RUST_LOG=warn cargo run --bin admin-setup -- generate-token --service workflow_script --super-admin --expires-days 1 2>&1)
+
+    # Extract the JWT token from CLI output
+    # Format: "Key YOUR JWT TOKEN (SAVE THIS NOW):" then "======" then the actual token then "======"
+    # The token starts with "eyJ" (base64-encoded JSON header)
+    ADMIN_TOKEN=$(echo "$ADMIN_SETUP_OUTPUT" | grep -E "^eyJ" | head -1 | tr -d '[:space:]')
+
+    if [[ -z "$ADMIN_TOKEN" || ! "$ADMIN_TOKEN" =~ ^eyJ ]]; then
+        echo -e "${RED}❌ Failed to generate admin token via CLI${NC}"
+        echo "CLI Output: $ADMIN_SETUP_OUTPUT"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✅ Admin token generated via CLI (admin already existed)${NC}"
+else
+    echo -e "${GREEN}✅ Admin created successfully${NC}"
+fi
 echo "Admin token (first 50 chars): ${ADMIN_TOKEN:0:50}..."
 
-# Step 2: Register Regular User (requires admin token)
+# Step 2: Register Regular User (or skip if exists)
 echo -e "\n${BLUE}=== Step 2: Register Regular User ===${NC}"
 
 USER_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/api/auth/register \
@@ -77,42 +92,109 @@ USER_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/api/auth/register \
 
 # Extract user ID for approval
 USER_ID=$(echo $USER_RESPONSE | jq -r '.user_id')
+USER_ALREADY_EXISTS=false
 
 if [[ "$USER_ID" == "null" || -z "$USER_ID" ]]; then
-    echo -e "${RED}❌ Failed to register user or extract user ID${NC}"
-    echo "Response: $USER_RESPONSE"
-    exit 1
+    # Check if user already exists - try to login and extract user_id from response
+    echo -e "${YELLOW}User registration returned no ID, checking if user exists...${NC}"
+
+    CHECK_LOGIN=$(curl -s -X POST http://localhost:$HTTP_PORT/api/auth/login \
+      -H "Content-Type: application/json" \
+      -d '{
+        "email": "user@example.com",
+        "password": "userpass123"
+      }')
+
+    USER_ID=$(echo $CHECK_LOGIN | jq -r '.user.user_id')
+
+    if [[ "$USER_ID" != "null" && -n "$USER_ID" ]]; then
+        USER_ALREADY_EXISTS=true
+        echo -e "${GREEN}✅ User already exists (ID: $USER_ID)${NC}"
+    else
+        echo -e "${RED}❌ Failed to register user or find existing user${NC}"
+        echo "Register Response: $USER_RESPONSE"
+        echo "Login Response: $CHECK_LOGIN"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}✅ User registered successfully${NC}"
+    echo "User ID: $USER_ID"
 fi
 
-echo -e "${GREEN}✅ User registered successfully${NC}"
-echo "User ID: $USER_ID"
-
-# Step 3: Approve User WITH Tenant Creation
+# Step 3: Approve User WITH Tenant Creation (skip if user already exists and is approved)
 echo -e "\n${BLUE}=== Step 3: Approve User with Tenant Creation ===${NC}"
 
-APPROVAL_RESPONSE=$(curl -s -X POST "http://localhost:$HTTP_PORT/admin/approve-user/$USER_ID" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d '{
-    "reason": "User registration approved",
-    "create_default_tenant": true,
-    "tenant_name": "User Organization",
-    "tenant_slug": "user-org"
-  }')
+if [[ "$USER_ALREADY_EXISTS" == "true" ]]; then
+    echo -e "${YELLOW}User already exists, checking tenant assignment...${NC}"
 
-echo "Approval result:"
-echo $APPROVAL_RESPONSE | jq
+    # Try to get tenant from login response
+    TENANT_ID=$(echo $CHECK_LOGIN | jq -r '.user.tenant_id // empty')
 
-# Extract tenant info
-TENANT_ID=$(echo $APPROVAL_RESPONSE | jq -r '.data.tenant_created.tenant_id')
+    if [[ -z "$TENANT_ID" || "$TENANT_ID" == "null" ]]; then
+        # User exists but might not have tenant - try approval anyway
+        APPROVAL_RESPONSE=$(curl -s -X POST "http://localhost:$HTTP_PORT/admin/approve-user/$USER_ID" \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer $ADMIN_TOKEN" \
+          -d '{
+            "reason": "User registration approved",
+            "create_default_tenant": true,
+            "tenant_name": "User Organization",
+            "tenant_slug": "user-org"
+          }')
 
-if [[ "$TENANT_ID" == "null" || -z "$TENANT_ID" ]]; then
-    echo -e "${RED}❌ Failed to approve user or create tenant${NC}"
-    exit 1
+        TENANT_ID=$(echo $APPROVAL_RESPONSE | jq -r '.data.tenant_created.tenant_id // .data.tenant_id // empty')
+
+        if [[ -z "$TENANT_ID" || "$TENANT_ID" == "null" ]]; then
+            # Check if user is already approved with existing tenant
+            FINAL_LOGIN=$(curl -s -X POST http://localhost:$HTTP_PORT/api/auth/login \
+              -H "Content-Type: application/json" \
+              -d '{
+                "email": "user@example.com",
+                "password": "userpass123"
+              }')
+
+            # Try to extract tenant_id from JWT claims
+            JWT=$(echo $FINAL_LOGIN | jq -r '.jwt_token')
+            if [[ -n "$JWT" && "$JWT" != "null" ]]; then
+                # Decode JWT payload (base64) to get tenant_id
+                PAYLOAD=$(echo $JWT | cut -d'.' -f2 | base64 -d 2>/dev/null || echo "{}")
+                TENANT_ID=$(echo $PAYLOAD | jq -r '.tenant_id // empty')
+            fi
+
+            if [[ -z "$TENANT_ID" || "$TENANT_ID" == "null" ]]; then
+                echo -e "${RED}❌ Could not find or create tenant for user${NC}"
+                exit 1
+            fi
+        fi
+    fi
+
+    echo -e "${GREEN}✅ User already approved with tenant${NC}"
+    echo "Tenant ID: $TENANT_ID"
+else
+    APPROVAL_RESPONSE=$(curl -s -X POST "http://localhost:$HTTP_PORT/admin/approve-user/$USER_ID" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $ADMIN_TOKEN" \
+      -d '{
+        "reason": "User registration approved",
+        "create_default_tenant": true,
+        "tenant_name": "User Organization",
+        "tenant_slug": "user-org"
+      }')
+
+    echo "Approval result:"
+    echo $APPROVAL_RESPONSE | jq
+
+    # Extract tenant info
+    TENANT_ID=$(echo $APPROVAL_RESPONSE | jq -r '.data.tenant_created.tenant_id')
+
+    if [[ "$TENANT_ID" == "null" || -z "$TENANT_ID" ]]; then
+        echo -e "${RED}❌ Failed to approve user or create tenant${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✅ User approved with tenant created${NC}"
+    echo "Tenant ID: $TENANT_ID"
 fi
-
-echo -e "${GREEN}✅ User approved with tenant created${NC}"
-echo "Tenant ID: $TENANT_ID"
 
 # Step 4: User Login
 echo -e "\n${BLUE}=== Step 4: User Login ===${NC}"

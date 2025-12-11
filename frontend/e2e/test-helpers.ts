@@ -34,14 +34,16 @@ export async function setupDashboardMocks(page: Page, userOptions: UserOptions =
     });
   });
 
-  // Mock login endpoint
-  await page.route('**/api/auth/login', async (route) => {
+  // Mock OAuth2 ROPC login endpoint
+  await page.route('**/oauth/token', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
+        access_token: 'test-jwt-token',
+        token_type: 'Bearer',
+        expires_in: 86400,
         csrf_token: 'test-csrf-token',
-        jwt_token: 'test-jwt-token',
         user: {
           user_id: 'user-123',
           email,

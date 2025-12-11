@@ -897,13 +897,21 @@ fn create_get_activity_intelligence_tool() -> ToolSchema {
 }
 
 /// Create the `connect_to_pierre` tool schema
+///
+/// NOTE: This tool is a UX convenience, not part of the MCP standard.
+/// MCP authentication should happen at the transport layer (via pre-configured API keys
+/// in environment variables or config files), not through tool calls.
+///
+/// The MCP-compliant approach is to configure `PIERRE_JWT_TOKEN` before starting the client.
+/// This tool exists as a fallback for interactive scenarios where browser-based OAuth
+/// is acceptable and the user doesn't have a pre-configured token.
 #[must_use]
 pub fn create_connect_to_pierre_tool() -> ToolSchema {
     let properties = HashMap::new(); // No parameters needed for this tool
 
     ToolSchema {
         name: CONNECT_TO_PIERRE.to_owned(),
-        description: "Connect to Pierre - Authenticate with Pierre Fitness Server to access your fitness data. This will open a browser window for secure login. Use this when you're not connected or need to reconnect.".into(),
+        description: "Connect to Pierre - Authenticate with Pierre Fitness Server to access your fitness data. This will open a browser window for secure login. Use this when you're not connected or need to reconnect. NOTE: This is a UX convenience tool, not MCP standard. For MCP-compliant auth, configure PIERRE_JWT_TOKEN env var before starting the client.".into(),
         input_schema: JsonSchema {
             schema_type: "object".into(),
             properties: Some(properties),

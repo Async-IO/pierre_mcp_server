@@ -31,7 +31,10 @@ use anyhow::Result;
 use bcrypt::{hash, DEFAULT_COST};
 use clap::{Parser, Subcommand};
 use pierre_mcp_server::{
-    admin::models::{CreateAdminTokenRequest, GeneratedAdminToken},
+    admin::{
+        jwks::JwksManager,
+        models::{CreateAdminTokenRequest, GeneratedAdminToken},
+    },
     database::CreateUserMcpTokenRequest,
     database_plugins::factory::Database,
     database_plugins::DatabaseProvider,
@@ -40,6 +43,50 @@ use pierre_mcp_server::{
 use std::env;
 use tracing::{error, info, warn};
 use uuid::Uuid;
+
+/// Initialize JWKS manager by loading keys from database or generating new ones
+/// This ensures the CLI uses the same RSA keys as the running server
+async fn initialize_jwks_manager(database: &Database) -> Result<JwksManager, AppError> {
+    info!("Initializing JWKS manager for RS256 admin tokens...");
+    let mut jwks_manager = JwksManager::new();
+
+    match database.load_rsa_keypairs().await {
+        Ok(keypairs) if !keypairs.is_empty() => {
+            info!(
+                "Loading {} persisted RSA keypairs from database",
+                keypairs.len()
+            );
+            jwks_manager.load_keys_from_database(keypairs)?;
+            info!("Successfully loaded RSA keys from database");
+        }
+        Ok(_) => {
+            // No keys exist yet - generate and persist new ones
+            info!("No persisted RSA keys found, generating new keypair");
+            let kid = format!("key_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+            jwks_manager.generate_rsa_key_pair(&kid)?;
+
+            // Persist to database so server will use the same keys
+            let key_pair = jwks_manager.get_active_key()?;
+            let private_pem = key_pair.export_private_key_pem()?;
+            let public_pem = key_pair.export_public_key_pem()?;
+            let created_at = chrono::Utc::now();
+            database
+                .save_rsa_keypair(&kid, &private_pem, &public_pem, created_at, true, 4096)
+                .await?;
+            info!("Generated and persisted new RSA keypair: {}", kid);
+        }
+        Err(e) => {
+            // Database error - generate ephemeral keys (won't work with running server)
+            warn!(
+                "Failed to load RSA keys from database: {}. Generating ephemeral keys.",
+                e
+            );
+            jwks_manager.generate_rsa_key_pair("admin_key_ephemeral")?;
+        }
+    }
+    info!("JWKS manager initialized");
+    Ok(jwks_manager)
+}
 
 #[derive(Parser)]
 #[command(
@@ -190,11 +237,8 @@ async fn main() -> Result<()> {
     info!("Running database migrations...");
     database.migrate().await?;
 
-    // Initialize JWKS manager for RS256 admin token signing
-    info!("Initializing JWKS manager for RS256 admin tokens...");
-    let mut jwks_manager = pierre_mcp_server::admin::jwks::JwksManager::new();
-    jwks_manager.generate_rsa_key_pair("admin_key_1")?;
-    info!("JWKS manager initialized with RSA-4096 key pair");
+    // Initialize JWKS manager - loads RSA keys from database for server compatibility
+    let jwks_manager = initialize_jwks_manager(&database).await?;
 
     // Execute command
     match args.command {

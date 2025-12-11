@@ -62,7 +62,17 @@ class ApiService {
   }
 
   async login(email: string, password: string) {
-    const response = await axios.post('/api/auth/login', { email, password });
+    // OAuth2 ROPC endpoint requires form-encoded body per RFC 6749
+    const params = new URLSearchParams();
+    params.append('grant_type', 'password');
+    params.append('username', email);
+    params.append('password', password);
+
+    const response = await axios.post('/oauth/token', params, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
     return response.data;
   }
 

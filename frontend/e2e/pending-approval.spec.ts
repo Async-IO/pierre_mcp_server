@@ -20,14 +20,16 @@ async function loginAsPendingUser(page: import('@playwright/test').Page) {
     });
   });
 
-  // Mock login to return a pending user
-  await page.route('**/api/auth/login', async (route) => {
+  // Mock OAuth2 ROPC login to return a pending user
+  await page.route('**/oauth/token', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
+        access_token: 'test-jwt-token',
+        token_type: 'Bearer',
+        expires_in: 86400,
         csrf_token: 'test-csrf-token',
-        jwt_token: 'test-jwt-token',
         user: {
           id: 'pending-user-123',
           email: 'pending@test.com',
@@ -142,14 +144,16 @@ test.describe('Pending Approval Page - Without Display Name', () => {
       });
     });
 
-    // Mock login with user without display name
-    await page.route('**/api/auth/login', async (route) => {
+    // Mock OAuth2 ROPC login with user without display name
+    await page.route('**/oauth/token', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
+          access_token: 'test-jwt-token',
+          token_type: 'Bearer',
+          expires_in: 86400,
           csrf_token: 'test-csrf-token',
-          jwt_token: 'test-jwt-token',
           user: {
             id: 'pending-user-456',
             email: 'noname@test.com',
@@ -202,14 +206,16 @@ test.describe('Pending Approval Page - Active User Redirect', () => {
       });
     });
 
-    // Mock login with an active user
-    await page.route('**/api/auth/login', async (route) => {
+    // Mock OAuth2 ROPC login with an active user
+    await page.route('**/oauth/token', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
+          access_token: 'test-jwt-token',
+          token_type: 'Bearer',
+          expires_in: 86400,
           csrf_token: 'test-csrf-token',
-          jwt_token: 'test-jwt-token',
           user: {
             id: 'active-user-123',
             email: 'active@test.com',

@@ -32,150 +32,24 @@ fi
 echo "=========================================="
 echo ""
 
-# Step 1: Fresh start (clean database, etc.)
-echo "Step 1: Running fresh-start.sh..."
+# Step 1-5: Use unified setup-and-start.sh script
+# This handles: fresh-start, build, admin user creation, server start, health check
+echo "Step 1-5: Running setup-and-start.sh (unified setup)..."
 cd "$PROJECT_ROOT"
-./scripts/fresh-start.sh
-echo "✅ Fresh start complete"
+
+# Run the unified setup script with workflow tests
+./bin/setup-and-start.sh --run-tests
+
+echo "✅ Setup and workflow complete"
 echo ""
 
-# Step 2: Build SDK (install dependencies only if needed)
-echo "Step 2: Building SDK..."
-cd "$PROJECT_ROOT/sdk"
-
-# Only run bun install --frozen-lockfile if node_modules doesn't exist
-if [ ! -d "node_modules" ]; then
-    echo "Installing dependencies..."
-    bun install --frozen-lockfile
-    if [ $? -ne 0 ]; then
-        echo "❌ bun install --frozen-lockfile failed"
-        exit 1
-    fi
-    echo "✅ Dependencies installed"
-else
-    echo "✅ Dependencies already installed (node_modules exists)"
-fi
-
-bun run build
-if [ $? -ne 0 ]; then
-    echo "❌ SDK build failed"
-    exit 1
-fi
-echo "✅ SDK built successfully"
-echo ""
-
-# Step 3: Kill any server running on port 8081
-echo "Step 3: Killing any server on port 8081..."
-if lsof -i :8081 -t > /dev/null 2>&1; then
-    lsof -i :8081 -t | xargs kill -9 2>/dev/null || true
-    sleep 2
-    echo "✅ Server on port 8081 killed"
-else
-    echo "ℹ️  No server running on port 8081"
-fi
-echo ""
-
-# Step 4: Create data directory for database
-echo "Step 4: Creating data directory..."
-cd "$PROJECT_ROOT"
-mkdir -p data
-echo "✅ Data directory created"
-echo ""
-
-# Step 5: Start server with environment from main + workflow_test_env
-echo "Step 5: Starting Pierre MCP Server with test environment..."
-echo "Loading environment from:"
-echo "  - $MAIN_WORKTREE/.envrc"
-echo "  - $PROJECT_ROOT/.workflow_test_env"
-echo ""
-
-# Source main .envrc first
-if [ -f "$MAIN_WORKTREE/.envrc" ]; then
-    source "$MAIN_WORKTREE/.envrc"
-else
-    echo "⚠️  Warning: $MAIN_WORKTREE/.envrc not found"
-fi
-
-# Source workflow test env (overwrites with test tokens)
-# Note: This file is created by complete-user-workflow.sh, so it's OK if it doesn't exist yet
-if [ -f "$PROJECT_ROOT/.workflow_test_env" ]; then
-    source "$PROJECT_ROOT/.workflow_test_env"
-    echo "✅ Loaded existing workflow test environment"
-fi
-
-# Set default provider to strava for OAuth testing
-export PIERRE_DEFAULT_PROVIDER=strava
-
-# Start server in background with trace logging
-echo "Starting server with RUST_LOG=trace on port ${HTTP_PORT:-8081}..."
-echo "Server logs: $PROJECT_ROOT/server.log"
-echo ""
-
-# Start cargo in background and capture output
-RUST_LOG=trace cargo run --bin pierre-mcp-server > "$PROJECT_ROOT/server.log" 2>&1 &
-SERVER_PID=$!
-
-# Show compilation output in real-time
-echo "Showing compilation/startup output..."
-echo "----------------------------------------"
-
-# Tail the log file while waiting for server to start
-MAX_WAIT=180  # 3 minutes for compilation + startup
-WAITED=0
-LAST_LINE=0
-
-while [ $WAITED -lt $MAX_WAIT ]; do
-    # Check if server process is still alive
-    if ! kill -0 $SERVER_PID 2>/dev/null; then
-        echo ""
-        echo "❌ Server process died unexpectedly"
-        echo "Last 30 lines of server.log:"
-        tail -30 "$PROJECT_ROOT/server.log"
-        exit 1
-    fi
-
-    # Check if server is responding
-    if curl -s "http://localhost:${HTTP_PORT:-8081}/health" > /dev/null 2>&1; then
-        echo ""
-        echo "✅ Server started successfully after ${WAITED}s (PID: $SERVER_PID)"
-        break
-    fi
-
-    # Show new lines from log file
-    if [ -f "$PROJECT_ROOT/server.log" ]; then
-        CURRENT_LINES=$(wc -l < "$PROJECT_ROOT/server.log" 2>/dev/null || echo "0")
-        if [ "$CURRENT_LINES" -gt "$LAST_LINE" ]; then
-            tail -n +$((LAST_LINE + 1)) "$PROJECT_ROOT/server.log" 2>/dev/null || true
-            LAST_LINE=$CURRENT_LINES
-        fi
-    fi
-
-    sleep 1
-    WAITED=$((WAITED + 1))
-done
-
-# Final check after timeout
-if [ $WAITED -ge $MAX_WAIT ]; then
-    echo ""
-    echo "❌ Server failed to start within ${MAX_WAIT} seconds"
-    echo "Last 40 lines of server.log:"
-    tail -40 "$PROJECT_ROOT/server.log"
-    kill $SERVER_PID 2>/dev/null || true
-    exit 1
-fi
-
-echo "----------------------------------------"
-echo ""
-
-# Step 5: Run complete-user-workflow.sh to create test user and tokens
-echo "Step 5: Running complete-user-workflow.sh..."
-cd "$PROJECT_ROOT"
-./scripts/complete-user-workflow.sh
-echo "✅ User workflow complete"
+# Get the server PID for later reference
+SERVER_PID=$(pgrep -f "pierre-mcp-server" | head -1)
+echo "Server PID: $SERVER_PID"
 echo ""
 
 # Re-source .workflow_test_env to get FRESH tokens from complete-user-workflow.sh
-echo "Step 5: Loading fresh tokens from workflow..."
+echo "Step 6: Loading fresh tokens from workflow..."
 if [ -f "$PROJECT_ROOT/.workflow_test_env" ]; then
     source "$PROJECT_ROOT/.workflow_test_env"
     echo "✅ Fresh tokens loaded"
@@ -185,9 +59,9 @@ else
 fi
 echo ""
 
-# Step 6: Handle token file based on mode
+# Step 7: Handle token file based on mode
 if [ "$AUTOMATIC_OAUTH" = true ]; then
-    echo "Step 6: Updating $TOKEN_FILE with fresh token (automatic OAuth mode)..."
+    echo "Step 7: Updating $TOKEN_FILE with fresh token (automatic OAuth mode)..."
     if [ -n "$JWT_TOKEN" ]; then
         cat > "$TOKEN_FILE" <<EOF
 {
@@ -221,7 +95,7 @@ EOF
         exit 1
     fi
 else
-    echo "Step 6: Removing $TOKEN_FILE to force OAuth flow (manual OAuth mode)..."
+    echo "Step 7: Removing $TOKEN_FILE to force OAuth flow (manual OAuth mode)..."
     if [ -f "$TOKEN_FILE" ]; then
         rm "$TOKEN_FILE"
         echo "✅ Token file removed - OAuth flow will be triggered on first connect"
@@ -236,8 +110,8 @@ else
 fi
 echo ""
 
-# Step 7: Update Claude Desktop config to point to this worktree
-echo "Step 7: Updating Claude Desktop config..."
+# Step 8: Update Claude Desktop config to point to this worktree
+echo "Step 8: Updating Claude Desktop config..."
 CLAUDE_CONFIG_DIR="$(dirname "$CLAUDE_CONFIG")"
 mkdir -p "$CLAUDE_CONFIG_DIR"
 
@@ -269,8 +143,8 @@ echo "Server is running with PID: $SERVER_PID"
 echo "Server logs: $PROJECT_ROOT/server.log"
 echo ""
 
-# Step 8: Restart Claude Desktop to pick up new config
-echo "Step 8: Restarting Claude Desktop..."
+# Step 9: Restart Claude Desktop to pick up new config
+echo "Step 9: Restarting Claude Desktop..."
 echo "Stopping Claude Desktop..."
 osascript -e 'quit app "Claude"' 2>/dev/null || true
 sleep 2

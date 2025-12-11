@@ -14,7 +14,7 @@ use crate::{
     constants::{error_messages, limits},
     context::{AuthContext, ConfigContext, DataContext, NotificationContext},
     database_plugins::DatabaseProvider,
-    errors::{AppError, AppResult},
+    errors::{AppError, AppResult, ErrorCode},
     mcp::resources::ServerResources,
     models::{Tenant, User, UserStatus},
     utils::errors::{auth_error, user_state_error, validation_error},
@@ -99,6 +99,59 @@ pub struct RefreshTokenRequest {
     pub token: String,
     /// User ID for validation
     pub user_id: String,
+}
+
+/// `OAuth2` ROPC (Resource Owner Password Credentials) token request
+/// Per RFC 6749 Section 4.3 - uses form-encoded body
+#[derive(Debug, Deserialize)]
+pub struct OAuth2TokenRequest {
+    /// Grant type - must be "password" for ROPC
+    pub grant_type: String,
+    /// User's email address (RFC calls this "username")
+    pub username: String,
+    /// User's password
+    pub password: String,
+    /// `OAuth2` client identifier (optional for first-party clients)
+    pub client_id: Option<String>,
+    /// `OAuth2` client secret (optional for public clients)
+    pub client_secret: Option<String>,
+    /// Requested `OAuth2` scopes (optional, space-separated)
+    pub scope: Option<String>,
+}
+
+/// `OAuth2` token response per RFC 6749 Section 5.1
+/// Extended with optional user info for frontend compatibility
+#[derive(Debug, Serialize)]
+pub struct OAuth2TokenResponse {
+    /// The access token issued by the authorization server
+    pub access_token: String,
+    /// The type of the token issued (always "Bearer")
+    pub token_type: String,
+    /// The lifetime in seconds of the access token
+    pub expires_in: i64,
+    /// Optional refresh token for obtaining new access tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token: Option<String>,
+    /// The scope of the access token (space-separated)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
+    // --- Pierre extensions (allowed per RFC 6749 Section 5.1) ---
+    /// User information (Pierre extension for frontend compatibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user: Option<UserInfo>,
+    /// CSRF token for web clients (Pierre extension)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub csrf_token: Option<String>,
+}
+
+/// `OAuth2` error response per RFC 6749 Section 5.2
+#[derive(Debug, Serialize)]
+pub struct OAuth2ErrorResponse {
+    /// Error code per RFC 6749 (e.g., `invalid_grant`, `invalid_client`)
+    pub error: String,
+    /// Human-readable description of the error
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_description: Option<String>,
 }
 
 /// OAuth provider connection status
@@ -1197,10 +1250,11 @@ impl AuthRoutes {
         Router::new()
             .route("/api/auth/register", post(Self::handle_public_register))
             .route("/api/auth/admin/register", post(Self::handle_register))
-            .route("/api/auth/login", post(Self::handle_login))
             .route("/api/auth/firebase", post(Self::handle_firebase_login))
             .route("/api/auth/logout", post(Self::handle_logout))
             .route("/api/auth/refresh", post(Self::handle_refresh))
+            // OAuth2 ROPC endpoint (RFC 6749 Section 4.3) - unified login for all clients
+            .route("/oauth/token", post(Self::handle_oauth2_token))
             .route(
                 "/api/oauth/callback/:provider",
                 get(Self::handle_oauth_callback),
@@ -1307,62 +1361,6 @@ impl AuthRoutes {
             }
             Err(e) => {
                 error!("Public registration failed: {}", e);
-                Err(e)
-            }
-        }
-    }
-
-    /// Handle user login (Axum)
-    async fn handle_login(
-        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
-        axum::Json(request): axum::Json<LoginRequest>,
-    ) -> Result<axum::response::Response, AppError> {
-        use axum::response::IntoResponse;
-
-        let server_context = crate::context::ServerContext::from(resources.as_ref());
-        let auth_service = AuthService::new(
-            server_context.auth().clone(),
-            server_context.config().clone(),
-            server_context.data().clone(),
-        );
-
-        match auth_service.login(request).await {
-            Ok(mut response) => {
-                // Clone JWT for cookie (keep in response for backward compatibility)
-                let jwt_token = response
-                    .jwt_token
-                    .clone() // Safe: JWT string ownership for cookie
-                    .ok_or_else(|| AppError::internal("JWT token missing from login response"))?;
-
-                // Parse user ID for CSRF token generation
-                let user_id = uuid::Uuid::parse_str(&response.user.user_id)
-                    .map_err(|e| AppError::internal(format!("Invalid user ID format: {e}")))?;
-
-                // Generate CSRF token
-                let csrf_token = resources
-                    .csrf_manager
-                    .generate_token(user_id)
-                    .await
-                    .map_err(|e| {
-                        AppError::internal(format!("Failed to generate CSRF token: {e}"))
-                    })?;
-
-                // Set response CSRF token
-                response.csrf_token.clone_from(&csrf_token);
-
-                // Build response with secure cookies
-                let mut headers = axum::http::HeaderMap::new();
-
-                // Set httpOnly auth cookie (24 hour expiry to match JWT)
-                crate::security::cookies::set_auth_cookie(&mut headers, &jwt_token, 24 * 60 * 60);
-
-                // Set CSRF cookie (30 minute expiry to match CSRF token)
-                crate::security::cookies::set_csrf_cookie(&mut headers, &csrf_token, 30 * 60);
-
-                Ok((axum::http::StatusCode::OK, headers, axum::Json(response)).into_response())
-            }
-            Err(e) => {
-                error!("Login failed: {}", e);
                 Err(e)
             }
         }
@@ -1512,6 +1510,130 @@ impl AuthRoutes {
             })),
         )
             .into_response())
+    }
+
+    /// Handle `OAuth2` ROPC (Resource Owner Password Credentials) token request
+    ///
+    /// This endpoint implements RFC 6749 Section 4.3 for MCP and CLI clients
+    /// that need to obtain tokens without a browser-based OAuth flow.
+    ///
+    /// Request format: `application/x-www-form-urlencoded`
+    /// ```text
+    /// grant_type=password&username=user@example.com&password=secret
+    /// ```
+    ///
+    /// Response format: RFC 6749 Section 5.1 compliant JSON
+    async fn handle_oauth2_token(
+        axum::extract::State(resources): axum::extract::State<Arc<ServerResources>>,
+        axum::extract::Form(request): axum::extract::Form<OAuth2TokenRequest>,
+    ) -> Result<axum::response::Response, AppError> {
+        use axum::response::IntoResponse;
+
+        // Validate grant_type
+        if request.grant_type != "password" {
+            let error_response = OAuth2ErrorResponse {
+                error: "unsupported_grant_type".to_owned(),
+                error_description: Some(format!(
+                    "Grant type '{}' is not supported. Use 'password' for ROPC.",
+                    request.grant_type
+                )),
+            };
+            return Ok((
+                axum::http::StatusCode::BAD_REQUEST,
+                axum::Json(error_response),
+            )
+                .into_response());
+        }
+
+        // Delegate to existing login logic
+        let login_request = LoginRequest {
+            email: request.username,
+            password: request.password,
+        };
+
+        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let auth_service = AuthService::new(
+            server_context.auth().clone(),
+            server_context.config().clone(),
+            server_context.data().clone(),
+        );
+
+        match auth_service.login(login_request).await {
+            Ok(response) => {
+                let jwt_token = response
+                    .jwt_token
+                    .clone()
+                    .ok_or_else(|| AppError::internal("JWT token missing from login response"))?;
+
+                // Parse expiration to calculate expires_in
+                let expires_at = chrono::DateTime::parse_from_rfc3339(&response.expires_at)
+                    .map_or_else(
+                        |_| chrono::Utc::now() + chrono::Duration::hours(24),
+                        |dt| dt.with_timezone(&chrono::Utc),
+                    );
+                let expires_in = (expires_at - chrono::Utc::now()).num_seconds();
+
+                // Generate CSRF token for web clients
+                let user_id = uuid::Uuid::parse_str(&response.user.user_id)
+                    .map_err(|e| AppError::internal(format!("Invalid user ID format: {e}")))?;
+                let csrf_token = resources
+                    .csrf_manager
+                    .generate_token(user_id)
+                    .await
+                    .map_err(|e| {
+                        AppError::internal(format!("Failed to generate CSRF token: {e}"))
+                    })?;
+
+                let oauth2_response = OAuth2TokenResponse {
+                    access_token: jwt_token.clone(),
+                    token_type: "Bearer".to_owned(),
+                    expires_in,
+                    refresh_token: None,
+                    scope: request.scope,
+                    // Pierre extensions for frontend compatibility
+                    user: Some(response.user),
+                    csrf_token: Some(csrf_token.clone()),
+                };
+
+                // Build response with secure cookies for web clients
+                let mut headers = axum::http::HeaderMap::new();
+                crate::security::cookies::set_auth_cookie(&mut headers, &jwt_token, 24 * 60 * 60);
+                crate::security::cookies::set_csrf_cookie(&mut headers, &csrf_token, 30 * 60);
+
+                Ok((
+                    axum::http::StatusCode::OK,
+                    headers,
+                    axum::Json(oauth2_response),
+                )
+                    .into_response())
+            }
+            Err(e) => {
+                // Map to OAuth2 error format based on error code
+                let error_code = match e.code {
+                    ErrorCode::AuthInvalid | ErrorCode::AuthRequired | ErrorCode::AuthExpired => {
+                        "invalid_grant"
+                    }
+                    ErrorCode::PermissionDenied => "unauthorized_client",
+                    ErrorCode::InvalidInput | ErrorCode::InvalidFormat => "invalid_request",
+                    _ => "server_error",
+                };
+                let error_desc = e.message;
+
+                let error_response = OAuth2ErrorResponse {
+                    error: error_code.to_owned(),
+                    error_description: Some(error_desc),
+                };
+
+                // OAuth2 spec: invalid_grant returns 400, server_error returns 500
+                let status = if error_code == "server_error" {
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                } else {
+                    axum::http::StatusCode::BAD_REQUEST
+                };
+
+                Ok((status, axum::Json(error_response)).into_response())
+            }
+        }
     }
 
     /// Handle OAuth callback (Axum)

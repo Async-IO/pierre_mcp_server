@@ -52,15 +52,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const response = await apiService.login(email, password);
-    const { csrf_token, jwt_token, user: userData } = response;
+    // OAuth2 ROPC response uses access_token, csrf_token, and user
+    const { access_token, csrf_token, user: userData } = response;
 
     // Store CSRF token in API service
     apiService.setCsrfToken(csrf_token);
 
     // Store JWT token for WebSocket authentication
-    if (jwt_token) {
-      setToken(jwt_token);
-      localStorage.setItem('jwt_token', jwt_token);
+    if (access_token) {
+      setToken(access_token);
+      localStorage.setItem('jwt_token', access_token);
     }
 
     // Store user info in state and localStorage

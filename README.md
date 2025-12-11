@@ -70,7 +70,7 @@ git clone https://github.com/Async-IO/pierre_mcp_server.git
 cd pierre_mcp_server
 cp .envrc.example .envrc  # edit with your settings
 direnv allow              # or: source .envrc
-./bin/start-server.sh
+./bin/setup-and-start.sh  # complete setup: fresh DB, admin user, server start
 ```
 
 Server starts on `http://localhost:8081`. See [Getting Started](docs/getting-started.md) for detailed setup.
@@ -112,10 +112,17 @@ Full tool reference: `src/protocols/universal/tool_registry.rs`
 ## Server Management
 
 ```bash
-./bin/start-server.sh     # start backend (loads .envrc)
+./bin/setup-and-start.sh  # complete setup: fresh DB, admin user, server start
+./bin/start-server.sh     # start backend only (loads .envrc)
 ./bin/stop-server.sh      # stop backend
 ./bin/start-frontend.sh   # start dashboard (http://localhost:5173)
 ```
+
+Options for `setup-and-start.sh`:
+- `--skip-fresh-start` - preserve existing database
+- `--run-tests` - run workflow tests after startup
+- `--admin-email EMAIL` - custom admin email
+- `--admin-password PWD` - custom admin password
 
 ## User Portal Dashboard
 
