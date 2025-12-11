@@ -10,12 +10,44 @@ use crate::intelligence::physiological_constants::api_limits::{
 };
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
-use crate::providers::core::FitnessProvider;
+use crate::providers::core::{ActivityQueryParams, FitnessProvider};
 use crate::utils::uuid::parse_user_id_for_protocol;
+use serde::Serialize;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
+
+/// Activity summary with minimal fields for efficient list queries
+/// Used when mode=summary to reduce payload size and preserve LLM context
+#[derive(Debug, Clone, Serialize)]
+pub struct ActivitySummary {
+    /// Unique activity identifier
+    pub id: String,
+    /// Activity name/title
+    pub name: String,
+    /// Activity sport type (e.g., "run", "ride", "cross\_country\_skiing")
+    pub sport_type: crate::models::SportType,
+    /// Start date/time in ISO 8601 format
+    pub start_date: String,
+    /// Distance in meters (0.0 if not available)
+    pub distance_meters: f64,
+    /// Duration in seconds
+    pub duration_seconds: u64,
+}
+
+impl From<&crate::models::Activity> for ActivitySummary {
+    fn from(activity: &crate::models::Activity) -> Self {
+        Self {
+            id: activity.id.clone(),
+            name: activity.name.clone(),
+            sport_type: activity.sport_type.clone(),
+            start_date: activity.start_date.to_rfc3339(),
+            distance_meters: activity.distance_meters.unwrap_or(0.0),
+            duration_seconds: activity.duration_seconds,
+        }
+    }
+}
 
 /// Create metadata for activity analysis responses
 fn create_activity_metadata(
@@ -93,7 +125,13 @@ async fn cache_activities_result(
     activities: &Vec<crate::models::Activity>,
     per_page: u32,
 ) {
-    let ttl = CacheResource::ActivityList { page: 1, per_page }.recommended_ttl();
+    let ttl = CacheResource::ActivityList {
+        page: 1,
+        per_page,
+        before: None,
+        after: None,
+    }
+    .recommended_ttl();
     if let Err(e) = cache.set(cache_key, activities, ttl).await {
         warn!("Failed to cache activities: {}", e);
     } else {
@@ -101,20 +139,69 @@ async fn cache_activities_result(
     }
 }
 
-/// Build success response for activities
+/// Filter activities by sport type (case-insensitive)
+/// Compares against the serialized `sport_type` enum value (`snake_case`)
+fn filter_activities_by_sport_type(
+    activities: Vec<crate::models::Activity>,
+    sport_type_filter: Option<&str>,
+) -> Vec<crate::models::Activity> {
+    match sport_type_filter {
+        Some(filter) => {
+            let filter_lower = filter.to_lowercase();
+            activities
+                .into_iter()
+                .filter(|a| {
+                    // Serialize sport_type to JSON string and compare case-insensitively
+                    serde_json::to_value(&a.sport_type)
+                        .ok()
+                        .and_then(|v| v.as_str().map(|s| s.to_lowercase() == filter_lower))
+                        .unwrap_or(false)
+                })
+                .collect()
+        }
+        None => activities,
+    }
+}
+
+/// Build success response for activities with mode support
+/// `mode="summary"` returns minimal fields (id, name, `sport_type`, `start_date`, distance, duration)
+/// `mode="detailed"` returns full activity data (default for backwards compatibility when not specified)
 fn build_activities_success_response(
     activities: &[crate::models::Activity],
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
     provider_name: &str,
+    mode: &str,
 ) -> UniversalResponse {
+    let (result_json, mode_used) = if mode == "summary" {
+        // Summary mode: convert to minimal representation
+        let summaries: Vec<ActivitySummary> =
+            activities.iter().map(ActivitySummary::from).collect();
+        (
+            serde_json::json!({
+                "activities": summaries,
+                "provider": provider_name,
+                "count": activities.len(),
+                "mode": "summary"
+            }),
+            "summary",
+        )
+    } else {
+        // Detailed mode: return full activity data
+        (
+            serde_json::json!({
+                "activities": activities,
+                "provider": provider_name,
+                "count": activities.len(),
+                "mode": "detailed"
+            }),
+            "detailed",
+        )
+    };
+
     UniversalResponse {
         success: true,
-        result: Some(serde_json::json!({
-            "activities": activities,
-            "provider": provider_name,
-            "count": activities.len()
-        })),
+        result: Some(result_json),
         error: None,
         metadata: Some({
             let mut map = std::collections::HashMap::new();
@@ -131,6 +218,10 @@ fn build_activities_success_response(
                 tenant_id.map_or(serde_json::Value::Null, serde_json::Value::String),
             );
             map.insert("cached".to_owned(), serde_json::Value::Bool(false));
+            map.insert(
+                "mode".to_owned(),
+                serde_json::Value::String(mode_used.to_owned()),
+            );
             map
         }),
     }
@@ -303,6 +394,46 @@ pub fn handle_get_activities(
 
         let limit = requested_limit.min(MAX_ACTIVITY_LIMIT);
 
+        // Extract optional offset parameter
+        let offset = request
+            .parameters
+            .get("offset")
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|v| usize::try_from(v).ok());
+
+        // Extract optional before/after timestamp parameters for time-based filtering
+        let before = request
+            .parameters
+            .get("before")
+            .and_then(serde_json::Value::as_i64);
+
+        let after = request
+            .parameters
+            .get("after")
+            .and_then(serde_json::Value::as_i64);
+
+        // Extract mode parameter: "summary" (default) or "detailed"
+        let mode = request
+            .parameters
+            .get("mode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("summary");
+
+        // Extract sport_type filter parameter (case-insensitive)
+        let sport_type_filter = request
+            .parameters
+            .get("sport_type")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned);
+
+        // Build query params
+        let query_params = ActivityQueryParams {
+            limit: Some(limit),
+            offset,
+            before,
+            after,
+        };
+
         // Create cache key for activities
         let tenant_uuid = request
             .tenant_id
@@ -320,14 +451,20 @@ pub fn handle_get_activities(
             })
             .unwrap_or_else(uuid::Uuid::nil);
 
-        // For caching activities, use page=1 and per_page=limit
+        // For caching activities, include time filters in cache key to avoid
+        // returning cached results that don't match the requested time range
         // Safe: limit is bounded by MAX_ACTIVITY_LIMIT which fits in u32
         let per_page = u32::try_from(limit).unwrap_or(DEFAULT_ACTIVITY_LIMIT_U32);
         let cache_key = CacheKey::new(
             tenant_uuid,
             user_uuid,
             provider_name.clone(),
-            CacheResource::ActivityList { page: 1, per_page },
+            CacheResource::ActivityList {
+                page: 1,
+                per_page,
+                before,
+                after,
+            },
         );
 
         // Try to get from cache first
@@ -397,33 +534,45 @@ pub fn handle_get_activities(
                     }
                 }
 
-                // Get activities from provider
-                match provider.get_activities(Some(limit), None).await {
+                // Get activities from provider with full query params
+                match provider.get_activities_with_params(&query_params).await {
                     Ok(activities) => {
+                        // Apply sport_type filter if specified (server-side filtering)
+                        let filtered_activities = filter_activities_by_sport_type(
+                            activities,
+                            sport_type_filter.as_deref(),
+                        );
+
                         // Report completion
                         if let Some(reporter) = &request.progress_reporter {
                             reporter.report(
                                 100.0,
                                 Some(100.0),
                                 Some(format!(
-                                    "Successfully fetched {} activities",
-                                    activities.len()
+                                    "Successfully fetched {} activities{}",
+                                    filtered_activities.len(),
+                                    sport_type_filter
+                                        .as_ref()
+                                        .map_or(String::new(), |st| format!(" (filtered by {st})"))
                                 )),
                             );
                         }
 
+                        // Cache the original unfiltered activities
                         cache_activities_result(
                             &executor.resources.cache,
                             &cache_key,
-                            &activities,
+                            &filtered_activities,
                             per_page,
                         )
                         .await;
+
                         Ok(build_activities_success_response(
-                            &activities,
+                            &filtered_activities,
                             user_uuid,
                             request.tenant_id,
                             &provider_name,
+                            mode,
                         ))
                     }
                     Err(e) => Ok(UniversalResponse {

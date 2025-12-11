@@ -10,7 +10,7 @@ use crate::protocols::universal::UniversalResponse;
 use crate::providers::{CoreFitnessProvider, OAuth2Credentials};
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 /// OAuth token data structure
@@ -68,6 +68,11 @@ impl AuthService {
         provider: &str,
         tenant_id: Option<&str>,
     ) -> Result<Option<TokenData>, OAuthError> {
+        debug!(
+            "get_valid_token called for user={}, provider={}, tenant={:?}",
+            user_id, provider, tenant_id
+        );
+
         // If we have tenant context, initialize tenant-specific OAuth credentials
         if let Some(tenant_id_str) = tenant_id {
             self.initialize_tenant_oauth_context(user_id, tenant_id_str, provider)
@@ -76,14 +81,18 @@ impl AuthService {
 
         // Look up token from database with tenant context
         let Some(tenant_id_str) = tenant_id else {
+            debug!("No tenant_id provided, returning Ok(None)");
             return Ok(None);
         };
 
         // Direct database lookup with tenant_id
-        let Ok(Some(oauth_token)) = (*self.resources.database)
+        let token_result = (*self.resources.database)
             .get_user_oauth_token(user_id, tenant_id_str, provider)
-            .await
-        else {
+            .await;
+
+        Self::log_token_lookup_result(&token_result, user_id, tenant_id_str, provider);
+
+        let Ok(Some(oauth_token)) = token_result else {
             return Ok(None);
         };
 
@@ -156,6 +165,29 @@ impl AuthService {
     fn is_token_expired(expires_at: DateTime<Utc>) -> bool {
         let now = chrono::Utc::now();
         expires_at <= now + chrono::Duration::minutes(5)
+    }
+
+    /// Log the result of a token lookup operation
+    fn log_token_lookup_result(
+        token_result: &Result<Option<crate::models::UserOAuthToken>, crate::errors::AppError>,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+    ) {
+        match token_result {
+            Ok(Some(token)) => debug!(
+                "Found OAuth token for user={}, provider={}, expires_at={:?}",
+                user_id, provider, token.expires_at
+            ),
+            Ok(None) => debug!(
+                "No OAuth token found for user={}, tenant={}, provider={}",
+                user_id, tenant_id, provider
+            ),
+            Err(e) => warn!(
+                "Error retrieving OAuth token for user={}, tenant={}, provider={}: {}",
+                user_id, tenant_id, provider, e
+            ),
+        }
     }
 
     /// Handle expired token by attempting refresh

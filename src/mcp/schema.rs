@@ -11,7 +11,7 @@
 //! it easy to modify the schema without hardcoding JSON.
 
 use crate::constants::{
-    json_fields::{ACTIVITY_ID, LIMIT, OFFSET, PROVIDER},
+    json_fields::{ACTIVITY_ID, AFTER, BEFORE, LIMIT, MODE, OFFSET, PROVIDER, SPORT_TYPE},
     tools::{
         ANALYZE_ACTIVITY, ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, CONNECT_PROVIDER,
         CONNECT_TO_PIERRE, DELETE_FITNESS_CONFIG, DELETE_RECIPE, DISCONNECT_PROVIDER,
@@ -789,6 +789,46 @@ fn create_get_activities_tool() -> ToolSchema {
         PropertySchema {
             property_type: "number".into(),
             description: Some("Number of activities to skip (for pagination)".into()),
+        },
+    );
+
+    properties.insert(
+        BEFORE.to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some(
+                "Unix timestamp (seconds) - return activities before this time".into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        AFTER.to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some(
+                "Unix timestamp (seconds) - return activities after this time".into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        MODE.to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "Response detail level: 'summary' (id, name, date, distance, sport_type, duration only - recommended for lists) or 'detailed' (full activity data). Default: 'summary'".into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        SPORT_TYPE.to_owned(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "Filter by sport type (e.g., 'NordicSki', 'Run', 'Ride', 'Swim'). Case-insensitive. Returns only activities matching this sport type.".into(),
+            ),
         },
     );
 

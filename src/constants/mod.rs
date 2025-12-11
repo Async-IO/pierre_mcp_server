@@ -338,6 +338,14 @@ pub mod json_fields {
     pub const LIMIT: &str = "limit";
     /// Offset field
     pub const OFFSET: &str = "offset";
+    /// Before timestamp field (Unix epoch seconds) - get activities before this time
+    pub const BEFORE: &str = "before";
+    /// After timestamp field (Unix epoch seconds) - get activities after this time
+    pub const AFTER: &str = "after";
+    /// Mode field for response detail level (summary vs detailed)
+    pub const MODE: &str = "mode";
+    /// Sport type field for filtering activities by sport type
+    pub const SPORT_TYPE: &str = "sport_type";
 }
 
 /// System configuration messages
