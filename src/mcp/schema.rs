@@ -817,7 +817,7 @@ fn create_get_activities_tool() -> ToolSchema {
         PropertySchema {
             property_type: "string".into(),
             description: Some(
-                "Response detail level: 'summary' (id, name, date, distance, sport_type, duration only - recommended for lists) or 'detailed' (full activity data). Default: 'summary'".into(),
+                "Response detail level: 'summary' returns compact data (id, name, sport_type, start_date, distance_meters, duration_seconds) - use for listing/browsing many activities. 'detailed' returns full activity data with GPS, segments, laps - use only when analyzing a specific activity. Default: 'summary'. WARNING: 'detailed' mode with many activities will overflow LLM context.".into(),
             ),
         },
     );
@@ -834,7 +834,7 @@ fn create_get_activities_tool() -> ToolSchema {
 
     ToolSchema {
         name: GET_ACTIVITIES.to_owned(),
-        description: "Get fitness activities from a provider".into(),
+        description: "Get fitness activities from a provider. Use mode='summary' (default) for listing activities - returns compact data safe for LLM context. Use mode='detailed' only for single activity analysis. Combine with before/after timestamps and sport_type filter to efficiently query large date ranges.".into(),
         input_schema: JsonSchema {
             schema_type: "object".into(),
             properties: Some(properties),
