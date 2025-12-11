@@ -1,9 +1,11 @@
 {
   "mcpServers": {
     "pierre": {
-      "command": "node",
-      "args": ["${PIERRE_SDK_PATH:-./sdk/dist/cli.js}"],
-      "env": {}
+      "type": "http",
+      "url": "http://localhost:8081/mcp",
+      "headers": {
+        "Authorization": "Bearer ${PIERRE_JWT_TOKEN}"
+      }
     },
     "github": {
       "command": "npx",
@@ -14,7 +16,7 @@
     },
     "chrome-devtools": {
       "command": "npx",
-      "args": ["-y", "@anthropic/mcp-server-chrome-devtools"]
+      "args": ["-y", "chrome-devtools-mcp@latest"]
     }
   }
 }
