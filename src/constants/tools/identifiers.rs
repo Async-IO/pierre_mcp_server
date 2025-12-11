@@ -39,9 +39,6 @@ pub const SET_GOAL: &str = "set_goal";
 /// Tool identifier for tracking progress toward fitness goals
 pub const TRACK_PROGRESS: &str = "track_progress";
 
-/// Weather and external data tools
-pub const GET_WEATHER: &str = "get_weather";
-
 /// Fitness configuration tools
 pub const GET_FITNESS_CONFIG: &str = "get_fitness_config";
 /// Tool identifier for updating fitness configuration settings
