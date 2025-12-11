@@ -245,7 +245,7 @@ async fn main() -> Result<()> {
 
     // Initialize database
     info!("Connecting to database: {}", database_url);
-    let database = Database::new(
+    let mut database = Database::new(
         &database_url,
         database_encryption_key.to_vec(),
         #[cfg(feature = "postgresql")]
@@ -253,8 +253,8 @@ async fn main() -> Result<()> {
     )
     .await?;
 
-    // Complete key manager initialization
-    key_manager.complete_initialization(&database).await?;
+    // Complete key manager initialization (updates database's encryption key with loaded DEK)
+    key_manager.complete_initialization(&mut database).await?;
     info!("Two-tier key management system fully initialized for admin-setup");
 
     // Run database migrations to ensure admin_tokens table exists

@@ -44,7 +44,7 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
         pierre_mcp_server::key_management::KeyManager::bootstrap()?;
 
     #[cfg(feature = "postgresql")]
-    let database = Database::new(
+    let mut database = Database::new(
         &db_url,
         database_key.to_vec(),
         &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
@@ -52,8 +52,8 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
     .await?;
 
     #[cfg(not(feature = "postgresql"))]
-    let database = Database::new(&db_url, database_key.to_vec()).await?;
-    key_manager.complete_initialization(&database).await?;
+    let mut database = Database::new(&db_url, database_key.to_vec()).await?;
+    key_manager.complete_initialization(&mut database).await?;
 
     // Run migrations
     database.migrate().await?;

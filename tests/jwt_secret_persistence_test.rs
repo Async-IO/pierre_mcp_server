@@ -36,15 +36,15 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
     let jwt_secret_1 = {
         let (mut key_manager, database_key) = KeyManager::bootstrap()?;
         #[cfg(feature = "postgresql")]
-        let database = Database::new(
+        let mut database = Database::new(
             &db_url,
             database_key.to_vec(),
             &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         )
         .await?;
         #[cfg(not(feature = "postgresql"))]
-        let database = Database::new(&db_url, database_key.to_vec()).await?;
-        key_manager.complete_initialization(&database).await?;
+        let mut database = Database::new(&db_url, database_key.to_vec()).await?;
+        key_manager.complete_initialization(&mut database).await?;
 
         // Get/create JWT secret (simulating admin-setup)
         let jwt_secret = database
@@ -72,15 +72,15 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
     let jwt_secret_2 = {
         let (mut key_manager, database_key) = KeyManager::bootstrap()?;
         #[cfg(feature = "postgresql")]
-        let database = Database::new(
+        let mut database = Database::new(
             &db_url,
             database_key.to_vec(),
             &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         )
         .await?;
         #[cfg(not(feature = "postgresql"))]
-        let database = Database::new(&db_url, database_key.to_vec()).await?;
-        key_manager.complete_initialization(&database).await?;
+        let mut database = Database::new(&db_url, database_key.to_vec()).await?;
+        key_manager.complete_initialization(&mut database).await?;
 
         // Get JWT secret again (simulating server restart)
         database
@@ -134,15 +134,15 @@ async fn test_mek_ensures_consistent_jwt_storage() -> Result<()> {
     let jwt_secret_1 = {
         let (mut key_manager, database_key) = KeyManager::bootstrap()?;
         #[cfg(feature = "postgresql")]
-        let database = Database::new(
+        let mut database = Database::new(
             &db_url,
             database_key.to_vec(),
             &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         )
         .await?;
         #[cfg(not(feature = "postgresql"))]
-        let database = Database::new(&db_url, database_key.to_vec()).await?;
-        key_manager.complete_initialization(&database).await?;
+        let mut database = Database::new(&db_url, database_key.to_vec()).await?;
+        key_manager.complete_initialization(&mut database).await?;
         database
             .get_or_create_system_secret("admin_jwt_secret")
             .await?
@@ -151,15 +151,15 @@ async fn test_mek_ensures_consistent_jwt_storage() -> Result<()> {
     let jwt_secret_2 = {
         let (mut key_manager, database_key) = KeyManager::bootstrap()?;
         #[cfg(feature = "postgresql")]
-        let database = Database::new(
+        let mut database = Database::new(
             &db_url,
             database_key.to_vec(),
             &pierre_mcp_server::config::environment::PostgresPoolConfig::default(),
         )
         .await?;
         #[cfg(not(feature = "postgresql"))]
-        let database = Database::new(&db_url, database_key.to_vec()).await?;
-        key_manager.complete_initialization(&database).await?;
+        let mut database = Database::new(&db_url, database_key.to_vec()).await?;
+        key_manager.complete_initialization(&mut database).await?;
         database
             .get_or_create_system_secret("admin_jwt_secret")
             .await?

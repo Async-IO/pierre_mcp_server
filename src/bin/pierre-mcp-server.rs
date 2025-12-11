@@ -248,8 +248,8 @@ async fn initialize_cache() -> Result<Cache> {
 /// Initialize core systems (key management, database, auth)
 async fn initialize_core_systems(config: &ServerConfig) -> Result<(Database, AuthManager, String)> {
     let (mut key_manager, database_encryption_key) = bootstrap_key_management()?;
-    let database = initialize_database(config, database_encryption_key).await?;
-    key_manager.complete_initialization(&database).await?;
+    let mut database = initialize_database(config, database_encryption_key).await?;
+    key_manager.complete_initialization(&mut database).await?;
     info!("Two-tier key management system fully initialized");
 
     let jwt_secret_string = initialize_jwt_secret(&database, config).await?;

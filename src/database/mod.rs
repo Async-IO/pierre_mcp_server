@@ -120,6 +120,18 @@ impl Database {
         &self.pool
     }
 
+    /// Update the encryption key used for token encryption/decryption
+    ///
+    /// This is called after the actual DEK is loaded from the database during
+    /// two-tier key management initialization. The database is initially created
+    /// with a temporary key, then updated with the real key once it's loaded.
+    ///
+    /// # Safety
+    /// Only call this once during startup, before any encrypted data operations.
+    pub fn update_encryption_key(&mut self, new_key: Vec<u8>) {
+        self.encryption_key = new_key;
+    }
+
     /// Run all database migrations (public API)
     ///
     /// # Errors

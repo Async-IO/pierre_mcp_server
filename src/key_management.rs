@@ -248,6 +248,11 @@ impl KeyManager {
 
     /// Complete initialization after database is available
     ///
+    /// This loads the existing DEK from the database (if any) and updates the database's
+    /// encryption key to use the correct DEK. This is necessary because during bootstrap,
+    /// a temporary DEK is used to initialize the database, but we need to use the actual
+    /// stored DEK for encrypted data operations.
+    ///
     /// # Errors
     ///
     /// Returns an error if:
@@ -255,7 +260,7 @@ impl KeyManager {
     /// - DEK encryption/decryption fails
     pub async fn complete_initialization(
         &mut self,
-        database: &crate::database_plugins::factory::Database,
+        database: &mut crate::database_plugins::factory::Database,
     ) -> AppResult<()> {
         info!("Completing two-tier key management initialization");
 
@@ -263,6 +268,11 @@ impl KeyManager {
             database.get_system_secret("database_encryption_key").await
         {
             self.load_existing_dek(&encrypted_dek_base64)?;
+            // Update the database's encryption key to use the loaded DEK
+            // This is critical: the database was initialized with a temp key,
+            // now we update it with the real key loaded from the database
+            database.update_encryption_key(self.dek.as_bytes().to_vec());
+            info!("Database encryption key updated to use loaded DEK");
         } else {
             self.store_new_dek(database).await?;
         }

@@ -97,6 +97,22 @@ impl Database {
         }
     }
 
+    /// Update the encryption key used for token encryption/decryption
+    ///
+    /// This is called after the actual DEK is loaded from the database during
+    /// two-tier key management initialization. The database is initially created
+    /// with a temporary key, then updated with the real key once it's loaded.
+    ///
+    /// # Safety
+    /// Only call this once during startup, before any encrypted data operations.
+    pub fn update_encryption_key(&mut self, new_key: Vec<u8>) {
+        match self {
+            Self::SQLite(db) => db.update_encryption_key(new_key),
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.update_encryption_key(new_key),
+        }
+    }
+
     /// Create a new database instance based on the connection string (internal implementation)
     ///
     /// # Errors
