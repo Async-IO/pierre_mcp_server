@@ -7,7 +7,9 @@
 // - HTTP client Arc sharing across async operations (shared_client().clone())
 // - String ownership for API responses and error handling
 
-use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig, ProviderFactory};
+use super::core::{
+    ActivityQueryParams, FitnessProvider, OAuth2Credentials, ProviderConfig, ProviderFactory,
+};
 use super::errors::ProviderError;
 use crate::constants::oauth_providers;
 use crate::errors::{AppError, AppResult};
@@ -717,24 +719,40 @@ impl FitnessProvider for FitbitProvider {
         })
     }
 
-    async fn get_activities(
+    async fn get_activities_with_params(
         &self,
-        limit: Option<usize>,
-        offset: Option<usize>,
+        params: &ActivityQueryParams,
     ) -> AppResult<Vec<Activity>> {
-        // Fitbit API uses date-based pagination with beforeDate/afterDate, not offset-based.
-        // The offset parameter from FitnessProvider trait is mapped to Fitbit's internal offset.
-        let fitbit_offset = offset.unwrap_or(0);
+        // Fitbit API uses date-based pagination with beforeDate/afterDate
+        let fitbit_offset = params.offset.unwrap_or(0);
 
-        // Get activities from the last 30 days by default
-        let end_date = chrono::Utc::now().date_naive();
-        let start_date = end_date - chrono::Duration::days(30);
+        // Use before/after timestamps if provided, otherwise default to last 30 days
+        let (start_date, end_date) = if params.before.is_some() || params.after.is_some() {
+            let end = params.before.map_or_else(
+                || chrono::Utc::now().date_naive(),
+                |ts| {
+                    chrono::DateTime::from_timestamp(ts, 0)
+                        .map_or_else(|| chrono::Utc::now().date_naive(), |dt| dt.date_naive())
+                },
+            );
+            let start = params.after.map_or_else(
+                || end - chrono::Duration::days(365),
+                |ts| {
+                    chrono::DateTime::from_timestamp(ts, 0)
+                        .map_or_else(|| end - chrono::Duration::days(365), |dt| dt.date_naive())
+                },
+            );
+            (start, end)
+        } else {
+            let end = chrono::Utc::now().date_naive();
+            (end - chrono::Duration::days(30), end)
+        };
 
         let endpoint = format!(
             "user/-/activities/list.json?beforeDate={}&afterDate={}&sort=desc&limit={}&offset={}",
             end_date.format("%Y-%m-%d"),
             start_date.format("%Y-%m-%d"),
-            limit.unwrap_or(100),
+            params.limit.unwrap_or(100),
             fitbit_offset
         );
 
@@ -751,7 +769,7 @@ impl FitnessProvider for FitbitProvider {
         }
 
         // Apply limit if specified
-        if let Some(limit) = limit {
+        if let Some(limit) = params.limit {
             activities.truncate(limit);
         }
 

@@ -7,7 +7,7 @@
 // - HTTP client Arc sharing across async operations (shared_client().clone())
 // - String ownership for API responses and error handling
 
-use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
+use super::core::{ActivityQueryParams, FitnessProvider, OAuth2Credentials, ProviderConfig};
 use super::errors::ProviderError;
 use crate::constants::{api_provider_limits, oauth_providers};
 use crate::errors::{AppError, AppResult};
@@ -204,6 +204,17 @@ struct StravaTotals {
     distance: f32,
     moving_time: u32,
     elevation_gain: f32,
+}
+
+/// Context for multi-page activity fetching
+struct PaginationContext {
+    page_index: usize,
+    pages_needed: usize,
+    total_limit: usize,
+    start_offset: usize,
+    activities_per_page: usize,
+    before: Option<i64>,
+    after: Option<i64>,
 }
 
 /// Clean Strava provider implementation
@@ -711,30 +722,40 @@ impl FitnessProvider for StravaProvider {
         })
     }
 
-    async fn get_activities(
+    async fn get_activities_with_params(
         &self,
-        limit: Option<usize>,
-        offset: Option<usize>,
+        params: &ActivityQueryParams,
     ) -> AppResult<Vec<Activity>> {
-        let requested_limit =
-            limit.unwrap_or(api_provider_limits::strava::DEFAULT_ACTIVITIES_PER_PAGE);
-        let start_offset = offset.unwrap_or(0);
+        let requested_limit = params
+            .limit
+            .unwrap_or(api_provider_limits::strava::DEFAULT_ACTIVITIES_PER_PAGE);
+        let start_offset = params.offset.unwrap_or(0);
 
         info!(
-            "Starting get_activities - requested_limit: {}, offset: {}",
-            requested_limit, start_offset
+            "Starting get_activities - requested_limit: {}, offset: {}, before: {:?}, after: {:?}",
+            requested_limit, start_offset, params.before, params.after
         );
 
         // If request is within single page limit, use single page fetch
         if requested_limit <= api_provider_limits::strava::MAX_ACTIVITIES_PER_REQUEST {
             return self
-                .get_activities_single_page(requested_limit, start_offset)
+                .get_activities_single_page_with_time(
+                    requested_limit,
+                    start_offset,
+                    params.before,
+                    params.after,
+                )
                 .await;
         }
 
-        // For large requests, use multi-page fetching
-        self.get_activities_multi_page(requested_limit, start_offset)
-            .await
+        // For large requests, use multi-page fetching with time filters
+        self.get_activities_multi_page_with_time(
+            requested_limit,
+            start_offset,
+            params.before,
+            params.after,
+        )
+        .await
     }
 
     async fn get_activities_cursor(
@@ -884,14 +905,16 @@ impl FitnessProvider for StravaProvider {
 }
 
 impl StravaProvider {
-    /// Fetch activities using single API call (for requests <= `BULK_ACTIVITY_FETCH_THRESHOLD`)
-    async fn get_activities_single_page(
+    /// Fetch activities using single API call with optional time filters
+    async fn get_activities_single_page_with_time(
         &self,
         limit: usize,
         offset: usize,
+        before: Option<i64>,
+        after: Option<i64>,
     ) -> AppResult<Vec<Activity>> {
-        let page = offset / limit + 1;
-        let endpoint = format!("athlete/activities?per_page={limit}&page={page}");
+        let page = if offset > 0 { offset / limit + 1 } else { 1 };
+        let endpoint = Self::build_activities_endpoint_with_time(limit, page, before, after);
 
         info!("Single page request - endpoint: {}", endpoint);
 
@@ -909,10 +932,23 @@ impl StravaProvider {
         Ok(activities)
     }
 
-    /// Fetch activities using multiple API calls (for requests > `BULK_ACTIVITY_FETCH_THRESHOLD`)
-    /// Build the endpoint URL for a page of activities
-    fn build_activities_endpoint(page_limit: usize, page_number: usize) -> String {
-        format!("athlete/activities?per_page={page_limit}&page={page_number}")
+    /// Build the endpoint URL for a page of activities with optional time filters
+    fn build_activities_endpoint_with_time(
+        page_limit: usize,
+        page_number: usize,
+        before: Option<i64>,
+        after: Option<i64>,
+    ) -> String {
+        let mut endpoint = format!("athlete/activities?per_page={page_limit}&page={page_number}");
+        if let Some(before_ts) = before {
+            use std::fmt::Write;
+            let _ = write!(endpoint, "&before={before_ts}");
+        }
+        if let Some(after_ts) = after {
+            use std::fmt::Write;
+            let _ = write!(endpoint, "&after={after_ts}");
+        }
+        endpoint
     }
 
     /// Convert and add Strava activities to the collection
@@ -953,30 +989,34 @@ impl StravaProvider {
         false
     }
 
-    async fn get_activities_multi_page(
+    async fn get_activities_multi_page_with_time(
         &self,
         total_limit: usize,
         start_offset: usize,
+        before: Option<i64>,
+        after: Option<i64>,
     ) -> AppResult<Vec<Activity>> {
         let mut all_activities = Vec::with_capacity(total_limit);
         let activities_per_page = api_provider_limits::strava::MAX_ACTIVITIES_PER_REQUEST;
         let pages_needed = total_limit.div_ceil(activities_per_page);
 
         info!(
-            "Multi-page request - total_limit: {}, pages_needed: {}, start_offset: {}",
-            total_limit, pages_needed, start_offset
+            "Multi-page request - total_limit: {}, pages_needed: {}, start_offset: {}, before: {:?}, after: {:?}",
+            total_limit, pages_needed, start_offset, before, after
         );
 
         for page_index in 0..pages_needed {
-            self.fetch_and_add_page(
-                &mut all_activities,
+            let ctx = PaginationContext {
                 page_index,
                 pages_needed,
                 total_limit,
                 start_offset,
                 activities_per_page,
-            )
-            .await?;
+                before,
+                after,
+            };
+            self.fetch_and_add_page_with_time(&mut all_activities, &ctx)
+                .await?;
 
             if Self::should_stop_pagination(
                 all_activities.len(),
@@ -997,25 +1037,26 @@ impl StravaProvider {
         Ok(all_activities)
     }
 
-    async fn fetch_and_add_page(
+    async fn fetch_and_add_page_with_time(
         &self,
         all_activities: &mut Vec<Activity>,
-        page_index: usize,
-        pages_needed: usize,
-        total_limit: usize,
-        start_offset: usize,
-        activities_per_page: usize,
+        ctx: &PaginationContext,
     ) -> AppResult<()> {
-        let remaining = total_limit - all_activities.len();
-        let current_page_limit = remaining.min(activities_per_page);
-        let current_offset = start_offset + (page_index * activities_per_page);
-        let page_number = current_offset / activities_per_page + 1;
+        let remaining = ctx.total_limit - all_activities.len();
+        let current_page_limit = remaining.min(ctx.activities_per_page);
+        let current_offset = ctx.start_offset + (ctx.page_index * ctx.activities_per_page);
+        let page_number = current_offset / ctx.activities_per_page + 1;
 
-        let endpoint = Self::build_activities_endpoint(current_page_limit, page_number);
+        let endpoint = Self::build_activities_endpoint_with_time(
+            current_page_limit,
+            page_number,
+            ctx.before,
+            ctx.after,
+        );
         info!(
             "Fetching page {} of {} - endpoint: {} (expecting {} activities)",
-            page_index + 1,
-            pages_needed,
+            ctx.page_index + 1,
+            ctx.pages_needed,
             endpoint,
             current_page_limit
         );
@@ -1026,11 +1067,11 @@ impl StravaProvider {
 
         info!(
             "Page {} returned {} activities",
-            page_index + 1,
+            ctx.page_index + 1,
             strava_activities.len()
         );
 
-        Self::add_converted_activities(all_activities, strava_activities, total_limit)
+        Self::add_converted_activities(all_activities, strava_activities, ctx.total_limit)
     }
 }
 

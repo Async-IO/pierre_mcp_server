@@ -23,7 +23,9 @@ use crate::models::{
     Activity, Athlete, HealthMetrics, PersonalRecord, RecoveryMetrics, SleepSession, Stats,
 };
 use crate::pagination::{Cursor, CursorPage, PaginationParams};
-use crate::providers::core::{FitnessProvider, OAuth2Credentials, ProviderConfig, ProviderFactory};
+use crate::providers::core::{
+    ActivityQueryParams, FitnessProvider, OAuth2Credentials, ProviderConfig, ProviderFactory,
+};
 use crate::providers::errors::ProviderError;
 use crate::providers::spi::{
     OAuthEndpoints, OAuthParams, ProviderCapabilities, ProviderDescriptor,
@@ -189,13 +191,28 @@ impl FitnessProvider for TerraProvider {
         })
     }
 
-    async fn get_activities(
+    async fn get_activities_with_params(
         &self,
-        limit: Option<usize>,
-        offset: Option<usize>,
+        params: &ActivityQueryParams,
     ) -> AppResult<Vec<Activity>> {
         let user_id = self.get_user_id().await?;
-        let activities = self.cache.get_activities(&user_id, limit, offset).await;
+        let mut activities = self
+            .cache
+            .get_activities(&user_id, params.limit, params.offset)
+            .await;
+
+        // Apply time filtering if before/after specified
+        if let Some(after_ts) = params.after {
+            if let Some(after_dt) = chrono::DateTime::from_timestamp(after_ts, 0) {
+                activities.retain(|a| a.start_date >= after_dt);
+            }
+        }
+        if let Some(before_ts) = params.before {
+            if let Some(before_dt) = chrono::DateTime::from_timestamp(before_ts, 0) {
+                activities.retain(|a| a.start_date < before_dt);
+            }
+        }
+
         Ok(activities)
     }
 

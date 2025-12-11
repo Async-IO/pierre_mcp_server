@@ -86,10 +86,9 @@
 //!         })
 //!     }
 //!
-//!     async fn get_activities(
+//!     async fn get_activities_with_params(
 //!         &self,
-//!         _limit: Option<usize>,
-//!         _offset: Option<usize>,
+//!         _params: &pierre_mcp_server::providers::core::ActivityQueryParams,
 //!     ) -> AppResult<Vec<Activity>> {
 //!         // Fetch from provider API and map to shared Activity models
 //!         Ok(vec![])
@@ -204,6 +203,54 @@ pub struct ProviderConfig {
     pub default_scopes: Vec<String>,
 }
 
+/// Query parameters for fetching activities with time-based filtering
+///
+/// This struct provides flexible activity querying with optional pagination
+/// and timestamp-based filtering. When `before` and `after` are specified,
+/// they enable efficient date range queries without fetching all activities.
+///
+/// # Strava API Mapping
+///
+/// - `before`: Maps to Strava's `before` parameter (activities before this epoch timestamp)
+/// - `after`: Maps to Strava's `after` parameter (activities after this epoch timestamp)
+/// - `limit`: Maps to Strava's `per_page` parameter
+/// - `offset`: Converted to page number for Strava's pagination
+#[derive(Debug, Clone, Default)]
+pub struct ActivityQueryParams {
+    /// Maximum number of activities to return
+    pub limit: Option<usize>,
+    /// Number of activities to skip (for offset-based pagination)
+    pub offset: Option<usize>,
+    /// Unix timestamp (seconds) - return activities before this time
+    pub before: Option<i64>,
+    /// Unix timestamp (seconds) - return activities after this time
+    pub after: Option<i64>,
+}
+
+impl ActivityQueryParams {
+    /// Create new query params with just limit and offset (backward compatible)
+    #[must_use]
+    pub const fn with_pagination(limit: Option<usize>, offset: Option<usize>) -> Self {
+        Self {
+            limit,
+            offset,
+            before: None,
+            after: None,
+        }
+    }
+
+    /// Create new query params with timestamp filtering
+    #[must_use]
+    pub const fn with_time_range(before: Option<i64>, after: Option<i64>) -> Self {
+        Self {
+            limit: None,
+            offset: None,
+            before,
+            after,
+        }
+    }
+}
+
 /// Core fitness data provider trait - Shared Request/Response Interface for all providers
 ///
 /// This trait defines the complete contract for fitness data providers. All providers
@@ -249,10 +296,30 @@ pub trait FitnessProvider: Send + Sync {
     async fn get_athlete(&self) -> AppResult<Athlete>;
 
     /// Get user's activities with offset-based pagination (legacy)
+    ///
+    /// For time-based filtering, use `get_activities_with_params` instead.
     async fn get_activities(
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
+    ) -> AppResult<Vec<Activity>> {
+        self.get_activities_with_params(&ActivityQueryParams::with_pagination(limit, offset))
+            .await
+    }
+
+    /// Get user's activities with full query parameters including time filtering
+    ///
+    /// This method supports:
+    /// - `limit`: Maximum number of activities to return
+    /// - `offset`: Skip this many activities (for offset-based pagination)
+    /// - `before`: Unix timestamp - return activities before this time
+    /// - `after`: Unix timestamp - return activities after this time
+    ///
+    /// For Strava, `before` and `after` map directly to API parameters, enabling
+    /// efficient date range queries without fetching all activities first.
+    async fn get_activities_with_params(
+        &self,
+        params: &ActivityQueryParams,
     ) -> AppResult<Vec<Activity>>;
 
     /// Get user's activities with cursor-based pagination (recommended)
@@ -421,12 +488,11 @@ impl FitnessProvider for TenantProvider {
         self.inner.get_athlete().await
     }
 
-    async fn get_activities(
+    async fn get_activities_with_params(
         &self,
-        limit: Option<usize>,
-        offset: Option<usize>,
+        params: &ActivityQueryParams,
     ) -> AppResult<Vec<Activity>> {
-        self.inner.get_activities(limit, offset).await
+        self.inner.get_activities_with_params(params).await
     }
 
     async fn get_activities_cursor(

@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use super::{AuthData, FitnessProvider};
+use super::{ActivityQueryParams, AuthData, FitnessProvider};
 use crate::config::FitnessConfig;
 use crate::constants::api_provider_limits;
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
@@ -371,21 +371,31 @@ impl FitnessProvider for StravaProvider {
     /// - Response cannot be parsed as JSON
     /// - Strava API returns malformed activity data
     /// - Network connection fails
-    async fn get_activities(
+    async fn get_activities_with_params(
         &self,
-        limit: Option<usize>,
-        offset: Option<usize>,
+        params: &ActivityQueryParams,
     ) -> AppResult<Vec<Activity>> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
         // Build query parameters without unnecessary allocations
-        let per_page = limit.unwrap_or(api_provider_limits::strava::DEFAULT_ACTIVITIES_PER_PAGE);
-        let page = offset.map_or(1, |o| o / per_page + 1);
+        let per_page = params
+            .limit
+            .unwrap_or(api_provider_limits::strava::DEFAULT_ACTIVITIES_PER_PAGE);
+        let page = params.offset.map_or(1, |o| o / per_page + 1);
 
-        let query = [
+        // Build query with optional before/after timestamps
+        let mut query: Vec<(&str, String)> = vec![
             ("per_page", per_page.to_string()),
             ("page", page.to_string()),
         ];
+
+        // Add timestamp filters if provided (Strava native pagination)
+        if let Some(before) = params.before {
+            query.push(("before", before.to_string()));
+        }
+        if let Some(after) = params.after {
+            query.push(("after", after.to_string()));
+        }
 
         let url = format!("{}/athlete/activities", &self.config.base_url);
         info!("Fetching activities from: {} with query: {:?}", url, query);
@@ -472,7 +482,8 @@ impl FitnessProvider for StravaProvider {
         params: &PaginationParams,
     ) -> AppResult<CursorPage<Activity>> {
         // Strava API uses numeric pagination - delegate to offset-based approach
-        let activities = self.get_activities(Some(params.limit), None).await?;
+        let query_params = ActivityQueryParams::with_pagination(Some(params.limit), None);
+        let activities = self.get_activities_with_params(&query_params).await?;
         Ok(CursorPage::new(activities, None, None, false))
     }
 

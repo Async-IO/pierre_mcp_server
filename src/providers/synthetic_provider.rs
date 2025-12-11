@@ -35,7 +35,9 @@ use crate::models::{
     Activity, Athlete, PersonalRecord, PrMetric, SleepSession, SleepStage, SleepStageType, Stats,
 };
 use crate::pagination::{Cursor, CursorPage, PaginationParams};
-use crate::providers::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
+use crate::providers::core::{
+    ActivityQueryParams, FitnessProvider, OAuth2Credentials, ProviderConfig,
+};
 use crate::providers::errors::ProviderError;
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
@@ -631,10 +633,9 @@ impl FitnessProvider for SyntheticProvider {
         })
     }
 
-    async fn get_activities(
+    async fn get_activities_with_params(
         &self,
-        limit: Option<usize>,
-        offset: Option<usize>,
+        params: &ActivityQueryParams,
     ) -> AppResult<Vec<Activity>> {
         let mut sorted = {
             let activities =
@@ -648,11 +649,23 @@ impl FitnessProvider for SyntheticProvider {
             activities.clone()
         }; // Drop activities lock here
 
-        let offset = offset.unwrap_or(0);
-        let limit = limit.unwrap_or(30);
+        let offset = params.offset.unwrap_or(0);
+        let limit = params.limit.unwrap_or(30);
 
         // Sort by start_date descending (most recent first)
         sorted.sort_by(|a, b| b.start_date.cmp(&a.start_date));
+
+        // Apply time filtering if before/after specified
+        if let Some(after_ts) = params.after {
+            if let Some(after_dt) = chrono::DateTime::from_timestamp(after_ts, 0) {
+                sorted.retain(|a| a.start_date >= after_dt);
+            }
+        }
+        if let Some(before_ts) = params.before {
+            if let Some(before_dt) = chrono::DateTime::from_timestamp(before_ts, 0) {
+                sorted.retain(|a| a.start_date < before_dt);
+            }
+        }
 
         Ok(sorted.into_iter().skip(offset).take(limit).collect())
     }

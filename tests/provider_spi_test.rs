@@ -236,3 +236,192 @@ fn test_garmin_full_descriptor() {
     assert!(!scopes.is_empty());
     assert!(scopes.contains(&"activity:read"));
 }
+
+// ============================================================================
+// Tests for ActivityQueryParams and time-based filtering
+// ============================================================================
+
+#[cfg(feature = "provider-synthetic")]
+mod activity_query_params_tests {
+    use chrono::{Duration, Utc};
+    use pierre_mcp_server::providers::synthetic_provider::SyntheticProvider;
+    use pierre_mcp_server::providers::ActivityQueryParams;
+    use pierre_mcp_server::providers::CoreFitnessProvider;
+
+    /// Helper to create a synthetic provider with sample activities spanning multiple dates
+    fn create_provider_with_activities() -> SyntheticProvider {
+        use pierre_mcp_server::models::{Activity, SportType};
+
+        let provider = SyntheticProvider::new();
+        let now = Utc::now();
+
+        // Add activities at different times using struct update syntax with Default
+        let activities = vec![
+            Activity {
+                id: "activity_1".to_owned(),
+                name: "Morning Run".to_owned(),
+                sport_type: SportType::Run,
+                start_date: now - Duration::hours(1),
+                distance_meters: Some(5000.0),
+                duration_seconds: 1800,
+                elevation_gain: Some(50.0),
+                average_heart_rate: Some(150),
+                max_heart_rate: Some(175),
+                calories: Some(300),
+                provider: "synthetic".to_owned(),
+                ..Default::default()
+            },
+            Activity {
+                id: "activity_2".to_owned(),
+                name: "Yesterday Run".to_owned(),
+                sport_type: SportType::Run,
+                start_date: now - Duration::days(1),
+                distance_meters: Some(10000.0),
+                duration_seconds: 3600,
+                elevation_gain: Some(100.0),
+                average_heart_rate: Some(145),
+                max_heart_rate: Some(170),
+                calories: Some(600),
+                provider: "synthetic".to_owned(),
+                ..Default::default()
+            },
+            Activity {
+                id: "activity_3".to_owned(),
+                name: "Last Week Ride".to_owned(),
+                sport_type: SportType::Ride,
+                start_date: now - Duration::days(7),
+                distance_meters: Some(50000.0),
+                duration_seconds: 7200,
+                elevation_gain: Some(500.0),
+                average_heart_rate: Some(135),
+                max_heart_rate: Some(160),
+                calories: Some(1200),
+                provider: "synthetic".to_owned(),
+                ..Default::default()
+            },
+            Activity {
+                id: "activity_4".to_owned(),
+                name: "Old Ski".to_owned(),
+                sport_type: SportType::CrossCountrySkiing,
+                start_date: now - Duration::days(30),
+                distance_meters: Some(15000.0),
+                duration_seconds: 5400,
+                elevation_gain: Some(200.0),
+                average_heart_rate: Some(140),
+                max_heart_rate: Some(165),
+                calories: Some(800),
+                provider: "synthetic".to_owned(),
+                ..Default::default()
+            },
+        ];
+
+        for activity in activities {
+            let result = provider.add_activity(activity);
+            assert!(result.is_ok(), "Failed to add activity: {:?}", result);
+        }
+
+        provider
+    }
+
+    #[tokio::test]
+    async fn test_get_activities_with_no_filters() {
+        let provider = create_provider_with_activities();
+        let params = ActivityQueryParams::default();
+
+        let activities = provider.get_activities_with_params(&params).await.unwrap();
+
+        // Should return all activities (default limit applies)
+        assert!(!activities.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_activities_with_after_filter() {
+        let provider = create_provider_with_activities();
+        let now = Utc::now();
+
+        // Filter for activities after 3 days ago
+        let after_timestamp = (now - Duration::days(3)).timestamp();
+        let params = ActivityQueryParams {
+            limit: None,
+            offset: None,
+            before: None,
+            after: Some(after_timestamp),
+        };
+
+        let activities = provider.get_activities_with_params(&params).await.unwrap();
+
+        // Should only get the 2 most recent activities (1 hour ago and 1 day ago)
+        assert_eq!(activities.len(), 2);
+        assert!(activities
+            .iter()
+            .all(|a| a.start_date.timestamp() >= after_timestamp));
+    }
+
+    #[tokio::test]
+    async fn test_get_activities_with_before_filter() {
+        let provider = create_provider_with_activities();
+        let now = Utc::now();
+
+        // Filter for activities before 2 days ago
+        let before_timestamp = (now - Duration::days(2)).timestamp();
+        let params = ActivityQueryParams {
+            limit: None,
+            offset: None,
+            before: Some(before_timestamp),
+            after: None,
+        };
+
+        let activities = provider.get_activities_with_params(&params).await.unwrap();
+
+        // Should only get the 2 older activities (7 days ago and 30 days ago)
+        assert_eq!(activities.len(), 2);
+        assert!(activities
+            .iter()
+            .all(|a| a.start_date.timestamp() < before_timestamp));
+    }
+
+    #[tokio::test]
+    async fn test_get_activities_with_date_range() {
+        let provider = create_provider_with_activities();
+        let now = Utc::now();
+
+        // Filter for activities between 10 days ago and 2 days ago
+        let after_timestamp = (now - Duration::days(10)).timestamp();
+        let before_timestamp = (now - Duration::days(2)).timestamp();
+
+        let params = ActivityQueryParams {
+            limit: None,
+            offset: None,
+            before: Some(before_timestamp),
+            after: Some(after_timestamp),
+        };
+
+        let activities = provider.get_activities_with_params(&params).await.unwrap();
+
+        // Should only get the ride from 7 days ago
+        assert_eq!(activities.len(), 1);
+        assert_eq!(activities[0].id, "activity_3");
+    }
+
+    #[tokio::test]
+    async fn test_activity_query_params_with_pagination() {
+        let params = ActivityQueryParams::with_pagination(Some(10), Some(5));
+
+        assert_eq!(params.limit, Some(10));
+        assert_eq!(params.offset, Some(5));
+        assert!(params.before.is_none());
+        assert!(params.after.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_activity_query_params_with_time_range() {
+        let before = 1700000000_i64;
+        let after = 1690000000_i64;
+        let params = ActivityQueryParams::with_time_range(Some(before), Some(after));
+
+        assert!(params.limit.is_none());
+        assert!(params.offset.is_none());
+        assert_eq!(params.before, Some(before));
+        assert_eq!(params.after, Some(after));
+    }
+}

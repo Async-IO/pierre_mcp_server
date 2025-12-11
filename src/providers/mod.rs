@@ -74,8 +74,8 @@ pub mod whoop_provider;
 
 // Re-export key types for convenience
 pub use core::{
-    FitnessProvider as CoreFitnessProvider, OAuth2Credentials, ProviderConfig, ProviderFactory,
-    TenantProvider,
+    ActivityQueryParams, FitnessProvider as CoreFitnessProvider, OAuth2Credentials, ProviderConfig,
+    ProviderFactory, TenantProvider,
 };
 /// Re-export provider error types
 pub use errors::{ProviderError, ProviderResult};

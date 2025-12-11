@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
+use super::core::{ActivityQueryParams, FitnessProvider, OAuth2Credentials, ProviderConfig};
 use super::utils::{self, RetryConfig};
 use crate::constants::{api_provider_limits, oauth_providers};
 use crate::errors::{AppError, AppResult};
@@ -407,20 +407,21 @@ impl FitnessProvider for GarminProvider {
         })
     }
 
-    async fn get_activities(
+    async fn get_activities_with_params(
         &self,
-        limit: Option<usize>,
-        offset: Option<usize>,
+        params: &ActivityQueryParams,
     ) -> AppResult<Vec<Activity>> {
-        let requested_limit =
-            limit.unwrap_or(api_provider_limits::garmin::DEFAULT_ACTIVITIES_PER_PAGE);
-        let start_offset = offset.unwrap_or(0);
+        let requested_limit = params
+            .limit
+            .unwrap_or(api_provider_limits::garmin::DEFAULT_ACTIVITIES_PER_PAGE);
+        let start_offset = params.offset.unwrap_or(0);
 
         info!(
-            "Starting get_activities - requested_limit: {}, offset: {}",
-            requested_limit, start_offset
+            "Starting get_activities - requested_limit: {}, offset: {}, before: {:?}, after: {:?}",
+            requested_limit, start_offset, params.before, params.after
         );
 
+        // Garmin API doesn't support before/after params directly, they're for client-side filtering
         if requested_limit <= api_provider_limits::garmin::MAX_ACTIVITIES_PER_REQUEST {
             return self
                 .get_activities_single_page(requested_limit, start_offset)
@@ -436,7 +437,8 @@ impl FitnessProvider for GarminProvider {
         params: &PaginationParams,
     ) -> AppResult<CursorPage<Activity>> {
         // Garmin API uses numeric pagination - delegate to offset-based approach
-        let activities = self.get_activities(Some(params.limit), None).await?;
+        let query_params = ActivityQueryParams::with_pagination(Some(params.limit), None);
+        let activities = self.get_activities_with_params(&query_params).await?;
         Ok(CursorPage::new(activities, None, None, false))
     }
 

@@ -18,7 +18,7 @@
     clippy::cast_precision_loss
 )]
 
-use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
+use super::core::{ActivityQueryParams, FitnessProvider, OAuth2Credentials, ProviderConfig};
 use super::errors::ProviderError;
 use crate::constants::oauth_providers;
 use crate::errors::{AppError, AppResult};
@@ -705,21 +705,34 @@ impl FitnessProvider for WhoopProvider {
         })
     }
 
-    async fn get_activities(
+    async fn get_activities_with_params(
         &self,
-        limit: Option<usize>,
-        offset: Option<usize>,
+        params: &ActivityQueryParams,
     ) -> AppResult<Vec<Activity>> {
-        let page_limit = limit.unwrap_or(25).min(50);
+        let page_limit = params.limit.unwrap_or(25).min(50);
 
         // WHOOP uses token-based pagination, offset is not directly supported
         // For offset support, we'd need to paginate through until we reach the offset
         // For simplicity, we'll fetch from the beginning
-        if offset.is_some_and(|o| o > 0) {
+        if params.offset.is_some_and(|o| o > 0) {
             warn!("WHOOP provider offset pagination is limited - fetching from beginning");
         }
 
-        let endpoint = format!("activity/workout?limit={page_limit}");
+        // Build endpoint with optional time filter (WHOOP supports start/end parameters)
+        let mut endpoint = format!("activity/workout?limit={page_limit}");
+        if let Some(after) = params.after {
+            use std::fmt::Write;
+            if let Some(dt) = chrono::DateTime::from_timestamp(after, 0) {
+                let _ = write!(endpoint, "&start={}", dt.format("%Y-%m-%dT%H:%M:%S%.3fZ"));
+            }
+        }
+        if let Some(before) = params.before {
+            use std::fmt::Write;
+            if let Some(dt) = chrono::DateTime::from_timestamp(before, 0) {
+                let _ = write!(endpoint, "&end={}", dt.format("%Y-%m-%dT%H:%M:%S%.3fZ"));
+            }
+        }
+
         let response: WhoopPaginatedResponse<WhoopWorkout> = self.api_request(&endpoint).await?;
 
         let mut activities = Vec::with_capacity(response.records.len());
