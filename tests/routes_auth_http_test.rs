@@ -277,7 +277,7 @@ async fn test_register_missing_required_fields() {
 }
 
 // ============================================================================
-// POST /api/auth/login - User Login Tests
+// POST /oauth/token - User Login Tests (OAuth2 ROPC)
 // ============================================================================
 
 #[tokio::test]
@@ -291,21 +291,24 @@ async fn test_login_success() {
 
     let routes = setup.routes();
 
-    let login_request = json!({
-        "email": user.email,
-        "password": "password123"  // Default password from create_test_user
-    });
+    // OAuth2 ROPC uses form-encoded data
+    let login_request = [
+        ("grant_type", "password"),
+        ("username", &user.email),
+        ("password", "password123"), // Default password from create_test_user
+    ];
 
-    let response = AxumTestRequest::post("/api/auth/login")
-        .json(&login_request)
+    let response = AxumTestRequest::post("/oauth/token")
+        .form(&login_request)
         .send(routes)
         .await;
 
     assert_eq!(response.status(), 200);
 
     let body: serde_json::Value = response.json();
-    assert!(body["jwt_token"].is_string());
-    assert!(body["expires_at"].is_string());
+    assert!(body["access_token"].is_string());
+    assert_eq!(body["token_type"].as_str(), Some("Bearer"));
+    assert!(body["expires_in"].is_number());
     assert!(body["user"]["user_id"].is_string());
     assert!(body["user"]["email"].is_string());
 }
@@ -315,14 +318,15 @@ async fn test_login_no_auth_required() {
     let setup = AuthTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
 
-    let login_request = json!({
-        "email": "user@example.com",
-        "password": "password123"
-    });
+    let login_request = [
+        ("grant_type", "password"),
+        ("username", "user@example.com"),
+        ("password", "password123"),
+    ];
 
     // Login should work without authentication header
-    let response = AxumTestRequest::post("/api/auth/login")
-        .json(&login_request)
+    let response = AxumTestRequest::post("/oauth/token")
+        .form(&login_request)
         .send(routes)
         .await;
 
@@ -336,17 +340,19 @@ async fn test_login_invalid_credentials() {
     let setup = AuthTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
 
-    let login_request = json!({
-        "email": "nonexistent@example.com",
-        "password": "wrongpassword"
-    });
+    let login_request = [
+        ("grant_type", "password"),
+        ("username", "nonexistent@example.com"),
+        ("password", "wrongpassword"),
+    ];
 
-    let response = AxumTestRequest::post("/api/auth/login")
-        .json(&login_request)
+    let response = AxumTestRequest::post("/oauth/token")
+        .form(&login_request)
         .send(routes)
         .await;
 
-    assert_eq!(response.status(), 401);
+    // OAuth2 ROPC returns 400 with "invalid_grant" error for bad credentials (RFC 6749 Section 5.2)
+    assert_eq!(response.status(), 400);
 }
 
 #[tokio::test]
@@ -360,17 +366,19 @@ async fn test_login_wrong_password() {
 
     let routes = setup.routes();
 
-    let login_request = json!({
-        "email": user.email,
-        "password": "wrongpassword"
-    });
+    let login_request = [
+        ("grant_type", "password"),
+        ("username", user.email.as_str()),
+        ("password", "wrongpassword"),
+    ];
 
-    let response = AxumTestRequest::post("/api/auth/login")
-        .json(&login_request)
+    let response = AxumTestRequest::post("/oauth/token")
+        .form(&login_request)
         .send(routes)
         .await;
 
-    assert_eq!(response.status(), 401);
+    // OAuth2 ROPC returns 400 with "invalid_grant" error for bad credentials (RFC 6749 Section 5.2)
+    assert_eq!(response.status(), 400);
 }
 
 #[tokio::test]
@@ -378,13 +386,11 @@ async fn test_login_missing_fields() {
     let setup = AuthTestSetup::new().await.expect("Setup failed");
     let routes = setup.routes();
 
-    let login_request = json!({
-        "email": "user@example.com"
-        // Missing password
-    });
+    // Missing password field
+    let login_request = [("grant_type", "password"), ("username", "user@example.com")];
 
-    let response = AxumTestRequest::post("/api/auth/login")
-        .json(&login_request)
+    let response = AxumTestRequest::post("/oauth/token")
+        .form(&login_request)
         .send(routes)
         .await;
 
@@ -609,7 +615,7 @@ async fn test_all_auth_endpoints_registered() {
     // Test that all endpoints are registered (not 404)
     let endpoints = vec![
         ("/api/auth/register", "POST"),
-        ("/api/auth/login", "POST"),
+        ("/oauth/token", "POST"), // OAuth2 ROPC replaces /api/auth/login
         ("/api/auth/refresh", "POST"),
         ("/api/oauth/status", "GET"),
     ];
@@ -665,14 +671,15 @@ async fn test_register_and_login_flow() {
         return;
     }
 
-    // Step 2: Login with the registered credentials
-    let login_request = json!({
-        "email": email,
-        "password": password
-    });
+    // Step 2: Login with the registered credentials using OAuth2 ROPC
+    let login_request = [
+        ("grant_type", "password"),
+        ("username", email.as_str()),
+        ("password", password),
+    ];
 
-    let login_response = AxumTestRequest::post("/api/auth/login")
-        .json(&login_request)
+    let login_response = AxumTestRequest::post("/oauth/token")
+        .form(&login_request)
         .send(routes)
         .await;
 

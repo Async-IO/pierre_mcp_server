@@ -266,16 +266,17 @@ impl MultiTenantMcpClient {
         Ok(user_id.to_string())
     }
 
-    /// Login and get JWT token
+    /// Login and get JWT token via OAuth2 ROPC endpoint
     async fn login(&mut self, email: &str, password: &str) -> Result<()> {
         let response = timeout(
             Duration::from_secs(10),
             self.http_client
-                .post(format!("{}/api/auth/login", self.base_url))
-                .json(&json!({
-                    "email": email,
-                    "password": password
-                }))
+                .post(format!("{}/oauth/token", self.base_url))
+                .form(&[
+                    ("grant_type", "password"),
+                    ("username", email),
+                    ("password", password),
+                ])
                 .send(),
         )
         .await??;

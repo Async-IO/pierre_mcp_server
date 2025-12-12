@@ -81,6 +81,16 @@ impl AxumTestRequest {
         self
     }
 
+    /// Add URL-encoded form body to the request (for OAuth2 ROPC)
+    pub fn form<T: Serialize>(mut self, data: &T) -> Self {
+        self.body = Some(serde_urlencoded::to_string(data).expect("Failed to serialize form"));
+        self.headers.push((
+            header::CONTENT_TYPE.as_str().to_owned(),
+            "application/x-www-form-urlencoded".to_owned(),
+        ));
+        self
+    }
+
     /// Execute the request against an Axum router
     pub async fn send(self, app: Router) -> AxumTestResponse {
         let mut builder = Request::builder().method(self.method).uri(self.uri);
