@@ -140,7 +140,8 @@ async fn cache_activities_result(
 }
 
 /// Filter activities by sport type (case-insensitive)
-/// Compares against the serialized `sport_type` enum value (`snake_case`)
+/// Handles both standard sport types (serialized as strings like "run")
+/// and Other variants (serialized as {"other":"NordicSki"})
 fn filter_activities_by_sport_type(
     activities: Vec<crate::models::Activity>,
     sport_type_filter: Option<&str>,
@@ -151,11 +152,24 @@ fn filter_activities_by_sport_type(
             activities
                 .into_iter()
                 .filter(|a| {
-                    // Serialize sport_type to JSON string and compare case-insensitively
-                    serde_json::to_value(&a.sport_type)
-                        .ok()
-                        .and_then(|v| v.as_str().map(|s| s.to_lowercase() == filter_lower))
-                        .unwrap_or(false)
+                    // Serialize sport_type to JSON and compare case-insensitively
+                    let Ok(v) = serde_json::to_value(&a.sport_type) else {
+                        return false;
+                    };
+
+                    // Standard sport types serialize as simple strings (e.g., "run", "ride")
+                    if let Some(s) = v.as_str() {
+                        return s.to_lowercase() == filter_lower;
+                    }
+
+                    // Other(String) variants serialize as {"other":"value"}
+                    if let Some(obj) = v.as_object() {
+                        if let Some(other_value) = obj.get("other").and_then(|v| v.as_str()) {
+                            return other_value.to_lowercase() == filter_lower;
+                        }
+                    }
+
+                    false
                 })
                 .collect()
         }
