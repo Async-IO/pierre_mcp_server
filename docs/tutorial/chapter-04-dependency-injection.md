@@ -1,6 +1,3 @@
-<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
-
 # Chapter 4: Dependency Injection with Context Pattern
 
 > **Learning Objectives**: Understand dependency injection in Rust using Arc<T>, learn the service locator anti-pattern and how Pierre is evolving toward focused contexts, master shared ownership patterns.

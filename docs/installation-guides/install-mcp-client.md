@@ -1,6 +1,3 @@
-<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
-
 # Installing Pierre MCP Client
 
 Install and configure the Pierre MCP Client SDK for any MCP-compatible application (Claude Desktop, ChatGPT, or custom MCP clients).

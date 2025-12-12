@@ -1,6 +1,3 @@
-<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
-
 # Build Configuration
 
 Technical documentation for build system configuration, linting enforcement, and compilation settings.

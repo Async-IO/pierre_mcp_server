@@ -1,6 +1,3 @@
-<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
-
 # provider registration guide
 
 This guide shows how pierre's pluggable provider architecture supports **1 to x providers simultaneously** and how new providers are registered.

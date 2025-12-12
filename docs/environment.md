@@ -1,6 +1,3 @@
-<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
-
 # Environment Configuration
 
 Environment variables for Pierre Fitness Platform. Copy `.envrc.example` to `.envrc` and customize.

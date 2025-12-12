@@ -1,6 +1,3 @@
-<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
-
 # Chapter 14: Type Generation & Tools-to-Types System
 
 This chapter explores Pierre's automated type generation system that converts Rust tool schemas to TypeScript interfaces, ensuring type safety between the server and SDK. You'll learn about schema-driven development, synthetic data generation for testing, and the complete tools-to-types workflow.

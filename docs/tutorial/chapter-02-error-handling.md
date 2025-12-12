@@ -1,6 +1,3 @@
-<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
-
 # Chapter 2: Error Handling & Type-Safe Errors
 
 > **Learning Objectives**: Master structured error handling in Rust using `thiserror`, understand why Pierre eliminates `anyhow!()` from production code, and learn error propagation patterns.

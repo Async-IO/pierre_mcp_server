@@ -1,6 +1,3 @@
-<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
-
 # Chapter 17: Provider Data Models & Rate Limiting
 
 This chapter explores how Pierre abstracts fitness provider APIs through unified interfaces and handles rate limiting across multiple providers. You'll learn about trait-based provider abstraction, provider-agnostic data models, retry logic, and tenant-aware provider wrappers.

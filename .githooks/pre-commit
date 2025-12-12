@@ -166,8 +166,7 @@ check_license_headers() {
     local sh_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^scripts/.*\.sh$' || true)
     # Python files in scripts/
     local py_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^scripts/.*\.py$' || true)
-    # Markdown files in docs/
-    local md_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/.*\.md$' || true)
+    # NOTE: Markdown files excluded - LICENSE.md covers all docs, headers break markdown processors
 
     # Check Rust files
     for file in $rs_files; do
@@ -199,13 +198,6 @@ check_license_headers() {
 
     # Check Python files
     for file in $py_files; do
-        if [ -f "$file" ] && ! grep -q "SPDX-License-Identifier:" "$file" 2>/dev/null; then
-            missing_headers="$missing_headers\n  - $file"
-        fi
-    done
-
-    # Check Markdown files
-    for file in $md_files; do
         if [ -f "$file" ] && ! grep -q "SPDX-License-Identifier:" "$file" 2>/dev/null; then
             missing_headers="$missing_headers\n  - $file"
         fi

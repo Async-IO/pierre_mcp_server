@@ -1,6 +1,3 @@
-<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
-
 # Chapter 5: Cryptographic Key Management
 
 > **Learning Objectives**: Master Pierre's two-tier key management system (MEK + DEK), understand RSA key generation for JWT signing, learn JWKS management, and use the `zeroize` crate for secure memory cleanup.

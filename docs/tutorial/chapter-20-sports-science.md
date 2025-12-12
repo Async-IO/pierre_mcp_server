@@ -1,6 +1,3 @@
-<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
-
 # Chapter 20: Sports Science Algorithms & Intelligence
 
 This chapter explores how Pierre implements sports science algorithms for training load management, fitness tracking, and performance estimation. You'll learn about TSS calculation, CTL/ATL/TSB (Performance Manager Chart), VO2 max estimation, FTP detection, and algorithm configuration patterns.

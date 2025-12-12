@@ -1,6 +1,3 @@
-<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
-
 # Database Plugin Architecture Refactoring - Phase 1 Analysis
 
 **Project**: Pierre MCP Server

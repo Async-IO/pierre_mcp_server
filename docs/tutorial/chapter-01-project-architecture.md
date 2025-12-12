@@ -1,6 +1,3 @@
-<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
-
 # Chapter 1: Project Architecture & Module Organization
 
 > **Learning Objectives**: Understand the Pierre codebase structure, Rust module system, and how the project is organized for maintainability and scalability.

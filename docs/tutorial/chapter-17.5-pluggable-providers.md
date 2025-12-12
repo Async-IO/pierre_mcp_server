@@ -1,6 +1,3 @@
-<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-<!-- Copyright (c) 2025 Pierre Fitness Intelligence -->
-
 # Chapter 17.5: Pluggable Provider Architecture
 
 This chapter explores pierre's pluggable provider architecture that enables runtime registration of 1 to x fitness providers simultaneously. You'll learn about provider factories, dynamic discovery, environment-based configuration, and how to add new providers without modifying existing code.
