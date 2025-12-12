@@ -634,25 +634,24 @@ pub fn handle_list_recipes(
             .and_then(Value::as_str)
             .map(parse_meal_timing);
 
+        // Pagination: default 20, max 100
         let limit = request
             .parameters
             .get("limit")
             .and_then(Value::as_u64)
-            .map(|v| {
+            .map_or(20_u32, |v| {
                 #[allow(clippy::cast_possible_truncation)]
                 let capped = v.min(100) as u32;
                 capped
             });
 
-        let offset = request
-            .parameters
-            .get("offset")
-            .and_then(Value::as_u64)
-            .map(|v| {
-                #[allow(clippy::cast_possible_truncation)]
-                let capped = v.min(u64::from(u32::MAX)) as u32;
-                capped
-            });
+        // Handle offset from both integer and float JSON numbers (MCP clients may send floats)
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let offset = request.parameters.get("offset").and_then(|v| {
+            v.as_u64()
+                .map(|n| n.min(u64::from(u32::MAX)) as u32)
+                .or_else(|| v.as_f64().map(|f| f as u32))
+        });
 
         let pool = executor
             .resources
@@ -662,7 +661,7 @@ pub fn handle_list_recipes(
 
         let manager = RecipeManager::new(pool.clone());
         let recipes = manager
-            .list_recipes(user_id, tenant_id, meal_timing, limit, offset)
+            .list_recipes(user_id, tenant_id, meal_timing, Some(limit), offset)
             .await
             .map_err(|e| ProtocolError::InternalError(format!("Failed to list recipes: {e}")))?;
 
@@ -683,11 +682,20 @@ pub fn handle_list_recipes(
             })
             .collect();
 
+        // Pagination: has_more is true if we got exactly limit results (more may exist)
+        let returned_count = recipe_summaries.len();
+        #[allow(clippy::cast_possible_truncation)]
+        let has_more = returned_count == limit as usize;
+        let offset_val = offset.unwrap_or(0);
+
         let result = UniversalResponse {
             success: true,
             result: Some(json!({
                 "recipes": recipe_summaries,
-                "count": recipe_summaries.len(),
+                "count": returned_count,
+                "offset": offset_val,
+                "limit": limit,
+                "has_more": has_more,
             })),
             error: None,
             metadata: None,
@@ -877,11 +885,21 @@ pub fn handle_search_recipes(
                 ProtocolError::InvalidRequest("Missing required parameter: query".to_owned())
             })?;
 
+        // Pagination: default 10, max 100
+        #[allow(clippy::cast_possible_truncation)]
         let limit = request
             .parameters
             .get("limit")
             .and_then(Value::as_u64)
-            .map(|v| v.min(100) as u32);
+            .map_or(10_u32, |v| v.min(100) as u32);
+
+        // Handle offset from both integer and float JSON numbers (MCP clients may send floats)
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let offset = request.parameters.get("offset").and_then(|v| {
+            v.as_u64()
+                .map(|n| n.min(u64::from(u32::MAX)) as u32)
+                .or_else(|| v.as_f64().map(|f| f as u32))
+        });
 
         let pool = executor
             .resources
@@ -891,7 +909,7 @@ pub fn handle_search_recipes(
 
         let manager = RecipeManager::new(pool.clone());
         let recipes = manager
-            .search_recipes(user_id, tenant_id, query, limit)
+            .search_recipes(user_id, tenant_id, query, Some(limit), offset)
             .await
             .map_err(|e| ProtocolError::InternalError(format!("Failed to search recipes: {e}")))?;
 
@@ -910,12 +928,21 @@ pub fn handle_search_recipes(
             })
             .collect();
 
+        // Pagination: has_more is true if we got exactly limit results (more may exist)
+        let returned_count = results.len();
+        #[allow(clippy::cast_possible_truncation)]
+        let has_more = returned_count == limit as usize;
+        let offset_val = offset.unwrap_or(0);
+
         let result = UniversalResponse {
             success: true,
             result: Some(json!({
                 "query": query,
                 "results": results,
-                "count": results.len(),
+                "count": returned_count,
+                "offset": offset_val,
+                "limit": limit,
+                "has_more": has_more,
             })),
             error: None,
             metadata: None,

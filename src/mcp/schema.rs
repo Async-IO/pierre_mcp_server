@@ -2690,7 +2690,15 @@ fn create_search_recipes_tool() -> ToolSchema {
         "limit".to_owned(),
         PropertySchema {
             property_type: "number".into(),
-            description: Some("Maximum number of results to return (default: 10)".into()),
+            description: Some("Maximum number of results to return (default: 10, max: 100)".into()),
+        },
+    );
+
+    properties.insert(
+        "offset".to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Number of results to skip (for pagination, default: 0)".into()),
         },
     );
 
