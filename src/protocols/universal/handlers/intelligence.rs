@@ -11,6 +11,8 @@ use std::future::Future;
 use std::pin::Pin;
 use tracing::{info, warn};
 
+use super::{apply_format_to_response, extract_output_format};
+
 /// Activity parameters extracted from request
 struct ActivityParameters {
     distance: f64,
@@ -486,6 +488,9 @@ pub async fn handle_calculate_metrics(
 ) -> Result<UniversalResponse, ProtocolError> {
     let user_uuid = crate::utils::uuid::parse_user_id_for_protocol(&request.user_id)?;
 
+    // Extract output format parameter: "json" (default) or "toon"
+    let output_format = extract_output_format(&request);
+
     // Check if activity_id is provided (schema-compliant path)
     if let Some(activity_id) = request
         .parameters
@@ -502,14 +507,12 @@ pub async fn handle_calculate_metrics(
                 )
             })?;
 
-        return fetch_and_calculate_metrics(
-            executor,
-            &request,
-            activity_id,
-            provider_name,
-            user_uuid,
-        )
-        .await;
+        let result =
+            fetch_and_calculate_metrics(executor, &request, activity_id, provider_name, user_uuid)
+                .await?;
+
+        // Apply format transformation
+        return Ok(apply_format_to_response(result, "metrics", output_format));
     }
 
     // Fallback path: activity object provided directly (for backward compatibility)
@@ -517,12 +520,10 @@ pub async fn handle_calculate_metrics(
     let (max_hr, max_hr_source) = determine_max_heart_rate(params.max_hr_provided, params.user_age);
     let metrics = calculate_activity_metrics(&params, max_hr);
 
-    Ok(build_metrics_response(
-        &params,
-        &metrics,
-        max_hr,
-        &max_hr_source,
-    ))
+    let result = build_metrics_response(&params, &metrics, max_hr, &max_hr_source);
+
+    // Apply format transformation
+    Ok(apply_format_to_response(result, "metrics", output_format))
 }
 
 /// Generate insights and recommendations from activity data
@@ -945,6 +946,9 @@ pub fn handle_get_activity_intelligence(
             .map_or_else(crate::config::environment::default_provider, String::from);
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
+
         // Report progress - starting authentication
         if let Some(reporter) = &request.progress_reporter {
             reporter.report(
@@ -1007,7 +1011,12 @@ pub fn handle_get_activity_intelligence(
                     }
                 }
 
-                Ok(result)
+                // Apply format transformation
+                Ok(apply_format_to_response(
+                    result,
+                    "intelligence",
+                    output_format,
+                ))
             }
             Err(response) => Ok(response),
         }
@@ -1048,6 +1057,9 @@ pub fn handle_analyze_performance_trends(
             .get("timeframe")
             .and_then(|v| v.as_str())
             .unwrap_or("month");
+
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
 
         // Report progress - starting authentication
         if let Some(reporter) = &request.progress_reporter {
@@ -1106,7 +1118,8 @@ pub fn handle_analyze_performance_trends(
                     }
                 }
 
-                Ok(result)
+                // Apply format transformation
+                Ok(apply_format_to_response(result, "trends", output_format))
             }
             Err(response) => Ok(response),
         }
@@ -1230,6 +1243,9 @@ pub fn handle_compare_activities(
             .get("compare_activity_id")
             .and_then(|v| v.as_str());
 
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
+
         match executor
             .auth_service
             .create_authenticated_provider(&provider_name, user_uuid, request.tenant_id.as_deref())
@@ -1245,7 +1261,7 @@ pub fn handle_compare_activities(
                     );
                 }
 
-                Ok(execute_activity_comparison(
+                let result = execute_activity_comparison(
                     provider,
                     activity_id,
                     comparison_type,
@@ -1253,7 +1269,14 @@ pub fn handle_compare_activities(
                     user_uuid,
                     &request,
                 )
-                .await)
+                .await;
+
+                // Apply format transformation
+                Ok(apply_format_to_response(
+                    result,
+                    "comparison",
+                    output_format,
+                ))
             }
             Err(response) => Ok(response),
         }
@@ -1291,6 +1314,9 @@ pub fn handle_detect_patterns(
             .ok_or_else(|| {
                 ProtocolError::InvalidRequest("Missing required parameter: pattern_type".to_owned())
             })?;
+
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
 
         // Report progress - starting authentication
         if let Some(reporter) = &request.progress_reporter {
@@ -1347,7 +1373,8 @@ pub fn handle_detect_patterns(
                     }
                 }
 
-                Ok(result)
+                // Apply format transformation
+                Ok(apply_format_to_response(result, "patterns", output_format))
             }
             Err(response) => Ok(response),
         }
@@ -1385,6 +1412,9 @@ pub fn handle_generate_recommendations(
             .get("recommendation_type")
             .and_then(|v| v.as_str())
             .unwrap_or("all");
+
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
 
         // Report progress - starting authentication
         if let Some(reporter) = &request.progress_reporter {
@@ -1477,7 +1507,7 @@ pub fn handle_generate_recommendations(
                             );
                         }
 
-                        Ok(UniversalResponse {
+                        let result = UniversalResponse {
                             success: true,
                             result: Some(analysis),
                             error: None,
@@ -1489,7 +1519,14 @@ pub fn handle_generate_recommendations(
                                 );
                                 map
                             }),
-                        })
+                        };
+
+                        // Apply format transformation
+                        Ok(apply_format_to_response(
+                            result,
+                            "recommendations",
+                            output_format,
+                        ))
                     }
                     Err(e) => Ok(UniversalResponse {
                         success: false,
@@ -1555,6 +1592,9 @@ pub fn handle_calculate_fitness_score(
             .parameters
             .get("sleep_provider")
             .and_then(|v| v.as_str());
+
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
 
         // Report progress - starting authentication
         if let Some(reporter) = &request.progress_reporter {
@@ -1669,7 +1709,7 @@ pub fn handle_calculate_fitness_score(
                             );
                         }
 
-                        Ok(UniversalResponse {
+                        let result = UniversalResponse {
                             success: true,
                             result: Some(analysis),
                             error: None,
@@ -1697,7 +1737,14 @@ pub fn handle_calculate_fitness_score(
                                 }
                                 map
                             }),
-                        })
+                        };
+
+                        // Apply format transformation
+                        Ok(apply_format_to_response(
+                            result,
+                            "fitness_score",
+                            output_format,
+                        ))
                     }
                     Err(e) => Ok(UniversalResponse {
                         success: false,
@@ -1743,6 +1790,9 @@ pub fn handle_predict_performance(
             .get("target_sport")
             .and_then(|v| v.as_str())
             .unwrap_or("Run");
+
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
 
         // Report progress - starting authentication
         if let Some(reporter) = &request.progress_reporter {
@@ -1811,7 +1861,7 @@ pub fn handle_predict_performance(
                             );
                         }
 
-                        Ok(UniversalResponse {
+                        let result = UniversalResponse {
                             success: true,
                             result: Some(prediction),
                             error: None,
@@ -1823,7 +1873,14 @@ pub fn handle_predict_performance(
                                 );
                                 map
                             }),
-                        })
+                        };
+
+                        // Apply format transformation
+                        Ok(apply_format_to_response(
+                            result,
+                            "prediction",
+                            output_format,
+                        ))
                     }
                     Err(e) => Ok(UniversalResponse {
                         success: false,
@@ -1889,6 +1946,9 @@ pub fn handle_analyze_training_load(
             .parameters
             .get("sleep_provider")
             .and_then(|v| v.as_str());
+
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
 
         // Report progress - starting authentication
         if let Some(reporter) = &request.progress_reporter {
@@ -2011,7 +2071,7 @@ pub fn handle_analyze_training_load(
                             );
                         }
 
-                        Ok(UniversalResponse {
+                        let result = UniversalResponse {
                             success: true,
                             result: Some(analysis),
                             error: None,
@@ -2039,7 +2099,14 @@ pub fn handle_analyze_training_load(
                                 }
                                 map
                             }),
-                        })
+                        };
+
+                        // Apply format transformation
+                        Ok(apply_format_to_response(
+                            result,
+                            "training_load",
+                            output_format,
+                        ))
                     }
                     Err(e) => Ok(UniversalResponse {
                         success: false,

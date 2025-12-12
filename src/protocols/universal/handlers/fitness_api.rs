@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::cache::{factory::Cache, CacheKey, CacheResource};
+use crate::formatters::{format_output, OutputFormat};
 use crate::intelligence::physiological_constants::api_limits::{
     DEFAULT_ACTIVITY_LIMIT, DEFAULT_ACTIVITY_LIMIT_U32, MAX_ACTIVITY_LIMIT, QUICK_ACTIVITY_LIMIT,
 };
@@ -73,48 +74,202 @@ fn create_activity_metadata(
     map
 }
 
+/// Extract output format parameter from request
+/// Returns `OutputFormat::Json` as default for backwards compatibility
+pub fn extract_output_format(request: &UniversalRequest) -> OutputFormat {
+    request
+        .parameters
+        .get("format")
+        .and_then(|v| v.as_str())
+        .map_or(OutputFormat::Json, OutputFormat::from_str_param)
+}
+
+/// Apply format transformation to an existing `UniversalResponse`.
+///
+/// This is useful for handlers that delegate to internal functions returning `UniversalResponse`.
+/// If the response is successful and has a result, formats it according to `output_format`.
+pub fn apply_format_to_response(
+    mut response: UniversalResponse,
+    data_key: &str,
+    output_format: OutputFormat,
+) -> UniversalResponse {
+    // Only apply formatting to successful responses with data
+    if !response.success || response.result.is_none() {
+        return response;
+    }
+
+    // JSON is the default, no transformation needed
+    if matches!(output_format, OutputFormat::Json) {
+        // Add format metadata
+        if let Some(ref mut metadata) = response.metadata {
+            metadata.insert(
+                "format".to_owned(),
+                serde_json::Value::String("json".to_owned()),
+            );
+        }
+        return response;
+    }
+
+    // Apply TOON formatting - result presence was verified by guard above
+    let Some(result_value) = response.result.take() else {
+        // Defensive: return unchanged if result is unexpectedly None
+        return response;
+    };
+
+    match format_output(&result_value, OutputFormat::Toon) {
+        Ok(formatted) => {
+            let toon_key = format!("{data_key}_toon");
+            response.result = Some(serde_json::json!({
+                toon_key: formatted.data,
+                "format": "toon"
+            }));
+            if let Some(ref mut metadata) = response.metadata {
+                metadata.insert(
+                    "format".to_owned(),
+                    serde_json::Value::String("toon".to_owned()),
+                );
+            }
+        }
+        Err(e) => {
+            // Fall back to JSON on encoding error
+            warn!("TOON encoding failed, falling back to JSON: {}", e);
+            response.result = Some(serde_json::json!({
+                data_key: result_value,
+                "format": "json",
+                "format_fallback": true,
+                "format_error": e.to_string()
+            }));
+            if let Some(ref mut metadata) = response.metadata {
+                metadata.insert(
+                    "format".to_owned(),
+                    serde_json::Value::String("json".to_owned()),
+                );
+                metadata.insert("format_fallback".to_owned(), serde_json::Value::Bool(true));
+            }
+        }
+    }
+
+    response
+}
+
+/// Build a formatted response with format support (JSON or TOON).
+///
+/// Generic helper for all data-returning handlers.
+///
+/// # Errors
+///
+/// Returns `ProtocolError::SerializationError` if:
+/// - Data serialization to JSON fails
+/// - TOON encoding fails (falls back to JSON with metadata flag)
+pub fn build_formatted_response<T, S>(
+    data: &T,
+    data_key: &str,
+    output_format: OutputFormat,
+    metadata: std::collections::HashMap<String, serde_json::Value, S>,
+) -> Result<UniversalResponse, ProtocolError>
+where
+    T: Serialize,
+    S: std::hash::BuildHasher,
+{
+    // Convert to standard HashMap for UniversalResponse compatibility
+    let mut metadata: std::collections::HashMap<String, serde_json::Value> =
+        metadata.into_iter().collect();
+
+    // Add format to metadata
+    metadata.insert(
+        "format".to_owned(),
+        serde_json::Value::String(output_format.as_str().to_owned()),
+    );
+
+    let result_json = match output_format {
+        OutputFormat::Toon => {
+            // Convert data to JSON value first for TOON encoding
+            let data_value = serde_json::to_value(data).map_err(|e| {
+                ProtocolError::SerializationError(format!("Failed to serialize data: {e}"))
+            })?;
+
+            match format_output(&data_value, OutputFormat::Toon) {
+                Ok(formatted) => {
+                    // Use _toon suffix for the data key to indicate TOON format
+                    let toon_key = format!("{data_key}_toon");
+                    serde_json::json!({
+                        toon_key: formatted.data,
+                        "format": "toon"
+                    })
+                }
+                Err(e) => {
+                    // Fall back to JSON if TOON serialization fails
+                    warn!("TOON serialization failed, falling back to JSON: {}", e);
+                    metadata.insert(
+                        "format".to_owned(),
+                        serde_json::Value::String("json".to_owned()),
+                    );
+                    metadata.insert("format_fallback".to_owned(), serde_json::Value::Bool(true));
+                    metadata.insert(
+                        "format_error".to_owned(),
+                        serde_json::Value::String(e.to_string()),
+                    );
+                    serde_json::json!({
+                        data_key: serde_json::to_value(data).map_err(|e| {
+                            ProtocolError::SerializationError(format!("Failed to serialize data: {e}"))
+                        })?,
+                        "format": "json"
+                    })
+                }
+            }
+        }
+        OutputFormat::Json => {
+            serde_json::json!({
+                data_key: serde_json::to_value(data).map_err(|e| {
+                    ProtocolError::SerializationError(format!("Failed to serialize data: {e}"))
+                })?,
+                "format": "json"
+            })
+        }
+    };
+
+    Ok(UniversalResponse {
+        success: true,
+        result: Some(result_json),
+        error: None,
+        metadata: Some(metadata),
+    })
+}
+
 /// Try to get activities from cache
 async fn try_get_cached_activities(
     cache: &Arc<Cache>,
     cache_key: &CacheKey,
     user_uuid: uuid::Uuid,
-    tenant_id: Option<&String>,
-    limit: usize,
+    tenant_id: Option<String>,
     provider_name: &str,
+    mode: &str,
+    output_format: OutputFormat,
 ) -> Option<UniversalResponse> {
     if let Ok(Some(cached_activities)) = cache.get::<Vec<crate::models::Activity>>(cache_key).await
     {
-        info!("Cache hit for activities (limit={})", limit);
-        return Some(UniversalResponse {
-            success: true,
-            result: Some(serde_json::json!({
-                "activities": cached_activities,
-                "provider": provider_name,
-                "count": cached_activities.len()
-            })),
-            error: None,
-            metadata: Some({
-                let mut map = std::collections::HashMap::new();
-                map.insert(
-                    "total_activities".to_owned(),
-                    serde_json::Value::Number(cached_activities.len().into()),
-                );
-                map.insert(
-                    "user_id".to_owned(),
-                    serde_json::Value::String(user_uuid.to_string()),
-                );
-                map.insert(
-                    "tenant_id".to_owned(),
-                    tenant_id.map_or(serde_json::Value::Null, |id| {
-                        serde_json::Value::String(id.clone())
-                    }),
-                );
-                map.insert("cached".to_owned(), serde_json::Value::Bool(true));
-                map
-            }),
-        });
+        info!(
+            "Cache hit for activities (count={}, mode={}, format={:?})",
+            cached_activities.len(),
+            mode,
+            output_format
+        );
+        // Use the same response builder as the non-cached path to apply mode/format
+        let mut response = build_activities_success_response(
+            &cached_activities,
+            user_uuid,
+            tenant_id,
+            provider_name,
+            mode,
+            output_format,
+        );
+        // Mark as cached in metadata
+        if let Some(ref mut metadata) = response.metadata {
+            metadata.insert("cached".to_owned(), serde_json::Value::Bool(true));
+        }
+        return Some(response);
     }
-    info!("Cache miss for activities (limit={})", limit);
+    info!("Cache miss for activities");
     None
 }
 
@@ -177,40 +332,92 @@ fn filter_activities_by_sport_type(
     }
 }
 
-/// Build success response for activities with mode support
+/// Build success response for activities with mode and format support
 /// `mode="summary"` returns minimal fields (id, name, `sport_type`, `start_date`, distance, duration)
 /// `mode="detailed"` returns full activity data (default for backwards compatibility when not specified)
+/// `format="json"` (default) or `format="toon"` for token-efficient LLM output
 fn build_activities_success_response(
     activities: &[crate::models::Activity],
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
     provider_name: &str,
     mode: &str,
+    output_format: OutputFormat,
 ) -> UniversalResponse {
-    let (result_json, mode_used) = if mode == "summary" {
+    // Prepare the data based on mode
+    let (data_value, mode_used) = if mode == "summary" {
         // Summary mode: convert to minimal representation
         let summaries: Vec<ActivitySummary> =
             activities.iter().map(ActivitySummary::from).collect();
-        (
-            serde_json::json!({
-                "activities": summaries,
-                "provider": provider_name,
-                "count": activities.len(),
-                "mode": "summary"
-            }),
-            "summary",
-        )
+        match serde_json::to_value(&summaries) {
+            Ok(value) => (value, "summary"),
+            Err(e) => {
+                return UniversalResponse {
+                    success: false,
+                    result: None,
+                    error: Some(format!("Failed to serialize activity summaries: {e}")),
+                    metadata: None,
+                };
+            }
+        }
     } else {
         // Detailed mode: return full activity data
-        (
+        match serde_json::to_value(activities) {
+            Ok(value) => (value, "detailed"),
+            Err(e) => {
+                return UniversalResponse {
+                    success: false,
+                    result: None,
+                    error: Some(format!("Failed to serialize activities: {e}")),
+                    metadata: None,
+                };
+            }
+        }
+    };
+
+    // Format the activities data according to the requested format
+    let (result_json, format_used) = match output_format {
+        OutputFormat::Toon => {
+            // For TOON format, serialize activities to TOON string and embed in response
+            match format_output(&data_value, OutputFormat::Toon) {
+                Ok(formatted) => (
+                    serde_json::json!({
+                        "activities_toon": formatted.data,
+                        "provider": provider_name,
+                        "count": activities.len(),
+                        "mode": mode_used,
+                        "format": "toon"
+                    }),
+                    "toon",
+                ),
+                Err(e) => {
+                    // Fall back to JSON if TOON serialization fails
+                    warn!("TOON serialization failed, falling back to JSON: {}", e);
+                    (
+                        serde_json::json!({
+                            "activities": data_value,
+                            "provider": provider_name,
+                            "count": activities.len(),
+                            "mode": mode_used,
+                            "format": "json",
+                            "format_fallback": true,
+                            "format_error": e.to_string()
+                        }),
+                        "json",
+                    )
+                }
+            }
+        }
+        OutputFormat::Json => (
             serde_json::json!({
-                "activities": activities,
+                "activities": data_value,
                 "provider": provider_name,
                 "count": activities.len(),
-                "mode": "detailed"
+                "mode": mode_used,
+                "format": "json"
             }),
-            "detailed",
-        )
+            "json",
+        ),
     };
 
     UniversalResponse {
@@ -236,6 +443,10 @@ fn build_activities_success_response(
                 "mode".to_owned(),
                 serde_json::Value::String(mode_used.to_owned()),
             );
+            map.insert(
+                "format".to_owned(),
+                serde_json::Value::String(format_used.to_owned()),
+            );
             map
         }),
     }
@@ -247,33 +458,29 @@ async fn try_get_cached_athlete(
     cache_key: &CacheKey,
     user_uuid: uuid::Uuid,
     tenant_id: Option<&String>,
+    output_format: OutputFormat,
 ) -> Result<Option<UniversalResponse>, ProtocolError> {
     if let Ok(Some(cached_athlete)) = cache.get::<crate::models::Athlete>(cache_key).await {
         info!("Cache hit for athlete profile");
-        return Ok(Some(UniversalResponse {
-            success: true,
-            result: Some(serde_json::to_value(&cached_athlete).map_err(|e| {
-                ProtocolError::SerializationError(format!(
-                    "Failed to serialize cached athlete: {e}"
-                ))
-            })?),
-            error: None,
-            metadata: Some({
-                let mut map = std::collections::HashMap::new();
-                map.insert(
-                    "user_id".to_owned(),
-                    serde_json::Value::String(user_uuid.to_string()),
-                );
-                map.insert(
-                    "tenant_id".to_owned(),
-                    tenant_id.map_or(serde_json::Value::Null, |id| {
-                        serde_json::Value::String(id.clone())
-                    }),
-                );
-                map.insert("cached".to_owned(), serde_json::Value::Bool(true));
-                map
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert(
+            "user_id".to_owned(),
+            serde_json::Value::String(user_uuid.to_string()),
+        );
+        metadata.insert(
+            "tenant_id".to_owned(),
+            tenant_id.map_or(serde_json::Value::Null, |id| {
+                serde_json::Value::String(id.clone())
             }),
-        }));
+        );
+        metadata.insert("cached".to_owned(), serde_json::Value::Bool(true));
+
+        return Ok(Some(build_formatted_response(
+            &cached_athlete,
+            "athlete",
+            output_format,
+            metadata,
+        )?));
     }
     info!("Cache miss for athlete profile");
     Ok(None)
@@ -300,31 +507,24 @@ async fn fetch_and_cache_athlete(
     cache_key: &CacheKey,
     user_uuid: uuid::Uuid,
     tenant_id: Option<String>,
+    output_format: OutputFormat,
 ) -> Result<UniversalResponse, ProtocolError> {
     match provider.get_athlete().await {
         Ok(athlete) => {
             cache_athlete_result(cache, cache_key, &athlete).await;
 
-            Ok(UniversalResponse {
-                success: true,
-                result: Some(serde_json::to_value(&athlete).map_err(|e| {
-                    ProtocolError::SerializationError(format!("Failed to serialize athlete: {e}"))
-                })?),
-                error: None,
-                metadata: Some({
-                    let mut map = std::collections::HashMap::new();
-                    map.insert(
-                        "user_id".to_owned(),
-                        serde_json::Value::String(user_uuid.to_string()),
-                    );
-                    map.insert(
-                        "tenant_id".to_owned(),
-                        tenant_id.map_or(serde_json::Value::Null, serde_json::Value::String),
-                    );
-                    map.insert("cached".to_owned(), serde_json::Value::Bool(false));
-                    map
-                }),
-            })
+            let mut metadata = std::collections::HashMap::new();
+            metadata.insert(
+                "user_id".to_owned(),
+                serde_json::Value::String(user_uuid.to_string()),
+            );
+            metadata.insert(
+                "tenant_id".to_owned(),
+                tenant_id.map_or(serde_json::Value::Null, serde_json::Value::String),
+            );
+            metadata.insert("cached".to_owned(), serde_json::Value::Bool(false));
+
+            build_formatted_response(&athlete, "athlete", output_format, metadata)
         }
         Err(e) => Ok(UniversalResponse {
             success: false,
@@ -440,6 +640,13 @@ pub fn handle_get_activities(
             .and_then(|v| v.as_str())
             .map(str::to_owned);
 
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = request
+            .parameters
+            .get("format")
+            .and_then(|v| v.as_str())
+            .map_or(OutputFormat::Json, OutputFormat::from_str_param);
+
         // Build query params
         let query_params = ActivityQueryParams {
             limit: Some(limit),
@@ -486,9 +693,10 @@ pub fn handle_get_activities(
             &executor.resources.cache,
             &cache_key,
             user_uuid,
-            request.tenant_id.as_ref(),
-            limit,
+            request.tenant_id.clone(),
             &provider_name,
+            mode,
+            output_format,
         )
         .await
         {
@@ -587,6 +795,7 @@ pub fn handle_get_activities(
                             request.tenant_id,
                             &provider_name,
                             mode,
+                            output_format,
                         ))
                     }
                     Err(e) => Ok(UniversalResponse {
@@ -629,6 +838,9 @@ pub fn handle_get_athlete(
             .and_then(|v| v.as_str())
             .map_or_else(crate::config::environment::default_provider, String::from);
 
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
+
         // Create cache key for athlete profile
         let tenant_uuid = request
             .tenant_id
@@ -659,6 +871,7 @@ pub fn handle_get_athlete(
             &cache_key,
             user_uuid,
             request.tenant_id.as_ref(),
+            output_format,
         )
         .await?
         {
@@ -722,6 +935,7 @@ pub fn handle_get_athlete(
                     &cache_key,
                     user_uuid,
                     request.tenant_id,
+                    output_format,
                 )
                 .await;
 
@@ -770,31 +984,29 @@ async fn try_get_cached_stats(
     stats_cache_key: &CacheKey,
     user_uuid: uuid::Uuid,
     tenant_id: Option<&String>,
+    output_format: OutputFormat,
 ) -> Result<Option<UniversalResponse>, ProtocolError> {
     if let Ok(Some(cached_stats)) = cache.get::<crate::models::Stats>(stats_cache_key).await {
         info!("Cache hit for stats");
-        return Ok(Some(UniversalResponse {
-            success: true,
-            result: Some(serde_json::to_value(&cached_stats).map_err(|e| {
-                ProtocolError::SerializationError(format!("Failed to serialize cached stats: {e}"))
-            })?),
-            error: None,
-            metadata: Some({
-                let mut map = std::collections::HashMap::new();
-                map.insert(
-                    "user_id".to_owned(),
-                    serde_json::Value::String(user_uuid.to_string()),
-                );
-                map.insert(
-                    "tenant_id".to_owned(),
-                    tenant_id.map_or(serde_json::Value::Null, |id| {
-                        serde_json::Value::String(id.clone())
-                    }),
-                );
-                map.insert("cached".to_owned(), serde_json::Value::Bool(true));
-                map
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert(
+            "user_id".to_owned(),
+            serde_json::Value::String(user_uuid.to_string()),
+        );
+        metadata.insert(
+            "tenant_id".to_owned(),
+            tenant_id.map_or(serde_json::Value::Null, |id| {
+                serde_json::Value::String(id.clone())
             }),
-        }));
+        );
+        metadata.insert("cached".to_owned(), serde_json::Value::Bool(true));
+
+        return Ok(Some(build_formatted_response(
+            &cached_stats,
+            "stats",
+            output_format,
+            metadata,
+        )?));
     }
     info!("Cache miss for stats");
     Ok(None)
@@ -875,6 +1087,7 @@ async fn fetch_and_cache_stats(
     tenant_uuid: uuid::Uuid,
     user_uuid: uuid::Uuid,
     provider_name: &str,
+    output_format: OutputFormat,
 ) -> Result<UniversalResponse, ProtocolError> {
     let stats = match provider.get_stats().await {
         Ok(stats) => stats,
@@ -902,14 +1115,8 @@ async fn fetch_and_cache_stats(
         .await;
     }
 
-    Ok(UniversalResponse {
-        success: true,
-        result: Some(serde_json::to_value(&stats).map_err(|e| {
-            ProtocolError::SerializationError(format!("Failed to serialize stats: {e}"))
-        })?),
-        error: None,
-        metadata: Some(create_stats_metadata(user_uuid, tenant_uuid, false)),
-    })
+    let metadata = create_stats_metadata(user_uuid, tenant_uuid, false);
+    build_formatted_response(&stats, "stats", output_format, metadata)
 }
 
 /// Handle `get_stats` tool - retrieve user's activity statistics
@@ -938,6 +1145,9 @@ pub fn handle_get_stats(
             .get("provider")
             .and_then(|v| v.as_str())
             .map_or_else(crate::config::environment::default_provider, String::from);
+
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
 
         // Create cache key for stats (need athlete_id from athlete profile)
         let tenant_uuid = request
@@ -979,6 +1189,7 @@ pub fn handle_get_stats(
                 &stats_cache_key,
                 user_uuid,
                 request.tenant_id.as_ref(),
+                output_format,
             )
             .await?
             {
@@ -1044,6 +1255,7 @@ pub fn handle_get_stats(
                     tenant_uuid,
                     user_uuid,
                     &provider_name,
+                    output_format,
                 )
                 .await;
 

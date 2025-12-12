@@ -20,6 +20,8 @@ use serde_json::{json, Value};
 use std::future::Future;
 use std::pin::Pin;
 
+use super::{apply_format_to_response, extract_output_format};
+
 /// TDEE context for calorie calculation in recipe constraints
 /// Bundles TDEE-related parameters to reduce function argument count
 struct TdeeContext<'a> {
@@ -619,6 +621,9 @@ pub fn handle_list_recipes(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
+
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
         let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
@@ -678,7 +683,7 @@ pub fn handle_list_recipes(
             })
             .collect();
 
-        Ok(UniversalResponse {
+        let result = UniversalResponse {
             success: true,
             result: Some(json!({
                 "recipes": recipe_summaries,
@@ -686,7 +691,10 @@ pub fn handle_list_recipes(
             })),
             error: None,
             metadata: None,
-        })
+        };
+
+        // Apply format transformation
+        Ok(apply_format_to_response(result, "recipes", output_format))
     })
 }
 
@@ -703,6 +711,9 @@ pub fn handle_get_recipe(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
+
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
         let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
@@ -728,43 +739,47 @@ pub fn handle_get_recipe(
             .map_err(|e| ProtocolError::InternalError(format!("Failed to get recipe: {e}")))?;
 
         match recipe {
-            Some(r) => Ok(UniversalResponse {
-                success: true,
-                result: Some(json!({
-                    "id": r.id.to_string(),
-                    "name": r.name,
-                    "description": r.description,
-                    "servings": r.servings,
-                    "prep_time_mins": r.prep_time_mins,
-                    "cook_time_mins": r.cook_time_mins,
-                    "total_time_mins": r.total_time_mins(),
-                    "meal_timing": format!("{:?}", r.meal_timing).to_lowercase(),
-                    "ingredients": r.ingredients.iter().map(|i| json!({
-                        "name": i.name,
-                        "amount": i.amount,
-                        "unit": format!("{:?}", i.unit).to_lowercase(),
-                        "grams": i.grams,
-                        "preparation": i.preparation,
-                        "fdc_id": i.fdc_id,
-                    })).collect::<Vec<_>>(),
-                    "instructions": r.instructions,
-                    "tags": r.tags,
-                    "nutrition_per_serving": r.nutrition.map(|n| json!({
-                        "calories": n.calories.round(),
-                        "protein_g": (n.protein_g * 10.0).round() / 10.0,
-                        "carbs_g": (n.carbs_g * 10.0).round() / 10.0,
-                        "fat_g": (n.fat_g * 10.0).round() / 10.0,
-                        "fiber_g": n.fiber_g.map(|v| (v * 10.0).round() / 10.0),
-                        "sodium_mg": n.sodium_mg.map(f64::round),
-                        "sugar_g": n.sugar_g.map(|v| (v * 10.0).round() / 10.0),
-                        "validated_at": n.validated_at.to_rfc3339(),
+            Some(r) => {
+                let result = UniversalResponse {
+                    success: true,
+                    result: Some(json!({
+                        "id": r.id.to_string(),
+                        "name": r.name,
+                        "description": r.description,
+                        "servings": r.servings,
+                        "prep_time_mins": r.prep_time_mins,
+                        "cook_time_mins": r.cook_time_mins,
+                        "total_time_mins": r.total_time_mins(),
+                        "meal_timing": format!("{:?}", r.meal_timing).to_lowercase(),
+                        "ingredients": r.ingredients.iter().map(|i| json!({
+                            "name": i.name,
+                            "amount": i.amount,
+                            "unit": format!("{:?}", i.unit).to_lowercase(),
+                            "grams": i.grams,
+                            "preparation": i.preparation,
+                            "fdc_id": i.fdc_id,
+                        })).collect::<Vec<_>>(),
+                        "instructions": r.instructions,
+                        "tags": r.tags,
+                        "nutrition_per_serving": r.nutrition.map(|n| json!({
+                            "calories": n.calories.round(),
+                            "protein_g": (n.protein_g * 10.0).round() / 10.0,
+                            "carbs_g": (n.carbs_g * 10.0).round() / 10.0,
+                            "fat_g": (n.fat_g * 10.0).round() / 10.0,
+                            "fiber_g": n.fiber_g.map(|v| (v * 10.0).round() / 10.0),
+                            "sodium_mg": n.sodium_mg.map(f64::round),
+                            "sugar_g": n.sugar_g.map(|v| (v * 10.0).round() / 10.0),
+                            "validated_at": n.validated_at.to_rfc3339(),
+                        })),
+                        "created_at": r.created_at.to_rfc3339(),
+                        "updated_at": r.updated_at.to_rfc3339(),
                     })),
-                    "created_at": r.created_at.to_rfc3339(),
-                    "updated_at": r.updated_at.to_rfc3339(),
-                })),
-                error: None,
-                metadata: None,
-            }),
+                    error: None,
+                    metadata: None,
+                };
+                // Apply format transformation
+                Ok(apply_format_to_response(result, "recipe", output_format))
+            }
             None => Ok(UniversalResponse {
                 success: false,
                 result: None,
@@ -847,6 +862,9 @@ pub fn handle_search_recipes(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
+
         let user_id = parse_user_id_for_protocol(&request.user_id)?;
         let user_id_string = user_id.to_string();
         let tenant_id = request.tenant_id.as_deref().unwrap_or(&user_id_string);
@@ -892,7 +910,7 @@ pub fn handle_search_recipes(
             })
             .collect();
 
-        Ok(UniversalResponse {
+        let result = UniversalResponse {
             success: true,
             result: Some(json!({
                 "query": query,
@@ -901,7 +919,10 @@ pub fn handle_search_recipes(
             })),
             error: None,
             metadata: None,
-        })
+        };
+
+        // Apply format transformation
+        Ok(apply_format_to_response(result, "results", output_format))
     })
 }
 

@@ -21,6 +21,8 @@ use std::future::Future;
 use std::pin::Pin;
 use tracing::{debug, warn};
 
+use super::{apply_format_to_response, extract_output_format};
+
 /// Fetch food details from USDA API
 async fn fetch_food_details(
     fdc_id: u64,
@@ -62,110 +64,118 @@ async fn fetch_food_details(
 }
 
 /// Parse gender from string parameter
-fn parse_gender(gender_str: &str) -> Result<Gender, UniversalResponse> {
+fn parse_gender(gender_str: &str) -> Result<Gender, Box<UniversalResponse>> {
     match gender_str.to_lowercase().as_str() {
         "male" => Ok(Gender::Male),
         "female" => Ok(Gender::Female),
-        _ => Err(UniversalResponse {
+        _ => Err(Box::new(UniversalResponse {
             success: false,
             result: None,
             error: Some("Gender must be 'male' or 'female'".to_owned()),
             metadata: None,
-        }),
+        })),
     }
 }
 
 /// Parse activity level from string parameter
-fn parse_activity_level(activity_str: &str) -> Result<ActivityLevel, UniversalResponse> {
+fn parse_activity_level(activity_str: &str) -> Result<ActivityLevel, Box<UniversalResponse>> {
     match activity_str.to_lowercase().as_str() {
         "sedentary" => Ok(ActivityLevel::Sedentary),
         "lightly_active" => Ok(ActivityLevel::LightlyActive),
         "moderately_active" => Ok(ActivityLevel::ModeratelyActive),
         "very_active" => Ok(ActivityLevel::VeryActive),
         "extra_active" => Ok(ActivityLevel::ExtraActive),
-        _ => Err(UniversalResponse {
+        _ => Err(Box::new(UniversalResponse {
             success: false,
             result: None,
             error: Some("Invalid activity_level. Must be one of: sedentary, lightly_active, moderately_active, very_active, extra_active".to_owned()),
             metadata: None,
-        }),
+        })),
     }
 }
 
 /// Parse training goal from string parameter
-fn parse_training_goal(goal_str: &str) -> Result<TrainingGoal, UniversalResponse> {
+fn parse_training_goal(goal_str: &str) -> Result<TrainingGoal, Box<UniversalResponse>> {
     match goal_str.to_lowercase().as_str() {
         "maintenance" => Ok(TrainingGoal::Maintenance),
         "weight_loss" => Ok(TrainingGoal::WeightLoss),
         "muscle_gain" => Ok(TrainingGoal::MuscleGain),
         "endurance_performance" => Ok(TrainingGoal::EndurancePerformance),
-        _ => Err(UniversalResponse {
+        _ => Err(Box::new(UniversalResponse {
             success: false,
             result: None,
             error: Some("Invalid training_goal. Must be one of: maintenance, weight_loss, muscle_gain, endurance_performance".to_owned()),
             metadata: None,
-        }),
+        })),
     }
 }
 
 /// Parse nutrition parameters from request
 fn parse_nutrition_params(
     request: &UniversalRequest,
-) -> Result<DailyNutritionParams, UniversalResponse> {
+) -> Result<DailyNutritionParams, Box<UniversalResponse>> {
     let weight_kg = request
         .parameters
         .get("weight_kg")
         .and_then(Value::as_f64)
-        .ok_or_else(|| UniversalResponse {
-            success: false,
-            result: None,
-            error: Some("Missing or invalid required parameter: weight_kg".to_owned()),
-            metadata: None,
+        .ok_or_else(|| {
+            Box::new(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("Missing or invalid required parameter: weight_kg".to_owned()),
+                metadata: None,
+            })
         })?;
 
     let height_cm = request
         .parameters
         .get("height_cm")
         .and_then(Value::as_f64)
-        .ok_or_else(|| UniversalResponse {
-            success: false,
-            result: None,
-            error: Some("Missing or invalid required parameter: height_cm".to_owned()),
-            metadata: None,
+        .ok_or_else(|| {
+            Box::new(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("Missing or invalid required parameter: height_cm".to_owned()),
+                metadata: None,
+            })
         })?;
 
     let age_u64 = request
         .parameters
         .get("age")
         .and_then(Value::as_u64)
-        .ok_or_else(|| UniversalResponse {
-            success: false,
-            result: None,
-            error: Some("Missing or invalid required parameter: age".to_owned()),
-            metadata: None,
+        .ok_or_else(|| {
+            Box::new(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("Missing or invalid required parameter: age".to_owned()),
+                metadata: None,
+            })
         })?;
 
     #[allow(clippy::cast_possible_truncation)] // Age validated to be <= 150
     let age = if age_u64 <= 150 {
         age_u64 as u32
     } else {
-        return Err(UniversalResponse {
+        return Err(Box::new(UniversalResponse {
             success: false,
             result: None,
             error: Some("Age must be between 0 and 150 years".to_owned()),
             metadata: None,
-        });
+        }));
     };
 
     let gender_str = request
         .parameters
         .get("gender")
         .and_then(Value::as_str)
-        .ok_or_else(|| UniversalResponse {
-            success: false,
-            result: None,
-            error: Some("Missing or invalid required parameter: gender".to_owned()),
-            metadata: None,
+        .ok_or_else(|| {
+            Box::new(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("Missing or invalid required parameter: gender".to_owned()),
+                metadata: None,
+            })
         })?;
 
     let gender = parse_gender(gender_str)?;
@@ -174,11 +184,13 @@ fn parse_nutrition_params(
         .parameters
         .get("activity_level")
         .and_then(Value::as_str)
-        .ok_or_else(|| UniversalResponse {
-            success: false,
-            result: None,
-            error: Some("Missing or invalid required parameter: activity_level".to_owned()),
-            metadata: None,
+        .ok_or_else(|| {
+            Box::new(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("Missing or invalid required parameter: activity_level".to_owned()),
+                metadata: None,
+            })
         })?;
 
     let activity_level = parse_activity_level(activity_level_str)?;
@@ -187,11 +199,13 @@ fn parse_nutrition_params(
         .parameters
         .get("training_goal")
         .and_then(Value::as_str)
-        .ok_or_else(|| UniversalResponse {
-            success: false,
-            result: None,
-            error: Some("Missing or invalid required parameter: training_goal".to_owned()),
-            metadata: None,
+        .ok_or_else(|| {
+            Box::new(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("Missing or invalid required parameter: training_goal".to_owned()),
+                metadata: None,
+            })
         })?;
 
     let training_goal = parse_training_goal(training_goal_str)?;
@@ -255,7 +269,7 @@ pub fn handle_calculate_daily_nutrition(
         // Parse user parameters
         let params = match parse_nutrition_params(&request) {
             Ok(p) => p,
-            Err(response) => return Ok(response),
+            Err(response) => return Ok(*response),
         };
 
         // Get nutrition config
@@ -537,6 +551,9 @@ pub fn handle_search_food(
             }
         }
 
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
+
         let query = request
             .parameters
             .get("query")
@@ -594,15 +611,23 @@ pub fn handle_search_food(
         let search_result = client.search_foods(query, page_size).await;
 
         match search_result {
-            Ok(foods) => Ok(UniversalResponse {
-                success: true,
-                result: Some(json!({
-                    "foods": foods,
-                    "total": foods.len(),
-                })),
-                error: None,
-                metadata: None,
-            }),
+            Ok(foods) => {
+                let result = UniversalResponse {
+                    success: true,
+                    result: Some(json!({
+                        "foods": foods,
+                        "total": foods.len(),
+                    })),
+                    error: None,
+                    metadata: None,
+                };
+                // Apply format transformation
+                Ok(apply_format_to_response(
+                    result,
+                    "search_results",
+                    output_format,
+                ))
+            }
             Err(e) => Ok(UniversalResponse {
                 success: false,
                 result: None,
@@ -644,6 +669,9 @@ pub fn handle_get_food_details(
             }
         }
 
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
+
         let fdc_id = request
             .parameters
             .get("fdc_id")
@@ -683,24 +711,32 @@ pub fn handle_get_food_details(
         let details_result = client.get_food_details(fdc_id).await;
 
         match details_result {
-            Ok(food) => Ok(UniversalResponse {
-                success: true,
-                result: Some(json!({
-                    "fdc_id": food.fdc_id,
-                    "description": food.description,
-                    "data_type": food.data_type,
-                    "nutrients": food.food_nutrients.iter().map(|n| json!({
-                        "nutrient_id": n.nutrient_id,
-                        "name": n.nutrient_name,
-                        "amount": n.amount,
-                        "unit": n.unit_name,
-                    })).collect::<Vec<_>>(),
-                    "serving_size": food.serving_size,
-                    "serving_size_unit": food.serving_size_unit,
-                })),
-                error: None,
-                metadata: None,
-            }),
+            Ok(food) => {
+                let result = UniversalResponse {
+                    success: true,
+                    result: Some(json!({
+                        "fdc_id": food.fdc_id,
+                        "description": food.description,
+                        "data_type": food.data_type,
+                        "nutrients": food.food_nutrients.iter().map(|n| json!({
+                            "nutrient_id": n.nutrient_id,
+                            "name": n.nutrient_name,
+                            "amount": n.amount,
+                            "unit": n.unit_name,
+                        })).collect::<Vec<_>>(),
+                        "serving_size": food.serving_size,
+                        "serving_size_unit": food.serving_size_unit,
+                    })),
+                    error: None,
+                    metadata: None,
+                };
+                // Apply format transformation
+                Ok(apply_format_to_response(
+                    result,
+                    "food_details",
+                    output_format,
+                ))
+            }
             Err(e) => Ok(UniversalResponse {
                 success: false,
                 result: None,
@@ -744,6 +780,9 @@ pub fn handle_analyze_meal_nutrition(
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
+
         let foods_array = request
             .parameters
             .get("foods")
@@ -810,7 +849,7 @@ pub fn handle_analyze_meal_nutrition(
             }));
         }
 
-        Ok(UniversalResponse {
+        let result = UniversalResponse {
             success: true,
             result: Some(json!({
                 "total_calories": total_calories.round(),
@@ -821,6 +860,13 @@ pub fn handle_analyze_meal_nutrition(
             })),
             error: None,
             metadata: None,
-        })
+        };
+
+        // Apply format transformation
+        Ok(apply_format_to_response(
+            result,
+            "meal_nutrition",
+            output_format,
+        ))
     })
 }

@@ -172,6 +172,9 @@ pub mod oauth2_server;
 /// LLM provider abstraction for AI chat integration
 pub mod llm;
 
+/// Output format abstraction (JSON, TOON) for efficient LLM serialization
+pub mod formatters;
+
 // Utility modules
 /// Role-based permission system with `super_admin`, `admin`, `user` hierarchy
 pub mod permissions;

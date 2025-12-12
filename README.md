@@ -32,6 +32,7 @@ See [Intelligence Methodology](docs/intelligence-methodology.md) and [Nutrition 
 - **47 MCP Tools**: Activities, goals, analysis, sleep, recovery, nutrition, recipes, configuration
 - **TypeScript SDK**: `pierre-mcp-client` npm package
 - **Pluggable Providers**: Compile-time provider selection
+- **TOON Format**: Token-Oriented Object Notation output for ~40% LLM token reduction ([spec](https://toonformat.dev))
 
 ## Provider Support
 

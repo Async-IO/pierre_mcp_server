@@ -61,6 +61,36 @@ Obtained via oauth2 flow (sdk handles automatically).
 }
 ```
 
+### Output Format Parameter
+
+Most data-returning tools support an optional `format` parameter for output serialization:
+
+| Format | Description | Use Case |
+|--------|-------------|----------|
+| `json` | Standard JSON (default) | Universal compatibility |
+| `toon` | Token-Oriented Object Notation | ~40% fewer LLM tokens |
+
+Example with TOON format:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "method": "tools/call",
+  "params": {
+    "name": "get_activities",
+    "arguments": {
+      "provider": "strava",
+      "limit": 100,
+      "format": "toon"
+    }
+  }
+}
+```
+
+TOON format responses include `format: "toon"` and `content_type: "application/vnd.toon"` in the result. Use TOON for large datasets (year summaries, batch analysis) to reduce LLM context usage.
+
+See [TOON specification](https://toonformat.dev) for format details.
+
 ### MCP Methods
 
 - `initialize` - start session

@@ -291,9 +291,10 @@ impl AuthService {
         // Get tenant-aware OAuth credentials or fall back to environment
         let (client_id, client_secret) = if let Some(tenant_id_str) = tenant_id {
             self.get_tenant_oauth_credentials(tenant_id_str, provider_name)
-                .await?
+                .await
+                .map_err(|e| *e)?
         } else {
-            Self::get_default_oauth_credentials(provider_name)?
+            Self::get_default_oauth_credentials(provider_name).map_err(|e| *e)?
         };
 
         // Get provider-specific scopes
@@ -347,15 +348,15 @@ impl AuthService {
         &self,
         tenant_id_str: &str,
         provider_name: &str,
-    ) -> Result<(String, String), UniversalResponse> {
+    ) -> Result<(String, String), Box<UniversalResponse>> {
         let tenant_uuid = Uuid::parse_str(tenant_id_str).map_err(|e| {
             warn!(tenant_id = %tenant_id_str, error = %e, "Invalid tenant ID format in OAuth credentials request");
-            UniversalResponse {
+            Box::new(UniversalResponse {
                 success: false,
                 result: None,
                 error: Some("Invalid tenant ID format".to_owned()),
                 metadata: None,
-            }
+            })
         })?;
 
         // Get tenant OAuth credentials from database for the specific provider
@@ -368,29 +369,27 @@ impl AuthService {
                 // Fall back to default credentials if tenant doesn't have custom ones
                 Self::get_default_oauth_credentials(provider_name)
             }
-            Err(e) => Err(UniversalResponse {
+            Err(e) => Err(Box::new(UniversalResponse {
                 success: false,
                 result: None,
                 error: Some(format!("Failed to get tenant OAuth credentials: {e}")),
                 metadata: None,
-            }),
+            })),
         }
     }
 
     /// Get default OAuth credentials from `ServerConfig` or environment for a provider
     ///
     /// # Errors
-    /// Returns `UniversalResponse` error if credentials are not configured
+    /// Returns boxed `UniversalResponse` error if credentials are not configured
     fn get_default_oauth_credentials(
         provider_name: &str,
-    ) -> Result<(String, String), UniversalResponse> {
+    ) -> Result<(String, String), Box<UniversalResponse>> {
         // Get OAuth config from environment (PIERRE_<PROVIDER>_* env vars)
         let oauth_config = crate::config::environment::get_oauth_config(provider_name);
 
-        let client_id = oauth_config
-            .client_id
-            .as_ref()
-            .ok_or_else(|| UniversalResponse {
+        let client_id = oauth_config.client_id.as_ref().ok_or_else(|| {
+            Box::new(UniversalResponse {
                 success: false,
                 result: None,
                 error: Some(format!(
@@ -399,22 +398,21 @@ impl AuthService {
                     provider_name
                 )),
                 metadata: None,
-            })?;
+            })
+        })?;
 
-        let client_secret =
-            oauth_config
-                .client_secret
-                .as_ref()
-                .ok_or_else(|| UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!(
-                        "{}_CLIENT_SECRET not configured for provider {}",
-                        provider_name.to_uppercase(),
-                        provider_name
-                    )),
-                    metadata: None,
-                })?;
+        let client_secret = oauth_config.client_secret.as_ref().ok_or_else(|| {
+            Box::new(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!(
+                    "{}_CLIENT_SECRET not configured for provider {}",
+                    provider_name.to_uppercase(),
+                    provider_name
+                )),
+                metadata: None,
+            })
+        })?;
 
         Ok((client_id.clone(), client_secret.clone()))
     }

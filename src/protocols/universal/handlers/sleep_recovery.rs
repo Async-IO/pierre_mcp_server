@@ -16,6 +16,8 @@ use std::pin::Pin;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
+use super::{apply_format_to_response, extract_output_format};
+
 /// Get OAuth credentials for a specific provider from configuration
 ///
 /// Returns (`client_id`, `client_secret`) for the requested provider, or None if not configured.
@@ -594,6 +596,9 @@ pub fn handle_analyze_sleep_quality(
             }
         }
 
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
+
         // Get sleep data from provider or manual input
         let sleep_data: SleepData = if let Some(provider_name) = request
             .parameters
@@ -675,7 +680,7 @@ pub fn handle_analyze_sleep_quality(
             None
         };
 
-        Ok(UniversalResponse {
+        let result = UniversalResponse {
             success: true,
             result: Some(serde_json::json!({
                 "sleep_quality": sleep_quality,
@@ -703,7 +708,14 @@ pub fn handle_analyze_sleep_quality(
                 );
                 map
             }),
-        })
+        };
+
+        // Apply format transformation
+        Ok(apply_format_to_response(
+            result,
+            "sleep_quality",
+            output_format,
+        ))
     })
 }
 
@@ -746,6 +758,9 @@ pub fn handle_calculate_recovery_score(
                 ));
             }
         }
+
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
@@ -931,7 +946,7 @@ pub fn handle_calculate_recovery_score(
             ))
         })?;
 
-        Ok(UniversalResponse {
+        let result = UniversalResponse {
             success: true,
             result: Some(serde_json::json!({
                 "recovery_score": recovery_score,
@@ -972,7 +987,10 @@ pub fn handle_calculate_recovery_score(
                 }
                 map
             }),
-        })
+        };
+
+        // Apply format transformation
+        Ok(apply_format_to_response(result, "recovery", output_format))
     })
 }
 
@@ -1275,6 +1293,9 @@ pub fn handle_track_sleep_trends(
             }
         }
 
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = extract_output_format(&request);
+
         // Get sleep history from provider or manual input
         let sleep_history: Vec<SleepData> = if let Some(provider_name) = request
             .parameters
@@ -1439,7 +1460,7 @@ pub fn handle_track_sleep_trends(
             ));
         }
 
-        Ok(UniversalResponse {
+        let result = UniversalResponse {
             success: true,
             result: Some(serde_json::json!({
                 "trends": {
@@ -1473,7 +1494,14 @@ pub fn handle_track_sleep_trends(
                 );
                 map
             }),
-        })
+        };
+
+        // Apply format transformation
+        Ok(apply_format_to_response(
+            result,
+            "sleep_trends",
+            output_format,
+        ))
     })
 }
 
