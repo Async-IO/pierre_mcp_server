@@ -218,8 +218,8 @@ test.describe('Admin Configuration - Loading and Display', () => {
     await setupAdminConfigMocks(page);
     await navigateToAdminConfig(page);
 
-    // Check header
-    await expect(page.locator('h1')).toContainText('Configuration Management');
+    // Check header - use first() since dashboard may have another h1
+    await expect(page.locator('h1').first()).toContainText('Configuration Management');
 
     // Check parameter count info
     await expect(page.getByText(/12 parameters/)).toBeVisible();
@@ -230,18 +230,18 @@ test.describe('Admin Configuration - Loading and Display', () => {
     await setupAdminConfigMocks(page);
     await navigateToAdminConfig(page);
 
-    // Check categories are displayed
-    await expect(page.getByText('Training Stress Balance')).toBeVisible();
-    await expect(page.getByText('Heart Rate Zones')).toBeVisible();
-    await expect(page.getByText('Algorithm Selection')).toBeVisible();
+    // Check categories are displayed - use first() to target category header
+    await expect(page.getByText('Training Stress Balance').first()).toBeVisible();
+    await expect(page.getByText('Heart Rate Zones').first()).toBeVisible();
+    await expect(page.getByText('Algorithm Selection').first()).toBeVisible();
   });
 
   test('expands category to show parameters', async ({ page }) => {
     await setupAdminConfigMocks(page);
     await navigateToAdminConfig(page);
 
-    // Click on TSB category to expand
-    await page.getByText('Training Stress Balance').click();
+    // Click on TSB category to expand - use first() for category header
+    await page.getByText('Training Stress Balance').first().click();
     await page.waitForTimeout(300);
 
     // Check parameters are visible
@@ -253,8 +253,8 @@ test.describe('Admin Configuration - Loading and Display', () => {
     await setupAdminConfigMocks(page);
     await navigateToAdminConfig(page);
 
-    // Expand TSB category
-    await page.getByText('Training Stress Balance').click();
+    // Expand TSB category - use first() for category header
+    await page.getByText('Training Stress Balance').first().click();
     await page.waitForTimeout(300);
 
     // Check parameter description
@@ -312,10 +312,10 @@ test.describe('Admin Configuration - Search and Filter', () => {
     // Clear search
     await page.getByLabel('Clear search').click();
 
-    // All categories should be visible again
-    await expect(page.getByText('Training Stress Balance')).toBeVisible();
-    await expect(page.getByText('Heart Rate Zones')).toBeVisible();
-    await expect(page.getByText('Algorithm Selection')).toBeVisible();
+    // All categories should be visible again - use first() for category headers
+    await expect(page.getByText('Training Stress Balance').first()).toBeVisible();
+    await expect(page.getByText('Heart Rate Zones').first()).toBeVisible();
+    await expect(page.getByText('Algorithm Selection').first()).toBeVisible();
   });
 });
 
@@ -324,8 +324,8 @@ test.describe('Admin Configuration - Parameter Modification', () => {
     await setupAdminConfigMocks(page);
     await navigateToAdminConfig(page);
 
-    // Expand TSB category
-    await page.getByText('Training Stress Balance').click();
+    // Expand TSB category - use first() for category header
+    await page.getByText('Training Stress Balance').first().click();
     await page.waitForTimeout(300);
 
     // Find and modify the fatigued threshold input
@@ -371,8 +371,8 @@ test.describe('Admin Configuration - Parameter Modification', () => {
     await setupAdminConfigMocks(page);
     await navigateToAdminConfig(page);
 
-    // Expand and modify a parameter
-    await page.getByText('Training Stress Balance').click();
+    // Expand and modify a parameter - use first() for category header
+    await page.getByText('Training Stress Balance').first().click();
     await page.waitForTimeout(300);
 
     const input = page.locator('input[type="number"]').first();
@@ -408,8 +408,8 @@ test.describe('Admin Configuration - Parameter Modification', () => {
 
     await navigateToAdminConfig(page);
 
-    // Expand and modify a parameter
-    await page.getByText('Training Stress Balance').click();
+    // Expand and modify a parameter - use first() for category header
+    await page.getByText('Training Stress Balance').first().click();
     await page.waitForTimeout(300);
 
     const input = page.locator('input[type="number"]').first();
@@ -428,8 +428,8 @@ test.describe('Admin Configuration - Parameter Modification', () => {
     await setupAdminConfigMocks(page);
     await navigateToAdminConfig(page);
 
-    // Expand and modify a parameter
-    await page.getByText('Training Stress Balance').click();
+    // Expand and modify a parameter - use first() for category header
+    await page.getByText('Training Stress Balance').first().click();
     await page.waitForTimeout(300);
 
     const input = page.locator('input[type="number"]').first();
@@ -451,8 +451,8 @@ test.describe('Admin Configuration - Reset Functionality', () => {
     await setupAdminConfigMocks(page);
     await navigateToAdminConfig(page);
 
-    // Expand category
-    await page.getByText('Training Stress Balance').click();
+    // Expand category - use first() for category header
+    await page.getByText('Training Stress Balance').first().click();
     await page.waitForTimeout(300);
 
     // Click reset category button
@@ -481,8 +481,8 @@ test.describe('Admin Configuration - Reset Functionality', () => {
 
     await navigateToAdminConfig(page);
 
-    // Expand category and reset
-    await page.getByText('Training Stress Balance').click();
+    // Expand category and reset - use first() for category header
+    await page.getByText('Training Stress Balance').first().click();
     await page.waitForTimeout(300);
 
     await page.getByRole('button', { name: 'Reset Category' }).click();
@@ -572,8 +572,8 @@ test.describe('Admin Configuration - Error Handling', () => {
 
     await navigateToAdminConfig(page);
 
-    // Modify and try to save
-    await page.getByText('Training Stress Balance').click();
+    // Modify and try to save - use first() for category header
+    await page.getByText('Training Stress Balance').first().click();
     await page.waitForTimeout(300);
 
     const input = page.locator('input[type="number"]').first();
