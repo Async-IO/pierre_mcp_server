@@ -14,6 +14,14 @@ Pierre MCP Server provides tools organized into 8 functional categories:
 - **Nutrition**: Dietary calculations and USDA food database
 - **Recipe Management**: Training-aware meal planning and recipe storage
 
+### Output Format
+
+Most data-returning tools support an optional `format` parameter:
+- `json` (default): Standard JSON output
+- `toon`: [Token-Oriented Object Notation](https://toonformat.dev) for ~40% fewer LLM tokens
+
+Use `format: "toon"` when querying large datasets (year summaries, batch analysis) to reduce LLM context usage.
+
 ---
 
 ## Core Fitness Tools
@@ -22,9 +30,9 @@ Basic fitness data retrieval and provider connection management.
 
 | Tool Name | Description | Required Parameters | Optional Parameters |
 |-----------|-------------|---------------------|---------------------|
-| `get_activities` | Get user's fitness activities with optional filtering | `provider` (string) | `limit` (number), `offset` (number) |
-| `get_athlete` | Get user's athlete profile and basic information | `provider` (string) | - |
-| `get_stats` | Get user's performance statistics and metrics | `provider` (string) | - |
+| `get_activities` | Get user's fitness activities with optional filtering | `provider` (string) | `limit`, `offset`, `before`, `after`, `sport_type`, `mode`, `format` |
+| `get_athlete` | Get user's athlete profile and basic information | `provider` (string) | `format` |
+| `get_stats` | Get user's performance statistics and metrics | `provider` (string) | `format` |
 | `get_connection_status` | Check OAuth connection status for fitness providers | - | `strava_client_id` (string), `strava_client_secret` (string), `fitbit_client_id` (string), `fitbit_client_secret` (string) |
 | `connect_to_pierre` | Connect to Pierre MCP server and trigger OAuth authentication flow | - | - |
 | `connect_provider` | Connect to a fitness data provider via OAuth | `provider` (string) | - |

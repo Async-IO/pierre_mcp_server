@@ -11,7 +11,7 @@
 //! it easy to modify the schema without hardcoding JSON.
 
 use crate::constants::{
-    json_fields::{ACTIVITY_ID, AFTER, BEFORE, LIMIT, MODE, OFFSET, PROVIDER, SPORT_TYPE},
+    json_fields::{ACTIVITY_ID, AFTER, BEFORE, FORMAT, LIMIT, MODE, OFFSET, PROVIDER, SPORT_TYPE},
     tools::{
         ANALYZE_ACTIVITY, CONNECT_PROVIDER, DELETE_FITNESS_CONFIG, DELETE_RECIPE,
         DISCONNECT_PROVIDER, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE,
@@ -697,6 +697,19 @@ pub fn get_tools() -> Vec<ToolSchema> {
     create_fitness_tools()
 }
 
+/// Creates the standard format property for output serialization
+///
+/// This helper ensures consistent format parameter documentation across all
+/// data-returning tools. Use this for tools that return substantial data payloads.
+fn format_property() -> PropertySchema {
+    PropertySchema {
+        property_type: "string".into(),
+        description: Some(
+            "Output serialization format: 'json' (default, universal) or 'toon' (Token-Oriented Object Notation - ~40% fewer tokens, optimized for LLM input). Use 'toon' for large datasets.".into(),
+        ),
+    }
+}
+
 /// Create all fitness provider tool schemas
 fn create_fitness_tools() -> Vec<ToolSchema> {
     vec![
@@ -827,6 +840,8 @@ fn create_get_activities_tool() -> ToolSchema {
         },
     );
 
+    properties.insert(FORMAT.to_owned(), format_property());
+
     ToolSchema {
         name: GET_ACTIVITIES.to_owned(),
         description: "Get fitness activities from a provider. Use mode='summary' (default) for listing activities - returns compact data safe for LLM context. Use mode='detailed' only for single activity analysis. Combine with before/after timestamps and sport_type filter to efficiently query large date ranges.".into(),
@@ -850,6 +865,8 @@ fn create_get_athlete_tool() -> ToolSchema {
         },
     );
 
+    properties.insert(FORMAT.to_owned(), format_property());
+
     ToolSchema {
         name: GET_ATHLETE.to_owned(),
         description: "Get athlete profile from a provider".into(),
@@ -872,6 +889,8 @@ fn create_get_stats_tool() -> ToolSchema {
             description: Some("Fitness provider name (e.g., 'strava', 'fitbit')".into()),
         },
     );
+
+    properties.insert(FORMAT.to_owned(), format_property());
 
     ToolSchema {
         name: GET_STATS.to_owned(),
@@ -919,6 +938,8 @@ fn create_get_activity_intelligence_tool() -> ToolSchema {
             description: Some("Whether to include location intelligence (default: true)".into()),
         },
     );
+
+    properties.insert(FORMAT.to_owned(), format_property());
 
     ToolSchema {
         name: GET_ACTIVITY_INTELLIGENCE.to_owned(),
@@ -1057,6 +1078,8 @@ fn create_analyze_activity_tool() -> ToolSchema {
         },
     );
 
+    properties.insert(FORMAT.to_owned(), format_property());
+
     ToolSchema {
         name: ANALYZE_ACTIVITY.to_owned(),
         description: "Perform deep analysis of an individual activity including insights, metrics, and anomaly detection".into(),
@@ -1098,6 +1121,8 @@ fn create_calculate_metrics_tool() -> ToolSchema {
             ),
         },
     );
+
+    properties.insert(FORMAT.to_owned(), format_property());
 
     ToolSchema {
         name: "calculate_metrics".into(),
@@ -1146,6 +1171,8 @@ fn create_analyze_performance_trends_tool() -> ToolSchema {
         },
     );
 
+    properties.insert(FORMAT.to_owned(), format_property());
+
     ToolSchema {
         name: "analyze_performance_trends".into(),
         description: "Analyze performance trends over time with statistical analysis and insights"
@@ -1189,6 +1216,8 @@ fn create_compare_activities_tool() -> ToolSchema {
         },
     );
 
+    properties.insert(FORMAT.to_owned(), format_property());
+
     ToolSchema {
         name: "compare_activities".into(),
         description:
@@ -1230,6 +1259,8 @@ fn create_detect_patterns_tool() -> ToolSchema {
             description: Some("Time period for pattern analysis".into()),
         },
     );
+
+    properties.insert(FORMAT.to_owned(), format_property());
 
     ToolSchema {
         name: "detect_patterns".into(),
@@ -1425,6 +1456,8 @@ fn create_generate_recommendations_tool() -> ToolSchema {
         },
     );
 
+    properties.insert(FORMAT.to_owned(), format_property());
+
     ToolSchema {
         name: "generate_recommendations".into(),
         description:
@@ -1471,6 +1504,8 @@ fn create_calculate_fitness_score_tool() -> ToolSchema {
             ),
         },
     );
+
+    properties.insert(FORMAT.to_owned(), format_property());
 
     ToolSchema {
         name: "calculate_fitness_score".into(),
@@ -1519,6 +1554,8 @@ fn create_predict_performance_tool() -> ToolSchema {
         },
     );
 
+    properties.insert(FORMAT.to_owned(), format_property());
+
     ToolSchema {
         name: "predict_performance".into(),
         description: "Predict future performance capabilities based on current fitness trends and training history".into(),
@@ -1561,6 +1598,8 @@ fn create_analyze_training_load_tool() -> ToolSchema {
             ),
         },
     );
+
+    properties.insert(FORMAT.to_owned(), format_property());
 
     ToolSchema {
         name: "analyze_training_load".into(),
@@ -1990,6 +2029,8 @@ fn create_search_food_tool() -> ToolSchema {
         },
     );
 
+    properties.insert(FORMAT.to_owned(), format_property());
+
     ToolSchema {
         name: "search_food".to_owned(),
         description: "Search USDA FoodData Central database for foods by name or description. Returns food ID, name, brand, and category for each match.".into(),
@@ -2014,6 +2055,8 @@ fn create_get_food_details_tool() -> ToolSchema {
             ),
         },
     );
+
+    properties.insert(FORMAT.to_owned(), format_property());
 
     ToolSchema {
         name: "get_food_details".to_owned(),
@@ -2040,6 +2083,8 @@ fn create_analyze_meal_nutrition_tool() -> ToolSchema {
             ),
         },
     );
+
+    properties.insert(FORMAT.to_owned(), format_property());
 
     ToolSchema {
         name: "analyze_meal_nutrition".to_owned(),
@@ -2093,6 +2138,8 @@ fn create_analyze_sleep_quality_tool() -> ToolSchema {
             description: Some("Optional baseline HRV RMSSD value for comparison".into()),
         },
     );
+
+    properties.insert(FORMAT.to_owned(), format_property());
 
     ToolSchema {
         name: "analyze_sleep_quality".to_owned(),
@@ -2166,6 +2213,8 @@ fn create_calculate_recovery_score_tool() -> ToolSchema {
             description: Some("Optional baseline HRV RMSSD value for comparison".into()),
         },
     );
+
+    properties.insert(FORMAT.to_owned(), format_property());
 
     ToolSchema {
         name: "calculate_recovery_score".to_owned(),
@@ -2264,6 +2313,8 @@ fn create_track_sleep_trends_tool() -> ToolSchema {
             ),
         },
     );
+
+    properties.insert(FORMAT.to_owned(), format_property());
 
     ToolSchema {
         name: "track_sleep_trends".to_owned(),
@@ -2562,6 +2613,8 @@ fn create_list_recipes_tool() -> ToolSchema {
         },
     );
 
+    properties.insert(FORMAT.to_owned(), format_property());
+
     ToolSchema {
         name: LIST_RECIPES.to_owned(),
         description: "List user's saved recipes with optional filtering by meal timing. Returns recipe summaries with name, description, meal timing, and cached nutrition per serving.".into(),
@@ -2584,6 +2637,8 @@ fn create_get_recipe_tool() -> ToolSchema {
             description: Some("ID of the recipe to retrieve".into()),
         },
     );
+
+    properties.insert(FORMAT.to_owned(), format_property());
 
     ToolSchema {
         name: GET_RECIPE.to_owned(),
@@ -2638,6 +2693,8 @@ fn create_search_recipes_tool() -> ToolSchema {
             description: Some("Maximum number of results to return (default: 10)".into()),
         },
     );
+
+    properties.insert(FORMAT.to_owned(), format_property());
 
     ToolSchema {
         name: SEARCH_RECIPES.to_owned(),

@@ -346,6 +346,8 @@ pub mod json_fields {
     pub const MODE: &str = "mode";
     /// Sport type field for filtering activities by sport type
     pub const SPORT_TYPE: &str = "sport_type";
+    /// Output format field for serialization format (json, toon)
+    pub const FORMAT: &str = "format";
 }
 
 /// System configuration messages

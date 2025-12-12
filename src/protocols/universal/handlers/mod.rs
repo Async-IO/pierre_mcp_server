@@ -89,6 +89,9 @@ pub use fitness_api::{
     handle_analyze_activity, handle_get_activities, handle_get_athlete, handle_get_stats,
 };
 
+/// Re-export format helper functions for use across handler modules
+pub use fitness_api::{apply_format_to_response, build_formatted_response, extract_output_format};
+
 /// Re-export recipe management handlers
 pub use recipes::{
     handle_delete_recipe, handle_get_recipe, handle_get_recipe_constraints, handle_list_recipes,
