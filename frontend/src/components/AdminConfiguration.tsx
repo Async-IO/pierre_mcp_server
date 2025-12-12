@@ -14,11 +14,11 @@ interface ConfigParameter {
   display_name: string;
   description: string;
   category: string;
-  data_type: 'float' | 'integer' | 'boolean' | 'string' | 'enum';
+  data_type: string;
   current_value: unknown;
   default_value: unknown;
   is_modified: boolean;
-  valid_range?: { min: number | string; max: number | string; step?: number };
+  valid_range?: { min?: number; max?: number; step?: number };
   enum_options?: string[];
   units?: string;
   scientific_basis?: string;
@@ -60,6 +60,7 @@ export default function AdminConfiguration() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetTarget, setResetTarget] = useState<{ category?: string; key?: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch configuration catalog
   const { data: catalogData, isLoading, error } = useQuery({
@@ -78,7 +79,7 @@ export default function AdminConfiguration() {
   // Update configuration mutation
   const updateMutation = useMutation({
     mutationFn: ({ parameters, reason }: { parameters: Record<string, unknown>; reason?: string }) =>
-      apiService.updateConfig(parameters, reason),
+      apiService.updateConfig({ parameters, reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-config-catalog'] });
       queryClient.invalidateQueries({ queryKey: ['admin-config-audit'] });
@@ -90,8 +91,8 @@ export default function AdminConfiguration() {
 
   // Reset configuration mutation
   const resetMutation = useMutation({
-    mutationFn: ({ category, keys, reason }: { category?: string; keys?: string[]; reason?: string }) =>
-      apiService.resetConfig(category, keys, reason),
+    mutationFn: ({ category, keys }: { category?: string; keys?: string[] }) =>
+      apiService.resetConfig({ category, parameters: keys }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-config-catalog'] });
       queryClient.invalidateQueries({ queryKey: ['admin-config-audit'] });
@@ -106,11 +107,29 @@ export default function AdminConfiguration() {
     return [...catalogData.data.categories].sort((a, b) => a.display_order - b.display_order);
   }, [catalogData]);
 
+  // Filter categories and parameters based on search query
+  const filteredCategories = useMemo(() => {
+    if (!searchQuery.trim()) return categories;
+    const query = searchQuery.toLowerCase();
+    return categories
+      .map((cat) => ({
+        ...cat,
+        parameters: cat.parameters.filter(
+          (p: ConfigParameter) =>
+            p.display_name.toLowerCase().includes(query) ||
+            p.key.toLowerCase().includes(query) ||
+            p.description.toLowerCase().includes(query)
+        ),
+      }))
+      .filter((cat) => cat.parameters.length > 0);
+  }, [categories, searchQuery]);
+
   // Get current category parameters
   const currentCategory = useMemo(() => {
-    if (!selectedCategory) return categories[0] || null;
-    return categories.find((c) => c.name === selectedCategory) || categories[0] || null;
-  }, [categories, selectedCategory]);
+    const cats = searchQuery ? filteredCategories : categories;
+    if (!selectedCategory) return cats[0] || null;
+    return cats.find((c) => c.name === selectedCategory) || cats[0] || null;
+  }, [categories, filteredCategories, searchQuery, selectedCategory]);
 
   // Check if there are pending changes
   const hasPendingChanges = Object.keys(pendingChanges).length > 0;
@@ -154,7 +173,6 @@ export default function AdminConfiguration() {
       resetMutation.mutate({
         category: resetTarget.category,
         keys: resetTarget.key ? [resetTarget.key] : undefined,
-        reason: `Reset to defaults${resetTarget.category ? ` for ${resetTarget.category}` : ''}`,
       });
     }
   };
@@ -289,25 +307,25 @@ export default function AdminConfiguration() {
           <h1 className="text-2xl font-bold text-pierre-gray-900">Configuration Management</h1>
           <p className="text-sm text-pierre-gray-500 mt-1">
             {catalogData?.data?.total_parameters ?? 0} parameters &bull;{' '}
-            {catalogData?.data?.runtime_configurable_count ?? 0} runtime configurable
+            {categories.length} categories
           </p>
         </div>
         {hasPendingChanges && (
           <div className="flex items-center gap-3">
-            <Badge variant="warning">{Object.keys(pendingChanges).length} pending changes</Badge>
+            <Badge variant="warning">{Object.keys(pendingChanges).length} unsaved changes</Badge>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setPendingChanges({})}
             >
-              Discard
+              Discard All
             </Button>
             <Button
               variant="primary"
               size="sm"
               onClick={handleSaveChanges}
             >
-              Save Changes
+              Review &amp; Save Changes
             </Button>
           </div>
         )}
@@ -316,39 +334,67 @@ export default function AdminConfiguration() {
       {/* Tabs */}
       <Tabs
         tabs={[
-          { id: 'parameters', label: 'Parameters', icon: 'cog' },
-          { id: 'history', label: 'Change History', icon: 'clock' },
+          { id: 'parameters', label: 'Parameters' },
+          { id: 'history', label: 'Change History' },
         ]}
         activeTab={activeTab}
-        onTabChange={(id) => setActiveTab(id as 'parameters' | 'history')}
+        onChange={(id: string) => setActiveTab(id as 'parameters' | 'history')}
       />
 
       {activeTab === 'parameters' ? (
-        <div className="grid grid-cols-12 gap-6">
-          {/* Category sidebar */}
-          <div className="col-span-3">
-            <Card className="sticky top-4">
-              <h3 className="font-semibold text-pierre-gray-900 mb-3">Categories</h3>
-              <nav className="space-y-1">
-                {categories.map((cat: ConfigCategory) => (
-                  <button
-                    key={cat.name}
-                    onClick={() => setSelectedCategory(cat.name)}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                      (currentCategory?.name === cat.name)
-                        ? 'bg-pierre-violet text-white'
-                        : 'text-pierre-gray-600 hover:bg-pierre-gray-100'
-                    }`}
-                  >
-                    <div className="font-medium">{cat.display_name}</div>
-                    <div className={`text-xs ${currentCategory?.name === cat.name ? 'text-pierre-gray-200' : 'text-pierre-gray-400'}`}>
-                      {cat.parameters.length} parameters
-                    </div>
-                  </button>
-                ))}
-              </nav>
-            </Card>
+        <>
+          {/* Search input */}
+          <div className="relative">
+            <Input
+              type="text"
+              placeholder="Search parameters"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full max-w-md"
+            />
+            {searchQuery && (
+              <button
+                aria-label="Clear search"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-pierre-gray-400 hover:text-pierre-gray-600"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
+
+          {filteredCategories.length === 0 ? (
+            <Card className="text-center py-8">
+              <p className="text-pierre-gray-500">No parameters found</p>
+            </Card>
+          ) : (
+          <div className="grid grid-cols-12 gap-6">
+            {/* Category sidebar */}
+            <div className="col-span-3">
+              <Card className="sticky top-4">
+                <h3 className="font-semibold text-pierre-gray-900 mb-3">Categories</h3>
+                <nav className="space-y-1">
+                  {filteredCategories.map((cat: ConfigCategory) => (
+                    <button
+                      key={cat.name}
+                      onClick={() => setSelectedCategory(cat.name)}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                        (currentCategory?.name === cat.name)
+                          ? 'bg-pierre-violet text-white'
+                          : 'text-pierre-gray-600 hover:bg-pierre-gray-100'
+                      }`}
+                    >
+                      <div className="font-medium">{cat.display_name}</div>
+                      <div className={`text-xs ${currentCategory?.name === cat.name ? 'text-pierre-gray-200' : 'text-pierre-gray-400'}`}>
+                        {cat.parameters.length} parameters
+                      </div>
+                    </button>
+                  ))}
+                </nav>
+              </Card>
+            </div>
 
           {/* Parameters list */}
           <div className="col-span-9 space-y-4">
@@ -381,13 +427,13 @@ export default function AdminConfiguration() {
                                 {param.display_name}
                               </h4>
                               {param.is_modified && (
-                                <Badge variant="warning" size="sm">Modified</Badge>
+                                <Badge variant="warning">Modified</Badge>
                               )}
                               {param.requires_restart && (
-                                <Badge variant="destructive" size="sm">Requires Restart</Badge>
+                                <Badge variant="destructive">Requires Restart</Badge>
                               )}
                               {!param.is_runtime_configurable && (
-                                <Badge variant="secondary" size="sm">Static</Badge>
+                                <Badge variant="secondary">Static</Badge>
                               )}
                             </div>
                             <p className="text-sm text-pierre-gray-600 mt-1">
@@ -432,6 +478,8 @@ export default function AdminConfiguration() {
             )}
           </div>
         </div>
+          )}
+        </>
       ) : (
         /* History tab */
         <Card>
