@@ -32,7 +32,7 @@
 //! };
 //!
 //! let client = UsdaClient::new(config);
-//! let results = client.search_foods("apple", 10).await?;
+//! let results = client.search_foods("apple", 10, 1).await?;
 //! # Ok(())
 //! # }
 //! ```
@@ -119,11 +119,29 @@ pub struct FoodDetails {
     pub serving_size_unit: Option<String>,
 }
 
-/// USDA API search response
+/// Public search response with pagination metadata
+#[derive(Debug, Clone, Serialize)]
+pub struct FoodSearchPaginatedResponse {
+    /// List of matching foods
+    pub foods: Vec<FoodSearchResult>,
+    /// Total number of matching foods in database
+    pub total_hits: u32,
+    /// Current page number (1-indexed)
+    pub current_page: u32,
+    /// Total number of pages available
+    pub total_pages: u32,
+}
+
+/// USDA API search response (internal)
 #[derive(Debug, Deserialize)]
 struct SearchResponse {
     foods: Vec<FoodSearchResult>,
-    // Pagination fields not currently exposed but part of USDA API contract
+    #[serde(rename = "totalHits")]
+    total_hits: Option<u32>,
+    #[serde(rename = "currentPage")]
+    current_page: Option<u32>,
+    #[serde(rename = "totalPages")]
+    total_pages: Option<u32>,
 }
 
 /// USDA API food details response
@@ -206,7 +224,7 @@ impl RateLimiter {
 pub struct UsdaClient {
     config: UsdaClientConfig,
     http_client: reqwest::Client,
-    search_cache: Arc<RwLock<HashMap<String, CacheEntry<Vec<FoodSearchResult>>>>>,
+    search_cache: Arc<RwLock<HashMap<String, CacheEntry<FoodSearchPaginatedResponse>>>>,
     details_cache: Arc<RwLock<HashMap<u64, CacheEntry<FoodDetails>>>>,
     rate_limiter: Arc<RwLock<RateLimiter>>,
 }
@@ -226,14 +244,15 @@ impl UsdaClient {
         }
     }
 
-    /// Search for foods by query string
+    /// Search for foods by query string with pagination
     ///
     /// # Arguments
     /// * `query` - Search query (e.g., "apple", "chicken breast")
-    /// * `page_size` - Number of results to return (1-200)
+    /// * `page_size` - Number of results per page (1-200)
+    /// * `page_number` - Page number to retrieve (1-indexed, default: 1)
     ///
     /// # Returns
-    /// List of matching foods with basic information
+    /// Paginated response with foods and pagination metadata
     ///
     /// # Errors
     /// Returns error if API request fails or rate limit is exceeded
@@ -241,7 +260,8 @@ impl UsdaClient {
         &self,
         query: &str,
         page_size: u32,
-    ) -> Result<Vec<FoodSearchResult>, AppError> {
+        page_number: u32,
+    ) -> Result<FoodSearchPaginatedResponse, AppError> {
         if query.is_empty() {
             return Err(AppError::invalid_input("Search query cannot be empty"));
         }
@@ -252,8 +272,10 @@ impl UsdaClient {
             ));
         }
 
+        let page_num = if page_number == 0 { 1 } else { page_number };
+
         // Check cache first
-        let cache_key = format!("{query}:{page_size}");
+        let cache_key = format!("{query}:{page_size}:{page_num}");
         {
             let cache = self.search_cache.read().await;
             if let Some(entry) = cache.get(&cache_key) {
@@ -278,6 +300,7 @@ impl UsdaClient {
             .query(&[
                 ("query", query),
                 ("pageSize", &page_size.to_string()),
+                ("pageNumber", &page_num.to_string()),
                 ("api_key", &self.config.api_key),
             ])
             .send()
@@ -299,19 +322,27 @@ impl UsdaClient {
             AppError::external_service("USDA API", format!("JSON parse error: {e}"))
         })?;
 
+        // Build paginated response
+        let paginated_response = FoodSearchPaginatedResponse {
+            foods: search_response.foods,
+            total_hits: search_response.total_hits.unwrap_or(0),
+            current_page: search_response.current_page.unwrap_or(page_num),
+            total_pages: search_response.total_pages.unwrap_or(1),
+        };
+
         // Cache the results
         {
             let mut cache = self.search_cache.write().await;
             cache.insert(
                 cache_key,
                 CacheEntry {
-                    data: search_response.foods.clone(),
+                    data: paginated_response.clone(),
                     expires_at: Instant::now() + Duration::from_secs(self.config.cache_ttl_secs),
                 },
             );
         }
 
-        Ok(search_response.foods)
+        Ok(paginated_response)
     }
 
     /// Get detailed information for a specific food by FDC ID

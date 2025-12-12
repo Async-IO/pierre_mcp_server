@@ -12,4 +12,7 @@
 pub mod usda_client;
 
 /// Re-export commonly used types from USDA client
-pub use usda_client::{FoodDetails, FoodNutrient, FoodSearchResult, UsdaClient, UsdaClientConfig};
+pub use usda_client::{
+    FoodDetails, FoodNutrient, FoodSearchPaginatedResponse, FoodSearchResult, UsdaClient,
+    UsdaClientConfig,
+};

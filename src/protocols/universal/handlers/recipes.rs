@@ -380,10 +380,10 @@ pub fn handle_validate_recipe(
                 }
             };
 
-            // Search USDA for ingredient
-            match client.search_foods(name, 1).await {
-                Ok(foods) if !foods.is_empty() => {
-                    let food = &foods[0];
+            // Search USDA for ingredient (page_size=1, page_number=1 for first match)
+            match client.search_foods(name, 1, 1).await {
+                Ok(result) if !result.foods.is_empty() => {
+                    let food = &result.foods[0];
                     match client.get_food_details(food.fdc_id).await {
                         Ok(details) => {
                             let multiplier = grams / 100.0;

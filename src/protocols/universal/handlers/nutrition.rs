@@ -525,14 +525,18 @@ async fn determine_intensity_from_provider(
 ///
 /// # Parameters
 /// - `query`: Search query (e.g., "apple", "chicken breast") (required)
-/// - `page_size`: Number of results to return (1-200, default: 10) (optional)
+/// - `page_size`: Number of results per page (1-200, default: 10) (optional)
+/// - `page_number`: Page number to retrieve (1-indexed, default: 1) (optional)
 ///
 /// # Returns
-/// JSON array of foods with:
-/// - `fdc_id`: `FoodData` Central ID
-/// - `description`: Food description
-/// - `data_type`: Data source type
-/// - `brand_owner`: Brand name (if applicable)
+/// JSON object with:
+/// - `foods`: Array of foods with `fdc_id`, description, `data_type`, `brand_owner`
+/// - `count`: Number of foods returned in this page
+/// - `total_hits`: Total number of matching foods in database
+/// - `page_number`: Current page number (1-indexed)
+/// - `page_size`: Number of results per page
+/// - `total_pages`: Total number of pages available
+/// - `has_more`: Whether more pages are available
 ///
 /// # Errors
 /// Returns `ProtocolError` if query is missing or API request fails
@@ -582,6 +586,18 @@ pub fn handle_search_food(
             });
         };
 
+        // Extract page_number (1-indexed, default: 1)
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let page_number = request
+            .parameters
+            .get("page_number")
+            .and_then(|v| {
+                v.as_u64()
+                    .map(|n| n.min(u64::from(u32::MAX)) as u32)
+                    .or_else(|| v.as_f64().map(|f| f as u32))
+            })
+            .unwrap_or(1);
+
         // Search foods using USDA API
         let api_key = executor
             .resources
@@ -608,15 +624,23 @@ pub fn handle_search_food(
         };
 
         let client = UsdaClient::new(usda_config);
-        let search_result = client.search_foods(query, page_size).await;
+        let search_result = client.search_foods(query, page_size, page_number).await;
 
         match search_result {
-            Ok(foods) => {
+            Ok(paginated) => {
+                let count = paginated.foods.len();
+                let has_more = paginated.current_page < paginated.total_pages;
+
                 let result = UniversalResponse {
                     success: true,
                     result: Some(json!({
-                        "foods": foods,
-                        "total": foods.len(),
+                        "foods": paginated.foods,
+                        "count": count,
+                        "total_hits": paginated.total_hits,
+                        "page_number": paginated.current_page,
+                        "page_size": page_size,
+                        "total_pages": paginated.total_pages,
+                        "has_more": has_more,
                     })),
                     error: None,
                     metadata: None,

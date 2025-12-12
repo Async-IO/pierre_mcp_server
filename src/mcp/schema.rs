@@ -2025,7 +2025,15 @@ fn create_search_food_tool() -> ToolSchema {
         "page_size".to_owned(),
         PropertySchema {
             property_type: "number".into(),
-            description: Some("Number of results to return (default: 10, max: 200)".into()),
+            description: Some("Number of results per page (default: 10, max: 200)".into()),
+        },
+    );
+
+    properties.insert(
+        "page_number".to_owned(),
+        PropertySchema {
+            property_type: "number".into(),
+            description: Some("Page number to retrieve (1-indexed, default: 1)".into()),
         },
     );
 
