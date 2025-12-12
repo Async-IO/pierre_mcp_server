@@ -5,11 +5,13 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use super::{CacheConfig, CacheKey, CacheProvider};
+use crate::config::environment::RedisConnectionConfig;
 use crate::errors::{AppError, AppResult};
-use redis::{aio::ConnectionManager, AsyncCommands};
+use redis::aio::{ConnectionManager, ConnectionManagerConfig};
+use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 /// Redis cache implementation with connection pooling
 ///
@@ -33,20 +35,85 @@ impl RedisCache {
             .as_ref()
             .ok_or_else(|| AppError::config("Redis URL is required for Redis cache backend"))?;
 
-        info!("Connecting to Redis at {}", redis_url);
+        let conn_config = &config.redis_connection;
 
-        // Create Redis client with connection timeout
+        info!(
+            "Connecting to Redis at {} (timeout={}s, response_timeout={}s, retries={})",
+            redis_url,
+            conn_config.connection_timeout_secs,
+            conn_config.response_timeout_secs,
+            conn_config.initial_connection_retries
+        );
+
+        // Create Redis client
         let client = redis::Client::open(redis_url.as_str())
             .map_err(|e| AppError::internal(format!("Failed to create Redis client: {e}")))?;
 
-        // Create connection manager (handles reconnection automatically)
-        let manager = ConnectionManager::new(client)
-            .await
-            .map_err(|e| AppError::internal(format!("Failed to connect to Redis: {e}")))?;
+        // Connect with retry logic
+        let manager = Self::connect_with_retry(&client, conn_config).await?;
 
         info!("Successfully connected to Redis");
 
         Ok(Self { manager })
+    }
+
+    /// Connect to Redis with exponential backoff retry on failure
+    ///
+    /// Uses `ConnectionManagerConfig` to configure timeouts and reconnection behavior.
+    async fn connect_with_retry(
+        client: &redis::Client,
+        conn_config: &RedisConnectionConfig,
+    ) -> AppResult<ConnectionManager> {
+        // Configure connection manager with timeout and reconnection settings
+        let manager_config = ConnectionManagerConfig::new()
+            .set_connection_timeout(Duration::from_secs(conn_config.connection_timeout_secs))
+            .set_response_timeout(Duration::from_secs(conn_config.response_timeout_secs))
+            .set_number_of_retries(conn_config.reconnection_retries)
+            .set_exponent_base(conn_config.retry_exponent_base)
+            .set_max_delay(conn_config.max_retry_delay_ms);
+
+        let max_retries = conn_config.initial_connection_retries;
+        let initial_delay_ms = conn_config.initial_retry_delay_ms;
+        let max_delay_ms = conn_config.max_retry_delay_ms;
+
+        let mut last_error = None;
+        let mut delay_ms = initial_delay_ms;
+
+        for attempt in 0..=max_retries {
+            match ConnectionManager::new_with_config(client.clone(), manager_config.clone()).await {
+                Ok(manager) => {
+                    if attempt > 0 {
+                        info!("Redis connection established after {} retries", attempt);
+                    }
+                    return Ok(manager);
+                }
+                Err(e) => {
+                    last_error = Some(e);
+
+                    if attempt < max_retries {
+                        warn!(
+                            "Redis connection attempt {}/{} failed, retrying in {}ms: {}",
+                            attempt + 1,
+                            max_retries + 1,
+                            delay_ms,
+                            last_error
+                                .as_ref()
+                                .map_or_else(|| "unknown".to_owned(), ToString::to_string)
+                        );
+                        tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+                        // Exponential backoff with cap
+                        delay_ms = (delay_ms * 2).min(max_delay_ms);
+                    }
+                }
+            }
+        }
+
+        // All retries exhausted
+        Err(AppError::internal(format!(
+            "Failed to connect to Redis after {} retries: {}",
+            max_retries + 1,
+            last_error.map_or_else(|| "unknown error".to_owned(), |e| e.to_string())
+        )))
     }
 
     /// Build full Redis key with namespace prefix

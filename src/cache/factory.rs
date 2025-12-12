@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use super::{memory::InMemoryCache, redis::RedisCache, CacheConfig, CacheProvider};
+use crate::config::environment::RedisConnectionConfig;
 use crate::errors::AppResult;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -62,12 +63,14 @@ impl Cache {
                 redis_url: None,
                 cleanup_interval: Duration::from_secs(300),
                 enable_background_cleanup: true,
+                redis_connection: RedisConnectionConfig::default(),
             },
             |server_config| CacheConfig {
                 max_entries: server_config.cache.max_entries,
                 redis_url: server_config.cache.redis_url.clone(),
                 cleanup_interval: Duration::from_secs(server_config.cache.cleanup_interval_secs),
                 enable_background_cleanup: true,
+                redis_connection: server_config.cache.redis_connection.clone(),
             },
         );
 

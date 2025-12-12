@@ -11,6 +11,7 @@ pub mod memory;
 /// Redis cache implementation
 pub mod redis;
 
+use crate::config::environment::RedisConnectionConfig;
 use crate::errors::AppResult;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -102,6 +103,8 @@ pub struct CacheConfig {
     pub cleanup_interval: Duration,
     /// Enable background cleanup task (should be false in tests to avoid runtime conflicts)
     pub enable_background_cleanup: bool,
+    /// Redis connection and retry configuration
+    pub redis_connection: RedisConnectionConfig,
 }
 
 impl Default for CacheConfig {
@@ -115,6 +118,7 @@ impl Default for CacheConfig {
             // Default to enabled - production code should use background cleanup
             // Tests can explicitly disable by setting to false
             enable_background_cleanup: true,
+            redis_connection: RedisConnectionConfig::default(),
         }
     }
 }
