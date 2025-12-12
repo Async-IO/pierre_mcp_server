@@ -12,7 +12,6 @@ All provider-specific tools accept any of these providers in the `provider` para
 
 | User says... | Tool | Parameters |
 |--------------|------|------------|
-| "Connect to Pierre" | `connect_to_pierre` | None |
 | "Link my Strava account" | `connect_provider` | `{"provider": "strava"}` |
 | "Connect my Garmin watch" | `connect_provider` | `{"provider": "garmin"}` |
 | "Show my connections" | `get_connection_status` | None |

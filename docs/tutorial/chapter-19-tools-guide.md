@@ -58,87 +58,13 @@ Pierre provides 47 MCP tools organized in 8 functional categories:
 └────────────────────────────────────────────────────────────┘
 ```
 
-**Tool registry**:
+**Tool registry**: See `src/mcp/schema.rs` for the complete tool registration.
 
-**Source**: src/mcp/schema.rs:499-559
-```rust
-pub fn get_tools() -> Vec<ToolSchema> {
-    create_fitness_tools()
-}
+For detailed documentation of all 47 tools, see [tools-reference.md](../tools-reference.md).
 
-fn create_fitness_tools() -> Vec<ToolSchema> {
-    vec![
-        // Connection tools (4)
-        create_connect_to_pierre_tool(),
-        create_connect_provider_tool(),
-        create_get_connection_status_tool(),
-        create_disconnect_provider_tool(),
-        // Data Access tools (8)
-        create_get_activities_tool(),
-        create_get_athlete_tool(),
-        create_get_stats_tool(),
-        create_get_activity_intelligence_tool(),
-        create_get_notifications_tool(),
-        create_mark_notifications_read_tool(),
-        create_announce_oauth_success_tool(),
-        create_check_oauth_notifications_tool(),
-        // Intelligence & Analytics (13)
-        create_analyze_activity_tool(),
-        create_calculate_metrics_tool(),
-        create_analyze_performance_trends_tool(),
-        create_compare_activities_tool(),
-        create_detect_patterns_tool(),
-        create_set_goal_tool(),
-        create_track_progress_tool(),
-        create_suggest_goals_tool(),
-        create_analyze_goal_feasibility_tool(),
-        create_generate_recommendations_tool(),
-        create_calculate_fitness_score_tool(),
-        create_predict_performance_tool(),
-        create_analyze_training_load_tool(),
-        // Configuration Management (10)
-        create_get_configuration_catalog_tool(),
-        create_get_configuration_profiles_tool(),
-        create_get_user_configuration_tool(),
-        create_update_user_configuration_tool(),
-        create_calculate_personalized_zones_tool(),
-        create_validate_configuration_tool(),
-        create_get_fitness_config_tool(),
-        create_set_fitness_config_tool(),
-        create_list_fitness_configs_tool(),
-        create_delete_fitness_config_tool(),
-        // Nutrition (5)
-        create_calculate_daily_nutrition_tool(),
-        create_get_nutrient_timing_tool(),
-        create_search_food_tool(),
-        create_get_food_details_tool(),
-        create_analyze_meal_nutrition_tool(),
-        // Sleep & Recovery (5)
-        create_analyze_sleep_quality_tool(),
-        calculate_recovery_score_tool(),
-        create_suggest_rest_day_tool(),
-        create_track_sleep_trends_tool(),
-        create_optimize_sleep_schedule_tool(),
-    ]
-}
-```
+## 1. Core Fitness Tools (6 Tools)
 
-## 1. Connection Tools (4 Tools)
-
-These tools manage OAuth connections to Pierre and fitness providers.
-
-### Connect_to_pierre
-
-**Description**: Authenticate with Pierre Fitness Server to access your fitness data.
-
-**Natural language prompts**:
-- "Connect to Pierre to access my fitness data"
-- "I need to log in to Pierre"
-- "Authenticate with Pierre server"
-
-**Parameters**: None (opens browser for OAuth flow)
-
-**Use case**: First-time setup or re-authentication after token expiration.
+These tools retrieve fitness data and manage provider connections.
 
 ### Connect_provider
 
