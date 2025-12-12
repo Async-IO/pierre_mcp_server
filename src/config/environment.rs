@@ -122,6 +122,48 @@ impl std::fmt::Display for Environment {
     }
 }
 
+/// LLM provider selection for chat functionality
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum LlmProviderType {
+    /// Groq provider - LPU-accelerated inference for Llama/Mixtral models (default)
+    #[default]
+    Groq,
+    /// Google Gemini provider - full-featured with vision support
+    Gemini,
+}
+
+impl LlmProviderType {
+    /// Environment variable name for LLM provider selection
+    pub const ENV_VAR: &'static str = "PIERRE_LLM_PROVIDER";
+
+    /// Parse from string with fallback to default
+    #[must_use]
+    pub fn from_str_or_default(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "gemini" | "google" => Self::Gemini,
+            _ => Self::Groq, // Default fallback (including "groq")
+        }
+    }
+
+    /// Load from environment variable
+    #[must_use]
+    pub fn from_env() -> Self {
+        env::var(Self::ENV_VAR)
+            .map(|s| Self::from_str_or_default(&s))
+            .unwrap_or_default()
+    }
+}
+
+impl std::fmt::Display for LlmProviderType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Groq => write!(f, "groq"),
+            Self::Gemini => write!(f, "gemini"),
+        }
+    }
+}
+
 /// Type-safe database configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DatabaseUrl {

@@ -7,9 +7,10 @@
 // Test files don't require documentation - this is a rustc lint (not clippy)
 #![allow(missing_docs)]
 
+use pierre_mcp_server::config::LlmProviderType;
 use pierre_mcp_server::llm::{
-    ChatMessage, ChatRequest, GeminiProvider, LlmCapabilities, LlmProvider, LlmProviderRegistry,
-    MessageRole,
+    ChatMessage, ChatRequest, GeminiProvider, GroqProvider, LlmCapabilities, LlmProvider,
+    LlmProviderRegistry, MessageRole,
 };
 
 // ============================================================================
@@ -128,4 +129,67 @@ fn test_gemini_with_default_model() {
     // Check via the trait method since default_model field is private
     let debug_output = format!("{provider:?}");
     assert!(debug_output.contains("gemini-1.5-pro"));
+}
+
+// ============================================================================
+// GroqProvider Tests
+// ============================================================================
+
+#[test]
+fn test_groq_provider_metadata() {
+    let provider = GroqProvider::new("test-key".to_owned());
+    assert_eq!(provider.name(), "groq");
+    assert_eq!(provider.display_name(), "Groq (Llama/Mixtral)");
+    assert!(!provider.available_models().is_empty());
+}
+
+#[test]
+fn test_groq_capabilities() {
+    let provider = GroqProvider::new("test-key".to_owned());
+    let caps = provider.capabilities();
+    assert!(caps.supports_streaming());
+    assert!(caps.supports_function_calling());
+    assert!(caps.supports_system_messages());
+}
+
+// ============================================================================
+// LlmProviderType Tests
+// ============================================================================
+
+#[test]
+fn test_llm_provider_type_default() {
+    let provider_type = LlmProviderType::default();
+    assert_eq!(provider_type, LlmProviderType::Groq);
+}
+
+#[test]
+fn test_llm_provider_type_from_str() {
+    assert_eq!(
+        LlmProviderType::from_str_or_default("groq"),
+        LlmProviderType::Groq
+    );
+    assert_eq!(
+        LlmProviderType::from_str_or_default("gemini"),
+        LlmProviderType::Gemini
+    );
+    assert_eq!(
+        LlmProviderType::from_str_or_default("google"),
+        LlmProviderType::Gemini
+    );
+    // Unknown values default to Groq
+    assert_eq!(
+        LlmProviderType::from_str_or_default("unknown"),
+        LlmProviderType::Groq
+    );
+}
+
+#[test]
+fn test_llm_provider_type_display() {
+    assert_eq!(format!("{}", LlmProviderType::Groq), "groq");
+    assert_eq!(format!("{}", LlmProviderType::Gemini), "gemini");
+}
+
+#[test]
+fn test_llm_provider_type_env_var_name() {
+    assert_eq!(LlmProviderType::ENV_VAR, "PIERRE_LLM_PROVIDER");
 }

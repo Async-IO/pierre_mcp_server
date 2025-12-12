@@ -45,7 +45,7 @@ pub mod vo2_max;
 pub mod routes;
 
 // Re-export main configuration types from environment
-pub use environment::ServerConfig;
+pub use environment::{LlmProviderType, ServerConfig};
 
 // Re-export fitness configuration types
 pub use fitness::{FitnessConfig, WeatherApiConfig};

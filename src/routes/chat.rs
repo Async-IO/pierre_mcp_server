@@ -14,8 +14,8 @@ use crate::{
     database_plugins::DatabaseProvider,
     errors::AppError,
     llm::{
-        get_pierre_system_prompt, ChatMessage, ChatRequest, FunctionCall, FunctionDeclaration,
-        FunctionResponse, GeminiProvider, LlmProvider, Tool,
+        get_pierre_system_prompt, ChatMessage, ChatProvider, ChatRequest, FunctionCall,
+        FunctionDeclaration, FunctionResponse, Tool,
     },
     mcp::resources::ServerResources,
     protocols::universal::{UniversalExecutor, UniversalRequest, UniversalResponse},
@@ -275,9 +275,9 @@ impl ChatRoutes {
         Ok(ChatManager::new(pool))
     }
 
-    /// Get LLM provider (currently only Gemini)
-    fn get_llm_provider() -> Result<GeminiProvider, AppError> {
-        GeminiProvider::from_env()
+    /// Get LLM provider based on `PIERRE_LLM_PROVIDER` environment variable
+    fn get_llm_provider() -> Result<ChatProvider, AppError> {
+        ChatProvider::from_env()
     }
 
     /// Build LLM messages from conversation history and optional system prompt
@@ -497,13 +497,13 @@ impl ChatRoutes {
         }
     }
 
-    /// Run the multi-turn tool execution loop with Gemini
+    /// Run the multi-turn tool execution loop with the LLM provider
     ///
     /// # Errors
     ///
     /// Returns error if LLM call fails or tool execution fails.
     async fn run_tool_loop(
-        provider: &GeminiProvider,
+        provider: &ChatProvider,
         executor: &UniversalExecutor,
         llm_messages: &mut Vec<ChatMessage>,
         tools: &Tool,

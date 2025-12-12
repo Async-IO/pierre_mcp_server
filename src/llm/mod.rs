@@ -36,13 +36,17 @@
 //! ```
 
 mod gemini;
+mod groq;
 pub mod prompts;
+mod provider;
 
 pub use gemini::{
     ChatResponseWithTools, FunctionCall, FunctionDeclaration, FunctionResponse, GeminiProvider,
     Tool,
 };
+pub use groq::GroqProvider;
 pub use prompts::get_pierre_system_prompt;
+pub use provider::ChatProvider;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
