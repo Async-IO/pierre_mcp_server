@@ -102,5 +102,3 @@ Comprehensive Rust learning path using Pierre as the codebase.
 - **Accurate**: Verified against actual code
 - **Practical**: Code examples that work
 - **Capitalized**: Section headings start with capital letters
-
-Based on [github/github-mcp-server](https://github.com/github/github-mcp-server) style.
