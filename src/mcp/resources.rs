@@ -90,6 +90,8 @@ pub struct ServerResources {
     pub cancellation_registry: Arc<RwLock<HashMap<String, CancellationToken>>>,
     /// Firebase Authentication handler for social login (Google, Apple, etc.)
     pub firebase_auth: Option<Arc<crate::admin::FirebaseAuth>>,
+    /// Admin configuration service for runtime parameter management
+    pub admin_config: Option<Arc<crate::config::admin::AdminConfigService>>,
 }
 
 impl ServerResources {
@@ -98,6 +100,9 @@ impl ServerResources {
     /// # Parameters
     /// - `rsa_key_size_bits`: Size of RSA keys for JWT signing (2048 for tests, 4096 for production)
     /// - `jwks_manager`: Optional pre-existing JWKS manager (for test performance - reuses RSA keys)
+    // Function exceeds line limit because it assembles 20+ interdependent resources
+    // Splitting would reduce clarity without improving maintainability
+    #[allow(clippy::too_many_lines)]
     pub fn new(
         database: Database,
         auth_manager: AuthManager,
@@ -208,6 +213,41 @@ impl ServerResources {
             None
         };
 
+        // Create admin config service if SQLite is available
+        // This provides runtime-configurable parameters via admin API
+        // Note: block_in_place only works on multi-threaded runtime, so we use catch_unwind
+        // to gracefully handle single-threaded test environments
+        let admin_config = database_arc.sqlite_pool().and_then(|pool| {
+            let pool_clone = pool.clone();
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current()
+                        .block_on(async { crate::config::admin::AdminConfigService::new(pool_clone).await })
+                })
+            }));
+            match result {
+                Ok(Ok(service)) => {
+                    info!("Admin configuration service initialized successfully");
+                    Some(Arc::new(service))
+                }
+                Ok(Err(e)) => {
+                    warn!(
+                        "Failed to initialize admin config service: {}. Runtime config will not be available.",
+                        e
+                    );
+                    None
+                }
+                Err(_) => {
+                    // Panic occurred - likely single-threaded runtime where block_in_place is not supported
+                    warn!(
+                        "Admin config service not initialized - requires multi-threaded runtime. \
+                        Runtime config will use defaults."
+                    );
+                    None
+                }
+            }
+        });
+
         Self {
             database: database_arc,
             auth_manager: auth_manager_arc,
@@ -233,6 +273,7 @@ impl ServerResources {
             progress_notification_sender: None,
             cancellation_registry: Arc::new(RwLock::new(HashMap::new())),
             firebase_auth,
+            admin_config,
         }
     }
 
