@@ -7,7 +7,8 @@
 use crate::cache::{factory::Cache, CacheKey, CacheResource};
 use crate::formatters::{format_output, OutputFormat};
 use crate::intelligence::physiological_constants::api_limits::{
-    DEFAULT_ACTIVITY_LIMIT, DEFAULT_ACTIVITY_LIMIT_U32, MAX_ACTIVITY_LIMIT, QUICK_ACTIVITY_LIMIT,
+    DEFAULT_ACTIVITY_LIMIT_U32, MAX_ACTIVITY_LIMIT, SAFE_LIMIT_JSON_DETAILED,
+    SAFE_LIMIT_JSON_SUMMARY, SAFE_LIMIT_TOON_DETAILED, SAFE_LIMIT_TOON_SUMMARY,
 };
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
@@ -48,6 +49,33 @@ impl From<&crate::models::Activity> for ActivitySummary {
             duration_seconds: activity.duration_seconds,
         }
     }
+}
+
+/// Pagination metadata for list responses
+/// Enables clients to intelligently paginate through large result sets
+#[derive(Debug, Clone, Default)]
+pub struct PaginationInfo {
+    /// The offset that was requested (0 if not specified)
+    pub offset: usize,
+    /// The limit that was applied to the query
+    pub limit: usize,
+    /// Number of items actually returned in this response
+    pub returned_count: usize,
+    /// True if there are likely more results available (`returned_count` == `limit`)
+    pub has_more: bool,
+}
+
+/// Parameters for trying to get cached activities
+struct CachedActivitiesParams<'a> {
+    cache: &'a Arc<Cache>,
+    cache_key: &'a CacheKey,
+    user_uuid: uuid::Uuid,
+    tenant_id: Option<String>,
+    provider_name: &'a str,
+    mode: &'a str,
+    output_format: OutputFormat,
+    limit: usize,
+    offset: usize,
 }
 
 /// Create metadata for activity analysis responses
@@ -238,30 +266,35 @@ where
 
 /// Try to get activities from cache
 async fn try_get_cached_activities(
-    cache: &Arc<Cache>,
-    cache_key: &CacheKey,
-    user_uuid: uuid::Uuid,
-    tenant_id: Option<String>,
-    provider_name: &str,
-    mode: &str,
-    output_format: OutputFormat,
+    params: CachedActivitiesParams<'_>,
 ) -> Option<UniversalResponse> {
-    if let Ok(Some(cached_activities)) = cache.get::<Vec<crate::models::Activity>>(cache_key).await
+    if let Ok(Some(cached_activities)) = params
+        .cache
+        .get::<Vec<crate::models::Activity>>(params.cache_key)
+        .await
     {
         info!(
             "Cache hit for activities (count={}, mode={}, format={:?})",
             cached_activities.len(),
-            mode,
-            output_format
+            params.mode,
+            params.output_format
         );
+        // Create pagination info from cached results
+        let pagination = PaginationInfo {
+            offset: params.offset,
+            limit: params.limit,
+            returned_count: cached_activities.len(),
+            has_more: cached_activities.len() == params.limit,
+        };
         // Use the same response builder as the non-cached path to apply mode/format
         let mut response = build_activities_success_response(
             &cached_activities,
-            user_uuid,
-            tenant_id,
-            provider_name,
-            mode,
-            output_format,
+            params.user_uuid,
+            params.tenant_id,
+            params.provider_name,
+            params.mode,
+            params.output_format,
+            Some(&pagination),
         );
         // Mark as cached in metadata
         if let Some(ref mut metadata) = response.metadata {
@@ -332,10 +365,60 @@ fn filter_activities_by_sport_type(
     }
 }
 
+/// Build metadata for activities response
+fn build_activities_metadata(
+    count: usize,
+    user_uuid: uuid::Uuid,
+    tenant_id: Option<String>,
+    mode_used: &str,
+    format_used: &str,
+    pagination: Option<&PaginationInfo>,
+) -> std::collections::HashMap<String, serde_json::Value> {
+    let mut map = std::collections::HashMap::new();
+    map.insert(
+        "returned_count".to_owned(),
+        serde_json::Value::Number(count.into()),
+    );
+    map.insert(
+        "user_id".to_owned(),
+        serde_json::Value::String(user_uuid.to_string()),
+    );
+    map.insert(
+        "tenant_id".to_owned(),
+        tenant_id.map_or(serde_json::Value::Null, serde_json::Value::String),
+    );
+    map.insert("cached".to_owned(), serde_json::Value::Bool(false));
+    map.insert(
+        "mode".to_owned(),
+        serde_json::Value::String(mode_used.to_owned()),
+    );
+    map.insert(
+        "format".to_owned(),
+        serde_json::Value::String(format_used.to_owned()),
+    );
+    // Add pagination metadata when available
+    if let Some(page_info) = pagination {
+        map.insert(
+            "offset".to_owned(),
+            serde_json::Value::Number(page_info.offset.into()),
+        );
+        map.insert(
+            "limit".to_owned(),
+            serde_json::Value::Number(page_info.limit.into()),
+        );
+        map.insert(
+            "has_more".to_owned(),
+            serde_json::Value::Bool(page_info.has_more),
+        );
+    }
+    map
+}
+
 /// Build success response for activities with mode and format support
 /// `mode="summary"` returns minimal fields (id, name, `sport_type`, `start_date`, distance, duration)
 /// `mode="detailed"` returns full activity data (default for backwards compatibility when not specified)
 /// `format="json"` (default) or `format="toon"` for token-efficient LLM output
+/// `pagination` enables clients to paginate through large result sets
 fn build_activities_success_response(
     activities: &[crate::models::Activity],
     user_uuid: uuid::Uuid,
@@ -343,10 +426,10 @@ fn build_activities_success_response(
     provider_name: &str,
     mode: &str,
     output_format: OutputFormat,
+    pagination: Option<&PaginationInfo>,
 ) -> UniversalResponse {
     // Prepare the data based on mode
     let (data_value, mode_used) = if mode == "summary" {
-        // Summary mode: convert to minimal representation
         let summaries: Vec<ActivitySummary> =
             activities.iter().map(ActivitySummary::from).collect();
         match serde_json::to_value(&summaries) {
@@ -361,7 +444,6 @@ fn build_activities_success_response(
             }
         }
     } else {
-        // Detailed mode: return full activity data
         match serde_json::to_value(activities) {
             Ok(value) => (value, "detailed"),
             Err(e) => {
@@ -377,78 +459,74 @@ fn build_activities_success_response(
 
     // Format the activities data according to the requested format
     let (result_json, format_used) = match output_format {
-        OutputFormat::Toon => {
-            // For TOON format, serialize activities to TOON string and embed in response
-            match format_output(&data_value, OutputFormat::Toon) {
-                Ok(formatted) => (
-                    serde_json::json!({
-                        "activities_toon": formatted.data,
-                        "provider": provider_name,
-                        "count": activities.len(),
-                        "mode": mode_used,
-                        "format": "toon"
-                    }),
-                    "toon",
-                ),
-                Err(e) => {
-                    // Fall back to JSON if TOON serialization fails
-                    warn!("TOON serialization failed, falling back to JSON: {}", e);
-                    (
-                        serde_json::json!({
-                            "activities": data_value,
-                            "provider": provider_name,
-                            "count": activities.len(),
-                            "mode": mode_used,
-                            "format": "json",
-                            "format_fallback": true,
-                            "format_error": e.to_string()
-                        }),
-                        "json",
-                    )
+        OutputFormat::Toon => match format_output(&data_value, OutputFormat::Toon) {
+            Ok(formatted) => {
+                let mut json = serde_json::json!({
+                    "activities_toon": formatted.data,
+                    "provider": provider_name,
+                    "count": activities.len(),
+                    "mode": mode_used,
+                    "format": "toon"
+                });
+                // Add pagination fields directly to result for MCP clients
+                if let Some(page_info) = pagination {
+                    json["offset"] = serde_json::json!(page_info.offset);
+                    json["limit"] = serde_json::json!(page_info.limit);
+                    json["has_more"] = serde_json::json!(page_info.has_more);
                 }
+                (json, "toon")
             }
-        }
-        OutputFormat::Json => (
-            serde_json::json!({
+            Err(e) => {
+                warn!("TOON serialization failed, falling back to JSON: {}", e);
+                let mut json = serde_json::json!({
+                    "activities": data_value,
+                    "provider": provider_name,
+                    "count": activities.len(),
+                    "mode": mode_used,
+                    "format": "json",
+                    "format_fallback": true,
+                    "format_error": e.to_string()
+                });
+                // Add pagination fields to fallback response too
+                if let Some(page_info) = pagination {
+                    json["offset"] = serde_json::json!(page_info.offset);
+                    json["limit"] = serde_json::json!(page_info.limit);
+                    json["has_more"] = serde_json::json!(page_info.has_more);
+                }
+                (json, "json")
+            }
+        },
+        OutputFormat::Json => {
+            let mut json = serde_json::json!({
                 "activities": data_value,
                 "provider": provider_name,
                 "count": activities.len(),
                 "mode": mode_used,
                 "format": "json"
-            }),
-            "json",
-        ),
+            });
+            // Add pagination fields directly to result for MCP clients
+            if let Some(page_info) = pagination {
+                json["offset"] = serde_json::json!(page_info.offset);
+                json["limit"] = serde_json::json!(page_info.limit);
+                json["has_more"] = serde_json::json!(page_info.has_more);
+            }
+            (json, "json")
+        }
     };
 
+    let metadata = build_activities_metadata(
+        activities.len(),
+        user_uuid,
+        tenant_id,
+        mode_used,
+        format_used,
+        pagination,
+    );
     UniversalResponse {
         success: true,
         result: Some(result_json),
         error: None,
-        metadata: Some({
-            let mut map = std::collections::HashMap::new();
-            map.insert(
-                "total_activities".to_owned(),
-                serde_json::Value::Number(activities.len().into()),
-            );
-            map.insert(
-                "user_id".to_owned(),
-                serde_json::Value::String(user_uuid.to_string()),
-            );
-            map.insert(
-                "tenant_id".to_owned(),
-                tenant_id.map_or(serde_json::Value::Null, serde_json::Value::String),
-            );
-            map.insert("cached".to_owned(), serde_json::Value::Bool(false));
-            map.insert(
-                "mode".to_owned(),
-                serde_json::Value::String(mode_used.to_owned()),
-            );
-            map.insert(
-                "format".to_owned(),
-                serde_json::Value::String(format_used.to_owned()),
-            );
-            map
-        }),
+        metadata: Some(metadata),
     }
 }
 
@@ -597,23 +675,49 @@ pub fn handle_get_activities(
             .and_then(|v| v.as_str())
             .map_or_else(crate::config::environment::default_provider, String::from);
 
-        // Extract limit parameter with bounds checking
-        let requested_limit = request
+        // Extract mode parameter: "summary" (default) or "detailed"
+        // Parse mode/format FIRST to determine format-aware default limit
+        let mode = request
+            .parameters
+            .get("mode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("summary");
+
+        // Extract output format parameter: "json" (default) or "toon"
+        let output_format = request
+            .parameters
+            .get("format")
+            .and_then(|v| v.as_str())
+            .map_or(OutputFormat::Json, OutputFormat::from_str_param);
+
+        // Determine format-aware safe default limit based on mode and format
+        // These defaults prevent LLM context overflow when limit is not specified
+        let format_aware_default = match (output_format, mode) {
+            (OutputFormat::Toon, "summary") => SAFE_LIMIT_TOON_SUMMARY,
+            (OutputFormat::Toon, _) => SAFE_LIMIT_TOON_DETAILED,
+            (OutputFormat::Json, "summary") => SAFE_LIMIT_JSON_SUMMARY,
+            (OutputFormat::Json, _) => SAFE_LIMIT_JSON_DETAILED,
+        };
+
+        // Extract limit parameter - use format-aware default if not specified
+        let user_limit = request
             .parameters
             .get("limit")
-            .and_then(serde_json::Value::as_u64)
-            .unwrap_or(QUICK_ACTIVITY_LIMIT)
-            .try_into()
-            .unwrap_or(DEFAULT_ACTIVITY_LIMIT);
+            .and_then(serde_json::Value::as_u64);
 
-        let limit = requested_limit.min(MAX_ACTIVITY_LIMIT);
+        let limit = user_limit
+            .and_then(|v| usize::try_from(v).ok())
+            .unwrap_or(format_aware_default)
+            .min(MAX_ACTIVITY_LIMIT);
 
-        // Extract optional offset parameter
-        let offset = request
-            .parameters
-            .get("offset")
-            .and_then(serde_json::Value::as_u64)
-            .and_then(|v| usize::try_from(v).ok());
+        // Extract optional offset parameter (handle both integer and float JSON numbers)
+        // MCP clients may send numbers as floats (e.g., 100.0 instead of 100)
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let offset = request.parameters.get("offset").and_then(|v| {
+            v.as_u64()
+                .and_then(|n| usize::try_from(n).ok())
+                .or_else(|| v.as_f64().map(|f| f as usize))
+        });
 
         // Extract optional before/after timestamp parameters for time-based filtering
         let before = request
@@ -626,26 +730,12 @@ pub fn handle_get_activities(
             .get("after")
             .and_then(serde_json::Value::as_i64);
 
-        // Extract mode parameter: "summary" (default) or "detailed"
-        let mode = request
-            .parameters
-            .get("mode")
-            .and_then(|v| v.as_str())
-            .unwrap_or("summary");
-
         // Extract sport_type filter parameter (case-insensitive)
         let sport_type_filter = request
             .parameters
             .get("sport_type")
             .and_then(|v| v.as_str())
             .map(str::to_owned);
-
-        // Extract output format parameter: "json" (default) or "toon"
-        let output_format = request
-            .parameters
-            .get("format")
-            .and_then(|v| v.as_str())
-            .map_or(OutputFormat::Json, OutputFormat::from_str_param);
 
         // Build query params
         let query_params = ActivityQueryParams {
@@ -676,28 +766,47 @@ pub fn handle_get_activities(
         // returning cached results that don't match the requested time range
         // Safe: limit is bounded by MAX_ACTIVITY_LIMIT which fits in u32
         let per_page = u32::try_from(limit).unwrap_or(DEFAULT_ACTIVITY_LIMIT_U32);
+        // Calculate page from offset for cache key (same formula as strava_provider.rs)
+        let offset_val = offset.unwrap_or(0);
+        #[allow(clippy::cast_possible_truncation)]
+        let page = if offset_val > 0 {
+            (offset_val / limit + 1) as u32
+        } else {
+            1
+        };
         let cache_key = CacheKey::new(
             tenant_uuid,
             user_uuid,
             provider_name.clone(),
             CacheResource::ActivityList {
-                page: 1,
+                page,
                 per_page,
                 before,
                 after,
             },
         );
 
+        // Create pagination info for response metadata
+        // Note: has_more and returned_count are set after we get results
+        let create_pagination = |returned_count: usize| PaginationInfo {
+            offset: offset.unwrap_or(0),
+            limit,
+            returned_count,
+            has_more: returned_count == limit,
+        };
+
         // Try to get from cache first
-        if let Some(cached_response) = try_get_cached_activities(
-            &executor.resources.cache,
-            &cache_key,
+        if let Some(cached_response) = try_get_cached_activities(CachedActivitiesParams {
+            cache: &executor.resources.cache,
+            cache_key: &cache_key,
             user_uuid,
-            request.tenant_id.clone(),
-            &provider_name,
+            tenant_id: request.tenant_id.clone(),
+            provider_name: &provider_name,
             mode,
             output_format,
-        )
+            limit,
+            offset: offset.unwrap_or(0),
+        })
         .await
         {
             // Report completion if we got from cache
@@ -789,6 +898,9 @@ pub fn handle_get_activities(
                         )
                         .await;
 
+                        // Create pagination info for fresh results
+                        let pagination = create_pagination(filtered_activities.len());
+
                         Ok(build_activities_success_response(
                             &filtered_activities,
                             user_uuid,
@@ -796,6 +908,7 @@ pub fn handle_get_activities(
                             &provider_name,
                             mode,
                             output_format,
+                            Some(&pagination),
                         ))
                     }
                     Err(e) => Ok(UniversalResponse {

@@ -645,6 +645,21 @@ pub mod api_limits {
 
     /// Activities for goal analysis
     pub const GOAL_ANALYSIS_ACTIVITY_LIMIT: usize = 100;
+
+    // Format-aware safe limits to prevent LLM context overflow
+    // These are conservative defaults when user doesn't specify a limit
+
+    /// Safe limit for TOON format + summary mode (most compact)
+    pub const SAFE_LIMIT_TOON_SUMMARY: usize = 200;
+
+    /// Safe limit for TOON format + detailed mode
+    pub const SAFE_LIMIT_TOON_DETAILED: usize = 25;
+
+    /// Safe limit for JSON format + summary mode
+    pub const SAFE_LIMIT_JSON_SUMMARY: usize = 100;
+
+    /// Safe limit for JSON format + detailed mode (most verbose)
+    pub const SAFE_LIMIT_JSON_DETAILED: usize = 10;
 }
 
 /// Default performance benchmarks for physiological calculations
