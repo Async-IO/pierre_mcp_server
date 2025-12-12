@@ -163,8 +163,8 @@ async function setupAdminConfigMocks(page: Page) {
     });
   });
 
-  // Mock configuration audit log endpoint
-  await page.route('**/api/admin/config/audit**', async (route) => {
+  // Mock configuration audit log endpoint (backend uses /history not /audit)
+  await page.route('**/api/admin/config/history**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -348,10 +348,10 @@ test.describe('Admin Configuration - Parameter Modification', () => {
     const select = page.locator('select').first();
     await expect(select).toBeVisible();
 
-    // Check options exist
-    await expect(select.locator('option[value="stryd"]')).toBeVisible();
-    await expect(select.locator('option[value="renato_canova"]')).toBeVisible();
-    await expect(select.locator('option[value="jack_daniels"]')).toBeVisible();
+    // Check options exist (use toHaveCount since select options aren't "visible" in DOM sense)
+    await expect(select.locator('option[value="stryd"]')).toHaveCount(1);
+    await expect(select.locator('option[value="renato_canova"]')).toHaveCount(1);
+    await expect(select.locator('option[value="jack_daniels"]')).toHaveCount(1);
   });
 
   test('boolean parameter shows toggle switch', async ({ page }) => {
