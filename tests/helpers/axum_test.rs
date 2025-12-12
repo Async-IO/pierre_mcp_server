@@ -81,7 +81,9 @@ impl AxumTestRequest {
         self
     }
 
-    /// Add URL-encoded form body to the request (for OAuth2 ROPC)
+    /// Add URL-encoded form body to the request (for `OAuth2` ROPC)
+    /// Note: Used by `routes_auth_http_test.rs`, but not all tests use it
+    #[allow(dead_code)]
     pub fn form<T: Serialize>(mut self, data: &T) -> Self {
         self.body = Some(serde_urlencoded::to_string(data).expect("Failed to serialize form"));
         self.headers.push((
