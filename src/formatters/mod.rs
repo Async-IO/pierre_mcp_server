@@ -18,12 +18,14 @@
 //!
 //! ## Usage
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use pierre_mcp_server::formatters::{OutputFormat, format_output};
 //!
-//! let activities = vec![/* ... */];
+//! let activities = vec!["morning_run", "evening_ride"];
 //! let format = OutputFormat::Toon;
-//! let output = format_output(&activities, format)?;
+//! if let Ok(output) = format_output(&activities, format) {
+//!     println!("Formatted: {}", output.data);
+//! }
 //! ```
 
 use serde::Serialize;
