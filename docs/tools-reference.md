@@ -26,7 +26,6 @@ Basic fitness data retrieval and provider connection management.
 | `get_athlete` | Get user's athlete profile and basic information | `provider` (string) | - |
 | `get_stats` | Get user's performance statistics and metrics | `provider` (string) | - |
 | `get_connection_status` | Check OAuth connection status for fitness providers | - | `strava_client_id` (string), `strava_client_secret` (string), `fitbit_client_id` (string), `fitbit_client_secret` (string) |
-| `connect_to_pierre` | Connect to Pierre MCP server and trigger OAuth authentication flow | - | - |
 | `connect_provider` | Connect to a fitness data provider via OAuth | `provider` (string) | - |
 | `disconnect_provider` | Disconnect user from a fitness data provider | `provider` (string) | - |
 
@@ -534,14 +533,14 @@ Training-aware recipe management tools for meal planning aligned with workout sc
 
 | Category | Tool Count | Description |
 |----------|------------|-------------|
-| Core Fitness | 7 | Activity data and provider connections |
+| Core Fitness | 6 | Activity data and provider connections |
 | Goals & Planning | 4 | Goal management and progress tracking |
 | Performance Analysis | 10 | Activity analytics and predictions |
 | Configuration Management | 6 | System configuration and zones |
 | Fitness Configuration | 4 | User fitness settings |
 | Sleep & Recovery | 5 | Sleep analysis and recovery metrics |
 | Nutrition | 5 | Dietary calculations and food database |
-| Recipe Management | 6 | Training-aware meal planning and recipes |
+| Recipe Management | 7 | Training-aware meal planning and recipes |
 | **Total** | **47** | **Complete MCP tool suite** |
 
 ---
@@ -549,7 +548,7 @@ Training-aware recipe management tools for meal planning aligned with workout sc
 ## Additional Resources
 
 - [MCP Protocol Specification](https://github.com/anthropics/mcp)
-- [Pierre MCP Server Repository](https://github.com/yourusername/pierre_mcp_server)
+- [Pierre MCP Server Repository](https://github.com/Async-IO/pierre_mcp_server)
 - [Development Guide](./development.md)
 - [Testing Guide](./testing.md)
 - [Configuration Guide](./configuration.md)
