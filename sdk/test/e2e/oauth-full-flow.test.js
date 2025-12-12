@@ -48,7 +48,7 @@ describe('E2E: OAuth Full Flow Tests', () => {
       }
     });
 
-    test('unauthenticated bridge should show connect_to_pierre tool', async () => {
+    test('unauthenticated bridge should show connect_provider tool', async () => {
       client = new MockMCPClient('node', [bridgePath, '--server', serverUrl]);
       await client.start();
       await client.send(MCPMessages.initialize);
@@ -56,8 +56,8 @@ describe('E2E: OAuth Full Flow Tests', () => {
       const response = await client.send(MCPMessages.toolsList);
       const toolNames = response.result.tools.map(t => t.name);
 
-      // connect_to_pierre must always be available for OAuth initiation
-      expect(toolNames).toContain('connect_to_pierre');
+      // connect_provider must always be available for OAuth initiation
+      expect(toolNames).toContain('connect_provider');
     }, 30000);
 
     test('unauthenticated tool call should indicate need for OAuth', async () => {

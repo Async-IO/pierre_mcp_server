@@ -4,6 +4,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(missing_docs)]
+
 use pierre_mcp_server::formatters::{format_output, OutputFormat};
 use serde::Serialize;
 
@@ -42,7 +45,7 @@ fn test_format_json() {
 
     let result = format_output(&activity, OutputFormat::Json);
     assert!(result.is_ok());
-    let output = result.expect("JSON format should succeed");
+    let output = result.unwrap();
     assert_eq!(output.format, OutputFormat::Json);
     assert!(output.data.contains("Morning Run"));
     assert!(output.data.contains("5000"));
@@ -58,7 +61,7 @@ fn test_format_toon() {
 
     let result = format_output(&activity, OutputFormat::Toon);
     assert!(result.is_ok());
-    let output = result.expect("TOON format should succeed");
+    let output = result.unwrap();
     assert_eq!(output.format, OutputFormat::Toon);
     // TOON output should contain the data
     assert!(output.data.contains("Morning Run"));
@@ -92,8 +95,8 @@ fn test_format_activity_list_toon() {
     assert!(json_result.is_ok());
     assert!(toon_result.is_ok());
 
-    let json_output = json_result.expect("JSON format should succeed");
-    let toon_output = toon_result.expect("TOON format should succeed");
+    let json_output = json_result.unwrap();
+    let toon_output = toon_result.unwrap();
 
     // TOON should be more compact for uniform arrays (~40% reduction)
     println!("JSON length: {}", json_output.data.len());
@@ -120,7 +123,7 @@ fn test_default_format() {
 // Tests for cached activities respecting mode and format parameters
 // ============================================================================
 
-/// ActivitySummary matches the format from fitness_api.rs for summary mode
+/// `ActivitySummary` matches the format from `fitness_api.rs` for summary mode
 #[derive(Debug, Clone, Serialize, serde::Deserialize, PartialEq)]
 struct ActivitySummary {
     id: String,
@@ -209,8 +212,8 @@ fn test_summary_mode_reduces_payload_size() {
         .collect();
 
     // Serialize both to JSON
-    let detailed_json = serde_json::to_string(&detailed_activities).expect("serialize detailed");
-    let summary_json = serde_json::to_string(&summaries).expect("serialize summary");
+    let detailed_json = serde_json::to_string(&detailed_activities).unwrap();
+    let summary_json = serde_json::to_string(&summaries).unwrap();
 
     println!("Detailed JSON size: {} bytes", detailed_json.len());
     println!("Summary JSON size: {} bytes", summary_json.len());
@@ -224,22 +227,19 @@ fn test_summary_mode_reduces_payload_size() {
     );
 
     // Summary should be at least 40% smaller for activities with many optional fields
+    #[allow(clippy::cast_precision_loss)]
     let reduction_percent =
         (1.0 - (summary_json.len() as f64 / detailed_json.len() as f64)) * 100.0;
-    println!("Size reduction: {:.1}%", reduction_percent);
+    println!("Size reduction: {reduction_percent:.1}%");
     assert!(
         reduction_percent > 30.0,
-        "Summary should provide at least 30% size reduction, got {:.1}%",
-        reduction_percent
+        "Summary should provide at least 30% size reduction, got {reduction_percent:.1}%"
     );
 }
 
-#[test]
-fn test_summary_plus_toon_maximizes_token_savings() {
-    // This test validates that combining summary mode with TOON format
-    // provides the maximum token reduction for LLM context
-
-    let detailed_activities = vec![
+/// Creates test detailed activities for format comparison tests
+fn create_test_detailed_activities() -> Vec<DetailedActivity> {
+    vec![
         DetailedActivity {
             id: "1".to_owned(),
             name: "Run 1".to_owned(),
@@ -294,10 +294,12 @@ fn test_summary_plus_toon_maximizes_token_savings() {
             description: None,
             gear_id: None,
         },
-    ];
+    ]
+}
 
-    // Create summaries
-    let summaries: Vec<ActivitySummary> = detailed_activities
+/// Converts detailed activities to summaries
+fn to_summaries(detailed: &[DetailedActivity]) -> Vec<ActivitySummary> {
+    detailed
         .iter()
         .map(|a| ActivitySummary {
             id: a.id.clone(),
@@ -307,21 +309,25 @@ fn test_summary_plus_toon_maximizes_token_savings() {
             distance_meters: a.distance_meters,
             duration_seconds: a.duration_seconds,
         })
-        .collect();
+        .collect()
+}
+
+#[test]
+fn test_summary_plus_toon_maximizes_token_savings() {
+    // This test validates that combining summary mode with TOON format
+    // provides the maximum token reduction for LLM context
+    let detailed_activities = create_test_detailed_activities();
+    let summaries = to_summaries(&detailed_activities);
 
     // Format options
     let detailed_json = format_output(&detailed_activities, OutputFormat::Json)
-        .expect("detailed json")
+        .unwrap()
         .data;
     let detailed_toon = format_output(&detailed_activities, OutputFormat::Toon)
-        .expect("detailed toon")
+        .unwrap()
         .data;
-    let summary_json = format_output(&summaries, OutputFormat::Json)
-        .expect("summary json")
-        .data;
-    let summary_toon = format_output(&summaries, OutputFormat::Toon)
-        .expect("summary toon")
-        .data;
+    let summary_json = format_output(&summaries, OutputFormat::Json).unwrap().data;
+    let summary_toon = format_output(&summaries, OutputFormat::Toon).unwrap().data;
 
     println!("Detailed JSON: {} bytes", detailed_json.len());
     println!("Detailed TOON: {} bytes", detailed_toon.len());
@@ -344,17 +350,14 @@ fn test_summary_plus_toon_maximizes_token_savings() {
     );
 
     // Calculate total savings
+    #[allow(clippy::cast_precision_loss)]
     let total_savings = (1.0 - (summary_toon.len() as f64 / detailed_json.len() as f64)) * 100.0;
-    println!(
-        "Total savings (detailed JSON -> summary TOON): {:.1}%",
-        total_savings
-    );
+    println!("Total savings (detailed JSON -> summary TOON): {total_savings:.1}%");
 
     // Combined summary + TOON should provide significant savings
     assert!(
         total_savings > 40.0,
-        "Combined mode=summary + format=toon should save at least 40% tokens, got {:.1}%",
-        total_savings
+        "Combined mode=summary + format=toon should save at least 40% tokens, got {total_savings:.1}%"
     );
 }
 
@@ -380,7 +383,7 @@ fn test_toon_format_contains_all_summary_data() {
         },
     ];
 
-    let toon_output = format_output(&summaries, OutputFormat::Toon).expect("toon format");
+    let toon_output = format_output(&summaries, OutputFormat::Toon).unwrap();
 
     // All key data should be present in TOON output
     assert!(

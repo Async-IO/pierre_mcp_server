@@ -81,6 +81,8 @@ fn make_cache_key(index: usize) -> CacheKey {
         CacheResource::ActivityList {
             page: 1,
             per_page: 20,
+            before: None,
+            after: None,
         },
     )
 }
