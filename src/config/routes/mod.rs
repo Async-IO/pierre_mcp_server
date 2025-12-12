@@ -10,11 +10,14 @@
 //! - Runtime configuration parameters and profiles
 //! - Fitness-specific configurations with tenant isolation
 
+/// Admin configuration API route handlers
+pub mod admin;
 /// Configuration management route handlers and request/response types
 pub mod configuration;
 /// Fitness-specific configuration route handlers with tenant isolation
 pub mod fitness;
 
 // Re-export route handlers for convenience
+pub use admin::{admin_config_router, AdminConfigState};
 pub use configuration::ConfigurationRoutes;
 pub use fitness::FitnessConfigurationRoutes;
