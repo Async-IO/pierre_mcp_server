@@ -394,6 +394,31 @@ impl AppError {
         Self::new(ErrorCode::ConfigError, message)
     }
 
+    /// Encryption key mismatch error with actionable guidance
+    ///
+    /// This error occurs when the Master Encryption Key (MEK) doesn't match
+    /// the key that was used to encrypt the Database Encryption Key (DEK).
+    #[must_use]
+    pub fn encryption_key_mismatch(database_url: &str) -> Self {
+        Self::new(
+            ErrorCode::ConfigError,
+            format!(
+                "Encryption key mismatch\n\n\
+                 The PIERRE_MASTER_ENCRYPTION_KEY does not match the key used to encrypt\n\
+                 this database. This happens when:\n\
+                 \x20\x20- The encryption key was regenerated or changed\n\
+                 \x20\x20- The database was copied from another environment\n\
+                 \x20\x20- The environment variables weren't loaded properly (check direnv)\n\n\
+                 To fix:\n\
+                 \x20\x201. Use the original PIERRE_MASTER_ENCRYPTION_KEY that created this database, OR\n\
+                 \x20\x202. Delete the database file and restart (this loses all existing data):\n\
+                 \x20\x20   rm {database_url}\n\n\
+                 Database location: {database_url}",
+                database_url = database_url.trim_start_matches("sqlite:")
+            ),
+        )
+    }
+
     /// External service error
     #[must_use]
     pub fn external_service(service: impl Into<String>, message: impl Into<String>) -> Self {

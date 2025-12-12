@@ -285,19 +285,24 @@ class GeminiFitnessAssistant:
 
 
 def get_jwt_token(server_url: str, email: str, password: str) -> str:
-    """Get JWT token via OAuth flow"""
-    # This is a simplified version - in production, use proper OAuth flow
-    login_url = f"{server_url}/api/auth/login"
+    """Get JWT token via OAuth2 ROPC flow"""
+    # OAuth2 Resource Owner Password Credentials (ROPC) flow
+    token_url = f"{server_url}/oauth/token"
 
     try:
         response = requests.post(
-            login_url,
-            json={"email": email, "password": password},
+            token_url,
+            data={
+                "grant_type": "password",
+                "username": email,
+                "password": password
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
             timeout=10
         )
         response.raise_for_status()
         result = response.json()
-        return result.get("token") or result.get("access_token")
+        return result.get("jwt_token") or result.get("access_token")
     except Exception as e:
         print(f"❌ Login failed: {e}")
         print("   Make sure you have created a user account on Pierre server")

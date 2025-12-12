@@ -98,12 +98,9 @@ if [[ "$USER_ID" == "null" || -z "$USER_ID" ]]; then
     # Check if user already exists - try to login and extract user_id from response
     echo -e "${YELLOW}User registration returned no ID, checking if user exists...${NC}"
 
-    CHECK_LOGIN=$(curl -s -X POST http://localhost:$HTTP_PORT/api/auth/login \
-      -H "Content-Type: application/json" \
-      -d '{
-        "email": "user@example.com",
-        "password": "userpass123"
-      }')
+    CHECK_LOGIN=$(curl -s -X POST http://localhost:$HTTP_PORT/oauth/token \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "grant_type=password&username=user@example.com&password=userpass123")
 
     USER_ID=$(echo $CHECK_LOGIN | jq -r '.user.user_id')
 
@@ -146,12 +143,9 @@ if [[ "$USER_ALREADY_EXISTS" == "true" ]]; then
 
         if [[ -z "$TENANT_ID" || "$TENANT_ID" == "null" ]]; then
             # Check if user is already approved with existing tenant
-            FINAL_LOGIN=$(curl -s -X POST http://localhost:$HTTP_PORT/api/auth/login \
-              -H "Content-Type: application/json" \
-              -d '{
-                "email": "user@example.com",
-                "password": "userpass123"
-              }')
+            FINAL_LOGIN=$(curl -s -X POST http://localhost:$HTTP_PORT/oauth/token \
+              -H "Content-Type: application/x-www-form-urlencoded" \
+              -d "grant_type=password&username=user@example.com&password=userpass123")
 
             # Try to extract tenant_id from JWT claims
             JWT=$(echo $FINAL_LOGIN | jq -r '.jwt_token')
@@ -199,12 +193,9 @@ fi
 # Step 4: User Login
 echo -e "\n${BLUE}=== Step 4: User Login ===${NC}"
 
-LOGIN_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "userpass123"
-  }')
+LOGIN_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/oauth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password&username=user@example.com&password=userpass123")
 
 # Extract JWT token for MCP access
 JWT_TOKEN=$(echo $LOGIN_RESPONSE | jq -r '.jwt_token')

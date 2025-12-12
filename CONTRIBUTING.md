@@ -52,7 +52,7 @@ Ready to contribute - create a pull request from your branch.
 |---------|------|----------|-------------|----------|
 | Health check | 8081 | `GET /api/health` | None | Verify server running |
 | User registration | 8081 | `POST /api/auth/register` | None | New user signup |
-| User login | 8081 | `POST /api/auth/login` | None | Get JWT token |
+| User login | 8081 | `POST /oauth/token` | None | Get JWT token (OAuth2 ROPC) |
 | Admin actions | 8081 | `POST /admin/*` | Admin JWT | User approval, etc. |
 | A2A protocol | 8081 | `POST /a2a/*` | Client credentials | Agent-to-agent |
 | MCP protocol | 8080 | All MCP calls | User JWT | Claude Desktop, AI tools |

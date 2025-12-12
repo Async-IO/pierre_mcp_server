@@ -103,12 +103,9 @@ fi
 echo -e "${GREEN}User approved with tenant: $TENANT_ID${NC}"
 
 echo -e "\n${YELLOW}Step 4: User Login${NC}"
-LOGIN_RESPONSE=$(curl -s -X POST "$BASE_URL/api/auth/login" \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"email\": \"$USER_EMAIL\",
-    \"password\": \"$USER_PASSWORD\"
-  }")
+LOGIN_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password&username=$USER_EMAIL&password=$USER_PASSWORD")
 
 JWT_TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r '.jwt_token // empty')
 

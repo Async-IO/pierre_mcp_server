@@ -284,7 +284,17 @@ impl KeyManager {
     fn load_existing_dek(&mut self, encrypted_dek_base64: &str) -> AppResult<()> {
         info!("Loading existing Database Encryption Key from database");
         let encrypted_dek = Self::decode_encrypted_dek(encrypted_dek_base64)?;
-        self.dek = DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, &self.mek)?;
+        self.dek =
+            DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, &self.mek).map_err(|e| {
+                // Check if this is a decryption failure (key mismatch)
+                if e.message.contains("Decryption failed") {
+                    let database_url =
+                        env::var("DATABASE_URL").unwrap_or_else(|_| "unknown".to_owned());
+                    AppError::encryption_key_mismatch(&database_url)
+                } else {
+                    e
+                }
+            })?;
         info!("Existing Database Encryption Key loaded successfully");
         Ok(())
     }
@@ -310,7 +320,16 @@ impl KeyManager {
         {
             info!("Loading existing Database Encryption Key from database");
             let encrypted_dek = Self::decode_encrypted_dek(&encrypted_dek_base64)?;
-            return DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, mek);
+            return DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, mek).map_err(|e| {
+                // Check if this is a decryption failure (key mismatch)
+                if e.message.contains("Decryption failed") {
+                    let database_url =
+                        env::var("DATABASE_URL").unwrap_or_else(|_| "unknown".to_owned());
+                    AppError::encryption_key_mismatch(&database_url)
+                } else {
+                    e
+                }
+            });
         }
 
         info!("No existing DEK found, generating new Database Encryption Key");

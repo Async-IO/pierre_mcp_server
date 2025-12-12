@@ -127,9 +127,9 @@ echo ""
 
 # Test authentication
 echo -e "${YELLOW}Testing Pierre authentication...${NC}"
-LOGIN_RESPONSE=$(curl -s -X POST http://localhost:8081/api/auth/login \
-    -H "Content-Type: application/json" \
-    -d "{\"email\": \"$PIERRE_EMAIL\", \"password\": \"$PIERRE_PASSWORD\"}" \
+LOGIN_RESPONSE=$(curl -s -X POST http://localhost:8081/oauth/token \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=password&username=$PIERRE_EMAIL&password=$PIERRE_PASSWORD" \
     || echo "error")
 
 if echo "$LOGIN_RESPONSE" | grep -q "token"; then

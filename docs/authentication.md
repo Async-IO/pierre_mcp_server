@@ -37,16 +37,15 @@ Response:
 
 ### Login
 
+Uses OAuth2 Resource Owner Password Credentials (ROPC) flow:
+
 ```bash
-curl -X POST http://localhost:8081/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "SecurePass123!"
-  }'
+curl -X POST http://localhost:8081/oauth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password&username=user@example.com&password=SecurePass123!"
 ```
 
-Response includes jwt token. Store securely.
+Response includes jwt_token. Store securely.
 
 ### Using JWT Tokens
 
@@ -191,13 +190,10 @@ curl -X POST http://localhost:8081/api/auth/register \
     "password": "SecurePass123!"
   }'
 
-# login to get jwt token
-curl -X POST http://localhost:8081/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "SecurePass123!"
-  }'
+# login to get jwt token (OAuth2 ROPC flow)
+curl -X POST http://localhost:8081/oauth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password&username=user@example.com&password=SecurePass123!"
 ```
 
 response includes jwt token:
@@ -545,11 +541,11 @@ X-CSRF-Token: <token>  (sent in request header)
 
 #### Authentication Flow
 
-**login** (`POST /api/auth/login`):
+**login** (`POST /oauth/token` - OAuth2 ROPC flow):
 ```bash
-curl -X POST http://localhost:8081/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "SecurePass123!"}'
+curl -X POST http://localhost:8081/oauth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password&username=user@example.com&password=SecurePass123!"
 ```
 
 response sets two cookies and returns csrf token:
@@ -664,10 +660,17 @@ axios.interceptors.response.use(
 );
 ```
 
-**login flow**:
+**login flow** (OAuth2 ROPC):
 ```typescript
 async function login(email: string, password: string) {
-  const response = await axios.post('/api/auth/login', { email, password });
+  const params = new URLSearchParams({
+    grant_type: 'password',
+    username: email,
+    password: password
+  });
+  const response = await axios.post('/oauth/token', params, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+  });
 
   // store csrf token in memory (cookies set automatically)
   apiService.setCsrfToken(response.data.csrf_token);

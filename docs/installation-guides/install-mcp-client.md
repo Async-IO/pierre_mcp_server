@@ -239,10 +239,10 @@ After configuring your MCP client, you need to connect fitness data providers li
 The SDK will prompt you to connect Strava when you first use fitness tools. Alternatively, you can connect manually:
 
 ```bash
-# Get your JWT token (if needed for direct API access)
-JWT_TOKEN=$(curl -s -X POST http://localhost:8081/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "your@email.com", "password": "your_password"}' | jq -r '.jwt_token')
+# Get your JWT token (if needed for direct API access) - OAuth2 ROPC flow
+JWT_TOKEN=$(curl -s -X POST http://localhost:8081/oauth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password&username=your@email.com&password=your_password" | jq -r '.jwt_token')
 
 # Get Strava authorization URL
 curl "http://localhost:8081/api/oauth/auth/strava/<user_id>" \

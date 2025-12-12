@@ -409,10 +409,10 @@ curl -H "Content-Type: application/json" \
 ### Pierre Authentication Issues
 
 ```bash
-# Test login
-curl -X POST http://localhost:8081/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "SecurePass123!"}'
+# Test login (OAuth2 ROPC flow)
+curl -X POST http://localhost:8081/oauth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password&username=user@example.com&password=SecurePass123!"
 ```
 
 ### MCP Connection Issues
