@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 #![allow(missing_docs)]
 
 use pierre_mcp_server::providers::ProviderCapabilities;
@@ -317,7 +318,7 @@ mod activity_query_params_tests {
 
         for activity in activities {
             let result = provider.add_activity(activity);
-            assert!(result.is_ok(), "Failed to add activity: {:?}", result);
+            assert!(result.is_ok(), "Failed to add activity: {result:?}");
         }
 
         provider
@@ -415,8 +416,8 @@ mod activity_query_params_tests {
 
     #[tokio::test]
     async fn test_activity_query_params_with_time_range() {
-        let before = 1700000000_i64;
-        let after = 1690000000_i64;
+        let before = 1_700_000_000_i64;
+        let after = 1_690_000_000_i64;
         let params = ActivityQueryParams::with_time_range(Some(before), Some(after));
 
         assert!(params.limit.is_none());
