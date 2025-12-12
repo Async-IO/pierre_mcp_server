@@ -241,43 +241,35 @@ async fn try_get_cached_activities(
     cache: &Arc<Cache>,
     cache_key: &CacheKey,
     user_uuid: uuid::Uuid,
-    tenant_id: Option<&String>,
-    limit: usize,
+    tenant_id: Option<String>,
     provider_name: &str,
+    mode: &str,
+    output_format: OutputFormat,
 ) -> Option<UniversalResponse> {
     if let Ok(Some(cached_activities)) = cache.get::<Vec<crate::models::Activity>>(cache_key).await
     {
-        info!("Cache hit for activities (limit={})", limit);
-        return Some(UniversalResponse {
-            success: true,
-            result: Some(serde_json::json!({
-                "activities": cached_activities,
-                "provider": provider_name,
-                "count": cached_activities.len()
-            })),
-            error: None,
-            metadata: Some({
-                let mut map = std::collections::HashMap::new();
-                map.insert(
-                    "total_activities".to_owned(),
-                    serde_json::Value::Number(cached_activities.len().into()),
-                );
-                map.insert(
-                    "user_id".to_owned(),
-                    serde_json::Value::String(user_uuid.to_string()),
-                );
-                map.insert(
-                    "tenant_id".to_owned(),
-                    tenant_id.map_or(serde_json::Value::Null, |id| {
-                        serde_json::Value::String(id.clone())
-                    }),
-                );
-                map.insert("cached".to_owned(), serde_json::Value::Bool(true));
-                map
-            }),
-        });
+        info!(
+            "Cache hit for activities (count={}, mode={}, format={:?})",
+            cached_activities.len(),
+            mode,
+            output_format
+        );
+        // Use the same response builder as the non-cached path to apply mode/format
+        let mut response = build_activities_success_response(
+            &cached_activities,
+            user_uuid,
+            tenant_id,
+            provider_name,
+            mode,
+            output_format,
+        );
+        // Mark as cached in metadata
+        if let Some(ref mut metadata) = response.metadata {
+            metadata.insert("cached".to_owned(), serde_json::Value::Bool(true));
+        }
+        return Some(response);
     }
-    info!("Cache miss for activities (limit={})", limit);
+    info!("Cache miss for activities");
     None
 }
 
@@ -701,9 +693,10 @@ pub fn handle_get_activities(
             &executor.resources.cache,
             &cache_key,
             user_uuid,
-            request.tenant_id.as_ref(),
-            limit,
+            request.tenant_id.clone(),
             &provider_name,
+            mode,
+            output_format,
         )
         .await
         {
