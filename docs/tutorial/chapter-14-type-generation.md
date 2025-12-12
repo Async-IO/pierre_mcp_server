@@ -393,11 +393,11 @@ npm run generate-types
 ==============================
 
 📡 Fetching tool schemas from http://localhost:8081/mcp...
-✅ Fetched 45 tool schemas
+✅ Fetched 47 tool schemas
 
 🔨 Generating TypeScript definitions...
 💾 Writing to sdk/src/types.ts...
-✅ Successfully generated types for 45 tools!
+✅ Successfully generated types for 47 tools!
 
 📋 Generated interfaces:
    - ConnectToPierreParams

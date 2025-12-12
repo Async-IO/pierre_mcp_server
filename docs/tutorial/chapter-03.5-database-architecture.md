@@ -1,6 +1,6 @@
 # Database Architecture & Repository Pattern
 
-This chapter explores Pierre's modern database architecture using the repository pattern, which replaced a monolithic 135-method god-trait with 13 focused repository traits following SOLID principles.
+This chapter explores Pierre's database architecture using the repository pattern with 13 focused repository traits following SOLID principles.
 
 ## What You'll Learn
 
@@ -60,15 +60,13 @@ Pierre uses a repository pattern to provide focused, cohesive interfaces for dat
 
 **Why repository pattern?**
 
-The previous architecture used a monolithic `DatabaseProvider` trait with 135+ methods covering all database operations. This violated SOLID principles:
-- **Single Responsibility**: One trait handled users, tokens, keys, analytics, tenants, etc.
-- **Interface Segregation**: Consumers needed the entire trait even if they only used 2-3 methods
+The repository pattern follows SOLID principles:
+- **Single Responsibility**: Each repository handles one domain (users, tokens, keys, etc.)
+- **Interface Segregation**: Consumers depend only on the methods they need
+- **Testability**: Mock individual repositories independently
+- **Maintainability**: Changes isolated to specific repositories
 
-**Refactoring impact**:
-- **Commit**: `6f3efef` - "eliminate DatabaseProvider god-trait and implement repository pattern"
-- **Files changed**: 121 files
-- **Lines changed**: +8,388 insertions, -7,645 deletions
-- **Result**: 13 focused repository traits, each with 5-20 cohesive methods
+Each of the 13 repository traits contains 5-20 cohesive methods for its domain.
 
 ## Repository Accessor Pattern
 
@@ -186,12 +184,7 @@ impl Database {
 **Usage pattern**:
 
 ```rust
-// Old monolithic approach (before refactor)
-let user = database.get_user(user_id).await?;
-let token = database.get_user_oauth_token(user_id, tenant_id, provider).await?;
-let keys = database.list_api_keys(user_id).await?;
-
-// New repository pattern (current)
+// Repository pattern - access through typed accessors
 let user = database.users().get_by_id(user_id).await?;
 let token = database.oauth_tokens().get(user_id, tenant_id, provider).await?;
 let keys = database.api_keys().list_by_user(user_id).await?;

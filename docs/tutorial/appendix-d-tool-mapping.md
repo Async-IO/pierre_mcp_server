@@ -12,7 +12,6 @@ All provider-specific tools accept any of these providers in the `provider` para
 
 | User says... | Tool | Parameters |
 |--------------|------|------------|
-| "Connect to Pierre" | `connect_to_pierre` | None |
 | "Link my Strava account" | `connect_provider` | `{"provider": "strava"}` |
 | "Connect my Garmin watch" | `connect_provider` | `{"provider": "garmin"}` |
 | "Show my connections" | `get_connection_status` | None |
@@ -123,7 +122,7 @@ You've completed the comprehensive Pierre Fitness Platform tutorial! You now und
 - **Part III**: MCP Protocol (JSON-RPC, request flow, transports, tool registry)
 - **Part IV**: SDK & Type System (bridge architecture, type generation)
 - **Part V**: OAuth, A2A & Providers (OAuth server/client, provider abstraction, A2A protocol)
-- **Part VI**: Tools & Intelligence (45 tools, sports science algorithms, recovery, nutrition)
+- **Part VI**: Tools & Intelligence (47 tools, sports science algorithms, recovery, nutrition)
 - **Part VII**: Testing & Deployment (synthetic data, design system, production deployment)
 
 **Next Steps**:

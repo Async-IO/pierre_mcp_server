@@ -54,7 +54,7 @@ export GARMIN_REDIRECT_URI=http://localhost:8081/api/oauth/callback/garmin  # lo
 
 **security**: http callback urls only for local development. Production must use https to protect authorization codes.
 
-See `src/constants/mod.rs` for all environment variables.
+See [environment.md](environment.md) for all environment variables.
 
 ## Running the Server
 
@@ -174,7 +174,7 @@ Pierre Fitness Platform exposes dozens of MCP tools:
 - `update_user_configuration` - update config
 - `calculate_personalized_zones` - training zones
 
-See `src/protocols/universal/tool_registry.rs` for complete tool definitions.
+See [tools-reference.md](tools-reference.md) for complete tool documentation.
 
 ## Development Workflow
 

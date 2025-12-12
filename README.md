@@ -9,7 +9,7 @@
 [![SDK Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/sdk-tests.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/sdk-tests.yml)
 [![MCP Compliance](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/mcp-compliance.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/mcp-compliance.yml)
 
-Pierre Fitness Platform connects AI assistants to fitness data from Strava, Garmin, Fitbit, and WHOOP. Implements Model Context Protocol (MCP), A2A protocol, OAuth 2.0, and REST APIs for Claude, ChatGPT, and other AI assistants.
+Pierre Fitness Platform connects AI assistants to fitness data from Strava, Garmin, Fitbit, WHOOP, and Terra (150+ wearables). Implements Model Context Protocol (MCP), A2A protocol, OAuth 2.0, and REST APIs for Claude, ChatGPT, and other AI assistants.
 
 ## Intelligence System
 
@@ -29,7 +29,7 @@ See [Intelligence Methodology](docs/intelligence-methodology.md) and [Nutrition 
 - **MCP Protocol**: JSON-RPC 2.0 for AI assistant integration
 - **A2A Protocol**: Agent-to-agent communication
 - **OAuth 2.0 Server**: RFC 7591 dynamic client registration
-- **45 MCP Tools**: Activities, goals, analysis, sleep, recovery, nutrition, configuration
+- **47 MCP Tools**: Activities, goals, analysis, sleep, recovery, nutrition, recipes, configuration
 - **TypeScript SDK**: `pierre-mcp-client` npm package
 - **Pluggable Providers**: Compile-time provider selection
 - **TOON Format**: Token-Oriented Object Notation output for ~40% LLM token reduction ([spec](https://toonformat.dev))
@@ -42,6 +42,7 @@ See [Intelligence Methodology](docs/intelligence-methodology.md) and [Nutrition 
 | Garmin | `provider-garmin` | Activities, Sleep, Health |
 | WHOOP | `provider-whoop` | Sleep, Recovery, Strain |
 | Fitbit | `provider-fitbit` | Activities, Sleep, Health |
+| Terra | `provider-terra` | 150+ wearables, Activities, Sleep, Health |
 | Synthetic | `provider-synthetic` | Development/Testing |
 
 Build with specific providers:
@@ -58,7 +59,7 @@ AI assistants query fitness data through natural language:
 
 | Request | Tools Used |
 |---------|------------|
-| "Calculate my daily nutrition needs for marathon training" | `calculate_daily_nutrition`, `calculate_nutrient_timing`, `search_foods` |
+| "Calculate my daily nutrition needs for marathon training" | `calculate_daily_nutrition`, `get_nutrient_timing`, `search_food` |
 | "Get my last 10 activities and analyze training load" | `get_activities`, `analyze_training_load`, `calculate_daily_nutrition` |
 | "Compare my three longest runs this month" | `get_activities`, `compare_activities`, `analyze_performance_trends` |
 | "Analyze this meal: 150g chicken, 200g rice, 100g broccoli" | `analyze_meal_nutrition`, `get_food_details` |
@@ -95,20 +96,20 @@ The SDK handles OAuth 2.0 authentication automatically. See [SDK Documentation](
 
 ## Available MCP Tools
 
-45 tools organized in 8 categories:
+47 tools organized in 8 categories:
 
 | Category | Tools | Description |
 |----------|-------|-------------|
-| **Core Fitness** | 9 | Activities, athlete profile, provider connections |
+| **Core Fitness** | 6 | Activities, athlete profile, provider connections |
 | **Goals** | 4 | Goal setting, suggestions, feasibility, progress |
-| **Analysis** | 8 | Metrics, trends, patterns, recommendations |
+| **Analysis** | 10 | Metrics, trends, patterns, predictions, recommendations |
 | **Sleep & Recovery** | 5 | Sleep quality, recovery score, rest recommendations |
 | **Nutrition** | 5 | BMR/TDEE, macros, USDA food search, meal analysis |
-| **Configuration** | 7 | User settings, training zones, profiles |
+| **Recipes** | 7 | Training-aware meal planning and recipe storage |
+| **Configuration** | 6 | User settings, training zones, profiles |
 | **Fitness Config** | 4 | Fitness parameters, thresholds |
-| **OAuth** | 5 | Notifications, connection management |
 
-Full tool reference: `src/protocols/universal/tool_registry.rs`
+Full tool reference: [docs/tools-reference.md](docs/tools-reference.md)
 
 ## Server Management
 

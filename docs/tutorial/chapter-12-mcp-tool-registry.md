@@ -17,42 +17,47 @@ This final chapter of Part III explores how Pierre registers MCP tools, validate
 
 Pierre registers all MCP tools at startup using a centralized registry:
 
-**Source**: src/mcp/schema.rs:499-525
+**Source**: src/mcp/schema.rs
 ```rust
 pub fn get_tools() -> Vec<ToolSchema> {
     create_fitness_tools()
 }
 
-/// Create all fitness provider tool schemas
+/// Create all fitness provider tool schemas (47 tools in 8 categories)
 fn create_fitness_tools() -> Vec<ToolSchema> {
     vec![
-        // Connection tools
-        create_connect_to_pierre_tool(),
+        // Connection tools (3)
         create_connect_provider_tool(),
         create_get_connection_status_tool(),
         create_disconnect_provider_tool(),
-        // Original tools
+        // Core fitness tools (4)
         create_get_activities_tool(),
         create_get_athlete_tool(),
         create_get_stats_tool(),
         create_get_activity_intelligence_tool(),
-        create_get_notifications_tool(),
-        create_mark_notifications_read_tool(),
-        create_announce_oauth_success_tool(),
-        create_check_oauth_notifications_tool(),
-        // Fitness configuration tools
-        create_list_fitness_configs_tool(),
-        create_get_fitness_config_tool(),
-        create_set_fitness_config_tool(),
-        create_delete_fitness_config_tool(),
-        // Goal tracking tools
-        create_set_goal_tool(),
-        create_track_progress_tool(),
+        // Analytics tools (14)
+        create_analyze_activity_tool(),
+        create_calculate_metrics_tool(),
+        // ... more analytics tools
+        // Configuration tools (10)
+        create_get_configuration_catalog_tool(),
+        // ... more configuration tools
+        // Nutrition tools (5)
+        create_calculate_daily_nutrition_tool(),
+        // ... more nutrition tools
+        // Sleep & Recovery tools (5)
+        create_analyze_sleep_quality_tool(),
+        // ... more sleep tools
+        // Recipe Management tools (7)
+        create_get_recipe_constraints_tool(),
+        // ... more recipe tools
     ]
 }
 ```
 
 **Registry pattern**: Single `get_tools()` function returns all available tools. This ensures tools/list and tools/call use the same definitions.
+
+See [tools-reference.md](../tools-reference.md) for the complete list of 47 tools.
 
 ## Tool Schema Structure
 
