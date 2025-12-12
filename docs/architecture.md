@@ -97,7 +97,7 @@ Pierre Fitness Platform is a multi-protocol fitness data platform that connects 
 
 #### Repository Architecture
 
-The database layer implements the repository pattern to break down the monolithic `DatabaseProvider` god-trait into focused, cohesive repositories (commit 6f3efef):
+The database layer implements the repository pattern with focused, cohesive repositories:
 
 **13 focused repositories** (`src/database/repositories/`):
 1. `UserRepository` - user account management
@@ -137,7 +137,7 @@ let api_key = db.api_keys().get_by_key(key).await?;
 
 ## Error Handling
 
-Pierre Fitness Platform uses structured error types for precise error handling and propagation. The codebase **does not use anyhow** - all errors are structured types using `thiserror` (commits b592b5e, 3219f07).
+Pierre Fitness Platform uses structured error types for precise error handling and propagation. The codebase **does not use anyhow** - all errors are structured types using `thiserror`.
 
 ### Error Type Hierarchy
 
@@ -337,7 +337,7 @@ sdk/src/types.ts (47 parameter interfaces)
 
 **generated types include**:
 - `ToolParamsMap` - maps tool names to parameter types
-- `ToolName` - union type of all 45 tool names
+- `ToolName` - union type of all 47 tool names
 - common data types: `Activity`, `Athlete`, `Stats`, `FitnessConfig`
 
 Usage: `npm run generate-types` (requires running server on port 8081)

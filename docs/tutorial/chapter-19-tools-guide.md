@@ -1,11 +1,11 @@
-# Chapter 19: Comprehensive Tools Guide - All 45 MCP Tools
+# Chapter 19: Comprehensive Tools Guide - All 47 MCP Tools
 
-This chapter provides a complete reference to all 45 MCP tools Pierre offers for fitness data analysis. You'll learn tool categories, natural language prompt examples, and how AI assistants discover and use these tools.
+This chapter provides a complete reference to all 47 MCP tools Pierre offers for fitness data analysis. You'll learn tool categories, natural language prompt examples, and how AI assistants discover and use these tools.
 
 ## What You'll Learn
 
-- Complete tool inventory (45 tools)
-- Tool categorization (6 categories)
+- Complete tool inventory (47 tools)
+- Tool categorization (8 categories)
 - Natural language prompt patterns
 - Tool discovery via `tools/list`
 - Parameter schemas and validation
@@ -15,38 +15,46 @@ This chapter provides a complete reference to all 45 MCP tools Pierre offers for
 
 ## Tool Overview
 
-Pierre provides 45 MCP tools organized in 6 functional categories:
+Pierre provides 47 MCP tools organized in 8 functional categories:
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│              Pierre MCP Tools (45 total)                   │
+│              Pierre MCP Tools (47 total)                   │
 ├────────────────────────────────────────────────────────────┤
-│ 1. Connection Tools (4)                                    │
-│    - OAuth flow management                                 │
-│    - Provider connection status                            │
-├────────────────────────────────────────────────────────────┤
-│ 2. Data Access Tools (8)                                   │
+│ 1. Core Fitness Tools (6)                                  │
 │    - Activities, athlete profiles, stats                   │
-│    - Notifications and OAuth completion                    │
+│    - Provider connection management                        │
 ├────────────────────────────────────────────────────────────┤
-│ 3. Intelligence & Analytics (13)                           │
+│ 2. Goals & Planning (4)                                    │
+│    - Goal setting, suggestions, feasibility                │
+│    - Progress tracking                                     │
+├────────────────────────────────────────────────────────────┤
+│ 3. Performance Analysis (10)                               │
 │    - Activity analysis, metrics calculation                │
 │    - Performance trends, pattern detection                 │
-│    - Goal management, predictions                          │
+│    - Predictions, recommendations                          │
 ├────────────────────────────────────────────────────────────┤
-│ 4. Configuration Management (10)                           │
+│ 4. Configuration Management (6)                            │
 │    - User profiles, training zones                         │
-│    - Fitness configuration CRUD                            │
+│    - System configuration catalog                          │
 ├────────────────────────────────────────────────────────────┤
-│ 5. Nutrition Tools (5)                                     │
-│    - Daily nutrition calculations                          │
-│    - USDA food database search                             │
-│    - Meal analysis                                         │
+│ 5. Fitness Configuration (4)                               │
+│    - Fitness configuration CRUD                            │
+│    - User-specific fitness settings                        │
 ├────────────────────────────────────────────────────────────┤
 │ 6. Sleep & Recovery (5)                                    │
 │    - Sleep quality analysis                                │
 │    - Recovery score calculation                            │
 │    - Rest day suggestions                                  │
+├────────────────────────────────────────────────────────────┤
+│ 7. Nutrition Tools (5)                                     │
+│    - Daily nutrition calculations                          │
+│    - USDA food database search                             │
+│    - Meal analysis                                         │
+├────────────────────────────────────────────────────────────┤
+│ 8. Recipe Management (7)                                   │
+│    - Training-aware meal planning                          │
+│    - Recipe storage and search                             │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -627,7 +635,7 @@ AI chains:
 
 ## Key Takeaways
 
-1. **45 total tools**: Organized in 6 functional categories for comprehensive fitness analysis.
+1. **47 total tools**: Organized in 8 functional categories for comprehensive fitness analysis.
 
 2. **Natural language**: AI assistants translate user prompts to tool calls automatically.
 
@@ -635,7 +643,7 @@ AI chains:
 
 4. **Connection-first**: Most workflows start with connection tools to establish OAuth.
 
-5. **Intelligence layer**: 13 analytics tools provide AI-powered insights beyond raw data.
+5. **Intelligence layer**: 10 analytics tools provide AI-powered insights beyond raw data.
 
 6. **Configuration-driven**: Personalized zones and recommendations based on user profile.
 
@@ -643,9 +651,13 @@ AI chains:
 
 8. **Recovery focus**: Sleep and recovery tools prevent overtraining.
 
-9. **Tool chaining**: Complex workflows combine multiple tools sequentially.
+9. **Recipe management**: Training-aware meal planning and recipe storage.
 
-10. **JSON Schema**: Every tool has input schema for validation and type safety.
+10. **Tool chaining**: Complex workflows combine multiple tools sequentially.
+
+11. **JSON Schema**: Every tool has input schema for validation and type safety.
+
+See [tools-reference.md](../tools-reference.md) for complete tool documentation.
 
 ---
 

@@ -45,7 +45,7 @@
 
 ## Part VI: Tools & Intelligence System
 
-21. [Chapter 19: Comprehensive Tools Guide - All 45 MCP Tools](tutorial/chapter-19-tools-guide.md)
+21. [Chapter 19: Comprehensive Tools Guide - All 47 MCP Tools](tutorial/chapter-19-tools-guide.md)
 22. [Chapter 20: Sports Science Algorithms & Intelligence](tutorial/chapter-20-sports-science.md)
 23. [Chapter 21: Training Load, Recovery & Sleep Analysis](tutorial/chapter-21-recovery-sleep.md)
 24. [Chapter 22: Nutrition System & USDA Integration](tutorial/chapter-22-nutrition.md)

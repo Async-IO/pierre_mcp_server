@@ -37,7 +37,7 @@ Quick reference for navigating the Pierre codebase.
 
 - **src/jsonrpc/**: JSON-RPC 2.0 foundation
 - **src/mcp/protocol.rs**: MCP request handlers
-- **src/mcp/schema.rs**: Tool schemas (45 tools)
+- **src/mcp/schema.rs**: Tool schemas (47 tools)
 - **src/mcp/tool_handlers.rs**: Tool execution logic
 - **src/mcp/transport_manager.rs**: Transport layer coordination
 
