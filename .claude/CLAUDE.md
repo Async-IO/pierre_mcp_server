@@ -97,14 +97,25 @@ Rapid "fix" pushes without checking CI status cause:
 ### CCFW Commit Workflow
 
 1. Make your changes
-2. Run local validation (cargo fmt, architectural validation, clippy)
+2. Run `cargo fmt` to format code
 3. **BEFORE pushing:** Use WebFetch to check CI status at `https://github.com/jfacousern/pierre_mcp_server/actions`
    - Ask: "What is the status of the most recent workflow? Is it passing, failing, or in-progress?"
 4. **DO NOT push if CI is in-progress or failing** - wait for it to complete or fix the issue
 5. If CI is clear (passing, no runs in progress), commit and push
+   - **The pre-push hook will automatically run strict clippy for CCFW** - you don't need to run it manually
+   - If clippy fails, the push will be blocked - fix the issues and try again
 6. **AFTER pushing:** Use WebFetch to monitor your new workflow run
 7. **WAIT for CI to complete** before making more changes
 8. If CI fails, fix the issue, then repeat from step 3
+
+### Automatic CCFW Validation
+
+When the pre-push hook detects CCFW (no `gh` CLI available), it automatically runs:
+```
+cargo clippy --all-targets --all-features --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery
+```
+
+This strict validation compensates for CCFW's inability to check CI status. If clippy fails, your push is blocked until you fix the issues.
 
 ### CCFW Directives
 
