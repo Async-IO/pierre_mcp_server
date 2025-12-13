@@ -56,6 +56,80 @@ cargo run --bin admin-setup -- revoke-token <token_id>
 - Token refresh is transparent to tool execution
 - If refresh fails, user must re-authenticate via OAuth flow
 
+## Claude Code for Web (CCFW) - Special Instructions
+
+CCFW does not have access to `gh` CLI or MCP tools. The pre-push hook will detect this and warn you. You MUST follow this workflow to prevent CI overload:
+
+### Before EVERY Push
+
+1. **Use WebFetch to check CI status BEFORE pushing:**
+   ```
+   WebFetch(
+     url: "https://github.com/jfacousern/pierre_mcp_server/actions",
+     prompt: "What is the status of the most recent workflow run? Is it passing, failing, or in progress? What branch is it on?"
+   )
+   ```
+
+2. **If CI is failing or in progress:** DO NOT push. Wait for it to complete and fix any issues first.
+
+3. **After pushing:** Wait for CI to complete before making more commits. Check status again with WebFetch.
+
+### The Problem This Solves
+
+Without `gh` CLI, you cannot:
+- Cancel in-flight workflows before pushing
+- Check CI status programmatically
+- Avoid queueing redundant workflow runs
+
+**Why CCFW cannot cancel workflows:**
+- WebFetch is **read-only** - it can GET web pages but cannot POST to APIs
+- The GitHub MCP tools available don't include workflow management
+- Cancellation requires `POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel`
+
+**Normal Claude Code with `gh` CLI will automatically cancel in-flight workflows** after local validation passes, ensuring only the latest push's workflow runs.
+
+Rapid "fix" pushes without checking CI status cause:
+- Workflow queue overload (10+ runs queued)
+- Wasted CI minutes
+- Delayed feedback on actual issues
+- GitHub Actions rate limiting
+
+### CCFW Commit Workflow
+
+1. Make your changes
+2. Run local validation (cargo fmt, architectural validation, clippy)
+3. **BEFORE pushing:** Use WebFetch to check CI status at `https://github.com/jfacousern/pierre_mcp_server/actions`
+   - Ask: "What is the status of the most recent workflow? Is it passing, failing, or in-progress?"
+4. **DO NOT push if CI is in-progress or failing** - wait for it to complete or fix the issue
+5. If CI is clear (passing, no runs in progress), commit and push
+6. **AFTER pushing:** Use WebFetch to monitor your new workflow run
+7. **WAIT for CI to complete** before making more changes
+8. If CI fails, fix the issue, then repeat from step 3
+
+### CCFW Directives
+
+**Before any push:**
+- Check GitHub Actions page for current workflow status
+- If workflows are running or queued, WAIT - do not add to the queue
+- If the last workflow failed, DO NOT push new code until you understand why
+
+**After a successful push:**
+- Monitor your workflow run via WebFetch
+- Do not start new work until CI passes
+- If CI fails, that is your top priority to fix
+
+**After a failed CI run:**
+- Use WebFetch to read the workflow run page and identify the failure
+- Fix locally, validate locally, then check CI status again before pushing
+
+### NEVER Do This in CCFW
+
+- Push multiple commits without checking CI between each
+- Assume your "fix" will work without waiting for CI
+- Push rapid-fire "oops" commits
+- Ignore the pre-push hook warning about missing `gh` CLI
+- Push while workflows are still running (causes queue overload)
+
 # Writing code
 
 - CRITICAL: NEVER USE --no-verify WHEN COMMITTING CODE
