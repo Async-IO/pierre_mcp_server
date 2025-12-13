@@ -86,8 +86,10 @@ check_inflight_workflows() {
     fi
 }
 
-# Check if gh CLI is available - warn CCFW users early
+# Check if gh CLI is available - warn CCFW users and run extra validation
+CCFW_MODE=false
 if ! command -v gh &> /dev/null; then
+    CCFW_MODE=true
     # gh CLI not available - CCFW environment detected
     echo "⚠️  =============================================="
     echo "⚠️  WARNING: gh CLI not available"
@@ -104,9 +106,25 @@ if ! command -v gh &> /dev/null; then
     echo "Rapid pushes without checking CI cause workflow overload."
     echo ""
     echo "CCFW cannot cancel workflows - WebFetch is read-only."
-    echo "To proceed anyway (NOT RECOMMENDED): git push --no-verify"
     echo ""
-    # Continue with local validation - don't block, just warn
+
+    # CCFW gets extra strict validation since they can't easily check CI
+    echo "🔬 Running STRICT clippy validation (CCFW mode)..."
+    echo "   (Extra validation since you cannot check CI status)"
+    echo ""
+    cd "$PROJECT_ROOT"
+    if ! cargo clippy --all-targets --all-features --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery; then
+        echo ""
+        echo "❌ Strict clippy validation failed!"
+        echo ""
+        echo "CCFW must pass strict clippy since you cannot verify CI status."
+        echo "Fix the warnings above before pushing."
+        echo "To bypass (NOT RECOMMENDED): git push --no-verify"
+        echo ""
+        exit 1
+    fi
+    echo "✅ Strict clippy passed"
+    echo ""
 fi
 
 # Run architectural validation first (fast, catches pattern violations)
