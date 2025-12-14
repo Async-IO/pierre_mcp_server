@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/setup-git-hooks.sh"
+            "command": "git config core.hooksPath .githooks"
           }
         ]
       }

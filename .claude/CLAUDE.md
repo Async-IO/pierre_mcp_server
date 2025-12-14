@@ -56,15 +56,15 @@ cargo run --bin admin-setup -- revoke-token <token_id>
 - Token refresh is transparent to tool execution
 - If refresh fails, user must re-authenticate via OAuth flow
 
-## Claude Code for Web (CCFW) - Special Instructions
+## Claude Code for Web - Special Instructions
 
-**⚠️ MANDATORY FIRST STEP - Run this BEFORE any work:**
+**⚠️ MANDATORY - Run this at the START OF EVERY SESSION:**
 ```bash
-./scripts/setup-git-hooks.sh
+git config core.hooksPath .githooks
 ```
-This installs the pre-push hook that runs strict clippy validation. Without this, your pushes will NOT be validated locally and will likely break CI.
+This enables the pre-push hook that runs strict clippy validation. Sessions get archived/revived, so this must run EVERY time you start working, not just once.
 
-CCFW does not have access to `gh` CLI or MCP tools. The pre-push hook will detect this and warn you. You MUST follow this workflow to prevent CI overload:
+Claude Code for Web does not have access to `gh` CLI or MCP tools. The pre-push hook will detect this and warn you. You MUST follow this workflow to prevent CI overload:
 
 ### Before EVERY Push
 
@@ -87,7 +87,7 @@ Without `gh` CLI, you cannot:
 - Check CI status programmatically
 - Avoid queueing redundant workflow runs
 
-**Why CCFW cannot cancel workflows:**
+**Why Claude Code for Web cannot cancel workflows:**
 - WebFetch is **read-only** - it can GET web pages but cannot POST to APIs
 - The GitHub MCP tools available don't include workflow management
 - Cancellation requires `POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel`
@@ -100,31 +100,31 @@ Rapid "fix" pushes without checking CI status cause:
 - Delayed feedback on actual issues
 - GitHub Actions rate limiting
 
-### CCFW Commit Workflow
+### Claude Code for Web Commit Workflow
 
-0. **FIRST TIME ONLY:** Run `./scripts/setup-git-hooks.sh` to install validation hooks
+0. **EVERY SESSION:** Run `git config core.hooksPath .githooks` to enable validation hooks
 1. Make your changes
 2. Run `cargo fmt` to format code
 3. **BEFORE pushing:** Use WebFetch to check CI status at `https://github.com/Async-IO/pierre_mcp_server/actions`
    - Ask: "What is the status of the most recent workflow? Is it passing, failing, or in-progress?"
 4. **DO NOT push if CI is in-progress or failing** - wait for it to complete or fix the issue
-5. If CI is clear (passing, no runs in progress), commit and push
-   - **The pre-push hook will automatically run strict clippy for CCFW** - you don't need to run it manually
-   - If clippy fails, the push will be blocked - fix the issues and try again
+5. If CI is clear, commit and push
+   - **Clippy runs AUTOMATICALLY** - the pre-push hook runs strict clippy, you don't need to run it manually
+   - If clippy fails, the push is blocked - fix the issues and try again
 6. **AFTER pushing:** Use WebFetch to monitor your new workflow run
 7. **WAIT for CI to complete** before making more changes
 8. If CI fails, fix the issue, then repeat from step 3
 
-### Automatic CCFW Validation
+### Automatic Claude Code for Web Validation
 
-When the pre-push hook detects CCFW (no `gh` CLI available), it automatically runs:
+When the pre-push hook detects Claude Code for Web (no `gh` CLI available), it automatically runs:
 ```
 cargo clippy --all-targets --all-features --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery
 ```
 
-This strict validation compensates for CCFW's inability to check CI status. If clippy fails, your push is blocked until you fix the issues.
+This strict validation compensates for Claude Code for Web's inability to check CI status. If clippy fails, your push is blocked until you fix the issues.
 
-### CCFW Directives
+### Claude Code for Web Directives
 
 **Before any push:**
 - Check GitHub Actions page for current workflow status
@@ -140,7 +140,7 @@ This strict validation compensates for CCFW's inability to check CI status. If c
 - Use WebFetch to read the workflow run page and identify the failure
 - Fix locally, validate locally, then check CI status again before pushing
 
-### NEVER Do This in CCFW
+### NEVER Do This in Claude Code for Web
 
 - Push multiple commits without checking CI between each
 - Assume your "fix" will work without waiting for CI
