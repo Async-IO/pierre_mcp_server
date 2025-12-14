@@ -38,6 +38,22 @@ echo "📝 Installing commit-msg hook..."
 cp "$PROJECT_ROOT/.githooks/commit-msg" "$PROJECT_ROOT/.git/hooks/commit-msg"
 chmod +x "$PROJECT_ROOT/.git/hooks/commit-msg"
 
+# Detect CCFW environment (no gh CLI available)
+if ! command -v gh &> /dev/null; then
+    echo ""
+    echo "⚠️  CCFW environment detected (gh CLI not available)"
+    echo "   Enabling strict clippy mode for all pushes..."
+    touch "$PROJECT_ROOT/.git/ccfw_mode"
+    echo ""
+    echo "🔬 CCFW MODE ENABLED:"
+    echo "   • Strict clippy will run on EVERY push"
+    echo "   • You MUST use WebFetch to check CI status before/after push"
+    echo "   • See .claude/CLAUDE.md for detailed workflow"
+else
+    # Remove CCFW mode marker if gh is available
+    rm -f "$PROJECT_ROOT/.git/ccfw_mode"
+fi
+
 echo ""
 echo "✅ Git hooks installed successfully!"
 echo ""

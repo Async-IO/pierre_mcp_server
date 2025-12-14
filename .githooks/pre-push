@@ -86,38 +86,32 @@ check_inflight_workflows() {
     fi
 }
 
-# Check if gh CLI is available - warn CCFW users and run extra validation
+# Check for CCFW mode (either no gh CLI OR .git/ccfw_mode marker exists)
 CCFW_MODE=false
-if ! command -v gh &> /dev/null; then
+if [ -f "$PROJECT_ROOT/.git/ccfw_mode" ] || ! command -v gh &> /dev/null; then
     CCFW_MODE=true
-    # gh CLI not available - CCFW environment detected
     echo "⚠️  =============================================="
-    echo "⚠️  WARNING: gh CLI not available"
-    echo "⚠️  (Claude Code for Web environment detected)"
+    echo "⚠️  CCFW MODE ACTIVE"
+    echo "⚠️  (Strict validation enabled)"
     echo "⚠️  =============================================="
     echo ""
     echo "You MUST manually verify CI status before pushing!"
     echo ""
     echo "Use WebFetch to check GitHub Actions status:"
-    echo "  URL: https://github.com/jfacousern/pierre_mcp_server/actions"
+    echo "  URL: https://github.com/Async-IO/pierre_mcp_server/actions"
     echo "  Prompt: 'What is the status of the most recent workflow run on branch $CURRENT_BRANCH?'"
     echo ""
     echo "If CI is currently running or failing, DO NOT push until resolved."
-    echo "Rapid pushes without checking CI cause workflow overload."
-    echo ""
-    echo "CCFW cannot cancel workflows - WebFetch is read-only."
     echo ""
 
-    # CCFW gets extra strict validation since they can't easily check CI
-    echo "🔬 Running STRICT clippy validation (CCFW mode)..."
-    echo "   (Extra validation since you cannot check CI status)"
+    # CCFW gets strict clippy validation since they can't easily check CI
+    echo "🔬 Running STRICT clippy validation..."
     echo ""
     cd "$PROJECT_ROOT"
     if ! cargo clippy --all-targets --all-features --quiet -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery; then
         echo ""
         echo "❌ Strict clippy validation failed!"
         echo ""
-        echo "CCFW must pass strict clippy since you cannot verify CI status."
         echo "Fix the warnings above before pushing."
         echo "To bypass (NOT RECOMMENDED): git push --no-verify"
         echo ""

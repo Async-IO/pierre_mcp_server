@@ -58,6 +58,12 @@ cargo run --bin admin-setup -- revoke-token <token_id>
 
 ## Claude Code for Web (CCFW) - Special Instructions
 
+**⚠️ MANDATORY FIRST STEP - Run this BEFORE any work:**
+```bash
+./scripts/setup-git-hooks.sh
+```
+This installs the pre-push hook that runs strict clippy validation. Without this, your pushes will NOT be validated locally and will likely break CI.
+
 CCFW does not have access to `gh` CLI or MCP tools. The pre-push hook will detect this and warn you. You MUST follow this workflow to prevent CI overload:
 
 ### Before EVERY Push
@@ -96,9 +102,10 @@ Rapid "fix" pushes without checking CI status cause:
 
 ### CCFW Commit Workflow
 
+0. **FIRST TIME ONLY:** Run `./scripts/setup-git-hooks.sh` to install validation hooks
 1. Make your changes
 2. Run `cargo fmt` to format code
-3. **BEFORE pushing:** Use WebFetch to check CI status at `https://github.com/jfacousern/pierre_mcp_server/actions`
+3. **BEFORE pushing:** Use WebFetch to check CI status at `https://github.com/Async-IO/pierre_mcp_server/actions`
    - Ask: "What is the status of the most recent workflow? Is it passing, failing, or in-progress?"
 4. **DO NOT push if CI is in-progress or failing** - wait for it to complete or fix the issue
 5. If CI is clear (passing, no runs in progress), commit and push
