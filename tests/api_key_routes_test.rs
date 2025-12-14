@@ -223,6 +223,7 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                     redis_url: None,
                     max_entries: 10000,
                     cleanup_interval_secs: 300,
+                    ..Default::default()
                 },
                 usda_api_key: None,
                 rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),

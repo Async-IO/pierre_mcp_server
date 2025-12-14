@@ -281,6 +281,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthService, Uuid, Arc<Database>
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -564,6 +565,7 @@ async fn test_user_login_success() -> Result<()> {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -844,6 +846,7 @@ async fn test_token_refresh_success() -> Result<()> {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -1072,6 +1075,7 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -1557,6 +1561,7 @@ async fn test_complete_auth_flow() -> Result<()> {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -1864,6 +1869,7 @@ async fn test_concurrent_logins() -> Result<()> {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),

@@ -88,12 +88,13 @@ fn make_cache_key(index: usize) -> CacheKey {
 }
 
 /// Create test cache configuration (no background cleanup for benchmarks)
-const fn test_cache_config() -> CacheConfig {
+fn test_cache_config() -> CacheConfig {
     CacheConfig {
         max_entries: 10_000,
         redis_url: None,
         cleanup_interval: Duration::from_secs(3600),
         enable_background_cleanup: false,
+        ..Default::default()
     }
 }
 

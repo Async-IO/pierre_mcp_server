@@ -75,6 +75,7 @@ impl TestServer {
                 redis_url: None,
                 cleanup_interval: Duration::from_secs(60),
                 enable_background_cleanup: false,
+                ..Default::default()
             })
             .await?;
 

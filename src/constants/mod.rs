@@ -289,6 +289,30 @@ pub mod database {
     pub const QUERY_TIMEOUT_SECS: u64 = 30;
     /// Migration timeout in seconds
     pub const MIGRATION_TIMEOUT_SECS: u64 = 300;
+    /// Default number of connection retries on startup
+    pub const CONNECTION_RETRIES: u32 = 5;
+    /// Initial retry delay in milliseconds for exponential backoff
+    pub const INITIAL_RETRY_DELAY_MS: u64 = 500;
+    /// Maximum retry delay in milliseconds
+    pub const MAX_RETRY_DELAY_MS: u64 = 30_000;
+    /// Exponential backoff base multiplier
+    pub const RETRY_BACKOFF_MULTIPLIER: u32 = 2;
+}
+
+/// Redis connection configuration
+pub mod redis {
+    /// Redis connection timeout in seconds
+    pub const CONNECTION_TIMEOUT_SECS: u64 = 10;
+    /// Redis response timeout in seconds
+    pub const RESPONSE_TIMEOUT_SECS: u64 = 5;
+    /// Number of reconnection retries
+    pub const RECONNECTION_RETRIES: usize = 5;
+    /// Exponential backoff base for retry delays
+    pub const RETRY_EXPONENT_BASE: u64 = 2;
+    /// Maximum retry delay in milliseconds
+    pub const MAX_RETRY_DELAY_MS: u64 = 30_000;
+    /// Initial connection retry count
+    pub const INITIAL_CONNECTION_RETRIES: u32 = 3;
 }
 
 /// Status codes and messages

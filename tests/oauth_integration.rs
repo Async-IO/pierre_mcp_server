@@ -182,6 +182,7 @@ async fn test_oauth_authorization_url_generation() {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -467,6 +468,7 @@ async fn test_oauth_state_validation() {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -654,6 +656,7 @@ async fn test_connection_status_no_providers() {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -874,6 +877,7 @@ async fn test_invalid_provider_error() {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -1057,6 +1061,7 @@ async fn test_disconnect_provider() {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -1338,6 +1343,7 @@ async fn test_oauth_urls_contain_required_parameters() {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),

@@ -178,6 +178,7 @@ pub async fn create_test_cache() -> Result<pierre_mcp_server::cache::factory::Ca
         redis_url: None,
         cleanup_interval: std::time::Duration::from_secs(60),
         enable_background_cleanup: false, // Disable background cleanup for tests
+        ..Default::default()
     };
     pierre_mcp_server::cache::factory::Cache::new(cache_config)
         .await
@@ -382,6 +383,7 @@ pub async fn create_test_server_resources() -> Result<Arc<ServerResources>> {
         redis_url: None,
         cleanup_interval: std::time::Duration::from_secs(60),
         enable_background_cleanup: false, // Disable background cleanup for tests
+        ..Default::default()
     };
     let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config).await?;
 
@@ -994,6 +996,7 @@ impl IsolatedPostgresDb {
             max_connections: 5,
             min_connections: 1,
             acquire_timeout_secs: 30,
+            ..Default::default()
         };
 
         let db = Database::new(&self.url, encryption_key, &pool_config).await?;

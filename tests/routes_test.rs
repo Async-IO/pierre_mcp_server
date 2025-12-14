@@ -198,6 +198,7 @@ async fn test_register_user() {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -366,6 +367,7 @@ async fn test_register_duplicate_user() {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),

@@ -151,6 +151,7 @@ async fn test_email_validation() {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -356,6 +357,7 @@ async fn test_password_validation() {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -533,6 +535,7 @@ async fn test_duplicate_user_registration() {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -701,6 +704,7 @@ async fn test_login_with_correct_credentials() {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -916,6 +920,7 @@ async fn test_login_with_wrong_password() {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -1091,6 +1096,7 @@ async fn test_login_with_non_existent_user() {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),

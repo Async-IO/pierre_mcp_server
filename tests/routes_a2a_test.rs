@@ -234,6 +234,7 @@ impl A2ATestSetup {
             redis_url: None,
             cleanup_interval: std::time::Duration::from_secs(60),
             enable_background_cleanup: false,
+            ..Default::default()
         };
         let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
             .await
@@ -1709,6 +1710,7 @@ fn create_test_server_config() -> ServerConfig {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),

@@ -42,6 +42,7 @@ async fn create_redis_cache() -> Result<Option<Cache>> {
         redis_url: Some(redis_url),
         cleanup_interval: Duration::from_secs(300),
         enable_background_cleanup: false, // Disable in tests
+        ..Default::default()
     };
 
     let cache = Cache::new(config).await?;

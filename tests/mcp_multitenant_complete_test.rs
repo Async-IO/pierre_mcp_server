@@ -506,6 +506,7 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
             redis_url: None,
             cleanup_interval: std::time::Duration::from_secs(60),
             enable_background_cleanup: false,
+            ..Default::default()
         })
         .await?;
 
@@ -682,6 +683,7 @@ async fn test_mcp_authentication_required() -> Result<()> {
             redis_url: None,
             cleanup_interval: std::time::Duration::from_secs(60),
             enable_background_cleanup: false,
+            ..Default::default()
         })
         .await?;
 
@@ -773,6 +775,7 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
             redis_url: None,
             cleanup_interval: std::time::Duration::from_secs(60),
             enable_background_cleanup: false,
+            ..Default::default()
         })
         .await?;
 
@@ -855,6 +858,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
             redis_url: None,
             cleanup_interval: std::time::Duration::from_secs(60),
             enable_background_cleanup: false,
+            ..Default::default()
         })
         .await?;
 
@@ -961,6 +965,7 @@ async fn test_multitenant_server_config() -> Result<()> {
             redis_url: None,
             cleanup_interval: std::time::Duration::from_secs(60),
             enable_background_cleanup: false,
+            ..Default::default()
         })
         .await?;
 

@@ -95,6 +95,7 @@ async fn create_test_tool_executor_with_user() -> (Arc<UniversalToolExecutor>, S
         redis_url: None,
         cleanup_interval: std::time::Duration::from_secs(60),
         enable_background_cleanup: false,
+        ..Default::default()
     };
     let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
         .await

@@ -307,6 +307,7 @@ impl DashboardTestSetup {
                 redis_url: None,
                 max_entries: 10000,
                 cleanup_interval_secs: 300,
+                ..Default::default()
             },
             usda_api_key: None,
             rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),
@@ -710,6 +711,7 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
             redis_url: None,
             max_entries: 10000,
             cleanup_interval_secs: 300,
+            ..Default::default()
         },
         usda_api_key: None,
         rate_limiting: pierre_mcp_server::config::environment::RateLimitConfig::default(),

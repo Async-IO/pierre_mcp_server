@@ -136,22 +136,21 @@ impl PostgresDatabase {
 
         // Log connection pool configuration for debugging
         info!(
-            "PostgreSQL pool config: max_connections={max_connections}, min_connections={min_connections}, timeout={acquire_timeout_secs}s"
+            "PostgreSQL pool config: max_connections={max_connections}, min_connections={min_connections}, timeout={acquire_timeout_secs}s, retries={}",
+            pool_config.connection_retries
         );
 
-        let pool = PgPoolOptions::new()
-            .max_connections(max_connections)
-            .min_connections(min_connections)
-            .acquire_timeout(Duration::from_secs(acquire_timeout_secs))
-            .idle_timeout(Some(Duration::from_secs(300)))
-            .max_lifetime(Some(Duration::from_secs(600)))
-            .connect(database_url)
-            .await
-            .map_err(|e| {
-                AppError::database(format!(
-                    "Failed to connect to PostgreSQL with {max_connections} max connections: {e}"
-                ))
-            })?;
+        // Attempt connection with exponential backoff retry
+        let pool = Self::connect_with_retry(
+            database_url,
+            max_connections,
+            min_connections,
+            acquire_timeout_secs,
+            pool_config.connection_retries,
+            pool_config.initial_retry_delay_ms,
+            pool_config.max_retry_delay_ms,
+        )
+        .await?;
 
         let db = Self {
             pool,
@@ -162,6 +161,71 @@ impl PostgresDatabase {
         db.migrate().await?;
 
         Ok(db)
+    }
+
+    /// Connect to `PostgreSQL` with exponential backoff retry on failure
+    ///
+    /// Handles transient connection failures (network issues, database restarts)
+    /// by retrying with increasing delays between attempts.
+    async fn connect_with_retry(
+        database_url: &str,
+        max_connections: u32,
+        min_connections: u32,
+        acquire_timeout_secs: u64,
+        max_retries: u32,
+        initial_delay_ms: u64,
+        max_delay_ms: u64,
+    ) -> AppResult<Pool<Postgres>> {
+        let pool_options = PgPoolOptions::new()
+            .max_connections(max_connections)
+            .min_connections(min_connections)
+            .acquire_timeout(Duration::from_secs(acquire_timeout_secs))
+            .idle_timeout(Some(Duration::from_secs(300)))
+            .max_lifetime(Some(Duration::from_secs(600)))
+            // Test connections before returning to caller to detect stale connections
+            .test_before_acquire(true);
+
+        let mut last_error = None;
+        let mut delay_ms = initial_delay_ms;
+
+        for attempt in 0..=max_retries {
+            match pool_options.clone().connect(database_url).await {
+                Ok(pool) => {
+                    if attempt > 0 {
+                        info!(
+                            "PostgreSQL connection established after {} retries",
+                            attempt
+                        );
+                    }
+                    return Ok(pool);
+                }
+                Err(e) => {
+                    last_error = Some(e);
+
+                    if attempt < max_retries {
+                        warn!(
+                            "PostgreSQL connection attempt {}/{} failed, retrying in {}ms: {}",
+                            attempt + 1,
+                            max_retries + 1,
+                            delay_ms,
+                            last_error.as_ref().map_or("unknown", |e| e
+                                .as_database_error()
+                                .map_or("connection error", |de| de.message()))
+                        );
+                        tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+                        // Exponential backoff with cap
+                        delay_ms = (delay_ms * 2).min(max_delay_ms);
+                    }
+                }
+            }
+        }
+
+        // All retries exhausted
+        Err(AppError::database(format!(
+            "Failed to connect to PostgreSQL after {} retries: {}",
+            max_retries + 1,
+            last_error.map_or_else(|| "unknown error".to_owned(), |e| e.to_string())
+        )))
     }
 
     /// Create new `PostgreSQL` database with provided pool configuration (public API)
