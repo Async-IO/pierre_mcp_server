@@ -32,7 +32,8 @@
 use crate::constants::oauth_providers;
 use crate::errors::AppResult;
 use crate::models::{
-    Activity, Athlete, PersonalRecord, PrMetric, SleepSession, SleepStage, SleepStageType, Stats,
+    Activity, Athlete, PersonalRecord, PrMetric, SleepSession, SleepStage, SleepStageType,
+    SportType, Stats,
 };
 use crate::pagination::{Cursor, CursorPage, PaginationParams};
 use crate::providers::core::{
@@ -41,8 +42,44 @@ use crate::providers::core::{
 use crate::providers::errors::ProviderError;
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
+
+/// Global test seed for synthetic provider factory
+///
+/// When set to a non-zero value, the `SyntheticProviderFactory` will create
+/// providers with deterministic seeded data instead of empty providers.
+static TEST_SEED: AtomicU64 = AtomicU64::new(0);
+
+/// Set the test seed for synthetic provider creation
+///
+/// When a non-zero seed is set, all synthetic providers created by the factory
+/// will use `SyntheticProvider::from_seed()` to generate deterministic test data.
+///
+/// # Arguments
+/// * `seed` - The seed value (0 disables seeded mode)
+///
+/// # Example
+/// ```no_run
+/// use pierre_mcp_server::providers::synthetic_provider::set_synthetic_test_seed;
+///
+/// // In test setup
+/// set_synthetic_test_seed(12345);
+/// // ... run tests ...
+/// // In test teardown
+/// set_synthetic_test_seed(0);
+/// ```
+pub fn set_synthetic_test_seed(seed: u64) {
+    TEST_SEED.store(seed, Ordering::SeqCst);
+}
+
+/// Get the current test seed (0 if not in test mode)
+pub fn get_synthetic_test_seed() -> u64 {
+    TEST_SEED.load(Ordering::SeqCst)
+}
 
 /// Synthetic fitness provider for development and testing
 ///
@@ -331,6 +368,252 @@ impl SyntheticProvider {
         }
 
         stages
+    }
+
+    /// Create a synthetic provider with deterministically generated data from a seed
+    ///
+    /// This method generates realistic activity and sleep data using a seeded random
+    /// number generator, ensuring reproducible test data across test runs.
+    ///
+    /// # Arguments
+    ///
+    /// * `seed` - Seed value for the random number generator
+    /// * `activity_count` - Number of activities to generate
+    /// * `sleep_nights` - Number of sleep sessions to generate
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use pierre_mcp_server::providers::synthetic_provider::SyntheticProvider;
+    ///
+    /// fn example() -> Result<(), Box<dyn std::error::Error>> {
+    ///     // Create provider with seed 12345, 30 activities, 14 nights of sleep
+    ///     let provider = SyntheticProvider::from_seed(12345, 30, 14)?;
+    ///
+    ///     // Same seed always produces same data
+    ///     let provider2 = SyntheticProvider::from_seed(12345, 30, 14)?;
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `ProviderError::ConfigurationError` if internal lock is poisoned
+    /// (should never happen on freshly created provider).
+    pub fn from_seed(
+        seed: u64,
+        activity_count: u32,
+        sleep_nights: u32,
+    ) -> Result<Self, ProviderError> {
+        let mut rng = ChaCha8Rng::seed_from_u64(seed);
+        let base_date = Utc::now();
+
+        let activities = Self::generate_activities_from_rng(&mut rng, activity_count, base_date);
+        let sleep_sessions =
+            Self::generate_sleep_sessions_from_rng(&mut rng, sleep_nights, base_date);
+
+        let provider = Self::with_activities(activities);
+        provider.set_sleep_sessions(sleep_sessions)?;
+        Ok(provider)
+    }
+
+    /// Generate activities using a seeded random number generator
+    ///
+    /// Creates realistic activity data with varied sport types, durations,
+    /// distances, and performance metrics.
+    // Long function: Generates complete Activity struct with all fields populated
+    #[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
+    fn generate_activities_from_rng(
+        rng: &mut ChaCha8Rng,
+        count: u32,
+        base_date: DateTime<Utc>,
+    ) -> Vec<Activity> {
+        let sport_types = [
+            SportType::Run,
+            SportType::Ride,
+            SportType::Swim,
+            SportType::Walk,
+            SportType::Hike,
+            SportType::Workout,
+        ];
+
+        let activity_names = [
+            "Morning Run",
+            "Evening Ride",
+            "Lunch Swim",
+            "Recovery Walk",
+            "Trail Hike",
+            "Strength Training",
+            "Interval Session",
+            "Long Run",
+            "Easy Spin",
+            "Tempo Run",
+        ];
+
+        let mut activities = Vec::with_capacity(count as usize);
+
+        for i in 0..count {
+            let sport_type = sport_types[rng.gen_range(0..sport_types.len())].clone();
+            let name = activity_names[rng.gen_range(0..activity_names.len())];
+
+            // Activity spread over the last N days (1-2 activities per day roughly)
+            let days_ago = i64::from(i / 2);
+            let hour_offset = rng.gen_range(6..20); // Between 6 AM and 8 PM
+            let start_date =
+                base_date - Duration::days(days_ago) - Duration::hours(24 - hour_offset);
+
+            // Duration varies by sport type (in seconds)
+            let duration_seconds = match sport_type {
+                SportType::Run => rng.gen_range(1200..7200), // 20 min - 2 hours
+                SportType::Ride => rng.gen_range(1800..14400), // 30 min - 4 hours
+                SportType::Swim => rng.gen_range(900..3600), // 15 min - 1 hour
+                SportType::Walk => rng.gen_range(1200..5400), // 20 min - 1.5 hours
+                SportType::Hike => rng.gen_range(3600..18000), // 1 - 5 hours
+                SportType::Workout => rng.gen_range(1800..5400), // 30 min - 1.5 hours
+                _ => rng.gen_range(1800..3600),
+            };
+
+            // Distance varies by sport type (in meters)
+            let distance_meters = match sport_type {
+                SportType::Run => Some(rng.gen_range(3000.0..21_000.0)),
+                SportType::Ride => Some(rng.gen_range(10_000.0..100_000.0)),
+                SportType::Swim => Some(rng.gen_range(500.0..4000.0)),
+                SportType::Walk => Some(rng.gen_range(2000.0..8000.0)),
+                SportType::Hike => Some(rng.gen_range(5000.0..25_000.0)),
+                _ => None,
+            };
+
+            // Calculate speed from distance and duration
+            let average_speed = distance_meters.map(|d| d / duration_seconds as f64);
+            let max_speed = average_speed.map(|s| s * rng.gen_range(1.2..1.5));
+
+            // Heart rate data
+            let average_heart_rate = Some(rng.gen_range(120..165));
+            let max_heart_rate = average_heart_rate.map(|hr| hr + rng.gen_range(15..35));
+
+            // Elevation for outdoor activities
+            let elevation_gain = match sport_type {
+                SportType::Run | SportType::Ride | SportType::Hike | SportType::Walk => {
+                    Some(rng.gen_range(50.0..500.0))
+                }
+                _ => None,
+            };
+
+            // Calories estimation
+            let calories = Some(rng.gen_range(150..800));
+
+            activities.push(Activity {
+                id: format!("synthetic_activity_{}_{}", seed_fingerprint(rng), i),
+                name: format!("{} #{}", name, i + 1),
+                sport_type,
+                start_date,
+                duration_seconds,
+                distance_meters,
+                elevation_gain,
+                average_heart_rate,
+                max_heart_rate,
+                average_speed,
+                max_speed,
+                calories,
+                steps: None,
+                heart_rate_zones: None,
+                average_power: None,
+                max_power: None,
+                normalized_power: None,
+                power_zones: None,
+                ftp: None,
+                average_cadence: None,
+                max_cadence: None,
+                hrv_score: None,
+                recovery_heart_rate: None,
+                temperature: Some(rng.gen_range(10.0..30.0)),
+                humidity: Some(rng.gen_range(30.0..80.0)),
+                average_altitude: None,
+                wind_speed: None,
+                ground_contact_time: None,
+                vertical_oscillation: None,
+                stride_length: None,
+                running_power: None,
+                breathing_rate: None,
+                spo2: None,
+                training_stress_score: None,
+                intensity_factor: None,
+                suffer_score: None,
+                time_series_data: None,
+                start_latitude: Some(45.5017 + rng.gen_range(-0.1..0.1)),
+                start_longitude: Some(-73.5673 + rng.gen_range(-0.1..0.1)),
+                city: Some("Montreal".to_owned()),
+                region: Some("Quebec".to_owned()),
+                country: Some("Canada".to_owned()),
+                trail_name: None,
+                provider: oauth_providers::SYNTHETIC.to_owned(),
+                workout_type: None,
+                sport_type_detail: None,
+                segment_efforts: None,
+            });
+        }
+
+        activities
+    }
+
+    /// Generate sleep sessions using a seeded random number generator
+    #[allow(clippy::cast_precision_loss)]
+    fn generate_sleep_sessions_from_rng(
+        rng: &mut ChaCha8Rng,
+        nights: u32,
+        base_date: DateTime<Utc>,
+    ) -> Vec<SleepSession> {
+        let mut sessions = Vec::with_capacity(nights as usize);
+
+        for i in 0..nights {
+            let end_date = base_date - Duration::days(i64::from(i));
+
+            // Vary bedtime (10 PM - midnight) and wake time
+            let bedtime_offset = rng.gen_range(22..24);
+            let sleep_duration_hours: u32 = rng.gen_range(6..9);
+            let sleep_start = end_date - Duration::hours(bedtime_offset);
+            let sleep_end = sleep_start + Duration::hours(i64::from(sleep_duration_hours));
+
+            let stages = Self::generate_sleep_stages(sleep_start);
+
+            let deep_minutes: u32 = stages
+                .iter()
+                .filter(|s| matches!(s.stage_type, SleepStageType::Deep))
+                .map(|s| s.duration_minutes)
+                .sum();
+            let rem_minutes: u32 = stages
+                .iter()
+                .filter(|s| matches!(s.stage_type, SleepStageType::Rem))
+                .map(|s| s.duration_minutes)
+                .sum();
+
+            let total_sleep_time = sleep_duration_hours * 60 - rng.gen_range(10..40);
+            let time_in_bed = total_sleep_time + rng.gen_range(15..45);
+            let sleep_efficiency = total_sleep_time as f32 / time_in_bed as f32 * 100.0;
+
+            let sleep_score = 70.0
+                + (deep_minutes as f32 / 60.0 * 5.0).min(15.0)
+                + (rem_minutes as f32 / 60.0 * 5.0).min(10.0);
+
+            sessions.push(SleepSession {
+                id: format!("synthetic_sleep_{}_{}", seed_fingerprint(rng), i),
+                start_time: sleep_start,
+                end_time: sleep_end,
+                time_in_bed,
+                total_sleep_time,
+                sleep_efficiency,
+                sleep_score: Some(sleep_score.min(95.0)),
+                stages,
+                hrv_during_sleep: Some(45.0 + rng.gen_range(0.0..25.0)),
+                respiratory_rate: Some(14.5 + rng.gen_range(0.0..2.0)),
+                temperature_variation: Some(rng.gen_range(-0.3..0.2)),
+                wake_count: Some(rng.gen_range(0..4)),
+                sleep_onset_latency: Some(rng.gen_range(5..25)),
+                provider: oauth_providers::SYNTHETIC.to_owned(),
+            });
+        }
+
+        sessions
     }
 
     /// Add an activity to the provider dynamically
@@ -812,7 +1095,21 @@ pub struct SyntheticProviderFactory;
 
 impl ProviderFactory for SyntheticProviderFactory {
     fn create(&self, _config: ProviderConfig) -> Box<dyn FitnessProvider> {
-        Box::new(SyntheticProvider::with_activities(Vec::new()))
+        let seed = get_synthetic_test_seed();
+        if seed != 0 {
+            // Test mode: create provider with deterministic seeded data
+            // Default: 30 activities, 14 nights of sleep
+            SyntheticProvider::from_seed(seed, 30, 14).map_or_else(
+                |_| {
+                    Box::new(SyntheticProvider::with_activities(Vec::new()))
+                        as Box<dyn FitnessProvider>
+                },
+                |provider| Box::new(provider) as Box<dyn FitnessProvider>,
+            )
+        } else {
+            // Production mode: empty provider (data injected via other means)
+            Box::new(SyntheticProvider::with_activities(Vec::new()))
+        }
     }
 
     fn supported_providers(&self) -> &'static [&'static str] {
@@ -837,4 +1134,9 @@ impl ProviderFactory for SyntheticSleepProviderFactory {
     fn supported_providers(&self) -> &'static [&'static str] {
         &[oauth_providers::SYNTHETIC_SLEEP]
     }
+}
+
+/// Generate a short fingerprint from RNG state for unique IDs
+fn seed_fingerprint(rng: &mut ChaCha8Rng) -> String {
+    format!("{:08x}", rng.gen::<u32>())
 }

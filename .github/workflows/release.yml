@@ -80,10 +80,98 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Full test suite with PostgreSQL - ensures release quality
+  full-tests:
+    name: Full Test Suite (PostgreSQL)
+    needs: [validate]
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pierre
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: pierre_mcp_server
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.91.0
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-release-test-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Wait for PostgreSQL
+        run: |
+          echo "🐘 Waiting for PostgreSQL to be ready..."
+          timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U pierre; do sleep 2; done'
+          echo "✅ PostgreSQL is ready!"
+
+      - name: Setup Node.js (for SDK E2E tests)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Bun (for SDK build)
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build MCP SDK
+        working-directory: sdk
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: Run full test suite (PostgreSQL)
+        run: cargo test --features postgresql -- --test-threads=4
+        timeout-minutes: 45
+        env:
+          DATABASE_URL: "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server"
+          ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          PIERRE_RSA_KEY_SIZE: "2048"
+          STRAVA_CLIENT_ID: "test_client_id_ci"
+          STRAVA_CLIENT_SECRET: "test_client_secret_ci"
+          STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+          POSTGRES_MAX_CONNECTIONS: "3"
+          POSTGRES_MIN_CONNECTIONS: "1"
+          POSTGRES_ACQUIRE_TIMEOUT: "20"
+          RUST_LOG: "warn"
+
   # Create draft release before building (prevents race conditions)
   create-draft:
     name: Create Draft Release
-    needs: [validate]
+    needs: [validate, full-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
