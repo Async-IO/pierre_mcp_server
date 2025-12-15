@@ -13,10 +13,46 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Cache warming job - builds dependencies for other jobs to restore
+  cache-warm:
+    name: Warm Cache
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.91.0
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-warm-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build dependencies (cache miss only)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo build --all-features --tests
+        env:
+          DATABASE_URL: "sqlite::memory:"
+          PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
+          STRAVA_CLIENT_ID: "test"
+          STRAVA_CLIENT_SECRET: "test"
+          STRAVA_REDIRECT_URI: "http://localhost:8080/callback"
+
   # Clippy linting with zero tolerance (includes cognitive complexity)
   clippy:
     name: Clippy Linting
     runs-on: ubuntu-latest
+    needs: cache-warm
 
     steps:
       - name: Checkout code
@@ -48,6 +84,9 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-clippy-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-warm-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+            ${{ runner.os }}-cargo-warm-1.91.0-
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -58,7 +97,7 @@ jobs:
   backend-tests:
     name: Backend Tests (SQLite)
     runs-on: ubuntu-latest
-    # Run in parallel with clippy for faster CI - both catch different issues
+    needs: cache-warm
 
     steps:
       - name: Checkout code
@@ -93,6 +132,9 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-warm-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+            ${{ runner.os }}-cargo-warm-1.91.0-
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@cargo-deny
@@ -165,8 +207,8 @@ jobs:
   postgres-tests:
     name: Database Tests (PostgreSQL)
     runs-on: ubuntu-latest
-    # Run in parallel with other jobs - validates PostgreSQL compatibility only
-    
+    needs: cache-warm
+
     services:
       postgres:
         image: postgres:16-alpine
@@ -219,6 +261,9 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-postgres-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-warm-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+            ${{ runner.os }}-cargo-warm-1.91.0-
 
       - name: Wait for PostgreSQL
         run: |
@@ -242,12 +287,19 @@ jobs:
           echo "📊 Disk space after cleanup:"
           df -h /
 
-      - name: Run database plugin tests (PostgreSQL)
-        # Only run PostgreSQL-specific tests - SQLite job runs full suite
-        # This validates PostgreSQL compatibility without duplicating all tests
+      - name: Run PostgreSQL tests (scoped on branches, full on main)
+        # Main branch: full test suite validates complete PostgreSQL compatibility
+        # Feature branches: scoped tests for faster iteration
         # Using --test-threads=4 - concurrent tests use #[serial] for isolation (issue #36)
-        run: cargo test --features postgresql database_plugins -- --test-threads=4
-        timeout-minutes: 20
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "🐘 Running FULL test suite on main branch..."
+            cargo test --features postgresql -- --test-threads=4
+          else
+            echo "🐘 Running SCOPED database tests on feature branch..."
+            cargo test --features postgresql database_plugins -- --test-threads=4
+          fi
+        timeout-minutes: 30
         env:
           DATABASE_URL: "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
@@ -264,6 +316,7 @@ jobs:
   redis-tests:
     name: Cache Tests (Redis)
     runs-on: ubuntu-latest
+    needs: cache-warm
 
     services:
       redis:
@@ -304,6 +357,9 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-redis-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-warm-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+            ${{ runner.os }}-cargo-warm-1.91.0-
 
       - name: Install Redis tools
         run: sudo apt-get update && sudo apt-get install -y redis-tools
@@ -368,8 +424,9 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-release-1.91.0-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-cargo-warm-1.91.0-${{ hashFiles('**/Cargo.lock') }}
+            ${{ runner.os }}-cargo-warm-1.91.0-
             ${{ runner.os }}-cargo-release-1.91.0-
-            ${{ runner.os }}-cargo-
 
       # SDK build removed - release binary validation focuses on Rust binary only
       # Full test suite with SDK is covered by backend-tests job
