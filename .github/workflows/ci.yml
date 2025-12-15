@@ -74,13 +74,8 @@ jobs:
           docker-images: false  # Keep Docker for potential future use
           swap-storage: true
 
-      - name: Clean previous build artifacts
-        run: cargo clean
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.91.0
-        with:
-          components: rustfmt
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -195,15 +190,6 @@ jobs:
           docker-images: true
           swap-storage: true
 
-      - name: Additional disk cleanup
-        run: |
-          echo "Before cleanup:"
-          df -h
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
-          sudo docker system prune -af || true
-          echo "After cleanup:"
-          df -h
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.91.0
 
@@ -228,17 +214,6 @@ jobs:
         run: |
           echo "🔧 Testing PostgreSQL connection..."
           PGPASSWORD=ci_test_password psql -h localhost -U pierre -d pierre_mcp_server -c "SELECT version();"
-
-      - name: Clean Rust build cache to prevent disk exhaustion
-        run: |
-          echo "📊 Disk space before cleanup:"
-          df -h /
-          echo ""
-          echo "🧹 Cleaning Rust build artifacts..."
-          cargo clean
-          echo ""
-          echo "📊 Disk space after cleanup:"
-          df -h /
 
       - name: Run PostgreSQL tests (scoped on branches, full on main)
         # Main branch: full test suite validates complete PostgreSQL compatibility
