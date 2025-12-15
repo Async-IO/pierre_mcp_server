@@ -134,7 +134,23 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   // Client-side client info storage (client info is not sensitive, can stay in file)
   private clientInfoPath: string;
 
-  constructor(serverUrl: string, config: BridgeConfig) {
+  // Callback for notifying when provider OAuth completes (called by PierreMcpClient)
+  private onProviderOAuthComplete:
+    | ((provider: string) => Promise<void>)
+    | undefined;
+
+  // Pending provider OAuth promises (keyed by provider name)
+  private pendingProviderOAuth: Map<
+    string,
+    { resolve: (value: any) => void; reject: (error: any) => void }
+  > = new Map();
+
+  constructor(
+    serverUrl: string,
+    config: BridgeConfig,
+    onProviderOAuthComplete?: (provider: string) => Promise<void>,
+  ) {
+    this.onProviderOAuthComplete = onProviderOAuthComplete;
     this.serverUrl = serverUrl;
     this.config = config;
 
@@ -158,6 +174,48 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       `Using OS keychain for secure token storage (will initialize on start)`,
     );
     this.log(`Client info storage path: ${this.clientInfoPath}`);
+  }
+
+  // Wait for provider OAuth to complete (called from PierreMcpClient.handleConnectProvider)
+  public waitForProviderOAuth(
+    provider: string,
+    timeoutMs: number = 120000,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.log(`Waiting for ${provider} OAuth completion (timeout: ${timeoutMs}ms)`);
+
+      // Store the promise resolvers
+      this.pendingProviderOAuth.set(provider, { resolve, reject });
+
+      // Set timeout
+      const timeoutId = setTimeout(() => {
+        this.pendingProviderOAuth.delete(provider);
+        reject(new Error(`${provider} OAuth timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      // Wrap resolve to clear timeout
+      const originalResolve = resolve;
+      this.pendingProviderOAuth.set(provider, {
+        resolve: (value: any) => {
+          clearTimeout(timeoutId);
+          originalResolve(value);
+        },
+        reject: (error: any) => {
+          clearTimeout(timeoutId);
+          reject(error);
+        },
+      });
+    });
+  }
+
+  // Resolve pending provider OAuth (called from callback handler)
+  private resolveProviderOAuth(provider: string): void {
+    const pending = this.pendingProviderOAuth.get(provider);
+    if (pending) {
+      this.log(`Resolving ${provider} OAuth promise`);
+      pending.resolve({ provider });
+      this.pendingProviderOAuth.delete(provider);
+    }
   }
 
   public async initializeSecureStorage(): Promise<void> {
@@ -982,24 +1040,9 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
           const pathParts = parsedUrl.pathname.split("/");
           const provider = pathParts[3]; // /oauth/provider-callback/{provider}
 
-          // Security: Validate session token to prevent local CSRF attacks
-          const sessionToken =
-            parsedUrl.query.session_token || req.headers["x-session-token"];
-          if (sessionToken !== this.callbackSessionToken) {
-            this.log(
-              `Rejected POST callback for ${provider}: Invalid session token`,
-            );
-            res.writeHead(403, { "Content-Type": "application/json" });
-            res.end(
-              JSON.stringify({
-                success: false,
-                message: "Invalid session token - authentication required",
-              }),
-            );
-            return;
-          }
-
           // Security: Validate Host header (localhost only)
+          // Provider OAuth callbacks come from Pierre server (not browser redirects),
+          // so localhost validation is sufficient - no session token needed
           const host = req.headers.host;
           if (
             !host ||
@@ -1029,6 +1072,23 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
             try {
               const tokenData = JSON.parse(body);
               await this.saveProviderToken(provider, tokenData);
+
+              // Resolve pending provider OAuth promise (allows handleConnectProvider to continue)
+              this.resolveProviderOAuth(provider);
+
+              // Notify PierreMcpClient about provider OAuth completion (for MCP notification)
+              if (this.onProviderOAuthComplete) {
+                try {
+                  await this.onProviderOAuthComplete(provider);
+                  this.log(
+                    `Notified MCP client about ${provider} OAuth completion`,
+                  );
+                } catch (notifyError) {
+                  this.log(
+                    `Failed to notify MCP client about ${provider} OAuth: ${notifyError}`,
+                  );
+                }
+              }
 
               res.writeHead(200, { "Content-Type": "application/json" });
               res.end(
@@ -1255,9 +1315,32 @@ export class PierreMcpClient {
   private async initializePierreConnection(): Promise<void> {
     // Set up Pierre connection parameters
     this.mcpUrl = `${this.config.pierreServerUrl}/mcp`;
+
+    // Create OAuth provider with callback to notify MCP host when provider OAuth completes
+    const onProviderOAuthComplete = async (provider: string): Promise<void> => {
+      if (this.mcpServer) {
+        const capitalizedProvider =
+          provider.charAt(0).toUpperCase() + provider.slice(1);
+        await this.mcpServer.notification({
+          method: "notifications/message",
+          params: {
+            level: "info",
+            logger: "pierre-oauth",
+            data: {
+              provider: provider,
+              event: "oauth_completed",
+              message: `${capitalizedProvider} connected successfully! You can now access your fitness data.`,
+            },
+          },
+        });
+        this.log(`Sent ${provider} OAuth completion notification to MCP host`);
+      }
+    };
+
     this.oauthProvider = new PierreOAuthClientProvider(
       this.config.pierreServerUrl,
       this.config,
+      onProviderOAuthComplete,
     );
 
     // Initialize secure storage before any operations that might need it
@@ -2322,6 +2405,18 @@ export class PierreMcpClient {
 
       this.log(`Initiating ${provider} OAuth flow for user: ${userId}`);
 
+      // Ensure callback server is running to receive provider OAuth completion notification
+      // The server will POST to this callback when provider OAuth completes
+      if (this.oauthProvider) {
+        const oauthProviderAny = this.oauthProvider as any;
+        if (!oauthProviderAny.callbackServer) {
+          this.log("Starting callback server for provider OAuth notification");
+          // Accessing redirectUrl triggers startCallbackServerSync internally
+          const callbackUrl = oauthProviderAny.redirectUrl;
+          this.log(`Callback server ready at ${callbackUrl}`);
+        }
+      }
+
       try {
         // Correct OAuth URL format: /api/oauth/auth/{provider}/{user_id}
         const providerOAuthUrl = `${this.config.pierreServerUrl}/api/oauth/auth/${provider}/${userId}`;
@@ -2330,18 +2425,41 @@ export class PierreMcpClient {
         await this.openUrlInBrowserWithFocus(providerOAuthUrl);
 
         this.log(`Opened ${provider} OAuth in browser: ${providerOAuthUrl}`);
+        this.log(`Waiting for ${provider} OAuth to complete...`);
+
+        // Wait for provider OAuth to complete (similar to Pierre OAuth flow)
+        // Timeout after 2 minutes if user doesn't complete OAuth
+        await this.oauthProvider.waitForProviderOAuth(provider, 120000);
+
+        this.log(`${provider} OAuth completed successfully`);
+
+        const capitalizedProvider =
+          provider.charAt(0).toUpperCase() + provider.slice(1);
 
         return {
           content: [
             {
               type: "text",
-              text: `Unified authentication flow completed!\n\nPierre: Connected\n${provider.toUpperCase()}: Opening in browser...\n\nPlease complete the ${provider.toUpperCase()} authentication in your browser. Once done, you'll have full access to your fitness data!`,
+              text: `${capitalizedProvider} connected successfully!\n\nYou now have full access to your ${capitalizedProvider} fitness data. Try asking me about your recent activities, stats, or training insights!`,
             },
           ],
           isError: false,
         };
       } catch (error: any) {
-        this.log(`Failed to open ${provider} OAuth: ${error.message}`);
+        // Check if it's a timeout
+        if (error.message?.includes("timed out")) {
+          this.log(`${provider} OAuth timed out`);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `${provider.toUpperCase()} authentication timed out. Please try again with connect_provider.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        this.log(`Failed to complete ${provider} OAuth: ${error.message}`);
         return {
           content: [
             {

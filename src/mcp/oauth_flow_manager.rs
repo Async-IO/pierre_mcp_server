@@ -18,11 +18,23 @@ impl OAuthTemplateRenderer {
     ) -> Result<String, Box<dyn std::error::Error>> {
         const TEMPLATE: &str = include_str!("../../templates/oauth_success.html");
 
+        // Capitalize provider name for display (e.g., "strava" -> "Strava")
+        let capitalized_provider = Self::capitalize_provider(provider);
+
         let rendered = TEMPLATE
-            .replace("{{PROVIDER}}", provider)
+            .replace("{{PROVIDER}}", &capitalized_provider)
             .replace("{{USER_ID}}", &callback_response.user_id);
 
         Ok(rendered)
+    }
+
+    /// Capitalize provider name for display
+    fn capitalize_provider(provider: &str) -> String {
+        let mut chars = provider.chars();
+        match chars.next() {
+            None => String::new(),
+            Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        }
     }
 
     /// Render OAuth error template
