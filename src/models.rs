@@ -94,18 +94,25 @@ pub struct TimeSeriesData {
     /// Time offsets from activity start in seconds
     pub timestamps: Vec<u32>,
     /// Heart rate measurements (BPM)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub heart_rate: Option<Vec<u32>>,
     /// Power measurements (watts)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub power: Option<Vec<u32>>,
     /// Cadence measurements (RPM or steps/min)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cadence: Option<Vec<u32>>,
     /// Speed measurements (m/s)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub speed: Option<Vec<f32>>,
     /// Altitude measurements (meters)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub altitude: Option<Vec<f32>>,
     /// Temperature measurements (Celsius)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<Vec<f32>>,
     /// GPS coordinates (lat, lon pairs)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub gps_coordinates: Option<Vec<(f64, f64)>>,
 }
 
@@ -120,28 +127,38 @@ pub struct SegmentEffort {
     /// Elapsed time on segment in seconds
     pub elapsed_time: u64,
     /// Moving time on segment in seconds (excludes stopped time)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub moving_time: Option<u64>,
     /// When the segment effort started (UTC)
     pub start_date: DateTime<Utc>,
     /// Distance of the segment in meters
     pub distance: f64,
     /// Average heart rate during segment (BPM)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub average_heart_rate: Option<u32>,
     /// Max heart rate during segment (BPM)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_heart_rate: Option<u32>,
     /// Average cadence during segment
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub average_cadence: Option<u32>,
     /// Average power during segment (watts)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub average_watts: Option<u32>,
     /// King of the Mountain (KOM) rank for this effort (1 = fastest ever)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub kom_rank: Option<u32>,
     /// Personal Record (PR) rank for this athlete (1 = athlete's best)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub pr_rank: Option<u32>,
     /// Segment climb category (HC, 1-4, or None)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub climb_category: Option<u32>,
     /// Average grade/gradient of the segment (percentage)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub average_grade: Option<f32>,
     /// Elevation gain on the segment in meters
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub elevation_gain: Option<f64>,
 }
 
@@ -330,109 +347,150 @@ pub struct Activity {
     /// Total duration of the activity in seconds
     pub duration_seconds: u64,
     /// Total distance covered in meters (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub distance_meters: Option<f64>,
     /// Total elevation gained in meters (if available)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub elevation_gain: Option<f64>,
     /// Average heart rate during the activity (BPM)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub average_heart_rate: Option<u32>,
     /// Maximum heart rate reached during the activity (BPM)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_heart_rate: Option<u32>,
     /// Average speed in meters per second
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub average_speed: Option<f64>,
     /// Maximum speed reached in meters per second
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_speed: Option<f64>,
     /// Estimated calories burned during the activity
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub calories: Option<u32>,
     /// Total steps taken during the activity (for walking/running activities)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub steps: Option<u32>,
     /// Heart rate zone data if available from the provider
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub heart_rate_zones: Option<Vec<HeartRateZone>>,
 
     // Advanced Power Metrics
     /// Average power output in watts (cycling/rowing)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub average_power: Option<u32>,
     /// Maximum power output reached in watts
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_power: Option<u32>,
     /// Normalized power (power adjusted for variability)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub normalized_power: Option<u32>,
     /// Power zone distribution
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub power_zones: Option<Vec<PowerZone>>,
     /// Functional Threshold Power at time of activity
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ftp: Option<u32>,
 
     // Cadence Metrics
     /// Average cadence (RPM for cycling, steps/min for running)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub average_cadence: Option<u32>,
     /// Maximum cadence reached
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_cadence: Option<u32>,
 
     // Advanced Heart Rate Metrics
     /// Heart Rate Variability score during activity
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub hrv_score: Option<f64>,
     /// Heart rate recovery (drop in first minute after activity)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub recovery_heart_rate: Option<u32>,
 
     // Environmental Conditions
     /// Temperature during activity (Celsius)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
     /// Humidity percentage during activity
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub humidity: Option<f32>,
     /// Average altitude during activity (meters)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub average_altitude: Option<f32>,
     /// Wind speed during activity (m/s)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub wind_speed: Option<f32>,
 
     // Biomechanical Metrics (Running)
     /// Ground contact time in milliseconds
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ground_contact_time: Option<u32>,
     /// Vertical oscillation in centimeters
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub vertical_oscillation: Option<f32>,
     /// Average stride length in meters
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub stride_length: Option<f32>,
     /// Running power (estimated or measured)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub running_power: Option<u32>,
 
     // Respiratory and Oxygen Metrics
     /// Average breathing rate (breaths per minute)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub breathing_rate: Option<u32>,
     /// Blood oxygen saturation percentage
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub spo2: Option<f32>,
 
     // Training Load and Performance
     /// Training Stress Score for this activity
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub training_stress_score: Option<f32>,
     /// Intensity Factor (normalized intensity vs threshold)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub intensity_factor: Option<f32>,
     /// Suffer score or relative effort rating
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub suffer_score: Option<u32>,
 
     // Detailed Time-Series Data
     /// Time-series data for advanced analysis
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub time_series_data: Option<TimeSeriesData>,
     /// Starting latitude coordinate (if available)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub start_latitude: Option<f64>,
     /// Starting longitude coordinate (if available)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub start_longitude: Option<f64>,
     /// Location information extracted from GPS coordinates
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub city: Option<String>,
     /// Region/state/province where the activity took place
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub region: Option<String>,
     /// Country where the activity took place
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub country: Option<String>,
     /// Trail or route name if available (e.g., "Saint-Hippolyte trail")
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub trail_name: Option<String>,
 
     // Activity Classification and Detail
     /// Workout type designation (e.g., Strava: 0=default, 1=race, 2=long run, 3=workout, 10=trail run, 11=road run)
     /// This helps distinguish trail vs road runs, race efforts, etc.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub workout_type: Option<u32>,
     /// Detailed sport type from provider (e.g., "`MountainBikeRide`", "`TrailRun`", "`VirtualRide`")
     /// More granular than `sport_type` enum
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sport_type_detail: Option<String>,
 
     // Segment Performance Data
     /// Segment efforts for this activity (primarily from Strava)
     /// Contains performance data for known segments/routes within the activity
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub segment_efforts: Option<Vec<SegmentEffort>>,
 
     /// Source provider of this activity data
@@ -455,18 +513,24 @@ pub struct SleepSession {
     /// Sleep efficiency percentage (sleep time / time in bed)
     pub sleep_efficiency: f32,
     /// Sleep quality score (0-100)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sleep_score: Option<f32>,
     /// Sleep stages breakdown
     pub stages: Vec<SleepStage>,
     /// Heart rate variability during sleep
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub hrv_during_sleep: Option<f64>,
     /// Average respiratory rate during sleep
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub respiratory_rate: Option<f32>,
     /// Temperature variation during sleep
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature_variation: Option<f32>,
     /// Number of times awakened
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub wake_count: Option<u32>,
     /// Time to fall asleep (minutes)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sleep_onset_latency: Option<u32>,
     /// Provider of this sleep data
     pub provider: String,
@@ -478,22 +542,31 @@ pub struct RecoveryMetrics {
     /// Date for these recovery metrics
     pub date: DateTime<Utc>,
     /// Overall recovery score (0-100)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub recovery_score: Option<f32>,
     /// Readiness score for training (0-100)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub readiness_score: Option<f32>,
     /// HRV status or trend
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub hrv_status: Option<String>,
     /// Sleep contribution to recovery (0-100)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sleep_score: Option<f32>,
     /// Stress level indicator (0-100, higher = more stress)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub stress_level: Option<f32>,
     /// Current training load
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub training_load: Option<f32>,
     /// Resting heart rate for the day
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub resting_heart_rate: Option<u32>,
     /// Body temperature deviation from baseline
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub body_temperature: Option<f32>,
     /// Respiratory rate while resting
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub resting_respiratory_rate: Option<f32>,
     /// Provider of this recovery data
     pub provider: String,
@@ -505,22 +578,31 @@ pub struct HealthMetrics {
     /// Date for these health metrics
     pub date: DateTime<Utc>,
     /// Weight in kilograms
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub weight: Option<f64>,
     /// Body fat percentage
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub body_fat_percentage: Option<f32>,
     /// Muscle mass in kilograms
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub muscle_mass: Option<f64>,
     /// Bone mass in kilograms
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub bone_mass: Option<f64>,
     /// Body water percentage
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub body_water_percentage: Option<f32>,
     /// Basal metabolic rate (calories/day)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub bmr: Option<u32>,
     /// Blood pressure (systolic, diastolic)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub blood_pressure: Option<(u32, u32)>,
     /// Blood glucose level (mg/dL)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub blood_glucose: Option<f32>,
     /// VO2 max estimate (ml/kg/min)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub vo2_max: Option<f32>,
     /// Provider of this health data
     pub provider: String,
@@ -537,20 +619,28 @@ pub struct NutritionLog {
     /// Date of the nutrition log
     pub date: DateTime<Utc>,
     /// Total calories consumed
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub total_calories: Option<f64>,
     /// Total protein in grams
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub protein_g: Option<f64>,
     /// Total carbohydrates in grams
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub carbohydrates_g: Option<f64>,
     /// Total fat in grams
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub fat_g: Option<f64>,
     /// Fiber in grams
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub fiber_g: Option<f64>,
     /// Sugar in grams
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sugar_g: Option<f64>,
     /// Sodium in mg
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sodium_mg: Option<f64>,
     /// Water intake in mL
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub water_ml: Option<f64>,
     /// Individual meals/entries
     pub meals: Vec<MealEntry>,
@@ -564,16 +654,22 @@ pub struct MealEntry {
     /// Meal name/type (breakfast, lunch, dinner, snack)
     pub meal_type: MealType,
     /// Timestamp when meal was logged
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<DateTime<Utc>>,
     /// Meal description or name
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     /// Calories for this meal
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub calories: Option<f64>,
     /// Protein in grams
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub protein_g: Option<f64>,
     /// Carbohydrates in grams
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub carbohydrates_g: Option<f64>,
     /// Fat in grams
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub fat_g: Option<f64>,
     /// Individual food items (if available)
     pub food_items: Vec<FoodItem>,
@@ -616,20 +712,28 @@ pub struct FoodItem {
     /// Food name
     pub name: String,
     /// Brand name (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub brand: Option<String>,
     /// Serving size amount
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub serving_size: Option<f64>,
     /// Serving unit (g, oz, cup, etc.)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub serving_unit: Option<String>,
     /// Number of servings consumed
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub servings: Option<f64>,
     /// Calories per serving
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub calories: Option<f64>,
     /// Protein per serving (grams)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub protein_g: Option<f64>,
     /// Carbohydrates per serving (grams)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub carbohydrates_g: Option<f64>,
     /// Fat per serving (grams)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub fat_g: Option<f64>,
 }
 
@@ -1058,10 +1162,13 @@ pub struct Athlete {
     /// Public username/handle
     pub username: String,
     /// First name (may not be public on some providers)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub firstname: Option<String>,
     /// Last name (may not be public on some providers)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub lastname: Option<String>,
     /// `URL` to profile picture/avatar
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_picture: Option<String>,
     /// Source provider of this athlete data
     pub provider: String,
