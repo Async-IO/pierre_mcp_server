@@ -84,11 +84,11 @@ echo -e "\n${BLUE}=== Step 2: Register Regular User ===${NC}"
 USER_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/api/auth/register \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d '{
-    "email": "user@example.com",
-    "password": "userpass123",
-    "display_name": "Regular User"
-  }')
+  -d "{
+    \"email\": \"$OAUTH_DEFAULT_EMAIL\",
+    \"password\": \"$OAUTH_DEFAULT_PASSWORD\",
+    \"display_name\": \"Regular User\"
+  }")
 
 # Extract user ID for approval
 USER_ID=$(echo $USER_RESPONSE | jq -r '.user_id')
@@ -100,7 +100,7 @@ if [[ "$USER_ID" == "null" || -z "$USER_ID" ]]; then
 
     CHECK_LOGIN=$(curl -s -X POST http://localhost:$HTTP_PORT/oauth/token \
       -H "Content-Type: application/x-www-form-urlencoded" \
-      -d "grant_type=password&username=user@example.com&password=userpass123")
+      -d "grant_type=password&username=$OAUTH_DEFAULT_EMAIL&password=$OAUTH_DEFAULT_PASSWORD")
 
     USER_ID=$(echo $CHECK_LOGIN | jq -r '.user.user_id')
 
@@ -145,7 +145,7 @@ if [[ "$USER_ALREADY_EXISTS" == "true" ]]; then
             # Check if user is already approved with existing tenant
             FINAL_LOGIN=$(curl -s -X POST http://localhost:$HTTP_PORT/oauth/token \
               -H "Content-Type: application/x-www-form-urlencoded" \
-              -d "grant_type=password&username=user@example.com&password=userpass123")
+              -d "grant_type=password&username=$OAUTH_DEFAULT_EMAIL&password=$OAUTH_DEFAULT_PASSWORD")
 
             # Try to extract tenant_id from JWT claims
             JWT=$(echo $FINAL_LOGIN | jq -r '.jwt_token')
@@ -195,10 +195,10 @@ echo -e "\n${BLUE}=== Step 4: User Login ===${NC}"
 
 LOGIN_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/oauth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password&username=user@example.com&password=userpass123")
+  -d "grant_type=password&username=$OAUTH_DEFAULT_EMAIL&password=$OAUTH_DEFAULT_PASSWORD")
 
 # Extract JWT token for MCP access
-JWT_TOKEN=$(echo $LOGIN_RESPONSE | jq -r '.jwt_token')
+JWT_TOKEN=$(echo $LOGIN_RESPONSE | jq -r '.access_token')
 
 if [[ "$JWT_TOKEN" == "null" || -z "$JWT_TOKEN" ]]; then
     echo -e "${RED}❌ Failed to login user or extract JWT token${NC}"
@@ -265,7 +265,7 @@ echo -e "${BLUE}Environment variables saved to .workflow_test_env${NC}"
 
 echo -e "\n${YELLOW}Summary:${NC}"
 echo "- Admin User: admin@pierre.mcp"
-echo "- Regular User: user@example.com (ID: $USER_ID)"
+echo "- Regular User: $OAUTH_DEFAULT_EMAIL (ID: $USER_ID)"
 echo "- Tenant: User Organization (ID: $TENANT_ID)"
 echo "- MCP Tools Available: $TOOLS_COUNT"
 echo ""
